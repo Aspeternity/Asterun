@@ -42,6 +42,12 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
+    void SetGeneral(
+        bool hideAfterLaunch,
+        bool clearQueryOnShow,
+        bool hideOnFocusLost,
+        bool showTrayIcon,
+        std::string popupMonitor);
 
     [[nodiscard]] const Settings& Data() const noexcept { return settings_; }
     [[nodiscard]] const std::filesystem::path& Path() const noexcept { return jsonPath_; }
