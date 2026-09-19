@@ -10,6 +10,7 @@
 - Added a generated `Version.hpp` so the About page derives its version directly from the root `VERSION` file instead of a duplicated literal.
 - Added `scripts/verify_version.py` to gate releases on consistent VERSION, CMake base version, Windows resource metadata, manifest version, README and CHANGELOG.
 - Added post-package contract validation for required portable files, unexpected DLLs, packaged VERSION and EXE FileVersion/ProductVersion.
+- Corrected the Windows VERSIONINFO resource include/constants so the embedded fixed FileVersion/ProductVersion is exposed through the standard Windows version APIs instead of appearing as 0.0.0.0.
 - Added `SHA256SUMS.txt` to rolling and immutable GitHub releases.
 - Kept user-data schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
 - Updated Windows version metadata to `0.4.0-rc.1`.
