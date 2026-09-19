@@ -9,6 +9,8 @@ namespace altrun {
 enum class TextId {
     CreateWindowFailed,
     UnableToLaunch,
+    UnableToCopy,
+    CopyTextAction,
     HotkeyBusy,
     SearchPlaceholder,
     ClassicHint,

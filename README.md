@@ -23,6 +23,43 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-alpha.5 — Clipboard & Text Actions
+
+Alpha 5 adds the first clipboard-oriented Smart Action while keeping normal edit-control clipboard behavior intact.
+
+### Copy arbitrary text
+
+Type `copy <text>`, `clip <text>` or `复制 <text>`. ALTRun Next generates a runtime-only **Copy text** Action; Enter, double-click or numeric quick execution writes the payload to the Windows Unicode clipboard and then follows the existing hide-after-launch preference.
+
+Examples:
+
+```text
+copy docker compose up -d
+clip D:\Research\CKD\notes.txt
+复制 一段临时文本
+```
+
+The text after the alias is copied literally after surrounding whitespace is trimmed. No command, file or URL is executed.
+
+### Copy the selected result target
+
+While the launcher input remains focused, **Ctrl+Shift+C** copies the selected result's executable target, file/folder path, resolved URL or Smart Action payload. This shortcut is intentionally separate from ordinary **Ctrl+C**, which keeps the native edit-control behavior for copying selected query text.
+
+Examples:
+
+- Everything File/Folder result → full filesystem path.
+- Direct URL / web-search action → resolved URL.
+- Application / User Command → displayed/resolved target.
+- Copy-text action → its text payload.
+
+If a result has no copyable target, Ctrl+Shift+C performs no launch and leaves the launcher open.
+
+Clipboard output uses `CF_UNICODETEXT`; Chinese text, paths with spaces and UNC paths are preserved. The implementation retries briefly if another process temporarily owns the clipboard and never reads, logs or persists existing clipboard contents.
+
+`builtin.clipboard` is a runtime-only Smart Action provider, analogous to `builtin.web`. It is not added to Search Sources, settings.json or provider-cache.json.
+
+No persisted schema changes in alpha 5: settings remains schemaVersion 3, commands/usage remain schemaVersion 1, provider-cache remains schemaVersion 2, and Classic geometry remains 420/16/10. Windows fixed FileVersion/ProductVersion is `0.6.0.50`.
+
 ## v0.6.0-alpha.4 — Total Commander Context & {folder} Templates
 
 Alpha 4 extends Windows Activation Context to **Total Commander 9+** and adds the developer-oriented `{folder}` user-command template.

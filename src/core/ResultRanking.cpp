@@ -277,6 +277,11 @@ int ProviderRankWeight(
         return 10;
     }
 
+    if (providerId ==
+        providers::kBuiltinClipboard) {
+        return 16;
+    }
+
     return 0;
 }
 

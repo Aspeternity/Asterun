@@ -1499,6 +1499,41 @@ LRESULT LauncherWindow::HandleEditMessage(
     }
 
     if (message == WM_KEYDOWN) {
+        const bool controlDown =
+            (GetKeyState(VK_CONTROL) &
+                0x8000) != 0;
+        const bool shiftDown =
+            (GetKeyState(VK_SHIFT) &
+                0x8000) != 0;
+        const bool altDown =
+            (GetKeyState(VK_MENU) &
+                0x8000) != 0;
+        const bool winDown =
+            (GetKeyState(VK_LWIN) &
+                0x8000) != 0 ||
+            (GetKeyState(VK_RWIN) &
+                0x8000) != 0;
+
+        if ((wParam == L'C' ||
+             wParam == L'c') &&
+            controlDown &&
+            shiftDown &&
+            !altDown &&
+            !winDown) {
+            const bool firstPress =
+                (lParam &
+                 (static_cast<LPARAM>(1)
+                  << 30)) == 0;
+
+            if (firstPress) {
+                ExecuteSelection(
+                    LauncherExecutionIntent::
+                        CopySelectedText);
+            }
+
+            return 0;
+        }
+
         const int quickLaunchIndex =
             QuickLaunchIndexForKey(
                 wParam);

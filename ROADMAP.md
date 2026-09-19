@@ -125,13 +125,14 @@ In progress:
 - File-dialog targeting is conservative (#32770 + Shell view), revalidated before execution, and refuses unsafe foreground/input injection
 - v0.6.0-alpha.4 adds Total Commander 9+ Activation Context, exact-window active-panel navigation via Ctrl+Enter and developer {folder} templates for Target / Arguments / Working Directory
 - {folder} is available only from a captured real filesystem folder (Explorer or Total Commander); virtual/plugin/FTP contexts do not guess
+- v0.6.0-alpha.5 adds runtime CopyText actions, copy / clip / 复制 text commands and Ctrl+Shift+C selected-result target copying using the Unicode Windows clipboard
+- Ctrl+C remains native query-text copy; clipboard Smart Actions never read or persist previous clipboard contents
 - Contextual navigation is session-scoped and cleared when the launcher hides
 - settings/commands/usage/provider-cache schemas and v0.5 provider defaults remain unchanged
 - Classic launcher geometry remains frozen
 
 Planned next:
 
-- Clipboard and text actions
 - Broader provider/action contracts suitable for future extensions
 - Calculator may return later as an optional smart action
 - Managed / Portable Everything remains a separate candidate after the core v0.6.0 Smart Actions line

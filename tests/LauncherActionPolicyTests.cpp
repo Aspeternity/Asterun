@@ -63,17 +63,48 @@ int main() {
             action.kind ==
             LauncherActionKind::
                 NavigateTotalCommander);
+    }
+
+    {
+        const auto action =
+            ResolveLauncherAction(
+                folder,
+                LauncherExecutionIntent::
+                    CopySelectedText,
+                true,
+                false,
+                false);
+
+        assert(
+            action.kind ==
+            LauncherActionKind::
+                CopyText);
+        assert(
+            action.commandIndex ==
+            static_cast<std::size_t>(
+                -1));
         assert(
             action.payload ==
             folder.target);
     }
 
     {
+        LauncherResult web;
+        web.kind =
+            ResultKind::Action;
+        web.target =
+            L"https://example.com";
+        web.action.kind =
+            LauncherActionKind::
+                OpenUrl;
+        web.action.payload =
+            L"https://example.com/?q=test";
+
         const auto action =
             ResolveLauncherAction(
-                folder,
+                web,
                 LauncherExecutionIntent::
-                    NavigateCurrentFileManager,
+                    CopySelectedText,
                 false,
                 false,
                 false);
@@ -81,50 +112,68 @@ int main() {
         assert(
             action.kind ==
             LauncherActionKind::
-                OpenFolder);
+                CopyText);
+        assert(
+            action.payload ==
+            web.action.payload);
     }
 
     {
+        LauncherResult userCommand;
+        userCommand.kind =
+            ResultKind::UserCommand;
+        userCommand.target =
+            L"powershell.exe";
+        userCommand.action.kind =
+            LauncherActionKind::
+                ExecuteCommand;
+        userCommand.action.commandIndex =
+            3;
+
         const auto action =
             ResolveLauncherAction(
-                folder,
+                userCommand,
                 LauncherExecutionIntent::
-                    Default,
+                    CopySelectedText,
                 false,
-                true,
+                false,
                 false);
 
         assert(
             action.kind ==
             LauncherActionKind::
-                NavigateFileDialog);
+                CopyText);
+        assert(
+            action.payload ==
+            userCommand.target);
+        assert(
+            action.commandIndex ==
+            static_cast<std::size_t>(
+                -1));
     }
 
     {
-        LauncherResult file;
-        file.kind =
-            ResultKind::File;
-        file.target =
-            L"D:\\Research\\paper.pdf";
-        file.action.kind =
+        LauncherResult empty;
+        empty.action.kind =
             LauncherActionKind::
-                OpenFile;
-        file.action.payload =
-            file.target;
+                ExecuteCommand;
+        empty.action.commandIndex =
+            4;
 
         const auto action =
             ResolveLauncherAction(
-                file,
+                empty,
                 LauncherExecutionIntent::
-                    NavigateCurrentFileManager,
+                    CopySelectedText,
                 false,
                 false,
-                true);
+                false);
 
         assert(
             action.kind ==
             LauncherActionKind::
-                OpenFile);
+                CopyText);
+        assert(action.payload.empty());
     }
 
     std::cout

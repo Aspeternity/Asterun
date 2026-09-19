@@ -12,6 +12,31 @@ ResolveLauncherAction(
     LauncherAction action =
         result.action;
 
+    if (intent ==
+        LauncherExecutionIntent::
+            CopySelectedText) {
+        action.kind =
+            LauncherActionKind::
+                CopyText;
+        action.commandIndex =
+            static_cast<std::size_t>(-1);
+
+        if (!result.action.payload.empty() &&
+            result.action.kind !=
+                LauncherActionKind::
+                    ExecuteCommand) {
+            action.payload =
+                result.action.payload;
+        } else if (!result.target.empty()) {
+            action.payload =
+                result.target;
+        } else {
+            action.payload.clear();
+        }
+
+        return action;
+    }
+
     // A file dialog is itself the current navigation surface. Normal
     // execution moves the dialog instead of opening a separate Explorer.
     if (intent ==

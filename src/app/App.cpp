@@ -1,12 +1,14 @@
 #include "App.hpp"
 
 #include "../core/EverythingProvider.hpp"
+#include "../core/ClipboardAction.hpp"
 #include "../core/CommandTemplate.hpp"
 #include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
 #include "../core/ResultMerger.hpp"
 #include "../core/WebAction.hpp"
 #include "../platform/Hotkey.hpp"
+#include "../platform/WinClipboard.hpp"
 #include "../platform/WinUtil.hpp"
 #include "../ui/LauncherWindow.hpp"
 #include "../ui/SettingsWindow.hpp"
@@ -498,7 +500,16 @@ std::vector<LauncherResult> App::Search(
                 action.action.commandIndex];
     }
 
-    if (webActions.empty()) {
+    auto clipboardActions =
+        BuildClipboardActionResults(
+            query,
+            limit,
+            Text(
+                TextId::
+                    CopyTextAction));
+
+    if (webActions.empty() &&
+        clipboardActions.empty()) {
         return results;
     }
 
@@ -522,9 +533,27 @@ std::vector<LauncherResult> App::Search(
             results.end());
     }
 
+    std::vector<LauncherResult>
+        runtimeActions;
+
+    runtimeActions.reserve(
+        webActions.size() +
+        clipboardActions.size());
+
+    for (auto& action : webActions) {
+        runtimeActions.push_back(
+            std::move(action));
+    }
+
+    for (auto& action :
+         clipboardActions) {
+        runtimeActions.push_back(
+            std::move(action));
+    }
+
     return MergeLauncherResultsRanked(
         results,
-        webActions,
+        runtimeActions,
         limit);
 }
 
@@ -2006,6 +2035,32 @@ bool App::ExecuteResult(
 
     if (action.kind ==
         LauncherActionKind::
+            CopyText) {
+        if (target.empty()) {
+            return false;
+        }
+
+        if (win::
+                SetClipboardUnicodeText(
+                    target)) {
+            return true;
+        }
+
+        MessageBoxW(
+            nullptr,
+            std::wstring(
+                Text(
+                    TextId::
+                        UnableToCopy))
+                .c_str(),
+            L"ALTRun Next",
+            MB_ICONERROR | MB_OK);
+
+        return false;
+    }
+
+    if (action.kind ==
+        LauncherActionKind::
             NavigateExplorer) {
         const auto context =
             activationContext_;
@@ -2048,6 +2103,7 @@ bool App::ExecuteResult(
     case LauncherActionKind::NavigateExplorer:
     case LauncherActionKind::NavigateFileDialog:
     case LauncherActionKind::NavigateTotalCommander:
+    case LauncherActionKind::CopyText:
     case LauncherActionKind::ExecuteCommand:
         return false;
     }

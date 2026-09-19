@@ -25,6 +25,9 @@ inline constexpr std::string_view
 inline constexpr std::string_view
     kBuiltinWeb =
         "builtin.web";
+inline constexpr std::string_view
+    kBuiltinClipboard =
+        "builtin.clipboard";
 
 [[nodiscard]] inline ProviderEnableMap
 DefaultEnabled() {

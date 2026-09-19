@@ -10,6 +10,10 @@ std::wstring_view LocalizedText(TextId id, Language language) {
         return zh ? L"无法创建 ALTRun Next 启动器窗口。" : L"Unable to create ALTRun Next launcher window.";
     case TextId::UnableToLaunch:
         return zh ? L"无法启动：" : L"Unable to launch:";
+    case TextId::UnableToCopy:
+        return zh ? L"无法复制到剪贴板。" : L"Unable to copy to the clipboard.";
+    case TextId::CopyTextAction:
+        return zh ? L"复制文本" : L"Copy text";
     case TextId::HotkeyBusy:
         return zh
             ? L"Alt+Space 已被其他程序占用。\n\nALTRun Next 会继续在系统托盘运行；后续版本将支持自定义快捷键。"

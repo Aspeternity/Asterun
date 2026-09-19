@@ -30,6 +30,8 @@ v0.6.0-alpha.3 adds standard Open / Save / folder-picker activation context, als
 
 v0.6.0-alpha.4 adds Total Commander activation context and `{folder}` command templates without changing the persisted document shape. Captured TC HWND/process/panel/folder data is session-only. A user command may contain the literal `{folder}` token in target, arguments or workingDirectory; substitution happens in memory from a captured real filesystem folder and the stored command remains unchanged. Commands requiring `{folder}` are omitted from launcher search when no filesystem context is available. commands.json therefore remains schemaVersion 1.
 
+v0.6.0-alpha.5 adds runtime-only clipboard/text actions. `builtin.clipboard`, CopyText payloads and Ctrl+Shift+C copy-selection state are never written to settings.json, commands.json, usage.json or provider-cache.json. The feature writes only the explicitly requested output to the Windows Unicode clipboard and does not read or persist previous clipboard contents. No schema migration is performed.
+
 ## Migration
 
 On the first v0.2.0-alpha.1 launch:

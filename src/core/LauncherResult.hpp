@@ -22,6 +22,7 @@ enum class LauncherActionKind {
     NavigateExplorer,
     NavigateFileDialog,
     NavigateTotalCommander,
+    CopyText,
 };
 
 enum class LauncherExecutionIntent {
@@ -30,6 +31,7 @@ enum class LauncherExecutionIntent {
     // Compatibility alias for the alpha.2 public/internal contract.
     NavigateCurrentExplorer =
         NavigateCurrentFileManager,
+    CopySelectedText,
 };
 
 struct LauncherAction {

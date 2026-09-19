@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0-alpha.5
+
+- Added CopyText as a reusable Smart Action kind.
+- Added runtime-only builtin.clipboard provider without changing Search Sources or persisted provider defaults.
+- Added explicit copy / clip / 复制 text actions that copy the remainder of the launcher query instead of executing it.
+- Added Ctrl+Shift+C to copy the currently selected result target/path/resolved URL while preserving normal Ctrl+C query-text behavior.
+- Copy-selected execution is fail-safe: the copy intent never falls through to launching the selected command when no payload exists.
+- Added Unicode Win32 clipboard writing through CF_UNICODETEXT with short retry handling for temporary clipboard contention.
+- Clipboard actions do not read or persist previous clipboard contents.
+- Added localized Copy text / copy-failure strings.
+- Added portable clipboard-action regression tests, expanded launcher-action policy coverage and a Windows clipboard runtime smoke.
+- Run the new portable/runtime tests on Windows current and Windows 10 API-baseline CI lanes.
+- Kept settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider defaults and Classic geometry 420/16/10 unchanged.
+- Updated Windows fixed version to 0.6.0.50.
+
 ## 0.6.0-alpha.4
 
 - Added Total Commander 9+ as a runtime Activation Context without introducing a provider or hard dependency.

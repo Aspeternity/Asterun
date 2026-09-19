@@ -89,6 +89,7 @@ endif()
 
 add_library(altrun_core STATIC
     src/core/ClassicBehavior.cpp
+    src/core/ClipboardAction.cpp
     src/core/CommandTemplate.cpp
     src/core/EverythingIpcProtocol.cpp
     src/core/ExplorerContextSelection.cpp
@@ -164,6 +165,7 @@ if(WIN32)
         src/core/StartMenuProvider.cpp
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
+        src/platform/WinClipboard.cpp
         src/platform/WindowsContext.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
@@ -313,6 +315,26 @@ if(BUILD_TESTING)
     add_test(
         NAME web_action_tests
         COMMAND web_action_tests
+    )
+
+    add_executable(
+        clipboard_action_tests
+        tests/ClipboardActionTests.cpp
+    )
+    target_link_libraries(
+        clipboard_action_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        clipboard_action_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        clipboard_action_tests
+    )
+    add_test(
+        NAME clipboard_action_tests
+        COMMAND clipboard_action_tests
     )
 
     add_executable(
@@ -536,6 +558,53 @@ if(BUILD_TESTING)
         add_test(
             NAME hotkey_runtime_tests
             COMMAND hotkey_runtime_tests
+        )
+
+        add_executable(
+            clipboard_runtime_tests
+            tests/ClipboardRuntimeTests.cpp
+            src/platform/WinClipboard.cpp
+        )
+
+        target_include_directories(
+            clipboard_runtime_tests
+            PRIVATE src
+        )
+
+        target_link_libraries(
+            clipboard_runtime_tests
+            PRIVATE user32
+        )
+
+        target_compile_definitions(
+            clipboard_runtime_tests
+            PRIVATE
+                UNICODE
+                _UNICODE
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0A00
+                WINVER=0x0A00
+        )
+
+        if(MSVC)
+            target_compile_options(
+                clipboard_runtime_tests
+                PRIVATE
+                    /W4
+                    /permissive-
+                    /utf-8
+                    /EHsc
+            )
+        endif()
+
+        altrun_enable_test_assertions(
+            clipboard_runtime_tests
+        )
+
+        add_test(
+            NAME clipboard_runtime_tests
+            COMMAND clipboard_runtime_tests
         )
 
         add_executable(

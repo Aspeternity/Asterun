@@ -36,6 +36,191 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0-alpha.5":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected v0.6 alpha.5 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("v0.6 alpha.5 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 3:
+        fail("v0.6 alpha.5 settings must remain schemaVersion 3")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 alpha.5 changed frozen provider defaults")
+
+    provider_ids = read("src/core/ProviderIds.hpp")
+    for token in (
+        '"builtin.web"',
+        '"builtin.clipboard"',
+    ):
+        if token not in provider_ids:
+            fail(f"alpha.5 runtime provider missing: {token}")
+
+    settings_text = read("config/settings.example.json")
+    if "builtin.clipboard" in settings_text:
+        fail("builtin.clipboard must remain runtime-only")
+    default_enabled_block = provider_ids.split(
+        "DefaultEnabled()", 1
+    )[1]
+    if "kBuiltinClipboard" in default_enabled_block:
+        fail("builtin.clipboard must not enter persisted provider defaults")
+
+    result_contract = read("src/core/LauncherResult.hpp")
+    for token in (
+        "CopyText",
+        "CopySelectedText",
+        "NavigateCurrentFileManager",
+        "NavigateFileDialog",
+        "NavigateTotalCommander",
+    ):
+        if token not in result_contract:
+            fail(f"alpha.5 action contract missing: {token}")
+
+    clipboard_action = read("src/core/ClipboardAction.cpp")
+    for token in (
+        "BuildClipboardActionResults",
+        'L"copy"',
+        'L"clip"',
+        'L"复制"',
+        "kBuiltinClipboard",
+        "LauncherActionKind::",
+        "CopyText",
+        "result.score = 1500",
+    ):
+        if token not in clipboard_action:
+            fail(f"alpha.5 clipboard smart action missing: {token}")
+
+    action_policy = read("src/core/LauncherActionPolicy.cpp")
+    for token in (
+        "CopySelectedText",
+        "CopyText",
+        "result.action.payload",
+        "result.target",
+        "commandIndex",
+    ):
+        if token not in action_policy:
+            fail(f"alpha.5 copy-selection policy missing: {token}")
+
+    clipboard_platform = read("src/platform/WinClipboard.cpp")
+    for token in (
+        "OpenClipboard",
+        "EmptyClipboard",
+        "GlobalAlloc",
+        "GlobalLock",
+        "CF_UNICODETEXT",
+        "SetClipboardData",
+        "CloseClipboard",
+    ):
+        if token not in clipboard_platform:
+            fail(f"alpha.5 Win32 clipboard integration missing: {token}")
+
+    app = read("src/app/App.cpp")
+    for token in (
+        "BuildClipboardActionResults",
+        "CopyTextAction",
+        "SetClipboardUnicodeText",
+        "UnableToCopy",
+        "runtimeActions",
+    ):
+        if token not in app:
+            fail(f"alpha.5 App clipboard integration missing: {token}")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    for token in (
+        "VK_CONTROL",
+        "VK_SHIFT",
+        "L'C'",
+        "CopySelectedText",
+    ):
+        if token not in launcher:
+            fail(f"alpha.5 Ctrl+Shift+C shortcut missing: {token}")
+
+    action_tests = read("tests/ClipboardActionTests.cpp")
+    for token in (
+        "copy hello world",
+        "builtin.clipboard",
+        "CopyText",
+        "copyright notice",
+    ):
+        if token not in action_tests:
+            fail(f"alpha.5 clipboard action tests missing: {token}")
+
+    runtime_tests = read("tests/ClipboardRuntimeTests.cpp")
+    for token in (
+        "SetClipboardUnicodeText",
+        "GetClipboardData",
+        "CF_UNICODETEXT",
+        "GlobalLock",
+    ):
+        if token not in runtime_tests:
+            fail(f"alpha.5 clipboard runtime smoke missing: {token}")
+
+    cmake = read("CMakeLists.txt")
+    for token in (
+        "src/core/ClipboardAction.cpp",
+        "src/platform/WinClipboard.cpp",
+        "clipboard_action_tests",
+        "clipboard_runtime_tests",
+    ):
+        if token not in cmake:
+            fail(f"alpha.5 build/test wiring missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        for test_name in (
+            "clipboard_action_tests",
+            "clipboard_runtime_tests",
+        ):
+            if test_name not in workflow:
+                fail(
+                    f"{workflow_path} does not run {test_name} on Windows"
+                )
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_header,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed in v0.6 alpha.5: {name}")
+
+    print(
+        "v0.6.0-alpha.5 clipboard/text action contract verified:",
+        "| schemas unchanged | Classic 420/16/10",
+        "| copy/clip text action | Ctrl+Shift+C selected target",
+        "| Unicode Win32 clipboard runtime smoke",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.6.0-alpha.4":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,
