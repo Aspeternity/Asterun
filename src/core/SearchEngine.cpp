@@ -116,6 +116,9 @@ std::vector<SearchResult> SearchEngine::Search(
         const UsageStat* stat = usageIt == usage.end() ? nullptr : &usageIt->second;
 
         int score = command.basePriority + UsageScore(stat);
+        if (command.pinned) {
+            score += 220;
+        }
 
         if (normalizedQuery.empty()) {
             // Empty query behaves like classic ALTRun's "frequent/recent" list.
@@ -127,7 +130,19 @@ std::vector<SearchResult> SearchEngine::Search(
             const int titleScore = MatchScore(command.title, normalizedQuery);
             const int targetScore = MatchScore(command.target, normalizedQuery);
 
-            const int textScore = std::max({keywordScore + 140, titleScore, targetScore - 120});
+            int aliasScore = 0;
+            for (const auto& alias : command.aliases) {
+                aliasScore = std::max(
+                    aliasScore,
+                    MatchScore(alias, normalizedQuery));
+            }
+
+            const int textScore = std::max({
+                keywordScore + 140,
+                aliasScore + 120,
+                titleScore,
+                targetScore - 120
+            });
             if (textScore <= 0) {
                 continue;
             }
@@ -143,6 +158,12 @@ std::vector<SearchResult> SearchEngine::Search(
         }
         const auto& ca = commands[a.commandIndex];
         const auto& cb = commands[b.commandIndex];
+        if (ca.pinned != cb.pinned) {
+            return ca.pinned;
+        }
+        if (ca.sortOrder != cb.sortOrder) {
+            return ca.sortOrder < cb.sortOrder;
+        }
         if (ca.keyword != cb.keyword) {
             return ca.keyword < cb.keyword;
         }
