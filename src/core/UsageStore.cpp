@@ -3,7 +3,9 @@
 #include "ConfigIO.hpp"
 #include "TextCodec.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <vector>
 #include <fstream>
 #include <string>
 
