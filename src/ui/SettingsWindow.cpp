@@ -15,6 +15,7 @@
 #include <ctime>
 #include <cwctype>
 #include <filesystem>
+#include <iterator>
 #include <string>
 
 namespace altrun {
@@ -339,12 +340,36 @@ std::wstring SettingsWindow::ControlText(
 }
 
 void SettingsWindow::CreateControls() {
-    navCommands_ = CreateButton(L"", kIdNavCommands);
-    navGeneral_ = CreateButton(L"", kIdNavGeneral);
-    navAppearance_ = CreateButton(L"", kIdNavAppearance);
-    navProviders_ = CreateButton(L"", kIdNavProviders);
-    navData_ = CreateButton(L"", kIdNavData);
-    navAbout_ = CreateButton(L"", kIdNavAbout);
+    navCommands_ =
+        CreateButton(
+            L"",
+            kIdNavCommands,
+            BS_OWNERDRAW);
+    navGeneral_ =
+        CreateButton(
+            L"",
+            kIdNavGeneral,
+            BS_OWNERDRAW);
+    navAppearance_ =
+        CreateButton(
+            L"",
+            kIdNavAppearance,
+            BS_OWNERDRAW);
+    navProviders_ =
+        CreateButton(
+            L"",
+            kIdNavProviders,
+            BS_OWNERDRAW);
+    navData_ =
+        CreateButton(
+            L"",
+            kIdNavData,
+            BS_OWNERDRAW);
+    navAbout_ =
+        CreateButton(
+            L"",
+            kIdNavAbout,
+            BS_OWNERDRAW);
 
     pageTitle_ = CreateStatic(L"", SS_LEFT);
     pageDescription_ = CreateStatic(
@@ -388,16 +413,24 @@ void SettingsWindow::CreateCommandPage() {
 
     commandEditorTitle_ = CreateStatic(L"");
 
-    commandNameLabel_ = CreateStatic(L"");
+    commandNameLabel_ = CreateStatic(
+        L"",
+        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
     commandName_ = CreateEdit(kIdCommandName);
 
-    commandKeywordLabel_ = CreateStatic(L"");
+    commandKeywordLabel_ = CreateStatic(
+        L"",
+        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
     commandKeyword_ = CreateEdit(kIdCommandKeyword);
 
-    commandAliasesLabel_ = CreateStatic(L"");
+    commandAliasesLabel_ = CreateStatic(
+        L"",
+        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
     commandAliases_ = CreateEdit(kIdCommandAliases);
 
-    commandTypeLabel_ = CreateStatic(L"");
+    commandTypeLabel_ = CreateStatic(
+        L"",
+        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
     commandType_ = CreateWindowExW(
         0,
         L"COMBOBOX",
@@ -411,15 +444,21 @@ void SettingsWindow::CreateCommandPage() {
         instance_,
         nullptr);
 
-    commandTargetLabel_ = CreateStatic(L"");
+    commandTargetLabel_ = CreateStatic(
+        L"",
+        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
     commandTarget_ = CreateEdit(kIdCommandTarget);
     commandBrowseTarget_ =
         CreateButton(L"...", kIdCommandBrowseTarget);
 
-    commandArgumentsLabel_ = CreateStatic(L"");
+    commandArgumentsLabel_ = CreateStatic(
+        L"",
+        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
     commandArguments_ = CreateEdit(kIdCommandArguments);
 
-    commandWorkdirLabel_ = CreateStatic(L"");
+    commandWorkdirLabel_ = CreateStatic(
+        L"",
+        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
     commandWorkdir_ = CreateEdit(kIdCommandWorkdir);
     commandBrowseWorkdir_ =
         CreateButton(L"...", kIdCommandBrowseWorkdir);
@@ -1996,13 +2035,11 @@ void SettingsWindow::UpdateNavLabels() {
     const bool zh =
         app_.SettingsData().language == Language::ZhCN;
 
-    const auto label = [&](Page page,
+    const auto label = [&](Page,
                            const wchar_t* zhText,
                            const wchar_t* enText) {
-        std::wstring text =
-            page_ == page ? L"●  " : L"   ";
-        text += zh ? zhText : enText;
-        return text;
+        return std::wstring(
+            zh ? zhText : enText);
     };
 
     SetWindowTextW(
@@ -3990,7 +4027,7 @@ void SettingsWindow::Layout() {
             Scale(30),
             TRUE);
 
-        const int labelWidth = Scale(112);
+        const int labelWidth = Scale(132);
         const int fieldX =
             editorX + labelWidth;
         const int fieldWidth =
@@ -3998,7 +4035,7 @@ void SettingsWindow::Layout() {
                 Scale(210),
                 editorWidth - labelWidth);
         const int browseWidth = Scale(44);
-        const int rowHeight = Scale(42);
+        const int rowHeight = Scale(44);
         int y = top + Scale(42);
 
         auto placeField =
@@ -4008,9 +4045,9 @@ void SettingsWindow::Layout() {
                 MoveWindow(
                     label,
                     editorX,
-                    y + Scale(5),
-                    labelWidth - Scale(10),
-                    Scale(26),
+                    y + Scale(6),
+                    labelWidth - Scale(12),
+                    Scale(24),
                     TRUE);
 
                 const int width =
@@ -4023,7 +4060,7 @@ void SettingsWindow::Layout() {
                     fieldX,
                     y,
                     width,
-                    Scale(32),
+                    Scale(34),
                     TRUE);
 
                 if (browse) {
@@ -4032,7 +4069,7 @@ void SettingsWindow::Layout() {
                         fieldX + width + Scale(8),
                         y,
                         browseWidth,
-                        Scale(32),
+                        Scale(34),
                         TRUE);
                 }
 
@@ -4063,72 +4100,92 @@ void SettingsWindow::Layout() {
             commandWorkdir_,
             commandBrowseWorkdir_);
 
+        const int optionGap = Scale(8);
+        const int enabledWidth =
+            std::clamp(
+                fieldWidth * 24 / 100,
+                Scale(66),
+                Scale(96));
+        const int pinnedWidth =
+            std::clamp(
+                fieldWidth * 22 / 100,
+                Scale(62),
+                Scale(88));
+        const int adminWidth =
+            std::max(
+                Scale(72),
+                fieldWidth -
+                    enabledWidth -
+                    pinnedWidth -
+                    optionGap * 2);
+
         MoveWindow(
             commandEnabled_,
             fieldX,
-            y + Scale(4),
-            Scale(110),
-            Scale(28),
+            y + Scale(3),
+            enabledWidth,
+            Scale(30),
             TRUE);
 
         MoveWindow(
             commandAdmin_,
-            fieldX + Scale(118),
-            y + Scale(4),
-            Scale(190),
-            Scale(28),
+            fieldX +
+                enabledWidth +
+                optionGap,
+            y + Scale(3),
+            adminWidth,
+            Scale(30),
             TRUE);
 
         MoveWindow(
             commandPinned_,
-            fieldX + Scale(316),
-            y + Scale(4),
-            Scale(90),
-            Scale(28),
+            fieldX +
+                enabledWidth +
+                optionGap +
+                adminWidth +
+                optionGap,
+            y + Scale(3),
+            pinnedWidth,
+            Scale(30),
             TRUE);
 
-        y += Scale(48);
+        y += Scale(44);
 
-        MoveWindow(
-            commandTest_,
-            fieldX,
-            y,
-            Scale(110),
-            Scale(34),
-            TRUE);
-
-        MoveWindow(
-            commandDelete_,
-            fieldX + Scale(120),
-            y,
-            Scale(92),
-            Scale(34),
-            TRUE);
-
-        MoveWindow(
-            commandCancel_,
+        const int actionGap = Scale(8);
+        const int actionWidth =
             std::max(
-                fieldX + Scale(222),
-                contentRight - Scale(190)),
-            y,
-            Scale(92),
-            Scale(34),
-            TRUE);
+                1,
+                (fieldWidth -
+                 actionGap * 3) / 4);
 
-        MoveWindow(
+        std::array<HWND, 4> actions{
+            commandTest_,
+            commandDelete_,
+            commandCancel_,
             commandSave_,
-            contentRight - Scale(90),
-            y,
-            Scale(90),
-            Scale(34),
-            TRUE);
+        };
+
+        for (std::size_t i = 0;
+             i < actions.size();
+             ++i) {
+            MoveWindow(
+                actions[i],
+                fieldX +
+                    static_cast<int>(i) *
+                        (actionWidth +
+                         actionGap),
+                y,
+                actionWidth,
+                Scale(34),
+                TRUE);
+        }
 
         MoveWindow(
             commandStatus_,
             fieldX,
-            y + Scale(46),
+            y + Scale(44),
             fieldWidth,
-            Scale(32),
+            Scale(30),
             TRUE);
     }
 
@@ -4163,7 +4220,9 @@ void SettingsWindow::Layout() {
             TRUE);
 
         const int behaviorRowHeight =
-            Scale(46);
+            Scale(
+                settings_layout::
+                    kToggleRowLogical);
 
         const int behaviorRowX =
             metrics.behavior.left +
@@ -4200,7 +4259,9 @@ void SettingsWindow::Layout() {
         }
 
         const int searchRowHeight =
-            Scale(46);
+            Scale(
+                settings_layout::
+                    kToggleRowLogical);
 
         const int searchRowX =
             metrics.search.left +
@@ -4235,14 +4296,17 @@ void SettingsWindow::Layout() {
 
         const int orderTop =
             metrics.search.top +
-            Scale(46 * 3);
+            Scale(
+                settings_layout::
+                    kToggleRowLogical *
+                    3);
 
         MoveWindow(
             numericQuickLaunchOrderLabel_,
             metrics.search.left +
                 Scale(18),
             orderTop +
-                Scale(11),
+                Scale(15),
             Scale(105),
             Scale(24),
             TRUE);
@@ -4252,7 +4316,7 @@ void SettingsWindow::Layout() {
             metrics.search.right -
                 Scale(150),
             orderTop +
-                Scale(7),
+                Scale(10),
             Scale(132),
             Scale(180),
             TRUE);
@@ -4548,7 +4612,9 @@ void SettingsWindow::Layout() {
             ProviderCardRect();
 
         const int rowHeight =
-            Scale(58);
+            Scale(
+                settings_layout::
+                    kToggleRowLogical);
         const int rowX =
             providerCard.left +
             Scale(1);
@@ -4584,16 +4650,16 @@ void SettingsWindow::Layout() {
             providerStatus_,
             x,
             providerCard.bottom +
-                Scale(24),
+                Scale(22),
             controlWidth,
-            Scale(184),
+            Scale(108),
             TRUE);
 
         MoveWindow(
             providerGetEverything_,
             x,
             providerCard.bottom +
-                Scale(164),
+                Scale(140),
             Scale(146),
             Scale(34),
             TRUE);
@@ -4602,7 +4668,7 @@ void SettingsWindow::Layout() {
             providerRecheckEverything_,
             x + Scale(158),
             providerCard.bottom +
-                Scale(164),
+                Scale(140),
             Scale(120),
             Scale(34),
             TRUE);
@@ -4611,9 +4677,9 @@ void SettingsWindow::Layout() {
             providerNote_,
             x,
             providerCard.bottom +
-                Scale(218),
+                Scale(188),
             controlWidth,
-            Scale(60),
+            Scale(48),
             TRUE);
     }
 
@@ -4734,10 +4800,14 @@ RECT SettingsWindow::ProviderCardRect() const {
 
     const int contentLeft =
         Scale(kSidebarWidthLogical) +
-        Scale(42);
+        Scale(
+            settings_layout::
+                kContentLeftInsetLogical);
     const int contentRight =
         client.right -
-        Scale(42);
+        Scale(
+            settings_layout::
+                kContentRightInsetLogical);
     const int contentWidth =
         std::max(
             Scale(320),
@@ -4752,10 +4822,141 @@ RECT SettingsWindow::ProviderCardRect() const {
         contentLeft,
         Scale(170),
         contentLeft + cardWidth,
-        Scale(170 + 58 * 5),
+        Scale(
+            170 +
+            settings_layout::
+                kToggleRowLogical * 5),
     };
 }
 
+
+void SettingsWindow::DrawNavigationButton(
+    const DRAWITEMSTRUCT& item) {
+
+    RECT rect = item.rcItem;
+
+    bool selected = false;
+
+    switch (item.CtlID) {
+    case kIdNavCommands:
+        selected =
+            page_ == Page::Commands;
+        break;
+    case kIdNavGeneral:
+        selected =
+            page_ == Page::General;
+        break;
+    case kIdNavAppearance:
+        selected =
+            page_ == Page::Appearance;
+        break;
+    case kIdNavProviders:
+        selected =
+            page_ == Page::Providers;
+        break;
+    case kIdNavData:
+        selected =
+            page_ == Page::Data;
+        break;
+    case kIdNavAbout:
+        selected =
+            page_ == Page::About;
+        break;
+    default:
+        break;
+    }
+
+    const bool pressed =
+        (item.itemState &
+         ODS_SELECTED) != 0;
+
+    const COLORREF background =
+        pressed
+            ? kCardPressed
+            : selected
+                ? RGB(232, 241, 250)
+                : kSidebarBackground;
+
+    HBRUSH fill =
+        CreateSolidBrush(background);
+    FillRect(
+        item.hDC,
+        &rect,
+        fill);
+    DeleteObject(fill);
+
+    if (selected) {
+        RECT accent{
+            rect.left,
+            rect.top + Scale(5),
+            rect.left + Scale(4),
+            rect.bottom - Scale(5),
+        };
+
+        HBRUSH accentBrush =
+            CreateSolidBrush(kAccent);
+        FillRect(
+            item.hDC,
+            &accent,
+            accentBrush);
+        DeleteObject(accentBrush);
+    }
+
+    wchar_t textBuffer[96]{};
+    GetWindowTextW(
+        item.hwndItem,
+        textBuffer,
+        static_cast<int>(
+            std::size(textBuffer)));
+
+    SetBkMode(
+        item.hDC,
+        TRANSPARENT);
+    SetTextColor(
+        item.hDC,
+        kText);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            item.hDC,
+            selected
+                ? sectionFont_
+                : normalFont_);
+
+    RECT textRect{
+        rect.left + Scale(18),
+        rect.top,
+        rect.right - Scale(12),
+        rect.bottom,
+    };
+
+    DrawTextW(
+        item.hDC,
+        textBuffer,
+        -1,
+        &textRect,
+        DT_LEFT |
+            DT_SINGLELINE |
+            DT_VCENTER |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        item.hDC,
+        oldFont);
+
+    if (item.itemState &
+        ODS_FOCUS) {
+        RECT focus = rect;
+        InflateRect(
+            &focus,
+            -Scale(6),
+            -Scale(5));
+        DrawFocusRect(
+            item.hDC,
+            &focus);
+    }
+}
 
 void SettingsWindow::DrawGeneralToggle(
     const DRAWITEMSTRUCT& item) {
@@ -4993,9 +5194,9 @@ void SettingsWindow::DrawGeneralToggle(
 
     RECT titleRect{
         box.right + Scale(14),
-        rect.top + Scale(8),
+        rect.top + Scale(6),
         rect.right - Scale(16),
-        rect.top + Scale(31),
+        rect.top + Scale(27),
     };
 
     HGDIOBJ oldFont =
@@ -5015,9 +5216,9 @@ void SettingsWindow::DrawGeneralToggle(
 
     RECT descriptionRect{
         titleRect.left,
-        rect.top + Scale(31),
+        rect.top + Scale(29),
         titleRect.right,
-        rect.bottom - Scale(7),
+        rect.bottom - Scale(6),
     };
 
     SelectObject(
@@ -5552,6 +5753,17 @@ LRESULT SettingsWindow::HandleMessage(
                 lParam);
 
         if (item &&
+            (item->CtlID == kIdNavCommands ||
+             item->CtlID == kIdNavGeneral ||
+             item->CtlID == kIdNavAppearance ||
+             item->CtlID == kIdNavProviders ||
+             item->CtlID == kIdNavData ||
+             item->CtlID == kIdNavAbout)) {
+            DrawNavigationButton(*item);
+            return TRUE;
+        }
+
+        if (item &&
             (item->CtlID == kIdStartWithWindows ||
              item->CtlID == kIdShowOnStartup ||
              item->CtlID == kIdHideAfterLaunch ||
@@ -6009,7 +6221,7 @@ LRESULT SettingsWindow::HandleMessage(
                 lParam);
 
         int minimumWidth =
-            Scale(920);
+            Scale(960);
 
         int minimumHeight =
             Scale(680);

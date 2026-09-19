@@ -106,6 +106,8 @@ In progress:
 - v0.5.0-beta.2 hardens real-world compatibility with unnamed/named Everything instances, conservative multi-instance fallback, sender/payload validation, long/UNC/root path handling and high-churn/large-result runtime stress
 - v0.5.0-rc.1 freezes the v0.5 surface, packages the unified real-desktop validation matrix and limits further changes to regression/compatibility/data-safety/publication fixes
 - v0.5.0-rc.2 addresses real-desktop Everything onboarding: actionable missing-installation guidance plus official-download and immediate-recheck actions, without adding dependency management or changing frozen v0.5 contracts
+- v0.5.0-rc.3 is the final Settings UI polish candidate: fixes default/DPI text overlap, shortcut-editor label/action layout, Search Sources diagnostics spacing and sidebar navigation styling while preserving every frozen v0.5 core contract
+- After RC3, v0.5.0 Stable is promoted from the validated RC line unless a release-blocking regression requires another narrowly scoped RC fix
 - Stable v0.5.0 promotion requires explicit real Windows 10/11 + Everything 1.4/current 1.5 validation and no release-blocking defect; automated CI is necessary but not a substitute for manual sign-off
 
 ## v0.6.x - Smart actions & Windows integration

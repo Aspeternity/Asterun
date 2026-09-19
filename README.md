@@ -23,6 +23,24 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.5.0-rc.3 — Final Settings UI Polish & Stable Candidate
+
+RC3 is the final Settings-layout polish pass for the frozen v0.5.0 feature set. It fixes the real desktop overlap/cropping issues found during RC validation without changing launcher search behavior, schemas, provider IDs or the Everything transport.
+
+General Settings owner-drawn rows now use a shared 54-logical-pixel metric with dedicated title and description bands, eliminating the previous 46-pixel layout where explanatory text could overlap the next row. The General layout helper and UI now share the same content gutters and row metric, with regression coverage at 96/120/144/192 DPI.
+
+The shortcut editor keeps all field labels on one line, widens the bilingual label column, aligns edit/browse controls to a common height, and distributes option/action controls from the actual available field width so the lower editor controls no longer collide at the minimum Settings width.
+
+Search Sources now uses the same polished toggle-row metric. Everything diagnostics, onboarding actions and explanatory text occupy separate vertical regions, preventing the RC2 Get Everything/Recheck controls from covering status text. Provider content aligns with the same page gutters used by the page header.
+
+The Settings minimum width is now 960 logical pixels so Chinese/English labels remain usable while still fitting a 1920-pixel-wide 200% DPI desktop. General remains vertically scrollable on constrained work areas; the existing PerMonitorV2 DPI and work-area clamping behavior is unchanged.
+
+The sidebar navigation is also polished into a borderless owner-drawn list: the active page uses a subtle selected background, a four-logical-pixel accent bar and semibold text instead of native boxed buttons plus a textual bullet. Navigation order and keyboard/click behavior are unchanged.
+
+RC3 does not change Classic Launcher geometry (420/16/10), settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider defaults, ranking or Query2/WM_COPYDATA. This is intended to be the final code candidate before v0.5.0 Stable unless a release-blocking regression is found.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.202`.
+
 ## v0.5.0-rc.2 — Everything Onboarding & Diagnostics UX
 
 RC2 is a release-candidate UX fix discovered during real desktop validation. It does not change the frozen v0.5 provider/schema/transport surface.

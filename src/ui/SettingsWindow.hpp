@@ -262,6 +262,8 @@ private:
     void RestoreDefaultSettings();
     void DrawGeneralToggle(
         const DRAWITEMSTRUCT& item);
+    void DrawNavigationButton(
+        const DRAWITEMSTRUCT& item);
 
     HWND CreateStatic(
         const wchar_t* text,

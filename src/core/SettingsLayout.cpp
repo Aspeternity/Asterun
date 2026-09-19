@@ -40,14 +40,14 @@ GeneralLayoutMetrics BuildGeneralLayout(
 
     const int contentLeft =
         scale(sidebarWidthLogical) +
-        scale(42);
+        scale(kContentLeftInsetLogical);
 
     const int contentRight =
         std::max(
             contentLeft +
                 scale(260),
             clientWidth -
-                scale(42));
+                scale(kContentRightInsetLogical));
 
     const int contentWidth =
         contentRight -
@@ -64,10 +64,10 @@ GeneralLayoutMetrics BuildGeneralLayout(
         scale(170);
 
     const int behaviorRowHeight =
-        scale(46);
+        scale(kToggleRowLogical);
 
     const int searchRowHeight =
-        scale(46);
+        scale(kToggleRowLogical);
 
     const int behaviorWidth =
         stackedCards

@@ -2,6 +2,13 @@
 
 namespace altrun::settings_layout {
 
+inline constexpr int
+    kContentLeftInsetLogical = 38;
+inline constexpr int
+    kContentRightInsetLogical = 34;
+inline constexpr int
+    kToggleRowLogical = 54;
+
 struct Rect {
     int left{};
     int top{};

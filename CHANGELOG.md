@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0-rc.3
+
+- Fixed the General Settings title/description overlap by replacing 46px owner-draw rows with a shared 54-logical-pixel toggle-row metric.
+- Aligned General card content gutters with the common Settings page header gutters.
+- Added explicit DPI regression assertions for the polished row height and 38/34 logical content insets at 100/125/150/200%.
+- Made shortcut-editor field labels single-line and widened the label column so Chinese aliases/working-directory labels no longer wrap into adjacent fields.
+- Reworked shortcut-editor option and action rows to derive widths from available field space instead of fixed absolute positions.
+- Matched edit and browse-control heights for cleaner field alignment.
+- Reworked Search Sources vertical spacing so Everything diagnostics, onboarding actions and explanatory text no longer overlap.
+- Unified Search Sources toggle rows with the same polished owner-draw row metric.
+- Raised the Settings minimum width to 960 logical pixels for bilingual layout stability while preserving work-area clamping.
+- Replaced native boxed sidebar buttons/text bullets with owner-drawn navigation using a subtle selected background, accent bar and semibold active-page text.
+- Preserved Classic Launcher 420/16/10 geometry, settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2 and the frozen Everything Query2 transport.
+- Updated Windows version metadata to `0.5.0-rc.3` / `0.5.0.202`.
+
+
 ## 0.5.0-rc.2
 
 - Replaced the confusing raw `ERROR_FILE_NOT_FOUND (2)` primary Everything diagnosis with explicit “Everything not detected” onboarding when no IPC endpoint exists.

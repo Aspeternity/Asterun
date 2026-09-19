@@ -91,6 +91,16 @@ int main() {
         !ShouldExecuteSingleResult(
             true, true, false, false, true, 1));
 
+    assert(
+        settings_layout::
+            kToggleRowLogical >= 54);
+    assert(
+        settings_layout::
+            kContentLeftInsetLogical == 38);
+    assert(
+        settings_layout::
+            kContentRightInsetLogical == 34);
+
     for (const unsigned dpi :
          std::array<unsigned, 4>{
              96, 120, 144, 192}) {
@@ -120,14 +130,43 @@ int main() {
             wide.search.left >
             wide.behavior.right);
         assert(
+            wide.behavior.left ==
+            scale(190) +
+                scale(
+                    settings_layout::
+                        kContentLeftInsetLogical));
+        assert(
+            wide.behavior.bottom -
+                wide.behavior.top ==
+            scale(
+                settings_layout::
+                    kToggleRowLogical) *
+                6);
+        assert(
+            wide.search.bottom -
+                wide.search.top ==
+            scale(
+                settings_layout::
+                    kToggleRowLogical) *
+                4);
+        assert(
             wide.behavior.right <=
-            wideWidth - scale(42));
+            wideWidth -
+                scale(
+                    settings_layout::
+                        kContentRightInsetLogical));
         assert(
             wide.search.right <=
-            wideWidth - scale(42));
+            wideWidth -
+                scale(
+                    settings_layout::
+                        kContentRightInsetLogical));
         assert(
             wide.monitor.right <=
-            wideWidth - scale(42));
+            wideWidth -
+                scale(
+                    settings_layout::
+                        kContentRightInsetLogical));
         assert(
             settings_layout::
                 MaxScrollOffset(
@@ -159,10 +198,16 @@ int main() {
             narrow.behavior.bottom);
         assert(
             narrow.search.right <=
-            narrowWidth - scale(42));
+            narrowWidth -
+                scale(
+                    settings_layout::
+                        kContentRightInsetLogical));
         assert(
             narrow.monitor.right <=
-            narrowWidth - scale(42));
+            narrowWidth -
+                scale(
+                    settings_layout::
+                        kContentRightInsetLogical));
 
         const int maxScroll =
             settings_layout::
