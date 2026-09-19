@@ -135,6 +135,18 @@ void UsageStore::Record(std::wstring_view commandId) {
     Save();
 }
 
+bool UsageStore::Clear() {
+    const UsageMap previous = usage_;
+    usage_.clear();
+
+    if (!Save()) {
+        usage_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
 bool UsageStore::Save() const {
     nlohmann::json usage = nlohmann::json::object();
 

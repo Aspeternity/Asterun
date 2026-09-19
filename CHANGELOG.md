@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0-beta.1
+
+- Added configurable global launcher hotkeys instead of a hard-coded Alt+Space binding.
+- Added Ctrl / Alt / Shift / Win modifier selection and common letter, number, function and navigation keys.
+- Hotkey changes are committed only after Windows successfully registers the new combination; conflicts keep the previous binding active.
+- Added Start with Windows using the current-user HKCU Run key, without requiring administrator privileges.
+- Added a dedicated Data settings page.
+- Added full-fidelity ALTRun Next TSV import/export for user shortcuts.
+- Added backward-compatible import of the old five-column commands.tsv format.
+- Added best-effort legacy ALTRun Beta import for tab-separated rows and simple keyword=target entries.
+- Added Clear usage history without deleting shortcuts.
+- Added Rebuild program index to rescan Start Menu entries immediately.
+- Added Restore default settings without deleting commands or usage history.
+- Added import/export, settings reset and usage-clear coverage to Config Core tests.
+- Added shared Windows hotkey parsing helpers and advapi32 linkage.
+- Updated Windows version metadata to `0.2.0-beta.1`.
+
+
 ## 0.2.0-alpha.3
 
 - Added the first full Command Manager to the Settings window.

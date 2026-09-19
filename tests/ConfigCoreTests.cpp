@@ -127,12 +127,58 @@ int main() {
     assert(crudReloaded.Remove(createdId));
     assert(crudReloaded.Commands().size() == 2);
 
+    const auto exportedCommands = root / "commands-export.tsv";
+    assert(crudReloaded.ExportTsv(exportedCommands));
+    assert(std::filesystem::exists(exportedCommands));
+
+    UserCommandStore importedCommands(
+        data / "commands-imported.json");
+    std::size_t importedCount = 0;
+    std::size_t skippedCount = 0;
+    assert(importedCommands.ImportTsv(
+        exportedCommands,
+        false,
+        &importedCount,
+        &skippedCount));
+    assert(importedCount == 2);
+    assert(skippedCount == 0);
+
+    UserCommandStore importedReloaded(
+        data / "commands-imported.json");
+    importedReloaded.Load();
+    assert(importedReloaded.Commands().size() == 2);
+
+    const auto legacyBeta = root / "legacy-altrun.ini";
+    WriteText(
+        legacyBeta,
+        "[Shortcuts]\n"
+        "paint=mspaint.exe\n"
+        "term\tTerminal\tcmd.exe\t/k echo test\tC:\\\\Windows\n");
+
+    UserCommandStore legacyImported(
+        data / "commands-legacy-imported.json");
+    importedCount = 0;
+    skippedCount = 0;
+    assert(legacyImported.ImportTsv(
+        legacyBeta,
+        true,
+        &importedCount,
+        &skippedCount));
+    assert(importedCount == 2);
+
     UsageStore usage(data / "usage.json", legacyUsage);
     usage.Load(commandsReloaded.LegacyIdMap());
 
     assert(std::filesystem::exists(data / "usage.json"));
     assert(usage.Data().at(calcId).launches == 7);
     assert(usage.Data().at(calcId).lastUsedUnix == 1700000000);
+
+    assert(usage.Clear());
+    assert(usage.Data().empty());
+
+    UsageStore clearedUsage(data / "usage.json", legacyUsage);
+    clearedUsage.Load(commandsReloaded.LegacyIdMap());
+    assert(clearedUsage.Data().empty());
 
     settings.SetLanguage(Language::ZhCN);
     assert(std::filesystem::exists(data / "settings.json.bak"));
@@ -142,6 +188,24 @@ int main() {
     SettingsStore recovered(data / "settings.json", legacySettings);
     recovered.Load();
     assert(recovered.Data().language == Language::EnUS);
+
+    SettingsStore featureSettings(data / "settings-features.json");
+    featureSettings.Load();
+    assert(!featureSettings.Data().startWithWindows);
+    assert(featureSettings.SetStartWithWindows(true));
+    assert(featureSettings.Data().startWithWindows);
+
+    assert(featureSettings.SetHotkey(
+        {"ctrl", "shift"},
+        "k"));
+    assert(featureSettings.Data().hotkeyModifiers.size() == 2);
+    assert(featureSettings.Data().hotkeyKey == "k");
+
+    assert(featureSettings.ResetDefaults());
+    assert(!featureSettings.Data().startWithWindows);
+    assert(featureSettings.Data().hotkeyModifiers.size() == 1);
+    assert(featureSettings.Data().hotkeyModifiers[0] == "alt");
+    assert(featureSettings.Data().hotkeyKey == "space");
 
     std::error_code ec;
     std::filesystem::remove_all(root, ec);

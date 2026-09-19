@@ -69,6 +69,30 @@ bool CommandStore::MoveUserCommand(
     return true;
 }
 
+bool CommandStore::ImportUserCommands(
+    const std::filesystem::path& path,
+    bool legacyMode,
+    std::size_t* imported,
+    std::size_t* skipped) {
+
+    if (!userCommandStore_.ImportTsv(
+            path,
+            legacyMode,
+            imported,
+            skipped)) {
+        return false;
+    }
+
+    RebuildMergedCommands();
+    return true;
+}
+
+bool CommandStore::ExportUserCommands(
+    const std::filesystem::path& path) const {
+
+    return userCommandStore_.ExportTsv(path);
+}
+
 void CommandStore::RebuildMergedCommands() {
     commands_.clear();
 

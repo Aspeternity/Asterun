@@ -14,6 +14,23 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.2.0-beta.1 — Hotkey & Data
+
+Beta 1 completes the first settings/data workflow before visual polish.
+
+- configurable global hotkey with Ctrl / Alt / Shift / Win modifiers;
+- real Windows hotkey conflict detection with automatic rollback to the previous binding;
+- Start with Windows through the current-user Run key;
+- Data page for opening the portable data directory;
+- ALTRun Next TSV shortcut import/export;
+- backward-compatible five-column TSV import;
+- best-effort legacy ALTRun import (Beta);
+- clear usage history;
+- rebuild the Start Menu program index;
+- restore default settings without deleting shortcuts or usage history.
+
+The default launcher hotkey remains `Alt+Space`.
+
 ## v0.2.0-alpha.3 — Command Manager
 
 The Settings window now includes a real shortcut manager backed by `data/commands.json`.
@@ -145,7 +162,7 @@ language=zh-CN
 ### Core features
 
 - Native C++23 + Win32
-- Alt+Space global launcher hotkey
+- Configurable global launcher hotkey (default `Alt+Space`)
 - Persistent user commands from `data/commands.json`
 - Start Menu indexing
 - Lightweight fuzzy matching

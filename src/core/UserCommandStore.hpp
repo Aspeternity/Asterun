@@ -23,6 +23,12 @@ public:
     bool Update(std::wstring_view id, Command command);
     bool Remove(std::wstring_view id);
     bool Move(std::wstring_view id, int direction);
+    bool ImportTsv(
+        const std::filesystem::path& path,
+        bool legacyMode,
+        std::size_t* imported = nullptr,
+        std::size_t* skipped = nullptr);
+    bool ExportTsv(const std::filesystem::path& path) const;
 
     [[nodiscard]] const std::vector<Command>& Commands() const noexcept {
         return commands_;

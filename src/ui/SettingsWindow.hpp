@@ -28,6 +28,7 @@ private:
         Commands,
         General,
         Appearance,
+        Data,
         About,
     };
 
@@ -36,13 +37,21 @@ private:
     static constexpr UINT kIdNavCommands = 51000;
     static constexpr UINT kIdNavGeneral = 51001;
     static constexpr UINT kIdNavAppearance = 51002;
-    static constexpr UINT kIdNavAbout = 51003;
+    static constexpr UINT kIdNavData = 51003;
+    static constexpr UINT kIdNavAbout = 51004;
 
+    static constexpr UINT kIdStartWithWindows = 51100;
     static constexpr UINT kIdHideAfterLaunch = 51101;
     static constexpr UINT kIdClearQueryOnShow = 51102;
     static constexpr UINT kIdHideOnFocusLost = 51103;
     static constexpr UINT kIdShowTrayIcon = 51104;
     static constexpr UINT kIdPopupMonitor = 51105;
+    static constexpr UINT kIdHotkeyCtrl = 51110;
+    static constexpr UINT kIdHotkeyAlt = 51111;
+    static constexpr UINT kIdHotkeyShift = 51112;
+    static constexpr UINT kIdHotkeyWin = 51113;
+    static constexpr UINT kIdHotkeyKey = 51114;
+    static constexpr UINT kIdHotkeyApply = 51115;
 
     static constexpr UINT kIdUiStyle = 51201;
     static constexpr UINT kIdLanguage = 51202;
@@ -72,6 +81,14 @@ private:
     static constexpr UINT kIdCommandCancel = 51424;
     static constexpr UINT kIdCommandSave = 51425;
 
+    static constexpr UINT kIdDataOpenFolder = 51501;
+    static constexpr UINT kIdDataImportTsv = 51502;
+    static constexpr UINT kIdDataImportLegacy = 51503;
+    static constexpr UINT kIdDataExport = 51504;
+    static constexpr UINT kIdDataClearUsage = 51505;
+    static constexpr UINT kIdDataRebuildIndex = 51506;
+    static constexpr UINT kIdDataResetSettings = 51507;
+
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
         UINT message,
@@ -84,6 +101,7 @@ private:
     void CreateCommandPage();
     void CreateGeneralPage();
     void CreateAppearancePage();
+    void CreateDataPage();
     void CreateAboutPage();
     void ApplyFonts();
     void Layout();
@@ -111,7 +129,14 @@ private:
 
     void ToggleGeneralSetting(UINT id);
     void ApplyMonitorControl();
+    void ApplyHotkeyControl();
+    void RefreshHotkeyControls();
     void ApplyAppearanceControls();
+    void ImportCommands(bool legacyMode);
+    void ExportCommands();
+    void ClearUsageHistory();
+    void RebuildProgramIndex();
+    void RestoreDefaultSettings();
     void DrawGeneralToggle(const DRAWITEMSTRUCT& item);
 
     HWND CreateStatic(
@@ -151,6 +176,7 @@ private:
     HWND navCommands_{};
     HWND navGeneral_{};
     HWND navAppearance_{};
+    HWND navData_{};
     HWND navAbout_{};
     HWND pageTitle_{};
     HWND pageDescription_{};
@@ -187,10 +213,19 @@ private:
     HWND commandStatus_{};
 
     HWND generalBehaviorTitle_{};
+    HWND startWithWindows_{};
     HWND hideAfterLaunch_{};
     HWND clearQueryOnShow_{};
     HWND hideOnFocusLost_{};
     HWND showTrayIcon_{};
+    HWND hotkeySectionTitle_{};
+    HWND hotkeyCtrl_{};
+    HWND hotkeyAlt_{};
+    HWND hotkeyShift_{};
+    HWND hotkeyWin_{};
+    HWND hotkeyKey_{};
+    HWND hotkeyApply_{};
+    HWND hotkeyStatus_{};
     HWND popupSectionTitle_{};
     HWND popupMonitorLabel_{};
     HWND popupMonitorDescription_{};
@@ -202,6 +237,18 @@ private:
     HWND languageLabel_{};
     HWND language_{};
     HWND appearanceNote_{};
+
+    HWND dataOpenLabel_{};
+    HWND dataOpenFolder_{};
+    HWND dataTransferLabel_{};
+    HWND dataImportTsv_{};
+    HWND dataImportLegacy_{};
+    HWND dataExport_{};
+    HWND dataMaintenanceLabel_{};
+    HWND dataClearUsage_{};
+    HWND dataRebuildIndex_{};
+    HWND dataResetSettings_{};
+    HWND dataStatus_{};
 
     HWND aboutName_{};
     HWND aboutVersion_{};
@@ -230,6 +277,7 @@ private:
     std::vector<HWND> commandControls_;
     std::vector<HWND> generalControls_;
     std::vector<HWND> appearanceControls_;
+    std::vector<HWND> dataControls_;
     std::vector<HWND> aboutControls_;
 };
 

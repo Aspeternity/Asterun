@@ -27,6 +27,8 @@ int App::Run() {
     std::filesystem::create_directories(dataDirectory_, ec);
 
     settingsStore_.Load();
+    ApplyStartupRegistration(
+        settingsStore_.Data().startWithWindows);
     commandStore_.Reload();
     usageStore_.Load(commandStore_.LegacyIdMap());
 
@@ -126,6 +128,110 @@ bool App::TestCommand(const Command& command) {
     return LaunchCommand(command, false);
 }
 
+bool App::ImportUserCommands(
+    const std::filesystem::path& path,
+    bool legacyMode,
+    std::size_t* imported,
+    std::size_t* skipped) {
+
+    if (!commandStore_.ImportUserCommands(
+            path,
+            legacyMode,
+            imported,
+            skipped)) {
+        return false;
+    }
+
+    if (window_) {
+        window_->RefreshResults();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->RefreshCommands();
+    }
+
+    return true;
+}
+
+bool App::ExportUserCommands(
+    const std::filesystem::path& path) const {
+
+    return commandStore_.ExportUserCommands(path);
+}
+
+bool App::ClearUsageHistory() {
+    if (!usageStore_.Clear()) {
+        return false;
+    }
+
+    if (window_) {
+        window_->RefreshResults();
+    }
+
+    return true;
+}
+
+void App::RebuildProgramIndex() {
+    commandStore_.Reload();
+
+    if (window_) {
+        window_->RefreshResults();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->RefreshCommands();
+    }
+}
+
+bool App::RestoreDefaultSettings() {
+    const Settings previous =
+        settingsStore_.Data();
+
+    const Settings defaults{};
+
+    if (window_ &&
+        !window_->RebindHotkey(
+            defaults.hotkeyModifiers,
+            defaults.hotkeyKey)) {
+        return false;
+    }
+
+    if (!ApplyStartupRegistration(false)) {
+        if (window_) {
+            window_->RebindHotkey(
+                previous.hotkeyModifiers,
+                previous.hotkeyKey);
+        }
+        return false;
+    }
+
+    if (!settingsStore_.ResetDefaults()) {
+        ApplyStartupRegistration(
+            previous.startWithWindows);
+
+        if (window_) {
+            window_->RebindHotkey(
+                previous.hotkeyModifiers,
+                previous.hotkeyKey);
+        }
+
+        return false;
+    }
+
+    if (window_) {
+        window_->ApplyAppearance();
+        window_->ApplyLanguage();
+        window_->ApplyGeneralSettings();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->ApplyLanguage();
+        settingsWindow_->RefreshFromSettings();
+    }
+
+    return true;
+}
+
 std::wstring_view App::Text(TextId id) const {
     return LocalizedText(id, settingsStore_.Data().language);
 }
@@ -140,6 +246,63 @@ void App::SetLanguage(Language language) {
     settingsStore_.SetLanguage(language);
     if (window_) window_->ApplyLanguage();
     if (settingsWindow_) settingsWindow_->ApplyLanguage();
+}
+
+bool App::SetStartWithWindows(bool enabled) {
+    const bool previous =
+        settingsStore_.Data().startWithWindows;
+
+    if (!ApplyStartupRegistration(enabled)) {
+        return false;
+    }
+
+    if (!settingsStore_.SetStartWithWindows(enabled)) {
+        ApplyStartupRegistration(previous);
+        return false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->RefreshFromSettings();
+    }
+
+    return true;
+}
+
+bool App::SetHotkeySettings(
+    std::vector<std::string> modifiers,
+    std::string key) {
+
+    const auto previousModifiers =
+        settingsStore_.Data().hotkeyModifiers;
+
+    const auto previousKey =
+        settingsStore_.Data().hotkeyKey;
+
+    if (window_ &&
+        !window_->RebindHotkey(
+            modifiers,
+            key)) {
+        return false;
+    }
+
+    if (!settingsStore_.SetHotkey(
+            std::move(modifiers),
+            std::move(key))) {
+
+        if (window_) {
+            window_->RebindHotkey(
+                previousModifiers,
+                previousKey);
+        }
+
+        return false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->RefreshFromSettings();
+    }
+
+    return true;
 }
 
 void App::SetGeneralSettings(
@@ -158,6 +321,83 @@ void App::SetGeneralSettings(
 
     if (window_) window_->ApplyGeneralSettings();
     if (settingsWindow_) settingsWindow_->RefreshFromSettings();
+}
+
+bool App::ApplyStartupRegistration(
+    bool enabled) const {
+
+    constexpr wchar_t kRunKey[] =
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+
+    constexpr wchar_t kValueName[] =
+        L"ALTRunNext";
+
+    HKEY key{};
+
+    const LSTATUS openStatus =
+        RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            kRunKey,
+            0,
+            nullptr,
+            REG_OPTION_NON_VOLATILE,
+            KEY_SET_VALUE,
+            nullptr,
+            &key,
+            nullptr);
+
+    if (openStatus != ERROR_SUCCESS) {
+        return false;
+    }
+
+    bool success = false;
+
+    if (enabled) {
+        std::vector<wchar_t> executable(32768);
+        const DWORD length =
+            GetModuleFileNameW(
+                nullptr,
+                executable.data(),
+                static_cast<DWORD>(
+                    executable.size()));
+
+        if (length > 0 &&
+            length < executable.size()) {
+
+            std::wstring command = L"\"";
+            command.append(
+                executable.data(),
+                length);
+            command += L"\"";
+
+            const DWORD bytes =
+                static_cast<DWORD>(
+                    (command.size() + 1) *
+                    sizeof(wchar_t));
+
+            success =
+                RegSetValueExW(
+                    key,
+                    kValueName,
+                    0,
+                    REG_SZ,
+                    reinterpret_cast<const BYTE*>(
+                        command.c_str()),
+                    bytes) == ERROR_SUCCESS;
+        }
+    } else {
+        const LSTATUS status =
+            RegDeleteValueW(
+                key,
+                kValueName);
+
+        success =
+            status == ERROR_SUCCESS ||
+            status == ERROR_FILE_NOT_FOUND;
+    }
+
+    RegCloseKey(key);
+    return success;
 }
 
 void App::ShowSettings() {

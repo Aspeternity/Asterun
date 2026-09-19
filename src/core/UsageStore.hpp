@@ -18,6 +18,7 @@ public:
         const std::unordered_map<std::wstring, std::wstring>& legacyIdMap = {});
 
     void Record(std::wstring_view commandId);
+    bool Clear();
 
     [[nodiscard]] const UsageMap& Data() const noexcept { return usage_; }
     [[nodiscard]] const std::filesystem::path& Path() const noexcept { return jsonPath_; }

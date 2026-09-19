@@ -1,6 +1,7 @@
 #include "SettingsWindow.hpp"
 
 #include "../app/App.hpp"
+#include "../platform/Hotkey.hpp"
 
 #include <commctrl.h>
 #include <commdlg.h>
@@ -159,7 +160,7 @@ bool SettingsWindow::Create() {
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         1080,
-        720,
+        780,
         nullptr,
         nullptr,
         instance_,
@@ -175,7 +176,7 @@ bool SettingsWindow::Create() {
         0,
         0,
         Scale(1080),
-        Scale(720),
+        Scale(780),
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
     backgroundBrush_ = CreateSolidBrush(kWindowBackground);
@@ -297,6 +298,7 @@ void SettingsWindow::CreateControls() {
     navCommands_ = CreateButton(L"", kIdNavCommands);
     navGeneral_ = CreateButton(L"", kIdNavGeneral);
     navAppearance_ = CreateButton(L"", kIdNavAppearance);
+    navData_ = CreateButton(L"", kIdNavData);
     navAbout_ = CreateButton(L"", kIdNavAbout);
 
     pageTitle_ = CreateStatic(L"", SS_LEFT);
@@ -307,6 +309,7 @@ void SettingsWindow::CreateControls() {
     CreateCommandPage();
     CreateGeneralPage();
     CreateAppearancePage();
+    CreateDataPage();
     CreateAboutPage();
 }
 
@@ -432,6 +435,8 @@ void SettingsWindow::CreateCommandPage() {
 void SettingsWindow::CreateGeneralPage() {
     generalBehaviorTitle_ = CreateStatic(L"");
 
+    startWithWindows_ =
+        CreateCheckboxRow(L"", kIdStartWithWindows);
     hideAfterLaunch_ =
         CreateCheckboxRow(L"", kIdHideAfterLaunch);
     clearQueryOnShow_ =
@@ -440,6 +445,89 @@ void SettingsWindow::CreateGeneralPage() {
         CreateCheckboxRow(L"", kIdHideOnFocusLost);
     showTrayIcon_ =
         CreateCheckboxRow(L"", kIdShowTrayIcon);
+
+    hotkeySectionTitle_ = CreateStatic(L"");
+    hotkeyCtrl_ =
+        CreateCheckbox(L"Ctrl", kIdHotkeyCtrl);
+    hotkeyAlt_ =
+        CreateCheckbox(L"Alt", kIdHotkeyAlt);
+    hotkeyShift_ =
+        CreateCheckbox(L"Shift", kIdHotkeyShift);
+    hotkeyWin_ =
+        CreateCheckbox(L"Win", kIdHotkeyWin);
+
+    hotkeyKey_ = CreateWindowExW(
+        0,
+        L"COMBOBOX",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+            CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 0, 0, 0,
+        hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(kIdHotkeyKey)),
+        instance_,
+        nullptr);
+
+    const auto addHotkeyKey =
+        [&](UINT virtualKey) {
+            const std::wstring display =
+                hotkey::KeyDisplayName(virtualKey);
+
+            const LRESULT index =
+                SendMessageW(
+                    hotkeyKey_,
+                    CB_ADDSTRING,
+                    0,
+                    reinterpret_cast<LPARAM>(
+                        display.c_str()));
+
+            if (index >= 0) {
+                SendMessageW(
+                    hotkeyKey_,
+                    CB_SETITEMDATA,
+                    static_cast<WPARAM>(index),
+                    static_cast<LPARAM>(virtualKey));
+            }
+        };
+
+    addHotkeyKey(VK_SPACE);
+
+    for (UINT key = 'A'; key <= 'Z'; ++key) {
+        addHotkeyKey(key);
+    }
+
+    for (UINT key = '0'; key <= '9'; ++key) {
+        addHotkeyKey(key);
+    }
+
+    for (UINT key = VK_F1; key <= VK_F24; ++key) {
+        addHotkeyKey(key);
+    }
+
+    for (const UINT key : std::array<UINT, 12>{
+             VK_RETURN,
+             VK_TAB,
+             VK_ESCAPE,
+             VK_HOME,
+             VK_END,
+             VK_INSERT,
+             VK_DELETE,
+             VK_PRIOR,
+             VK_NEXT,
+             VK_UP,
+             VK_DOWN,
+             VK_LEFT}) {
+        addHotkeyKey(key);
+    }
+    addHotkeyKey(VK_RIGHT);
+
+    hotkeyApply_ =
+        CreateButton(L"", kIdHotkeyApply);
+
+    hotkeyStatus_ = CreateStatic(
+        L"",
+        SS_LEFT | SS_NOPREFIX);
 
     popupSectionTitle_ = CreateStatic(L"");
     popupMonitorLabel_ = CreateStatic(L"");
@@ -466,10 +554,19 @@ void SettingsWindow::CreateGeneralPage() {
 
     generalControls_ = {
         generalBehaviorTitle_,
+        startWithWindows_,
         hideAfterLaunch_,
         clearQueryOnShow_,
         hideOnFocusLost_,
         showTrayIcon_,
+        hotkeySectionTitle_,
+        hotkeyCtrl_,
+        hotkeyAlt_,
+        hotkeyShift_,
+        hotkeyWin_,
+        hotkeyKey_,
+        hotkeyApply_,
+        hotkeyStatus_,
         popupSectionTitle_,
         popupMonitorLabel_,
         popupMonitorDescription_,
@@ -519,6 +616,46 @@ void SettingsWindow::CreateAppearancePage() {
         languageLabel_,
         language_,
         appearanceNote_,
+    };
+}
+
+void SettingsWindow::CreateDataPage() {
+    dataOpenLabel_ = CreateStatic(L"");
+    dataOpenFolder_ =
+        CreateButton(L"", kIdDataOpenFolder);
+
+    dataTransferLabel_ = CreateStatic(L"");
+    dataImportTsv_ =
+        CreateButton(L"", kIdDataImportTsv);
+    dataImportLegacy_ =
+        CreateButton(L"", kIdDataImportLegacy);
+    dataExport_ =
+        CreateButton(L"", kIdDataExport);
+
+    dataMaintenanceLabel_ = CreateStatic(L"");
+    dataClearUsage_ =
+        CreateButton(L"", kIdDataClearUsage);
+    dataRebuildIndex_ =
+        CreateButton(L"", kIdDataRebuildIndex);
+    dataResetSettings_ =
+        CreateButton(L"", kIdDataResetSettings);
+
+    dataStatus_ = CreateStatic(
+        L"",
+        SS_LEFT | SS_NOPREFIX);
+
+    dataControls_ = {
+        dataOpenLabel_,
+        dataOpenFolder_,
+        dataTransferLabel_,
+        dataImportTsv_,
+        dataImportLegacy_,
+        dataExport_,
+        dataMaintenanceLabel_,
+        dataClearUsage_,
+        dataRebuildIndex_,
+        dataResetSettings_,
+        dataStatus_,
     };
 }
 
@@ -625,6 +762,7 @@ void SettingsWindow::ApplyFonts() {
         navCommands_,
         navGeneral_,
         navAppearance_,
+        navData_,
         navAbout_,
         pageDescription_,
         commandSearch_,
@@ -656,6 +794,13 @@ void SettingsWindow::ApplyFonts() {
         commandCancel_,
         commandSave_,
         commandStatus_,
+        hotkeyCtrl_,
+        hotkeyAlt_,
+        hotkeyShift_,
+        hotkeyWin_,
+        hotkeyKey_,
+        hotkeyApply_,
+        hotkeyStatus_,
         popupMonitorLabel_,
         popupMonitorDescription_,
         popupMonitor_,
@@ -665,6 +810,17 @@ void SettingsWindow::ApplyFonts() {
         languageLabel_,
         language_,
         appearanceNote_,
+        dataOpenLabel_,
+        dataOpenFolder_,
+        dataTransferLabel_,
+        dataImportTsv_,
+        dataImportLegacy_,
+        dataExport_,
+        dataMaintenanceLabel_,
+        dataClearUsage_,
+        dataRebuildIndex_,
+        dataResetSettings_,
+        dataStatus_,
         aboutVersion_,
         aboutDescription_,
         dataPathLabel_,
@@ -683,10 +839,14 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
-    for (HWND control : std::array<HWND, 3>{
+    for (HWND control : std::array<HWND, 7>{
              commandEditorTitle_,
              generalBehaviorTitle_,
-             popupSectionTitle_}) {
+             hotkeySectionTitle_,
+             popupSectionTitle_,
+             dataOpenLabel_,
+             dataTransferLabel_,
+             dataMaintenanceLabel_}) {
         if (control) {
             SendMessageW(
                 control,
@@ -712,7 +872,8 @@ void SettingsWindow::ApplyFonts() {
             TRUE);
     }
 
-    for (HWND control : std::array<HWND, 4>{
+    for (HWND control : std::array<HWND, 5>{
+             startWithWindows_,
              hideAfterLaunch_,
              clearQueryOnShow_,
              hideOnFocusLost_,
@@ -844,6 +1005,9 @@ void SettingsWindow::ApplyLanguage() {
         generalBehaviorTitle_,
         T(L"启动器行为", L"Launcher behavior"));
     SetWindowTextW(
+        startWithWindows_,
+        T(L"开机启动", L"Start with Windows"));
+    SetWindowTextW(
         hideAfterLaunch_,
         T(L"执行后自动隐藏", L"Hide after launch"));
     SetWindowTextW(
@@ -855,6 +1019,14 @@ void SettingsWindow::ApplyLanguage() {
     SetWindowTextW(
         showTrayIcon_,
         T(L"显示系统托盘图标", L"Show system tray icon"));
+
+    SetWindowTextW(
+        hotkeySectionTitle_,
+        T(L"全局热键", L"Global hotkey"));
+    SetWindowTextW(
+        hotkeyApply_,
+        T(L"应用热键", L"Apply hotkey"));
+
     SetWindowTextW(
         popupSectionTitle_,
         T(L"呼出位置", L"Launcher placement"));
@@ -867,8 +1039,8 @@ void SettingsWindow::ApplyLanguage() {
           L"Choose which display the launcher uses when it opens."));
     SetWindowTextW(
         generalNote_,
-        T(L"开机启动和自定义全局热键将在后续 alpha 中接入。",
-          L"Start-with-Windows and custom global hotkeys will be wired in a later alpha."));
+        T(L"热键只有在 Windows 注册成功后才会保存；冲突时会继续保留旧热键。",
+          L"The hotkey is saved only after Windows registers it successfully; conflicts keep the previous hotkey."));
 
     SendMessageW(popupMonitor_, CB_RESETCONTENT, 0, 0);
     SendMessageW(
@@ -928,13 +1100,46 @@ void SettingsWindow::ApplyLanguage() {
           L"Appearance and language changes apply immediately and are saved to data/settings.json."));
 
     SetWindowTextW(
+        dataOpenLabel_,
+        T(L"数据目录", L"Data directory"));
+    SetWindowTextW(
+        dataOpenFolder_,
+        T(L"打开数据目录", L"Open data folder"));
+
+    SetWindowTextW(
+        dataTransferLabel_,
+        T(L"导入 / 导出", L"Import / Export"));
+    SetWindowTextW(
+        dataImportTsv_,
+        T(L"导入 ALTRun Next TSV", L"Import ALTRun Next TSV"));
+    SetWindowTextW(
+        dataImportLegacy_,
+        T(L"导入旧版 ALTRun（Beta）", L"Import legacy ALTRun (Beta)"));
+    SetWindowTextW(
+        dataExport_,
+        T(L"导出快捷项 TSV", L"Export shortcuts TSV"));
+
+    SetWindowTextW(
+        dataMaintenanceLabel_,
+        T(L"维护", L"Maintenance"));
+    SetWindowTextW(
+        dataClearUsage_,
+        T(L"清空使用历史", L"Clear usage history"));
+    SetWindowTextW(
+        dataRebuildIndex_,
+        T(L"重建程序索引", L"Rebuild program index"));
+    SetWindowTextW(
+        dataResetSettings_,
+        T(L"恢复默认设置", L"Restore default settings"));
+
+    SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.2.0-alpha.3", L"Version 0.2.0-alpha.3"));
+        T(L"版本 0.2.0-beta.1", L"Version 0.2.0-beta.1"));
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\n快捷项管理器直接编辑 data/commands.json，保存后立即刷新 Launcher。",
-          L"A lightweight, keyboard-first Windows launcher.\nThe Command Manager edits data/commands.json and refreshes the launcher immediately."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nBeta 1 加入自定义全局热键、开机启动和数据维护工具。",
+          L"A lightweight, keyboard-first Windows launcher.\nBeta 1 adds custom global hotkeys, Windows startup and data maintenance tools."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -998,7 +1203,10 @@ void SettingsWindow::RefreshFromSettings() {
         settings.language == Language::EnUS ? 1 : 0,
         0);
 
-    for (HWND control : std::array<HWND, 4>{
+    RefreshHotkeyControls();
+
+    for (HWND control : std::array<HWND, 5>{
+             startWithWindows_,
              hideAfterLaunch_,
              clearQueryOnShow_,
              hideOnFocusLost_,
@@ -1036,6 +1244,9 @@ void SettingsWindow::UpdateNavLabels() {
         navAppearance_,
         label(Page::Appearance, L"外观", L"Appearance").c_str());
     SetWindowTextW(
+        navData_,
+        label(Page::Data, L"数据", L"Data").c_str());
+    SetWindowTextW(
         navAbout_,
         label(Page::About, L"关于", L"About").c_str());
 }
@@ -1070,6 +1281,16 @@ void SettingsWindow::UpdatePageHeader() {
             pageDescription_,
             T(L"选择启动器样式和界面语言。",
               L"Choose the launcher style and interface language."));
+        break;
+
+    case Page::Data:
+        SetWindowTextW(
+            pageTitle_,
+            T(L"数据", L"Data"));
+        SetWindowTextW(
+            pageDescription_,
+            T(L"导入、导出和维护 ALTRun Next 的本地数据。",
+              L"Import, export and maintain ALTRun Next local data."));
         break;
 
     case Page::About:
@@ -1122,6 +1343,7 @@ void SettingsWindow::ShowPage(Page page) {
     setVisible(commandControls_, page == Page::Commands);
     setVisible(generalControls_, page == Page::General);
     setVisible(appearanceControls_, page == Page::Appearance);
+    setVisible(dataControls_, page == Page::Data);
     setVisible(aboutControls_, page == Page::About);
 
     if (page == Page::Commands) {
@@ -1760,6 +1982,325 @@ void SettingsWindow::BrowseCommandWorkingDirectory() {
     CoTaskMemFree(item);
 }
 
+void SettingsWindow::RefreshHotkeyControls() {
+    const auto& settings = app_.SettingsData();
+
+    const auto hasModifier =
+        [&](std::string_view name) {
+            return std::find(
+                       settings.hotkeyModifiers.begin(),
+                       settings.hotkeyModifiers.end(),
+                       name) !=
+                   settings.hotkeyModifiers.end();
+        };
+
+    SetChecked(hotkeyCtrl_, hasModifier("ctrl") || hasModifier("control"));
+    SetChecked(hotkeyAlt_, hasModifier("alt"));
+    SetChecked(hotkeyShift_, hasModifier("shift"));
+    SetChecked(hotkeyWin_, hasModifier("win") || hasModifier("windows"));
+
+    const UINT desired =
+        hotkey::KeyFromName(settings.hotkeyKey);
+
+    const int count =
+        static_cast<int>(
+            SendMessageW(
+                hotkeyKey_,
+                CB_GETCOUNT,
+                0,
+                0));
+
+    int selected = -1;
+
+    for (int i = 0; i < count; ++i) {
+        const UINT value =
+            static_cast<UINT>(
+                SendMessageW(
+                    hotkeyKey_,
+                    CB_GETITEMDATA,
+                    static_cast<WPARAM>(i),
+                    0));
+
+        if (value == desired) {
+            selected = i;
+            break;
+        }
+    }
+
+    if (selected < 0 && count > 0) {
+        selected = 0;
+    }
+
+    SendMessageW(
+        hotkeyKey_,
+        CB_SETCURSEL,
+        selected,
+        0);
+
+    std::wstring display;
+    const auto append =
+        [&](std::wstring_view part) {
+            if (!display.empty()) display += L" + ";
+            display += part;
+        };
+
+    if (hasModifier("ctrl") || hasModifier("control")) append(L"Ctrl");
+    if (hasModifier("alt")) append(L"Alt");
+    if (hasModifier("shift")) append(L"Shift");
+    if (hasModifier("win") || hasModifier("windows")) append(L"Win");
+
+    if (desired != 0) {
+        append(hotkey::KeyDisplayName(desired));
+    }
+
+    std::wstring status =
+        T(L"当前热键：", L"Current hotkey: ");
+    status += display;
+
+    SetWindowTextW(
+        hotkeyStatus_,
+        status.c_str());
+}
+
+void SettingsWindow::ApplyHotkeyControl() {
+    if (syncing_) return;
+
+    std::vector<std::string> modifiers;
+
+    if (IsChecked(hotkeyCtrl_)) modifiers.push_back("ctrl");
+    if (IsChecked(hotkeyAlt_)) modifiers.push_back("alt");
+    if (IsChecked(hotkeyShift_)) modifiers.push_back("shift");
+    if (IsChecked(hotkeyWin_)) modifiers.push_back("win");
+
+    if (modifiers.empty()) {
+        MessageBoxW(
+            hwnd_,
+            T(L"请至少选择一个修饰键（Ctrl / Alt / Shift / Win）。",
+              L"Choose at least one modifier (Ctrl / Alt / Shift / Win)."),
+            T(L"全局热键", L"Global hotkey"),
+            MB_OK | MB_ICONWARNING);
+        RefreshHotkeyControls();
+        return;
+    }
+
+    const int index =
+        static_cast<int>(
+            SendMessageW(
+                hotkeyKey_,
+                CB_GETCURSEL,
+                0,
+                0));
+
+    if (index < 0) {
+        return;
+    }
+
+    const UINT virtualKey =
+        static_cast<UINT>(
+            SendMessageW(
+                hotkeyKey_,
+                CB_GETITEMDATA,
+                static_cast<WPARAM>(index),
+                0));
+
+    const std::string key =
+        hotkey::KeyName(virtualKey);
+
+    if (key.empty() ||
+        !app_.SetHotkeySettings(
+            std::move(modifiers),
+            key)) {
+
+        MessageBoxW(
+            hwnd_,
+            T(L"Windows 无法注册这个热键，可能已被其他程序占用。旧热键保持不变。",
+              L"Windows could not register this hotkey. It may already be used by another application. The previous hotkey is unchanged."),
+            T(L"热键冲突", L"Hotkey conflict"),
+            MB_OK | MB_ICONWARNING);
+
+        RefreshHotkeyControls();
+        return;
+    }
+
+    RefreshHotkeyControls();
+}
+
+void SettingsWindow::ImportCommands(bool legacyMode) {
+    std::array<wchar_t, 32768> file{};
+
+    const wchar_t nextFilter[] =
+        L"ALTRun Next TSV\0*.tsv;*.txt\0"
+        L"All files\0*.*\0\0";
+
+    const wchar_t legacyFilter[] =
+        L"Legacy ALTRun files\0*.ini;*.txt;*.tsv\0"
+        L"All files\0*.*\0\0";
+
+    OPENFILENAMEW open{};
+    open.lStructSize = sizeof(open);
+    open.hwndOwner = hwnd_;
+    open.lpstrFile = file.data();
+    open.nMaxFile =
+        static_cast<DWORD>(file.size());
+    open.lpstrFilter =
+        legacyMode ? legacyFilter : nextFilter;
+    open.nFilterIndex = 1;
+    open.Flags =
+        OFN_FILEMUSTEXIST |
+        OFN_PATHMUSTEXIST |
+        OFN_EXPLORER |
+        OFN_NOCHANGEDIR;
+
+    if (!GetOpenFileNameW(&open)) {
+        return;
+    }
+
+    std::size_t imported = 0;
+    std::size_t skipped = 0;
+
+    if (!app_.ImportUserCommands(
+            std::filesystem::path(file.data()),
+            legacyMode,
+            &imported,
+            &skipped)) {
+
+        MessageBoxW(
+            hwnd_,
+            T(L"导入失败，原数据未被替换。",
+              L"Import failed. Existing data was not replaced."),
+            T(L"导入快捷项", L"Import shortcuts"),
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    std::wstring status =
+        T(L"导入完成：新增 ", L"Import complete: added ");
+    status += std::to_wstring(imported);
+    status += T(L" 项，跳过 ", L", skipped ");
+    status += std::to_wstring(skipped);
+    status += T(L" 项。", L".");
+
+    SetWindowTextW(
+        dataStatus_,
+        status.c_str());
+}
+
+void SettingsWindow::ExportCommands() {
+    std::array<wchar_t, 32768> file{};
+    const std::wstring defaultName =
+        L"ALTRunNext-commands.tsv";
+
+    std::copy(
+        defaultName.begin(),
+        defaultName.end(),
+        file.begin());
+
+    const wchar_t filter[] =
+        L"ALTRun Next TSV\0*.tsv\0"
+        L"All files\0*.*\0\0";
+
+    OPENFILENAMEW save{};
+    save.lStructSize = sizeof(save);
+    save.hwndOwner = hwnd_;
+    save.lpstrFile = file.data();
+    save.nMaxFile =
+        static_cast<DWORD>(file.size());
+    save.lpstrFilter = filter;
+    save.nFilterIndex = 1;
+    save.lpstrDefExt = L"tsv";
+    save.Flags =
+        OFN_OVERWRITEPROMPT |
+        OFN_PATHMUSTEXIST |
+        OFN_EXPLORER |
+        OFN_NOCHANGEDIR;
+
+    if (!GetSaveFileNameW(&save)) {
+        return;
+    }
+
+    if (!app_.ExportUserCommands(
+            std::filesystem::path(file.data()))) {
+
+        MessageBoxW(
+            hwnd_,
+            T(L"导出失败。",
+              L"Export failed."),
+            T(L"导出快捷项", L"Export shortcuts"),
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    SetWindowTextW(
+        dataStatus_,
+        T(L"快捷项已导出。",
+          L"Shortcuts exported."));
+}
+
+void SettingsWindow::ClearUsageHistory() {
+    const int answer =
+        MessageBoxW(
+            hwnd_,
+            T(L"确定清空全部使用次数和最近使用时间吗？\n\n快捷项本身不会被删除。",
+              L"Clear all launch counts and recent-use timestamps?\n\nShortcuts themselves will not be deleted."),
+            T(L"清空使用历史", L"Clear usage history"),
+            MB_YESNO | MB_ICONWARNING);
+
+    if (answer != IDYES) return;
+
+    if (!app_.ClearUsageHistory()) {
+        MessageBoxW(
+            hwnd_,
+            T(L"清空使用历史失败。",
+              L"Failed to clear usage history."),
+            L"ALTRun Next",
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    SetWindowTextW(
+        dataStatus_,
+        T(L"使用历史已清空，排序已立即刷新。",
+          L"Usage history cleared. Ranking has been refreshed."));
+}
+
+void SettingsWindow::RebuildProgramIndex() {
+    app_.RebuildProgramIndex();
+
+    SetWindowTextW(
+        dataStatus_,
+        T(L"开始菜单程序索引已重新扫描。",
+          L"Start Menu program index has been rescanned."));
+}
+
+void SettingsWindow::RestoreDefaultSettings() {
+    const int answer =
+        MessageBoxW(
+            hwnd_,
+            T(L"确定恢复默认设置吗？\n\n不会删除你的快捷项和使用历史。",
+              L"Restore default settings?\n\nYour shortcuts and usage history will not be deleted."),
+            T(L"恢复默认设置", L"Restore default settings"),
+            MB_YESNO | MB_ICONWARNING);
+
+    if (answer != IDYES) return;
+
+    if (!app_.RestoreDefaultSettings()) {
+        MessageBoxW(
+            hwnd_,
+            T(L"恢复失败。默认热键 Alt + Space 可能发生冲突，或系统设置无法写入。",
+              L"Restore failed. The default Alt + Space hotkey may be unavailable, or a system setting could not be written."),
+            T(L"恢复默认设置", L"Restore default settings"),
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    RefreshFromSettings();
+
+    SetWindowTextW(
+        dataStatus_,
+        T(L"设置已恢复为默认值。",
+          L"Settings restored to defaults."));
+}
+
 void SettingsWindow::ToggleGeneralSetting(UINT id) {
     if (syncing_) return;
 
@@ -1771,6 +2312,19 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
     bool showTrayIcon = settings.showTrayIcon;
 
     switch (id) {
+    case kIdStartWithWindows:
+        if (!app_.SetStartWithWindows(
+                !settings.startWithWindows)) {
+            MessageBoxW(
+                hwnd_,
+                T(L"无法更新 Windows 开机启动项。",
+                  L"Unable to update the Windows startup entry."),
+                L"ALTRun Next",
+                MB_OK | MB_ICONERROR);
+            RefreshFromSettings();
+        }
+        return;
+
     case kIdHideAfterLaunch:
         hideAfterLaunch = !hideAfterLaunch;
         break;
@@ -1859,6 +2413,8 @@ bool SettingsWindow::ToggleChecked(UINT id) const {
     const auto& settings = app_.SettingsData();
 
     switch (id) {
+    case kIdStartWithWindows:
+        return settings.startWithWindows;
     case kIdHideAfterLaunch:
         return settings.hideAfterLaunch;
     case kIdClearQueryOnShow:
@@ -1891,9 +2447,9 @@ RECT SettingsWindow::BehaviorCardRect() const {
 
     return {
         contentLeft,
-        Scale(176),
+        Scale(170),
         contentLeft + cardWidth,
-        Scale(176 + 58 * 4),
+        Scale(170 + 58 * 5),
     };
 }
 
@@ -1916,9 +2472,9 @@ RECT SettingsWindow::MonitorCardRect() const {
 
     return {
         contentLeft,
-        Scale(468),
+        Scale(612),
         contentLeft + cardWidth,
-        Scale(550),
+        Scale(680),
     };
 }
 
@@ -1934,10 +2490,11 @@ void SettingsWindow::Layout() {
     const int navHeight = Scale(42);
     const int navGap = Scale(8);
 
-    std::array<HWND, 4> nav{
+    std::array<HWND, 5> nav{
         navCommands_,
         navGeneral_,
         navAppearance_,
+        navData_,
         navAbout_,
     };
 
@@ -2200,7 +2757,7 @@ void SettingsWindow::Layout() {
         MoveWindow(
             generalBehaviorTitle_,
             x,
-            Scale(142),
+            Scale(138),
             controlWidth,
             Scale(28),
             TRUE);
@@ -2214,7 +2771,8 @@ void SettingsWindow::Layout() {
             behavior.left -
             Scale(2);
 
-        std::array<HWND, 4> rows{
+        std::array<HWND, 5> rows{
+            startWithWindows_,
             hideAfterLaunch_,
             clearQueryOnShow_,
             hideOnFocusLost_,
@@ -2234,9 +2792,57 @@ void SettingsWindow::Layout() {
         }
 
         MoveWindow(
+            hotkeySectionTitle_,
+            x,
+            Scale(478),
+            controlWidth,
+            Scale(28),
+            TRUE);
+
+        int hotkeyX = x;
+        for (HWND control : std::array<HWND, 4>{
+                 hotkeyCtrl_,
+                 hotkeyAlt_,
+                 hotkeyShift_,
+                 hotkeyWin_}) {
+            MoveWindow(
+                control,
+                hotkeyX,
+                Scale(512),
+                Scale(76),
+                Scale(30),
+                TRUE);
+            hotkeyX += Scale(78);
+        }
+
+        MoveWindow(
+            hotkeyKey_,
+            x + Scale(320),
+            Scale(510),
+            Scale(150),
+            Scale(220),
+            TRUE);
+
+        MoveWindow(
+            hotkeyApply_,
+            x + Scale(480),
+            Scale(510),
+            Scale(110),
+            Scale(32),
+            TRUE);
+
+        MoveWindow(
+            hotkeyStatus_,
+            x,
+            Scale(548),
+            controlWidth,
+            Scale(26),
+            TRUE);
+
+        MoveWindow(
             popupSectionTitle_,
             x,
-            Scale(434),
+            Scale(580),
             controlWidth,
             Scale(28),
             TRUE);
@@ -2248,25 +2854,25 @@ void SettingsWindow::Layout() {
         MoveWindow(
             popupMonitorLabel_,
             monitor.left + Scale(18),
-            monitor.top + Scale(14),
-            Scale(220),
-            Scale(24),
+            monitor.top + Scale(12),
+            Scale(180),
+            Scale(22),
             TRUE);
 
         MoveWindow(
             popupMonitorDescription_,
             monitor.left + Scale(18),
-            monitor.top + Scale(40),
+            monitor.top + Scale(35),
             std::max(
                 Scale(180),
                 monitorWidth - Scale(330)),
-            Scale(30),
+            Scale(24),
             TRUE);
 
         MoveWindow(
             popupMonitor_,
             monitor.right - Scale(278),
-            monitor.top + Scale(23),
+            monitor.top + Scale(18),
             Scale(250),
             Scale(220),
             TRUE);
@@ -2274,9 +2880,9 @@ void SettingsWindow::Layout() {
         MoveWindow(
             generalNote_,
             x,
-            Scale(568),
+            Scale(700),
             controlWidth,
-            Scale(36),
+            Scale(38),
             TRUE);
     }
 
@@ -2312,6 +2918,69 @@ void SettingsWindow::Layout() {
             appearanceNote_,
             x, y + Scale(204),
             controlWidth, Scale(52), TRUE);
+    }
+
+    if (page_ == Page::Data) {
+        const int x = contentLeft;
+        const int width =
+            std::min(
+                contentWidth,
+                Scale(700));
+
+        MoveWindow(
+            dataOpenLabel_,
+            x, Scale(146),
+            width, Scale(28), TRUE);
+
+        MoveWindow(
+            dataOpenFolder_,
+            x, Scale(182),
+            Scale(190), Scale(36), TRUE);
+
+        MoveWindow(
+            dataTransferLabel_,
+            x, Scale(252),
+            width, Scale(28), TRUE);
+
+        MoveWindow(
+            dataImportTsv_,
+            x, Scale(288),
+            Scale(200), Scale(36), TRUE);
+
+        MoveWindow(
+            dataImportLegacy_,
+            x + Scale(214), Scale(288),
+            Scale(220), Scale(36), TRUE);
+
+        MoveWindow(
+            dataExport_,
+            x + Scale(448), Scale(288),
+            Scale(190), Scale(36), TRUE);
+
+        MoveWindow(
+            dataMaintenanceLabel_,
+            x, Scale(370),
+            width, Scale(28), TRUE);
+
+        MoveWindow(
+            dataClearUsage_,
+            x, Scale(406),
+            Scale(190), Scale(36), TRUE);
+
+        MoveWindow(
+            dataRebuildIndex_,
+            x + Scale(204), Scale(406),
+            Scale(190), Scale(36), TRUE);
+
+        MoveWindow(
+            dataResetSettings_,
+            x + Scale(408), Scale(406),
+            Scale(190), Scale(36), TRUE);
+
+        MoveWindow(
+            dataStatus_,
+            x, Scale(468),
+            width, Scale(54), TRUE);
     }
 
     if (page_ == Page::About) {
@@ -2466,6 +3135,15 @@ void SettingsWindow::DrawGeneralToggle(
     const wchar_t* description = L"";
 
     switch (id) {
+    case kIdStartWithWindows:
+        title = T(
+            L"开机启动",
+            L"Start with Windows");
+        description = T(
+            L"登录 Windows 后自动启动 ALTRun Next。",
+            L"Launch ALTRun Next automatically after signing in to Windows.");
+        break;
+
     case kIdHideAfterLaunch:
         title = T(
             L"执行后自动隐藏",
@@ -2731,6 +3409,12 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
+        case kIdNavData:
+            if (notify == BN_CLICKED) {
+                ShowPage(Page::Data);
+            }
+            return 0;
+
         case kIdNavAbout:
             if (notify == BN_CLICKED) {
                 ShowPage(Page::About);
@@ -2866,6 +3550,7 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
+        case kIdStartWithWindows:
         case kIdHideAfterLaunch:
         case kIdClearQueryOnShow:
         case kIdHideOnFocusLost:
@@ -2875,9 +3560,57 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
+        case kIdHotkeyApply:
+            if (notify == BN_CLICKED) {
+                ApplyHotkeyControl();
+            }
+            return 0;
+
         case kIdPopupMonitor:
             if (notify == CBN_SELCHANGE) {
                 ApplyMonitorControl();
+            }
+            return 0;
+
+        case kIdDataOpenFolder:
+            if (notify == BN_CLICKED) {
+                app_.OpenDataFolder();
+            }
+            return 0;
+
+        case kIdDataImportTsv:
+            if (notify == BN_CLICKED) {
+                ImportCommands(false);
+            }
+            return 0;
+
+        case kIdDataImportLegacy:
+            if (notify == BN_CLICKED) {
+                ImportCommands(true);
+            }
+            return 0;
+
+        case kIdDataExport:
+            if (notify == BN_CLICKED) {
+                ExportCommands();
+            }
+            return 0;
+
+        case kIdDataClearUsage:
+            if (notify == BN_CLICKED) {
+                ClearUsageHistory();
+            }
+            return 0;
+
+        case kIdDataRebuildIndex:
+            if (notify == BN_CLICKED) {
+                RebuildProgramIndex();
+            }
+            return 0;
+
+        case kIdDataResetSettings:
+            if (notify == BN_CLICKED) {
+                RestoreDefaultSettings();
             }
             return 0;
 
@@ -2912,7 +3645,8 @@ LRESULT SettingsWindow::HandleMessage(
                 lParam);
 
         if (item &&
-            (item->CtlID == kIdHideAfterLaunch ||
+            (item->CtlID == kIdStartWithWindows ||
+             item->CtlID == kIdHideAfterLaunch ||
              item->CtlID == kIdClearQueryOnShow ||
              item->CtlID == kIdHideOnFocusLost ||
              item->CtlID == kIdShowTrayIcon)) {
@@ -3116,6 +3850,8 @@ LRESULT SettingsWindow::HandleMessage(
 
         if (control == pageDescription_ ||
             control == commandStatus_ ||
+            control == hotkeyStatus_ ||
+            control == dataStatus_ ||
             control == generalNote_ ||
             control == popupMonitorDescription_ ||
             control == appearanceNote_ ||
@@ -3185,7 +3921,7 @@ LRESULT SettingsWindow::HandleMessage(
             Scale(920);
 
         info->ptMinTrackSize.y =
-            Scale(620);
+            Scale(680);
 
         return 0;
     }

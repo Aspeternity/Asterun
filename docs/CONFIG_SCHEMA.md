@@ -1,4 +1,4 @@
-# Config Core schema — v0.2.0-alpha.1
+# Config Core schema — schemaVersion 1
 
 ALTRun Next now stores live configuration under the portable `data/` directory:
 
@@ -45,13 +45,13 @@ If the live JSON is unreadable, ALTRun Next attempts to read the `.bak` copy.
 
 ## settings.json
 
-The first schema reserves the sections needed by the upcoming Settings UI:
+The first schema contains:
 
-- `general`
-- `hotkey`
-- `appearance`
+- `general` — startup, launcher behavior, tray visibility and monitor placement;
+- `hotkey` — global-hotkey modifiers and key;
+- `appearance` — launcher skin and interface language.
 
-Not every stored setting is wired to UI behavior in alpha.1 yet; this release establishes the persistent model first.
+As of v0.2.0-beta.1, `startWithWindows` and the `hotkey` section are wired to live Windows behavior. A new hotkey is saved only after `RegisterHotKey` succeeds, so a conflicting binding does not overwrite the previous working configuration.
 
 ## commands.json
 
@@ -82,3 +82,20 @@ Usage statistics are keyed by stable command ID:
 - last-used Unix timestamp
 
 This allows names, keywords and targets to change later without losing ranking history.
+
+
+## Shortcut TSV interchange — v1
+
+v0.2.0-beta.1 adds a portable TSV import/export format for user shortcuts.
+
+Columns:
+
+```text
+keyword    name    aliases    type    target    arguments    workingDirectory    enabled    runAsAdmin    pinned    sortOrder
+```
+
+- aliases are comma-separated;
+- booleans accept `1/0`, `true/false`, `yes/no` or `on/off`;
+- the older five-column `keyword / title / target / arguments / workingDirectory` TSV remains importable;
+- legacy ALTRun Beta import also accepts simple `keyword=target` rows as a best-effort compatibility path;
+- imported commands receive fresh stable UUIDs and duplicates with the same keyword + target are skipped.

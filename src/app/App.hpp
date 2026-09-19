@@ -43,6 +43,17 @@ public:
     bool MoveUserCommand(std::wstring_view id, int direction);
     bool TestCommand(const Command& command);
 
+    bool ImportUserCommands(
+        const std::filesystem::path& path,
+        bool legacyMode,
+        std::size_t* imported = nullptr,
+        std::size_t* skipped = nullptr);
+    bool ExportUserCommands(
+        const std::filesystem::path& path) const;
+    bool ClearUsageHistory();
+    void RebuildProgramIndex();
+    bool RestoreDefaultSettings();
+
     [[nodiscard]] const Settings& SettingsData() const noexcept {
         return settingsStore_.Data();
     }
@@ -51,6 +62,10 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
+    bool SetStartWithWindows(bool enabled);
+    bool SetHotkeySettings(
+        std::vector<std::string> modifiers,
+        std::string key);
     void SetGeneralSettings(
         bool hideAfterLaunch,
         bool clearQueryOnShow,
@@ -70,6 +85,7 @@ public:
 
 private:
     bool LaunchCommand(const Command& command, bool recordUsage);
+    bool ApplyStartupRegistration(bool enabled) const;
 
     HINSTANCE instance_{};
     std::filesystem::path baseDirectory_;

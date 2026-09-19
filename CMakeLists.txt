@@ -52,6 +52,7 @@ if(WIN32)
         src/core/CommandStore.cpp
         src/core/Localization.cpp
         src/core/StartMenuProvider.cpp
+        src/platform/Hotkey.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
         src/ui/SettingsWindow.cpp
@@ -68,6 +69,7 @@ if(WIN32)
         ole32
         comctl32
         comdlg32
+        advapi32
         user32
         gdi32
         dwmapi

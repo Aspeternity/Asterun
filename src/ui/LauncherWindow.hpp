@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace altrun {
@@ -24,6 +25,9 @@ public:
     void ApplyAppearance();
     void ApplyLanguage();
     void ApplyGeneralSettings();
+    bool RebindHotkey(
+        const std::vector<std::string>& modifiers,
+        std::string_view key);
 
 private:
     struct ThemePalette {
@@ -97,6 +101,9 @@ private:
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
     bool trayIconAdded_{false};
+    bool hotkeyRegistered_{false};
+    UINT currentHotkeyModifiers_{0};
+    UINT currentHotkeyVk_{0};
     UINT dpi_{96};
     int widthLogical_{420};
     int rowHeightLogical_{16};

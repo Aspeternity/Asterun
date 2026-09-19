@@ -1,10 +1,6 @@
-# Legacy migration example for ALTRun Next v0.1.x and earlier\n# keyword<TAB>title<TAB>target<TAB>arguments<TAB>working_directory
-np	Notepad	notepad.exe		
-calc	Calculator	calc.exe		
-cmd	Command Prompt	cmd.exe		
-explorer	File Explorer	explorer.exe		
-pwsh	PowerShell	powershell.exe		
-# Example URL:
-# gh	GitHub	https://github.com		
-# Example app with parameters:
-# wt	Windows Terminal	wt.exe	-d C:\\Users\\YourName	C:\\Users\\YourName
+# ALTRun Next commands TSV v1
+# keyword<TAB>name<TAB>aliases<TAB>type<TAB>target<TAB>arguments<TAB>workingDirectory<TAB>enabled<TAB>runAsAdmin<TAB>pinned<TAB>sortOrder
+np	Notepad	note,notepad	application	notepad.exe			1	0	0	0
+calc	Calculator	calculator	application	calc.exe			1	0	0	10
+gh	GitHub	github	url	https://github.com			1	0	0	20
+cmd	Command Prompt	terminal	command	cmd.exe	/k echo ALTRun Next	C:\\Windows	1	0	0	30

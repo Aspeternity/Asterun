@@ -125,6 +125,60 @@ Command MakeDefault(
     return command;
 }
 
+std::wstring SanitizeTsv(std::wstring value) {
+    for (wchar_t& c : value) {
+        if (c == L'\t' || c == L'\r' || c == L'\n') {
+            c = L' ';
+        }
+    }
+    return value;
+}
+
+std::vector<std::wstring> SplitAliases(std::wstring_view value) {
+    std::vector<std::wstring> aliases;
+    std::wstring current;
+
+    const auto flush = [&]() {
+        const auto trimmed = TrimWide(current);
+        current.clear();
+        if (trimmed.empty()) return;
+
+        const auto key = LowerWide(trimmed);
+        const auto duplicate = std::find_if(
+            aliases.begin(),
+            aliases.end(),
+            [&](const std::wstring& existing) {
+                return LowerWide(existing) == key;
+            });
+
+        if (duplicate == aliases.end()) {
+            aliases.push_back(trimmed);
+        }
+    };
+
+    for (const wchar_t c : value) {
+        if (c == L',' || c == L';' || c == L'，' || c == L'；') {
+            flush();
+        } else {
+            current.push_back(c);
+        }
+    }
+
+    flush();
+    return aliases;
+}
+
+bool ParseBoolWide(std::wstring_view value, bool fallback) {
+    const auto lower = LowerWide(TrimWide(value));
+    if (lower == L"1" || lower == L"true" || lower == L"yes" || lower == L"on") {
+        return true;
+    }
+    if (lower == L"0" || lower == L"false" || lower == L"no" || lower == L"off") {
+        return false;
+    }
+    return fallback;
+}
+
 } // namespace
 
 UserCommandStore::UserCommandStore(
@@ -485,6 +539,216 @@ bool UserCommandStore::Move(
     }
 
     return true;
+}
+
+bool UserCommandStore::ImportTsv(
+    const std::filesystem::path& path,
+    bool legacyMode,
+    std::size_t* imported,
+    std::size_t* skipped) {
+
+    if (imported) *imported = 0;
+    if (skipped) *skipped = 0;
+
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return false;
+
+    const auto previous = commands_;
+    std::size_t importedCount = 0;
+    std::size_t skippedCount = 0;
+
+    int nextOrder = 0;
+    for (const auto& command : commands_) {
+        nextOrder = std::max(nextOrder, command.sortOrder + 10);
+    }
+
+    std::string lineUtf8;
+    bool firstLine = true;
+
+    while (std::getline(input, lineUtf8)) {
+        if (firstLine) {
+            firstLine = false;
+            if (lineUtf8.size() >= 3 &&
+                static_cast<unsigned char>(lineUtf8[0]) == 0xEF &&
+                static_cast<unsigned char>(lineUtf8[1]) == 0xBB &&
+                static_cast<unsigned char>(lineUtf8[2]) == 0xBF) {
+                lineUtf8.erase(0, 3);
+            }
+        }
+
+        if (!lineUtf8.empty() && lineUtf8.back() == '\r') {
+            lineUtf8.pop_back();
+        }
+
+        const std::wstring line = TrimWide(text::FromUtf8(lineUtf8));
+        if (line.empty() || line[0] == L'#' || line[0] == L';') {
+            continue;
+        }
+
+        if (legacyMode &&
+            line.front() == L'[' &&
+            line.back() == L']') {
+            continue;
+        }
+
+        Command command;
+        command.id = GenerateUuidV4();
+        command.icon = L"auto";
+        command.enabled = true;
+        command.source = CommandSource::User;
+        command.basePriority = 120;
+        command.sortOrder = nextOrder;
+
+        const auto fields = SplitTabs(line);
+
+        if (!legacyMode && fields.size() >= 11) {
+            command.keyword = TrimWide(fields[0]);
+            command.title = TrimWide(fields[1]);
+            command.aliases = SplitAliases(fields[2]);
+            command.type = ParseType(text::ToUtf8(TrimWide(fields[3])));
+            command.target = TrimWide(fields[4]);
+            command.arguments = TrimWide(fields[5]);
+            command.workingDirectory = TrimWide(fields[6]);
+            command.enabled = ParseBoolWide(fields[7], true);
+            command.runAsAdmin = ParseBoolWide(fields[8], false);
+            command.pinned = ParseBoolWide(fields[9], false);
+
+            try {
+                command.sortOrder = std::stoi(TrimWide(fields[10]));
+            } catch (...) {
+                command.sortOrder = nextOrder;
+            }
+        } else if (fields.size() >= 3) {
+            command.keyword = TrimWide(fields[0]);
+            command.title = TrimWide(fields[1]);
+            command.target = TrimWide(fields[2]);
+            if (fields.size() >= 4) {
+                command.arguments = TrimWide(fields[3]);
+            }
+            if (fields.size() >= 5) {
+                command.workingDirectory = TrimWide(fields[4]);
+            }
+        } else if (legacyMode) {
+            const auto equals = line.find(L'=');
+            if (equals == std::wstring::npos) {
+                ++skippedCount;
+                continue;
+            }
+
+            command.keyword = TrimWide(line.substr(0, equals));
+            command.title = command.keyword;
+            command.target = TrimWide(line.substr(equals + 1));
+        } else {
+            ++skippedCount;
+            continue;
+        }
+
+        if (command.keyword.empty() || command.target.empty()) {
+            ++skippedCount;
+            continue;
+        }
+
+        if (command.title.empty()) {
+            command.title = command.keyword;
+        }
+
+        const auto keywordKey = LowerWide(command.keyword);
+        const auto targetKey = LowerWide(command.target);
+
+        const bool duplicate = std::any_of(
+            commands_.begin(),
+            commands_.end(),
+            [&](const Command& existing) {
+                return LowerWide(existing.keyword) == keywordKey &&
+                       LowerWide(existing.target) == targetKey;
+            });
+
+        if (duplicate) {
+            ++skippedCount;
+            continue;
+        }
+
+        command.legacyIds.push_back(
+            LegacyCommandId(command.keyword, command.target));
+
+        commands_.push_back(std::move(command));
+        nextOrder += 10;
+        ++importedCount;
+    }
+
+    RebuildLegacyIdMap();
+
+    if (importedCount > 0 && !Save()) {
+        commands_ = previous;
+        RebuildLegacyIdMap();
+        return false;
+    }
+
+    if (imported) *imported = importedCount;
+    if (skipped) *skipped = skippedCount;
+    return true;
+}
+
+bool UserCommandStore::ExportTsv(
+    const std::filesystem::path& path) const {
+
+    std::ofstream output(
+        path,
+        std::ios::binary | std::ios::trunc);
+
+    if (!output) return false;
+
+    output.write("\xEF\xBB\xBF", 3);
+    output <<
+        "# ALTRun Next commands TSV v1\n"
+        "# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\n";
+
+    std::vector<const Command*> ordered;
+    ordered.reserve(commands_.size());
+
+    for (const auto& command : commands_) {
+        ordered.push_back(&command);
+    }
+
+    std::stable_sort(
+        ordered.begin(),
+        ordered.end(),
+        [](const Command* a, const Command* b) {
+            if (a->sortOrder != b->sortOrder) {
+                return a->sortOrder < b->sortOrder;
+            }
+            return a->keyword < b->keyword;
+        });
+
+    for (const Command* command : ordered) {
+        std::wstring aliases;
+        for (std::size_t i = 0; i < command->aliases.size(); ++i) {
+            if (i > 0) aliases += L",";
+            aliases += SanitizeTsv(command->aliases[i]);
+        }
+
+        std::wostringstream line;
+        line
+            << SanitizeTsv(command->keyword) << L'\t'
+            << SanitizeTsv(command->title) << L'\t'
+            << aliases << L'\t'
+            << text::FromUtf8(TypeName(command->type)) << L'\t'
+            << SanitizeTsv(command->target) << L'\t'
+            << SanitizeTsv(command->arguments) << L'\t'
+            << SanitizeTsv(command->workingDirectory) << L'\t'
+            << (command->enabled ? L"1" : L"0") << L'\t'
+            << (command->runAsAdmin ? L"1" : L"0") << L'\t'
+            << (command->pinned ? L"1" : L"0") << L'\t'
+            << command->sortOrder
+            << L'\n';
+
+        const std::string utf8 = text::ToUtf8(line.str());
+        output.write(
+            utf8.data(),
+            static_cast<std::streamsize>(utf8.size()));
+    }
+
+    return output.good();
 }
 
 bool UserCommandStore::Save() const {

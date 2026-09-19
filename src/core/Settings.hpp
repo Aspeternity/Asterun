@@ -42,6 +42,11 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
+    bool SetStartWithWindows(bool enabled);
+    bool SetHotkey(
+        std::vector<std::string> modifiers,
+        std::string key);
+    bool ResetDefaults();
     void SetGeneral(
         bool hideAfterLaunch,
         bool clearQueryOnShow,

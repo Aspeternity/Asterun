@@ -209,6 +209,47 @@ void SettingsStore::SetLanguage(Language language) {
     Save();
 }
 
+bool SettingsStore::SetStartWithWindows(bool enabled) {
+    const Settings previous = settings_;
+    settings_.startWithWindows = enabled;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::SetHotkey(
+    std::vector<std::string> modifiers,
+    std::string key) {
+
+    const Settings previous = settings_;
+
+    settings_.hotkeyModifiers = std::move(modifiers);
+    settings_.hotkeyKey = LowerAscii(std::move(key));
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::ResetDefaults() {
+    const Settings previous = settings_;
+    settings_ = Settings{};
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
 void SettingsStore::SetGeneral(
     bool hideAfterLaunch,
     bool clearQueryOnShow,
