@@ -209,4 +209,19 @@ void SettingsStore::SetLanguage(Language language) {
     Save();
 }
 
+void SettingsStore::SetGeneral(
+    bool hideAfterLaunch,
+    bool clearQueryOnShow,
+    bool hideOnFocusLost,
+    bool showTrayIcon,
+    std::string popupMonitor) {
+
+    settings_.hideAfterLaunch = hideAfterLaunch;
+    settings_.clearQueryOnShow = clearQueryOnShow;
+    settings_.hideOnFocusLost = hideOnFocusLost;
+    settings_.showTrayIcon = showTrayIcon;
+    settings_.popupMonitor = std::move(popupMonitor);
+    Save();
+}
+
 } // namespace altrun
