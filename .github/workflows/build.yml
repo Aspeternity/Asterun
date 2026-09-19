@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   test-core:
     runs-on: ubuntu-latest
@@ -45,3 +48,59 @@ jobs:
         with:
           name: ALTRunNext-${{ matrix.arch }}
           path: ALTRunNext-${{ matrix.arch }}.zip
+
+
+  development-release:
+    name: Publish rolling development prerelease
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test-core, build-windows]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: altrun-development-release
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check this is still the latest main commit
+        id: current
+        shell: bash
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" = "$GITHUB_SHA" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "A newer main commit exists; skip publishing this run."
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.current.outputs.publish == 'true'
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        if: steps.current.outputs.publish == 'true'
+        shell: bash
+        run: |
+          find artifacts -type f -name 'ALTRunNext-x64.zip' -exec cp {} ALTRunNext-x64.zip \;
+          find artifacts -type f -name 'ALTRunNext-ARM64.zip' -exec cp {} ALTRunNext-ARM64.zip \;
+          test -f ALTRunNext-x64.zip
+          test -f ALTRunNext-ARM64.zip
+
+      - name: Publish dev-latest prerelease
+        if: steps.current.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release delete dev-latest --yes --cleanup-tag || true
+          git tag -f dev-latest "$GITHUB_SHA"
+          git push origin refs/tags/dev-latest --force
+          gh release create dev-latest \
+            ALTRunNext-x64.zip \
+            ALTRunNext-ARM64.zip \
+            --prerelease \
+            --title "ALTRun Next Development Build" \
+            --notes "Rolling prerelease built from main at commit $GITHUB_SHA. This release is replaced automatically after every successful main build."
