@@ -2,6 +2,31 @@
 
 ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise.
 
+## Downloads
+
+### Rolling development build
+
+The latest successful `main` build is always published to the fixed prerelease tag:
+
+- Development release: https://github.com/Aspeternity/ALTRunNext/releases/tag/dev-latest
+- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-x64.zip
+- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
+
+You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.2.0-alpha.2 — Settings Shell
+
+This alpha adds the first independent modern Settings window on top of the JSON Config Core.
+
+- open Settings from the tray or press `F2` in the launcher;
+- left navigation with General, Appearance and About pages;
+- General settings are saved immediately to `data/settings.json`;
+- hide-after-launch, clear-query-on-show, hide-on-focus-loss and tray visibility are live;
+- launcher monitor can be set to cursor, active window or primary display;
+- Classic / Modern Compact and Simplified Chinese / English can be changed live;
+- About page exposes the data directory and GitHub project;
+- Classic launcher UI remains separate and unchanged.
+
 ## v0.2.0-alpha.1 — Config Core
 
 This alpha moves persistent state to a versioned JSON data layer before the Settings UI is built.
