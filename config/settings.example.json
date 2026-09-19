@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "general": {
+    "startWithWindows": false,
+    "hideAfterLaunch": true,
+    "clearQueryOnShow": true,
+    "hideOnFocusLost": true,
+    "showTrayIcon": true,
+    "popupMonitor": "cursor"
+  },
+  "hotkey": {
+    "modifiers": ["alt"],
+    "key": "space"
+  },
+  "appearance": {
+    "launcher": "classic",
+    "language": "zh-CN"
+  }
+}
