@@ -33,6 +33,7 @@ private:
         COLORREF selectionBackground{};
         COLORREF selectionText{};
         COLORREF separator{};
+        COLORREF frame{};
     };
 
     static constexpr UINT kHotkeyId = 0xA171;
@@ -54,15 +55,18 @@ private:
     void CreateChildren();
     void ApplyFonts();
     void RecreateBrushes();
+    void UpdateControlFrames();
+    void UpdateWindowChrome();
     void Layout();
     void Reposition();
+    void PaintWindowBackground(HDC dc);
+    void UpdateHint();
     void UpdatePreview();
     void ExecuteSelection();
     void MoveSelection(int delta);
     void AddTrayIcon();
     void RemoveTrayIcon();
     void ShowTrayMenu(POINT point);
-    void UpdateControlFrames();
     std::wstring CurrentQuery() const;
     ThemePalette CurrentPalette() const;
     int DpiScale(int value) const;
@@ -71,6 +75,7 @@ private:
     HINSTANCE instance_{};
     HWND hwnd_{};
     HWND edit_{};
+    HWND hint_{};
     HWND list_{};
     HWND preview_{};
     WNDPROC oldEditProc_{};
@@ -79,9 +84,10 @@ private:
     HBRUSH windowBrush_{};
     HBRUSH controlBrush_{};
     UINT dpi_{96};
-    int widthLogical_{520};
-    int rowHeightLogical_{24};
-    std::size_t maxResults_{11};
+    int widthLogical_{500};
+    int rowHeightLogical_{22};
+    std::size_t maxResults_{10};
+    std::size_t hintCycle_{0};
     std::vector<SearchResult> results_;
 };
 

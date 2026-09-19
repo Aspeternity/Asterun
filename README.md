@@ -4,26 +4,44 @@ ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, 
 
 The project does **not** copy the original Delphi source. The behavior and visual direction are being reimplemented from scratch for current Windows versions.
 
-## v0.1.1
+## v0.1.2
 
-Current development baseline:
+The Classic UI has received its first high-fidelity pass while **Modern Compact remains available and unchanged in direction**.
 
-- Native C++23 + Win32
-- `Alt + Space` global launcher hotkey
-- Two switchable UI styles:
-  - **Classic ALTRun** — compact silver/gray layout inspired by the old ALTRun experience
-  - **Modern Compact** — cleaner Win11-oriented layout without cards or oversized UI
-- Simplified Chinese (`zh-CN`) and English (`en-US`)
-- Language and UI can be changed from the tray menu without restarting
-- Settings persist in portable `settings.ini`
-- Localized search placeholder and system messages
-- Custom commands from `commands.tsv`
-- Automatic Start Menu shortcut indexing
-- Lightweight fuzzy matching
-- Usage frequency + recency ranking
-- Portable `usage.tsv` history
-- Windows 11 per-monitor DPI awareness v2
-- x64 and ARM64 GitHub Actions builds
+### Classic ALTRun
+
+Classic mode now deliberately recreates the recognizable structure of the old launcher:
+
+- silver/gray vertical gradient shell;
+- square Win32 window corners on Windows 11;
+- classic, non-themed edit/list borders;
+- narrow input box at the upper-left;
+- light-gray contextual operation hint at the upper-right;
+- rotating hints when the launcher is shown;
+- compact white two-column result list;
+- numeric prefixes before shortcut keywords;
+- classic blue full-row selection;
+- fixed divider between shortcut and description columns;
+- separate recessed command preview box at the bottom;
+- compact 500 px baseline width and 22 px result rows;
+- SimSun for Simplified Chinese Classic UI and Tahoma for English Classic UI.
+
+### Modern Compact
+
+Modern Compact keeps the newer visual language:
+
+- wider 620 px layout;
+- Win11 rounded window corners;
+- modern themed controls;
+- larger 32 px result rows;
+- no numeric prefix or classic column divider;
+- modern blue-accent result rendering.
+
+### Language
+
+- Simplified Chinese (`zh-CN`) — default
+- English (`en-US`)
+- UI and language can be switched live from the tray menu.
 
 ## UI and language
 
@@ -44,15 +62,13 @@ Right-click the tray icon:
 退出 / Exit
 ```
 
-The default configuration is:
+Settings persist to `settings.ini` beside the executable:
 
 ```ini
 [general]
 ui=classic
 language=zh-CN
 ```
-
-Changing UI or language writes the values to `settings.ini` next to `ALTRunNext.exe`.
 
 Supported UI values:
 
@@ -63,6 +79,18 @@ Supported language values:
 
 - `zh-CN`
 - `en-US`
+
+## Current core features
+
+- Native C++23 + Win32
+- `Alt + Space` global launcher hotkey
+- Custom commands from `commands.tsv`
+- Automatic Start Menu shortcut indexing
+- Lightweight fuzzy matching
+- Usage frequency + recency ranking
+- Portable `usage.tsv` history
+- Windows 11 per-monitor DPI awareness v2
+- x64 and ARM64 GitHub Actions builds
 
 ## Architecture
 
@@ -83,7 +111,7 @@ ALTRunNext
    └─ LauncherWindow
 ```
 
-Search, settings, localization and rendering are separated so additional skins such as **Classic Dark**, **Windows 11**, or **Minimal** can be added without rewriting the launcher core.
+Search, settings, localization and rendering are separated so additional skins can be added without rewriting the launcher core.
 
 ## Build on Windows
 
@@ -114,16 +142,8 @@ Format:
 keyword<TAB>title<TAB>target<TAB>arguments<TAB>working_directory
 ```
 
-Example:
-
-```text
-np      Notepad          notepad.exe
-calc    Calculator       calc.exe
-gh      GitHub           https://github.com
-```
-
 After editing, right-click the tray icon and choose **重新加载 commands.tsv / Reload commands.tsv**.
 
 ## Next
 
-The next milestone is to improve Classic visual fidelity and then add pinyin matching + Everything as search providers.
+The next search-focused milestone is pinyin matching + Everything provider integration. Further Classic work will be driven by real side-by-side screenshots and user testing.

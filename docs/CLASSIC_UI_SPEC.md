@@ -1,35 +1,68 @@
 # Classic UI specification
 
-This document freezes the design target for the daily launcher so later feature work does not gradually turn it into a large modern dashboard.
+Classic mode is intentionally a **behavioral and visual homage** to the old ALTRun launcher while remaining a clean-room implementation.
 
-## Design target
+## Frozen visual structure
 
-The launcher should preserve the classic ALTRun interaction model:
+At 100% scale, v0.1.2 targets:
 
-- the cursor is placed in a small input box immediately after the hotkey;
-- results appear in a white compact list below the input;
-- the left side emphasizes the shortcut/keyword;
-- the right side shows the human-readable description;
-- the bottom line can show the currently selected command/path;
-- the default visual language is a restrained silver/gray desktop-tool skin;
-- the launcher disappears immediately after execution or Escape;
-- configuration UI is separate and must never be permanently attached to the launcher.
+- 500 px launcher width;
+- 6 px outer margin;
+- 23 px top input/hint row;
+- 184 px classic input width;
+- light-gray operation hint on the right;
+- 10 visible results;
+- 22 px result row height;
+- 202 px shortcut column;
+- white two-column result surface;
+- 23 px recessed command preview box;
+- square Win11 corners;
+- silver/gray vertical gradient outer shell.
 
-## v0.1 geometry
+## Classic result row
 
-At 100% scale:
+The left column renders:
 
-- launcher width: 520 px;
-- outer margin: 7 px;
-- input height: 27 px;
-- row height: 24 px;
-- visible results: 11;
-- command preview: 22 px;
-- keyword column: approximately 135 px.
+```text
+1  chrome
+2  code
+3  calc
+```
 
-All geometry is scaled with per-monitor DPI v2.
+The right column renders the human-readable command title/description.
 
-## Interaction
+A subtle vertical divider separates both columns. Selection uses a full-width classic Windows blue highlight with white text.
+
+## Classic typography
+
+- Simplified Chinese: SimSun, 9 pt
+- English: Tahoma, 9 pt
+
+The goal is to preserve the compact desktop-tool character instead of making Classic look like a modern web application.
+
+## Classic top hint
+
+The upper-right hint cycles through only features that currently exist:
+
+- keyboard selection / run / hide;
+- double-click launch and Alt+Space show/hide;
+- tray appearance/language/reload controls.
+
+## Modern Compact separation
+
+Classic-specific behavior must not leak into Modern Compact.
+
+Modern Compact keeps:
+
+- 620 px width;
+- 32 px rows;
+- Win11 rounded corners;
+- themed controls;
+- larger spacing;
+- no shortcut numbering;
+- no classic vertical column divider.
+
+## Interaction shared by both themes
 
 | Input | Behavior |
 | --- | --- |
@@ -40,26 +73,13 @@ All geometry is scaled with per-monitor DPI v2.
 | Escape | Hide launcher |
 | double click | Launch selected result |
 
-## Non-goals for the launcher surface
+## Non-goals for Classic
 
-Do not add the following to the compact launcher by default:
+Do not add:
 
-- large application icons;
 - card layouts;
+- oversized icons;
 - navigation sidebars;
 - toolbar ribbons;
 - animation-heavy transitions;
-- settings pages inside the popup;
-- web-style spacing and oversized controls.
-
-Those can exist in a separate settings center if needed.
-
-## Next visual pass
-
-The next UI pass should add, in order:
-
-1. silver gradient/background treatment closer to classic ALTRun;
-2. right-side contextual hint text in the input row;
-3. more accurate classic border/selection spacing;
-4. optional hidden command preview, matching old behavior;
-5. Classic Dark as a separate skin without changing geometry.
+- settings pages inside the launcher surface.

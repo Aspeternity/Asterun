@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.1.1 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.1.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,7 +35,17 @@ if(WIN32)
     )
 
     target_include_directories(ALTRunNext PRIVATE src)
-    target_link_libraries(ALTRunNext PRIVATE altrun_core shell32 ole32 comctl32 user32 gdi32)
+    target_link_libraries(
+        ALTRunNext PRIVATE
+        altrun_core
+        shell32
+        ole32
+        comctl32
+        user32
+        gdi32
+        dwmapi
+        uxtheme
+    )
     target_compile_definitions(ALTRunNext PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 
     if(MSVC)
