@@ -10,20 +10,32 @@ namespace altrun {
 App::App(HINSTANCE instance)
     : instance_(instance),
       baseDirectory_(win::ExecutableDirectory()),
-      commandStore_(baseDirectory_),
-      usageStore_(baseDirectory_ / "usage.tsv"),
-      settingsStore_(baseDirectory_ / "settings.ini") {}
+      dataDirectory_(baseDirectory_ / "data"),
+      commandStore_(baseDirectory_, dataDirectory_),
+      usageStore_(
+          dataDirectory_ / "usage.json",
+          baseDirectory_ / "usage.tsv"),
+      settingsStore_(
+          dataDirectory_ / "settings.json",
+          baseDirectory_ / "settings.ini") {}
 
 App::~App() = default;
 
 int App::Run() {
+    std::error_code ec;
+    std::filesystem::create_directories(dataDirectory_, ec);
+
     settingsStore_.Load();
     commandStore_.Reload();
-    usageStore_.Load();
+    usageStore_.Load(commandStore_.LegacyIdMap());
 
     window_ = std::make_unique<LauncherWindow>(*this, instance_);
     if (!window_->Create()) {
-        MessageBoxW(nullptr, Text(TextId::CreateWindowFailed).data(), L"ALTRun Next", MB_ICONERROR | MB_OK);
+        MessageBoxW(
+            nullptr,
+            Text(TextId::CreateWindowFailed).data(),
+            L"ALTRun Next",
+            MB_ICONERROR | MB_OK);
         return 1;
     }
 
@@ -32,6 +44,7 @@ int App::Run() {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+
     return static_cast<int>(msg.wParam);
 }
 
@@ -40,8 +53,15 @@ void App::ReloadCommands() {
     if (window_) window_->RefreshResults();
 }
 
-std::vector<SearchResult> App::Search(std::wstring_view query, std::size_t limit) const {
-    return searchEngine_.Search(commandStore_.Commands(), usageStore_.Data(), query, limit);
+std::vector<SearchResult> App::Search(
+    std::wstring_view query,
+    std::size_t limit) const {
+
+    return searchEngine_.Search(
+        commandStore_.Commands(),
+        usageStore_.Data(),
+        query,
+        limit);
 }
 
 const Command& App::GetCommand(std::size_t index) const {
@@ -73,6 +93,7 @@ bool App::ExecuteCommand(std::size_t index) {
     info.cbSize = sizeof(info);
     info.fMask = SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
     info.hwnd = nullptr;
+    info.lpVerb = command.runAsAdmin ? L"runas" : nullptr;
     info.lpFile = target.c_str();
     info.lpParameters = args.empty() ? nullptr : args.c_str();
     info.lpDirectory = cwd.empty() ? nullptr : cwd.c_str();
@@ -80,8 +101,19 @@ bool App::ExecuteCommand(std::size_t index) {
 
     if (!ShellExecuteExW(&info)) {
         const DWORD error = GetLastError();
-        std::wstring message = std::wstring(Text(TextId::UnableToLaunch)) + L"\n" + target + L"\n\n" + win::FormatWin32Error(error);
-        MessageBoxW(nullptr, message.c_str(), L"ALTRun Next", MB_ICONERROR | MB_OK);
+        std::wstring message =
+            std::wstring(Text(TextId::UnableToLaunch)) +
+            L"\n" +
+            target +
+            L"\n\n" +
+            win::FormatWin32Error(error);
+
+        MessageBoxW(
+            nullptr,
+            message.c_str(),
+            L"ALTRun Next",
+            MB_ICONERROR | MB_OK);
+
         return false;
     }
 
