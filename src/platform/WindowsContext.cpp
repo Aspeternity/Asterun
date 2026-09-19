@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -55,6 +56,187 @@ struct ExplorerShellCandidate {
         candidate != nullptr &&
         (parent == candidate ||
          IsChild(parent, candidate));
+}
+
+[[nodiscard]] bool
+WindowClassEquals(
+    HWND window,
+    std::wstring_view expected) {
+    if (!window ||
+        expected.empty()) {
+        return false;
+    }
+
+    wchar_t className[128]{};
+    const int copied =
+        GetClassNameW(
+            window,
+            className,
+            static_cast<int>(
+                std::size(className)));
+
+    return copied > 0 &&
+        std::wstring_view(
+            className,
+            static_cast<std::size_t>(
+                copied)) ==
+            expected;
+}
+
+struct DescendantClassSearch {
+    std::wstring_view className;
+    bool found{false};
+};
+
+BOOL CALLBACK
+FindDescendantClassProc(
+    HWND child,
+    LPARAM parameter) {
+    auto* search =
+        reinterpret_cast<
+            DescendantClassSearch*>(
+                parameter);
+
+    if (!search) {
+        return FALSE;
+    }
+
+    if (WindowClassEquals(
+            child,
+            search->className)) {
+        search->found = true;
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+[[nodiscard]] bool
+HasDescendantClass(
+    HWND parent,
+    std::wstring_view className) {
+    if (!parent ||
+        className.empty()) {
+        return false;
+    }
+
+    DescendantClassSearch search{
+        className,
+        false};
+
+    EnumChildWindows(
+        parent,
+        FindDescendantClassProc,
+        reinterpret_cast<LPARAM>(
+            &search));
+
+    return search.found;
+}
+
+[[nodiscard]] bool
+IsSupportedFileDialogWindow(
+    HWND window) {
+    const HWND root =
+        RootWindow(window);
+
+    if (!root ||
+        !IsWindow(root) ||
+        !WindowClassEquals(
+            root,
+            L"#32770")) {
+        return false;
+    }
+
+    // Standard Explorer-style Common File Dialog and the modern Common Item
+    // Dialog both host a SHELLDLL_DefView. Requiring that Shell view avoids
+    // treating arbitrary #32770 settings/message dialogs as file pickers.
+    return HasDescendantClass(
+        root,
+        L"SHELLDLL_DefView");
+}
+
+[[nodiscard]] bool
+SendKey(
+    WORD virtualKey,
+    DWORD flags = 0) {
+    INPUT input{};
+    input.type = INPUT_KEYBOARD;
+    input.ki.wVk = virtualKey;
+    input.ki.dwFlags = flags;
+
+    return SendInput(
+               1,
+               &input,
+               sizeof(INPUT)) == 1;
+}
+
+[[nodiscard]] bool
+SendUnicodeText(
+    std::wstring_view text) {
+    for (const wchar_t unit : text) {
+        INPUT inputs[2]{};
+
+        inputs[0].type =
+            INPUT_KEYBOARD;
+        inputs[0].ki.wScan =
+            static_cast<WORD>(unit);
+        inputs[0].ki.dwFlags =
+            KEYEVENTF_UNICODE;
+
+        inputs[1] = inputs[0];
+        inputs[1].ki.dwFlags =
+            KEYEVENTF_UNICODE |
+            KEYEVENTF_KEYUP;
+
+        if (SendInput(
+                2,
+                inputs,
+                sizeof(INPUT)) != 2) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+[[nodiscard]] bool
+FocusFileDialogAddressBar(
+    HWND dialog) {
+    if (!dialog ||
+        !IsWindow(dialog)) {
+        return false;
+    }
+
+    SetLastError(ERROR_SUCCESS);
+    SetForegroundWindow(dialog);
+
+    // SetForegroundWindow can be denied by the foreground-lock policy. Never
+    // inject keystrokes unless the captured dialog actually owns foreground.
+    if (RootWindow(
+            GetForegroundWindow()) !=
+        dialog) {
+        return false;
+    }
+
+    if (!SendKey(VK_CONTROL) ||
+        !SendKey(L'L') ||
+        !SendKey(
+            L'L',
+            KEYEVENTF_KEYUP) ||
+        !SendKey(
+            VK_CONTROL,
+            KEYEVENTF_KEYUP)) {
+        return false;
+    }
+
+    // The Common Item Dialog swaps the breadcrumb surface for an address edit
+    // asynchronously after Ctrl+L. A short bounded wait keeps subsequent
+    // Unicode input out of the previous control.
+    Sleep(20);
+
+    return RootWindow(
+               GetForegroundWindow()) ==
+        dialog;
 }
 
 [[nodiscard]] HWND FocusWindowFor(
@@ -484,6 +666,31 @@ CaptureWindowsContext(
         return snapshot;
     }
 
+    const HWND foregroundRoot =
+        RootWindow(
+            foregroundWindow);
+
+    if (IsSupportedFileDialogWindow(
+            foregroundRoot)) {
+        DWORD processId{};
+        GetWindowThreadProcessId(
+            foregroundRoot,
+            &processId);
+
+        if (processId != 0) {
+            snapshot.kind =
+                WindowsContextKind::
+                    FileDialog;
+            snapshot.foregroundWindow =
+                foregroundRoot;
+            snapshot.fileDialogWindow =
+                foregroundRoot;
+            snapshot.fileDialogProcessId =
+                processId;
+            return snapshot;
+        }
+    }
+
     auto candidates =
         EnumerateExplorerCandidates(
             foregroundWindow);
@@ -587,6 +794,56 @@ bool NavigateExplorerToFolder(
         SetForegroundWindow(
             context
                 .foregroundWindow);
+    }
+
+    return true;
+}
+
+bool NavigateFileDialogToFolder(
+    const WindowsContextSnapshot&
+        context,
+    std::wstring_view folderPath) {
+    if (!context.HasFileDialog() ||
+        folderPath.empty() ||
+        !IsWindow(
+            context
+                .fileDialogWindow)) {
+        return false;
+    }
+
+    DWORD processId{};
+    GetWindowThreadProcessId(
+        context.fileDialogWindow,
+        &processId);
+
+    if (processId == 0 ||
+        processId !=
+            context
+                .fileDialogProcessId ||
+        !IsSupportedFileDialogWindow(
+            context
+                .fileDialogWindow)) {
+        return false;
+    }
+
+    const HWND dialog =
+        context.fileDialogWindow;
+
+    if (!FocusFileDialogAddressBar(
+            dialog)) {
+        return false;
+    }
+
+    if (!SendUnicodeText(
+            folderPath)) {
+        return false;
+    }
+
+    if (!SendKey(VK_RETURN) ||
+        !SendKey(
+            VK_RETURN,
+            KEYEVENTF_KEYUP)) {
+        return false;
     }
 
     return true;

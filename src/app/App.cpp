@@ -1902,7 +1902,9 @@ bool App::ExecuteResult(
             result,
             intent,
             activationContext_
-                .HasExplorer());
+                .HasExplorer(),
+            activationContext_
+                .HasFileDialog());
 
     if (action.kind ==
         LauncherActionKind::ExecuteCommand) {
@@ -1932,12 +1934,25 @@ bool App::ExecuteResult(
                 target);
     }
 
+    if (action.kind ==
+        LauncherActionKind::
+            NavigateFileDialog) {
+        const auto context =
+            activationContext_;
+
+        return win::
+            NavigateFileDialogToFolder(
+                context,
+                target);
+    }
+
     switch (action.kind) {
     case LauncherActionKind::OpenFile:
     case LauncherActionKind::OpenFolder:
     case LauncherActionKind::OpenUrl:
         break;
     case LauncherActionKind::NavigateExplorer:
+    case LauncherActionKind::NavigateFileDialog:
     case LauncherActionKind::ExecuteCommand:
         return false;
     }

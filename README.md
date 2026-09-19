@@ -23,6 +23,23 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-alpha.3 — Open / Save Dialog Folder Jump
+
+Alpha 3 extends the Activation Context foundation to Windows standard Open / Save / folder-picker dialogs. If ALTRun Next is invoked while a supported Common Item Dialog or Explorer-style Common File Dialog is foreground, a filesystem **Folder** result now uses the captured dialog as its default navigation surface.
+
+The interaction is intentionally context-sensitive:
+
+- From a normal Explorer window: Enter keeps the established normal-open behavior; Ctrl+Enter navigates the captured Explorer.
+- From a supported Open / Save / folder-picker dialog: Enter, double-click and other default-result execution navigate that same file dialog to the Folder result instead of opening a separate Explorer window.
+- Ctrl+Enter remains the explicit Explorer-navigation gesture and is deliberately not repurposed inside a file dialog while the physical Ctrl key is still held.
+- File results are not auto-selected or submitted in this alpha; only Folder navigation is contextual.
+
+File-dialog recognition is conservative: the foreground root must be the standard `#32770` dialog class and must host a `SHELLDLL_DefView`. Ordinary message/settings dialogs are therefore not treated as file pickers. Execution revalidates the captured HWND and process ID before sending any input.
+
+Cross-process navigation does not use the clipboard and does not overwrite the dialog's File name field. ALTRun Next restores the captured dialog to foreground, invokes its standard Ctrl+L address surface, sends the target path as Unicode input, then presses Enter. If Windows foreground/UIPI rules prevent safe targeting, the contextual action fails rather than injecting input into another window.
+
+No persisted Settings or provider contract changes in alpha 3. settings.json remains schemaVersion 3, commands/usage remain schemaVersion 1, provider-cache remains schemaVersion 2, and Classic geometry remains 420/16/10. Windows fixed FileVersion/ProductVersion is `0.6.0.30`.
+
 ## v0.6.0-alpha.2.1 — Explorer Virtual-Location Hotfix
 
 Alpha 2.1 fixes contextual folder navigation when ALTRun Next is invoked from Explorer **Home / 主文件夹**, This PC, Quick access, Network or another Shell namespace location that has no ordinary filesystem path.

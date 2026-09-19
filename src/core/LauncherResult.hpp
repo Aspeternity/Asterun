@@ -20,6 +20,7 @@ enum class LauncherActionKind {
     OpenFolder,
     OpenUrl,
     NavigateExplorer,
+    NavigateFileDialog,
 };
 
 enum class LauncherExecutionIntent {

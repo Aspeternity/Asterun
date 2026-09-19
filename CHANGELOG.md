@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0-alpha.3
+
+- Added Windows Activation Context detection for standard Open / Save / folder-picker dialogs.
+- Added NavigateFileDialog to the Smart Action contract.
+- Folder results now navigate the captured file dialog on normal Enter/default execution instead of opening another Explorer window.
+- Preserved Explorer semantics: Enter opens normally and Ctrl+Enter navigates the captured Explorer.
+- Limited file-dialog recognition to #32770 roots that host SHELLDLL_DefView so ordinary dialogs are not mistaken for file pickers.
+- Revalidate the captured dialog HWND and process ID immediately before navigation.
+- File-dialog navigation uses the standard Ctrl+L address surface plus Unicode SendInput; it does not use the clipboard or overwrite the File name field.
+- Refuse keyboard injection unless the captured dialog actually regains foreground, protecting against stale context and foreground/UIPI failures.
+- File results remain unchanged; alpha 3 only adds Folder navigation.
+- Extended Launcher Action Policy regression coverage for file-dialog/default and Ctrl+Enter behavior.
+- Kept settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider defaults and Classic geometry 420/16/10 unchanged.
+- Updated Windows fixed version to 0.6.0.30.
+
 ## 0.6.0-alpha.2.1
 
 - Fixed Ctrl+Enter Explorer navigation when ALTRun Next is invoked from Home / 主文件夹, This PC, Quick access, Network or another virtual Shell namespace location.

@@ -121,13 +121,14 @@ In progress:
 - Alpha 2.1 hardens that context so virtual Explorer sources such as Home / This PC / Quick access remain valid even though they have no filesystem source path
 - Explorer resolution remains conservative through the Windows Shell model and refuses ambiguous multi-tab/multi-window guesses
 - Everything Folder results keep Enter=open while Ctrl+Enter navigates the captured Explorer to that folder
+- v0.6.0-alpha.3 extends the same Activation Context to standard Open / Save / folder-picker dialogs; Folder results use Enter to navigate the captured dialog directly
+- File-dialog targeting is conservative (#32770 + Shell view), revalidated before execution, and refuses unsafe foreground/input injection
 - Contextual navigation is session-scoped and cleared when the launcher hides
 - settings/commands/usage/provider-cache schemas and v0.5 provider defaults remain unchanged
 - Classic launcher geometry remains frozen
 
 Planned next:
 
-- Open / Save dialog folder jump using the same Activation Context foundation
 - Total Commander integration
 - Clipboard and text actions
 - Optional current-folder command templates only if they prove useful after Explorer navigation validation

@@ -8,6 +8,7 @@ namespace altrun {
 ResolveLauncherAction(
     const LauncherResult& result,
     LauncherExecutionIntent intent,
-    bool explorerContextAvailable);
+    bool explorerContextAvailable,
+    bool fileDialogContextAvailable = false);
 
 } // namespace altrun

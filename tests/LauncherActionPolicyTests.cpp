@@ -23,7 +23,8 @@ int main() {
                 folder,
                 LauncherExecutionIntent::
                     Default,
-                true);
+                true,
+                false);
 
         assert(
             action.kind ==
@@ -37,7 +38,8 @@ int main() {
                 folder,
                 LauncherExecutionIntent::
                     NavigateCurrentExplorer,
-                true);
+                true,
+                false);
 
         assert(
             action.kind ==
@@ -54,10 +56,45 @@ int main() {
                 folder,
                 LauncherExecutionIntent::
                     NavigateCurrentExplorer,
+                false,
                 false);
 
-        // No captured Explorer means Ctrl+Enter safely falls back to the
-        // existing normal folder-open behavior.
+        assert(
+            action.kind ==
+            LauncherActionKind::
+                OpenFolder);
+    }
+
+    {
+        const auto action =
+            ResolveLauncherAction(
+                folder,
+                LauncherExecutionIntent::
+                    Default,
+                false,
+                true);
+
+        assert(
+            action.kind ==
+            LauncherActionKind::
+                NavigateFileDialog);
+        assert(
+            action.payload ==
+            folder.target);
+    }
+
+    {
+        // Ctrl+Enter is intentionally not consumed by the file-dialog action:
+        // the physical Ctrl key is still down while the synchronous action
+        // executes. Normal Enter is the dialog-jump gesture.
+        const auto action =
+            ResolveLauncherAction(
+                folder,
+                LauncherExecutionIntent::
+                    NavigateCurrentExplorer,
+                false,
+                true);
+
         assert(
             action.kind ==
             LauncherActionKind::
@@ -80,7 +117,8 @@ int main() {
             ResolveLauncherAction(
                 file,
                 LauncherExecutionIntent::
-                    NavigateCurrentExplorer,
+                    Default,
+                false,
                 true);
 
         assert(

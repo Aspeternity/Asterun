@@ -39,8 +39,13 @@ int main() {
             nullptr);
 
     assert(!empty.HasExplorer());
+    assert(!empty.HasFileDialog());
     assert(
         !NavigateExplorerToFolder(
+            empty,
+            L"C:\\"));
+    assert(
+        !NavigateFileDialogToFolder(
             empty,
             L"C:\\"));
 
@@ -83,8 +88,13 @@ int main() {
             dummy);
 
     assert(!snapshot.HasExplorer());
+    assert(!snapshot.HasFileDialog());
     assert(
         !NavigateExplorerToFolder(
+            snapshot,
+            L"C:\\"));
+    assert(
+        !NavigateFileDialogToFolder(
             snapshot,
             L"C:\\"));
 

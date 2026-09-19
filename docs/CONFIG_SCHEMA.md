@@ -26,6 +26,8 @@ v0.6.0-alpha.2 introduces only runtime Windows Activation Context and Explorer n
 
 v0.6.0-alpha.2.1 keeps that persistence contract unchanged and allows virtual Explorer source locations such as Home / This PC / Quick access. Their source filesystem path is simply absent from the session snapshot; no shell namespace identifier or additional state is persisted.
 
+v0.6.0-alpha.3 adds standard Open / Save / folder-picker activation context, also as runtime-only state. Captured file-dialog HWND/process identifiers are cleared when the launcher hides and are never serialized. No schema migration is performed.
+
 ## Migration
 
 On the first v0.2.0-alpha.1 launch:

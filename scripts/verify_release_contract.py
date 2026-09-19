@@ -36,6 +36,134 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0-alpha.3":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected v0.6 alpha.3 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("v0.6 alpha.3 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 3:
+        fail("v0.6 alpha.3 settings must remain schemaVersion 3")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 alpha.3 changed frozen provider defaults")
+
+    launcher_result = read("src/core/LauncherResult.hpp")
+    for token in (
+        "NavigateExplorer",
+        "NavigateFileDialog",
+        "NavigateCurrentExplorer",
+        "std::wstring payload",
+    ):
+        if token not in launcher_result:
+            fail(f"alpha.3 action contract missing: {token}")
+
+    action_policy = read("src/core/LauncherActionPolicy.cpp")
+    for token in (
+        "fileDialogContextAvailable",
+        "LauncherExecutionIntent::Default",
+        "NavigateFileDialog",
+        "NavigateCurrentExplorer",
+        "NavigateExplorer",
+        "ResultKind::Folder",
+    ):
+        if token not in action_policy:
+            fail(f"alpha.3 action policy missing: {token}")
+
+    context_header = read("src/platform/WindowsContext.hpp")
+    for token in (
+        "WindowsContextKind",
+        "FileDialog",
+        "fileDialogWindow",
+        "fileDialogProcessId",
+        "HasFileDialog",
+        "NavigateFileDialogToFolder",
+    ):
+        if token not in context_header:
+            fail(f"alpha.3 Windows context contract missing: {token}")
+
+    windows_context = read("src/platform/WindowsContext.cpp")
+    for token in (
+        'L"#32770"',
+        'L"SHELLDLL_DefView"',
+        "IsSupportedFileDialogWindow",
+        "GetWindowThreadProcessId",
+        "SetForegroundWindow",
+        "GetForegroundWindow",
+        "VK_CONTROL",
+        "L'L'",
+        "KEYEVENTF_UNICODE",
+        "SendInput",
+        "NavigateFileDialogToFolder",
+    ):
+        if token not in windows_context:
+            fail(f"alpha.3 file-dialog integration missing: {token}")
+
+    if "OpenClipboard" in windows_context or "SetClipboardData" in windows_context:
+        fail("alpha.3 file-dialog navigation must not depend on clipboard mutation")
+
+    app = read("src/app/App.cpp")
+    for token in (
+        "ResolveLauncherAction",
+        "HasExplorer",
+        "HasFileDialog",
+        "NavigateExplorerToFolder",
+        "NavigateFileDialogToFolder",
+    ):
+        if token not in app:
+            fail(f"alpha.3 App contextual execution missing: {token}")
+
+    policy_tests = read("tests/LauncherActionPolicyTests.cpp")
+    for token in (
+        "NavigateFileDialog",
+        "file-dialog action",
+        "OpenFile",
+    ):
+        if token not in policy_tests:
+            fail(f"alpha.3 action policy tests missing: {token}")
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_header,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed in v0.6 alpha.3: {name}")
+
+    print(
+        "v0.6.0-alpha.3 file-dialog navigation contract verified:",
+        "| schemas unchanged | Classic 420/16/10",
+        "| Explorer Ctrl+Enter | File dialog Enter",
+        "| no clipboard mutation",
+    )
+    raise SystemExit(0)
+
+
 if version in ("0.6.0-alpha.2", "0.6.0-alpha.2.1"):
     expected_schemas = {
         "kSettingsSchemaVersion": 3,
