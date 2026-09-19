@@ -23,6 +23,7 @@ public:
     void RefreshResults();
     void ApplyAppearance();
     void ApplyLanguage();
+    void ApplyGeneralSettings();
 
 private:
     struct ThemePalette {
@@ -42,6 +43,7 @@ private:
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kMenuShow = 40001;
     static constexpr UINT kMenuReload = 40002;
+    static constexpr UINT kMenuSettings = 40003;
     static constexpr UINT kMenuThemeClassic = 40010;
     static constexpr UINT kMenuThemeModern = 40011;
     static constexpr UINT kMenuLangZh = 40020;
@@ -94,6 +96,7 @@ private:
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
+    bool trayIconAdded_{false};
     UINT dpi_{96};
     int widthLogical_{420};
     int rowHeightLogical_{16};
