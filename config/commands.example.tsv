@@ -1,4 +1,4 @@
-# keyword<TAB>title<TAB>target<TAB>arguments<TAB>working_directory
+# Legacy migration example for ALTRun Next v0.1.x and earlier\n# keyword<TAB>title<TAB>target<TAB>arguments<TAB>working_directory
 np	Notepad	notepad.exe		
 calc	Calculator	calc.exe		
 cmd	Command Prompt	cmd.exe		
