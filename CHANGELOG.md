@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0
+
+- Promoted v0.4.0-rc.1 to the stable v0.4.0 release with no additional discovery features.
+- Finalized multi-source Windows application discovery across Start Menu, Windows Apps / UWP / MSIX, App Paths and PATH.
+- Finalized deterministic provider precedence and duplicate suppression while keeping explicit user shortcuts authoritative.
+- Finalized persistent per-provider caching, non-blocking background refresh, source-aware incremental refresh, debounce scheduling and provider diagnostics.
+- Finalized migration/recovery hardening for settings, commands and usage, including valid-.bak self-healing and newer-schema read-only downgrade protection.
+- Finalized startup data-health diagnostics and portable data-directory writeability checks.
+- Kept the Windows 10 API baseline plus Provider Registry runtime smoke coverage on current Windows and Windows Server 2022 runners.
+- Kept version-consistency and final-package contract gates for x64 and ARM64, including EXE fixed FileVersion/ProductVersion verification and unexpected-DLL rejection.
+- Stable and rolling releases include `SHA256SUMS.txt`.
+- Kept user-data schemaVersion 1 and provider-cache schemaVersion 2 unchanged from RC1.
+- Updated release metadata to `0.4.0` and Windows fixed FileVersion/ProductVersion to `0.4.0.300`.
+
+
 ## 0.4.0-rc.1
 
 - Entered the v0.4 release-candidate phase with the discovery feature set frozen.

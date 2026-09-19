@@ -4,6 +4,15 @@ ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, 
 
 ## Downloads
 
+### Stable v0.4.0
+
+The current stable release is published at the immutable `v0.4.0` tag:
+
+- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.4.0
+- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.0/ALTRunNext-x64.zip
+- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.0/ALTRunNext-ARM64.zip
+- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.0/SHA256SUMS.txt
+
 ### Rolling development build
 
 The latest successful `main` build is always published to the fixed prerelease tag:
@@ -13,6 +22,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.4.0 — Stable Windows Application Discovery
+
+v0.4.0 promotes the RC1 discovery architecture to stable without adding new v0.4 features. The Classic Launcher remains unchanged.
+
+The stable release includes Start Menu, Windows Apps / UWP / MSIX, App Paths and PATH providers; deterministic cross-provider de-duplication; persistent per-provider cache; background and incremental refresh; source controls and diagnostics; backup self-healing; newer-schema read-only protection; and startup data-health/writeability reporting.
+
+Release safety remains part of the product contract: Core Tests, x64 and ARM64 builds, Windows Provider Registry smoke tests, the Windows 10 API compatibility gate, version-metadata validation and final ZIP package validation must all pass before the immutable release is published. Release assets include `SHA256SUMS.txt`.
+
+User-data schemaVersion remains 1 and provider-cache schemaVersion remains 2, so RC1 users require no data migration for the stable promotion. Windows fixed FileVersion/ProductVersion for stable is `0.4.0.300`.
 
 ## v0.4.0-rc.1 — Release Candidate Stabilization
 

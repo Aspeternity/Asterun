@@ -35,7 +35,7 @@ Completed:
 
 ## v0.4.x - Windows application discovery
 
-Current phase:
+Completed in v0.4.0:
 
 - Multi-source discovery from Start Menu, App Paths, PATH and AppsFolder
 - UWP / MSIX / Microsoft Store application discovery
@@ -50,15 +50,15 @@ Current phase:
 - Per-provider active/suppressed/error diagnostics
 - Windows 10 API baseline and Windows compatibility CI gate
 
-v0.4 release candidate:
+Release hardening:
 
 - Upgrade/migration matrix for alpha-era settings and provider caches
 - Backup self-healing and downgrade-safe newer-schema protection
 - Startup data-health diagnostics and portable-directory writeability checks
 - Windows Provider Registry runtime smoke tests on current and Windows Server 2022 runners
 - Version-metadata and final-package release gates
-- Manual provider discovery validation on real Windows 10 and Windows 11 desktops
-- RC stage is feature-frozen: fix only discovery, migration, packaging and compatibility regressions before v0.4 stable
+- Real Windows 10/11 desktop discovery remains part of manual release QA in addition to automated smoke coverage
+- v0.4.0 stable was promoted from RC1 without adding new v0.4 features
 
 ## v0.5.x - Everything integration
 
