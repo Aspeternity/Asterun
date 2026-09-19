@@ -1,6 +1,7 @@
 #include "LauncherWindow.hpp"
 
 #include "../app/App.hpp"
+#include "../core/ClassicBehavior.hpp"
 
 #include <windowsx.h>
 #include <commctrl.h>
@@ -986,11 +987,17 @@ void LauncherWindow::RefreshResults(
     InvalidateRect(list_, nullptr, TRUE);
     UpdatePreview();
 
-    if (allowImmediateExecution &&
-        app_.SettingsData()
-            .executeSingleResultImmediately &&
-        !CurrentQuery().empty() &&
-        results_.size() == 1) {
+    const bool queryEmpty =
+        CurrentQuery().empty();
+
+    if (classic_behavior::
+            ShouldExecuteSingleResult(
+                allowImmediateExecution,
+                app_.SettingsData()
+                    .executeSingleResultImmediately,
+                imeComposing_,
+                queryEmpty,
+                results_.size())) {
 
         ExecuteResultAt(0);
     }
@@ -1117,19 +1124,11 @@ int LauncherWindow::QuickLaunchIndexForKey(
                 key - VK_NUMPAD0);
     }
 
-    if (digit < 0) {
-        return -1;
-    }
-
-    if (app_.SettingsData()
-            .numericQuickLaunchOrder ==
-        "zero-to-nine") {
-        return digit;
-    }
-
-    return digit == 0
-        ? 9
-        : digit - 1;
+    return classic_behavior::
+        QuickLaunchIndexForDigit(
+            digit,
+            app_.SettingsData()
+                .numericQuickLaunchOrder);
 }
 
 std::wstring

@@ -168,6 +168,48 @@ for token in (
     if token not in validation_text:
         fail(f"desktop validation guide is missing required section/token: {token!r}")
 
+cmake_text = read("CMakeLists.txt")
+for token in (
+    "altrun_enable_test_assertions",
+    "desktop_validation_tests",
+    "hotkey_runtime_tests",
+):
+    if token not in cmake_text:
+        fail(f"validation-integrity CMake target/helper is missing: {token}")
+
+desktop_test = read("tests/DesktopValidationTests.cpp")
+if "#ifdef NDEBUG" not in desktop_test:
+    fail("desktop validation tests no longer prove assert() is enabled")
+
+hotkey_runtime_test = read("tests/HotkeyRuntimeTests.cpp")
+for token in (
+    "RegisterHotKey",
+    "UnregisterHotKey",
+):
+    if token not in hotkey_runtime_test:
+        fail(f"hotkey runtime validation is missing {token}")
+
+launcher_cpp = read("src/ui/LauncherWindow.cpp")
+for token in (
+    "ClassicBehavior.hpp",
+    "ShouldExecuteSingleResult",
+    "QuickLaunchIndexForDigit",
+):
+    if token not in launcher_cpp:
+        fail(f"LauncherWindow is no longer wired to validated behavior helper: {token}")
+
+settings_hpp = read("src/ui/SettingsWindow.hpp")
+if "SettingsLayout.hpp" not in settings_hpp:
+    fail("SettingsWindow no longer includes the validated layout helper")
+
+settings_cpp = read("src/ui/SettingsWindow.cpp")
+for token in (
+    "MaxScrollOffset",
+    "ClampRectToWorkArea",
+):
+    if token not in settings_cpp:
+        fail(f"SettingsWindow is no longer wired to validated layout helper: {token}")
+
 print(
     "v0.4.1 frozen release contract verified:",
     version,

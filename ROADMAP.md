@@ -76,11 +76,13 @@ In progress:
 - General Settings now supports responsive stacking plus vertical scrolling instead of requiring an oversized fixed-height window
 - Windows CI includes hotkey-codec regression coverage in both current and compatibility runners
 - Beta 1 freezes schemas, provider IDs, safe defaults and core Classic geometry through a dedicated release-contract gate
+- Beta 2 makes Release-mode assertion tests effective, adds real RegisterHotKey runtime smoke, and moves Classic behavior / Settings layout decisions behind portable regression-tested helpers
+- Automated validation now covers 100%/125%/150%/200% General-page layout invariants, IME-safe single-result gating, numeric quick-launch mapping and v0.4.0 settings migration/downgrade protection
 - Final x64 ZIPs receive a packaged-runtime startup smoke before publication
-- Tag-triggered releases now require the same Core/Windows smoke/compatibility gates as main publication
-- A packaged desktop-validation checklist defines the real Windows 10/11, DPI, hotkey, IME, provider and migration matrix
+- Tag-triggered releases require the same Core/Windows smoke/compatibility gates as main publication
+- A packaged desktop-validation checklist defines the remaining real Windows 10/11, mixed-DPI, provider and interactive-input matrix
 - Classic launcher geometry remains frozen
-- Remaining v0.4.1 work is execution of the real desktop checklist plus regression-only fixes before RC promotion
+- Remaining v0.4.1 work is execution of the manual desktop checklist plus regression-only fixes before RC promotion
 
 ## v0.5.x - Everything integration
 

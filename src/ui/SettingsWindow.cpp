@@ -161,10 +161,10 @@ const wchar_t* SettingsWindow::T(
 }
 
 int SettingsWindow::Scale(int value) const {
-    return MulDiv(
-        value,
-        static_cast<int>(dpi_),
-        96);
+    return settings_layout::
+        Scale(
+            value,
+            dpi_);
 }
 
 bool SettingsWindow::Create() {
@@ -3365,7 +3365,7 @@ bool SettingsWindow::ToggleChecked(
     }
 }
 
-SettingsWindow::GeneralLayoutMetrics
+settings_layout::GeneralLayoutMetrics
 SettingsWindow::BuildGeneralLayout(
     int scrollOffset) const {
 
@@ -3374,232 +3374,13 @@ SettingsWindow::BuildGeneralLayout(
         hwnd_,
         &client);
 
-    const int contentLeft =
-        Scale(kSidebarWidthLogical) +
-        Scale(42);
-
-    const int contentRight =
-        std::max(
-            contentLeft + Scale(260),
+    return settings_layout::
+        BuildGeneralLayout(
             static_cast<int>(
-                client.right) -
-                Scale(42));
-
-    const int contentWidth =
-        contentRight - contentLeft;
-
-    const int gap =
-        Scale(18);
-
-    const bool stackedCards =
-        contentWidth <
-        Scale(650);
-
-    const int cardTop =
-        Scale(170);
-
-    const int behaviorRowHeight =
-        Scale(46);
-
-    const int searchRowHeight =
-        Scale(46);
-
-    const int behaviorWidth =
-        stackedCards
-            ? contentWidth
-            : (contentWidth - gap) / 2;
-
-    const int behaviorBottom =
-        cardTop +
-        behaviorRowHeight * 6;
-
-    int searchTitleTop =
-        Scale(138);
-
-    int searchTop =
-        cardTop;
-
-    int searchLeft =
-        contentLeft +
-        behaviorWidth +
-        gap;
-
-    if (stackedCards) {
-        searchTitleTop =
-            behaviorBottom +
-            Scale(18);
-
-        searchTop =
-            searchTitleTop +
-            Scale(32);
-
-        searchLeft =
-            contentLeft;
-    }
-
-    const int searchWidth =
-        stackedCards
-            ? contentWidth
-            : contentWidth -
-                behaviorWidth -
-                gap;
-
-    const int searchBottom =
-        searchTop +
-        searchRowHeight * 4;
-
-    const int cardsBottom =
-        std::max(
-            behaviorBottom,
-            searchBottom);
-
-    const bool compactHotkeys =
-        contentWidth <
-        Scale(650);
-
-    const int hotkeySectionTop =
-        cardsBottom +
-        Scale(16);
-
-    const int primaryRowTop =
-        hotkeySectionTop +
-        Scale(28);
-
-    const int primaryKeyRowTop =
-        compactHotkeys
-            ? primaryRowTop +
-                Scale(32)
-            : primaryRowTop;
-
-    const int primaryStatusTop =
-        compactHotkeys
-            ? primaryRowTop +
-                Scale(66)
-            : primaryRowTop +
-                Scale(32);
-
-    const int auxiliaryRowTop =
-        compactHotkeys
-            ? primaryRowTop +
-                Scale(94)
-            : primaryRowTop +
-                Scale(58);
-
-    const int auxiliaryKeyRowTop =
-        compactHotkeys
-            ? primaryRowTop +
-                Scale(126)
-            : auxiliaryRowTop;
-
-    const int auxiliaryStatusTop =
-        compactHotkeys
-            ? primaryRowTop +
-                Scale(160)
-            : auxiliaryRowTop +
-                Scale(32);
-
-    const int popupSectionTop =
-        compactHotkeys
-            ? primaryRowTop +
-                Scale(190)
-            : auxiliaryRowTop +
-                Scale(62);
-
-    const int monitorTop =
-        popupSectionTop +
-        Scale(30);
-
-    const int monitorBottom =
-        monitorTop +
-        Scale(54);
-
-    const int noteTop =
-        monitorBottom +
-        Scale(8);
-
-    GeneralLayoutMetrics metrics;
-
-    metrics.behavior = {
-        contentLeft,
-        cardTop - scrollOffset,
-        contentLeft +
-            behaviorWidth,
-        behaviorBottom -
+                client.right),
+            dpi_,
             scrollOffset,
-    };
-
-    metrics.search = {
-        searchLeft,
-        searchTop - scrollOffset,
-        searchLeft +
-            searchWidth,
-        searchBottom -
-            scrollOffset,
-    };
-
-    metrics.monitor = {
-        contentLeft,
-        monitorTop - scrollOffset,
-        contentRight,
-        monitorBottom -
-            scrollOffset,
-    };
-
-    metrics.behaviorTitleTop =
-        Scale(138) -
-        scrollOffset;
-
-    metrics.searchTitleTop =
-        searchTitleTop -
-        scrollOffset;
-
-    metrics.hotkeySectionTop =
-        hotkeySectionTop -
-        scrollOffset;
-
-    metrics.primaryRowTop =
-        primaryRowTop -
-        scrollOffset;
-
-    metrics.primaryKeyRowTop =
-        primaryKeyRowTop -
-        scrollOffset;
-
-    metrics.primaryStatusTop =
-        primaryStatusTop -
-        scrollOffset;
-
-    metrics.auxiliaryRowTop =
-        auxiliaryRowTop -
-        scrollOffset;
-
-    metrics.auxiliaryKeyRowTop =
-        auxiliaryKeyRowTop -
-        scrollOffset;
-
-    metrics.auxiliaryStatusTop =
-        auxiliaryStatusTop -
-        scrollOffset;
-
-    metrics.popupSectionTop =
-        popupSectionTop -
-        scrollOffset;
-
-    metrics.noteTop =
-        noteTop -
-        scrollOffset;
-
-    metrics.contentBottom =
-        noteTop +
-        Scale(28);
-
-    metrics.stackedCards =
-        stackedCards;
-
-    metrics.compactHotkeys =
-        compactHotkeys;
-
-    return metrics;
+            kSidebarWidthLogical);
 }
 
 void SettingsWindow::UpdateGeneralScrollBar() {
@@ -3623,12 +3404,12 @@ void SettingsWindow::UpdateGeneralScrollBar() {
         BuildGeneralLayout(0);
 
     int maximum =
-        std::max(
-            0,
-            full.contentBottom +
-                Scale(10) -
+        settings_layout::
+            MaxScrollOffset(
+                full,
                 static_cast<int>(
-                    client.bottom));
+                    client.bottom),
+                dpi_);
 
     ShowScrollBar(
         hwnd_,
@@ -3646,12 +3427,12 @@ void SettingsWindow::UpdateGeneralScrollBar() {
         BuildGeneralLayout(0);
 
     maximum =
-        std::max(
-            0,
-            full.contentBottom +
-                Scale(10) -
+        settings_layout::
+            MaxScrollOffset(
+                full,
                 static_cast<int>(
-                    client.bottom));
+                    client.bottom),
+                dpi_);
 
     generalScrollOffset_ =
         std::clamp(
@@ -3746,21 +3527,45 @@ void SettingsWindow::ScrollGeneral(
 }
 
 RECT SettingsWindow::BehaviorCardRect() const {
-    return BuildGeneralLayout(
-        generalScrollOffset_)
-        .behavior;
+    const auto rect =
+        BuildGeneralLayout(
+            generalScrollOffset_)
+            .behavior;
+
+    return {
+        rect.left,
+        rect.top,
+        rect.right,
+        rect.bottom,
+    };
 }
 
 RECT SettingsWindow::SearchBehaviorCardRect() const {
-    return BuildGeneralLayout(
-        generalScrollOffset_)
-        .search;
+    const auto rect =
+        BuildGeneralLayout(
+            generalScrollOffset_)
+            .search;
+
+    return {
+        rect.left,
+        rect.top,
+        rect.right,
+        rect.bottom,
+    };
 }
 
 RECT SettingsWindow::MonitorCardRect() const {
-    return BuildGeneralLayout(
-        generalScrollOffset_)
-        .monitor;
+    const auto rect =
+        BuildGeneralLayout(
+            generalScrollOffset_)
+            .monitor;
+
+    return {
+        rect.left,
+        rect.top,
+        rect.right,
+        rect.bottom,
+    };
 }
 
 void SettingsWindow::Layout() {
@@ -5779,15 +5584,62 @@ LRESULT SettingsWindow::HandleMessage(
             reinterpret_cast<RECT*>(
                 lParam);
 
+        RECT target =
+            *suggested;
+
+        HMONITOR monitor =
+            MonitorFromRect(
+                suggested,
+                MONITOR_DEFAULTTONEAREST);
+
+        MONITORINFO monitorInfo{
+            sizeof(monitorInfo)};
+
+        if (GetMonitorInfoW(
+                monitor,
+                &monitorInfo)) {
+
+            const auto clamped =
+                settings_layout::
+                    ClampRectToWorkArea(
+                        {
+                            static_cast<int>(
+                                suggested->left),
+                            static_cast<int>(
+                                suggested->top),
+                            static_cast<int>(
+                                suggested->right),
+                            static_cast<int>(
+                                suggested->bottom),
+                        },
+                        {
+                            static_cast<int>(
+                                monitorInfo.rcWork.left),
+                            static_cast<int>(
+                                monitorInfo.rcWork.top),
+                            static_cast<int>(
+                                monitorInfo.rcWork.right),
+                            static_cast<int>(
+                                monitorInfo.rcWork.bottom),
+                        });
+
+            target = {
+                clamped.left,
+                clamped.top,
+                clamped.right,
+                clamped.bottom,
+            };
+        }
+
         SetWindowPos(
             hwnd_,
             nullptr,
-            suggested->left,
-            suggested->top,
-            suggested->right -
-                suggested->left,
-            suggested->bottom -
-                suggested->top,
+            target.left,
+            target.top,
+            target.right -
+                target.left,
+            target.bottom -
+                target.top,
             SWP_NOZORDER |
                 SWP_NOACTIVATE);
 
@@ -5811,11 +5663,50 @@ LRESULT SettingsWindow::HandleMessage(
             reinterpret_cast<MINMAXINFO*>(
                 lParam);
 
-        info->ptMinTrackSize.x =
+        int minimumWidth =
             Scale(920);
 
-        info->ptMinTrackSize.y =
+        int minimumHeight =
             Scale(680);
+
+        const HMONITOR monitor =
+            MonitorFromWindow(
+                hwnd_,
+                MONITOR_DEFAULTTONEAREST);
+
+        MONITORINFO monitorInfo{
+            sizeof(monitorInfo)};
+
+        if (GetMonitorInfoW(
+                monitor,
+                &monitorInfo)) {
+
+            const int workWidth =
+                static_cast<int>(
+                    monitorInfo.rcWork.right -
+                    monitorInfo.rcWork.left);
+
+            const int workHeight =
+                static_cast<int>(
+                    monitorInfo.rcWork.bottom -
+                    monitorInfo.rcWork.top);
+
+            minimumWidth =
+                std::min(
+                    minimumWidth,
+                    workWidth);
+
+            minimumHeight =
+                std::min(
+                    minimumHeight,
+                    workHeight);
+        }
+
+        info->ptMinTrackSize.x =
+            minimumWidth;
+
+        info->ptMinTrackSize.y =
+            minimumHeight;
 
         return 0;
     }

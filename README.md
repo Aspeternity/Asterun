@@ -23,6 +23,22 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.1-beta.2 — Validation Integrity & Real Desktop Hardening
+
+Beta 2 keeps the v0.4.1 feature set frozen and focuses on whether the release gates actually prove the behavior they claim to cover.
+
+C++ regression targets now explicitly undefine `NDEBUG` in Release CI builds, and the new desktop-validation test contains a compile-time guard that fails if assertions are disabled. This closes a validation hole where assertion-based tests could otherwise compile and run successfully without evaluating their checks.
+
+Classic numeric quick-launch ordering and single-result immediate-execution gating are now isolated in portable behavior helpers that are used by the real LauncherWindow and exercised directly by CI. The single-result matrix covers disabled execution, empty queries, active IME composition and non-single result sets.
+
+General Settings geometry is now calculated through a portable layout helper used by the real SettingsWindow. Automated tests exercise 100%, 125%, 150% and 200% DPI, wide versus stacked cards, compact hotkey layout, scrolling and monitor work-area clamping. During a real `WM_DPICHANGED`, the suggested window rectangle is clamped to the destination monitor work area; minimum tracking dimensions are also capped by the available work area.
+
+Windows smoke coverage now includes a real `RegisterHotKey` / `UnregisterHotKey` test for duplicate conflicts and re-registration, in addition to the existing codec tests. The same validation set runs on the current Windows runner and the Windows 10 API-baseline runner.
+
+Config Core regression coverage now includes a representative v0.4.0 schema-1 settings document. The test verifies that known v0.4.0 preferences survive migration to schema 2, new v0.4.1 fields receive safe defaults, and a simulated v0.4.0-era reader treats the migrated file as newer without rewriting it.
+
+No schemas, provider IDs, Classic launcher geometry or v0.4.1 user-facing features changed in beta.2.
+
 ## v0.4.1-beta.1 — Feature Freeze & Desktop Validation
 
 Beta 1 freezes the v0.4.1 product feature set. No new launcher behavior, provider, schema field or Classic visual redesign is introduced in this release.

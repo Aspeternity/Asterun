@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Command.hpp"
+#include "../core/SettingsLayout.hpp"
 
 #include <windows.h>
 
@@ -35,26 +36,6 @@ private:
         Providers,
         Data,
         About,
-    };
-
-    struct GeneralLayoutMetrics {
-        RECT behavior{};
-        RECT search{};
-        RECT monitor{};
-        int behaviorTitleTop{};
-        int searchTitleTop{};
-        int hotkeySectionTop{};
-        int primaryRowTop{};
-        int primaryKeyRowTop{};
-        int primaryStatusTop{};
-        int auxiliaryRowTop{};
-        int auxiliaryKeyRowTop{};
-        int auxiliaryStatusTop{};
-        int popupSectionTop{};
-        int noteTop{};
-        int contentBottom{};
-        bool stackedCards{false};
-        bool compactHotkeys{false};
     };
 
     static constexpr int
@@ -299,7 +280,8 @@ private:
     ControlText(HWND control) const;
     [[nodiscard]] bool
     ToggleChecked(UINT id) const;
-    [[nodiscard]] GeneralLayoutMetrics
+    [[nodiscard]]
+    settings_layout::GeneralLayoutMetrics
     BuildGeneralLayout(
         int scrollOffset) const;
     void UpdateGeneralScrollBar();

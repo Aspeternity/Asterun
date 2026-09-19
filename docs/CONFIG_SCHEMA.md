@@ -71,6 +71,8 @@ v0.4.1-alpha.3 does not change the schema. It hardens the runtime/UI contract ar
 
 v0.4.1-beta.1 declares this configuration surface frozen for the remainder of the v0.4.1 Beta/RC cycle. CI now rejects accidental changes to the v0.4.1 schema versions, stable provider IDs or documented default settings. Beta/RC regression fixes therefore do not require a data migration unless the release plan is explicitly reopened.
 
+v0.4.1-beta.2 does not change any schema. Regression coverage now includes a representative v0.4.0 schema-1 settings document and verifies that migration preserves existing preferences while applying safe defaults for new schema-2 fields. The same test simulates an older schema-1 reader and confirms the migrated schema-2 file remains byte-for-byte unchanged under downgrade protection.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text

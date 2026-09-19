@@ -2,7 +2,9 @@
 
 This is the release-validation checklist for the frozen v0.4.1 feature set. Beta and RC builds may fix regressions or compatibility problems, but they must not introduce a new v0.4.1 feature surface.
 
-Automated CI covers compilation, Config/Search tests, provider smoke tests, hotkey codec tests, Windows API compatibility, package contents/version metadata and a packaged x64 startup smoke. The checks below are the remaining **real interactive Windows desktop** validation items and must not be represented as automated coverage.
+Automated CI covers compilation, Config/Search tests, provider smoke tests, hotkey codec tests, real RegisterHotKey conflict/re-registration smoke, Classic numeric/single-result behavior logic, 100%/125%/150%/200% General-layout invariants, Windows API compatibility, package contents/version metadata and a packaged x64 startup smoke. Assertion-based tests are forced to remain active even in Release builds.
+
+The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
 ## Test matrix
 

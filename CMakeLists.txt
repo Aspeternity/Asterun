@@ -88,8 +88,10 @@ else()
 endif()
 
 add_library(altrun_core STATIC
+    src/core/ClassicBehavior.cpp
     src/core/PinyinSearch.cpp
     src/core/SearchEngine.cpp
+    src/core/SettingsLayout.cpp
 )
 
 target_include_directories(altrun_core PUBLIC src)
@@ -202,21 +204,55 @@ if(WIN32)
 endif()
 
 include(CTest)
+
+function(altrun_enable_test_assertions target)
+    # CI runs test binaries in Release configuration. Keep assert() active so
+    # a green run cannot be produced merely because NDEBUG removed checks.
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(${target} PRIVATE -UNDEBUG)
+    endif()
+endfunction()
+
 if(BUILD_TESTING)
     add_executable(search_engine_tests tests/SearchEngineTests.cpp)
     target_link_libraries(search_engine_tests PRIVATE altrun_core)
     target_include_directories(search_engine_tests PRIVATE src)
+    altrun_enable_test_assertions(search_engine_tests)
     altrun_copy_pinyin_runtime(search_engine_tests)
     add_test(NAME search_engine_tests COMMAND search_engine_tests)
 
     add_executable(config_core_tests tests/ConfigCoreTests.cpp)
     target_link_libraries(config_core_tests PRIVATE altrun_config)
     target_include_directories(config_core_tests PRIVATE src)
+    altrun_enable_test_assertions(config_core_tests)
     add_test(NAME config_core_tests COMMAND config_core_tests)
+
+    add_executable(
+        desktop_validation_tests
+        tests/DesktopValidationTests.cpp
+    )
+    target_link_libraries(
+        desktop_validation_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        desktop_validation_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        desktop_validation_tests
+    )
+    add_test(
+        NAME desktop_validation_tests
+        COMMAND desktop_validation_tests
+    )
 
     add_executable(command_merge_tests tests/CommandMergeTests.cpp)
     target_link_libraries(command_merge_tests PRIVATE altrun_config)
     target_include_directories(command_merge_tests PRIVATE src)
+    altrun_enable_test_assertions(command_merge_tests)
     add_test(NAME command_merge_tests COMMAND command_merge_tests)
 
     if(WIN32)
@@ -263,6 +299,10 @@ if(BUILD_TESTING)
             )
         endif()
 
+        altrun_enable_test_assertions(
+            windows_provider_smoke_tests
+        )
+
         add_test(
             NAME windows_provider_smoke_tests
             COMMAND windows_provider_smoke_tests
@@ -301,9 +341,49 @@ if(BUILD_TESTING)
             )
         endif()
 
+        altrun_enable_test_assertions(
+            hotkey_tests
+        )
+
         add_test(
             NAME hotkey_tests
             COMMAND hotkey_tests
+        )
+
+        add_executable(
+            hotkey_runtime_tests
+            tests/HotkeyRuntimeTests.cpp
+        )
+
+        target_compile_definitions(
+            hotkey_runtime_tests
+            PRIVATE
+                UNICODE
+                _UNICODE
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0A00
+                WINVER=0x0A00
+        )
+
+        if(MSVC)
+            target_compile_options(
+                hotkey_runtime_tests
+                PRIVATE
+                    /W4
+                    /permissive-
+                    /utf-8
+                    /EHsc
+            )
+        endif()
+
+        altrun_enable_test_assertions(
+            hotkey_runtime_tests
+        )
+
+        add_test(
+            NAME hotkey_runtime_tests
+            COMMAND hotkey_runtime_tests
         )
     endif()
 endif()

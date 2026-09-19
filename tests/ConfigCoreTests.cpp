@@ -552,6 +552,167 @@ int main() {
             .schemaVersion ==
         config::kSettingsSchemaVersion);
 
+    // Representative v0.4.0 schema-1 settings must preserve every known
+    // preference while v0.4.1 supplies safe defaults for its new fields.
+    const auto v040SettingsPath =
+        data /
+        "settings-v0.4.0.json";
+
+    WriteText(
+        v040SettingsPath,
+        "{\n"
+        "  \"schemaVersion\": 1,\n"
+        "  \"general\": {\n"
+        "    \"startWithWindows\": true,\n"
+        "    \"hideAfterLaunch\": false,\n"
+        "    \"clearQueryOnShow\": false,\n"
+        "    \"hideOnFocusLost\": false,\n"
+        "    \"showTrayIcon\": false,\n"
+        "    \"popupMonitor\": \"primary\"\n"
+        "  },\n"
+        "  \"hotkey\": {\n"
+        "    \"modifiers\": [\"ctrl\", \"shift\"],\n"
+        "    \"key\": \"f12\"\n"
+        "  },\n"
+        "  \"appearance\": {\n"
+        "    \"launcher\": \"modern-compact\",\n"
+        "    \"language\": \"en-US\"\n"
+        "  },\n"
+        "  \"providers\": {\n"
+        "    \"windows.startmenu\": true,\n"
+        "    \"windows.packaged\": false,\n"
+        "    \"windows.apppaths\": true,\n"
+        "    \"windows.path\": false\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore v041FromV040(
+        v040SettingsPath);
+
+    v041FromV040.Load();
+
+    assert(
+        v041FromV040.Data()
+            .startWithWindows);
+    assert(
+        !v041FromV040.Data()
+             .hideAfterLaunch);
+    assert(
+        !v041FromV040.Data()
+             .clearQueryOnShow);
+    assert(
+        !v041FromV040.Data()
+             .hideOnFocusLost);
+    assert(
+        !v041FromV040.Data()
+             .showTrayIcon);
+    assert(
+        v041FromV040.Data()
+            .popupMonitor ==
+        "primary");
+
+    assert(
+        v041FromV040.Data()
+            .hotkeyModifiers.size() ==
+        2);
+    assert(
+        v041FromV040.Data()
+            .hotkeyModifiers[0] ==
+        "ctrl");
+    assert(
+        v041FromV040.Data()
+            .hotkeyModifiers[1] ==
+        "shift");
+    assert(
+        v041FromV040.Data()
+            .hotkeyKey ==
+        "f12");
+
+    assert(
+        v041FromV040.Data()
+            .uiStyle ==
+        UiStyle::ModernCompact);
+    assert(
+        v041FromV040.Data()
+            .language ==
+        Language::EnUS);
+
+    assert(
+        providers::IsEnabled(
+            v041FromV040.Data()
+                .providerEnabled,
+            providers::kStartMenu));
+    assert(
+        !providers::IsEnabled(
+            v041FromV040.Data()
+                .providerEnabled,
+            providers::kPackaged));
+    assert(
+        providers::IsEnabled(
+            v041FromV040.Data()
+                .providerEnabled,
+            providers::kAppPaths));
+    assert(
+        !providers::IsEnabled(
+            v041FromV040.Data()
+                .providerEnabled,
+            providers::kPath));
+
+    assert(
+        !v041FromV040.Data()
+             .showOnStartup);
+    assert(
+        !v041FromV040.Data()
+             .auxiliaryHotkeyEnabled);
+    assert(
+        !v041FromV040.Data()
+             .wildcardMatching);
+    assert(
+        !v041FromV040.Data()
+             .numericQuickLaunch);
+    assert(
+        v041FromV040.Data()
+            .numericQuickLaunchOrder ==
+        "one-to-zero");
+    assert(
+        !v041FromV040.Data()
+             .executeSingleResultImmediately);
+
+    const auto migratedV040 =
+        config::LoadJsonWithBackup(
+            v040SettingsPath,
+            config::kSettingsSchemaVersion);
+
+    assert(migratedV040.value);
+    assert(
+        migratedV040.schemaVersion ==
+        config::kSettingsSchemaVersion);
+
+    // Simulate a v0.4.0-era reader opening the migrated file. The older
+    // schema ceiling must report it as newer and leave its bytes untouched.
+    const std::string
+        migratedV040BeforeDowngrade =
+            ReadText(
+                v040SettingsPath);
+
+    const auto downgradeRead =
+        config::LoadJsonWithBackup(
+            v040SettingsPath,
+            1);
+
+    assert(
+        downgradeRead.status ==
+        config::JsonLoadStatus::
+            UnsupportedSchema);
+    assert(
+        downgradeRead.schemaVersion ==
+        config::kSettingsSchemaVersion);
+    assert(downgradeRead.value);
+    assert(
+        ReadText(
+            v040SettingsPath) ==
+        migratedV040BeforeDowngrade);
+
     // A future settings schema remains usable for known fields but is
     // read-only so an older binary cannot overwrite newer data.
     const auto futureSettingsPath =

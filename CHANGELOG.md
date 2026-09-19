@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.1-beta.2
+
+- Kept the v0.4.1 feature set frozen; this release contains validation-integrity and compatibility hardening only.
+- Forced assertion-based C++ test targets to keep `assert()` active in Release CI builds by undefining `NDEBUG`.
+- Added a compile-time guard proving the desktop validation target cannot silently run with assertions disabled.
+- Extracted Classic numeric quick-launch mapping and single-result immediate-execution gating into portable helpers used by the production LauncherWindow.
+- Added portable regression coverage for both numeric orders and single-result gating during IME composition, empty queries, disabled behavior and multiple results.
+- Extracted General Settings layout calculation and work-area clamping into a portable helper used by the production SettingsWindow.
+- Added automated layout coverage at 100%, 125%, 150% and 200% DPI for wide, stacked, compact and scrollable General-page states.
+- Clamped `WM_DPICHANGED` suggested Settings geometry to the destination monitor work area.
+- Capped Settings minimum tracking dimensions to the current monitor work area on high-DPI/small-display configurations.
+- Added a real Windows `RegisterHotKey` runtime smoke covering duplicate conflict detection, unregister/re-register and a modified no-repeat binding.
+- Expanded both current-Windows and Windows 10 API-baseline smoke jobs with desktop-validation and hotkey-runtime tests.
+- Added a representative v0.4.0 -> v0.4.1 settings migration regression preserving existing preferences and applying safe schema-2 defaults.
+- Added an older-reader simulation proving the migrated schema-2 settings document remains byte-for-byte unchanged when opened with a schema-1 compatibility ceiling.
+- Extended the v0.4.1 release-contract gate so validation helpers/tests cannot be accidentally removed during Beta/RC.
+- Kept settings schemaVersion 2, commands/usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Kept Classic launcher geometry frozen.
+- Updated Windows version metadata to `0.4.1-beta.2` / `0.4.1.101`.
+
+
 ## 0.4.1-beta.1
 
 - Entered v0.4.1 feature freeze; Beta/RC work is limited to regressions, compatibility and release validation.
