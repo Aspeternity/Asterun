@@ -11,10 +11,10 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.5.0-beta.1:
+Each document carries its own schema version. As of v0.6.0-alpha.6:
 
 ```text
-settings.json       schemaVersion 3
+settings.json       schemaVersion 4
 commands.json       schemaVersion 1
 usage.json          schemaVersion 1
 provider-cache.json schemaVersion 2
@@ -31,6 +31,10 @@ v0.6.0-alpha.3 adds standard Open / Save / folder-picker activation context, als
 v0.6.0-alpha.4 adds Total Commander activation context and `{folder}` command templates without changing the persisted document shape. Captured TC HWND/process/panel/folder data is session-only. A user command may contain the literal `{folder}` token in target, arguments or workingDirectory; substitution happens in memory from a captured real filesystem folder and the stored command remains unchanged. Commands requiring `{folder}` are omitted from launcher search when no filesystem context is available. commands.json therefore remains schemaVersion 1.
 
 v0.6.0-alpha.5 adds runtime-only clipboard/text actions. `builtin.clipboard`, CopyText payloads and Ctrl+Shift+C copy-selection state are never written to settings.json, commands.json, usage.json or provider-cache.json. The feature writes only the explicitly requested output to the Windows Unicode clipboard and does not read or persist previous clipboard contents. No schema migration is performed.
+
+v0.6.0-alpha.6 upgrades **settings.json to schemaVersion 4** for the centralized Hotkey Registry. The new `hotkeys.bindings` object is keyed by stable action ID and stores only `enabled`, `modifiers` and `key`; scope, display text, validation policy and defaults remain code-owned Registry metadata. The first stable IDs are `launcher.activate`, `launcher.activateSecondary`, `launcher.openSettings`, `result.navigateCurrentFileManager` and `result.copySelectedTarget`.
+
+When a schema-3 document is loaded, its existing primary and auxiliary global hotkeys are imported into the matching Registry actions and launcher-local actions receive their defaults. The legacy `hotkey` object is still written as a compatibility mirror for the two global activation bindings. A v0.6.0-alpha.5 downgrade therefore sees schema 4, enters the existing read-only newer-schema mode, may read the familiar global fields, and must not rewrite the document. commands.json, usage.json and provider-cache.json are not migrated by alpha.6.
 
 ## Migration
 

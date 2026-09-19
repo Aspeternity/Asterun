@@ -1,5 +1,6 @@
 #pragma once
 
+#include "HotkeyRegistry.hpp"
 #include "ProviderIds.hpp"
 
 #include <filesystem>
@@ -39,6 +40,11 @@ struct Settings {
         auxiliaryHotkeyModifiers{};
     std::string auxiliaryHotkeyKey{"pause"};
 
+    // schemaVersion 4 source of truth. The legacy primary/auxiliary
+    // members above are compatibility mirrors for read-only downgrades.
+    HotkeyBindingMap hotkeyBindings{
+        DefaultHotkeyBindings()};
+
     bool wildcardMatching{false};
     bool numericQuickLaunch{false};
     std::string numericQuickLaunchOrder{"one-to-zero"};
@@ -68,6 +74,10 @@ public:
         bool enabled,
         std::vector<std::string> modifiers,
         std::string key);
+    bool SetHotkeyBinding(
+        std::string actionId,
+        HotkeyBinding binding);
+    bool ResetHotkeyBindings();
     bool SetClassicBehavior(
         bool wildcardMatching,
         bool numericQuickLaunch,

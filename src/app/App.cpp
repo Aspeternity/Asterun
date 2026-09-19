@@ -3,6 +3,7 @@
 #include "../core/EverythingProvider.hpp"
 #include "../core/ClipboardAction.hpp"
 #include "../core/CommandTemplate.hpp"
+#include "../core/HotkeyRegistry.hpp"
 #include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
 #include "../core/ResultMerger.hpp"
@@ -1684,71 +1685,98 @@ bool App::SetShowOnStartup(
 bool App::SetHotkeySettings(
     std::vector<std::string> modifiers,
     std::string key) {
-
-    const auto previousModifiers =
-        settingsStore_.Data().hotkeyModifiers;
-
-    const auto previousKey =
-        settingsStore_.Data().hotkeyKey;
-
-    if (!RebindGlobalHotkey(
-            modifiers,
-            key)) {
-        return false;
-    }
-
-    if (!settingsStore_.SetHotkey(
+    return SetHotkeyBinding(
+        std::string(
+            hotkey_actions::kActivate),
+        HotkeyBinding{
+            true,
             std::move(modifiers),
-            std::move(key))) {
-
-        RebindGlobalHotkey(
-            previousModifiers,
-            previousKey);
-
-        return false;
-    }
-
-    if (settingsWindow_) {
-        settingsWindow_->RefreshFromSettings();
-    }
-
-    return true;
+            std::move(key)});
 }
 
 bool App::SetAuxiliaryHotkeySettings(
     bool enabled,
     std::vector<std::string> modifiers,
     std::string key) {
-
-    const bool previousEnabled =
-        settingsStore_.Data()
-            .auxiliaryHotkeyEnabled;
-
-    const auto previousModifiers =
-        settingsStore_.Data()
-            .auxiliaryHotkeyModifiers;
-
-    const auto previousKey =
-        settingsStore_.Data()
-            .auxiliaryHotkeyKey;
-
-    if (!RebindAuxiliaryHotkey(
+    return SetHotkeyBinding(
+        std::string(
+            hotkey_actions::
+                kActivateSecondary),
+        HotkeyBinding{
             enabled,
-            modifiers,
-            key)) {
+            std::move(modifiers),
+            std::move(key)});
+}
+
+bool App::SetHotkeyBinding(
+    std::string actionId,
+    HotkeyBinding binding) {
+    CanonicalizeHotkeyBinding(binding);
+
+    const auto* action =
+        FindHotkeyAction(actionId);
+
+    if (!action ||
+        !ValidateHotkeyBinding(
+            actionId,
+            binding) ||
+        FindHotkeyConflict(
+            settingsStore_.Data()
+                .hotkeyBindings,
+            actionId,
+            binding)) {
+        SetLastError(
+            ERROR_INVALID_PARAMETER);
+        return false;
+    }
+
+    const auto previous =
+        EffectiveHotkeyBinding(
+            settingsStore_.Data()
+                .hotkeyBindings,
+            actionId);
+
+    bool rebound = true;
+
+    if (actionId ==
+        hotkey_actions::kActivate) {
+        rebound =
+            RebindGlobalHotkey(
+                binding.modifiers,
+                binding.key);
+    } else if (
+        actionId ==
+        hotkey_actions::
+            kActivateSecondary) {
+        rebound =
+            RebindAuxiliaryHotkey(
+                binding.enabled,
+                binding.modifiers,
+                binding.key);
+    }
+
+    if (!rebound) {
         return false;
     }
 
     if (!settingsStore_
-             .SetAuxiliaryHotkey(
-                 enabled,
-                 std::move(modifiers),
-                 std::move(key))) {
-
-        RebindAuxiliaryHotkey(
-            previousEnabled,
-            previousModifiers,
-            previousKey);
+             .SetHotkeyBinding(
+                 actionId,
+                 binding)) {
+        if (actionId ==
+            hotkey_actions::kActivate) {
+            RebindGlobalHotkey(
+                previous.modifiers,
+                previous.key);
+        } else if (
+            actionId ==
+            hotkey_actions::
+                kActivateSecondary) {
+            RebindAuxiliaryHotkey(
+                previous.enabled,
+                previous.modifiers,
+                previous.key);
+        }
 
         return false;
     }
@@ -1759,6 +1787,130 @@ bool App::SetAuxiliaryHotkeySettings(
     }
 
     return true;
+}
+
+bool App::ResetHotkeyBindings() {
+    const auto previous =
+        settingsStore_.Data()
+            .hotkeyBindings;
+    const auto defaults =
+        DefaultHotkeyBindings();
+
+    const auto oldPrimary =
+        EffectiveHotkeyBinding(
+            previous,
+            hotkey_actions::kActivate);
+    const auto oldAuxiliary =
+        EffectiveHotkeyBinding(
+            previous,
+            hotkey_actions::
+                kActivateSecondary);
+
+    const auto primary =
+        EffectiveHotkeyBinding(
+            defaults,
+            hotkey_actions::kActivate);
+    const auto auxiliary =
+        EffectiveHotkeyBinding(
+            defaults,
+            hotkey_actions::
+                kActivateSecondary);
+
+    if (!RebindAuxiliaryHotkey(
+            false,
+            auxiliary.modifiers,
+            auxiliary.key)) {
+        return false;
+    }
+
+    if (!RebindGlobalHotkey(
+            primary.modifiers,
+            primary.key)) {
+        RebindAuxiliaryHotkey(
+            oldAuxiliary.enabled,
+            oldAuxiliary.modifiers,
+            oldAuxiliary.key);
+        return false;
+    }
+
+    if (!RebindAuxiliaryHotkey(
+            auxiliary.enabled,
+            auxiliary.modifiers,
+            auxiliary.key)) {
+        RebindGlobalHotkey(
+            oldPrimary.modifiers,
+            oldPrimary.key);
+        RebindAuxiliaryHotkey(
+            oldAuxiliary.enabled,
+            oldAuxiliary.modifiers,
+            oldAuxiliary.key);
+        return false;
+    }
+
+    if (!settingsStore_
+             .ResetHotkeyBindings()) {
+        RebindGlobalHotkey(
+            oldPrimary.modifiers,
+            oldPrimary.key);
+        RebindAuxiliaryHotkey(
+            oldAuxiliary.enabled,
+            oldAuxiliary.modifiers,
+            oldAuxiliary.key);
+        return false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
+bool App::IsHotkeyActionRegistered(
+    std::string_view actionId) const {
+    if (actionId ==
+        hotkey_actions::kActivate) {
+        return hotkeyRegistered_;
+    }
+
+    if (actionId ==
+        hotkey_actions::
+            kActivateSecondary) {
+        const auto binding =
+            EffectiveHotkeyBinding(
+                settingsStore_.Data()
+                    .hotkeyBindings,
+                actionId);
+
+        return !binding.enabled ||
+            auxiliaryHotkeyRegistered_;
+    }
+
+    const auto binding =
+        EffectiveHotkeyBinding(
+            settingsStore_.Data()
+                .hotkeyBindings,
+            actionId);
+
+    return !binding.enabled ||
+        FindHotkeyAction(actionId) != nullptr;
+}
+
+DWORD App::HotkeyActionLastError(
+    std::string_view actionId) const noexcept {
+    if (actionId ==
+        hotkey_actions::kActivate) {
+        return hotkeyLastError_;
+    }
+
+    if (actionId ==
+        hotkey_actions::
+            kActivateSecondary) {
+        return auxiliaryHotkeyLastError_;
+    }
+
+    return ERROR_SUCCESS;
 }
 
 bool App::SetClassicBehavior(

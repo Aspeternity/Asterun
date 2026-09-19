@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.0-alpha.6
+
+- Added a centralized Hotkey Registry with stable action IDs, scope metadata, defaults and validation.
+- Registered launcher.activate, launcher.activateSecondary, launcher.openSettings, result.navigateCurrentFileManager and result.copySelectedTarget.
+- Replaced hard-coded F2, Ctrl+Enter and Ctrl+Shift+C launcher handling with registry-driven dispatch.
+- Added a dedicated Hotkeys / 快捷键 Settings page with one centralized action list and editor.
+- Added press-to-capture shortcut editing, Esc cancellation, optional enable/disable, reset-current and reset-all actions.
+- Added registry-wide duplicate binding detection plus reserved-key protection for fixed launcher navigation.
+- Kept primary activation mandatory and modifier-protected.
+- Preserved transactional Windows RegisterHotKey behavior: failed global rebinds restore the previous working binding.
+- Upgraded settings.json to schemaVersion 4 and added hotkeys.bindings.
+- Migrated schema-3 primary/auxiliary bindings into the registry while supplying published defaults for launcher-local actions.
+- Retained the legacy hotkey object as a compatibility mirror so alpha.5 downgrade reads known global fields but leaves schema 4 read-only and byte-identical.
+- Added portable Hotkey Registry regression tests and extended current/Windows 10 CI lanes.
+- Moved hotkey editing out of General Settings; General now focuses on launcher behavior, search and placement.
+- Kept commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider IDs/defaults and Classic geometry 420/16/10 unchanged.
+- Updated Windows fixed version to 0.6.0.60.
+
 ## 0.6.0-alpha.5
 
 - Added CopyText as a reusable Smart Action kind.

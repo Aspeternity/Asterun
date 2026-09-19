@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "general": {
     "startWithWindows": false,
     "showOnStartup": false,
@@ -16,6 +16,35 @@
       "enabled": false,
       "modifiers": [],
       "key": "pause"
+    }
+  },
+  "hotkeys": {
+    "bindings": {
+      "launcher.activate": {
+        "enabled": true,
+        "modifiers": ["alt"],
+        "key": "space"
+      },
+      "launcher.activateSecondary": {
+        "enabled": false,
+        "modifiers": [],
+        "key": "pause"
+      },
+      "launcher.openSettings": {
+        "enabled": true,
+        "modifiers": [],
+        "key": "f2"
+      },
+      "result.navigateCurrentFileManager": {
+        "enabled": true,
+        "modifiers": ["ctrl"],
+        "key": "enter"
+      },
+      "result.copySelectedTarget": {
+        "enabled": true,
+        "modifiers": ["ctrl", "shift"],
+        "key": "c"
+      }
     }
   },
   "behavior": {

@@ -149,3 +149,24 @@ Do not mark a manual item as passed unless it was observed on the stated real de
 | Data path | clean / upgraded |
 | Result | PASS / FAIL |
 | Notes / issue link | |
+
+
+## v0.6.0-alpha.6 Hotkey Registry validation
+
+The following checks extend the historical desktop matrix for the schema-4 centralized Hotkey Registry.
+
+- [ ] Settings contains a dedicated **快捷键 / Hotkeys** page listing all five published action IDs through localized labels.
+- [ ] Default `launcher.activate` is Alt + Space and opens/hides the launcher repeatedly.
+- [ ] Change the primary global binding; the new binding works immediately and the old binding stops working.
+- [ ] Attempt to assign a global chord already owned by another program; the save/apply fails and the previous ALTRun Next binding remains active.
+- [ ] Enable, rebind and disable the secondary global activation; primary activation remains unaffected throughout.
+- [ ] Rebind **Open Settings** away from F2; the old F2 action stops and the new launcher-local chord opens Settings.
+- [ ] Rebind **Navigate current file manager** away from Ctrl + Enter; the replacement chord navigates the originating Explorer/TC context and Ctrl + Enter no longer triggers that action.
+- [ ] Rebind **Copy selected result** away from Ctrl + Shift + C; the replacement chord copies the selected target and normal Ctrl + C still copies selected query text.
+- [ ] Attempt to reuse a chord already assigned to another Registry action; Settings rejects it and identifies the conflicting action.
+- [ ] Attempt to bind a launcher action to a bare character, Space, Enter/Esc/Tab, arrow/editing key or bare numeric key; Settings rejects it so normal query input remains usable. Verify an unmodified function key such as F8 is accepted.
+- [ ] Disable an optional launcher-local action; its chord stops dispatching after closing Settings and remains disabled after restart.
+- [ ] Reset one action to default, then use **Reset all hotkeys** and verify all five published defaults are restored.
+- [ ] Restart ALTRun Next and verify every customized enabled/disabled state and chord persists.
+- [ ] Upgrade an existing schema-3 settings.json with a custom primary/auxiliary binding; schema 4 preserves both global bindings and adds defaults for the three launcher-local actions.
+- [ ] After schema-4 migration, record settings.json SHA-256, launch v0.6.0-alpha.5, attempt a settings change, verify newer-schema read-only protection and unchanged SHA-256, then return to alpha.6 and verify the Registry configuration is intact.

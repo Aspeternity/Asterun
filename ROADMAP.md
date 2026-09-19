@@ -127,12 +127,15 @@ In progress:
 - {folder} is available only from a captured real filesystem folder (Explorer or Total Commander); virtual/plugin/FTP contexts do not guess
 - v0.6.0-alpha.5 adds runtime CopyText actions, copy / clip / 复制 text commands and Ctrl+Shift+C selected-result target copying using the Unicode Windows clipboard
 - Ctrl+C remains native query-text copy; clipboard Smart Actions never read or persist previous clipboard contents
+- v0.6.0-alpha.6 centralizes global and launcher-local shortcuts behind stable Hotkey Registry action IDs and a dedicated Settings page
+- Alpha 6 upgrades settings to schemaVersion 4, migrates schema-3 primary/auxiliary bindings and retains a downgrade-readable compatibility mirror
 - Contextual navigation is session-scoped and cleared when the launcher hides
-- settings/commands/usage/provider-cache schemas and v0.5 provider defaults remain unchanged
+- commands/usage remain schemaVersion 1, provider-cache remains schemaVersion 2 and v0.5 provider defaults remain unchanged
 - Classic launcher geometry remains frozen
 
 Planned next:
 
+- v0.6.0-beta.1 feature freeze, Smart Actions UX, diagnostics and desktop-validation hardening
 - Broader provider/action contracts suitable for future extensions
 - Calculator may return later as an optional smart action
 - Managed / Portable Everything remains a separate candidate after the core v0.6.0 Smart Actions line

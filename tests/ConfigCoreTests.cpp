@@ -540,7 +540,7 @@ int main() {
     assert(migratedEverythingJson.value);
     assert(
         migratedEverythingJson.schemaVersion ==
-        3);
+        config::kSettingsSchemaVersion);
     assert(
         (*migratedEverythingJson.value)
             ["providers"]
@@ -563,7 +563,7 @@ int main() {
             UnsupportedSchema);
     assert(
         v041DowngradeRead.schemaVersion ==
-        3);
+        config::kSettingsSchemaVersion);
     assert(v041DowngradeRead.value);
     assert(
         ReadText(v2EverythingSettings) ==
@@ -611,12 +611,139 @@ int main() {
     assert(migratedDefaultJson.value);
     assert(
         migratedDefaultJson.schemaVersion ==
-        3);
+        config::kSettingsSchemaVersion);
     assert(
         !(*migratedDefaultJson.value)
              ["providers"]
              ["everything.filesystem"]
              .get<bool>());
+
+    // v0.6 alpha.5 schema-3 settings migrate to the centralized
+    // schema-4 Hotkey Registry. Existing primary/auxiliary values survive,
+    // while launcher-local actions receive their published defaults.
+    const auto v3HotkeySettings =
+        data /
+        "settings-v0.6-alpha5-hotkeys.json";
+
+    WriteText(
+        v3HotkeySettings,
+        "{\n"
+        "  \"schemaVersion\": 3,\n"
+        "  \"hotkey\": {\n"
+        "    \"modifiers\": [\"ctrl\", \"shift\"],\n"
+        "    \"key\": \"k\",\n"
+        "    \"auxiliary\": {\n"
+        "      \"enabled\": true,\n"
+        "      \"modifiers\": [],\n"
+        "      \"key\": \"pause\"\n"
+        "    }\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore migratedHotkeys(
+        v3HotkeySettings);
+    migratedHotkeys.Load();
+
+    assert(
+        migratedHotkeys
+            .WasMigratedFromOlderSchema());
+    assert(
+        migratedHotkeys
+            .MigratedFromSchemaVersion() ==
+        3);
+
+    const auto migratedPrimary =
+        EffectiveHotkeyBinding(
+            migratedHotkeys.Data()
+                .hotkeyBindings,
+            hotkey_actions::kActivate);
+
+    assert(migratedPrimary.enabled);
+    assert(
+        migratedPrimary.modifiers ==
+        (std::vector<std::string>{
+            "ctrl", "shift"}));
+    assert(migratedPrimary.key == "k");
+
+    const auto migratedAuxiliary =
+        EffectiveHotkeyBinding(
+            migratedHotkeys.Data()
+                .hotkeyBindings,
+            hotkey_actions::
+                kActivateSecondary);
+
+    assert(migratedAuxiliary.enabled);
+    assert(
+        migratedAuxiliary.modifiers
+            .empty());
+    assert(
+        migratedAuxiliary.key ==
+        "pause");
+
+    const auto migratedSettingsAction =
+        EffectiveHotkeyBinding(
+            migratedHotkeys.Data()
+                .hotkeyBindings,
+            hotkey_actions::
+                kOpenSettings);
+
+    assert(migratedSettingsAction.enabled);
+    assert(
+        migratedSettingsAction.key ==
+        "f2");
+
+    const auto migratedHotkeyJson =
+        config::LoadJsonWithBackup(
+            v3HotkeySettings,
+            config::kSettingsSchemaVersion);
+
+    assert(migratedHotkeyJson.value);
+    assert(
+        migratedHotkeyJson.schemaVersion ==
+        4);
+    assert(
+        (*migratedHotkeyJson.value)
+            .contains("hotkeys"));
+    assert(
+        (*migratedHotkeyJson.value)
+            ["hotkeys"]
+            ["bindings"]
+            .contains(
+                std::string(
+                    hotkey_actions::
+                        kCopySelectedTarget)));
+
+    // The schema-3 compatibility mirror is deliberately retained so an
+    // alpha.5 downgrade can read the user's primary/auxiliary values while
+    // still treating the schema-4 document as read-only.
+    assert(
+        (*migratedHotkeyJson.value)
+            ["hotkey"]
+            ["key"]
+            .get<std::string>() ==
+        "k");
+
+    const std::string
+        schema4BeforeDowngrade =
+            ReadText(
+                v3HotkeySettings);
+
+    const auto alpha5DowngradeRead =
+        config::LoadJsonWithBackup(
+            v3HotkeySettings,
+            3);
+
+    assert(
+        alpha5DowngradeRead.status ==
+        config::JsonLoadStatus::
+            UnsupportedSchema);
+    assert(
+        alpha5DowngradeRead.schemaVersion ==
+        4);
+    assert(
+        ReadText(
+            v3HotkeySettings) ==
+        schema4BeforeDowngrade);
 
     // Alpha-era settings without a providers object retain the current
     // default-enabled behavior for all discovery sources.

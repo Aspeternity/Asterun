@@ -23,6 +23,48 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-alpha.6 — Centralized Hotkey Registry & Settings
+
+Alpha 6 replaces feature-specific hard-coded shortcut checks with a centralized **Hotkey Registry** and a dedicated **Hotkeys / 快捷键** Settings page. New hotkey-enabled actions now have a stable action ID, scope, default binding and validation policy in one registry.
+
+The initial registry contains:
+
+| Action ID | Scope | Default |
+| --- | --- | --- |
+| `launcher.activate` | Windows global | `Alt + Space` |
+| `launcher.activateSecondary` | Windows global | disabled, `Pause` when enabled |
+| `launcher.openSettings` | Launcher | `F2` |
+| `result.navigateCurrentFileManager` | Launcher | `Ctrl + Enter` |
+| `result.copySelectedTarget` | Launcher | `Ctrl + Shift + C` |
+
+**Global** bindings use Windows `RegisterHotKey` and remain transactional: a replacement is persisted only after Windows accepts it; if registration fails, ALTRun Next re-establishes the previous working binding. **Launcher** bindings are matched only while the launcher is open and do not reserve keys system-wide.
+
+Settings now exposes all five actions on one page. Select an action, click its current binding, then press the replacement key combination. `Esc` cancels capture. The page shows scope and runtime status, supports disabling optional bindings, resetting one binding, and restoring every hotkey to its published default.
+
+Conflict handling is registry-wide. Two enabled actions cannot share the same chord. The primary activation binding cannot be disabled and requires at least one modifier. Launcher-local bindings also protect the search edit control: unmodified character, Space and editing/navigation keys remain owned by normal query input. Bare local action bindings are limited to function-style keys such as `F1–F24` or `Pause`; character/editing keys can still be used when combined with modifiers.
+
+The previous hard-coded launcher checks for `F2`, `Ctrl+Enter` and `Ctrl+Shift+C` now dispatch through `MatchHotkeyAction`, so changing a binding changes runtime behavior immediately without modifying the feature implementation.
+
+### Settings schemaVersion 4
+
+Alpha 6 upgrades `settings.json` from schemaVersion 3 to **schemaVersion 4**. Existing primary and auxiliary global bindings are migrated into:
+
+```json
+"hotkeys": {
+  "bindings": {
+    "launcher.activate": {
+      "enabled": true,
+      "modifiers": ["alt"],
+      "key": "space"
+    }
+  }
+}
+```
+
+Launcher-local actions receive their published defaults during migration. The stored schema-3 `hotkey` object is deliberately retained as a compatibility mirror for the two global activation bindings. This allows an alpha.5 binary to read the familiar global fields during a downgrade while its existing newer-schema protection keeps the schema-4 document read-only and byte-preserving.
+
+No other persisted contract changes: `commands.json` and `usage.json` remain schemaVersion 1, `provider-cache.json` remains schemaVersion 2, provider IDs/defaults remain frozen, and Classic geometry remains 420/16/10. Windows fixed FileVersion/ProductVersion is `0.6.0.60`.
+
 ## v0.6.0-alpha.5 — Clipboard & Text Actions
 
 Alpha 5 adds the first clipboard-oriented Smart Action while keeping normal edit-control clipboard behavior intact.

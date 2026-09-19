@@ -110,6 +110,16 @@ public:
         bool enabled,
         std::vector<std::string> modifiers,
         std::string key);
+    bool SetHotkeyBinding(
+        std::string actionId,
+        HotkeyBinding binding);
+    bool ResetHotkeyBindings();
+    [[nodiscard]] bool
+    IsHotkeyActionRegistered(
+        std::string_view actionId) const;
+    [[nodiscard]] DWORD
+    HotkeyActionLastError(
+        std::string_view actionId) const noexcept;
     bool SetClassicBehavior(
         bool wildcardMatching,
         bool numericQuickLaunch,

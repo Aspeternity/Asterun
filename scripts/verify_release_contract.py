@@ -36,6 +36,171 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0-alpha.6":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 4,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected v0.6 alpha.6 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("v0.6 alpha.6 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 4:
+        fail("v0.6 alpha.6 settings must be schemaVersion 4")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 alpha.6 changed frozen provider defaults")
+
+    bindings = (
+        settings.get("hotkeys", {})
+        .get("bindings", {})
+    )
+    expected_bindings = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    if set(bindings) != expected_bindings:
+        fail(
+            "schema-4 hotkey binding IDs differ from the frozen alpha.6 registry"
+        )
+
+    registry_hpp = read("src/core/HotkeyRegistry.hpp")
+    registry_cpp = read("src/core/HotkeyRegistry.cpp")
+    for token in (
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+        "HotkeyScope",
+        "FindHotkeyConflict",
+        "MatchHotkeyAction",
+        "ValidateHotkeyBinding",
+    ):
+        if token not in registry_hpp + registry_cpp:
+            fail(f"alpha.6 Hotkey Registry missing: {token}")
+
+    settings_cpp = read("src/core/Settings.cpp")
+    for token in (
+        'root.contains("hotkeys")',
+        '"bindings"',
+        "ImportLegacyHotkeys",
+        "SyncLegacyHotkeyMirrors",
+        "ResetHotkeyBindings",
+        'hotkey_actions::kActivate',
+        'hotkey_actions::kActivateSecondary',
+    ):
+        if token not in settings_cpp:
+            fail(f"alpha.6 settings migration/persistence missing: {token}")
+
+    app = read("src/app/App.cpp")
+    for token in (
+        "SetHotkeyBinding",
+        "ResetHotkeyBindings",
+        "RebindGlobalHotkey",
+        "RebindAuxiliaryHotkey",
+        "FindHotkeyConflict",
+    ):
+        if token not in app:
+            fail(f"alpha.6 App hotkey transaction missing: {token}")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    for token in (
+        "MatchHotkeyAction",
+        "kOpenSettings",
+        "kNavigateCurrentFileManager",
+        "kCopySelectedTarget",
+        "WM_SYSKEYDOWN",
+    ):
+        if token not in launcher:
+            fail(f"alpha.6 launcher registry dispatch missing: {token}")
+
+    settings_hpp = read("src/ui/SettingsWindow.hpp")
+    settings_ui = read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "Page::Hotkeys",
+        "kIdNavHotkeys",
+        "CreateHotkeyPage",
+        "RefreshHotkeyPage",
+        "BeginHotkeyCapture",
+        "ApplyCapturedHotkey",
+        "ResetAllHotkeys",
+        "Press the new shortcut",
+    ):
+        if token not in settings_hpp + settings_ui:
+            fail(f"alpha.6 centralized Hotkeys Settings UI missing: {token}")
+
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    for token in (
+        "settings-v0.6-alpha5-hotkeys.json",
+        "MigratedFromSchemaVersion",
+        "schema4BeforeDowngrade",
+        "alpha5DowngradeRead",
+    ):
+        if token not in config_tests:
+            fail(f"alpha.6 schema-3 -> 4 migration coverage missing: {token}")
+
+    registry_tests = read("tests/HotkeyRegistryTests.cpp")
+    for token in (
+        "FindHotkeyConflict",
+        "MatchHotkeyAction",
+        "ValidateHotkeyBinding",
+    ):
+        if token not in registry_tests:
+            fail(f"alpha.6 registry tests missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        if "hotkey_registry_tests" not in workflow:
+            fail(
+                f"{workflow_path} does not run hotkey_registry_tests on Windows"
+            )
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_header,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed in v0.6 alpha.6: {name}")
+
+    print(
+        "v0.6.0-alpha.6 centralized Hotkey Registry contract verified:",
+        "| settings=4 commands=1 usage=1 provider-cache=2",
+        "| global registration rollback | launcher-local dispatch",
+        "| schema3 migration/downgrade mirror | Hotkeys Settings page",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.6.0-alpha.5":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,

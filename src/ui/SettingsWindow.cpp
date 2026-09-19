@@ -1,6 +1,7 @@
 #include "SettingsWindow.hpp"
 
 #include "../app/App.hpp"
+#include "../core/HotkeyRegistry.hpp"
 #include "../platform/Hotkey.hpp"
 #include "Version.hpp"
 
@@ -350,6 +351,11 @@ void SettingsWindow::CreateControls() {
             L"",
             kIdNavGeneral,
             BS_OWNERDRAW);
+    navHotkeys_ =
+        CreateButton(
+            L"",
+            kIdNavHotkeys,
+            BS_OWNERDRAW);
     navAppearance_ =
         CreateButton(
             L"",
@@ -378,6 +384,7 @@ void SettingsWindow::CreateControls() {
 
     CreateCommandPage();
     CreateGeneralPage();
+    CreateHotkeyPage();
     CreateAppearancePage();
     CreateProviderPage();
     CreateDataPage();
@@ -754,6 +761,14 @@ void SettingsWindow::CreateGeneralPage() {
         executeSingleResult_,
         numericQuickLaunchOrderLabel_,
         numericQuickLaunchOrder_,
+        popupSectionTitle_,
+        popupMonitorLabel_,
+        popupMonitorDescription_,
+        popupMonitor_,
+        generalNote_,
+    };
+
+    legacyHotkeyControls_ = {
         hotkeySectionTitle_,
         primaryHotkeyLabel_,
         hotkeyCtrl_,
@@ -771,11 +786,88 @@ void SettingsWindow::CreateGeneralPage() {
         auxiliaryHotkeyKey_,
         auxiliaryHotkeyApply_,
         auxiliaryHotkeyStatus_,
-        popupSectionTitle_,
-        popupMonitorLabel_,
-        popupMonitorDescription_,
-        popupMonitor_,
-        generalNote_,
+    };
+
+    for (HWND control :
+         legacyHotkeyControls_) {
+        ShowWindow(
+            control,
+            SW_HIDE);
+    }
+}
+
+void SettingsWindow::CreateHotkeyPage() {
+    hotkeyActionList_ =
+        CreateWindowExW(
+            WS_EX_CLIENTEDGE,
+            L"LISTBOX",
+            L"",
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP | WS_VSCROLL |
+                LBS_NOTIFY |
+                LBS_NOINTEGRALHEIGHT,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    kIdHotkeyActionList)),
+            instance_,
+            nullptr);
+
+    hotkeyEditorTitle_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+    hotkeyEditorDescription_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+    hotkeyScope_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+
+    hotkeyEnabled_ =
+        CreateCheckbox(
+            L"",
+            kIdHotkeyEnabled);
+
+    hotkeyCapture_ =
+        CreateButton(
+            L"",
+            kIdHotkeyCapture);
+
+    hotkeyResetCurrent_ =
+        CreateButton(
+            L"",
+            kIdHotkeyResetCurrent);
+
+    hotkeyResetAll_ =
+        CreateButton(
+            L"",
+            kIdHotkeyResetAll);
+
+    hotkeyPageStatus_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+
+    hotkeyPageNote_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+
+    hotkeyControls_ = {
+        hotkeyActionList_,
+        hotkeyEditorTitle_,
+        hotkeyEditorDescription_,
+        hotkeyScope_,
+        hotkeyEnabled_,
+        hotkeyCapture_,
+        hotkeyResetCurrent_,
+        hotkeyResetAll_,
+        hotkeyPageStatus_,
+        hotkeyPageNote_,
     };
 }
 
@@ -1023,6 +1115,7 @@ void SettingsWindow::ApplyFonts() {
     std::vector<HWND> normalControls{
         navCommands_,
         navGeneral_,
+        navHotkeys_,
         navAppearance_,
         navProviders_,
         navData_,
@@ -1076,6 +1169,15 @@ void SettingsWindow::ApplyFonts() {
         auxiliaryHotkeyKey_,
         auxiliaryHotkeyApply_,
         auxiliaryHotkeyStatus_,
+        hotkeyActionList_,
+        hotkeyEditorDescription_,
+        hotkeyScope_,
+        hotkeyEnabled_,
+        hotkeyCapture_,
+        hotkeyResetCurrent_,
+        hotkeyResetAll_,
+        hotkeyPageStatus_,
+        hotkeyPageNote_,
         popupMonitorLabel_,
         popupMonitorDescription_,
         popupMonitor_,
@@ -1123,11 +1225,12 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
-    for (HWND control : std::array<HWND, 9>{
+    for (HWND control : std::array<HWND, 10>{
              commandEditorTitle_,
              generalBehaviorTitle_,
              searchBehaviorTitle_,
              hotkeySectionTitle_,
+             hotkeyEditorTitle_,
              popupSectionTitle_,
              providerSectionTitle_,
              dataOpenLabel_,
@@ -1391,8 +1494,25 @@ void SettingsWindow::ApplyLanguage() {
           L"Choose which display the launcher uses when it opens."));
     SetWindowTextW(
         generalNote_,
-        T(L"主热键和已启用的辅助热键只有在 Windows 注册成功后才会保存；冲突时保留旧绑定。",
-          L"Primary and enabled auxiliary hotkeys are saved only after Windows registers them successfully; conflicts keep the previous binding."));
+        T(L"热键已集中到“快捷键”页面管理；这里仅保留启动器行为、搜索方式和呼出位置。",
+          L"Hotkeys are managed centrally on the Hotkeys page; this page now focuses on launcher behavior, search and placement."));
+
+    SetWindowTextW(
+        hotkeyEnabled_,
+        T(L"启用此快捷键",
+          L"Enable this hotkey"));
+    SetWindowTextW(
+        hotkeyResetCurrent_,
+        T(L"恢复此项默认值",
+          L"Reset this binding"));
+    SetWindowTextW(
+        hotkeyResetAll_,
+        T(L"恢复全部默认快捷键",
+          L"Reset all hotkeys"));
+    SetWindowTextW(
+        hotkeyPageNote_,
+        T(L"点击快捷键按钮后直接按下新的组合键；Esc 取消。全局热键只有在 Windows 注册成功后才会保存，内部热键会检查与其他动作以及基础导航键的冲突。",
+          L"Click the binding button, then press the new key combination; Esc cancels. Global bindings are saved only after Windows registers them, while launcher bindings are checked against actions and reserved navigation keys."));
 
     SendMessageW(popupMonitor_, CB_RESETCONTENT, 0, 0);
     SendMessageW(
@@ -1608,6 +1728,7 @@ void SettingsWindow::RefreshFromSettings() {
             : FALSE);
 
     RefreshHotkeyControls();
+    RefreshHotkeyPage();
 
     for (HWND control : std::array<HWND, 14>{
              startWithWindows_,
@@ -1635,6 +1756,604 @@ void SettingsWindow::RefreshFromSettings() {
     RefreshProviderStatus();
 
     syncing_ = oldSyncing;
+}
+
+std::wstring SettingsWindow::HotkeyActionLabel(
+    std::string_view actionId) const {
+    if (actionId ==
+        hotkey_actions::kActivate) {
+        return T(
+            L"唤起 ALTRun Next",
+            L"Show ALTRun Next");
+    }
+    if (actionId ==
+        hotkey_actions::
+            kActivateSecondary) {
+        return T(
+            L"辅助唤起",
+            L"Secondary activation");
+    }
+    if (actionId ==
+        hotkey_actions::kOpenSettings) {
+        return T(
+            L"打开设置",
+            L"Open Settings");
+    }
+    if (actionId ==
+        hotkey_actions::
+            kNavigateCurrentFileManager) {
+        return T(
+            L"导航当前文件管理器",
+            L"Navigate current file manager");
+    }
+    if (actionId ==
+        hotkey_actions::
+            kCopySelectedTarget) {
+        return T(
+            L"复制选中结果",
+            L"Copy selected result");
+    }
+    return std::wstring(
+        actionId.begin(),
+        actionId.end());
+}
+
+std::wstring SettingsWindow::HotkeyActionDescription(
+    std::string_view actionId) const {
+    if (actionId ==
+        hotkey_actions::kActivate) {
+        return T(
+            L"在任何程序中显示或隐藏启动器。主热键始终保持启用，并要求至少一个修饰键。",
+            L"Show or hide the launcher from any application. The primary binding is always enabled and requires a modifier.");
+    }
+    if (actionId ==
+        hotkey_actions::
+            kActivateSecondary) {
+        return T(
+            L"可选的第二组 Windows 全局呼出热键，默认关闭。",
+            L"Optional second Windows-global activation binding; disabled by default.");
+    }
+    if (actionId ==
+        hotkey_actions::kOpenSettings) {
+        return T(
+            L"仅在启动器窗口打开时进入设置页面。",
+            L"Open Settings while the launcher is visible.");
+    }
+    if (actionId ==
+        hotkey_actions::
+            kNavigateCurrentFileManager) {
+        return T(
+            L"对 Folder 结果执行上下文导航：Explorer 或 Total Commander 当前面板。",
+            L"Contextually navigate a Folder result in Explorer or the active Total Commander panel.");
+    }
+    if (actionId ==
+        hotkey_actions::
+            kCopySelectedTarget) {
+        return T(
+            L"复制当前结果的路径、URL、Target 或 Smart Action payload。",
+            L"Copy the selected result path, URL, target or Smart Action payload.");
+    }
+    return L"";
+}
+
+std::wstring SettingsWindow::FormatHotkeyBinding(
+    std::string_view actionId) const {
+    const auto binding =
+        EffectiveHotkeyBinding(
+            app_.SettingsData()
+                .hotkeyBindings,
+            actionId);
+
+    std::wstring result;
+
+    const auto append =
+        [&](std::wstring_view text) {
+            if (!result.empty()) {
+                result += L" + ";
+            }
+            result += text;
+        };
+
+    for (const auto& modifier :
+         binding.modifiers) {
+        if (modifier == "ctrl") {
+            append(L"Ctrl");
+        } else if (modifier == "alt") {
+            append(L"Alt");
+        } else if (modifier == "shift") {
+            append(L"Shift");
+        } else if (modifier == "win") {
+            append(L"Win");
+        }
+    }
+
+    const UINT key =
+        hotkey::KeyFromName(
+            binding.key);
+
+    append(
+        key != 0
+            ? hotkey::KeyDisplayName(key)
+            : std::wstring(
+                  binding.key.begin(),
+                  binding.key.end()));
+
+    return result;
+}
+
+void SettingsWindow::RefreshHotkeyPage() {
+    if (!hotkeyActionList_) {
+        return;
+    }
+
+    const bool oldSyncing =
+        syncing_;
+    syncing_ = true;
+
+    const std::string preferred =
+        selectedHotkeyActionId_;
+
+    SendMessageW(
+        hotkeyActionList_,
+        LB_RESETCONTENT,
+        0,
+        0);
+
+    hotkeyActionIds_.clear();
+
+    int selectedIndex = -1;
+
+    for (const auto& action :
+         HotkeyActionRegistry()) {
+        std::wstring label =
+            HotkeyActionLabel(
+                action.id);
+
+        const auto binding =
+            EffectiveHotkeyBinding(
+                app_.SettingsData()
+                    .hotkeyBindings,
+                action.id);
+
+        label += L"    ";
+        label += binding.enabled
+            ? FormatHotkeyBinding(
+                  action.id)
+            : T(L"（已禁用）",
+                L"(disabled)");
+
+        const LRESULT index =
+            SendMessageW(
+                hotkeyActionList_,
+                LB_ADDSTRING,
+                0,
+                reinterpret_cast<LPARAM>(
+                    label.c_str()));
+
+        if (index >= 0) {
+            hotkeyActionIds_
+                .push_back(
+                    action.id);
+
+            if (action.id ==
+                preferred) {
+                selectedIndex =
+                    static_cast<int>(
+                        index);
+            }
+        }
+    }
+
+    if (selectedIndex < 0 &&
+        !hotkeyActionIds_.empty()) {
+        selectedIndex = 0;
+    }
+
+    if (selectedIndex >= 0) {
+        SendMessageW(
+            hotkeyActionList_,
+            LB_SETCURSEL,
+            selectedIndex,
+            0);
+
+        selectedHotkeyActionId_ =
+            hotkeyActionIds_[
+                static_cast<std::size_t>(
+                    selectedIndex)];
+
+        LoadHotkeyEditor(
+            selectedHotkeyActionId_);
+    } else {
+        selectedHotkeyActionId_
+            .clear();
+    }
+
+    syncing_ = oldSyncing;
+}
+
+void SettingsWindow::LoadHotkeyEditor(
+    std::string_view actionId) {
+    const auto* action =
+        FindHotkeyAction(actionId);
+
+    if (!action) {
+        return;
+    }
+
+    selectedHotkeyActionId_ =
+        std::string(actionId);
+
+    const auto binding =
+        EffectiveHotkeyBinding(
+            app_.SettingsData()
+                .hotkeyBindings,
+            actionId);
+
+    const auto title =
+        HotkeyActionLabel(
+            actionId);
+
+    SetWindowTextW(
+        hotkeyEditorTitle_,
+        title.c_str());
+
+    const auto description =
+        HotkeyActionDescription(
+            actionId);
+
+    SetWindowTextW(
+        hotkeyEditorDescription_,
+        description.c_str());
+
+    std::wstring scope =
+        action->scope ==
+                HotkeyScope::Global
+            ? T(L"作用域：Windows 全局",
+                L"Scope: Windows global")
+            : T(L"作用域：启动器内部",
+                L"Scope: Launcher");
+
+    SetWindowTextW(
+        hotkeyScope_,
+        scope.c_str());
+
+    SendMessageW(
+        hotkeyEnabled_,
+        BM_SETCHECK,
+        binding.enabled
+            ? BST_CHECKED
+            : BST_UNCHECKED,
+        0);
+
+    EnableWindow(
+        hotkeyEnabled_,
+        action->required
+            ? FALSE
+            : TRUE);
+
+    const auto chord =
+        FormatHotkeyBinding(
+            actionId);
+
+    SetWindowTextW(
+        hotkeyCapture_,
+        capturingHotkeyActionId_ ==
+                actionId
+            ? T(L"请按新的快捷键…",
+                L"Press the new shortcut...")
+            : chord.c_str());
+
+    std::wstring status;
+
+    if (capturingHotkeyActionId_ ==
+        actionId) {
+        status =
+            T(L"正在捕获：按下组合键；Esc 取消。",
+              L"Capturing: press a key combination; Esc cancels.");
+    } else if (!binding.enabled) {
+        status =
+            T(L"已禁用",
+              L"Disabled");
+    } else if (
+        action->scope ==
+        HotkeyScope::Global) {
+        if (app_.IsHotkeyActionRegistered(
+                actionId)) {
+            status =
+                T(L"● 已向 Windows 注册",
+                  L"● Registered with Windows");
+        } else {
+            status =
+                T(L"⚠ Windows 注册失败，旧绑定仍保持有效。错误码：",
+                  L"⚠ Windows registration failed; the previous binding remains active. Error: ");
+            status +=
+                std::to_wstring(
+                    app_.HotkeyActionLastError(
+                        actionId));
+        }
+    } else {
+        status =
+            T(L"● 可用（仅启动器内）",
+              L"● Available (launcher only)");
+    }
+
+    SetWindowTextW(
+        hotkeyPageStatus_,
+        status.c_str());
+}
+
+void SettingsWindow::BeginHotkeyCapture() {
+    if (selectedHotkeyActionId_
+            .empty()) {
+        return;
+    }
+
+    capturingHotkeyActionId_ =
+        selectedHotkeyActionId_;
+
+    LoadHotkeyEditor(
+        selectedHotkeyActionId_);
+
+    SetFocus(hwnd_);
+}
+
+void SettingsWindow::ApplyCapturedHotkey(
+    UINT virtualKey) {
+    if (capturingHotkeyActionId_
+            .empty()) {
+        return;
+    }
+
+    if (virtualKey == VK_ESCAPE) {
+        capturingHotkeyActionId_
+            .clear();
+        LoadHotkeyEditor(
+            selectedHotkeyActionId_);
+        return;
+    }
+
+    if (virtualKey == VK_CONTROL ||
+        virtualKey == VK_LCONTROL ||
+        virtualKey == VK_RCONTROL ||
+        virtualKey == VK_MENU ||
+        virtualKey == VK_LMENU ||
+        virtualKey == VK_RMENU ||
+        virtualKey == VK_SHIFT ||
+        virtualKey == VK_LSHIFT ||
+        virtualKey == VK_RSHIFT ||
+        virtualKey == VK_LWIN ||
+        virtualKey == VK_RWIN) {
+        return;
+    }
+
+    const std::string key =
+        hotkey::KeyName(
+            virtualKey);
+
+    if (key.empty()) {
+        SetWindowTextW(
+            hotkeyPageStatus_,
+            T(L"这个按键目前不受支持，请换一个组合键。",
+              L"This key is not currently supported; choose another combination."));
+        return;
+    }
+
+    HotkeyBinding candidate =
+        EffectiveHotkeyBinding(
+            app_.SettingsData()
+                .hotkeyBindings,
+            capturingHotkeyActionId_);
+
+    candidate.modifiers.clear();
+    candidate.key = key;
+
+    if ((GetKeyState(VK_CONTROL) &
+         0x8000) != 0) {
+        candidate.modifiers
+            .push_back("ctrl");
+    }
+    if ((GetKeyState(VK_MENU) &
+         0x8000) != 0) {
+        candidate.modifiers
+            .push_back("alt");
+    }
+    if ((GetKeyState(VK_SHIFT) &
+         0x8000) != 0) {
+        candidate.modifiers
+            .push_back("shift");
+    }
+    if ((GetKeyState(VK_LWIN) &
+         0x8000) != 0 ||
+        (GetKeyState(VK_RWIN) &
+         0x8000) != 0) {
+        candidate.modifiers
+            .push_back("win");
+    }
+
+    CanonicalizeHotkeyBinding(
+        candidate);
+
+    if (!ValidateHotkeyBinding(
+            capturingHotkeyActionId_,
+            candidate)) {
+        SetWindowTextW(
+            hotkeyPageStatus_,
+            T(L"该组合键无效或会抢占搜索输入。裸字符、空格和编辑/导航键保留给输入框；无修饰键时请使用 F1–F24 或 Pause。",
+              L"This binding is invalid or would steal query input. Bare characters, Space and editing/navigation keys stay with the edit control; use F1-F24 or Pause when no modifier is present."));
+        return;
+    }
+
+    if (const auto conflict =
+            FindHotkeyConflict(
+                app_.SettingsData()
+                    .hotkeyBindings,
+                capturingHotkeyActionId_,
+                candidate)) {
+        std::wstring message =
+            T(L"与“", L"Conflicts with “");
+        message +=
+            HotkeyActionLabel(
+                *conflict);
+        message +=
+            T(L"”冲突，请换一个组合键。",
+              L"”; choose another binding.");
+
+        SetWindowTextW(
+            hotkeyPageStatus_,
+            message.c_str());
+        return;
+    }
+
+    if (!app_.SetHotkeyBinding(
+            capturingHotkeyActionId_,
+            candidate)) {
+        SetWindowTextW(
+            hotkeyPageStatus_,
+            T(L"无法应用这个快捷键。若它是全局热键，可能已被其他程序占用；旧绑定保持不变。",
+              L"Could not apply this binding. A global shortcut may already be owned by another app; the previous binding remains active."));
+        return;
+    }
+
+    capturingHotkeyActionId_
+        .clear();
+
+    RefreshHotkeyPage();
+}
+
+void SettingsWindow::ToggleSelectedHotkeyEnabled() {
+    if (syncing_ ||
+        selectedHotkeyActionId_
+            .empty()) {
+        return;
+    }
+
+    const auto* action =
+        FindHotkeyAction(
+            selectedHotkeyActionId_);
+
+    if (!action ||
+        action->required) {
+        LoadHotkeyEditor(
+            selectedHotkeyActionId_);
+        return;
+    }
+
+    auto binding =
+        EffectiveHotkeyBinding(
+            app_.SettingsData()
+                .hotkeyBindings,
+            selectedHotkeyActionId_);
+
+    binding.enabled =
+        !binding.enabled;
+
+    if (binding.enabled) {
+        if (const auto conflict =
+                FindHotkeyConflict(
+                    app_.SettingsData()
+                        .hotkeyBindings,
+                    selectedHotkeyActionId_,
+                    binding)) {
+            std::wstring message =
+                T(L"无法启用：与“",
+                  L"Cannot enable: conflicts with “");
+            message +=
+                HotkeyActionLabel(
+                    *conflict);
+            message += L"”.";
+
+            SetWindowTextW(
+                hotkeyPageStatus_,
+                message.c_str());
+            LoadHotkeyEditor(
+                selectedHotkeyActionId_);
+            return;
+        }
+    }
+
+    if (!app_.SetHotkeyBinding(
+            selectedHotkeyActionId_,
+            binding)) {
+        LoadHotkeyEditor(
+            selectedHotkeyActionId_);
+        return;
+    }
+
+    RefreshHotkeyPage();
+}
+
+void SettingsWindow::ResetSelectedHotkey() {
+    const auto* action =
+        FindHotkeyAction(
+            selectedHotkeyActionId_);
+
+    if (!action) {
+        return;
+    }
+
+    if (const auto conflict =
+            FindHotkeyConflict(
+                app_.SettingsData()
+                    .hotkeyBindings,
+                selectedHotkeyActionId_,
+                action->defaultBinding)) {
+        std::wstring message =
+            T(L"默认组合键当前与“",
+              L"The default binding currently conflicts with “");
+        message +=
+            HotkeyActionLabel(
+                *conflict);
+        message += L"”.";
+
+        SetWindowTextW(
+            hotkeyPageStatus_,
+            message.c_str());
+        return;
+    }
+
+    if (!app_.SetHotkeyBinding(
+            selectedHotkeyActionId_,
+            action->defaultBinding)) {
+        SetWindowTextW(
+            hotkeyPageStatus_,
+            T(L"恢复失败；如果这是全局快捷键，默认组合可能已被其他程序占用。",
+              L"Reset failed; if this is a global shortcut, another app may own the default binding."));
+        return;
+    }
+
+    RefreshHotkeyPage();
+}
+
+void SettingsWindow::ResetAllHotkeys() {
+    const int answer =
+        MessageBoxW(
+            hwnd_,
+            T(L"恢复全部默认快捷键？\n\n主热键将恢复为 Alt + Space，辅助热键关闭，内部动作恢复默认组合。",
+              L"Reset every hotkey to defaults?\n\nPrimary activation returns to Alt + Space, secondary activation is disabled and launcher actions regain their defaults."),
+            T(L"恢复默认快捷键",
+              L"Reset hotkeys"),
+            MB_YESNO |
+                MB_ICONQUESTION);
+
+    if (answer != IDYES) {
+        return;
+    }
+
+    if (!app_.ResetHotkeyBindings()) {
+        MessageBoxW(
+            hwnd_,
+            T(L"恢复失败。默认全局热键可能已被其他程序占用，原有可用绑定已恢复。",
+              L"Reset failed. Another app may own a default global shortcut; the previous working bindings were restored."),
+            T(L"恢复默认快捷键",
+              L"Reset hotkeys"),
+            MB_OK |
+                MB_ICONWARNING);
+        return;
+    }
+
+    capturingHotkeyActionId_
+        .clear();
+    RefreshHotkeyPage();
 }
 
 void SettingsWindow::RefreshProviderStatus() {
@@ -2049,6 +2768,9 @@ void SettingsWindow::UpdateNavLabels() {
         navGeneral_,
         label(Page::General, L"常规", L"General").c_str());
     SetWindowTextW(
+        navHotkeys_,
+        label(Page::Hotkeys, L"快捷键", L"Hotkeys").c_str());
+    SetWindowTextW(
         navAppearance_,
         label(Page::Appearance, L"外观", L"Appearance").c_str());
     SetWindowTextW(
@@ -2080,8 +2802,18 @@ void SettingsWindow::UpdatePageHeader() {
             T(L"常规", L"General"));
         SetWindowTextW(
             pageDescription_,
-            T(L"控制启动器行为、搜索方式、全局热键和呼出位置。",
-              L"Control launcher behavior, search interaction, global hotkeys and placement."));
+            T(L"控制启动器行为、搜索方式和呼出位置。",
+              L"Control launcher behavior, search interaction and placement."));
+        break;
+
+    case Page::Hotkeys:
+        SetWindowTextW(
+            pageTitle_,
+            T(L"快捷键", L"Hotkeys"));
+        SetWindowTextW(
+            pageDescription_,
+            T(L"集中管理全局呼出和启动器内部动作热键；新增动作会统一注册到这里。",
+              L"Manage global activation and launcher action bindings in one place; future hotkey actions register here."));
         break;
 
     case Page::Appearance:
@@ -2175,6 +2907,8 @@ void SettingsWindow::ShowPage(Page page) {
 
     setVisible(commandControls_, page == Page::Commands);
     setVisible(generalControls_, page == Page::General);
+    setVisible(hotkeyControls_, page == Page::Hotkeys);
+    setVisible(legacyHotkeyControls_, false);
     setVisible(appearanceControls_, page == Page::Appearance);
     setVisible(providerControls_, page == Page::Providers);
     setVisible(dataControls_, page == Page::Data);
@@ -2182,6 +2916,9 @@ void SettingsWindow::ShowPage(Page page) {
 
     if (page == Page::Commands) {
         RefreshCommandList(editingCommandId_);
+    } else if (
+        page == Page::Hotkeys) {
+        RefreshHotkeyPage();
     } else if (
         page == Page::Providers) {
         SetTimer(
@@ -3904,9 +4641,10 @@ void SettingsWindow::Layout() {
     const int navHeight = Scale(42);
     const int navGap = Scale(8);
 
-    std::array<HWND, 6> nav{
+    std::array<HWND, 7> nav{
         navCommands_,
         navGeneral_,
+        navHotkeys_,
         navAppearance_,
         navProviders_,
         navData_,
@@ -4559,6 +5297,123 @@ void SettingsWindow::Layout() {
             TRUE);
     }
 
+    if (page_ == Page::Hotkeys) {
+        const int top =
+            Scale(138);
+        const int listWidth =
+            std::clamp(
+                Scale(270),
+                Scale(220),
+                std::max(
+                    Scale(220),
+                    contentWidth / 3));
+        const int gap =
+            Scale(28);
+        const int editorX =
+            contentLeft +
+            listWidth +
+            gap;
+        const int editorWidth =
+            std::max(
+                Scale(320),
+                contentRight -
+                    editorX);
+
+        MoveWindow(
+            hotkeyActionList_,
+            contentLeft,
+            top,
+            listWidth,
+            Scale(360),
+            TRUE);
+
+        MoveWindow(
+            hotkeyEditorTitle_,
+            editorX,
+            top,
+            editorWidth,
+            Scale(32),
+            TRUE);
+
+        MoveWindow(
+            hotkeyEditorDescription_,
+            editorX,
+            top + Scale(42),
+            editorWidth,
+            Scale(56),
+            TRUE);
+
+        MoveWindow(
+            hotkeyScope_,
+            editorX,
+            top + Scale(108),
+            editorWidth,
+            Scale(26),
+            TRUE);
+
+        MoveWindow(
+            hotkeyEnabled_,
+            editorX,
+            top + Scale(148),
+            Scale(210),
+            Scale(28),
+            TRUE);
+
+        MoveWindow(
+            hotkeyCapture_,
+            editorX,
+            top + Scale(192),
+            std::min(
+                editorWidth,
+                Scale(300)),
+            Scale(38),
+            TRUE);
+
+        MoveWindow(
+            hotkeyResetCurrent_,
+            editorX +
+                std::min(
+                    editorWidth,
+                    Scale(300)) +
+                Scale(10),
+            top + Scale(192),
+            std::max(
+                Scale(120),
+                editorWidth -
+                    std::min(
+                        editorWidth,
+                        Scale(300)) -
+                    Scale(10)),
+            Scale(38),
+            TRUE);
+
+        MoveWindow(
+            hotkeyPageStatus_,
+            editorX,
+            top + Scale(244),
+            editorWidth,
+            Scale(70),
+            TRUE);
+
+        MoveWindow(
+            hotkeyResetAll_,
+            editorX,
+            top + Scale(330),
+            std::min(
+                editorWidth,
+                Scale(240)),
+            Scale(38),
+            TRUE);
+
+        MoveWindow(
+            hotkeyPageNote_,
+            contentLeft,
+            top + Scale(390),
+            contentWidth,
+            Scale(70),
+            TRUE);
+    }
+
     if (page_ == Page::Appearance) {
         const int x = contentLeft;
         const int y = Scale(150);
@@ -4845,6 +5700,10 @@ void SettingsWindow::DrawNavigationButton(
     case kIdNavGeneral:
         selected =
             page_ == Page::General;
+        break;
+    case kIdNavHotkeys:
+        selected =
+            page_ == Page::Hotkeys;
         break;
     case kIdNavAppearance:
         selected =
@@ -5438,6 +6297,17 @@ LRESULT SettingsWindow::HandleMessage(
         }
         break;
 
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+        if (!capturingHotkeyActionId_
+                 .empty()) {
+            ApplyCapturedHotkey(
+                static_cast<UINT>(
+                    wParam));
+            return 0;
+        }
+        break;
+
     case WM_COMMAND: {
         const UINT id = LOWORD(wParam);
         const UINT notify = HIWORD(wParam);
@@ -5452,6 +6322,12 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdNavGeneral:
             if (notify == BN_CLICKED) {
                 ShowPage(Page::General);
+            }
+            return 0;
+
+        case kIdNavHotkeys:
+            if (notify == BN_CLICKED) {
+                ShowPage(Page::Hotkeys);
             }
             return 0;
 
@@ -5634,6 +6510,57 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
+        case kIdHotkeyActionList:
+            if (notify == LBN_SELCHANGE &&
+                !syncing_) {
+                const int index =
+                    static_cast<int>(
+                        SendMessageW(
+                            hotkeyActionList_,
+                            LB_GETCURSEL,
+                            0,
+                            0));
+
+                if (index >= 0 &&
+                    index <
+                        static_cast<int>(
+                            hotkeyActionIds_
+                                .size())) {
+                    capturingHotkeyActionId_
+                        .clear();
+                    LoadHotkeyEditor(
+                        hotkeyActionIds_[
+                            static_cast<
+                                std::size_t>(
+                                index)]);
+                }
+            }
+            return 0;
+
+        case kIdHotkeyEnabled:
+            if (notify == BN_CLICKED) {
+                ToggleSelectedHotkeyEnabled();
+            }
+            return 0;
+
+        case kIdHotkeyCapture:
+            if (notify == BN_CLICKED) {
+                BeginHotkeyCapture();
+            }
+            return 0;
+
+        case kIdHotkeyResetCurrent:
+            if (notify == BN_CLICKED) {
+                ResetSelectedHotkey();
+            }
+            return 0;
+
+        case kIdHotkeyResetAll:
+            if (notify == BN_CLICKED) {
+                ResetAllHotkeys();
+            }
+            return 0;
+
         case kIdAuxHotkeyEnabled:
             if (notify == BN_CLICKED) {
                 ApplyAuxiliaryHotkeyControl();
@@ -5755,6 +6682,7 @@ LRESULT SettingsWindow::HandleMessage(
         if (item &&
             (item->CtlID == kIdNavCommands ||
              item->CtlID == kIdNavGeneral ||
+             item->CtlID == kIdNavHotkeys ||
              item->CtlID == kIdNavAppearance ||
              item->CtlID == kIdNavProviders ||
              item->CtlID == kIdNavData ||

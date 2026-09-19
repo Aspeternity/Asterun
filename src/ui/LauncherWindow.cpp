@@ -2,7 +2,9 @@
 
 #include "../app/App.hpp"
 #include "../core/ClassicBehavior.hpp"
+#include "../core/HotkeyRegistry.hpp"
 #include "../core/ResultMerger.hpp"
+#include "../platform/Hotkey.hpp"
 
 #include <windowsx.h>
 #include <commctrl.h>
@@ -1498,7 +1500,8 @@ LRESULT LauncherWindow::HandleEditMessage(
         imeComposing_ = false;
     }
 
-    if (message == WM_KEYDOWN) {
+    if (message == WM_KEYDOWN ||
+        message == WM_SYSKEYDOWN) {
         const bool controlDown =
             (GetKeyState(VK_CONTROL) &
                 0x8000) != 0;
@@ -1514,24 +1517,48 @@ LRESULT LauncherWindow::HandleEditMessage(
             (GetKeyState(VK_RWIN) &
                 0x8000) != 0;
 
-        if ((wParam == L'C' ||
-             wParam == L'c') &&
-            controlDown &&
-            shiftDown &&
-            !altDown &&
-            !winDown) {
-            const bool firstPress =
-                (lParam &
-                 (static_cast<LPARAM>(1)
-                  << 30)) == 0;
+        const std::string
+            keyName =
+                hotkey::KeyName(
+                    static_cast<UINT>(
+                        wParam));
 
-            if (firstPress) {
-                ExecuteSelection(
-                    LauncherExecutionIntent::
-                        CopySelectedText);
+        if (!keyName.empty()) {
+            const auto actionId =
+                MatchHotkeyAction(
+                    app_.SettingsData()
+                        .hotkeyBindings,
+                    HotkeyScope::Launcher,
+                    keyName,
+                    controlDown,
+                    altDown,
+                    shiftDown,
+                    winDown);
+
+            if (actionId) {
+                if (*actionId ==
+                    hotkey_actions::
+                        kOpenSettings) {
+                    Hide();
+                    app_.ShowSettings();
+                } else if (
+                    *actionId ==
+                    hotkey_actions::
+                        kNavigateCurrentFileManager) {
+                    ExecuteSelection(
+                        LauncherExecutionIntent::
+                            NavigateCurrentFileManager);
+                } else if (
+                    *actionId ==
+                    hotkey_actions::
+                        kCopySelectedTarget) {
+                    ExecuteSelection(
+                        LauncherExecutionIntent::
+                            CopySelectedText);
+                }
+
+                return 0;
             }
-
-            return 0;
         }
 
         const int quickLaunchIndex =
@@ -1568,25 +1595,17 @@ LRESULT LauncherWindow::HandleEditMessage(
         case VK_UP:
             MoveSelection(-1);
             return 0;
-        case VK_RETURN: {
-            const bool navigateExplorer =
-                (GetKeyState(VK_CONTROL) &
-                    0x8000) != 0;
-
-            ExecuteSelection(
-                navigateExplorer
-                    ? LauncherExecutionIntent::
-                        NavigateCurrentFileManager
-                    : LauncherExecutionIntent::
+        case VK_RETURN:
+            if (!controlDown &&
+                !altDown &&
+                !winDown) {
+                ExecuteSelection(
+                    LauncherExecutionIntent::
                         Default);
+            }
             return 0;
-        }
         case VK_TAB:
             MoveSelection((GetKeyState(VK_SHIFT) & 0x8000) != 0 ? -1 : 1);
-            return 0;
-        case VK_F2:
-            Hide();
-            app_.ShowSettings();
             return 0;
         case VK_ESCAPE:
             Hide();

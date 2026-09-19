@@ -93,6 +93,7 @@ add_library(altrun_core STATIC
     src/core/CommandTemplate.cpp
     src/core/EverythingIpcProtocol.cpp
     src/core/ExplorerContextSelection.cpp
+    src/core/HotkeyRegistry.cpp
     src/core/LauncherActionPolicy.cpp
     src/core/LauncherResult.cpp
     src/core/ResultMerger.cpp
@@ -117,7 +118,12 @@ add_library(altrun_config STATIC
 )
 
 target_include_directories(altrun_config PUBLIC src)
-target_link_libraries(altrun_config PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(
+    altrun_config
+    PUBLIC
+        altrun_core
+        nlohmann_json::nlohmann_json
+)
 
 foreach(target altrun_core altrun_config)
     if(MSVC)
@@ -428,6 +434,26 @@ if(BUILD_TESTING)
     target_include_directories(command_merge_tests PRIVATE src)
     altrun_enable_test_assertions(command_merge_tests)
     add_test(NAME command_merge_tests COMMAND command_merge_tests)
+
+    add_executable(
+        hotkey_registry_tests
+        tests/HotkeyRegistryTests.cpp
+    )
+    target_link_libraries(
+        hotkey_registry_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        hotkey_registry_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        hotkey_registry_tests
+    )
+    add_test(
+        NAME hotkey_registry_tests
+        COMMAND hotkey_registry_tests
+    )
 
     if(WIN32)
         add_executable(windows_provider_smoke_tests

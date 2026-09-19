@@ -186,7 +186,9 @@ int main() {
                     0);
 
         assert(narrow.stackedCards);
-        assert(narrow.compactHotkeys);
+        // alpha.6 moved hotkey editing to a dedicated page, so General no
+        // longer needs a compact hotkey sub-layout even at narrow widths.
+        assert(!narrow.compactHotkeys);
         AssertPositiveRect(narrow.behavior);
         AssertPositiveRect(narrow.search);
         AssertPositiveRect(narrow.monitor);

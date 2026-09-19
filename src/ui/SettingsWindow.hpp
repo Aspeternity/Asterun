@@ -33,6 +33,7 @@ private:
     enum class Page {
         Commands,
         General,
+        Hotkeys,
         Appearance,
         Providers,
         Data,
@@ -54,6 +55,8 @@ private:
         kIdNavAbout = 51004;
     static constexpr UINT
         kIdNavProviders = 51005;
+    static constexpr UINT
+        kIdNavHotkeys = 51006;
 
     static constexpr UINT
         kIdStartWithWindows = 51100;
@@ -99,6 +102,17 @@ private:
 
     static constexpr UINT
         kIdWildcardMatching = 51130;
+
+    static constexpr UINT
+        kIdHotkeyActionList = 51701;
+    static constexpr UINT
+        kIdHotkeyEnabled = 51702;
+    static constexpr UINT
+        kIdHotkeyCapture = 51703;
+    static constexpr UINT
+        kIdHotkeyResetCurrent = 51704;
+    static constexpr UINT
+        kIdHotkeyResetAll = 51705;
     static constexpr UINT
         kIdNumericQuickLaunch = 51131;
     static constexpr UINT
@@ -206,6 +220,7 @@ private:
     void CreateControls();
     void CreateCommandPage();
     void CreateGeneralPage();
+    void CreateHotkeyPage();
     void CreateAppearancePage();
     void CreateProviderPage();
     void CreateDataPage();
@@ -253,6 +268,24 @@ private:
     void ApplyClassicBehaviorControl(
         UINT id = 0);
     void RefreshHotkeyControls();
+    void RefreshHotkeyPage();
+    void LoadHotkeyEditor(
+        std::string_view actionId);
+    void BeginHotkeyCapture();
+    void ApplyCapturedHotkey(
+        UINT virtualKey);
+    void ToggleSelectedHotkeyEnabled();
+    void ResetSelectedHotkey();
+    void ResetAllHotkeys();
+    [[nodiscard]] std::wstring
+    HotkeyActionLabel(
+        std::string_view actionId) const;
+    [[nodiscard]] std::wstring
+    HotkeyActionDescription(
+        std::string_view actionId) const;
+    [[nodiscard]] std::wstring
+    FormatHotkeyBinding(
+        std::string_view actionId) const;
     void ApplyAppearanceControls();
     void ImportCommands(
         bool legacyMode);
@@ -320,6 +353,7 @@ private:
 
     HWND navCommands_{};
     HWND navGeneral_{};
+    HWND navHotkeys_{};
     HWND navAppearance_{};
     HWND navProviders_{};
     HWND navData_{};
@@ -391,6 +425,17 @@ private:
     HWND auxiliaryHotkeyApply_{};
     HWND auxiliaryHotkeyStatus_{};
 
+    HWND hotkeyActionList_{};
+    HWND hotkeyEditorTitle_{};
+    HWND hotkeyEditorDescription_{};
+    HWND hotkeyScope_{};
+    HWND hotkeyEnabled_{};
+    HWND hotkeyCapture_{};
+    HWND hotkeyResetCurrent_{};
+    HWND hotkeyResetAll_{};
+    HWND hotkeyPageStatus_{};
+    HWND hotkeyPageNote_{};
+
     HWND popupSectionTitle_{};
     HWND popupMonitorLabel_{};
     HWND popupMonitorDescription_{};
@@ -449,6 +494,10 @@ private:
     bool editorDirty_{false};
     int generalScrollOffset_{0};
     std::wstring editingCommandId_;
+    std::string selectedHotkeyActionId_;
+    std::string capturingHotkeyActionId_;
+    std::vector<std::string>
+        hotkeyActionIds_;
     std::vector<std::wstring>
         filteredCommandIds_;
 
@@ -456,6 +505,10 @@ private:
         commandControls_;
     std::vector<HWND>
         generalControls_;
+    std::vector<HWND>
+        hotkeyControls_;
+    std::vector<HWND>
+        legacyHotkeyControls_;
     std::vector<HWND>
         appearanceControls_;
     std::vector<HWND>

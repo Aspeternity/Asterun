@@ -118,57 +118,32 @@ GeneralLayoutMetrics BuildGeneralLayout(
             behaviorBottom,
             searchBottom);
 
+    // v0.6 alpha.6 moves all hotkey editing to its own Settings page.
+    // Keep the legacy metric fields populated for compatibility with the
+    // existing layout contract, but collapse the General-page hotkey area.
     const bool compactHotkeys =
-        contentWidth <
-        scale(650);
+        false;
 
     const int hotkeySectionTop =
         cardsBottom +
         scale(16);
 
     const int primaryRowTop =
-        hotkeySectionTop +
-        scale(28);
-
+        hotkeySectionTop;
     const int primaryKeyRowTop =
-        compactHotkeys
-            ? primaryRowTop +
-                scale(32)
-            : primaryRowTop;
-
+        hotkeySectionTop;
     const int primaryStatusTop =
-        compactHotkeys
-            ? primaryRowTop +
-                scale(66)
-            : primaryRowTop +
-                scale(32);
-
+        hotkeySectionTop;
     const int auxiliaryRowTop =
-        compactHotkeys
-            ? primaryRowTop +
-                scale(94)
-            : primaryRowTop +
-                scale(58);
-
+        hotkeySectionTop;
     const int auxiliaryKeyRowTop =
-        compactHotkeys
-            ? primaryRowTop +
-                scale(126)
-            : auxiliaryRowTop;
-
+        hotkeySectionTop;
     const int auxiliaryStatusTop =
-        compactHotkeys
-            ? primaryRowTop +
-                scale(160)
-            : auxiliaryRowTop +
-                scale(32);
+        hotkeySectionTop;
 
     const int popupSectionTop =
-        compactHotkeys
-            ? primaryRowTop +
-                scale(190)
-            : auxiliaryRowTop +
-                scale(62);
+        cardsBottom +
+        scale(16);
 
     const int monitorTop =
         popupSectionTop +

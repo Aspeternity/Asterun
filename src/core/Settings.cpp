@@ -1,6 +1,7 @@
 #include "Settings.hpp"
 
 #include "ConfigIO.hpp"
+#include "HotkeyRegistry.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -72,6 +73,58 @@ const char* LanguageName(
             Language::EnUS
         ? "en-US"
         : "zh-CN";
+}
+
+void SyncLegacyHotkeyMirrors(
+    Settings& settings) {
+    const auto primary =
+        EffectiveHotkeyBinding(
+            settings.hotkeyBindings,
+            hotkey_actions::kActivate);
+
+    settings.hotkeyModifiers =
+        primary.modifiers;
+    settings.hotkeyKey =
+        primary.key;
+
+    const auto auxiliary =
+        EffectiveHotkeyBinding(
+            settings.hotkeyBindings,
+            hotkey_actions::
+                kActivateSecondary);
+
+    settings.auxiliaryHotkeyEnabled =
+        auxiliary.enabled;
+    settings.auxiliaryHotkeyModifiers =
+        auxiliary.modifiers;
+    settings.auxiliaryHotkeyKey =
+        auxiliary.key;
+}
+
+void ImportLegacyHotkeys(
+    Settings& settings) {
+    HotkeyBinding primary{
+        true,
+        settings.hotkeyModifiers,
+        settings.hotkeyKey};
+    CanonicalizeHotkeyBinding(primary);
+
+    HotkeyBinding auxiliary{
+        settings.auxiliaryHotkeyEnabled,
+        settings.auxiliaryHotkeyModifiers,
+        settings.auxiliaryHotkeyKey};
+    CanonicalizeHotkeyBinding(auxiliary);
+
+    settings.hotkeyBindings[
+        std::string(
+            hotkey_actions::kActivate)] =
+        std::move(primary);
+
+    settings.hotkeyBindings[
+        std::string(
+            hotkey_actions::
+                kActivateSecondary)] =
+        std::move(auxiliary);
 }
 
 } // namespace
@@ -314,6 +367,88 @@ bool SettingsStore::LoadJson() {
             }
         }
 
+        if (load.schemaVersion >= 4 &&
+            root.contains("hotkeys") &&
+            root["hotkeys"].is_object()) {
+
+            const auto& hotkeys =
+                root["hotkeys"];
+
+            if (hotkeys.contains("bindings") &&
+                hotkeys["bindings"]
+                    .is_object()) {
+
+                const auto& bindings =
+                    hotkeys["bindings"];
+
+                for (const auto& action :
+                     HotkeyActionRegistry()) {
+                    if (!bindings.contains(
+                            action.id) ||
+                        !bindings[action.id]
+                             .is_object()) {
+                        continue;
+                    }
+
+                    const auto& item =
+                        bindings[action.id];
+
+                    HotkeyBinding binding =
+                        EffectiveHotkeyBinding(
+                            settings_
+                                .hotkeyBindings,
+                            action.id);
+
+                    binding.enabled =
+                        item.value(
+                            "enabled",
+                            binding.enabled);
+                    binding.key =
+                        LowerAscii(
+                            item.value(
+                                "key",
+                                binding.key));
+
+                    if (item.contains(
+                            "modifiers") &&
+                        item["modifiers"]
+                            .is_array()) {
+                        binding.modifiers
+                            .clear();
+
+                        for (const auto& modifier :
+                             item["modifiers"]) {
+                            if (modifier.is_string()) {
+                                binding.modifiers
+                                    .push_back(
+                                        LowerAscii(
+                                            modifier.get<
+                                                std::string>()));
+                            }
+                        }
+                    }
+
+                    CanonicalizeHotkeyBinding(
+                        binding);
+
+                    if (ValidateHotkeyBinding(
+                            action.id,
+                            binding)) {
+                        settings_
+                            .hotkeyBindings[
+                                action.id] =
+                            std::move(binding);
+                    }
+                }
+            }
+
+            SyncLegacyHotkeyMirrors(
+                settings_);
+        } else {
+            ImportLegacyHotkeys(
+                settings_);
+        }
+
         if (root.contains("behavior") &&
             root["behavior"].is_object()) {
 
@@ -499,6 +634,35 @@ bool SettingsStore::Save() const {
             enabled;
     }
 
+    nlohmann::json
+        hotkeyBindingsJson =
+            nlohmann::json::object();
+
+    for (const auto& action :
+         HotkeyActionRegistry()) {
+        const auto binding =
+            EffectiveHotkeyBinding(
+                settings_.hotkeyBindings,
+                action.id);
+
+        hotkeyBindingsJson[action.id] = {
+            {"enabled", binding.enabled},
+            {"modifiers",
+             binding.modifiers},
+            {"key", binding.key},
+        };
+    }
+
+    const auto primary =
+        EffectiveHotkeyBinding(
+            settings_.hotkeyBindings,
+            hotkey_actions::kActivate);
+    const auto auxiliary =
+        EffectiveHotkeyBinding(
+            settings_.hotkeyBindings,
+            hotkey_actions::
+                kActivateSecondary);
+
     nlohmann::json root = {
         {"schemaVersion",
          config::kSettingsSchemaVersion},
@@ -518,22 +682,26 @@ bool SettingsStore::Save() const {
             {"popupMonitor",
              settings_.popupMonitor}
         }},
+        // Compatibility mirror retained so schema-3 binaries can still
+        // read the user's global bindings during a read-only downgrade.
         {"hotkey", {
             {"modifiers",
-             settings_.hotkeyModifiers},
+             primary.modifiers},
             {"key",
-             settings_.hotkeyKey},
+             primary.key},
             {"auxiliary", {
                 {"enabled",
-                 settings_
-                     .auxiliaryHotkeyEnabled},
+                 auxiliary.enabled},
                 {"modifiers",
-                 settings_
-                     .auxiliaryHotkeyModifiers},
+                 auxiliary.modifiers},
                 {"key",
-                 settings_
-                     .auxiliaryHotkeyKey}
+                 auxiliary.key}
             }}
+        }},
+        {"hotkeys", {
+            {"bindings",
+             std::move(
+                 hotkeyBindingsJson)}
         }},
         {"behavior", {
             {"wildcardMatching",
@@ -635,15 +803,57 @@ bool SettingsStore::SetShowOnStartup(
 bool SettingsStore::SetHotkey(
     std::vector<std::string> modifiers,
     std::string key) {
+    return SetHotkeyBinding(
+        std::string(
+            hotkey_actions::kActivate),
+        HotkeyBinding{
+            true,
+            std::move(modifiers),
+            std::move(key)});
+}
+
+bool SettingsStore::SetAuxiliaryHotkey(
+    bool enabled,
+    std::vector<std::string> modifiers,
+    std::string key) {
+    return SetHotkeyBinding(
+        std::string(
+            hotkey_actions::
+                kActivateSecondary),
+        HotkeyBinding{
+            enabled,
+            std::move(modifiers),
+            std::move(key)});
+}
+
+bool SettingsStore::SetHotkeyBinding(
+    std::string actionId,
+    HotkeyBinding binding) {
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    CanonicalizeHotkeyBinding(binding);
+
+    if (!ValidateHotkeyBinding(
+            actionId,
+            binding) ||
+        FindHotkeyConflict(
+            settings_.hotkeyBindings,
+            actionId,
+            binding)) {
+        return false;
+    }
 
     const Settings previous =
         settings_;
 
-    settings_.hotkeyModifiers =
-        std::move(modifiers);
-    settings_.hotkeyKey =
-        LowerAscii(
-            std::move(key));
+    settings_.hotkeyBindings[
+        std::move(actionId)] =
+        std::move(binding);
+
+    SyncLegacyHotkeyMirrors(
+        settings_);
 
     if (!Save()) {
         settings_ = previous;
@@ -653,21 +863,19 @@ bool SettingsStore::SetHotkey(
     return true;
 }
 
-bool SettingsStore::SetAuxiliaryHotkey(
-    bool enabled,
-    std::vector<std::string> modifiers,
-    std::string key) {
+bool SettingsStore::ResetHotkeyBindings() {
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
 
     const Settings previous =
         settings_;
 
-    settings_.auxiliaryHotkeyEnabled =
-        enabled;
-    settings_.auxiliaryHotkeyModifiers =
-        std::move(modifiers);
-    settings_.auxiliaryHotkeyKey =
-        LowerAscii(
-            std::move(key));
+    settings_.hotkeyBindings =
+        DefaultHotkeyBindings();
+
+    SyncLegacyHotkeyMirrors(
+        settings_);
 
     if (!Save()) {
         settings_ = previous;
