@@ -2,6 +2,7 @@
 
 #include "../platform/WinUtil.hpp"
 #include "../ui/LauncherWindow.hpp"
+#include "../ui/SettingsWindow.hpp"
 
 #include <shellapi.h>
 
@@ -75,11 +76,70 @@ std::wstring_view App::Text(TextId id) const {
 void App::SetUiStyle(UiStyle style) {
     settingsStore_.SetUiStyle(style);
     if (window_) window_->ApplyAppearance();
+    if (settingsWindow_) settingsWindow_->RefreshFromSettings();
 }
 
 void App::SetLanguage(Language language) {
     settingsStore_.SetLanguage(language);
     if (window_) window_->ApplyLanguage();
+    if (settingsWindow_) settingsWindow_->ApplyLanguage();
+}
+
+void App::SetGeneralSettings(
+    bool hideAfterLaunch,
+    bool clearQueryOnShow,
+    bool hideOnFocusLost,
+    bool showTrayIcon,
+    std::string popupMonitor) {
+
+    settingsStore_.SetGeneral(
+        hideAfterLaunch,
+        clearQueryOnShow,
+        hideOnFocusLost,
+        showTrayIcon,
+        std::move(popupMonitor));
+
+    if (window_) window_->ApplyGeneralSettings();
+    if (settingsWindow_) settingsWindow_->RefreshFromSettings();
+}
+
+void App::ShowSettings() {
+    if (!settingsWindow_) {
+        settingsWindow_ = std::make_unique<SettingsWindow>(*this, instance_);
+        if (!settingsWindow_->Create()) {
+            settingsWindow_.reset();
+            MessageBoxW(
+                nullptr,
+                L"Unable to create Settings window.",
+                L"ALTRun Next",
+                MB_ICONERROR | MB_OK);
+            return;
+        }
+    }
+
+    settingsWindow_->Show();
+}
+
+void App::OpenDataFolder() {
+    std::error_code ec;
+    std::filesystem::create_directories(dataDirectory_, ec);
+    ShellExecuteW(
+        nullptr,
+        L"open",
+        dataDirectory_.c_str(),
+        nullptr,
+        nullptr,
+        SW_SHOWNORMAL);
+}
+
+void App::OpenProjectPage() {
+    ShellExecuteW(
+        nullptr,
+        L"open",
+        L"https://github.com/Aspeternity/ALTRunNext",
+        nullptr,
+        nullptr,
+        SW_SHOWNORMAL);
 }
 
 bool App::ExecuteCommand(std::size_t index) {
