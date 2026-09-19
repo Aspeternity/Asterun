@@ -2,6 +2,7 @@
 
 #include "../app/App.hpp"
 
+#include <windowsx.h>
 #include <commctrl.h>
 #include <dwmapi.h>
 #include <shellapi.h>
