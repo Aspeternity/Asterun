@@ -42,7 +42,9 @@ file.json.bak  ← previous version
 file.json
 ```
 
-If the live JSON is unreadable, ALTRun Next attempts to read the `.bak` copy.
+If the live JSON is unreadable, ALTRun Next attempts to read the `.bak` copy. Starting with v0.4.0-beta.2, a valid backup also repairs the live primary automatically. A corrupt primary is never copied over a known-good backup.
+
+If `settings.json`, `commands.json` or `usage.json` has a `schemaVersion` newer than the running binary supports, ALTRun Next reads known fields when possible but treats that document as **read-only**. This makes temporary downgrades non-destructive: the older binary does not rewrite the newer document. The Data page lists files currently protected this way.
 
 ## settings.json
 
@@ -131,6 +133,8 @@ Disabled providers remain cached but are excluded from both search and change-to
 The Data -> Rebuild program index action remains an explicit full non-blocking refresh of all enabled providers.
 
 v0.4.0-beta.1 does **not** change the provider-cache schema. De-duplication counts and provider refresh errors are runtime diagnostics only; they are derived from the current cache/refresh session and are not persisted into user configuration.
+
+v0.4.0-beta.2 also keeps provider-cache schemaVersion 2. Cache entries are validated against their stable provider ID, so for example a `source: "path"` command cannot be consumed from the `windows.startmenu` bucket. A future provider-cache schema is ignored and rebuilt because this file is generated state rather than user-authored data.
 
 ## usage.json
 

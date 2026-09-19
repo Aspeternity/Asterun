@@ -195,4 +195,54 @@ if(BUILD_TESTING)
     target_link_libraries(command_merge_tests PRIVATE altrun_config)
     target_include_directories(command_merge_tests PRIVATE src)
     add_test(NAME command_merge_tests COMMAND command_merge_tests)
+
+    if(WIN32)
+        add_executable(windows_provider_smoke_tests
+            tests/WindowsProviderSmokeTests.cpp
+            src/core/AppPathsProvider.cpp
+            src/core/PackagedAppProvider.cpp
+            src/core/PathProvider.cpp
+            src/core/ProviderRegistry.cpp
+            src/core/StartMenuProvider.cpp
+            src/platform/WinUtil.cpp
+        )
+
+        target_include_directories(
+            windows_provider_smoke_tests
+            PRIVATE src
+        )
+
+        target_link_libraries(
+            windows_provider_smoke_tests
+            PRIVATE
+                altrun_config
+                shell32
+                ole32
+                advapi32
+                uuid
+        )
+
+        target_compile_definitions(
+            windows_provider_smoke_tests
+            PRIVATE
+                UNICODE
+                _UNICODE
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0A00
+                WINVER=0x0A00
+        )
+
+        if(MSVC)
+            target_compile_options(
+                windows_provider_smoke_tests
+                PRIVATE /W4 /permissive- /utf-8 /EHsc
+            )
+        endif()
+
+        add_test(
+            NAME windows_provider_smoke_tests
+            COMMAND windows_provider_smoke_tests
+        )
+    endif()
 endif()

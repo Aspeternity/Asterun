@@ -49,6 +49,9 @@ public:
     [[nodiscard]] std::vector<ProviderStatus>
     ProviderStatuses() const;
 
+    [[nodiscard]] std::wstring
+    DataCompatibilityWarning() const;
+
     bool CreateUserCommand(
         Command command,
         std::wstring* createdId = nullptr);

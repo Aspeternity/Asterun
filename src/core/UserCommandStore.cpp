@@ -190,8 +190,16 @@ UserCommandStore::UserCommandStore(
 void UserCommandStore::Load() {
     commands_.clear();
     legacyIdMap_.clear();
+    readOnlyDueToNewerSchema_ =
+        false;
+    unsupportedSchemaVersion_ = 0;
 
     if (LoadJson()) {
+        RebuildLegacyIdMap();
+        return;
+    }
+
+    if (readOnlyDueToNewerSchema_) {
         RebuildLegacyIdMap();
         return;
     }
@@ -209,11 +217,28 @@ void UserCommandStore::Load() {
 }
 
 bool UserCommandStore::LoadJson() {
-    const auto json = config::LoadJsonWithBackup(jsonPath_);
-    if (!json) return false;
+    auto load =
+        config::LoadJsonWithBackup(
+            jsonPath_,
+            config::kSchemaVersion);
+
+    if (load.status ==
+        config::JsonLoadStatus::
+            UnsupportedSchema) {
+
+        readOnlyDueToNewerSchema_ =
+            true;
+        unsupportedSchemaVersion_ =
+            load.schemaVersion;
+    }
+
+    if (!load.value) {
+        return false;
+    }
 
     try {
-        const auto& root = *json;
+        const auto& root =
+            *load.value;
         if (!root.contains("commands") || !root["commands"].is_array()) {
             return false;
         }
@@ -274,7 +299,11 @@ bool UserCommandStore::LoadJson() {
             commands_.push_back(std::move(command));
         }
 
-        if (repaired) Save();
+        if (repaired &&
+            !readOnlyDueToNewerSchema_) {
+            Save();
+        }
+
         return true;
     } catch (...) {
         commands_.clear();
@@ -752,6 +781,10 @@ bool UserCommandStore::ExportTsv(
 }
 
 bool UserCommandStore::Save() const {
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
     nlohmann::json commandArray = nlohmann::json::array();
 
     for (const auto& command : commands_) {

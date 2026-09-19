@@ -96,6 +96,17 @@ const char* ProviderIdForSource(
     }
 }
 
+bool SourceMatchesProvider(
+    std::string_view providerId,
+    CommandSource source) {
+
+    const char* expected =
+        ProviderIdForSource(source);
+
+    return expected != nullptr &&
+        providerId == expected;
+}
+
 std::optional<Command>
 ParseCommand(
     const nlohmann::json& item) {
@@ -243,16 +254,24 @@ ProviderCacheData
 ProviderCache::Load() const {
     ProviderCacheData data;
 
-    const auto json =
+    auto load =
         config::LoadJsonWithBackup(
-            path_);
+            path_,
+            kProviderCacheSchemaVersion);
 
-    if (!json) {
+    // Provider cache is generated state. A cache written by a newer schema
+    // is intentionally ignored and rebuilt instead of being interpreted by
+    // an older binary.
+    if (!load.value ||
+        load.status ==
+            config::JsonLoadStatus::
+                UnsupportedSchema) {
         return data;
     }
 
     try {
-        const auto& root = *json;
+        const auto& root =
+            *load.value;
         const int version =
             root.value(
                 "schemaVersion",
@@ -294,7 +313,11 @@ ProviderCache::Load() const {
 
                         if (command &&
                             command->source !=
-                                CommandSource::User) {
+                                CommandSource::User &&
+                            SourceMatchesProvider(
+                                it.key(),
+                                command->source)) {
+
                             entry.commands.push_back(
                                 std::move(*command));
                         }

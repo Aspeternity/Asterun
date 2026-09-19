@@ -73,6 +73,16 @@ public:
         return jsonPath_;
     }
 
+    [[nodiscard]] bool
+    IsReadOnlyDueToNewerSchema() const noexcept {
+        return readOnlyDueToNewerSchema_;
+    }
+
+    [[nodiscard]] int
+    UnsupportedSchemaVersion() const noexcept {
+        return unsupportedSchemaVersion_;
+    }
+
 private:
     bool LoadJson();
     bool MigrateLegacyIni();
@@ -80,6 +90,8 @@ private:
     std::filesystem::path jsonPath_;
     std::filesystem::path legacyIniPath_;
     Settings settings_;
+    bool readOnlyDueToNewerSchema_{false};
+    int unsupportedSchemaVersion_{0};
 };
 
 } // namespace altrun

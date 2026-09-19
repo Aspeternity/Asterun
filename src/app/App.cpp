@@ -216,6 +216,78 @@ App::ProviderStatuses() const {
                 .providerEnabled);
 }
 
+std::wstring
+App::DataCompatibilityWarning() const {
+
+    struct Issue {
+        const wchar_t* file;
+        int schemaVersion;
+    };
+
+    std::vector<Issue> issues;
+
+    if (settingsStore_
+            .IsReadOnlyDueToNewerSchema()) {
+        issues.push_back({
+            L"settings.json",
+            settingsStore_
+                .UnsupportedSchemaVersion(),
+        });
+    }
+
+    if (commandStore_
+            .UserCommandsReadOnlyDueToNewerSchema()) {
+        issues.push_back({
+            L"commands.json",
+            commandStore_
+                .UserCommandsUnsupportedSchemaVersion(),
+        });
+    }
+
+    if (usageStore_
+            .IsReadOnlyDueToNewerSchema()) {
+        issues.push_back({
+            L"usage.json",
+            usageStore_
+                .UnsupportedSchemaVersion(),
+        });
+    }
+
+    if (issues.empty()) {
+        return {};
+    }
+
+    const bool zh =
+        settingsStore_.Data().language ==
+            Language::ZhCN;
+
+    std::wstring message =
+        zh
+            ? L"检测到由较新版本生成的数据文件。为避免降级覆盖数据，以下文件已进入只读兼容模式："
+            : L"Data created by a newer ALTRun Next version was detected. To prevent downgrade data loss, these files are read-only:";
+
+    message += L"\r\n";
+
+    for (std::size_t i = 0;
+         i < issues.size();
+         ++i) {
+
+        message += L"  ";
+        message += issues[i].file;
+        message += L"  (schema ";
+        message += std::to_wstring(
+            issues[i].schemaVersion);
+        message += L")";
+
+        if (i + 1 <
+            issues.size()) {
+            message += L"\r\n";
+        }
+    }
+
+    return message;
+}
+
 bool App::CreateUserCommand(
     Command command,
     std::wstring* createdId) {

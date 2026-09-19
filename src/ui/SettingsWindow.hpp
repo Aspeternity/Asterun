@@ -183,6 +183,7 @@ private:
     void RefreshCommandList(
         std::wstring_view preferredId = {});
     void RefreshProviderStatus();
+    void RefreshDataCompatibilityStatus();
     void LoadCommandEditor(
         std::wstring_view id);
     void BeginNewCommand();

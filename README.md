@@ -14,6 +14,33 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.0-beta.2 — Real-world Compatibility & Migration Hardening
+
+v0.4 Beta 2 focuses on data safety and upgrade/downgrade behavior rather than adding new launcher features.
+
+Config Core recovery now follows stricter rules:
+
+```text
+primary valid
+    → load primary
+
+primary corrupt/missing + backup valid
+    → load backup
+    → repair primary
+    → keep the good backup intact
+
+document schema newer than this binary understands
+    → read known fields when possible
+    → enter read-only compatibility mode
+    → never overwrite the newer document
+```
+
+The downgrade guard applies to `settings.json`, `commands.json` and `usage.json`. The Data page reports any file that entered read-only compatibility mode and shows the unsupported schema version.
+
+Migration coverage now exercises old settings without provider keys, every combination of the four provider source switches, alpha.2 provider-cache schema migration, corrupt-primary recovery, future-schema protection and provider/source cache validation.
+
+Windows CI also runs a real Provider Registry smoke executable on both `windows-latest` and `windows-2022`. The smoke test invokes provider discovery/change-token paths and verifies source isolation without assuming that a server runner must contain desktop applications. Real Windows 10/11 desktop behavior remains a manual release-validation item.
+
 ## v0.4.0-beta.1 — Discovery Hardening
 
 v0.4 Beta 1 freezes the Windows application-discovery architecture and focuses on regression safety, deterministic de-duplication and diagnostics.

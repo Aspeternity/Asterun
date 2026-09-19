@@ -42,6 +42,14 @@ public:
         return jsonPath_;
     }
 
+    [[nodiscard]] bool IsReadOnlyDueToNewerSchema() const noexcept {
+        return readOnlyDueToNewerSchema_;
+    }
+
+    [[nodiscard]] int UnsupportedSchemaVersion() const noexcept {
+        return unsupportedSchemaVersion_;
+    }
+
 private:
     bool LoadJson();
     bool MigrateLegacyTsv();
@@ -52,6 +60,8 @@ private:
     std::filesystem::path legacyTsvPath_;
     std::vector<Command> commands_;
     std::unordered_map<std::wstring, std::wstring> legacyIdMap_;
+    bool readOnlyDueToNewerSchema_{false};
+    int unsupportedSchemaVersion_{0};
 };
 
 } // namespace altrun

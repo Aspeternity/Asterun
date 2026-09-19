@@ -111,6 +111,18 @@ public:
             .Path();
     }
 
+    [[nodiscard]] bool
+    UserCommandsReadOnlyDueToNewerSchema() const noexcept {
+        return userCommandStore_
+            .IsReadOnlyDueToNewerSchema();
+    }
+
+    [[nodiscard]] int
+    UserCommandsUnsupportedSchemaVersion() const noexcept {
+        return userCommandStore_
+            .UnsupportedSchemaVersion();
+    }
+
 private:
     struct ProviderRuntimeDiagnostic {
         std::int64_t lastAttemptUnix{0};

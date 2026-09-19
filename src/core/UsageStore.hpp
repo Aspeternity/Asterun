@@ -23,6 +23,14 @@ public:
     [[nodiscard]] const UsageMap& Data() const noexcept { return usage_; }
     [[nodiscard]] const std::filesystem::path& Path() const noexcept { return jsonPath_; }
 
+    [[nodiscard]] bool IsReadOnlyDueToNewerSchema() const noexcept {
+        return readOnlyDueToNewerSchema_;
+    }
+
+    [[nodiscard]] int UnsupportedSchemaVersion() const noexcept {
+        return unsupportedSchemaVersion_;
+    }
+
 private:
     bool LoadJson();
     bool MigrateLegacyTsv(
@@ -32,6 +40,8 @@ private:
     std::filesystem::path jsonPath_;
     std::filesystem::path legacyTsvPath_;
     UsageMap usage_;
+    bool readOnlyDueToNewerSchema_{false};
+    int unsupportedSchemaVersion_{0};
 };
 
 } // namespace altrun

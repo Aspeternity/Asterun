@@ -1,3 +1,4 @@
+#include "core/ConfigIO.hpp"
 #include "core/ProviderCache.hpp"
 #include "core/ProviderFingerprint.hpp"
 #include "core/Settings.hpp"
@@ -5,11 +6,15 @@
 #include "core/UserCommandStore.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <string>
+#include <string_view>
 
 using namespace altrun;
 
@@ -20,6 +25,21 @@ void WriteText(const std::filesystem::path& path, const std::string& text) {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     assert(out);
     out << text;
+}
+
+std::string ReadText(
+    const std::filesystem::path& path) {
+
+    std::ifstream input(
+        path,
+        std::ios::binary);
+
+    assert(input);
+
+    return std::string(
+        std::istreambuf_iterator<char>(
+            input),
+        std::istreambuf_iterator<char>());
 }
 
 } // namespace
@@ -217,9 +237,35 @@ int main() {
 
     WriteText(data / "settings.json", "{ broken json");
 
-    SettingsStore recovered(data / "settings.json", legacySettings);
+    SettingsStore recovered(
+        data / "settings.json",
+        legacySettings);
+
     recovered.Load();
-    assert(recovered.Data().language == Language::EnUS);
+
+    assert(
+        recovered.Data().language ==
+        Language::EnUS);
+
+    // Backup recovery now self-heals the corrupt primary while preserving the
+    // known-good backup instead of copying corrupt bytes over it.
+    const auto healedSettings =
+        config::LoadJsonWithBackup(
+            data / "settings.json",
+            config::kSchemaVersion);
+
+    assert(
+        healedSettings.status ==
+        config::JsonLoadStatus::
+            LoadedPrimary);
+    assert(healedSettings.value);
+
+    const auto healedBackup =
+        config::LoadJsonWithBackup(
+            data / "settings.json.bak",
+            config::kSchemaVersion);
+
+    assert(healedBackup.value);
 
     SettingsStore featureSettings(data / "settings-features.json");
     featureSettings.Load();
@@ -259,6 +305,255 @@ int main() {
     assert(!providers::IsEnabled(
         providerSettingsReloaded.Data().providerEnabled,
         providers::kPath));
+
+    // Every provider toggle combination must survive a save/reload cycle.
+    const std::array<std::string_view, 4>
+        providerIds{
+            providers::kStartMenu,
+            providers::kPackaged,
+            providers::kAppPaths,
+            providers::kPath,
+        };
+
+    for (unsigned mask = 0;
+         mask < 16;
+         ++mask) {
+
+        const auto matrixPath =
+            data /
+            ("settings-provider-matrix-" +
+             std::to_string(mask) +
+             ".json");
+
+        SettingsStore matrix(
+            matrixPath);
+
+        matrix.Load();
+
+        for (std::size_t i = 0;
+             i < providerIds.size();
+             ++i) {
+
+            const bool enabled =
+                (mask &
+                 (1u <<
+                  static_cast<unsigned>(i))) != 0;
+
+            assert(matrix.SetProviderEnabled(
+                std::string(
+                    providerIds[i]),
+                enabled));
+        }
+
+        SettingsStore reloaded(
+            matrixPath);
+
+        reloaded.Load();
+
+        for (std::size_t i = 0;
+             i < providerIds.size();
+             ++i) {
+
+            const bool expected =
+                (mask &
+                 (1u <<
+                  static_cast<unsigned>(i))) != 0;
+
+            assert(
+                providers::IsEnabled(
+                    reloaded.Data()
+                        .providerEnabled,
+                    providerIds[i]) ==
+                expected);
+        }
+    }
+
+    // Alpha-era settings without a providers object retain the current
+    // default-enabled behavior for all discovery sources.
+    const auto alphaSettings =
+        data /
+        "settings-alpha-no-providers.json";
+
+    WriteText(
+        alphaSettings,
+        "{\n"
+        "  \"schemaVersion\": 1,\n"
+        "  \"general\": {\n"
+        "    \"startWithWindows\": true\n"
+        "  },\n"
+        "  \"appearance\": {\n"
+        "    \"launcher\": \"classic\",\n"
+        "    \"language\": \"en-US\"\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore alphaReloaded(
+        alphaSettings);
+
+    alphaReloaded.Load();
+
+    assert(
+        alphaReloaded.Data()
+            .startWithWindows);
+    assert(
+        alphaReloaded.Data()
+            .language ==
+        Language::EnUS);
+
+    for (const auto providerId :
+         providerIds) {
+        assert(providers::IsEnabled(
+            alphaReloaded.Data()
+                .providerEnabled,
+            providerId));
+    }
+
+    // A future settings schema remains usable for known fields but is
+    // read-only so an older binary cannot overwrite newer data.
+    const auto futureSettingsPath =
+        data /
+        "settings-future.json";
+
+    WriteText(
+        futureSettingsPath,
+        "{\n"
+        "  \"schemaVersion\": 99,\n"
+        "  \"general\": {\n"
+        "    \"startWithWindows\": true\n"
+        "  },\n"
+        "  \"appearance\": {\n"
+        "    \"launcher\": \"modern-compact\",\n"
+        "    \"language\": \"en-US\"\n"
+        "  },\n"
+        "  \"providers\": {\n"
+        "    \"windows.path\": false\n"
+        "  },\n"
+        "  \"futureOnly\": {\"keep\": true}\n"
+        "}\n");
+
+    const std::string
+        futureSettingsBefore =
+            ReadText(
+                futureSettingsPath);
+
+    SettingsStore futureSettings(
+        futureSettingsPath);
+
+    futureSettings.Load();
+
+    assert(
+        futureSettings
+            .IsReadOnlyDueToNewerSchema());
+    assert(
+        futureSettings
+            .UnsupportedSchemaVersion() ==
+        99);
+    assert(
+        futureSettings.Data()
+            .startWithWindows);
+    assert(
+        futureSettings.Data().uiStyle ==
+        UiStyle::ModernCompact);
+    assert(!providers::IsEnabled(
+        futureSettings.Data()
+            .providerEnabled,
+        providers::kPath));
+    assert(!futureSettings
+        .SetStartWithWindows(false));
+    assert(
+        ReadText(futureSettingsPath) ==
+        futureSettingsBefore);
+
+    const auto futureCommandsPath =
+        data /
+        "commands-future.json";
+
+    WriteText(
+        futureCommandsPath,
+        "{\n"
+        "  \"schemaVersion\": 99,\n"
+        "  \"commands\": [\n"
+        "    {\n"
+        "      \"id\": \"future-command\",\n"
+        "      \"name\": \"Future Command\",\n"
+        "      \"keyword\": \"future\",\n"
+        "      \"target\": \"future.exe\"\n"
+        "    }\n"
+        "  ],\n"
+        "  \"futureOnly\": true\n"
+        "}\n");
+
+    const std::string
+        futureCommandsBefore =
+            ReadText(
+                futureCommandsPath);
+
+    UserCommandStore futureCommands(
+        futureCommandsPath);
+
+    futureCommands.Load();
+
+    assert(
+        futureCommands
+            .IsReadOnlyDueToNewerSchema());
+    assert(
+        futureCommands.Commands().size() ==
+        1);
+    assert(
+        futureCommands.Commands()[0].id ==
+        L"future-command");
+    assert(!futureCommands.Remove(
+        L"future-command"));
+    assert(
+        ReadText(futureCommandsPath) ==
+        futureCommandsBefore);
+
+    const auto futureUsagePath =
+        data /
+        "usage-future.json";
+
+    WriteText(
+        futureUsagePath,
+        "{\n"
+        "  \"schemaVersion\": 99,\n"
+        "  \"usage\": {\n"
+        "    \"future-command\": {\n"
+        "      \"launches\": 8,\n"
+        "      \"lastUsedUnix\": 1700000400\n"
+        "    }\n"
+        "  },\n"
+        "  \"futureOnly\": true\n"
+        "}\n");
+
+    const std::string
+        futureUsageBefore =
+            ReadText(
+                futureUsagePath);
+
+    UsageStore futureUsage(
+        futureUsagePath);
+
+    futureUsage.Load();
+
+    assert(
+        futureUsage
+            .IsReadOnlyDueToNewerSchema());
+    assert(
+        futureUsage.Data()
+            .at(L"future-command")
+            .launches == 8);
+
+    futureUsage.Record(
+        L"future-command");
+
+    assert(
+        futureUsage.Data()
+            .at(L"future-command")
+            .launches == 8);
+    assert(!futureUsage.Clear());
+    assert(
+        ReadText(futureUsagePath) ==
+        futureUsageBefore);
 
     assert(featureSettings.ResetDefaults());
     assert(!featureSettings.Data().startWithWindows);
@@ -382,6 +677,62 @@ int main() {
             std::string(
                 providers::kStartMenu))
             .commands.size() == 1);
+
+    // A provider-cache entry is accepted only when its command source
+    // matches the stable provider ID that owns the entry.
+    const auto mismatchedProviderCache =
+        data /
+        "provider-cache-mismatched.json";
+
+    WriteText(
+        mismatchedProviderCache,
+        "{\n"
+        "  \"schemaVersion\": 2,\n"
+        "  \"providers\": {\n"
+        "    \"windows.startmenu\": {\n"
+        "      \"generatedAtUnix\": 1700000250,\n"
+        "      \"commands\": [\n"
+        "        {\n"
+        "          \"id\": \"path:wrong-owner\",\n"
+        "          \"name\": \"Wrong Owner\",\n"
+        "          \"keyword\": \"wrong\",\n"
+        "          \"target\": \"wrong.exe\",\n"
+        "          \"source\": \"path\"\n"
+        "        }\n"
+        "      ]\n"
+        "    }\n"
+        "  }\n"
+        "}\n");
+
+    ProviderCache mismatchedCache(
+        mismatchedProviderCache);
+
+    const auto mismatchedData =
+        mismatchedCache.Load();
+
+    assert(
+        mismatchedData.at(
+            std::string(
+                providers::kStartMenu))
+            .commands.empty());
+
+    // A future generated cache is safe to ignore; providers will rebuild it.
+    const auto futureProviderCache =
+        data /
+        "provider-cache-future.json";
+
+    WriteText(
+        futureProviderCache,
+        "{\n"
+        "  \"schemaVersion\": 99,\n"
+        "  \"providers\": {}\n"
+        "}\n");
+
+    ProviderCache futureCache(
+        futureProviderCache);
+
+    assert(
+        futureCache.Load().empty());
 
     const auto legacyProviderCache =
         data /

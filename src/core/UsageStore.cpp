@@ -47,8 +47,15 @@ void UsageStore::Load(
     const std::unordered_map<std::wstring, std::wstring>& legacyIdMap) {
 
     usage_.clear();
+    readOnlyDueToNewerSchema_ =
+        false;
+    unsupportedSchemaVersion_ = 0;
 
     if (LoadJson()) {
+        return;
+    }
+
+    if (readOnlyDueToNewerSchema_) {
         return;
     }
 
@@ -60,11 +67,28 @@ void UsageStore::Load(
 }
 
 bool UsageStore::LoadJson() {
-    const auto json = config::LoadJsonWithBackup(jsonPath_);
-    if (!json) return false;
+    auto load =
+        config::LoadJsonWithBackup(
+            jsonPath_,
+            config::kSchemaVersion);
+
+    if (load.status ==
+        config::JsonLoadStatus::
+            UnsupportedSchema) {
+
+        readOnlyDueToNewerSchema_ =
+            true;
+        unsupportedSchemaVersion_ =
+            load.schemaVersion;
+    }
+
+    if (!load.value) {
+        return false;
+    }
 
     try {
-        const auto& root = *json;
+        const auto& root =
+            *load.value;
         if (!root.contains("usage") || !root["usage"].is_object()) {
             return false;
         }
@@ -128,11 +152,26 @@ bool UsageStore::MigrateLegacyTsv(
     return migratedAny;
 }
 
-void UsageStore::Record(std::wstring_view commandId) {
-    auto& stat = usage_[std::wstring(commandId)];
+void UsageStore::Record(
+    std::wstring_view commandId) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return;
+    }
+
+    const UsageMap previous =
+        usage_;
+
+    auto& stat =
+        usage_[std::wstring(commandId)];
+
     ++stat.launches;
-    stat.lastUsedUnix = UnixTimeNow();
-    Save();
+    stat.lastUsedUnix =
+        UnixTimeNow();
+
+    if (!Save()) {
+        usage_ = previous;
+    }
 }
 
 bool UsageStore::Clear() {
@@ -148,6 +187,10 @@ bool UsageStore::Clear() {
 }
 
 bool UsageStore::Save() const {
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
     nlohmann::json usage = nlohmann::json::object();
 
     for (const auto& [id, stat] : usage_) {

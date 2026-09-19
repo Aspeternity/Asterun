@@ -52,8 +52,10 @@ Current phase:
 
 v0.4 beta hardening:
 
-- Validate upgrade behavior from the v0.4 alpha cache/settings formats
-- Exercise provider discovery on real Windows 10 and Windows 11 desktops
+- Upgrade/migration matrix for alpha-era settings and provider caches
+- Backup self-healing and downgrade-safe newer-schema protection
+- Windows Provider Registry runtime smoke tests on current and Windows Server 2022 runners
+- Manual provider discovery validation on real Windows 10 and Windows 11 desktops
 - Fix only discovery/regression issues before the v0.4 stable milestone
 
 ## v0.5.x - Everything integration

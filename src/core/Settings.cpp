@@ -86,8 +86,17 @@ SettingsStore::SettingsStore(
 
 void SettingsStore::Load() {
     settings_ = Settings{};
+    readOnlyDueToNewerSchema_ =
+        false;
+    unsupportedSchemaVersion_ = 0;
 
     if (LoadJson()) {
+        return;
+    }
+
+    // A newer schema may contain fields this version does not understand.
+    // Never migrate/default-save over it during downgrade.
+    if (readOnlyDueToNewerSchema_) {
         return;
     }
 
@@ -101,16 +110,30 @@ void SettingsStore::Load() {
 }
 
 bool SettingsStore::LoadJson() {
-    const auto json =
+    auto load =
         config::LoadJsonWithBackup(
-            jsonPath_);
+            jsonPath_,
+            config::kSchemaVersion);
 
-    if (!json) {
+    if (load.status ==
+        config::JsonLoadStatus::
+            UnsupportedSchema) {
+
+        // Read known fields for downgrade usability, but never write the
+        // document back from an older schema implementation.
+        readOnlyDueToNewerSchema_ =
+            true;
+        unsupportedSchemaVersion_ =
+            load.schemaVersion;
+    }
+
+    if (!load.value) {
         return false;
     }
 
     try {
-        const auto& root = *json;
+        const auto& root =
+            *load.value;
 
         if (root.contains(
                 "appearance") &&
@@ -349,6 +372,10 @@ bool SettingsStore::MigrateLegacyIni() {
 }
 
 bool SettingsStore::Save() const {
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
     nlohmann::json
         providersJson =
             nlohmann::json::object();
@@ -402,15 +429,35 @@ bool SettingsStore::Save() const {
 void SettingsStore::SetUiStyle(
     UiStyle style) {
 
+    if (readOnlyDueToNewerSchema_) {
+        return;
+    }
+
+    const Settings previous =
+        settings_;
+
     settings_.uiStyle = style;
-    Save();
+
+    if (!Save()) {
+        settings_ = previous;
+    }
 }
 
 void SettingsStore::SetLanguage(
     Language language) {
 
+    if (readOnlyDueToNewerSchema_) {
+        return;
+    }
+
+    const Settings previous =
+        settings_;
+
     settings_.language = language;
-    Save();
+
+    if (!Save()) {
+        settings_ = previous;
+    }
 }
 
 bool SettingsStore::SetStartWithWindows(
@@ -491,6 +538,13 @@ void SettingsStore::SetGeneral(
     bool showTrayIcon,
     std::string popupMonitor) {
 
+    if (readOnlyDueToNewerSchema_) {
+        return;
+    }
+
+    const Settings previous =
+        settings_;
+
     settings_.hideAfterLaunch =
         hideAfterLaunch;
     settings_.clearQueryOnShow =
@@ -502,7 +556,9 @@ void SettingsStore::SetGeneral(
     settings_.popupMonitor =
         std::move(popupMonitor);
 
-    Save();
+    if (!Save()) {
+        settings_ = previous;
+    }
 }
 
 } // namespace altrun

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0-beta.2
+
+- Hardened atomic JSON backup semantics so an invalid primary file can no longer overwrite a valid `.bak` during the next save.
+- Added automatic primary-file self-healing when a valid backup is used.
+- Added schema-aware JSON loading with explicit primary, backup-recovery and unsupported-schema states.
+- Added downgrade-safe read-only compatibility for `settings.json`, `commands.json` and `usage.json`.
+- Newer-schema documents continue to expose known fields when possible, but all writes are blocked so an older binary cannot destroy newer data.
+- Added a Data-page compatibility warning listing each read-only file and its unsupported schema version.
+- Made settings appearance/general writes transactional instead of leaving in-memory state changed after a failed save.
+- Made usage-history recording transactional and disabled it while usage data is in newer-schema read-only mode.
+- Added Provider Cache validation that rejects commands stored under a provider ID that does not match the command source.
+- Future provider-cache schemas are treated as disposable generated state and rebuilt rather than interpreted by an older binary.
+- Expanded migration tests across all 16 provider-enable combinations, alpha-era settings without provider keys, backup self-healing, future settings/commands/usage schemas, provider/source mismatches and alpha.2 cache migration.
+- Added a Windows Provider Registry runtime smoke executable covering stable IDs, enable/disable isolation, targeted discovery and change-token behavior.
+- Added provider runtime smoke CI on both `windows-latest` and `windows-2022`; versioned releases now require both smoke gates in addition to Core Tests, x64, ARM64 and the Windows 10 API baseline.
+- Kept settings/commands/usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows version metadata to `0.4.0-beta.2`.
+
+
 ## 0.4.0-beta.1
 
 - Extracted provider/user command de-duplication from `CommandStore` into a portable, independently testable `CommandMerge` core module.

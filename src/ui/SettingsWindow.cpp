@@ -1245,12 +1245,12 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.4.0-beta.1", L"Version 0.4.0-beta.1"));
+        T(L"版本 0.4.0-beta.2", L"Version 0.4.0-beta.2"));
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Beta 1 加入可测试的确定性去重、Provider 诊断与 Windows 兼容构建门槛。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Beta 1 adds deterministic tested de-duplication, provider diagnostics and a Windows compatibility build gate."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Beta 2 强化数据自愈、降级只读保护、迁移矩阵与 Windows Provider 运行验证。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Beta 2 hardens data self-recovery, downgrade read-only protection, migration coverage and Windows provider runtime validation."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -1273,6 +1273,7 @@ void SettingsWindow::ApplyLanguage() {
     UpdatePageHeader();
     RefreshFromSettings();
     RefreshCommandList(editingCommandId_);
+    RefreshDataCompatibilityStatus();
 
     syncing_ = oldSyncing;
 
@@ -1440,6 +1441,26 @@ void SettingsWindow::RefreshProviderStatus() {
         text.c_str());
 }
 
+void SettingsWindow::RefreshDataCompatibilityStatus() {
+    if (!dataStatus_) {
+        return;
+    }
+
+    const std::wstring warning =
+        app_.DataCompatibilityWarning();
+
+    if (!warning.empty()) {
+        SetWindowTextW(
+            dataStatus_,
+            warning.c_str());
+    } else if (page_ == Page::Data) {
+        SetWindowTextW(
+            dataStatus_,
+            T(L"数据文件兼容性检查正常。",
+              L"Local data compatibility check passed."));
+    }
+}
+
 void SettingsWindow::RefreshCommands() {
     RefreshCommandList(editingCommandId_);
 }
@@ -1448,6 +1469,13 @@ void SettingsWindow::OnProgramIndexRefreshCompleted(
     int outcome) {
 
     if (!dataStatus_) {
+        return;
+    }
+
+    if (!app_.DataCompatibilityWarning()
+             .empty()) {
+        RefreshDataCompatibilityStatus();
+        RefreshProviderStatus();
         return;
     }
 
@@ -1623,6 +1651,9 @@ void SettingsWindow::ShowPage(Page page) {
     } else if (
         page == Page::Providers) {
         RefreshProviderStatus();
+    } else if (
+        page == Page::Data) {
+        RefreshDataCompatibilityStatus();
     }
 
     UpdateNavLabels();
@@ -3420,7 +3451,7 @@ void SettingsWindow::Layout() {
         MoveWindow(
             dataStatus_,
             x, Scale(468),
-            width, Scale(54), TRUE);
+            width, Scale(100), TRUE);
     }
 
     if (page_ == Page::About) {

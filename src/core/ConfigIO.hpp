@@ -9,7 +9,31 @@ namespace altrun::config {
 
 inline constexpr int kSchemaVersion = 1;
 
-[[nodiscard]] std::optional<nlohmann::json> LoadJsonWithBackup(
+enum class JsonLoadStatus {
+    MissingOrInvalid,
+    LoadedPrimary,
+    RecoveredBackup,
+    UnsupportedSchema,
+};
+
+struct JsonLoadResult {
+    JsonLoadStatus status{
+        JsonLoadStatus::MissingOrInvalid};
+    std::optional<nlohmann::json> value;
+    int schemaVersion{0};
+
+    [[nodiscard]] bool HasValue() const noexcept {
+        return value.has_value();
+    }
+};
+
+[[nodiscard]] JsonLoadResult
+LoadJsonWithBackup(
+    const std::filesystem::path& path,
+    int maxSupportedSchemaVersion);
+
+[[nodiscard]] std::optional<nlohmann::json>
+LoadJsonWithBackup(
     const std::filesystem::path& path);
 
 [[nodiscard]] bool SaveJsonAtomic(
