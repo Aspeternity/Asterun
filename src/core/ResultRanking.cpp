@@ -239,6 +239,8 @@ int ResultKindWeight(
         return 60;
     case ResultKind::Application:
         return 30;
+    case ResultKind::Action:
+        return 25;
     case ResultKind::Folder:
         return 8;
     case ResultKind::File:
@@ -268,6 +270,11 @@ int ProviderRankWeight(
     if (providerId ==
         providers::kAppPaths) {
         return 6;
+    }
+
+    if (providerId ==
+        providers::kBuiltinWeb) {
+        return 10;
     }
 
     return 0;

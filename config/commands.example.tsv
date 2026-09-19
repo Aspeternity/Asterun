@@ -2,5 +2,6 @@
 # keyword<TAB>name<TAB>aliases<TAB>type<TAB>target<TAB>arguments<TAB>workingDirectory<TAB>enabled<TAB>runAsAdmin<TAB>pinned<TAB>sortOrder
 np	Notepad	note,notepad	application	notepad.exe			1	0	0	0
 calc	Calculator	calculator	application	calc.exe			1	0	0	10
-gh	GitHub	github	url	https://github.com			1	0	0	20
-cmd	Command Prompt	terminal	command	cmd.exe	/k echo ALTRun Next	C:\\Windows	1	0	0	30
+g	Google Search	google	url	https://www.google.com/search?q={query}			1	0	0	20
+gh	GitHub	github	url	https://github.com			1	0	0	30
+cmd	Command Prompt	terminal	command	cmd.exe	/k echo ALTRun Next	C:\\Windows	1	0	0	40

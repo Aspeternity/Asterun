@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.5.0 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.6.0 LANGUAGES CXX)
 
 file(
     STRINGS
@@ -96,6 +96,7 @@ add_library(altrun_core STATIC
     src/core/PinyinSearch.cpp
     src/core/SearchEngine.cpp
     src/core/SettingsLayout.cpp
+    src/core/WebAction.cpp
 )
 
 target_include_directories(altrun_core PUBLIC src)
@@ -287,6 +288,26 @@ if(BUILD_TESTING)
     add_test(
         NAME result_ranking_tests
         COMMAND result_ranking_tests
+    )
+
+    add_executable(
+        web_action_tests
+        tests/WebActionTests.cpp
+    )
+    target_link_libraries(
+        web_action_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        web_action_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        web_action_tests
+    )
+    add_test(
+        NAME web_action_tests
+        COMMAND web_action_tests
     )
 
     add_executable(config_core_tests tests/ConfigCoreTests.cpp)

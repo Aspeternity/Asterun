@@ -147,6 +147,8 @@ void EverythingProvider::QueryAsync(
                             OpenFolder
                         : LauncherActionKind::
                             OpenFile;
+                result.action.payload =
+                    result.target;
 
                 response.results.push_back(
                     std::move(result));

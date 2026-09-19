@@ -111,6 +111,14 @@ The first four are static Catalog providers and default to enabled. `everything.
 
 As of v0.2.0-beta.1, `startWithWindows` and the `hotkey` section are wired to live Windows behavior. A new hotkey is saved only after `RegisterHotKey` succeeds, so a conflicting binding does not overwrite the previous working configuration.
 
+### v0.6.0-alpha.1 smart-action compatibility
+
+v0.6.0-alpha.1 does **not** change any persisted schema. settings.json remains schemaVersion 3, commands.json and usage.json remain schemaVersion 1, and provider-cache.json remains schemaVersion 2. The five v0.5 provider defaults are unchanged.
+
+The new `builtin.web` identifier is a runtime-only Smart Action source. It is deliberately not written to the settings `providers` map and does not enter provider-cache.json.
+
+Existing user commands with `type: "url"` may opt into web-search alias behavior by placing `{query}` in `target`. The text after the matched keyword or alias is UTF-8 percent-encoded and substituted at query time. Because this reuses existing command fields and does not alter the JSON document shape, commands.json remains schemaVersion 1. URL commands without `{query}` retain their existing execution semantics.
+
 ## commands.json
 
 User commands are persistent user data and are now separate from automatically discovered Start Menu entries.

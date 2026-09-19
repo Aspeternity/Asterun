@@ -112,15 +112,23 @@ Completed in v0.5.0:
 
 ## v0.6.x - Smart actions & Windows integration
 
-Planned:
+In progress:
 
-- Calculator provider
-- URL / web-search aliases
-- Clipboard and text actions
+- v0.6.0-alpha.1 establishes ResultKind::Action, explicit action payloads and OpenUrl as the first reusable Smart Action contract
+- Direct HTTP/HTTPS and www. input becomes an executable URL action
+- Existing URL user commands can use {query} as a UTF-8 percent-encoded web-search template through their keyword/aliases
+- builtin.web is runtime-only; settings/commands/usage/provider-cache schemas and v0.5 provider defaults remain unchanged
+- Classic launcher geometry remains frozen
+
+Planned next:
+
 - Explorer current-folder actions
 - Open / Save dialog folder jump
 - Total Commander integration
-- Provider / action contracts suitable for future extensions
+- Clipboard and text actions
+- Broader provider/action contracts suitable for future extensions
+- Calculator may return later as an optional smart action, but is not a v0.6.0-alpha.1 goal
+- Managed / Portable Everything remains a separate candidate after the core v0.6.0 Smart Actions line
 
 ## v0.7.x - Distribution & extensibility
 

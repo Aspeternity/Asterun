@@ -2,6 +2,8 @@
 
 #include "../core/EverythingProvider.hpp"
 #include "../core/ProviderIds.hpp"
+#include "../core/ResultMerger.hpp"
+#include "../core/WebAction.hpp"
 #include "../platform/Hotkey.hpp"
 #include "../platform/WinUtil.hpp"
 #include "../ui/LauncherWindow.hpp"
@@ -365,8 +367,7 @@ std::vector<LauncherResult> App::Search(
             settingsStore_.Data()
                 .wildcardMatching);
 
-    std::vector<LauncherResult>
-        results;
+    std::vector<LauncherResult> results;
     results.reserve(matches.size());
 
     const auto& commands =
@@ -374,8 +375,7 @@ std::vector<LauncherResult> App::Search(
 
     for (const auto& match : matches) {
         const auto& command =
-            commands.at(
-                match.commandIndex);
+            commands.at(match.commandIndex);
 
         LauncherResult result;
         result.id = command.id;
@@ -384,33 +384,60 @@ std::vector<LauncherResult> App::Search(
                 ProviderIdForCommand(
                     command.source));
         result.kind =
-            command.source ==
-                    CommandSource::User
+            command.source == CommandSource::User
                 ? ResultKind::UserCommand
                 : ResultKind::Application;
         result.title =
             command.keyword.empty()
                 ? command.title
                 : command.keyword;
-        result.subtitle =
-            command.title;
-        result.target =
-            command.target;
-        result.detail =
-            CommandDetail(command);
-        result.score =
-            match.score;
+        result.subtitle = command.title;
+        result.target = command.target;
+        result.detail = CommandDetail(command);
+        result.score = match.score;
         result.action.kind =
-            LauncherActionKind::
-                ExecuteCommand;
+            LauncherActionKind::ExecuteCommand;
         result.action.commandIndex =
             match.commandIndex;
 
-        results.push_back(
-            std::move(result));
+        results.push_back(std::move(result));
     }
 
-    return results;
+    auto webActions =
+        BuildWebActionResults(
+            commands,
+            query,
+            limit);
+
+    if (webActions.empty()) {
+        return results;
+    }
+
+    // When a URL template matches its keyword/alias, show the resolved action
+    // instead of the unresolved {query} command beside it.
+    for (const auto& action : webActions) {
+        if (action.action.commandIndex ==
+            static_cast<std::size_t>(-1)) {
+            continue;
+        }
+
+        results.erase(
+            std::remove_if(
+                results.begin(),
+                results.end(),
+                [&](const LauncherResult& result) {
+                    return result.action.kind ==
+                            LauncherActionKind::ExecuteCommand &&
+                        result.action.commandIndex ==
+                            action.action.commandIndex;
+                }),
+            results.end());
+    }
+
+    return MergeLauncherResultsRanked(
+        results,
+        webActions,
+        limit);
 }
 
 bool App::DynamicSearchEnabled()
@@ -1862,8 +1889,7 @@ bool App::ExecuteCommand(std::size_t index) {
 bool App::ExecuteResult(
     const LauncherResult& result) {
     if (result.action.kind ==
-        LauncherActionKind::
-            ExecuteCommand) {
+        LauncherActionKind::ExecuteCommand) {
         if (result.action.commandIndex ==
             static_cast<std::size_t>(-1)) {
             return false;
@@ -1873,7 +1899,21 @@ bool App::ExecuteResult(
             result.action.commandIndex);
     }
 
-    if (result.target.empty()) {
+    switch (result.action.kind) {
+    case LauncherActionKind::OpenFile:
+    case LauncherActionKind::OpenFolder:
+    case LauncherActionKind::OpenUrl:
+        break;
+    case LauncherActionKind::ExecuteCommand:
+        return false;
+    }
+
+    const std::wstring& target =
+        result.action.payload.empty()
+            ? result.target
+            : result.action.payload;
+
+    if (target.empty()) {
         return false;
     }
 
@@ -1884,27 +1924,31 @@ bool App::ExecuteResult(
         SEE_MASK_FLAG_NO_UI;
     info.hwnd = nullptr;
     info.lpVerb = L"open";
-    info.lpFile =
-        result.target.c_str();
+    info.lpFile = target.c_str();
     info.nShow = SW_SHOWNORMAL;
 
     if (ShellExecuteExW(&info)) {
+        if (result.action.commandIndex !=
+                static_cast<std::size_t>(-1) &&
+            result.action.commandIndex <
+                commandStore_.Commands().size()) {
+            const auto& source =
+                commandStore_.Commands().at(
+                    result.action.commandIndex);
+            if (!source.id.empty()) {
+                usageStore_.Record(source.id);
+            }
+        }
         return true;
     }
 
-    const DWORD error =
-        GetLastError();
-
+    const DWORD error = GetLastError();
     std::wstring message =
-        std::wstring(
-            Text(
-                TextId::
-                    UnableToLaunch)) +
+        std::wstring(Text(TextId::UnableToLaunch)) +
         L"\n" +
-        result.target +
+        target +
         L"\n\n" +
-        win::FormatWin32Error(
-            error);
+        win::FormatWin32Error(error);
 
     MessageBoxW(
         nullptr,

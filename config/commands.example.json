@@ -5,7 +5,9 @@
       "id": "9d94d7fc-bde3-4aa7-9b23-7a5f28bd9b3d",
       "name": "Calculator",
       "keyword": "calc",
-      "aliases": ["calculator"],
+      "aliases": [
+        "calculator"
+      ],
       "type": "application",
       "target": "calc.exe",
       "arguments": "",
@@ -15,6 +17,24 @@
       "runAsAdmin": false,
       "pinned": false,
       "sortOrder": 0,
+      "legacyIds": []
+    },
+    {
+      "id": "34d9abef-8ab1-4a41-a268-cb293cfd39ad",
+      "name": "Google Search",
+      "keyword": "g",
+      "aliases": [
+        "google"
+      ],
+      "type": "url",
+      "target": "https://www.google.com/search?q={query}",
+      "arguments": "",
+      "workingDirectory": "",
+      "icon": "auto",
+      "enabled": true,
+      "runAsAdmin": false,
+      "pinned": false,
+      "sortOrder": 10,
       "legacyIds": []
     }
   ]

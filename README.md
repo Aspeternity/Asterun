@@ -23,6 +23,27 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-alpha.1 — Action Contract Foundation & URL/Web Actions
+
+v0.6 starts the Smart Actions & Windows Navigation line by separating action execution data from launcher presentation metadata. `LauncherAction` now carries an explicit payload and supports `OpenUrl` alongside the existing command/file/folder actions, while `ResultKind::Action` lets future Windows-context operations participate in the same unified result model without inventing a new result kind for every action.
+
+The first user-facing consumer is lightweight URL/web integration rather than a calculator. Typing a complete `http://` or `https://` URL creates an Open URL action directly; `www.` addresses are normalized to HTTPS. Normal application/file/folder search continues unchanged.
+
+Existing URL user commands can now become web-search aliases without changing commands.json schemaVersion 1. Put `{query}` in the URL target, for example:
+
+```text
+Keyword: g
+Aliases: google
+Type: URL
+Target: https://www.google.com/search?q={query}
+```
+
+Then `g ALTRun Next` resolves to `https://www.google.com/search?q=ALTRun%20Next`. Query text is UTF-8 percent-encoded, including Chinese and other Unicode text. Commands without `{query}` keep their previous behavior. Template actions are limited to HTTP/HTTPS targets; the generated action participates in unified ranking, Enter/double-click, Classic numeric quick launch and the existing single-result execution policy.
+
+This alpha deliberately keeps settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, all five v0.5 provider defaults and Classic geometry (420/16/10) unchanged. `builtin.web` is a runtime action-provider ID only and is not persisted in Search Sources.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.6.0.1`.
+
 ## v0.5.0 — Stable
 
 v0.5.0 promotes the validated RC3 code line to Stable without adding new launcher features or changing the frozen v0.5 contracts.

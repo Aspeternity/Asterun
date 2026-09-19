@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0-alpha.1
+
+- Added the v0.6 smart-action contract foundation with ResultKind::Action, OpenUrl and explicit action payloads.
+- Added runtime-only provider ID builtin.web without changing Search Sources or persisted provider defaults.
+- Added direct HTTP/HTTPS URL actions and automatic https:// normalization for www. input.
+- Added {query} semantics for existing URL user commands so keywords/aliases can perform web searches without changing commands.json schemaVersion 1.
+- Added UTF-8 percent encoding for web-search query text, including Unicode/Chinese input.
+- Suppressed the unresolved URL-template command when its resolved smart action is active.
+- Kept ordinary URL commands without {query} unchanged.
+- Recorded usage against the source user command after a generated web-search action launches successfully.
+- Routed web actions through unified ranking and the existing Enter/double-click/numeric/single-result execution path.
+- Made Everything File/Folder actions populate the new explicit action payload while preserving their existing behavior.
+- Added portable regression coverage for direct URLs, www. normalization, aliases, empty queries, Unicode encoding and non-HTTP template rejection.
+- Added the new web-action test to current-Windows and Windows 10 API-baseline CI.
+- Kept settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2 and Classic geometry 420/16/10 unchanged.
+- Updated Windows version metadata to 0.6.0-alpha.1 / 0.6.0.1.
+
 ## 0.5.0
 
 - Promoted the frozen v0.5.0 RC3 code line to Stable without adding new launcher behavior.

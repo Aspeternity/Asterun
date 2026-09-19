@@ -22,6 +22,9 @@ inline constexpr std::string_view kPath =
 inline constexpr std::string_view
     kEverythingFilesystem =
         "everything.filesystem";
+inline constexpr std::string_view
+    kBuiltinWeb =
+        "builtin.web";
 
 [[nodiscard]] inline ProviderEnableMap
 DefaultEnabled() {

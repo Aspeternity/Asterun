@@ -36,6 +36,141 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0-alpha.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected v0.6 alpha.1 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("v0.6 alpha.1 must keep provider-cache schemaVersion 2")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for token in (
+        '"windows.startmenu"',
+        '"windows.packaged"',
+        '"windows.apppaths"',
+        '"windows.path"',
+        '"everything.filesystem"',
+        '"builtin.web"',
+        "{std::string(kStartMenu), true}",
+        "{std::string(kPackaged), true}",
+        "{std::string(kAppPaths), true}",
+        "{std::string(kPath), true}",
+        "{std::string(kEverythingFilesystem), false}",
+    ):
+        if token not in provider_text:
+            fail(f"v0.6 alpha.1 provider/action ID contract missing: {token}")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 3:
+        fail("v0.6 alpha.1 settings must remain schemaVersion 3")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 alpha.1 changed frozen provider defaults")
+    if "builtin.web" in settings.get("providers", {}):
+        fail("builtin.web is runtime-only and must not enter provider settings")
+
+    launcher_result = read("src/core/LauncherResult.hpp")
+    for token in (
+        "    Action,",
+        "OpenUrl",
+        "std::wstring payload",
+    ):
+        if token not in launcher_result:
+            fail(f"smart-action contract missing: {token}")
+
+    web_action = read("src/core/WebAction.cpp")
+    for token in (
+        'L"{query}"',
+        "PercentEncodeQuery",
+        "CommandType::Url",
+        "providers::kBuiltinWeb",
+        "LauncherActionKind::OpenUrl",
+        "http://",
+        "https://",
+    ):
+        if token not in web_action:
+            fail(f"web-action foundation missing: {token}")
+
+    app = read("src/app/App.cpp")
+    for token in (
+        "BuildWebActionResults",
+        "MergeLauncherResultsRanked",
+        "LauncherActionKind::OpenUrl",
+        "result.action.payload",
+    ):
+        if token not in app:
+            fail(f"App smart-action integration missing: {token}")
+
+    everything = read("src/core/EverythingProvider.cpp")
+    if "result.action.payload" not in everything:
+        fail("Everything file/folder actions must populate the action payload")
+
+    tests = read("tests/WebActionTests.cpp")
+    for token in (
+        "ALTRun%20Next",
+        "%E5%BF%83%E8%84%8F%20MRI",
+        "WWW.Example.com",
+        "file:///tmp/{query}",
+    ):
+        if token not in tests:
+            fail(f"web-action regression coverage missing: {token}")
+
+    cmake = read("CMakeLists.txt")
+    for token in (
+        "src/core/WebAction.cpp",
+        "web_action_tests",
+    ):
+        if token not in cmake:
+            fail(f"web-action build/test wiring missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        if "web_action_tests" not in read(workflow_path):
+            fail(
+                f"{workflow_path} does not run web_action_tests on Windows"
+            )
+
+    launcher = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed in v0.6 alpha.1: {name}")
+
+    print(
+        "v0.6.0-alpha.1 smart-action/web contract verified:",
+        "| schemas unchanged | Classic 420/16/10",
+        "| builtin.web runtime-only | URL aliases + direct URL actions",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.5.0":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,

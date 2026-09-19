@@ -11,12 +11,14 @@ enum class ResultKind {
     Application,
     File,
     Folder,
+    Action,
 };
 
 enum class LauncherActionKind {
     ExecuteCommand,
     OpenFile,
     OpenFolder,
+    OpenUrl,
 };
 
 struct LauncherAction {
@@ -24,6 +26,9 @@ struct LauncherAction {
         LauncherActionKind::ExecuteCommand};
     std::size_t commandIndex{
         static_cast<std::size_t>(-1)};
+    // Execution payload is separate from presentation metadata so future
+    // smart actions can carry action-specific data without abusing target.
+    std::wstring payload;
 };
 
 struct LauncherResult {
