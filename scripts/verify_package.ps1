@@ -96,7 +96,8 @@ if ($packagedVersion -ne $expectedVersion) {
 
 $semver = [regex]::Match(
     $expectedVersion,
-    '^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+)(?:\.(\d+))?)?
+    '^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+)(?:\.(\d+))?)?$'
+)
 
 if (-not $semver.Success) {
     throw "Unsupported VERSION format: '$expectedVersion'."
