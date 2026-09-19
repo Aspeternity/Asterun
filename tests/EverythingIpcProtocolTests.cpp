@@ -99,10 +99,10 @@ std::vector<std::byte> BuildList2() {
         u"CKD论文终稿.docx");
     AppendUtf16Field(
         bytes,
-        u"D:\Research\CKD");
+        u"D:\\Research\\CKD");
     AppendUtf16Field(
         bytes,
-        u"D:\Research\CKD\CKD论文终稿.docx");
+        u"D:\\Research\\CKD\\CKD论文终稿.docx");
 
     const auto secondData =
         static_cast<std::uint32_t>(
@@ -118,10 +118,10 @@ std::vector<std::byte> BuildList2() {
         u"资料");
     AppendUtf16Field(
         bytes,
-        u"D:\Research");
+        u"D:\\Research");
     AppendUtf16Field(
         bytes,
-        u"D:\Research\资料");
+        u"D:\\Research\\资料");
 
     return bytes;
 }
@@ -174,10 +174,10 @@ int main() {
         u"CKD论文终稿.docx");
     assert(
         list.value->items[0].path ==
-        u"D:\Research\CKD");
+        u"D:\\Research\\CKD");
     assert(
         list.value->items[0].fullPath ==
-        u"D:\Research\CKD\CKD论文终稿.docx");
+        u"D:\\Research\\CKD\\CKD论文终稿.docx");
     assert(list.value->items[1].folder);
     assert(
         list.value->items[1].name ==

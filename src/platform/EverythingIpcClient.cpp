@@ -579,7 +579,7 @@ void EverythingIpcClient::HandleReply(
             const auto separator =
                 item.fullPath
                     .find_last_of(
-                        L"\/");
+                        L"\\/");
             item.name =
                 separator ==
                     std::wstring::npos
@@ -593,7 +593,7 @@ void EverythingIpcClient::HandleReply(
             const auto separator =
                 item.fullPath
                     .find_last_of(
-                        L"\/");
+                        L"\\/");
             if (separator !=
                 std::wstring::npos) {
                 item.parentPath =
@@ -768,9 +768,9 @@ EverythingIpcClient::JoinPath(
     std::wstring result(parent);
     const auto last =
         result.back();
-    if (last != L'\' &&
+    if (last != L'\\' &&
         last != L'/') {
-        result.push_back(L'\');
+        result.push_back(L'\\');
     }
     result.append(name);
     return result;
