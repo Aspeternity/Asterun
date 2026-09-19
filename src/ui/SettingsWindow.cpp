@@ -196,7 +196,7 @@ bool SettingsWindow::Create() {
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         1080,
-        780,
+        860,
         nullptr,
         nullptr,
         instance_,
@@ -212,7 +212,7 @@ bool SettingsWindow::Create() {
         0,
         0,
         Scale(1080),
-        Scale(780),
+        Scale(860),
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
     backgroundBrush_ = CreateSolidBrush(kWindowBackground);
@@ -475,6 +475,8 @@ void SettingsWindow::CreateGeneralPage() {
 
     startWithWindows_ =
         CreateCheckboxRow(L"", kIdStartWithWindows);
+    showOnStartup_ =
+        CreateCheckboxRow(L"", kIdShowOnStartup);
     hideAfterLaunch_ =
         CreateCheckboxRow(L"", kIdHideAfterLaunch);
     clearQueryOnShow_ =
@@ -484,7 +486,43 @@ void SettingsWindow::CreateGeneralPage() {
     showTrayIcon_ =
         CreateCheckboxRow(L"", kIdShowTrayIcon);
 
+    searchBehaviorTitle_ =
+        CreateStatic(L"");
+
+    wildcardMatching_ =
+        CreateCheckboxRow(
+            L"",
+            kIdWildcardMatching);
+    numericQuickLaunch_ =
+        CreateCheckboxRow(
+            L"",
+            kIdNumericQuickLaunch);
+    executeSingleResult_ =
+        CreateCheckboxRow(
+            L"",
+            kIdExecuteSingleResult);
+
+    numericQuickLaunchOrderLabel_ =
+        CreateStatic(L"");
+
+    numericQuickLaunchOrder_ =
+        CreateWindowExW(
+            0,
+            L"COMBOBOX",
+            L"",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+                CBS_DROPDOWNLIST | WS_VSCROLL,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    kIdNumericQuickLaunchOrder)),
+            instance_,
+            nullptr);
+
     hotkeySectionTitle_ = CreateStatic(L"");
+    primaryHotkeyLabel_ = CreateStatic(L"");
+
     hotkeyCtrl_ =
         CreateCheckbox(L"Ctrl", kIdHotkeyCtrl);
     hotkeyAlt_ =
@@ -507,14 +545,52 @@ void SettingsWindow::CreateGeneralPage() {
         instance_,
         nullptr);
 
+    auxiliaryHotkeyEnabled_ =
+        CreateCheckbox(
+            L"",
+            kIdAuxHotkeyEnabled);
+    auxiliaryHotkeyCtrl_ =
+        CreateCheckbox(
+            L"Ctrl",
+            kIdAuxHotkeyCtrl);
+    auxiliaryHotkeyAlt_ =
+        CreateCheckbox(
+            L"Alt",
+            kIdAuxHotkeyAlt);
+    auxiliaryHotkeyShift_ =
+        CreateCheckbox(
+            L"Shift",
+            kIdAuxHotkeyShift);
+    auxiliaryHotkeyWin_ =
+        CreateCheckbox(
+            L"Win",
+            kIdAuxHotkeyWin);
+
+    auxiliaryHotkeyKey_ =
+        CreateWindowExW(
+            0,
+            L"COMBOBOX",
+            L"",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+                CBS_DROPDOWNLIST | WS_VSCROLL,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    kIdAuxHotkeyKey)),
+            instance_,
+            nullptr);
+
     const auto addHotkeyKey =
-        [&](UINT virtualKey) {
+        [&](HWND combo,
+            UINT virtualKey) {
             const std::wstring display =
-                hotkey::KeyDisplayName(virtualKey);
+                hotkey::KeyDisplayName(
+                    virtualKey);
 
             const LRESULT index =
                 SendMessageW(
-                    hotkeyKey_,
+                    combo,
                     CB_ADDSTRING,
                     0,
                     reinterpret_cast<LPARAM>(
@@ -522,43 +598,60 @@ void SettingsWindow::CreateGeneralPage() {
 
             if (index >= 0) {
                 SendMessageW(
-                    hotkeyKey_,
+                    combo,
                     CB_SETITEMDATA,
-                    static_cast<WPARAM>(index),
-                    static_cast<LPARAM>(virtualKey));
+                    static_cast<WPARAM>(
+                        index),
+                    static_cast<LPARAM>(
+                        virtualKey));
             }
         };
 
-    addHotkeyKey(VK_SPACE);
+    const auto populateHotkeyCombo =
+        [&](HWND combo) {
+            addHotkeyKey(combo, VK_SPACE);
+            addHotkeyKey(combo, VK_PAUSE);
 
-    for (UINT key = 'A'; key <= 'Z'; ++key) {
-        addHotkeyKey(key);
-    }
+            for (UINT key = 'A';
+                 key <= 'Z';
+                 ++key) {
+                addHotkeyKey(combo, key);
+            }
 
-    for (UINT key = '0'; key <= '9'; ++key) {
-        addHotkeyKey(key);
-    }
+            for (UINT key = '0';
+                 key <= '9';
+                 ++key) {
+                addHotkeyKey(combo, key);
+            }
 
-    for (UINT key = VK_F1; key <= VK_F24; ++key) {
-        addHotkeyKey(key);
-    }
+            for (UINT key = VK_F1;
+                 key <= VK_F24;
+                 ++key) {
+                addHotkeyKey(combo, key);
+            }
 
-    for (const UINT key : std::array<UINT, 12>{
-             VK_RETURN,
-             VK_TAB,
-             VK_ESCAPE,
-             VK_HOME,
-             VK_END,
-             VK_INSERT,
-             VK_DELETE,
-             VK_PRIOR,
-             VK_NEXT,
-             VK_UP,
-             VK_DOWN,
-             VK_LEFT}) {
-        addHotkeyKey(key);
-    }
-    addHotkeyKey(VK_RIGHT);
+            for (const UINT key :
+                 std::array<UINT, 12>{
+                     VK_RETURN,
+                     VK_TAB,
+                     VK_ESCAPE,
+                     VK_HOME,
+                     VK_END,
+                     VK_INSERT,
+                     VK_DELETE,
+                     VK_PRIOR,
+                     VK_NEXT,
+                     VK_UP,
+                     VK_DOWN,
+                     VK_LEFT}) {
+                addHotkeyKey(combo, key);
+            }
+
+            addHotkeyKey(combo, VK_RIGHT);
+        };
+
+    populateHotkeyCombo(hotkeyKey_);
+    populateHotkeyCombo(auxiliaryHotkeyKey_);
 
     hotkeyApply_ =
         CreateButton(L"", kIdHotkeyApply);
@@ -566,6 +659,16 @@ void SettingsWindow::CreateGeneralPage() {
     hotkeyStatus_ = CreateStatic(
         L"",
         SS_LEFT | SS_NOPREFIX);
+
+    auxiliaryHotkeyApply_ =
+        CreateButton(
+            L"",
+            kIdAuxHotkeyApply);
+
+    auxiliaryHotkeyStatus_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
 
     popupSectionTitle_ = CreateStatic(L"");
     popupMonitorLabel_ = CreateStatic(L"");
@@ -593,11 +696,19 @@ void SettingsWindow::CreateGeneralPage() {
     generalControls_ = {
         generalBehaviorTitle_,
         startWithWindows_,
+        showOnStartup_,
         hideAfterLaunch_,
         clearQueryOnShow_,
         hideOnFocusLost_,
         showTrayIcon_,
+        searchBehaviorTitle_,
+        wildcardMatching_,
+        numericQuickLaunch_,
+        executeSingleResult_,
+        numericQuickLaunchOrderLabel_,
+        numericQuickLaunchOrder_,
         hotkeySectionTitle_,
+        primaryHotkeyLabel_,
         hotkeyCtrl_,
         hotkeyAlt_,
         hotkeyShift_,
@@ -605,6 +716,14 @@ void SettingsWindow::CreateGeneralPage() {
         hotkeyKey_,
         hotkeyApply_,
         hotkeyStatus_,
+        auxiliaryHotkeyEnabled_,
+        auxiliaryHotkeyCtrl_,
+        auxiliaryHotkeyAlt_,
+        auxiliaryHotkeyShift_,
+        auxiliaryHotkeyWin_,
+        auxiliaryHotkeyKey_,
+        auxiliaryHotkeyApply_,
+        auxiliaryHotkeyStatus_,
         popupSectionTitle_,
         popupMonitorLabel_,
         popupMonitorDescription_,
@@ -875,6 +994,10 @@ void SettingsWindow::ApplyFonts() {
         commandCancel_,
         commandSave_,
         commandStatus_,
+        searchBehaviorTitle_,
+        numericQuickLaunchOrderLabel_,
+        numericQuickLaunchOrder_,
+        primaryHotkeyLabel_,
         hotkeyCtrl_,
         hotkeyAlt_,
         hotkeyShift_,
@@ -882,6 +1005,14 @@ void SettingsWindow::ApplyFonts() {
         hotkeyKey_,
         hotkeyApply_,
         hotkeyStatus_,
+        auxiliaryHotkeyEnabled_,
+        auxiliaryHotkeyCtrl_,
+        auxiliaryHotkeyAlt_,
+        auxiliaryHotkeyShift_,
+        auxiliaryHotkeyWin_,
+        auxiliaryHotkeyKey_,
+        auxiliaryHotkeyApply_,
+        auxiliaryHotkeyStatus_,
         popupMonitorLabel_,
         popupMonitorDescription_,
         popupMonitor_,
@@ -926,9 +1057,10 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
-    for (HWND control : std::array<HWND, 8>{
+    for (HWND control : std::array<HWND, 9>{
              commandEditorTitle_,
              generalBehaviorTitle_,
+             searchBehaviorTitle_,
              hotkeySectionTitle_,
              popupSectionTitle_,
              providerSectionTitle_,
@@ -960,12 +1092,16 @@ void SettingsWindow::ApplyFonts() {
             TRUE);
     }
 
-    for (HWND control : std::array<HWND, 9>{
+    for (HWND control : std::array<HWND, 13>{
              startWithWindows_,
+             showOnStartup_,
              hideAfterLaunch_,
              clearQueryOnShow_,
              hideOnFocusLost_,
              showTrayIcon_,
+             wildcardMatching_,
+             numericQuickLaunch_,
+             executeSingleResult_,
              providerStartMenu_,
              providerPackaged_,
              providerAppPaths_,
@@ -1100,6 +1236,10 @@ void SettingsWindow::ApplyLanguage() {
         startWithWindows_,
         T(L"开机启动", L"Start with Windows"));
     SetWindowTextW(
+        showOnStartup_,
+        T(L"启动时显示启动器",
+          L"Show launcher on startup"));
+    SetWindowTextW(
         hideAfterLaunch_,
         T(L"执行后自动隐藏", L"Hide after launch"));
     SetWindowTextW(
@@ -1113,11 +1253,64 @@ void SettingsWindow::ApplyLanguage() {
         T(L"显示系统托盘图标", L"Show system tray icon"));
 
     SetWindowTextW(
+        searchBehaviorTitle_,
+        T(L"搜索行为",
+          L"Search behavior"));
+    SetWindowTextW(
+        wildcardMatching_,
+        T(L"允许 * / ? 通配符",
+          L"Enable * / ? wildcards"));
+    SetWindowTextW(
+        numericQuickLaunch_,
+        T(L"数字键快速执行结果",
+          L"Quick launch with number keys"));
+    SetWindowTextW(
+        executeSingleResult_,
+        T(L"仅剩一个结果时立即执行",
+          L"Execute immediately when one result remains"));
+    SetWindowTextW(
+        numericQuickLaunchOrderLabel_,
+        T(L"数字顺序",
+          L"Number order"));
+
+    SendMessageW(
+        numericQuickLaunchOrder_,
+        CB_RESETCONTENT,
+        0,
+        0);
+    SendMessageW(
+        numericQuickLaunchOrder_,
+        CB_ADDSTRING,
+        0,
+        reinterpret_cast<LPARAM>(
+            L"1–9, 0"));
+    SendMessageW(
+        numericQuickLaunchOrder_,
+        CB_ADDSTRING,
+        0,
+        reinterpret_cast<LPARAM>(
+            L"0–9"));
+
+    SetWindowTextW(
         hotkeySectionTitle_,
-        T(L"全局热键", L"Global hotkey"));
+        T(L"全局热键",
+          L"Global hotkeys"));
+    SetWindowTextW(
+        primaryHotkeyLabel_,
+        T(L"主热键",
+          L"Primary"));
     SetWindowTextW(
         hotkeyApply_,
-        T(L"应用热键", L"Apply hotkey"));
+        T(L"应用",
+          L"Apply"));
+    SetWindowTextW(
+        auxiliaryHotkeyEnabled_,
+        T(L"启用辅助热键",
+          L"Enable auxiliary hotkey"));
+    SetWindowTextW(
+        auxiliaryHotkeyApply_,
+        T(L"应用",
+          L"Apply"));
 
     SetWindowTextW(
         popupSectionTitle_,
@@ -1131,8 +1324,8 @@ void SettingsWindow::ApplyLanguage() {
           L"Choose which display the launcher uses when it opens."));
     SetWindowTextW(
         generalNote_,
-        T(L"热键只有在 Windows 注册成功后才会保存；冲突时会继续保留旧热键。",
-          L"The hotkey is saved only after Windows registers it successfully; conflicts keep the previous hotkey."));
+        T(L"主热键和已启用的辅助热键只有在 Windows 注册成功后才会保存；冲突时保留旧绑定。",
+          L"Primary and enabled auxiliary hotkeys are saved only after Windows registers them successfully; conflicts keep the previous binding."));
 
     SendMessageW(popupMonitor_, CB_RESETCONTENT, 0, 0);
     SendMessageW(
@@ -1254,8 +1447,8 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 RC 1 聚焦启动数据自检、版本一致性和最终发布包验证。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.4 RC 1 focuses on startup data health, version consistency and final package verification."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4.1 正在补齐经典 ALTRun 设置与交互能力。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.4.1 adds classic ALTRun settings and interaction parity."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -1320,14 +1513,33 @@ void SettingsWindow::RefreshFromSettings() {
         settings.language == Language::EnUS ? 1 : 0,
         0);
 
+    SendMessageW(
+        numericQuickLaunchOrder_,
+        CB_SETCURSEL,
+        settings.numericQuickLaunchOrder ==
+                "zero-to-nine"
+            ? 1
+            : 0,
+        0);
+
+    EnableWindow(
+        numericQuickLaunchOrder_,
+        settings.numericQuickLaunch
+            ? TRUE
+            : FALSE);
+
     RefreshHotkeyControls();
 
-    for (HWND control : std::array<HWND, 9>{
+    for (HWND control : std::array<HWND, 13>{
              startWithWindows_,
+             showOnStartup_,
              hideAfterLaunch_,
              clearQueryOnShow_,
              hideOnFocusLost_,
              showTrayIcon_,
+             wildcardMatching_,
+             numericQuickLaunch_,
+             executeSingleResult_,
              providerStartMenu_,
              providerPackaged_,
              providerAppPaths_,
@@ -1563,8 +1775,8 @@ void SettingsWindow::UpdatePageHeader() {
             T(L"常规", L"General"));
         SetWindowTextW(
             pageDescription_,
-            T(L"控制启动器的日常行为和呼出位置。",
-              L"Control everyday launcher behavior and placement."));
+            T(L"控制启动器行为、搜索方式、全局热键和呼出位置。",
+              L"Control launcher behavior, search interaction, global hotkeys and placement."));
         break;
 
     case Page::Appearance:
@@ -2392,6 +2604,151 @@ void SettingsWindow::RefreshHotkeyControls() {
     SetWindowTextW(
         hotkeyStatus_,
         status.c_str());
+
+    const auto hasAuxModifier =
+        [&](std::string_view name) {
+            return std::find(
+                       settings
+                           .auxiliaryHotkeyModifiers
+                           .begin(),
+                       settings
+                           .auxiliaryHotkeyModifiers
+                           .end(),
+                       name) !=
+                   settings
+                       .auxiliaryHotkeyModifiers
+                       .end();
+        };
+
+    SetChecked(
+        auxiliaryHotkeyEnabled_,
+        settings.auxiliaryHotkeyEnabled);
+    SetChecked(
+        auxiliaryHotkeyCtrl_,
+        hasAuxModifier("ctrl") ||
+            hasAuxModifier("control"));
+    SetChecked(
+        auxiliaryHotkeyAlt_,
+        hasAuxModifier("alt"));
+    SetChecked(
+        auxiliaryHotkeyShift_,
+        hasAuxModifier("shift"));
+    SetChecked(
+        auxiliaryHotkeyWin_,
+        hasAuxModifier("win") ||
+            hasAuxModifier("windows"));
+
+    const UINT auxiliaryDesired =
+        hotkey::KeyFromName(
+            settings.auxiliaryHotkeyKey);
+
+    const int auxiliaryCount =
+        static_cast<int>(
+            SendMessageW(
+                auxiliaryHotkeyKey_,
+                CB_GETCOUNT,
+                0,
+                0));
+
+    int auxiliarySelected = -1;
+
+    for (int i = 0;
+         i < auxiliaryCount;
+         ++i) {
+        const UINT value =
+            static_cast<UINT>(
+                SendMessageW(
+                    auxiliaryHotkeyKey_,
+                    CB_GETITEMDATA,
+                    static_cast<WPARAM>(i),
+                    0));
+
+        if (value ==
+            auxiliaryDesired) {
+            auxiliarySelected = i;
+            break;
+        }
+    }
+
+    if (auxiliarySelected < 0 &&
+        auxiliaryCount > 0) {
+        auxiliarySelected = 0;
+    }
+
+    SendMessageW(
+        auxiliaryHotkeyKey_,
+        CB_SETCURSEL,
+        auxiliarySelected,
+        0);
+
+    std::wstring auxiliaryDisplay;
+
+    const auto appendAuxiliary =
+        [&](std::wstring_view part) {
+            if (!auxiliaryDisplay.empty()) {
+                auxiliaryDisplay += L" + ";
+            }
+            auxiliaryDisplay += part;
+        };
+
+    if (hasAuxModifier("ctrl") ||
+        hasAuxModifier("control")) {
+        appendAuxiliary(L"Ctrl");
+    }
+    if (hasAuxModifier("alt")) {
+        appendAuxiliary(L"Alt");
+    }
+    if (hasAuxModifier("shift")) {
+        appendAuxiliary(L"Shift");
+    }
+    if (hasAuxModifier("win") ||
+        hasAuxModifier("windows")) {
+        appendAuxiliary(L"Win");
+    }
+
+    if (auxiliaryDesired != 0) {
+        appendAuxiliary(
+            hotkey::KeyDisplayName(
+                auxiliaryDesired));
+    }
+
+    std::wstring auxiliaryStatus =
+        T(L"辅助热键：",
+          L"Auxiliary hotkey: ");
+    auxiliaryStatus +=
+        auxiliaryDisplay;
+
+    if (!settings.auxiliaryHotkeyEnabled) {
+        auxiliaryStatus +=
+            T(L"  ·  已禁用",
+              L"  ·  Disabled");
+    } else if (
+        app_.IsAuxiliaryHotkeyRegistered()) {
+        auxiliaryStatus +=
+            T(L"  ·  已注册",
+              L"  ·  Registered");
+    } else {
+        auxiliaryStatus +=
+            T(L"  ·  未注册",
+              L"  ·  Not registered");
+
+        const DWORD error =
+            app_.AuxiliaryHotkeyLastError();
+
+        if (error != ERROR_SUCCESS) {
+            auxiliaryStatus +=
+                T(L"（错误码 ",
+                  L" (error ");
+            auxiliaryStatus +=
+                std::to_wstring(error);
+            auxiliaryStatus +=
+                T(L"）", L")");
+        }
+    }
+
+    SetWindowTextW(
+        auxiliaryHotkeyStatus_,
+        auxiliaryStatus.c_str());
 }
 
 void SettingsWindow::ApplyHotkeyControl() {
@@ -2455,6 +2812,146 @@ void SettingsWindow::ApplyHotkeyControl() {
     }
 
     RefreshHotkeyControls();
+}
+
+void SettingsWindow::ApplyAuxiliaryHotkeyControl() {
+    if (syncing_) return;
+
+    std::vector<std::string> modifiers;
+
+    if (IsChecked(auxiliaryHotkeyCtrl_)) {
+        modifiers.push_back("ctrl");
+    }
+    if (IsChecked(auxiliaryHotkeyAlt_)) {
+        modifiers.push_back("alt");
+    }
+    if (IsChecked(auxiliaryHotkeyShift_)) {
+        modifiers.push_back("shift");
+    }
+    if (IsChecked(auxiliaryHotkeyWin_)) {
+        modifiers.push_back("win");
+    }
+
+    const int index =
+        static_cast<int>(
+            SendMessageW(
+                auxiliaryHotkeyKey_,
+                CB_GETCURSEL,
+                0,
+                0));
+
+    if (index < 0) {
+        RefreshHotkeyControls();
+        return;
+    }
+
+    const UINT virtualKey =
+        static_cast<UINT>(
+            SendMessageW(
+                auxiliaryHotkeyKey_,
+                CB_GETITEMDATA,
+                static_cast<WPARAM>(index),
+                0));
+
+    const std::string key =
+        hotkey::KeyName(virtualKey);
+
+    const bool enabled =
+        IsChecked(
+            auxiliaryHotkeyEnabled_);
+
+    if (key.empty() ||
+        !app_.SetAuxiliaryHotkeySettings(
+            enabled,
+            std::move(modifiers),
+            key)) {
+
+        MessageBoxW(
+            hwnd_,
+            T(L"Windows 无法注册这个辅助热键，可能已被其他程序占用。旧辅助热键保持不变。",
+              L"Windows could not register this auxiliary hotkey. It may already be used by another application. The previous auxiliary hotkey is unchanged."),
+            T(L"辅助热键冲突",
+              L"Auxiliary hotkey conflict"),
+            MB_OK | MB_ICONWARNING);
+
+        RefreshHotkeyControls();
+        return;
+    }
+
+    RefreshHotkeyControls();
+}
+
+void SettingsWindow::ApplyClassicBehaviorControl(
+    UINT id) {
+
+    if (syncing_) return;
+
+    const auto settings =
+        app_.SettingsData();
+
+    bool wildcardMatching =
+        settings.wildcardMatching;
+    bool numericQuickLaunch =
+        settings.numericQuickLaunch;
+    bool executeSingleResult =
+        settings
+            .executeSingleResultImmediately;
+
+    switch (id) {
+    case kIdWildcardMatching:
+        wildcardMatching =
+            !wildcardMatching;
+        break;
+    case kIdNumericQuickLaunch:
+        numericQuickLaunch =
+            !numericQuickLaunch;
+        break;
+    case kIdExecuteSingleResult:
+        executeSingleResult =
+            !executeSingleResult;
+        break;
+    case kIdNumericQuickLaunchOrder:
+    case 0:
+        break;
+    default:
+        return;
+    }
+
+    const int orderIndex =
+        static_cast<int>(
+            SendMessageW(
+                numericQuickLaunchOrder_,
+                CB_GETCURSEL,
+                0,
+                0));
+
+    const std::string order =
+        orderIndex == 1
+            ? "zero-to-nine"
+            : "one-to-zero";
+
+    if (!app_.SetClassicBehavior(
+            wildcardMatching,
+            numericQuickLaunch,
+            order,
+            executeSingleResult)) {
+
+        MessageBoxW(
+            hwnd_,
+            T(L"无法保存搜索行为设置。",
+              L"Unable to save search-behavior settings."),
+            L"ALTRun Next",
+            MB_OK | MB_ICONERROR);
+
+        RefreshFromSettings();
+        return;
+    }
+
+    EnableWindow(
+        numericQuickLaunchOrder_,
+        numericQuickLaunch
+            ? TRUE
+            : FALSE);
 }
 
 void SettingsWindow::ImportCommands(bool legacyMode) {
@@ -2657,6 +3154,19 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
         }
         return;
 
+    case kIdShowOnStartup:
+        if (!app_.SetShowOnStartup(
+                !settings.showOnStartup)) {
+            MessageBoxW(
+                hwnd_,
+                T(L"无法保存启动时显示设置。",
+                  L"Unable to save the show-on-startup setting."),
+                L"ALTRun Next",
+                MB_OK | MB_ICONERROR);
+            RefreshFromSettings();
+        }
+        return;
+
     case kIdHideAfterLaunch:
         hideAfterLaunch = !hideAfterLaunch;
         break;
@@ -2809,6 +3319,8 @@ bool SettingsWindow::ToggleChecked(
     switch (id) {
     case kIdStartWithWindows:
         return settings.startWithWindows;
+    case kIdShowOnStartup:
+        return settings.showOnStartup;
     case kIdHideAfterLaunch:
         return settings.hideAfterLaunch;
     case kIdClearQueryOnShow:
@@ -2817,6 +3329,13 @@ bool SettingsWindow::ToggleChecked(
         return settings.hideOnFocusLost;
     case kIdShowTrayIcon:
         return settings.showTrayIcon;
+    case kIdWildcardMatching:
+        return settings.wildcardMatching;
+    case kIdNumericQuickLaunch:
+        return settings.numericQuickLaunch;
+    case kIdExecuteSingleResult:
+        return settings
+            .executeSingleResultImmediately;
     case kIdProviderStartMenu:
         return providerEnabled(
             providers::kStartMenu);
@@ -2839,23 +3358,43 @@ RECT SettingsWindow::BehaviorCardRect() const {
     GetClientRect(hwnd_, &client);
 
     const int contentLeft =
-        Scale(kSidebarWidthLogical) + Scale(42);
+        Scale(kSidebarWidthLogical) +
+        Scale(42);
     const int contentRight =
-        client.right - Scale(42);
+        client.right -
+        Scale(42);
     const int contentWidth =
         std::max(
-            Scale(320),
-            contentRight - contentLeft);
+            Scale(640),
+            contentRight -
+                contentLeft);
+    const int gap = Scale(18);
     const int cardWidth =
-        std::min(
-            contentWidth,
-            Scale(590));
+        std::max(
+            Scale(300),
+            (contentWidth - gap) / 2);
 
     return {
         contentLeft,
         Scale(170),
         contentLeft + cardWidth,
-        Scale(170 + 58 * 5),
+        Scale(170 + 52 * 6),
+    };
+}
+
+RECT SettingsWindow::SearchBehaviorCardRect() const {
+    const RECT behavior =
+        BehaviorCardRect();
+
+    const int gap = Scale(18);
+
+    return {
+        behavior.right + gap,
+        behavior.top,
+        behavior.right + gap +
+            (behavior.right -
+             behavior.left),
+        Scale(170 + 52 * 4),
     };
 }
 
@@ -2872,15 +3411,13 @@ RECT SettingsWindow::MonitorCardRect() const {
             Scale(320),
             contentRight - contentLeft);
     const int cardWidth =
-        std::min(
-            contentWidth,
-            Scale(590));
+        contentWidth;
 
     return {
         contentLeft,
-        Scale(612),
+        Scale(732),
         contentLeft + cardWidth,
-        Scale(680),
+        Scale(800),
     };
 }
 
@@ -3157,57 +3694,143 @@ void SettingsWindow::Layout() {
     if (page_ == Page::General) {
         const int x = contentLeft;
         const int controlWidth =
-            std::min(
-                contentWidth,
-                Scale(590));
+            std::max(
+                Scale(640),
+                std::min(
+                    contentWidth,
+                    Scale(820)));
+
+        const RECT behavior =
+            BehaviorCardRect();
+        const RECT search =
+            SearchBehaviorCardRect();
 
         MoveWindow(
             generalBehaviorTitle_,
-            x,
+            behavior.left,
             Scale(138),
-            controlWidth,
+            behavior.right -
+                behavior.left,
             Scale(28),
             TRUE);
 
-        const RECT behavior = BehaviorCardRect();
-        const int rowHeight = Scale(58);
-        const int rowX =
+        MoveWindow(
+            searchBehaviorTitle_,
+            search.left,
+            Scale(138),
+            search.right -
+                search.left,
+            Scale(28),
+            TRUE);
+
+        const int behaviorRowHeight =
+            Scale(52);
+        const int behaviorRowX =
             behavior.left + Scale(1);
-        const int rowWidth =
+        const int behaviorRowWidth =
             behavior.right -
             behavior.left -
             Scale(2);
 
-        std::array<HWND, 5> rows{
+        std::array<HWND, 6> behaviorRows{
             startWithWindows_,
+            showOnStartup_,
             hideAfterLaunch_,
             clearQueryOnShow_,
             hideOnFocusLost_,
             showTrayIcon_,
         };
 
-        for (std::size_t i = 0; i < rows.size(); ++i) {
+        for (std::size_t i = 0;
+             i < behaviorRows.size();
+             ++i) {
             MoveWindow(
-                rows[i],
-                rowX,
-                behavior.top + Scale(1) +
+                behaviorRows[i],
+                behaviorRowX,
+                behavior.top +
+                    Scale(1) +
                     static_cast<int>(i) *
-                        rowHeight,
-                rowWidth,
-                rowHeight,
+                        behaviorRowHeight,
+                behaviorRowWidth,
+                behaviorRowHeight,
                 TRUE);
         }
+
+        const int searchRowHeight =
+            Scale(52);
+        const int searchRowX =
+            search.left + Scale(1);
+        const int searchRowWidth =
+            search.right -
+            search.left -
+            Scale(2);
+
+        std::array<HWND, 3> searchRows{
+            wildcardMatching_,
+            numericQuickLaunch_,
+            executeSingleResult_,
+        };
+
+        for (std::size_t i = 0;
+             i < searchRows.size();
+             ++i) {
+            MoveWindow(
+                searchRows[i],
+                searchRowX,
+                search.top +
+                    Scale(1) +
+                    static_cast<int>(i) *
+                        searchRowHeight,
+                searchRowWidth,
+                searchRowHeight,
+                TRUE);
+        }
+
+        const int orderTop =
+            search.top +
+            Scale(52 * 3);
+
+        MoveWindow(
+            numericQuickLaunchOrderLabel_,
+            search.left +
+                Scale(18),
+            orderTop +
+                Scale(15),
+            Scale(105),
+            Scale(24),
+            TRUE);
+
+        MoveWindow(
+            numericQuickLaunchOrder_,
+            search.right -
+                Scale(150),
+            orderTop +
+                Scale(10),
+            Scale(132),
+            Scale(180),
+            TRUE);
 
         MoveWindow(
             hotkeySectionTitle_,
             x,
-            Scale(478),
+            Scale(506),
             controlWidth,
             Scale(28),
             TRUE);
 
-        int hotkeyX = x;
-        for (HWND control : std::array<HWND, 4>{
+        MoveWindow(
+            primaryHotkeyLabel_,
+            x,
+            Scale(542),
+            Scale(72),
+            Scale(28),
+            TRUE);
+
+        int hotkeyX =
+            x + Scale(82);
+
+        for (HWND control :
+             std::array<HWND, 4>{
                  hotkeyCtrl_,
                  hotkeyAlt_,
                  hotkeyShift_,
@@ -3215,33 +3838,84 @@ void SettingsWindow::Layout() {
             MoveWindow(
                 control,
                 hotkeyX,
-                Scale(512),
-                Scale(76),
+                Scale(540),
+                Scale(62),
                 Scale(30),
                 TRUE);
-            hotkeyX += Scale(78);
+            hotkeyX += Scale(64);
         }
 
         MoveWindow(
             hotkeyKey_,
-            x + Scale(320),
-            Scale(510),
-            Scale(150),
+            x + Scale(350),
+            Scale(538),
+            Scale(138),
             Scale(220),
             TRUE);
 
         MoveWindow(
             hotkeyApply_,
-            x + Scale(480),
-            Scale(510),
-            Scale(110),
+            x + Scale(500),
+            Scale(538),
+            Scale(86),
             Scale(32),
             TRUE);
 
         MoveWindow(
             hotkeyStatus_,
             x,
-            Scale(548),
+            Scale(576),
+            controlWidth,
+            Scale(26),
+            TRUE);
+
+        MoveWindow(
+            auxiliaryHotkeyEnabled_,
+            x,
+            Scale(610),
+            Scale(174),
+            Scale(30),
+            TRUE);
+
+        int auxiliaryX =
+            x + Scale(184);
+
+        for (HWND control :
+             std::array<HWND, 4>{
+                 auxiliaryHotkeyCtrl_,
+                 auxiliaryHotkeyAlt_,
+                 auxiliaryHotkeyShift_,
+                 auxiliaryHotkeyWin_}) {
+            MoveWindow(
+                control,
+                auxiliaryX,
+                Scale(610),
+                Scale(62),
+                Scale(30),
+                TRUE);
+            auxiliaryX += Scale(64);
+        }
+
+        MoveWindow(
+            auxiliaryHotkeyKey_,
+            x + Scale(452),
+            Scale(608),
+            Scale(138),
+            Scale(220),
+            TRUE);
+
+        MoveWindow(
+            auxiliaryHotkeyApply_,
+            x + Scale(602),
+            Scale(608),
+            Scale(86),
+            Scale(32),
+            TRUE);
+
+        MoveWindow(
+            auxiliaryHotkeyStatus_,
+            x,
+            Scale(646),
             controlWidth,
             Scale(26),
             TRUE);
@@ -3249,37 +3923,47 @@ void SettingsWindow::Layout() {
         MoveWindow(
             popupSectionTitle_,
             x,
-            Scale(580),
+            Scale(696),
             controlWidth,
             Scale(28),
             TRUE);
 
-        const RECT monitor = MonitorCardRect();
+        const RECT monitor =
+            MonitorCardRect();
+
         const int monitorWidth =
-            monitor.right - monitor.left;
+            monitor.right -
+            monitor.left;
 
         MoveWindow(
             popupMonitorLabel_,
-            monitor.left + Scale(18),
-            monitor.top + Scale(12),
+            monitor.left +
+                Scale(18),
+            monitor.top +
+                Scale(12),
             Scale(180),
             Scale(22),
             TRUE);
 
         MoveWindow(
             popupMonitorDescription_,
-            monitor.left + Scale(18),
-            monitor.top + Scale(35),
+            monitor.left +
+                Scale(18),
+            monitor.top +
+                Scale(35),
             std::max(
                 Scale(180),
-                monitorWidth - Scale(330)),
+                monitorWidth -
+                    Scale(330)),
             Scale(24),
             TRUE);
 
         MoveWindow(
             popupMonitor_,
-            monitor.right - Scale(278),
-            monitor.top + Scale(18),
+            monitor.right -
+                Scale(278),
+            monitor.top +
+                Scale(18),
             Scale(250),
             Scale(220),
             TRUE);
@@ -3287,9 +3971,9 @@ void SettingsWindow::Layout() {
         MoveWindow(
             generalNote_,
             x,
-            Scale(700),
+            Scale(814),
             controlWidth,
-            Scale(38),
+            Scale(34),
             TRUE);
     }
 
@@ -3651,6 +4335,15 @@ void SettingsWindow::DrawGeneralToggle(
             L"Launch ALTRun Next automatically after signing in to Windows.");
         break;
 
+    case kIdShowOnStartup:
+        title = T(
+            L"启动时显示启动器",
+            L"Show launcher on startup");
+        description = T(
+            L"程序启动后立即显示 Launcher；默认保持后台静默启动。",
+            L"Show the launcher when the app starts; the default remains silent background startup.");
+        break;
+
     case kIdHideAfterLaunch:
         title = T(
             L"执行后自动隐藏",
@@ -3685,6 +4378,33 @@ void SettingsWindow::DrawGeneralToggle(
         description = T(
             L"保留托盘入口，用于打开设置、重新加载或退出。",
             L"Keep the tray entry for Settings, reload and exit actions.");
+        break;
+
+    case kIdWildcardMatching:
+        title = T(
+            L"允许 * / ? 通配符",
+            L"Enable * / ? wildcards");
+        description = T(
+            L"查询包含 * 或 ? 时使用 glob 匹配；普通搜索仍使用模糊和拼音匹配。",
+            L"Use glob matching when the query contains * or ?; normal fuzzy and pinyin search stays unchanged.");
+        break;
+
+    case kIdNumericQuickLaunch:
+        title = T(
+            L"数字键快速执行结果",
+            L"Quick launch with number keys");
+        description = T(
+            L"Classic 下数字键直接执行对应结果；启用后数字不会输入搜索框。",
+            L"In Classic mode, number keys launch the matching result instead of typing digits into the query.");
+        break;
+
+    case kIdExecuteSingleResult:
+        title = T(
+            L"仅剩一个结果时立即执行",
+            L"Execute immediately when one result remains");
+        description = T(
+            L"非空查询只剩唯一结果时立即启动；默认关闭以避免误触。",
+            L"Launch immediately when a non-empty query narrows to one result; off by default to avoid accidents.");
         break;
 
     case kIdProviderStartMenu:
@@ -4101,12 +4821,40 @@ LRESULT SettingsWindow::HandleMessage(
             return 0;
 
         case kIdStartWithWindows:
+        case kIdShowOnStartup:
         case kIdHideAfterLaunch:
         case kIdClearQueryOnShow:
         case kIdHideOnFocusLost:
         case kIdShowTrayIcon:
             if (notify == BN_CLICKED) {
                 ToggleGeneralSetting(id);
+            }
+            return 0;
+
+        case kIdWildcardMatching:
+        case kIdNumericQuickLaunch:
+        case kIdExecuteSingleResult:
+            if (notify == BN_CLICKED) {
+                ApplyClassicBehaviorControl(id);
+            }
+            return 0;
+
+        case kIdNumericQuickLaunchOrder:
+            if (notify == CBN_SELCHANGE) {
+                ApplyClassicBehaviorControl(
+                    kIdNumericQuickLaunchOrder);
+            }
+            return 0;
+
+        case kIdAuxHotkeyEnabled:
+            if (notify == BN_CLICKED) {
+                ApplyAuxiliaryHotkeyControl();
+            }
+            return 0;
+
+        case kIdAuxHotkeyApply:
+            if (notify == BN_CLICKED) {
+                ApplyAuxiliaryHotkeyControl();
             }
             return 0;
 
@@ -4205,10 +4953,14 @@ LRESULT SettingsWindow::HandleMessage(
 
         if (item &&
             (item->CtlID == kIdStartWithWindows ||
+             item->CtlID == kIdShowOnStartup ||
              item->CtlID == kIdHideAfterLaunch ||
              item->CtlID == kIdClearQueryOnShow ||
              item->CtlID == kIdHideOnFocusLost ||
              item->CtlID == kIdShowTrayIcon ||
+             item->CtlID == kIdWildcardMatching ||
+             item->CtlID == kIdNumericQuickLaunch ||
+             item->CtlID == kIdExecuteSingleResult ||
              item->CtlID == kIdProviderStartMenu ||
              item->CtlID == kIdProviderPackaged ||
              item->CtlID == kIdProviderAppPaths ||
@@ -4278,8 +5030,9 @@ LRESULT SettingsWindow::HandleMessage(
 
         if (page_ == Page::General) {
             for (const RECT card :
-                 std::array<RECT, 2>{
+                 std::array<RECT, 3>{
                      BehaviorCardRect(),
+                     SearchBehaviorCardRect(),
                      MonitorCardRect()}) {
 
                 HBRUSH fill =
@@ -4444,6 +5197,8 @@ LRESULT SettingsWindow::HandleMessage(
             reinterpret_cast<HWND>(lParam);
 
         const bool cardStatic =
+            control ==
+                numericQuickLaunchOrderLabel_ ||
             control == popupMonitorLabel_ ||
             control == popupMonitorDescription_;
 
@@ -4458,6 +5213,7 @@ LRESULT SettingsWindow::HandleMessage(
         if (control == pageDescription_ ||
             control == commandStatus_ ||
             control == hotkeyStatus_ ||
+            control == auxiliaryHotkeyStatus_ ||
             control == dataStatus_ ||
             control == generalNote_ ||
             control == popupMonitorDescription_ ||
@@ -4530,7 +5286,7 @@ LRESULT SettingsWindow::HandleMessage(
             Scale(920);
 
         info->ptMinTrackSize.y =
-            Scale(680);
+            Scale(760);
 
         return 0;
     }

@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.1-alpha.2 — Classic Settings UI
+
+Alpha 2 exposes the behavior core introduced in alpha.1 through the existing Settings Shell. The Classic launcher itself remains visually frozen.
+
+The General page now contains separate launcher-behavior and search-behavior cards. Users can configure show-on-startup, `*` / `?` wildcard matching, Classic numeric quick launch, the 1–9,0 versus 0–9 number order, and single-result immediate execution without editing `settings.json` manually.
+
+Global-hotkey settings now expose both the existing primary hotkey and the optional auxiliary hotkey. The auxiliary binding supports bare `Pause` by default, can also use modifiers, reports its registration state independently, and keeps the previous working binding if Windows rejects a new one.
+
+The Settings window is slightly taller to fit the additional controls while retaining the existing navigation and card design. No schema migration is required from alpha.1: settings remains schemaVersion 2, commands/usage remain schemaVersion 1 and provider-cache remains schemaVersion 2.
+
 ## v0.4.1-alpha.1 — Settings Schema & Classic Behavior Core
 
 This alpha starts the Classic-settings parity phase before Everything integration. It adds behavior core and migration safety without changing the frozen Classic launcher geometry or adding the new controls to the Settings UI yet.

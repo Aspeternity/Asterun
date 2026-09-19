@@ -66,6 +66,9 @@ private:
     static constexpr UINT
         kIdPopupMonitor = 51105;
     static constexpr UINT
+        kIdShowOnStartup = 51106;
+
+    static constexpr UINT
         kIdHotkeyCtrl = 51110;
     static constexpr UINT
         kIdHotkeyAlt = 51111;
@@ -77,6 +80,29 @@ private:
         kIdHotkeyKey = 51114;
     static constexpr UINT
         kIdHotkeyApply = 51115;
+    static constexpr UINT
+        kIdAuxHotkeyEnabled = 51116;
+    static constexpr UINT
+        kIdAuxHotkeyCtrl = 51117;
+    static constexpr UINT
+        kIdAuxHotkeyAlt = 51118;
+    static constexpr UINT
+        kIdAuxHotkeyShift = 51119;
+    static constexpr UINT
+        kIdAuxHotkeyWin = 51120;
+    static constexpr UINT
+        kIdAuxHotkeyKey = 51121;
+    static constexpr UINT
+        kIdAuxHotkeyApply = 51122;
+
+    static constexpr UINT
+        kIdWildcardMatching = 51130;
+    static constexpr UINT
+        kIdNumericQuickLaunch = 51131;
+    static constexpr UINT
+        kIdExecuteSingleResult = 51132;
+    static constexpr UINT
+        kIdNumericQuickLaunchOrder = 51133;
 
     static constexpr UINT
         kIdUiStyle = 51201;
@@ -211,6 +237,9 @@ private:
         UINT id);
     void ApplyMonitorControl();
     void ApplyHotkeyControl();
+    void ApplyAuxiliaryHotkeyControl();
+    void ApplyClassicBehaviorControl(
+        UINT id = 0);
     void RefreshHotkeyControls();
     void ApplyAppearanceControls();
     void ImportCommands(
@@ -252,6 +281,8 @@ private:
     ToggleChecked(UINT id) const;
     [[nodiscard]] RECT
     BehaviorCardRect() const;
+    [[nodiscard]] RECT
+    SearchBehaviorCardRect() const;
     [[nodiscard]] RECT
     MonitorCardRect() const;
     [[nodiscard]] RECT
@@ -308,11 +339,20 @@ private:
 
     HWND generalBehaviorTitle_{};
     HWND startWithWindows_{};
+    HWND showOnStartup_{};
     HWND hideAfterLaunch_{};
     HWND clearQueryOnShow_{};
     HWND hideOnFocusLost_{};
     HWND showTrayIcon_{};
+    HWND searchBehaviorTitle_{};
+    HWND wildcardMatching_{};
+    HWND numericQuickLaunch_{};
+    HWND executeSingleResult_{};
+    HWND numericQuickLaunchOrderLabel_{};
+    HWND numericQuickLaunchOrder_{};
+
     HWND hotkeySectionTitle_{};
+    HWND primaryHotkeyLabel_{};
     HWND hotkeyCtrl_{};
     HWND hotkeyAlt_{};
     HWND hotkeyShift_{};
@@ -320,6 +360,16 @@ private:
     HWND hotkeyKey_{};
     HWND hotkeyApply_{};
     HWND hotkeyStatus_{};
+
+    HWND auxiliaryHotkeyEnabled_{};
+    HWND auxiliaryHotkeyCtrl_{};
+    HWND auxiliaryHotkeyAlt_{};
+    HWND auxiliaryHotkeyShift_{};
+    HWND auxiliaryHotkeyWin_{};
+    HWND auxiliaryHotkeyKey_{};
+    HWND auxiliaryHotkeyApply_{};
+    HWND auxiliaryHotkeyStatus_{};
+
     HWND popupSectionTitle_{};
     HWND popupMonitorLabel_{};
     HWND popupMonitorDescription_{};

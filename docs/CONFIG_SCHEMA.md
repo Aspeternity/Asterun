@@ -65,6 +65,8 @@ Schema 2 contains:
 
 New schema-2 behavior defaults preserve v0.4.0 behavior: auxiliary hotkey disabled, wildcard matching disabled, numeric quick launch disabled, numeric order `one-to-zero` (1–9,0), single-result immediate execution disabled and show-on-startup disabled. The auxiliary binding defaults to bare `Pause` when enabled and intentionally permits an empty modifier list.
 
+Starting with v0.4.1-alpha.2, all of these schema-2 fields are configurable from the General Settings page. The number-order selector is active only while numeric quick launch is enabled; disabling a feature does not delete its stored companion values.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text

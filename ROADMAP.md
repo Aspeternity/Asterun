@@ -70,8 +70,10 @@ In progress:
 - Opt-in * / ? wildcard search
 - Classic numeric quick execution and selectable number order
 - Optional single-result immediate execution
-- Settings UI controls for the new behavior core are reserved for the next v0.4.1 alpha
+- Settings UI now exposes show-on-startup, wildcard matching, numeric quick launch/order, single-result execution and the auxiliary hotkey
+- Primary and auxiliary hotkey registration state is surfaced independently in General settings
 - Classic launcher geometry remains frozen
+- Remaining v0.4.1 work is compatibility/UX validation and any regression fixes before deciding whether another alpha/beta is needed
 
 ## v0.5.x - Everything integration
 

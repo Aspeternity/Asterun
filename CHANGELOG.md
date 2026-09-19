@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1-alpha.2
+
+- Added Settings UI for the v0.4.1 Classic-behavior core without changing the frozen Classic launcher geometry.
+- Added a show-on-startup toggle to General settings.
+- Added a Search behavior card with toggles for `*` / `?` wildcard matching, Classic numeric quick launch and single-result immediate execution.
+- Added a number-order selector for Classic quick launch: `1–9, 0` or `0–9`; the selector is disabled while numeric quick launch is off.
+- Added full auxiliary-hotkey UI with enable/disable, Ctrl/Alt/Shift/Win modifiers, key selection, Apply action and independent registration/error status.
+- Added `Pause` to the visible key selector so the default auxiliary binding can be configured without editing JSON.
+- Kept auxiliary hotkeys transactional: a Windows registration conflict restores the previous working binding and refreshes the controls.
+- Reorganized the General page into two behavior cards plus primary/auxiliary hotkey rows and launcher placement, while preserving the existing Settings Shell navigation.
+- Updated the About description and settings documentation for the Classic-settings parity phase.
+- Kept settings schemaVersion 2, commands/usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged from alpha.1.
+- Updated Windows version metadata to `0.4.1-alpha.2` / `0.4.1.2`.
+
+
 ## 0.4.1-alpha.1
 
 - Started the Classic-settings parity phase without changing the frozen Classic launcher geometry.
