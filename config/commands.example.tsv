@@ -1,0 +1,10 @@
+# keyword<TAB>title<TAB>target<TAB>arguments<TAB>working_directory
+np	Notepad	notepad.exe		
+calc	Calculator	calc.exe		
+cmd	Command Prompt	cmd.exe		
+explorer	File Explorer	explorer.exe		
+pwsh	PowerShell	powershell.exe		
+# Example URL:
+# gh	GitHub	https://github.com		
+# Example app with parameters:
+# wt	Windows Terminal	wt.exe	-d C:\\Users\\YourName	C:\\Users\\YourName
