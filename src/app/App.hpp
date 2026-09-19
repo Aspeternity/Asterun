@@ -8,6 +8,7 @@
 #include "../core/SearchEngine.hpp"
 #include "../core/Settings.hpp"
 #include "../core/UsageStore.hpp"
+#include "../platform/WindowsContext.hpp"
 
 #include <windows.h>
 
@@ -155,7 +156,11 @@ public:
         std::size_t index);
 
     bool ExecuteResult(
-        const LauncherResult& result);
+        const LauncherResult& result,
+        LauncherExecutionIntent intent =
+            LauncherExecutionIntent::Default);
+
+    void ClearActivationContext();
 
     [[nodiscard]] const std::filesystem::path&
     DataDirectory() const noexcept {
@@ -204,6 +209,7 @@ private:
     void HandleProviderChangedSignal();
     void FlushDetectedProviderChanges();
     void HandleDynamicQueryCompleted();
+    void CaptureActivationContext();
 
     HINSTANCE instance_{};
     std::filesystem::path
@@ -220,6 +226,8 @@ private:
         window_;
     std::unique_ptr<SettingsWindow>
         settingsWindow_;
+    win::WindowsContextSnapshot
+        activationContext_;
 
     std::jthread
         providerRefreshThread_;

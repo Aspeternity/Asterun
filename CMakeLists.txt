@@ -90,6 +90,8 @@ endif()
 add_library(altrun_core STATIC
     src/core/ClassicBehavior.cpp
     src/core/EverythingIpcProtocol.cpp
+    src/core/ExplorerContextSelection.cpp
+    src/core/LauncherActionPolicy.cpp
     src/core/LauncherResult.cpp
     src/core/ResultMerger.cpp
     src/core/ResultRanking.cpp
@@ -161,6 +163,7 @@ if(WIN32)
         src/core/StartMenuProvider.cpp
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
+        src/platform/WindowsContext.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
         src/ui/SettingsWindow.cpp
@@ -179,6 +182,7 @@ if(WIN32)
         altrun_config
         shell32
         ole32
+        oleaut32
         comctl32
         comdlg32
         advapi32
@@ -308,6 +312,46 @@ if(BUILD_TESTING)
     add_test(
         NAME web_action_tests
         COMMAND web_action_tests
+    )
+
+    add_executable(
+        launcher_action_policy_tests
+        tests/LauncherActionPolicyTests.cpp
+    )
+    target_link_libraries(
+        launcher_action_policy_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        launcher_action_policy_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        launcher_action_policy_tests
+    )
+    add_test(
+        NAME launcher_action_policy_tests
+        COMMAND launcher_action_policy_tests
+    )
+
+    add_executable(
+        explorer_context_selection_tests
+        tests/ExplorerContextSelectionTests.cpp
+    )
+    target_link_libraries(
+        explorer_context_selection_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        explorer_context_selection_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        explorer_context_selection_tests
+    )
+    add_test(
+        NAME explorer_context_selection_tests
+        COMMAND explorer_context_selection_tests
     )
 
     add_executable(config_core_tests tests/ConfigCoreTests.cpp)
@@ -471,6 +515,59 @@ if(BUILD_TESTING)
         add_test(
             NAME hotkey_runtime_tests
             COMMAND hotkey_runtime_tests
+        )
+
+        add_executable(
+            windows_context_runtime_tests
+            tests/WindowsContextRuntimeTests.cpp
+            src/platform/WindowsContext.cpp
+        )
+
+        target_include_directories(
+            windows_context_runtime_tests
+            PRIVATE src
+        )
+
+        target_link_libraries(
+            windows_context_runtime_tests
+            PRIVATE
+                altrun_core
+                shell32
+                ole32
+                oleaut32
+                user32
+                uuid
+        )
+
+        target_compile_definitions(
+            windows_context_runtime_tests
+            PRIVATE
+                UNICODE
+                _UNICODE
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0A00
+                WINVER=0x0A00
+        )
+
+        if(MSVC)
+            target_compile_options(
+                windows_context_runtime_tests
+                PRIVATE
+                    /W4
+                    /permissive-
+                    /utf-8
+                    /EHsc
+            )
+        endif()
+
+        altrun_enable_test_assertions(
+            windows_context_runtime_tests
+        )
+
+        add_test(
+            NAME windows_context_runtime_tests
+            COMMAND windows_context_runtime_tests
         )
 
         add_executable(

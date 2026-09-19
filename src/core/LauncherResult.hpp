@@ -19,6 +19,12 @@ enum class LauncherActionKind {
     OpenFile,
     OpenFolder,
     OpenUrl,
+    NavigateExplorer,
+};
+
+enum class LauncherExecutionIntent {
+    Default,
+    NavigateCurrentExplorer,
 };
 
 struct LauncherAction {

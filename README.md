@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-alpha.2 — Windows Context & Explorer Navigation
+
+Alpha 2 turns the v0.6 Smart Action contract into the first context-aware Windows action. When the global hotkey opens ALTRun Next from File Explorer, the application captures the foreground Explorer **before** the launcher takes focus and keeps that activation snapshot for the current launcher session.
+
+Everything Folder results keep their existing default behavior: **Enter**, double-click and Classic numeric quick launch still open the folder normally. The new shortcut is **Ctrl+Enter**. When a valid Explorer activation context exists, Ctrl+Enter navigates that same captured Explorer window/tab to the selected folder instead of opening another Explorer window.
+
+Explorer discovery uses the Windows Shell automation model rather than window titles or address-bar text. ALTRun Next enumerates `IShellWindows`, resolves the active `IShellView` / filesystem folder and uses foreground focus/visibility signals to identify the active Explorer view. Multiple unresolved candidates are treated as ambiguous and no contextual navigation is attempted; the code deliberately does not guess between Windows 11 tabs. Shell namespace locations without a filesystem path are not considered valid Explorer contexts in this alpha.
+
+If ALTRun Next was invoked from a non-Explorer application, Ctrl+Enter safely retains the normal folder-open behavior. If a captured Explorer disappears or can no longer be resolved before execution, the contextual action fails rather than silently navigating a different window.
+
+This phase intentionally does **not** add `{folder}` command templates, Open/Save dialog control, Total Commander integration or new Settings. settings.json remains schemaVersion 3, commands/usage remain schemaVersion 1, provider-cache remains schemaVersion 2, provider defaults are unchanged, and Classic Launcher geometry remains frozen at 420/16/10.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.6.0.2`.
+
 ## v0.6.0-alpha.1 — Action Contract Foundation & URL/Web Actions
 
 v0.6 starts the Smart Actions & Windows Navigation line by separating action execution data from launcher presentation metadata. `LauncherAction` now carries an explicit payload and supports `OpenUrl` alongside the existing command/file/folder actions, while `ResultKind::Action` lets future Windows-context operations participate in the same unified result model without inventing a new result kind for every action.

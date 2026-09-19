@@ -979,6 +979,8 @@ void LauncherWindow::Show() {
 }
 
 void LauncherWindow::Hide() {
+    app_.ClearActivationContext();
+
     immediateExecutionPending_ = false;
     dynamicQueryPending_ = false;
     ++searchGeneration_;
@@ -1240,7 +1242,8 @@ void LauncherWindow::MoveSelection(int delta) {
     UpdatePreview();
 }
 
-void LauncherWindow::ExecuteSelection() {
+void LauncherWindow::ExecuteSelection(
+    LauncherExecutionIntent intent) {
     const LRESULT selected =
         SendMessageW(
             list_,
@@ -1254,11 +1257,13 @@ void LauncherWindow::ExecuteSelection() {
 
     ExecuteResultAt(
         static_cast<std::size_t>(
-            selected));
+            selected),
+        intent);
 }
 
 void LauncherWindow::ExecuteResultAt(
-    std::size_t resultIndex) {
+    std::size_t resultIndex,
+    LauncherExecutionIntent intent) {
 
     if (resultIndex >=
         results_.size()) {
@@ -1269,7 +1274,8 @@ void LauncherWindow::ExecuteResultAt(
         false;
 
     if (app_.ExecuteResult(
-            results_[resultIndex]) &&
+            results_[resultIndex],
+            intent) &&
         app_.SettingsData()
             .hideAfterLaunch) {
         Hide();
@@ -1527,9 +1533,19 @@ LRESULT LauncherWindow::HandleEditMessage(
         case VK_UP:
             MoveSelection(-1);
             return 0;
-        case VK_RETURN:
-            ExecuteSelection();
+        case VK_RETURN: {
+            const bool navigateExplorer =
+                (GetKeyState(VK_CONTROL) &
+                    0x8000) != 0;
+
+            ExecuteSelection(
+                navigateExplorer
+                    ? LauncherExecutionIntent::
+                        NavigateCurrentExplorer
+                    : LauncherExecutionIntent::
+                        Default);
             return 0;
+        }
         case VK_TAB:
             MoveSelection((GetKeyState(VK_SHIFT) & 0x8000) != 0 ? -1 : 1);
             return 0;

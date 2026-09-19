@@ -30,6 +30,12 @@ public:
     void ApplyGeneralSettings();
     void Toggle();
 
+    [[nodiscard]] bool
+    IsVisible() const noexcept {
+        return hwnd_ != nullptr &&
+            IsWindowVisible(hwnd_);
+    }
+
 private:
     struct ThemePalette {
         COLORREF windowBackground{};
@@ -75,9 +81,13 @@ private:
     void UpdatePreview();
     void RebuildVisibleResults(
         bool allowImmediateExecution);
-    void ExecuteSelection();
+    void ExecuteSelection(
+        LauncherExecutionIntent intent =
+            LauncherExecutionIntent::Default);
     void ExecuteResultAt(
-        std::size_t resultIndex);
+        std::size_t resultIndex,
+        LauncherExecutionIntent intent =
+            LauncherExecutionIntent::Default);
     [[nodiscard]] int QuickLaunchIndexForKey(
         WPARAM key) const;
     [[nodiscard]] std::wstring ResultNumberLabel(

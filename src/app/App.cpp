@@ -1,6 +1,7 @@
 #include "App.hpp"
 
 #include "../core/EverythingProvider.hpp"
+#include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
 #include "../core/ResultMerger.hpp"
 #include "../core/WebAction.hpp"
@@ -332,6 +333,13 @@ int App::Run() {
                      kAuxiliaryHotkeyId))) {
 
             if (window_) {
+                // Capture the foreground Explorer before ALTRun Next takes
+                // focus. Hiding an already-visible launcher must not replace
+                // the session snapshot with ALTRun Next itself.
+                if (!window_->IsVisible()) {
+                    CaptureActivationContext();
+                }
+
                 window_->Toggle();
             }
             continue;
@@ -1887,31 +1895,52 @@ bool App::ExecuteCommand(std::size_t index) {
 }
 
 bool App::ExecuteResult(
-    const LauncherResult& result) {
-    if (result.action.kind ==
+    const LauncherResult& result,
+    LauncherExecutionIntent intent) {
+    const LauncherAction action =
+        ResolveLauncherAction(
+            result,
+            intent,
+            activationContext_
+                .HasExplorer());
+
+    if (action.kind ==
         LauncherActionKind::ExecuteCommand) {
-        if (result.action.commandIndex ==
+        if (action.commandIndex ==
             static_cast<std::size_t>(-1)) {
             return false;
         }
 
         return ExecuteCommand(
-            result.action.commandIndex);
+            action.commandIndex);
     }
 
-    switch (result.action.kind) {
+    const std::wstring& target =
+        action.payload.empty()
+            ? result.target
+            : action.payload;
+
+    if (action.kind ==
+        LauncherActionKind::
+            NavigateExplorer) {
+        const auto context =
+            activationContext_;
+
+        return win::
+            NavigateExplorerToFolder(
+                context,
+                target);
+    }
+
+    switch (action.kind) {
     case LauncherActionKind::OpenFile:
     case LauncherActionKind::OpenFolder:
     case LauncherActionKind::OpenUrl:
         break;
+    case LauncherActionKind::NavigateExplorer:
     case LauncherActionKind::ExecuteCommand:
         return false;
     }
-
-    const std::wstring& target =
-        result.action.payload.empty()
-            ? result.target
-            : result.action.payload;
 
     if (target.empty()) {
         return false;
@@ -1957,6 +1986,16 @@ bool App::ExecuteResult(
         MB_ICONERROR | MB_OK);
 
     return false;
+}
+
+void App::CaptureActivationContext() {
+    activationContext_ =
+        win::CaptureWindowsContext(
+            GetForegroundWindow());
+}
+
+void App::ClearActivationContext() {
+    activationContext_ = {};
 }
 
 bool App::LaunchCommand(

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0-alpha.2
+
+- Added per-launch Activation Context capture before ALTRun Next takes foreground focus.
+- Added Windows Explorer context discovery through IShellWindows, IShellBrowser, active IShellView and filesystem PIDL resolution instead of title/address-bar scraping.
+- Added conservative Explorer candidate selection using focused shell view, unique visible view, then single-candidate fallback; ambiguous multi-tab/multi-window states are never guessed.
+- Added NavigateExplorer to the Smart Action contract and NavigateCurrentExplorer as an execution intent.
+- Added Ctrl+Enter for Everything Folder results: navigate the captured Explorer to the selected folder.
+- Kept Enter, double-click, numeric quick launch and single-result execution on their existing normal-open behavior.
+- Made Ctrl+Enter fall back to normal folder opening when the launcher was invoked without an Explorer context.
+- Refuse to redirect a different Explorer when the captured browser/view can no longer be resolved.
+- Return focus to the captured Explorer after a successful navigation.
+- Added portable action-policy and Explorer ambiguity-policy regression tests.
+- Added Win32 Windows-context runtime smoke and run it on both current-Windows and Windows 10 API-baseline CI.
+- Kept settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider defaults and Classic geometry 420/16/10 unchanged.
+- Deferred {folder} command templates, Open/Save dialogs and Total Commander to later v0.6 phases.
+- Updated Windows version metadata to 0.6.0-alpha.2 / 0.6.0.2.
+
 ## 0.6.0-alpha.1
 
 - Added the v0.6 smart-action contract foundation with ResultKind::Action, OpenUrl and explicit action payloads.

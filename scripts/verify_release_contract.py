@@ -36,6 +36,172 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0-alpha.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected v0.6 alpha.2 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("v0.6 alpha.2 must keep provider-cache schemaVersion 2")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for token in (
+        '"windows.startmenu"',
+        '"windows.packaged"',
+        '"windows.apppaths"',
+        '"windows.path"',
+        '"everything.filesystem"',
+        '"builtin.web"',
+        "{std::string(kStartMenu), true}",
+        "{std::string(kPackaged), true}",
+        "{std::string(kAppPaths), true}",
+        "{std::string(kPath), true}",
+        "{std::string(kEverythingFilesystem), false}",
+    ):
+        if token not in provider_text:
+            fail(f"v0.6 alpha.2 changed frozen provider/action IDs: {token}")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 3:
+        fail("v0.6 alpha.2 settings must remain schemaVersion 3")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 alpha.2 changed frozen provider defaults")
+
+    launcher_result = read("src/core/LauncherResult.hpp")
+    for token in (
+        "NavigateExplorer",
+        "NavigateCurrentExplorer",
+        "std::wstring payload",
+    ):
+        if token not in launcher_result:
+            fail(f"Explorer action contract missing: {token}")
+
+    action_policy = read("src/core/LauncherActionPolicy.cpp")
+    for token in (
+        "ResultKind::Folder",
+        "NavigateCurrentExplorer",
+        "NavigateExplorer",
+        "explorerContextAvailable",
+    ):
+        if token not in action_policy:
+            fail(f"Explorer action policy missing: {token}")
+
+    selection = read("src/core/ExplorerContextSelection.cpp")
+    for token in (
+        "focused.size() == 1",
+        "visible.size() == 1",
+        "valid.size() == 1",
+        "return std::nullopt",
+    ):
+        if token not in selection:
+            fail(f"Explorer ambiguity policy missing: {token}")
+
+    windows_context = read("src/platform/WindowsContext.cpp")
+    for token in (
+        "CLSID_ShellWindows",
+        "SID_STopLevelBrowser",
+        "QueryActiveShellView",
+        "IPersistFolder2",
+        "SHGetPathFromIDListEx",
+        "GetGUIThreadInfo",
+        "Navigate2",
+        "SetForegroundWindow",
+    ):
+        if token not in windows_context:
+            fail(f"Windows Explorer context integration missing: {token}")
+
+    app = read("src/app/App.cpp")
+    capture_pos = app.find("CaptureActivationContext();")
+    toggle_pos = app.find("window_->Toggle();", capture_pos)
+    if capture_pos < 0 or toggle_pos < 0 or capture_pos > toggle_pos:
+        fail("activation context must be captured before Launcher takes focus")
+
+    for token in (
+        "ResolveLauncherAction",
+        "activationContext_.HasExplorer()",
+        "NavigateExplorerToFolder",
+        "GetForegroundWindow",
+    ):
+        if token not in app:
+            fail(f"App Explorer-context integration missing: {token}")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    for token in (
+        "VK_RETURN",
+        "VK_CONTROL",
+        "NavigateCurrentExplorer",
+        "ClearActivationContext",
+    ):
+        if token not in launcher:
+            fail(f"Ctrl+Enter Explorer UX contract missing: {token}")
+
+    cmake = read("CMakeLists.txt")
+    for token in (
+        "src/platform/WindowsContext.cpp",
+        "src/core/LauncherActionPolicy.cpp",
+        "src/core/ExplorerContextSelection.cpp",
+        "windows_context_runtime_tests",
+        "launcher_action_policy_tests",
+        "explorer_context_selection_tests",
+        "oleaut32",
+    ):
+        if token not in cmake:
+            fail(f"Explorer alpha.2 build/test wiring missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        for test_name in (
+            "windows_context_runtime_tests",
+            "launcher_action_policy_tests",
+            "explorer_context_selection_tests",
+        ):
+            if test_name not in workflow:
+                fail(
+                    f"{workflow_path} does not run {test_name} on Windows"
+                )
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_header,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed in v0.6 alpha.2: {name}")
+
+    print(
+        "v0.6.0-alpha.2 Explorer context/navigation contract verified:",
+        "| schemas unchanged | Classic 420/16/10",
+        "| hotkey capture before focus | Ctrl+Enter current Explorer",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.6.0-alpha.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,

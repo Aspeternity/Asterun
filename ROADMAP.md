@@ -117,17 +117,21 @@ In progress:
 - v0.6.0-alpha.1 establishes ResultKind::Action, explicit action payloads and OpenUrl as the first reusable Smart Action contract
 - Direct HTTP/HTTPS and www. input becomes an executable URL action
 - Existing URL user commands can use {query} as a UTF-8 percent-encoded web-search template through their keyword/aliases
-- builtin.web is runtime-only; settings/commands/usage/provider-cache schemas and v0.5 provider defaults remain unchanged
+- v0.6.0-alpha.2 adds per-launch Windows Activation Context capture before the launcher takes foreground focus
+- Alpha 2 resolves the active filesystem Explorer conservatively through the Windows Shell model and refuses ambiguous multi-tab/multi-window guesses
+- Everything Folder results keep Enter=open while Ctrl+Enter navigates the captured Explorer to that folder
+- Contextual navigation is session-scoped and cleared when the launcher hides
+- settings/commands/usage/provider-cache schemas and v0.5 provider defaults remain unchanged
 - Classic launcher geometry remains frozen
 
 Planned next:
 
-- Explorer current-folder actions
-- Open / Save dialog folder jump
+- Open / Save dialog folder jump using the same Activation Context foundation
 - Total Commander integration
 - Clipboard and text actions
+- Optional current-folder command templates only if they prove useful after Explorer navigation validation
 - Broader provider/action contracts suitable for future extensions
-- Calculator may return later as an optional smart action, but is not a v0.6.0-alpha.1 goal
+- Calculator may return later as an optional smart action
 - Managed / Portable Everything remains a separate candidate after the core v0.6.0 Smart Actions line
 
 ## v0.7.x - Distribution & extensibility

@@ -22,6 +22,8 @@ provider-cache.json schemaVersion 2
 
 Schema versions are intentionally independent so adding launcher preferences does not force unrelated command or usage migrations.
 
+v0.6.0-alpha.2 introduces only runtime Windows Activation Context and Explorer navigation state. The captured foreground HWND, Explorer view/browser handles and current folder are **session-only** and are never written to settings.json, commands.json, usage.json or provider-cache.json. No schema migration is performed.
+
 ## Migration
 
 On the first v0.2.0-alpha.1 launch:
