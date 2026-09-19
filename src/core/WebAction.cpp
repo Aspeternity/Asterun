@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 namespace altrun {
@@ -85,7 +86,11 @@ void AppendUtf8(std::string& output, std::uint32_t codePoint) {
     output.reserve(value.size() * 2);
 
     for (std::size_t i = 0; i < value.size(); ++i) {
-        std::uint32_t codePoint = static_cast<std::uint32_t>(value[i]);
+        const auto unit =
+            static_cast<std::make_unsigned_t<wchar_t>>(
+                value[i]);
+        std::uint32_t codePoint =
+            static_cast<std::uint32_t>(unit);
 
         if (codePoint >= 0xD800u && codePoint <= 0xDBFFu && i + 1 < value.size()) {
             const auto low = static_cast<std::uint32_t>(value[i + 1]);
