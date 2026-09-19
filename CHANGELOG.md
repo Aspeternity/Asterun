@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0-alpha.3
+
+- Replaced the alpha.2 static-first append policy with unified ranking across User Command, Application, Folder and File results.
+- Added a portable `ResultRanking` layer with dynamic filename/stem/path match scoring plus conservative kind/provider weights.
+- Kept existing static SearchEngine scores as the primary ranking signal so mature command/app relevance, usage and pinning behavior remain intact.
+- Added three-times-visible candidate depth for both static and Everything queries before final de-duplication/ranking.
+- Kept static commands authoritative for duplicate targets so an Everything copy of the same executable/file path does not replace a richer application result.
+- Added deterministic tie breaking by match score, result kind, provider and title.
+- Added Classic folder presentation with a trailing backslash while preserving the frozen width, row height and result count.
+- Changed File/Folder preview text to show the direct target path without the command prefix.
+- Made numeric quick launch operate on the final unified result order, including File and Folder results.
+- Made single-result immediate execution dynamic-aware: defer while the current Everything query is pending, then evaluate the settled merged result set once.
+- Cancels deferred single-result execution when the launcher hides or the user manually executes a result, preventing late dynamic replies from triggering a second launch.
+- Added portable ranking/merger tests and extended EverythingProvider runtime assertions to require a nonzero dynamic rank score.
+- Kept Everything default-off, settings schemaVersion 2, commands/usage schemaVersion 1, provider-cache schemaVersion 2, Classic geometry and no-Everything-DLL packaging unchanged.
+- Updated Windows version metadata to `0.5.0-alpha.3` / `0.5.0.3`.
+
+
 ## 0.5.0-alpha.2
 
 - Added the unified `LauncherResult` / `ResultKind` / `LauncherAction` model between App and Launcher.

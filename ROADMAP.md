@@ -99,8 +99,9 @@ In progress:
 - settings remains schemaVersion 2 through alpha.2; the formal schemaVersion 3 migration remains reserved for the Settings phase
 - v0.5.0-alpha.2 introduces LauncherResult / DynamicQueryProvider / everything.filesystem and actual asynchronous File/Folder launcher results
 - Alpha 2 keeps Everything default-off through explicit raw provider opt-in, preserves Classic geometry and keeps file results ephemeral
-- Alpha 3 will add unified cross-kind/provider ranking plus mixed-result numeric/single-result behavior hardening
-- Later phases will add Settings/diagnostics and real-world 1.4/1.5 compatibility hardening
+- v0.5.0-alpha.3 replaces static-first append with unified match-quality ranking plus conservative kind/provider weights
+- Alpha 3 also hardens mixed-result numeric execution, deferred single-result execution and Classic File/Folder presentation without changing geometry
+- Beta phases will add Settings/diagnostics, schemaVersion 3 and real-world 1.4/1.5 compatibility hardening
 
 ## v0.6.x - Smart actions & Windows integration
 

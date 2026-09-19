@@ -14,6 +14,7 @@ namespace altrun::classic_behavior {
     bool enabled,
     bool imeComposing,
     bool queryEmpty,
+    bool dynamicQueryPending,
     std::size_t resultCount) noexcept;
 
 } // namespace altrun::classic_behavior

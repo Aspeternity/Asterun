@@ -78,4 +78,8 @@ Alpha.2 still does not:
 - load or ship `Everything64.dll`;
 - use Everything 1.5-only named-pipe APIs.
 
-Unified ranking and mixed-result interaction policy are alpha.3 work; Settings/diagnostics and schemaVersion 3 follow later.
+Alpha.3 now supplies the unified ranking and mixed-result interaction policy. Everything results receive a local filename/stem/path score, then compete with static results in one candidate pool. Static duplicate targets stay authoritative. Match quality dominates, while result-kind/provider weights are intentionally small.
+
+The launcher requests approximately three times the visible result count from each side before final ranking, so a strong File/Folder match is not lost merely because ten static candidates arrived first. Numeric quick launch follows the final visible order. Single-result immediate execution waits until the current dynamic generation settles, and hide/manual execution cancels the deferred action.
+
+Settings/diagnostics and schemaVersion 3 still follow in the beta phase.

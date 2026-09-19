@@ -863,6 +863,7 @@ int main() {
             result.action.kind ==
             LauncherActionKind::
                 OpenFile);
+        assert(result.score > 0);
     }
 
     {
@@ -929,6 +930,7 @@ int main() {
             result.action.kind ==
             LauncherActionKind::
                 OpenFolder);
+        assert(result.score > 0);
     }
 
     return 0;

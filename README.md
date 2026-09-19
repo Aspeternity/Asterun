@@ -23,6 +23,22 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.5.0-alpha.3 — Unified Ranking & Classic UX
+
+Alpha 3 replaces the temporary static-first append policy with unified ranking across User Command, Application, Folder and File results. Static catalog matches keep their mature SearchEngine score, while Everything File/Folder results receive a lightweight local filename/path match score before all candidates enter the same ranking pass.
+
+Ranking remains intentionally conservative. Match quality dominates; result-kind and provider weights are small tie/near-tie adjustments. Explicit User Commands receive the strongest protection, then Applications, Folders and Files. Within application sources, Start Menu / Windows Apps / App Paths receive small stable preferences over PATH. An exact Everything filename can therefore outrank a weak/fuzzy application match without normally displacing an exact user command or exact application result.
+
+The launcher now asks both static search and Everything for roughly three times the visible result count, then de-duplicates and ranks the candidate pool down to the existing Classic/Modern visible limits. A dynamic result pointing at the same target as an existing static command is suppressed in favor of the static command so application execution semantics and usage history stay authoritative.
+
+Classic geometry remains frozen. File rows continue to use the existing primary/secondary columns as filename + parent path; Folder rows add only a trailing `\` to the primary text as a compact classic folder cue. The preview strip shows the direct full path for File/Folder results instead of the command prefix.
+
+Numeric quick launch now naturally executes whichever unified result currently owns that number, including File and Folder rows. Single-result immediate execution is also dynamic-aware: while an Everything query is pending it is deferred; after the current generation settles successfully, unavailable or timed out, the final merged list is evaluated once. Hiding the launcher or manually executing a result cancels the deferred automatic action, preventing late IPC replies from causing a second launch.
+
+Everything remains default-off in alpha.3 and Settings remains schemaVersion 2. Alpha testers can keep using `providers["everything.filesystem"] = true` in `data/settings.json`; the formal schemaVersion 3 + Search Sources UI remains a beta-phase task.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.3`.
+
 ## v0.5.0-alpha.2 — Dynamic File & Folder Results
 
 Alpha 2 connects the native Everything IPC foundation to the launcher through a new unified `LauncherResult` model. Existing static Catalog search still returns immediately; Everything runs independently as a `DynamicQueryProvider`, and its File/Folder results are merged only after the asynchronous reply reaches the UI thread.

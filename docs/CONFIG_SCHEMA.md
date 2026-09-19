@@ -83,6 +83,8 @@ v0.5.0-alpha.2 still does not bump the persisted schema. It introduces the dynam
 
 The formal v0.5 settings contract is still planned as schemaVersion 3 when Search Sources / Everything diagnostics become user-facing. That later bump is what provides explicit downgrade read-only protection for the complete v0.5 settings surface.
 
+v0.5.0-alpha.3 also keeps every persisted schema unchanged. Unified ranking and Classic mixed-result behavior are runtime-only changes. The experimental `everything.filesystem` opt-in remains a generic schemaVersion 2 provider-map key and is still absent from defaults. No rank score, File/Folder result, dynamic query state or file execution history is persisted.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text

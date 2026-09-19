@@ -34,6 +34,34 @@ COLORREF MixColor(COLORREF a, COLORREF b, int numerator, int denominator) {
     return RGB(r, g, bl);
 }
 
+[[nodiscard]] std::wstring
+PrimaryResultText(
+    const LauncherResult& result) {
+    if (result.kind !=
+        ResultKind::Folder) {
+        return result.title;
+    }
+
+    std::wstring text =
+        result.title;
+
+    if (!text.empty() &&
+        text.back() != L'\\' &&
+        text.back() != L'/') {
+        text.push_back(L'\\');
+    }
+
+    return text;
+}
+
+[[nodiscard]] bool IsFileSystemResult(
+    const LauncherResult& result) {
+    return result.kind ==
+            ResultKind::File ||
+        result.kind ==
+            ResultKind::Folder;
+}
+
 } // namespace
 
 LauncherWindow::LauncherWindow(App& app, HINSTANCE instance)
@@ -951,7 +979,13 @@ void LauncherWindow::Show() {
 }
 
 void LauncherWindow::Hide() {
-    if (hwnd_) ShowWindow(hwnd_, SW_HIDE);
+    immediateExecutionPending_ = false;
+    dynamicQueryPending_ = false;
+    ++searchGeneration_;
+
+    if (hwnd_) {
+        ShowWindow(hwnd_, SW_HIDE);
+    }
 }
 
 void LauncherWindow::UpdateHint() {
@@ -978,20 +1012,37 @@ void LauncherWindow::RefreshResults(
         CurrentQuery();
 
     ++searchGeneration_;
+
+    const std::size_t
+        candidateLimit =
+            std::max<std::size_t>(
+                maxResults_,
+                maxResults_ * 3);
+
     staticResults_ =
         app_.Search(
             query,
-            maxResults_);
+            candidateLimit);
     dynamicResults_.clear();
 
-    RebuildVisibleResults(
-        allowImmediateExecution);
+    dynamicQueryPending_ =
+        !query.empty() &&
+        app_.DynamicSearchEnabled();
 
-    if (!query.empty()) {
+    immediateExecutionPending_ =
+        allowImmediateExecution;
+
+    RebuildVisibleResults(
+        immediateExecutionPending_);
+
+    if (dynamicQueryPending_) {
         app_.BeginDynamicSearch(
             searchGeneration_,
             query,
-            maxResults_);
+            candidateLimit);
+    } else {
+        immediateExecutionPending_ =
+            false;
     }
 }
 
@@ -1003,12 +1054,15 @@ void LauncherWindow::ApplyDynamicResults(
         return;
     }
 
+    dynamicQueryPending_ = false;
     dynamicResults_ =
         std::move(results);
 
-    // Dynamic replies never trigger single-result immediate execution in
-    // alpha.2. The mixed-result policy is intentionally deferred to alpha.3.
-    RebuildVisibleResults(false);
+    RebuildVisibleResults(
+        immediateExecutionPending_);
+
+    immediateExecutionPending_ =
+        false;
 }
 
 void LauncherWindow::RebuildVisibleResults(
@@ -1040,7 +1094,7 @@ void LauncherWindow::RebuildVisibleResults(
     }
 
     results_ =
-        MergeLauncherResultsStaticFirst(
+        MergeLauncherResultsRanked(
             staticResults_,
             dynamicResults_,
             maxResults_);
@@ -1123,6 +1177,7 @@ void LauncherWindow::RebuildVisibleResults(
                     .executeSingleResultImmediately,
                 imeComposing_,
                 queryEmpty,
+                dynamicQueryPending_,
                 results_.size())) {
         ExecuteResultAt(0);
     }
@@ -1144,12 +1199,16 @@ void LauncherWindow::UpdatePreview() {
             static_cast<std::size_t>(
                 selected)];
 
+    const std::wstring primary =
+        PrimaryResultText(result);
+
     titleText_ = L"[";
-    titleText_ += result.title;
+    titleText_ += primary;
     titleText_ += L"]";
 
     std::wstring preview;
-    if (!IsModern()) {
+    if (!IsModern() &&
+        !IsFileSystemResult(result)) {
         preview =
             app_.Text(
                 TextId::CommandPrefix);
@@ -1205,6 +1264,9 @@ void LauncherWindow::ExecuteResultAt(
         results_.size()) {
         return;
     }
+
+    immediateExecutionPending_ =
+        false;
 
     if (app_.ExecuteResult(
             results_[resultIndex]) &&
@@ -1655,6 +1717,9 @@ LRESULT LauncherWindow::HandleMessage(
         const auto& result =
             results_[item->itemID];
 
+        const std::wstring primary =
+            PrimaryResultText(result);
+
         if (IsModern()) {
             RECT keywordRect = item->rcItem;
             keywordRect.left += DpiScale(12);
@@ -1671,7 +1736,7 @@ LRESULT LauncherWindow::HandleMessage(
 
             DrawTextW(
                 item->hDC,
-                result.title.c_str(),
+                primary.c_str(),
                 -1,
                 &keywordRect,
                 DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
@@ -1742,7 +1807,7 @@ LRESULT LauncherWindow::HandleMessage(
 
         DrawTextW(
             item->hDC,
-            result.title.c_str(),
+            primary.c_str(),
             -1,
             &keywordRect,
             DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);

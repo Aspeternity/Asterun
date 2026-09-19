@@ -1,6 +1,7 @@
 #include "EverythingProvider.hpp"
 
 #include "ProviderIds.hpp"
+#include "ResultRanking.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -60,6 +61,9 @@ void EverythingProvider::QueryAsync(
     EverythingQueryRequest ipcRequest;
     ipcRequest.generation =
         request.generation;
+    std::wstring rankingQuery =
+        request.query;
+
     ipcRequest.query =
         std::move(request.query);
     ipcRequest.limit =
@@ -71,7 +75,9 @@ void EverythingProvider::QueryAsync(
     client_.QueryAsync(
         std::move(ipcRequest),
         [completion =
-             std::move(completion)](
+             std::move(completion),
+         rankingQuery =
+             std::move(rankingQuery)](
             EverythingQueryResult
                 ipcResult) mutable {
             DynamicQueryResponse response;
@@ -125,6 +131,10 @@ void EverythingProvider::QueryAsync(
                         item.fullPath);
                 result.detail =
                     result.target;
+                result.score =
+                    ScoreDynamicResultText(
+                        result,
+                        rankingQuery);
                 result.action.kind =
                     result.kind ==
                             ResultKind::Folder

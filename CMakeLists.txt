@@ -92,6 +92,7 @@ add_library(altrun_core STATIC
     src/core/EverythingIpcProtocol.cpp
     src/core/LauncherResult.cpp
     src/core/ResultMerger.cpp
+    src/core/ResultRanking.cpp
     src/core/PinyinSearch.cpp
     src/core/SearchEngine.cpp
     src/core/SettingsLayout.cpp
@@ -266,6 +267,26 @@ if(BUILD_TESTING)
     add_test(
         NAME result_merger_tests
         COMMAND result_merger_tests
+    )
+
+    add_executable(
+        result_ranking_tests
+        tests/ResultRankingTests.cpp
+    )
+    target_link_libraries(
+        result_ranking_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        result_ranking_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        result_ranking_tests
+    )
+    add_test(
+        NAME result_ranking_tests
+        COMMAND result_ranking_tests
     )
 
     add_executable(config_core_tests tests/ConfigCoreTests.cpp)

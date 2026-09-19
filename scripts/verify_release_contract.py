@@ -36,6 +36,171 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.5.0-alpha.3":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 2,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected alpha.3 value {expected}"
+            )
+
+    provider_cache_schema = cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    )
+    if provider_cache_schema != 2:
+        fail("provider-cache schema must remain 2 in alpha.3")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for provider_id in (
+        "windows.startmenu",
+        "windows.packaged",
+        "windows.apppaths",
+        "windows.path",
+        "everything.filesystem",
+    ):
+        if provider_id not in provider_text:
+            fail(f"provider ID missing in alpha.3: {provider_id}")
+
+    if "{std::string(kEverythingFilesystem)" in provider_text:
+        fail(
+            "everything.filesystem must remain absent from DefaultEnabled "
+            "during alpha.3"
+        )
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 2:
+        fail("settings schema must remain 2 in alpha.3")
+    if "everything.filesystem" in settings.get("providers", {}):
+        fail(
+            "Everything must remain default-off in alpha.3 example settings"
+        )
+
+    ranking = read("src/core/ResultRanking.cpp")
+    for token in (
+        "ScoreDynamicResultText",
+        "UnifiedRankScore",
+        "ResultKindWeight",
+        "ProviderRankWeight",
+        "user.commands",
+        "kStartMenu",
+    ):
+        if token not in ranking:
+            fail(f"alpha.3 ranking contract missing: {token}")
+
+    merger = read("src/core/ResultMerger.cpp")
+    for token in (
+        "MergeLauncherResultsRanked",
+        "UnifiedRankScore",
+        "SameLauncherTarget",
+        "DynamicDuplicatesStatic",
+    ):
+        if token not in merger:
+            fail(f"alpha.3 merger contract missing: {token}")
+    if "MergeLauncherResultsStaticFirst" in merger:
+        fail("alpha.2 static-first merge policy survived into alpha.3")
+
+    everything_provider = read("src/core/EverythingProvider.cpp")
+    for token in (
+        "ScoreDynamicResultText",
+        "rankingQuery",
+        "ResultKind::Folder",
+        "ResultKind::File",
+    ):
+        if token not in everything_provider:
+            fail(f"Everything alpha.3 ranking mapping missing: {token}")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    for token in (
+        "MergeLauncherResultsRanked",
+        "candidateLimit",
+        "maxResults_ * 3",
+        "dynamicQueryPending_",
+        "immediateExecutionPending_",
+        "PrimaryResultText",
+        "IsFileSystemResult",
+        "ExecuteResult",
+    ):
+        if token not in launcher:
+            fail(f"Launcher alpha.3 UX/ranking integration missing: {token}")
+
+    classic = read("src/core/ClassicBehavior.cpp")
+    if "!dynamicQueryPending" not in classic:
+        fail(
+            "single-result immediate execution no longer waits for "
+            "dynamic query settlement"
+        )
+
+    desktop_test = read("tests/DesktopValidationTests.cpp")
+    if "true, true, false, false, true, 1" not in desktop_test:
+        fail(
+            "desktop validation no longer covers pending-dynamic "
+            "single-result suppression"
+        )
+
+    cmake_text = read("CMakeLists.txt")
+    for token in (
+        "ResultRanking.cpp",
+        "result_ranking_tests",
+        "result_merger_tests",
+        "everything_ipc_runtime_tests",
+    ):
+        if token not in cmake_text:
+            fail(f"alpha.3 build/test wiring missing: {token}")
+
+    runtime_test = read("tests/EverythingIpcRuntimeTests.cpp")
+    if "result.score > 0" not in runtime_test:
+        fail(
+            "EverythingProvider runtime test no longer verifies "
+            "dynamic rank scoring"
+        )
+
+    combined_everything_source = (
+        read("src/core/EverythingIpcProtocol.hpp")
+        + read("src/platform/EverythingIpcClient.cpp")
+        + everything_provider
+    )
+    for forbidden in (
+        "Everything64.dll",
+        "Everything32.dll",
+        "LoadLibraryW",
+        "LoadLibraryA",
+    ):
+        if forbidden in combined_everything_source:
+            fail(
+                "alpha.3 must keep native IPC with no Everything DLL "
+                f"dependency: found {forbidden}"
+            )
+
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_hpp,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(
+                f"Classic geometry changed during alpha.3: {name}"
+            )
+
+    print(
+        "v0.5.0-alpha.3 unified ranking/Classic UX contract verified:",
+        "| settings=2 commands=1 usage=1 provider-cache=2",
+        "| Everything default-off | no Everything DLL",
+        "| unified ranking + settled single-result policy",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.5.0-alpha.2":
     expected_schemas = {
         "kSettingsSchemaVersion": 2,

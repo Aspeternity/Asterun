@@ -24,12 +24,14 @@ bool ShouldExecuteSingleResult(
     bool enabled,
     bool imeComposing,
     bool queryEmpty,
+    bool dynamicQueryPending,
     std::size_t resultCount) noexcept {
 
     return allowImmediateExecution &&
         enabled &&
         !imeComposing &&
         !queryEmpty &&
+        !dynamicQueryPending &&
         resultCount == 1;
 }
 

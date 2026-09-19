@@ -67,25 +67,29 @@ int main() {
 
     assert(
         ShouldExecuteSingleResult(
-            true, true, false, false, 1));
+            true, true, false, false, false, 1));
     assert(
         !ShouldExecuteSingleResult(
-            false, true, false, false, 1));
+            false, true, false, false, false, 1));
     assert(
         !ShouldExecuteSingleResult(
-            true, false, false, false, 1));
+            true, false, false, false, false, 1));
     assert(
         !ShouldExecuteSingleResult(
-            true, true, true, false, 1));
+            true, true, true, false, false, 1));
     assert(
         !ShouldExecuteSingleResult(
-            true, true, false, true, 1));
+            true, true, false, true, false, 1));
     assert(
         !ShouldExecuteSingleResult(
-            true, true, false, false, 0));
+            true, true, false, false, false, 0));
     assert(
         !ShouldExecuteSingleResult(
-            true, true, false, false, 2));
+            true, true, false, false, false, 2));
+
+    assert(
+        !ShouldExecuteSingleResult(
+            true, true, false, false, true, 1));
 
     for (const unsigned dpi :
          std::array<unsigned, 4>{

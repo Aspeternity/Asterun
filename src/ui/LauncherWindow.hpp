@@ -110,6 +110,8 @@ private:
     HBRUSH bottomBrush_{};
     bool trayIconAdded_{false};
     bool imeComposing_{false};
+    bool dynamicQueryPending_{false};
+    bool immediateExecutionPending_{false};
     UINT dpi_{96};
     int widthLogical_{420};
     int rowHeightLogical_{16};

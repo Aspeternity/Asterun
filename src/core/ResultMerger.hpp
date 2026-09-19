@@ -10,7 +10,7 @@ namespace altrun {
 
 [[nodiscard]]
 std::vector<LauncherResult>
-MergeLauncherResultsStaticFirst(
+MergeLauncherResultsRanked(
     std::span<const LauncherResult>
         staticResults,
     std::span<const LauncherResult>
