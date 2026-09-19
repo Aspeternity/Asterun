@@ -597,9 +597,6 @@ void App::StartProviderMonitor() {
                     std::vector<std::string>
                         changed;
 
-                    std::unordered_set<std::string>
-                        observed;
-
                     for (const auto& token :
                          commandStore_
                              .ProviderChangeTokens(
@@ -608,9 +605,6 @@ void App::StartProviderMonitor() {
                         if (!token.success) {
                             continue;
                         }
-
-                        observed.insert(
-                            token.id);
 
                         const auto previous =
                             baseline.find(
@@ -631,9 +625,10 @@ void App::StartProviderMonitor() {
                     for (auto it =
                              baseline.begin();
                          it != baseline.end();) {
-                        if (observed.find(
-                                it->first) ==
-                            observed.end()) {
+                        if (!providers::IsEnabled(
+                                enabledSnapshot,
+                                it->first,
+                                true)) {
                             it =
                                 baseline.erase(it);
                         } else {

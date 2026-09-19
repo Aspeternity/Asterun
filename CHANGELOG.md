@@ -8,6 +8,7 @@
 - Added 750 ms debounce scheduling to coalesce bursts of application-install/update changes.
 - Added queued provider refresh requests when discovery is already running, preserving source-specific requests without falling back to a full rescan.
 - Disabled providers are excluded from change-token monitoring as well as search results.
+- Treat transient AppsFolder / COM enumeration failures as provider failures so the previous Windows Apps cache is retained instead of being replaced with an empty result set.
 - Improved PATH discovery to observe process PATH plus current machine/user registry PATH values, allowing newly added PATH directories to be discovered without restarting ALTRun Next.
 - Added provider runtime status in Settings: enabled state, cached command count and last successful cache refresh time.
 - Manual **Rebuild program index** remains an explicit full refresh of all enabled providers.

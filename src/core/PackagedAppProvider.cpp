@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -29,6 +30,32 @@ using Microsoft::WRL::ComPtr;
 struct ShellApp {
     std::wstring title;
     std::wstring target;
+};
+
+class ComApartment final {
+public:
+    ComApartment()
+        : result_(
+              CoInitializeEx(
+                  nullptr,
+                  COINIT_APARTMENTTHREADED)) {
+
+        if (FAILED(result_) &&
+            result_ !=
+                RPC_E_CHANGED_MODE) {
+            throw std::runtime_error(
+                "Unable to initialize COM for AppsFolder discovery.");
+        }
+    }
+
+    ~ComApartment() {
+        if (SUCCEEDED(result_)) {
+            CoUninitialize();
+        }
+    }
+
+private:
+    HRESULT result_{};
 };
 
 std::wstring NormalizeTarget(
@@ -50,98 +77,110 @@ std::wstring NormalizeTarget(
 std::vector<ShellApp>
 EnumerateAppsFolder() {
 
+    ComApartment apartment;
     std::vector<ShellApp> apps;
-
-    const HRESULT comResult =
-        CoInitializeEx(
-            nullptr,
-            COINIT_APARTMENTTHREADED);
 
     ComPtr<IShellItem> appsFolder;
 
-    if (SUCCEEDED(
-            SHGetKnownFolderItem(
-                FOLDERID_AppsFolder,
-                KF_FLAG_DEFAULT,
-                nullptr,
-                IID_PPV_ARGS(
-                    &appsFolder)))) {
+    const HRESULT folderResult =
+        SHGetKnownFolderItem(
+            FOLDERID_AppsFolder,
+            KF_FLAG_DEFAULT,
+            nullptr,
+            IID_PPV_ARGS(
+                &appsFolder));
 
-        ComPtr<IEnumShellItems> enumerator;
-
-        if (SUCCEEDED(
-                appsFolder->BindToHandler(
-                    nullptr,
-                    BHID_EnumItems,
-                    IID_PPV_ARGS(
-                        &enumerator)))) {
-
-            for (;;) {
-                ComPtr<IShellItem> item;
-                ULONG fetched = 0;
-
-                const HRESULT next =
-                    enumerator->Next(
-                        1,
-                        item.GetAddressOf(),
-                        &fetched);
-
-                if (next != S_OK ||
-                    fetched != 1 ||
-                    !item) {
-                    break;
-                }
-
-                PWSTR rawTitle = nullptr;
-
-                if (FAILED(
-                        item->GetDisplayName(
-                            SIGDN_NORMALDISPLAY,
-                            &rawTitle)) ||
-                    rawTitle == nullptr) {
-                    continue;
-                }
-
-                std::wstring title(
-                    rawTitle);
-
-                CoTaskMemFree(
-                    rawTitle);
-
-                if (title.empty()) {
-                    continue;
-                }
-
-                PWSTR rawTarget = nullptr;
-
-                if (FAILED(
-                        item->GetDisplayName(
-                            SIGDN_DESKTOPABSOLUTEPARSING,
-                            &rawTarget)) ||
-                    rawTarget == nullptr) {
-                    continue;
-                }
-
-                std::wstring target(
-                    rawTarget);
-
-                CoTaskMemFree(
-                    rawTarget);
-
-                if (target.empty()) {
-                    continue;
-                }
-
-                apps.push_back({
-                    std::move(title),
-                    std::move(target),
-                });
-            }
-        }
+    if (FAILED(folderResult) ||
+        !appsFolder) {
+        throw std::runtime_error(
+            "Unable to open the Windows AppsFolder.");
     }
 
-    if (SUCCEEDED(comResult)) {
-        CoUninitialize();
+    ComPtr<IEnumShellItems> enumerator;
+
+    const HRESULT bindResult =
+        appsFolder->BindToHandler(
+            nullptr,
+            BHID_EnumItems,
+            IID_PPV_ARGS(
+                &enumerator));
+
+    if (FAILED(bindResult) ||
+        !enumerator) {
+        throw std::runtime_error(
+            "Unable to enumerate the Windows AppsFolder.");
+    }
+
+    for (;;) {
+        ComPtr<IShellItem> item;
+        ULONG fetched = 0;
+
+        const HRESULT next =
+            enumerator->Next(
+                1,
+                item.GetAddressOf(),
+                &fetched);
+
+        if (next == S_FALSE ||
+            fetched == 0) {
+            break;
+        }
+
+        if (FAILED(next)) {
+            throw std::runtime_error(
+                "Windows AppsFolder enumeration failed.");
+        }
+
+        if (next != S_OK ||
+            fetched != 1 ||
+            !item) {
+            continue;
+        }
+
+        PWSTR rawTitle = nullptr;
+
+        if (FAILED(
+                item->GetDisplayName(
+                    SIGDN_NORMALDISPLAY,
+                    &rawTitle)) ||
+            rawTitle == nullptr) {
+            continue;
+        }
+
+        std::wstring title(
+            rawTitle);
+
+        CoTaskMemFree(
+            rawTitle);
+
+        if (title.empty()) {
+            continue;
+        }
+
+        PWSTR rawTarget = nullptr;
+
+        if (FAILED(
+                item->GetDisplayName(
+                    SIGDN_DESKTOPABSOLUTEPARSING,
+                    &rawTarget)) ||
+            rawTarget == nullptr) {
+            continue;
+        }
+
+        std::wstring target(
+            rawTarget);
+
+        CoTaskMemFree(
+            rawTarget);
+
+        if (target.empty()) {
+            continue;
+        }
+
+        apps.push_back({
+            std::move(title),
+            std::move(target),
+        });
     }
 
     return apps;
