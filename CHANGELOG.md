@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0-alpha.2
+
+- Added an independent modern Win32 Settings Shell.
+- Added left-side navigation for General, Appearance and About pages.
+- Added tray-menu Settings entry and `F2` shortcut from the launcher.
+- Bound General settings directly to the alpha.1 JSON Config Core.
+- Added live hide-after-launch, clear-query-on-show, hide-on-focus-loss and tray-icon settings.
+- Added launcher placement choices for mouse monitor, active-window monitor and primary monitor.
+- Added live Classic / Modern Compact switching from Settings.
+- Added live Simplified Chinese / English switching from Settings.
+- Added About page with version, data directory, open-data-folder action and GitHub link.
+- Preserved the Classic launcher UI as a separate surface.
+- Added a rolling `dev-latest` GitHub Prerelease with fixed x64 and ARM64 download URLs.
+- Updated tagged release workflow so alpha/beta tags are automatically marked as Prereleases.
+- Updated Windows version metadata to `0.2.0-alpha.2`.
+
+
 ## 0.2.0-alpha.1
 
 - Added versioned JSON Config Core with `schemaVersion: 1`.
