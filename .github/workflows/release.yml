@@ -82,12 +82,73 @@ jobs:
             throw "Packaged VERSION '$packagedVersion' does not match '$expectedVersion'."
           }
 
-          $versionInfo = (Get-Item (Join-Path $verify "ALTRunNext.exe")).VersionInfo
-          if ($versionInfo.FileVersion.Trim() -ne $expectedVersion) {
-            throw "EXE FileVersion '$($versionInfo.FileVersion)' does not match '$expectedVersion'."
+          $semver = [regex]::Match(
+            $expectedVersion,
+            '^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALTRunNext-${{ matrix.arch }}
+          path: ALTRunNext-${{ matrix.arch }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Prepare checksums
+        shell: bash
+        run: |
+          find artifacts -type f -name 'ALTRunNext-x64.zip' -exec cp {} ALTRunNext-x64.zip \;
+          find artifacts -type f -name 'ALTRunNext-ARM64.zip' -exec cp {} ALTRunNext-ARM64.zip \;
+          test -f ALTRunNext-x64.zip
+          test -f ALTRunNext-ARM64.zip
+          sha256sum ALTRunNext-x64.zip ALTRunNext-ARM64.zip > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ALTRun Next ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: |
+            ALTRunNext-x64.zip
+            ALTRunNext-ARM64.zip
+            SHA256SUMS.txt
+
+          )
+          if (-not $semver.Success) {
+            throw "Unsupported VERSION format: '$expectedVersion'."
           }
-          if ($versionInfo.ProductVersion.Trim() -ne $expectedVersion) {
-            throw "EXE ProductVersion '$($versionInfo.ProductVersion)' does not match '$expectedVersion'."
+
+          $major = [int]$semver.Groups[1].Value
+          $minor = [int]$semver.Groups[2].Value
+          $patch = [int]$semver.Groups[3].Value
+          $channel = $semver.Groups[4].Value
+          $channelNumber = if ($semver.Groups[5].Success) {
+            [int]$semver.Groups[5].Value
+          } else {
+            0
+          }
+
+          $revision = switch ($channel) {
+            "alpha" { $channelNumber }
+            "beta"  { 99 + $channelNumber }
+            "rc"    { 199 + $channelNumber }
+            default { 300 }
+          }
+
+          $expectedWindowsVersion = "$major.$minor.$patch.$revision"
+          $versionInfo = (Get-Item (Join-Path $verify "ALTRunNext.exe")).VersionInfo
+
+          $fileVersion = "$($versionInfo.FileMajorPart).$($versionInfo.FileMinorPart).$($versionInfo.FileBuildPart).$($versionInfo.FilePrivatePart)"
+          $productVersion = "$($versionInfo.ProductMajorPart).$($versionInfo.ProductMinorPart).$($versionInfo.ProductBuildPart).$($versionInfo.ProductPrivatePart)"
+
+          if ($fileVersion -ne $expectedWindowsVersion) {
+            throw "EXE fixed FileVersion '$fileVersion' does not match '$expectedWindowsVersion'."
+          }
+          if ($productVersion -ne $expectedWindowsVersion) {
+            throw "EXE fixed ProductVersion '$productVersion' does not match '$expectedWindowsVersion'."
           }
 
       - uses: actions/upload-artifact@v4

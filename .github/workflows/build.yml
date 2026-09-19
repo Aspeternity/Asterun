@@ -101,12 +101,173 @@ jobs:
             throw "Packaged VERSION '$packagedVersion' does not match '$expectedVersion'."
           }
 
-          $versionInfo = (Get-Item (Join-Path $verify "ALTRunNext.exe")).VersionInfo
-          if ($versionInfo.FileVersion.Trim() -ne $expectedVersion) {
-            throw "EXE FileVersion '$($versionInfo.FileVersion)' does not match '$expectedVersion'."
+          $semver = [regex]::Match(
+            $expectedVersion,
+            '^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALTRunNext-${{ matrix.arch }}
+          path: ALTRunNext-${{ matrix.arch }}.zip
+
+
+  windows-provider-smoke:
+    name: Windows provider runtime smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure provider smoke tests
+        shell: pwsh
+        run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
+      - name: Build provider smoke tests
+        shell: pwsh
+        run: cmake --build build-smoke --config Release --target windows_provider_smoke_tests --parallel
+      - name: Run provider smoke tests
+        shell: pwsh
+        run: ctest --test-dir build-smoke -C Release -R "^windows_provider_smoke_tests$" --output-on-failure
+
+  windows-compat:
+    name: Windows 10 API baseline
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure x64 compatibility build
+        shell: pwsh
+        run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
+      - name: Build x64 compatibility target
+        shell: pwsh
+        run: cmake --build build-compat --config Release --target ALTRunNext windows_provider_smoke_tests --parallel
+      - name: Verify compatibility artifact
+        shell: pwsh
+        run: |
+          if (-not (Test-Path build-compat/Release/ALTRunNext.exe)) {
+            throw "Windows compatibility build did not produce ALTRunNext.exe."
           }
-          if ($versionInfo.ProductVersion.Trim() -ne $expectedVersion) {
-            throw "EXE ProductVersion '$($versionInfo.ProductVersion)' does not match '$expectedVersion'."
+      - name: Run provider compatibility smoke
+        shell: pwsh
+        run: ctest --test-dir build-compat -C Release -R "^windows_provider_smoke_tests$" --output-on-failure
+
+  development-release:
+    name: Publish rolling development prerelease
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test-core, build-windows, windows-provider-smoke, windows-compat]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: altrun-development-release
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check this is still the latest main commit
+        id: current
+        shell: bash
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" = "$GITHUB_SHA" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "A newer main commit exists; skip publishing this run."
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.current.outputs.publish == 'true'
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        if: steps.current.outputs.publish == 'true'
+        shell: bash
+        run: |
+          find artifacts -type f -name 'ALTRunNext-x64.zip' -exec cp {} ALTRunNext-x64.zip \;
+          find artifacts -type f -name 'ALTRunNext-ARM64.zip' -exec cp {} ALTRunNext-ARM64.zip \;
+          test -f ALTRunNext-x64.zip
+          test -f ALTRunNext-ARM64.zip
+          sha256sum ALTRunNext-x64.zip ALTRunNext-ARM64.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish dev-latest prerelease
+        if: steps.current.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release delete dev-latest --yes --cleanup-tag || true
+          git tag -f dev-latest "$GITHUB_SHA"
+          git push origin refs/tags/dev-latest --force
+          gh release create dev-latest \
+            ALTRunNext-x64.zip \
+            ALTRunNext-ARM64.zip \
+            SHA256SUMS.txt \
+            --prerelease \
+            --title "ALTRun Next Development Build" \
+            --notes "Rolling prerelease built from main at commit $GITHUB_SHA. This release is replaced automatically after every successful main build."
+
+      - name: Publish immutable versioned release if needed
+        if: steps.current.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          TAG="v$VERSION"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists; keep the historical prerelease unchanged."
+            exit 0
+          fi
+
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+
+          EXTRA_ARGS=()
+          if [[ "$VERSION" == *-* ]]; then
+            EXTRA_ARGS+=(--prerelease)
+          fi
+
+          gh release create "$TAG" \
+            ALTRunNext-x64.zip \
+            ALTRunNext-ARM64.zip \
+            SHA256SUMS.txt \
+            "${EXTRA_ARGS[@]}" \
+            --title "ALTRun Next $TAG" \
+            --notes "Versioned build created automatically from commit $GITHUB_SHA."
+
+          )
+          if (-not $semver.Success) {
+            throw "Unsupported VERSION format: '$expectedVersion'."
+          }
+
+          $major = [int]$semver.Groups[1].Value
+          $minor = [int]$semver.Groups[2].Value
+          $patch = [int]$semver.Groups[3].Value
+          $channel = $semver.Groups[4].Value
+          $channelNumber = if ($semver.Groups[5].Success) {
+            [int]$semver.Groups[5].Value
+          } else {
+            0
+          }
+
+          $revision = switch ($channel) {
+            "alpha" { $channelNumber }
+            "beta"  { 99 + $channelNumber }
+            "rc"    { 199 + $channelNumber }
+            default { 300 }
+          }
+
+          $expectedWindowsVersion = "$major.$minor.$patch.$revision"
+          $versionInfo = (Get-Item (Join-Path $verify "ALTRunNext.exe")).VersionInfo
+
+          $fileVersion = "$($versionInfo.FileMajorPart).$($versionInfo.FileMinorPart).$($versionInfo.FileBuildPart).$($versionInfo.FilePrivatePart)"
+          $productVersion = "$($versionInfo.ProductMajorPart).$($versionInfo.ProductMinorPart).$($versionInfo.ProductBuildPart).$($versionInfo.ProductPrivatePart)"
+
+          if ($fileVersion -ne $expectedWindowsVersion) {
+            throw "EXE fixed FileVersion '$fileVersion' does not match '$expectedWindowsVersion'."
+          }
+          if ($productVersion -ne $expectedWindowsVersion) {
+            throw "EXE fixed ProductVersion '$productVersion' does not match '$expectedWindowsVersion'."
           }
 
       - uses: actions/upload-artifact@v4
