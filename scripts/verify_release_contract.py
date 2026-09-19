@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def fail(message: str) -> None:
-    print(f"v0.4.1 release-contract error: {message}", file=sys.stderr)
+    print(f"release-contract error: {message}", file=sys.stderr)
     raise SystemExit(1)
 
 
@@ -35,6 +35,133 @@ if not match:
 
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
+
+if version == "0.5.0-alpha.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 2,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected alpha.1 foundation value "
+                f"{expected}"
+            )
+
+    provider_cache_schema = cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    )
+    if provider_cache_schema != 2:
+        fail(
+            "provider-cache schema must remain 2 during Everything "
+            "IPC foundation"
+        )
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for provider_id in (
+        "windows.startmenu",
+        "windows.packaged",
+        "windows.apppaths",
+        "windows.path",
+    ):
+        if provider_id not in provider_text:
+            fail(f"existing provider ID changed or disappeared: {provider_id}")
+    if "everything.filesystem" in provider_text:
+        fail(
+            "everything.filesystem must not enter ProviderRegistry "
+            "until v0.5.0-alpha.2"
+        )
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 2:
+        fail("settings schema must remain 2 in v0.5.0-alpha.1")
+    if "everything.filesystem" in settings.get("providers", {}):
+        fail(
+            "Everything settings/provider enablement is reserved for "
+            "a later v0.5 phase"
+        )
+
+    protocol = read("src/core/EverythingIpcProtocol.hpp")
+    for token in (
+        "kCopyDataQuery2W = 18",
+        "kRequestName = 0x00000001",
+        "kRequestPath = 0x00000002",
+        "kRequestFullPathAndName = 0x00000004",
+    ):
+        if token not in protocol:
+            fail(f"Everything Query2 protocol contract is missing: {token}")
+
+    client = read("src/platform/EverythingIpcClient.cpp")
+    for token in (
+        "SendMessageTimeoutW",
+        "WM_COPYDATA",
+        "FindWindowW",
+        "latestGeneration_",
+        "kDebounceTimerId",
+        "kReplyTimerId",
+    ):
+        if token not in client:
+            fail(f"Everything IPC client foundation is missing: {token}")
+
+    combined_everything_source = protocol + client
+    for forbidden in (
+        "Everything64.dll",
+        "Everything32.dll",
+        "LoadLibraryW",
+        "LoadLibraryA",
+    ):
+        if forbidden in combined_everything_source:
+            fail(
+                "v0.5.0-alpha.1 must use native WM_COPYDATA IPC "
+                f"without Everything DLL loading: found {forbidden}"
+            )
+
+    cmake_text = read("CMakeLists.txt")
+    for token in (
+        "EverythingIpcProtocol.cpp",
+        "EverythingIpcClient.cpp",
+        "everything_ipc_protocol_tests",
+        "everything_ipc_runtime_tests",
+    ):
+        if token not in cmake_text:
+            fail(f"Everything alpha.1 build/test wiring is missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        if "everything_ipc_runtime_tests" not in workflow:
+            fail(
+                f"{workflow_path} does not run the Everything IPC "
+                "runtime smoke"
+            )
+
+    launcher = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(
+                f"Classic geometry changed during alpha.1 foundation: "
+                f"{name}"
+            )
+
+    print(
+        "v0.5.0-alpha.1 Everything IPC foundation contract verified:",
+        "| settings=2 commands=1 usage=1 provider-cache=2",
+        "| no Everything DLL | no launcher integration",
+    )
+    raise SystemExit(0)
 
 # This gate is intentionally scoped to the frozen v0.4.1 line. It becomes
 # a no-op when main advances to a later feature line.

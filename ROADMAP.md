@@ -80,7 +80,6 @@ Completed in v0.4.1:
 - Automated validation covers 100%/125%/150%/200% General-page layout invariants, IME-safe single-result gating, numeric quick-launch mapping and v0.4.0 settings migration/downgrade protection
 - RC1 hardens publication with tag/VERSION preflight, checksum self-verification and an exact portable-package top-level allowlist
 - v0.4.1 Stable preserves the frozen schema/provider/Classic contracts and uses Windows fixed version 0.4.1.300
-- RC1 hardens publication with tag/VERSION preflight, checksum self-verification and an exact portable-package top-level allowlist
 - Final x64 ZIPs receive a packaged-runtime startup smoke before publication
 - Tag-triggered releases require the same Core/Windows smoke/compatibility gates as main publication and now fail fast on a mismatched release tag
 - A packaged desktop-validation checklist defines the remaining real Windows 10/11, mixed-DPI, provider and interactive-input matrix
@@ -89,13 +88,17 @@ Completed in v0.4.1:
 
 ## v0.5.x - Everything integration
 
-Planned:
+In progress:
 
-- Everything SDK / IPC provider
-- File and folder search without blocking application search
-- Provider-aware result types and ranking
-- Search-source controls integrated with the existing Provider Registry
-- Graceful fallback when Everything is unavailable
+- v0.5.0-alpha.1 establishes native Everything 1.4-compatible Unicode Query2 IPC over WM_COPYDATA
+- Dedicated worker thread and hidden reply window keep Everything IPC off the launcher/UI thread
+- 70 ms debounce, generation/reply-token stale discard, send timeout and reply timeout handling
+- Portable Query2/LIST2 protocol parsing with Unicode and malformed-payload regression tests
+- Real Win32 fake-Everything runtime smoke tests run without installing Everything in CI
+- x64 and ARM64 production builds compile the IPC foundation without adding an Everything runtime DLL
+- settings remains schemaVersion 2 in alpha.1; everything.filesystem and schemaVersion 3 are reserved for later v0.5 phases
+- Alpha 2 will introduce LauncherResult / DynamicQueryProvider / everything.filesystem and actual File/Folder launcher results
+- Later phases will add unified ranking, Settings/diagnostics and real-world 1.4/1.5 compatibility hardening
 
 ## v0.6.x - Smart actions & Windows integration
 

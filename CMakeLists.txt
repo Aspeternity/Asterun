@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.4.1 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.5.0 LANGUAGES CXX)
 
 file(
     STRINGS
@@ -89,6 +89,7 @@ endif()
 
 add_library(altrun_core STATIC
     src/core/ClassicBehavior.cpp
+    src/core/EverythingIpcProtocol.cpp
     src/core/PinyinSearch.cpp
     src/core/SearchEngine.cpp
     src/core/SettingsLayout.cpp
@@ -153,6 +154,7 @@ if(WIN32)
         src/core/PathProvider.cpp
         src/core/ProviderRegistry.cpp
         src/core/StartMenuProvider.cpp
+        src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
@@ -222,6 +224,26 @@ if(BUILD_TESTING)
     altrun_enable_test_assertions(search_engine_tests)
     altrun_copy_pinyin_runtime(search_engine_tests)
     add_test(NAME search_engine_tests COMMAND search_engine_tests)
+
+    add_executable(
+        everything_ipc_protocol_tests
+        tests/EverythingIpcProtocolTests.cpp
+    )
+    target_link_libraries(
+        everything_ipc_protocol_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        everything_ipc_protocol_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        everything_ipc_protocol_tests
+    )
+    add_test(
+        NAME everything_ipc_protocol_tests
+        COMMAND everything_ipc_protocol_tests
+    )
 
     add_executable(config_core_tests tests/ConfigCoreTests.cpp)
     target_link_libraries(config_core_tests PRIVATE altrun_config)
@@ -384,6 +406,55 @@ if(BUILD_TESTING)
         add_test(
             NAME hotkey_runtime_tests
             COMMAND hotkey_runtime_tests
+        )
+
+        add_executable(
+            everything_ipc_runtime_tests
+            tests/EverythingIpcRuntimeTests.cpp
+            src/platform/EverythingIpcClient.cpp
+        )
+
+        target_include_directories(
+            everything_ipc_runtime_tests
+            PRIVATE src
+        )
+
+        target_link_libraries(
+            everything_ipc_runtime_tests
+            PRIVATE
+                altrun_core
+                user32
+        )
+
+        target_compile_definitions(
+            everything_ipc_runtime_tests
+            PRIVATE
+                UNICODE
+                _UNICODE
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0A00
+                WINVER=0x0A00
+        )
+
+        if(MSVC)
+            target_compile_options(
+                everything_ipc_runtime_tests
+                PRIVATE
+                    /W4
+                    /permissive-
+                    /utf-8
+                    /EHsc
+            )
+        endif()
+
+        altrun_enable_test_assertions(
+            everything_ipc_runtime_tests
+        )
+
+        add_test(
+            NAME everything_ipc_runtime_tests
+            COMMAND everything_ipc_runtime_tests
         )
     endif()
 endif()

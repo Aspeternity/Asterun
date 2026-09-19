@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.5.0-alpha.1 — Everything IPC Foundation
+
+This alpha begins the Everything file/folder-search architecture without exposing file results in the launcher yet. Existing User Commands, Start Menu, Windows Apps, App Paths and PATH search behavior remains unchanged.
+
+The new foundation uses Everything's native 1.4-compatible Unicode Query2 IPC over `WM_COPYDATA`. ALTRun Next does not load or ship `Everything64.dll`, does not add a runtime DLL, does not start Everything automatically and does not build its own file index. The Windows transport runs on a dedicated worker thread with a hidden reply window, a 70 ms latest-query debounce, per-query reply tokens, generation-based stale-result discard, bounded `SendMessageTimeoutW` delivery and reply timeout handling.
+
+Query2 binary encoding and LIST2 parsing live in a portable protocol layer. Core CI exercises UTF-16/Chinese payloads, malformed buffers, invalid offsets and unsupported request flags. Windows CI adds a real `WM_COPYDATA` fake-Everything server that validates availability fallback, asynchronous Unicode replies, rapid-typing coalescing, stale reply discard and reply timeout behavior without requiring Everything to be installed on GitHub-hosted runners.
+
+v0.5.0-alpha.1 deliberately does **not** add `everything.filesystem` to the existing static Provider Registry, does not change `settings.json` to schemaVersion 3, does not write file results to provider-cache/usage data and does not change Classic launcher geometry. Dynamic provider/result integration begins in alpha.2.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.1`.
+
 ## v0.4.1 — Stable Classic Settings Parity
 
 v0.4.1 promotes the RC1 feature set to stable without adding another feature, changing a data schema, changing a provider ID or modifying the frozen Classic launcher geometry.

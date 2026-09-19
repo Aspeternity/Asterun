@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0-alpha.1
+
+- Added a portable Everything Query2 protocol layer for native Unicode `WM_COPYDATA` IPC without an Everything DLL dependency.
+- Added Query2 request encoding for name/path/full-path fields and defensive LIST2 parsing with bounds, offset, UTF-16 terminator and request-flag validation.
+- Added the Windows `EverythingIpcClient` with a dedicated worker thread and hidden reply window.
+- Added 70 ms latest-query debounce, per-query reply tokens, generation-based stale-result discard, bounded send timeout and reply timeout handling.
+- Added availability detection and graceful `Unavailable` behavior when the Everything IPC window is missing or IPC is unsupported, including Everything Lite behavior.
+- Added query/result foundation types for File/Folder, latency, total matches and native error reporting.
+- Added portable protocol tests covering Unicode/Chinese payloads and malformed IPC buffers.
+- Added Windows fake-Everything runtime tests using real HWND + `WM_COPYDATA` messaging for success, unavailable fallback, stale reply discard, rapid typing coalescing and reply timeout.
+- Added Everything IPC runtime smoke coverage to both current-Windows and Windows 10 API-baseline CI.
+- Added an alpha.1 release contract that keeps settings schemaVersion 2, commands/usage schemaVersion 1, provider-cache schemaVersion 2, existing provider IDs and frozen Classic geometry unchanged.
+- Kept `everything.filesystem`, LauncherResult integration, settings schemaVersion 3, provider-cache/usage persistence and Launcher file rendering out of alpha.1 by design.
+- Updated Windows version metadata to `0.5.0-alpha.1` / `0.5.0.1`.
+
+
 ## 0.4.1
 
 - Promoted the frozen v0.4.1 RC1 feature set to Stable without adding new launcher behavior.

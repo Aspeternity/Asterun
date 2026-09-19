@@ -77,6 +77,8 @@ v0.4.1-rc.1 also keeps every schema unchanged. RC1 changes only release-candidat
 
 v0.4.1 Stable keeps the same schema versions and performs no additional migration from RC1. Stable promotion changes only release/version metadata; the schemaVersion 2 downgrade-safety contract remains unchanged.
 
+v0.5.0-alpha.1 does not change any persisted schema. The Everything IPC foundation is intentionally transport-only: `settings.json` remains schemaVersion 2, `commands.json` / `usage.json` remain schemaVersion 1, and `provider-cache.json` remains schemaVersion 2. No `everything.filesystem` provider setting is written in alpha.1, and Everything query results are not persisted to provider-cache or usage history. The planned settings schemaVersion 3 migration is deferred until the Settings/provider integration phase.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text
