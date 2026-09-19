@@ -8,6 +8,9 @@ namespace altrun {
 enum class CommandSource {
     User,
     StartMenu,
+    AppPaths,
+    Path,
+    PackagedApp,
 };
 
 enum class CommandType {

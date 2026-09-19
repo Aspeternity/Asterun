@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.3.0 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.4.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -126,6 +126,7 @@ if(WIN32)
         src/core/CommandStore.cpp
         src/core/Localization.cpp
         src/core/StartMenuProvider.cpp
+        src/core/WindowsAppProvider.cpp
         src/platform/Hotkey.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
@@ -148,6 +149,7 @@ if(WIN32)
         gdi32
         dwmapi
         uxtheme
+        uuid
     )
     target_compile_definitions(ALTRunNext PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 

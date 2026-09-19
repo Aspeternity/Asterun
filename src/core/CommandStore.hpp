@@ -3,6 +3,7 @@
 #include "Command.hpp"
 #include "StartMenuProvider.hpp"
 #include "UserCommandStore.hpp"
+#include "WindowsAppProvider.hpp"
 
 #include <filesystem>
 #include <string>
@@ -55,6 +56,7 @@ private:
     std::filesystem::path dataDirectory_;
     UserCommandStore userCommandStore_;
     StartMenuProvider startMenuProvider_;
+    WindowsAppProvider windowsAppProvider_;
     std::vector<Command> commands_;
 };
 

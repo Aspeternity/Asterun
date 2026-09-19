@@ -1,15 +1,16 @@
 #pragma once
 
-#include "Command.hpp"
+#include "ICommandProvider.hpp"
 
 #include <filesystem>
 #include <vector>
 
 namespace altrun {
 
-class StartMenuProvider {
+class StartMenuProvider final : public ICommandProvider {
 public:
-    [[nodiscard]] std::vector<Command> Discover() const;
+    [[nodiscard]] std::vector<Command>
+    Discover() const override;
 
 private:
     void ScanPath(

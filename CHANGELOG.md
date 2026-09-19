@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0-alpha.1
+
+- Started the v0.4 Windows 11 application-discovery phase with a shared command-provider interface.
+- Converted the existing Start Menu scanner into an `ICommandProvider`.
+- Added `WindowsAppProvider` and merged its results into the same CommandStore/SearchEngine pipeline.
+- Added discovery from the current-user and machine-wide Windows `App Paths` registry keys, including 64-bit and 32-bit registry views.
+- Added discovery of executables exposed through the effective Windows `PATH`.
+- Added UWP / MSIX / Microsoft Store application discovery through the Windows `FOLDERID_AppsFolder` shell namespace.
+- Added provider-specific command sources for App Paths, PATH and packaged applications.
+- Added cross-provider de-duplication while keeping user-defined shortcuts authoritative.
+- Existing Data -> Rebuild program index now rescans every provider, not only the Start Menu.
+- Start Menu results retain a higher default search priority than raw PATH entries; packaged apps and App Paths participate without overriding explicit user keywords or aliases.
+- No persistent provider cache is introduced yet; background caching and incremental refresh remain scheduled for later v0.4 alphas.
+- Updated Windows version metadata to `0.4.0-alpha.1`.
+
+
 ## 0.3.0-alpha.2
 
 - Added multi-token search so spaced queries such as `visual code` can match all requested terms across a command.

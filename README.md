@@ -14,6 +14,26 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.0-alpha.1 — Windows App Provider Core
+
+v0.4 begins the Windows 11 application-discovery phase. Search ranking and the launcher UI remain unchanged; the main change is where applications can come from.
+
+The runtime provider pipeline is now:
+
+```text
+CommandStore
+├─ persistent user commands
+├─ StartMenuProvider
+└─ WindowsAppProvider
+   ├─ App Paths (HKCU / HKLM)
+   ├─ PATH executables
+   └─ AppsFolder (UWP / MSIX / Store)
+```
+
+All discovered entries feed the same SearchEngine, including Smart Search and pinyin matching. User-defined shortcuts remain authoritative, while duplicate automatic entries are suppressed when providers expose the same effective app.
+
+The existing **Rebuild program index** action now rescans all providers. v0.4.0-alpha.1 intentionally performs discovery synchronously; persistent provider caching and incremental/background refresh are reserved for later v0.4 alphas.
+
 ## v0.3.0-alpha.2 — Smart Search
 
 The second v0.3 alpha focuses on search ergonomics rather than UI changes.
@@ -213,7 +233,7 @@ language=zh-CN
 - Native C++23 + Win32
 - Configurable global launcher hotkey (default `Alt+Space`)
 - Persistent user commands from `data/commands.json`
-- Start Menu indexing
+- Multi-source Windows application discovery (Start Menu, App Paths, PATH, UWP/MSIX)
 - Lightweight fuzzy matching
 - Chinese full-pinyin + pinyin-initial matching
 - Frequency + recency ranking
