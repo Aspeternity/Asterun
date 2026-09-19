@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.5
+
+- Froze the already-matched Classic window geometry and result-table layout.
+- Recalibrated the title gradient to be darker on the left and brighter on the right.
+- Softened the horizontal title-bar scanlines.
+- Redrew the clean-room launcher emblem with a less circular blue folded form and a larger orange star.
+- Rebuilt the Classic close button as a filled beveled polygon instead of crossing strokes.
+- Slightly enlarged and repositioned both title-bar corner controls to match the supplied reference.
+- Bumped application, manifest and Windows resource version to 0.1.5.
+
+
 ## 0.1.3
 
 - Rebuilt Classic mode against a real user-provided old ALTRun screenshot instead of generic Win32 styling.

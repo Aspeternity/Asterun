@@ -510,8 +510,8 @@ RECT LauncherWindow::ClassicCloseRect() const {
     RECT client{};
     GetClientRect(hwnd_, &client);
 
-    const int size = DpiScale(24);
-    const int inset = DpiScale(4);
+    const int size = DpiScale(25);
+    const int inset = DpiScale(3);
 
     return {
         client.right - inset - size,
@@ -522,141 +522,165 @@ RECT LauncherWindow::ClassicCloseRect() const {
 }
 
 void LauncherWindow::PaintClassicLogo(HDC dc, int x, int y) {
-    // Clean-room recreation of the visual character of the old ALTRun emblem:
-    // a blue folded/arrow shape behind an orange five-point star.
-    const int s = DpiScale(24);
-
-    POINT shadow[7]{
-        {x + DpiScale(8),  y + DpiScale(2)},
-        {x + DpiScale(17), y + DpiScale(6)},
-        {x + DpiScale(24), y + DpiScale(12)},
-        {x + DpiScale(20), y + DpiScale(21)},
-        {x + DpiScale(13), y + DpiScale(23)},
-        {x + DpiScale(4),  y + DpiScale(16)},
+    // Clean-room vector recreation of the old skin's visual language:
+    // a folded blue paper/arrow form with a large orange star in front.
+    POINT backShadow[7]{
+        {x + DpiScale(9),  y + DpiScale(1)},
+        {x + DpiScale(19), y + DpiScale(6)},
+        {x + DpiScale(25), y + DpiScale(11)},
+        {x + DpiScale(21), y + DpiScale(20)},
+        {x + DpiScale(14), y + DpiScale(23)},
+        {x + DpiScale(5),  y + DpiScale(17)},
         {x + DpiScale(6),  y + DpiScale(7)},
     };
 
-    HBRUSH dark = CreateSolidBrush(RGB(42, 62, 83));
-    HPEN darkPen = CreatePen(PS_SOLID, DpiScale(1), RGB(33, 47, 62));
-    HGDIOBJ oldBrush = SelectObject(dc, dark);
-    HGDIOBJ oldPen = SelectObject(dc, darkPen);
-    Polygon(dc, shadow, 7);
+    HBRUSH shadowBrush = CreateSolidBrush(RGB(44, 57, 70));
+    HPEN shadowPen = CreatePen(PS_SOLID, DpiScale(1), RGB(33, 42, 52));
+    HGDIOBJ oldBrush = SelectObject(dc, shadowBrush);
+    HGDIOBJ oldPen = SelectObject(dc, shadowPen);
+    Polygon(dc, backShadow, 7);
     SelectObject(dc, oldBrush);
     SelectObject(dc, oldPen);
-    DeleteObject(dark);
-    DeleteObject(darkPen);
+    DeleteObject(shadowBrush);
+    DeleteObject(shadowPen);
 
-    POINT blueShape[7]{
-        {x + DpiScale(7),  y + DpiScale(1)},
-        {x + DpiScale(17), y + DpiScale(6)},
-        {x + DpiScale(22), y + DpiScale(11)},
-        {x + DpiScale(19), y + DpiScale(19)},
-        {x + DpiScale(13), y + DpiScale(22)},
-        {x + DpiScale(3),  y + DpiScale(15)},
-        {x + DpiScale(5),  y + DpiScale(6)},
+    POINT blueFold[6]{
+        {x + DpiScale(8),  y + DpiScale(1)},
+        {x + DpiScale(18), y + DpiScale(6)},
+        {x + DpiScale(23), y + DpiScale(11)},
+        {x + DpiScale(18), y + DpiScale(20)},
+        {x + DpiScale(11), y + DpiScale(22)},
+        {x + DpiScale(4),  y + DpiScale(14)},
     };
 
-    HBRUSH blue = CreateSolidBrush(RGB(64, 124, 194));
-    HPEN bluePen = CreatePen(PS_SOLID, DpiScale(1), RGB(26, 73, 123));
-    oldBrush = SelectObject(dc, blue);
+    HBRUSH blueBrush = CreateSolidBrush(RGB(72, 137, 204));
+    HPEN bluePen = CreatePen(PS_SOLID, DpiScale(1), RGB(35, 83, 130));
+    oldBrush = SelectObject(dc, blueBrush);
     oldPen = SelectObject(dc, bluePen);
-    Polygon(dc, blueShape, 7);
+    Polygon(dc, blueFold, 6);
     SelectObject(dc, oldBrush);
     SelectObject(dc, oldPen);
-    DeleteObject(blue);
+    DeleteObject(blueBrush);
     DeleteObject(bluePen);
 
-    POINT paleWing[4]{
-        {x + DpiScale(17), y + DpiScale(6)},
-        {x + DpiScale(24), y + DpiScale(10)},
-        {x + DpiScale(22), y + DpiScale(15)},
+    // Pale folded tip on the right, clearly separated from the blue body.
+    POINT tip[4]{
+        {x + DpiScale(18), y + DpiScale(6)},
+        {x + DpiScale(25), y + DpiScale(9)},
+        {x + DpiScale(23), y + DpiScale(15)},
         {x + DpiScale(18), y + DpiScale(12)},
     };
 
-    HBRUSH pale = CreateSolidBrush(RGB(246, 226, 139));
-    HPEN palePen = CreatePen(PS_SOLID, DpiScale(1), RGB(107, 101, 72));
-    oldBrush = SelectObject(dc, pale);
-    oldPen = SelectObject(dc, palePen);
-    Polygon(dc, paleWing, 4);
+    HBRUSH tipBrush = CreateSolidBrush(RGB(244, 222, 132));
+    HPEN tipPen = CreatePen(PS_SOLID, DpiScale(1), RGB(116, 104, 63));
+    oldBrush = SelectObject(dc, tipBrush);
+    oldPen = SelectObject(dc, tipPen);
+    Polygon(dc, tip, 4);
     SelectObject(dc, oldBrush);
     SelectObject(dc, oldPen);
-    DeleteObject(pale);
-    DeleteObject(palePen);
+    DeleteObject(tipBrush);
+    DeleteObject(tipPen);
 
-    // Ten-point polygon forming a five-point foreground star.
+    // Large foreground five-point star.
     POINT star[10]{
-        {x + DpiScale(8),  y + DpiScale(5)},
-        {x + DpiScale(10), y + DpiScale(10)},
-        {x + DpiScale(15), y + DpiScale(10)},
-        {x + DpiScale(11), y + DpiScale(13)},
-        {x + DpiScale(13), y + DpiScale(18)},
-        {x + DpiScale(8),  y + DpiScale(15)},
-        {x + DpiScale(3),  y + DpiScale(19)},
-        {x + DpiScale(5),  y + DpiScale(13)},
-        {x + DpiScale(1),  y + DpiScale(10)},
-        {x + DpiScale(6),  y + DpiScale(10)},
+        {x + DpiScale(8),  y + DpiScale(3)},
+        {x + DpiScale(11), y + DpiScale(9)},
+        {x + DpiScale(17), y + DpiScale(9)},
+        {x + DpiScale(12), y + DpiScale(13)},
+        {x + DpiScale(14), y + DpiScale(20)},
+        {x + DpiScale(8),  y + DpiScale(16)},
+        {x + DpiScale(2),  y + DpiScale(20)},
+        {x + DpiScale(4),  y + DpiScale(13)},
+        {x - DpiScale(1),  y + DpiScale(9)},
+        {x + DpiScale(5),  y + DpiScale(9)},
     };
 
-    HBRUSH orange = CreateSolidBrush(RGB(249, 168, 67));
-    HPEN starPen = CreatePen(PS_SOLID, DpiScale(1), RGB(123, 82, 34));
-    oldBrush = SelectObject(dc, orange);
+    HBRUSH starBrush = CreateSolidBrush(RGB(249, 171, 63));
+    HPEN starPen = CreatePen(PS_SOLID, DpiScale(1), RGB(119, 78, 30));
+    oldBrush = SelectObject(dc, starBrush);
     oldPen = SelectObject(dc, starPen);
     Polygon(dc, star, 10);
     SelectObject(dc, oldBrush);
     SelectObject(dc, oldPen);
-    DeleteObject(orange);
+    DeleteObject(starBrush);
     DeleteObject(starPen);
 
-    // Small highlights mimic the glossy early-Windows skin without using
-    // the original artwork.
-    HPEN highlight = CreatePen(PS_SOLID, DpiScale(1), RGB(255, 222, 153));
+    HPEN highlight = CreatePen(PS_SOLID, DpiScale(1), RGB(255, 225, 155));
     oldPen = SelectObject(dc, highlight);
-    MoveToEx(dc, x + DpiScale(3), y + DpiScale(11), nullptr);
-    LineTo(dc, x + DpiScale(8), y + DpiScale(7));
-    MoveToEx(dc, x + DpiScale(5), y + DpiScale(15), nullptr);
+    MoveToEx(dc, x + DpiScale(3), y + DpiScale(10), nullptr);
+    LineTo(dc, x + DpiScale(8), y + DpiScale(5));
+    MoveToEx(dc, x + DpiScale(4), y + DpiScale(15), nullptr);
     LineTo(dc, x + DpiScale(8), y + DpiScale(14));
     SelectObject(dc, oldPen);
     DeleteObject(highlight);
-
-    (void)s;
 }
 
 void LauncherWindow::PaintClassicClose(HDC dc, const RECT& rect) {
-    // Chunky beveled X matching the visual weight of the original skin.
-    const int inset = DpiScale(4);
-    const int wide = std::max(4, DpiScale(6));
-    const int medium = std::max(3, DpiScale(5));
-    const int thin = std::max(1, DpiScale(2));
+    // Filled beveled X rather than two crossing strokes. This more closely
+    // matches the chunky early-Windows skin in the reference screenshot.
+    const int l = rect.left + DpiScale(2);
+    const int t = rect.top + DpiScale(2);
+    const int r = rect.right - DpiScale(2);
+    const int b = rect.bottom - DpiScale(2);
+    const int arm = DpiScale(5);
 
-    const int x1 = rect.left + inset;
-    const int y1 = rect.top + inset;
-    const int x2 = rect.right - inset;
-    const int y2 = rect.bottom - inset;
+    POINT shadow[12]{
+        {l + arm, t + DpiScale(2)},
+        {(l + r) / 2, (t + b) / 2 - arm / 2 + DpiScale(2)},
+        {r - arm, t + DpiScale(2)},
+        {r, t + arm + DpiScale(2)},
+        {(l + r) / 2 + arm / 2, (t + b) / 2 + DpiScale(2)},
+        {r, b - arm + DpiScale(2)},
+        {r - arm, b + DpiScale(2)},
+        {(l + r) / 2, (t + b) / 2 + arm / 2 + DpiScale(2)},
+        {l + arm, b + DpiScale(2)},
+        {l, b - arm + DpiScale(2)},
+        {(l + r) / 2 - arm / 2, (t + b) / 2 + DpiScale(2)},
+        {l, t + arm + DpiScale(2)},
+    };
 
-    HPEN shadow = CreatePen(PS_SOLID, wide, RGB(111, 48, 48));
-    HGDIOBJ oldPen = SelectObject(dc, shadow);
-    MoveToEx(dc, x1 + DpiScale(1), y1 + DpiScale(2), nullptr);
-    LineTo(dc, x2 + DpiScale(1), y2 + DpiScale(2));
-    MoveToEx(dc, x2 + DpiScale(1), y1 + DpiScale(2), nullptr);
-    LineTo(dc, x1 + DpiScale(1), y2 + DpiScale(2));
+    HBRUSH shadowBrush = CreateSolidBrush(RGB(111, 48, 48));
+    HPEN shadowPen = CreatePen(PS_SOLID, DpiScale(1), RGB(83, 41, 41));
+    HGDIOBJ oldBrush = SelectObject(dc, shadowBrush);
+    HGDIOBJ oldPen = SelectObject(dc, shadowPen);
+    Polygon(dc, shadow, 12);
+    SelectObject(dc, oldBrush);
     SelectObject(dc, oldPen);
-    DeleteObject(shadow);
+    DeleteObject(shadowBrush);
+    DeleteObject(shadowPen);
 
-    HPEN body = CreatePen(PS_SOLID, medium, RGB(213, 85, 83));
-    oldPen = SelectObject(dc, body);
-    MoveToEx(dc, x1, y1, nullptr);
-    LineTo(dc, x2, y2);
-    MoveToEx(dc, x2, y1, nullptr);
-    LineTo(dc, x1, y2);
+    POINT body[12]{
+        {l + arm, t},
+        {(l + r) / 2, (t + b) / 2 - arm / 2},
+        {r - arm, t},
+        {r, t + arm},
+        {(l + r) / 2 + arm / 2, (t + b) / 2},
+        {r, b - arm},
+        {r - arm, b},
+        {(l + r) / 2, (t + b) / 2 + arm / 2},
+        {l + arm, b},
+        {l, b - arm},
+        {(l + r) / 2 - arm / 2, (t + b) / 2},
+        {l, t + arm},
+    };
+
+    HBRUSH bodyBrush = CreateSolidBrush(RGB(226, 91, 86));
+    HPEN bodyPen = CreatePen(PS_SOLID, DpiScale(1), RGB(158, 62, 60));
+    oldBrush = SelectObject(dc, bodyBrush);
+    oldPen = SelectObject(dc, bodyPen);
+    Polygon(dc, body, 12);
+    SelectObject(dc, oldBrush);
     SelectObject(dc, oldPen);
-    DeleteObject(body);
+    DeleteObject(bodyBrush);
+    DeleteObject(bodyPen);
 
-    HPEN light = CreatePen(PS_SOLID, thin, RGB(255, 174, 160));
+    // Top-left bevel highlight.
+    HPEN light = CreatePen(PS_SOLID, DpiScale(2), RGB(255, 174, 160));
     oldPen = SelectObject(dc, light);
-    MoveToEx(dc, x1 + DpiScale(1), y1, nullptr);
-    LineTo(dc, x2 - DpiScale(3), y2 - DpiScale(4));
-    MoveToEx(dc, x2 - DpiScale(1), y1, nullptr);
-    LineTo(dc, x1 + DpiScale(3), y2 - DpiScale(4));
+    MoveToEx(dc, l + arm, t + DpiScale(1), nullptr);
+    LineTo(dc, (l + r) / 2, (t + b) / 2 - arm / 2 + DpiScale(1));
+    MoveToEx(dc, r - arm, t + DpiScale(1), nullptr);
+    LineTo(dc, (l + r) / 2 + DpiScale(1), (t + b) / 2 - arm / 2 + DpiScale(1));
     SelectObject(dc, oldPen);
     DeleteObject(light);
 }
@@ -665,8 +689,8 @@ void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
     RECT title{client.left, client.top, client.right, DpiScale(30)};
 
     constexpr int bands = 40;
-    const COLORREF left = RGB(96, 99, 102);
-    const COLORREF right = RGB(158, 161, 165);
+    const COLORREF left = RGB(86, 91, 96);
+    const COLORREF right = RGB(181, 183, 186);
 
     for (int i = 0; i < bands; ++i) {
         RECT band = title;
@@ -679,7 +703,10 @@ void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
     }
 
     for (int y = DpiScale(2); y < title.bottom; y += std::max(2, DpiScale(2))) {
-        HPEN line = CreatePen(PS_SOLID, 1, RGB(122, 126, 130));
+        const int logicalY = MulDiv(y, 96, static_cast<int>(dpi_));
+        const COLORREF lineColor =
+            (logicalY % 4 == 0) ? RGB(128, 132, 135) : RGB(119, 123, 127);
+        HPEN line = CreatePen(PS_SOLID, 1, lineColor);
         HGDIOBJ oldPen = SelectObject(dc, line);
         MoveToEx(dc, title.left, y, nullptr);
         LineTo(dc, title.right, y);
@@ -687,7 +714,7 @@ void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
         DeleteObject(line);
     }
 
-    PaintClassicLogo(dc, DpiScale(8), DpiScale(3));
+    PaintClassicLogo(dc, DpiScale(9), DpiScale(3));
 
     RECT textRect = title;
     textRect.left += DpiScale(38);
