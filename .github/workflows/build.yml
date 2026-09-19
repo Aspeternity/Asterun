@@ -42,6 +42,7 @@ jobs:
           Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
           Copy-Item config/*.example.* dist/
           Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
+          Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
       - uses: actions/upload-artifact@v4
@@ -104,3 +105,32 @@ jobs:
             --prerelease \
             --title "ALTRun Next Development Build" \
             --notes "Rolling prerelease built from main at commit $GITHUB_SHA. This release is replaced automatically after every successful main build."
+
+      - name: Publish immutable versioned release if needed
+        if: steps.current.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          TAG="v$VERSION"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists; keep the historical prerelease unchanged."
+            exit 0
+          fi
+
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+
+          EXTRA_ARGS=()
+          if [[ "$VERSION" == *-* ]]; then
+            EXTRA_ARGS+=(--prerelease)
+          fi
+
+          gh release create "$TAG" \
+            ALTRunNext-x64.zip \
+            ALTRunNext-ARM64.zip \
+            "${EXTRA_ARGS[@]}" \
+            --title "ALTRun Next $TAG" \
+            --notes "Versioned build created automatically from commit $GITHUB_SHA."
