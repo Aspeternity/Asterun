@@ -1,45 +1,202 @@
 #include "Settings.hpp"
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "ConfigIO.hpp"
 
-#include <cwchar>
-#include <iterator>
+#include <algorithm>
+#include <cctype>
+#include <fstream>
+#include <string>
 
 namespace altrun {
 
-SettingsStore::SettingsStore(std::filesystem::path path)
-    : path_(std::move(path)) {}
+namespace {
 
-void SettingsStore::Load() {
-    wchar_t ui[64]{};
-    wchar_t language[64]{};
+std::string TrimAscii(std::string value) {
+    auto isSpace = [](unsigned char c) { return std::isspace(c) != 0; };
 
-    GetPrivateProfileStringW(L"general", L"ui", L"classic", ui, static_cast<DWORD>(std::size(ui)), path_.c_str());
-    GetPrivateProfileStringW(L"general", L"language", L"zh-CN", language, static_cast<DWORD>(std::size(language)), path_.c_str());
+    value.erase(
+        value.begin(),
+        std::find_if(value.begin(), value.end(), [&](char c) {
+            return !isSpace(static_cast<unsigned char>(c));
+        }));
 
-    settings_.uiStyle = (_wcsicmp(ui, L"modern") == 0 || _wcsicmp(ui, L"modern-compact") == 0)
-        ? UiStyle::ModernCompact
-        : UiStyle::Classic;
+    value.erase(
+        std::find_if(value.rbegin(), value.rend(), [&](char c) {
+            return !isSpace(static_cast<unsigned char>(c));
+        }).base(),
+        value.end());
 
-    settings_.language = (_wcsicmp(language, L"en-US") == 0 || _wcsicmp(language, L"en") == 0)
-        ? Language::EnUS
-        : Language::ZhCN;
+    return value;
 }
 
-void SettingsStore::Save() const {
-    WritePrivateProfileStringW(
-        L"general",
-        L"ui",
-        settings_.uiStyle == UiStyle::ModernCompact ? L"modern-compact" : L"classic",
-        path_.c_str());
+std::string LowerAscii(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
 
-    WritePrivateProfileStringW(
-        L"general",
-        L"language",
-        settings_.language == Language::EnUS ? L"en-US" : L"zh-CN",
-        path_.c_str());
+const char* UiStyleName(UiStyle style) {
+    return style == UiStyle::ModernCompact ? "modern-compact" : "classic";
+}
+
+const char* LanguageName(Language language) {
+    return language == Language::EnUS ? "en-US" : "zh-CN";
+}
+
+} // namespace
+
+SettingsStore::SettingsStore(
+    std::filesystem::path jsonPath,
+    std::filesystem::path legacyIniPath)
+    : jsonPath_(std::move(jsonPath)),
+      legacyIniPath_(std::move(legacyIniPath)) {}
+
+void SettingsStore::Load() {
+    settings_ = Settings{};
+
+    if (LoadJson()) {
+        return;
+    }
+
+    if (!legacyIniPath_.empty() && std::filesystem::exists(legacyIniPath_)) {
+        MigrateLegacyIni();
+    }
+
+    Save();
+}
+
+bool SettingsStore::LoadJson() {
+    const auto json = config::LoadJsonWithBackup(jsonPath_);
+    if (!json) return false;
+
+    try {
+        const auto& root = *json;
+
+        if (root.contains("appearance") && root["appearance"].is_object()) {
+            const auto& appearance = root["appearance"];
+
+            const std::string ui = LowerAscii(
+                appearance.value("launcher", std::string("classic")));
+            settings_.uiStyle =
+                (ui == "modern" || ui == "modern-compact")
+                    ? UiStyle::ModernCompact
+                    : UiStyle::Classic;
+
+            const std::string language = LowerAscii(
+                appearance.value("language", std::string("zh-cn")));
+            settings_.language =
+                (language == "en" || language == "en-us")
+                    ? Language::EnUS
+                    : Language::ZhCN;
+        }
+
+        if (root.contains("general") && root["general"].is_object()) {
+            const auto& general = root["general"];
+            settings_.startWithWindows =
+                general.value("startWithWindows", settings_.startWithWindows);
+            settings_.hideAfterLaunch =
+                general.value("hideAfterLaunch", settings_.hideAfterLaunch);
+            settings_.clearQueryOnShow =
+                general.value("clearQueryOnShow", settings_.clearQueryOnShow);
+            settings_.hideOnFocusLost =
+                general.value("hideOnFocusLost", settings_.hideOnFocusLost);
+            settings_.showTrayIcon =
+                general.value("showTrayIcon", settings_.showTrayIcon);
+            settings_.popupMonitor =
+                general.value("popupMonitor", settings_.popupMonitor);
+        }
+
+        if (root.contains("hotkey") && root["hotkey"].is_object()) {
+            const auto& hotkey = root["hotkey"];
+            settings_.hotkeyKey =
+                LowerAscii(hotkey.value("key", settings_.hotkeyKey));
+
+            if (hotkey.contains("modifiers") && hotkey["modifiers"].is_array()) {
+                settings_.hotkeyModifiers.clear();
+                for (const auto& item : hotkey["modifiers"]) {
+                    if (!item.is_string()) continue;
+                    settings_.hotkeyModifiers.push_back(
+                        LowerAscii(item.get<std::string>()));
+                }
+                if (settings_.hotkeyModifiers.empty()) {
+                    settings_.hotkeyModifiers.push_back("alt");
+                }
+            }
+        }
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool SettingsStore::MigrateLegacyIni() {
+    std::ifstream input(legacyIniPath_, std::ios::binary);
+    if (!input) return false;
+
+    std::string section;
+    std::string line;
+
+    while (std::getline(input, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        line = TrimAscii(line);
+
+        if (line.empty() || line[0] == ';' || line[0] == '#') continue;
+
+        if (line.front() == '[' && line.back() == ']') {
+            section = LowerAscii(TrimAscii(line.substr(1, line.size() - 2)));
+            continue;
+        }
+
+        const auto equals = line.find('=');
+        if (equals == std::string::npos) continue;
+
+        const std::string key =
+            LowerAscii(TrimAscii(line.substr(0, equals)));
+        const std::string value =
+            LowerAscii(TrimAscii(line.substr(equals + 1)));
+
+        if (section != "general") continue;
+
+        if (key == "ui") {
+            settings_.uiStyle =
+                (value == "modern" || value == "modern-compact")
+                    ? UiStyle::ModernCompact
+                    : UiStyle::Classic;
+        } else if (key == "language") {
+            settings_.language =
+                (value == "en" || value == "en-us")
+                    ? Language::EnUS
+                    : Language::ZhCN;
+        }
+    }
+
+    return true;
+}
+
+bool SettingsStore::Save() const {
+    nlohmann::json root = {
+        {"schemaVersion", config::kSchemaVersion},
+        {"general", {
+            {"startWithWindows", settings_.startWithWindows},
+            {"hideAfterLaunch", settings_.hideAfterLaunch},
+            {"clearQueryOnShow", settings_.clearQueryOnShow},
+            {"hideOnFocusLost", settings_.hideOnFocusLost},
+            {"showTrayIcon", settings_.showTrayIcon},
+            {"popupMonitor", settings_.popupMonitor}
+        }},
+        {"hotkey", {
+            {"modifiers", settings_.hotkeyModifiers},
+            {"key", settings_.hotkeyKey}
+        }},
+        {"appearance", {
+            {"launcher", UiStyleName(settings_.uiStyle)},
+            {"language", LanguageName(settings_.language)}
+        }}
+    };
+
+    return config::SaveJsonAtomic(jsonPath_, root);
 }
 
 void SettingsStore::SetUiStyle(UiStyle style) {
