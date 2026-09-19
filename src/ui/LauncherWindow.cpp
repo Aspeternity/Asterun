@@ -832,15 +832,18 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     const int commandTop = listBottom + DpiScale(6);
     const int commandBottom = commandTop + DpiScale(18);
 
+    const int clientTop = static_cast<int>(client.top);
+    const int clientBottom = static_cast<int>(client.bottom);
+
     auto railColorAtY = [&](int y) -> COLORREF {
-        const int height = std::max(1, client.bottom - client.top - 1);
-        const int pos = std::clamp(y - client.top, 0, height);
+        const int height = std::max<int>(1, clientBottom - clientTop - 1);
+        const int pos = std::clamp<int>(y - clientTop, 0, height);
         return MixColor(railTop, railBottom, pos, height);
     };
 
     auto paintSectionBlend = [&](int top, int bottom, COLORREF adjacent) {
-        top = std::clamp(top, client.top, client.bottom);
-        bottom = std::clamp(bottom, client.top, client.bottom);
+        top = std::clamp<int>(top, clientTop, clientBottom);
+        bottom = std::clamp<int>(bottom, clientTop, clientBottom);
         if (bottom <= top) return;
 
         const int midY = top + (bottom - top) / 2;
