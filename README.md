@@ -23,6 +23,22 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.5.0-beta.1 — Everything Settings, Diagnostics & Migration
+
+Beta 1 promotes Everything from an alpha-only raw JSON opt-in to a supported Search Sources setting. Settings > Search sources now includes **Everything files & folders** alongside Start Menu, Windows Apps, App Paths and PATH. Everything remains off by default; enabling it starts no process and installs nothing. ALTRun Next continues to use the native Everything 1.4-compatible Unicode Query2 IPC and requires a running standard Everything instance. Everything Lite has no IPC and is reported as unavailable.
+
+The Search Sources page now exposes live Everything diagnostics while it is open. It refreshes availability once per second and after completed dynamic queries, showing whether IPC is currently available, the most recent query outcome, returned/total match counts, latency and native Windows error code when relevant. If Everything is enabled but IPC is unavailable, ALTRun Next explicitly reports that application-search fallback is active; static User Command/Application search remains fully usable.
+
+Availability is re-probed rather than permanently cached. If Everything is started after ALTRun Next, or is stopped and later restarted, the same running launcher can recover on a later query without an ALTRun Next restart. CI covers the unavailable → available transition with the same IPC client and fake Everything window class.
+
+Beta 1 formalizes this configuration surface as **settings schemaVersion 3**. The schema-3 provider map now contains `"everything.filesystem": false` by default. Existing schema-2 settings migrate atomically: users who manually enabled Everything during alpha keep `true`; users without that experimental key migrate with Everything safely disabled. Commands remain schemaVersion 1, usage remains schemaVersion 1 and provider-cache remains schemaVersion 2.
+
+Downgrade protection is explicit: a schema-3 settings file presented to a schema-2 reader is classified as newer/unsupported and is left byte-for-byte unchanged. The existing newer-schema read-only compatibility path therefore protects beta settings when temporarily returning to v0.4.1-era binaries.
+
+Everything File/Folder results remain query-time ephemeral data: they are not written to provider-cache or usage history. Classic launcher geometry remains frozen.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.100`.
+
 ## v0.5.0-alpha.3 — Unified Ranking & Classic UX
 
 Alpha 3 replaces the temporary static-first append policy with unified ranking across User Command, Application, Folder and File results. Static catalog matches keep their mature SearchEngine score, while Everything File/Folder results receive a lightweight local filename/path match score before all candidates enter the same ranking pass.

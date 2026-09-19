@@ -90,6 +90,8 @@ void SettingsStore::Load() {
         false;
     unsupportedSchemaVersion_ = 0;
     recoveredFromBackup_ = false;
+    migratedFromOlderSchema_ = false;
+    migratedFromSchemaVersion_ = 0;
 
     if (LoadJson()) {
         return;
@@ -379,7 +381,15 @@ bool SettingsStore::LoadJson() {
             load.schemaVersion > 0 &&
             load.schemaVersion <
                 config::kSettingsSchemaVersion) {
-            Save();
+            const int previousSchema =
+                load.schemaVersion;
+
+            if (Save()) {
+                migratedFromOlderSchema_ =
+                    true;
+                migratedFromSchemaVersion_ =
+                    previousSchema;
+            }
         }
 
         return true;

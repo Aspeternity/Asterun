@@ -2,6 +2,7 @@
 
 #include "../core/CommandStore.hpp"
 #include "../core/DynamicQueryProvider.hpp"
+#include "../core/EverythingQuery.hpp"
 #include "../core/LauncherResult.hpp"
 #include "../core/Localization.hpp"
 #include "../core/SearchEngine.hpp"
@@ -56,6 +57,10 @@ public:
 
     [[nodiscard]] std::vector<ProviderStatus>
     ProviderStatuses() const;
+
+    [[nodiscard]]
+    EverythingIpcStatusSnapshot
+    EverythingStatus() const;
 
     [[nodiscard]] std::wstring
     DataCompatibilityWarning() const;

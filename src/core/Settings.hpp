@@ -109,6 +109,16 @@ public:
         return recoveredFromBackup_;
     }
 
+    [[nodiscard]] bool
+    WasMigratedFromOlderSchema() const noexcept {
+        return migratedFromOlderSchema_;
+    }
+
+    [[nodiscard]] int
+    MigratedFromSchemaVersion() const noexcept {
+        return migratedFromSchemaVersion_;
+    }
+
 private:
     bool LoadJson();
     bool MigrateLegacyIni();
@@ -119,6 +129,8 @@ private:
     bool readOnlyDueToNewerSchema_{false};
     int unsupportedSchemaVersion_{0};
     bool recoveredFromBackup_{false};
+    bool migratedFromOlderSchema_{false};
+    int migratedFromSchemaVersion_{0};
 };
 
 } // namespace altrun

@@ -147,16 +147,19 @@ public:
     };
 
     explicit FakeEverythingServer(
-        Mode mode)
+        Mode mode,
+        std::wstring windowClass = {})
         : mode_(mode),
           windowClass_(
-              L"ALTRunNext.TestEverythingIpc." +
-              std::to_wstring(
-                  GetCurrentProcessId()) +
-              L"." +
-              std::to_wstring(
-                  reinterpret_cast<
-                      ULONG_PTR>(this))) {
+              windowClass.empty()
+                  ? L"ALTRunNext.TestEverythingIpc." +
+                        std::to_wstring(
+                            GetCurrentProcessId()) +
+                        L"." +
+                        std::to_wstring(
+                            reinterpret_cast<
+                                ULONG_PTR>(this))
+                  : std::move(windowClass)) {
         thread_ = std::jthread(
             [this](std::stop_token) {
                 Run();
@@ -584,6 +587,21 @@ int main() {
                 Unavailable);
         assert(
             !client.IsAvailable());
+
+        const auto status =
+            client.Status();
+        assert(status.hasQuery);
+        assert(
+            status.availability ==
+            EverythingAvailability::
+                Unavailable);
+        assert(
+            status.lastStatus ==
+            EverythingQueryStatus::
+                Unavailable);
+        assert(
+            status.lastNativeError ==
+            ERROR_FILE_NOT_FOUND);
     }
 
     {
@@ -645,9 +663,16 @@ int main() {
             status.lastStatus ==
             EverythingQueryStatus::
                 Success);
+        assert(status.hasQuery);
         assert(
             status.lastResultCount ==
             1);
+        assert(
+            status.lastTotalMatches ==
+            1);
+        assert(
+            status.lastNativeError ==
+            0);
     }
 
     {
@@ -784,6 +809,83 @@ int main() {
             results[0].status ==
             EverythingQueryStatus::
                 ReplyTimeout);
+
+        const auto status =
+            client.Status();
+        assert(status.hasQuery);
+        assert(
+            status.lastStatus ==
+            EverythingQueryStatus::
+                ReplyTimeout);
+        assert(
+            status.lastNativeError ==
+            ERROR_TIMEOUT);
+    }
+
+    {
+        const std::wstring windowClass =
+            L"ALTRunNext.TestEverythingIpc.Recovery." +
+            std::to_wstring(
+                GetCurrentProcessId());
+
+        EverythingIpcClient client(
+            OptionsFor(windowClass));
+        ResultCollector collector;
+
+        client.QueryAsync(
+            {
+                .generation = 351,
+                .query = L"offline",
+                .limit = 8,
+            },
+            collector.Callback());
+
+        assert(collector.WaitFor(1));
+        assert(
+            collector.Snapshot()[0].status ==
+            EverythingQueryStatus::
+                Unavailable);
+
+        {
+            FakeEverythingServer server(
+                FakeEverythingServer::
+                    Mode::Immediate,
+                windowClass);
+
+            client.QueryAsync(
+                {
+                    .generation = 352,
+                    .query = L"recovered",
+                    .limit = 8,
+                },
+                collector.Callback());
+
+            assert(collector.WaitFor(2));
+            const auto results =
+                collector.Snapshot();
+
+            assert(
+                results.back().status ==
+                EverythingQueryStatus::
+                    Success);
+            assert(
+                results.back().items[0].name ==
+                L"recovered.txt");
+
+            const auto status =
+                client.Status();
+            assert(status.hasQuery);
+            assert(
+                status.availability ==
+                EverythingAvailability::
+                    Available);
+            assert(
+                status.lastStatus ==
+                EverythingQueryStatus::
+                    Success);
+        }
+
+        assert(!client.IsAvailable());
     }
 
     {

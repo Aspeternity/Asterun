@@ -803,6 +803,10 @@ void SettingsWindow::CreateProviderPage() {
         CreateCheckboxRow(
             L"",
             kIdProviderPath);
+    providerEverything_ =
+        CreateCheckboxRow(
+            L"",
+            kIdProviderEverything);
 
     providerStatus_ =
         CreateStatic(
@@ -820,6 +824,7 @@ void SettingsWindow::CreateProviderPage() {
         providerPackaged_,
         providerAppPaths_,
         providerPath_,
+        providerEverything_,
         providerStatus_,
         providerNote_,
     };
@@ -1033,6 +1038,7 @@ void SettingsWindow::ApplyFonts() {
         providerPackaged_,
         providerAppPaths_,
         providerPath_,
+        providerEverything_,
         providerStatus_,
         providerNote_,
         dataOpenLabel_,
@@ -1099,7 +1105,7 @@ void SettingsWindow::ApplyFonts() {
             TRUE);
     }
 
-    for (HWND control : std::array<HWND, 13>{
+    for (HWND control : std::array<HWND, 14>{
              startWithWindows_,
              showOnStartup_,
              hideAfterLaunch_,
@@ -1112,7 +1118,8 @@ void SettingsWindow::ApplyFonts() {
              providerStartMenu_,
              providerPackaged_,
              providerAppPaths_,
-             providerPath_}) {
+             providerPath_,
+             providerEverything_}) {
         if (control) {
             SendMessageW(
                 control,
@@ -1393,7 +1400,7 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         providerSectionTitle_,
-        T(L"Windows 应用来源", L"Windows application sources"));
+        T(L"搜索来源", L"Search sources"));
     SetWindowTextW(
         providerStartMenu_,
         T(L"开始菜单", L"Start Menu"));
@@ -1407,9 +1414,13 @@ void SettingsWindow::ApplyLanguage() {
         providerPath_,
         T(L"PATH", L"PATH"));
     SetWindowTextW(
+        providerEverything_,
+        T(L"Everything 文件与文件夹",
+          L"Everything files & folders"));
+    SetWindowTextW(
         providerNote_,
-        T(L"ALTRun Next 会低频检测来源变化，只刷新发生变化的来源；短时间内的连续变化会自动合并。",
-          L"ALTRun Next watches sources at low frequency and refreshes only changed providers. Rapid changes are debounced automatically."));
+        T(L"Windows 应用来源使用后台缓存；Everything 通过本机 IPC 实时查询，不会写入 provider-cache 或 usage。Everything 不可用时会自动回退为仅应用搜索。",
+          L"Windows application sources use the background cache. Everything is queried live over local IPC and is never written to provider-cache or usage. If Everything is unavailable, launcher search automatically falls back to application sources only."));
 
     SetWindowTextW(
         dataOpenLabel_,
@@ -1537,7 +1548,7 @@ void SettingsWindow::RefreshFromSettings() {
 
     RefreshHotkeyControls();
 
-    for (HWND control : std::array<HWND, 13>{
+    for (HWND control : std::array<HWND, 14>{
              startWithWindows_,
              showOnStartup_,
              hideAfterLaunch_,
@@ -1550,7 +1561,8 @@ void SettingsWindow::RefreshFromSettings() {
              providerStartMenu_,
              providerPackaged_,
              providerAppPaths_,
-             providerPath_}) {
+             providerPath_,
+             providerEverything_}) {
         if (control) {
             InvalidateRect(
                 control,
@@ -1654,9 +1666,129 @@ void SettingsWindow::RefreshProviderStatus() {
             text += status.lastError;
         }
 
-        if (i + 1 <
-            statuses.size()) {
-            text += L"\r\n";
+        text += L"\r\n";
+    }
+
+    const bool everythingEnabled =
+        providers::IsEnabled(
+            app_.SettingsData()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false);
+
+    text += T(
+        L"Everything 文件与文件夹",
+        L"Everything files & folders");
+    text += L"  ·  ";
+
+    if (!everythingEnabled) {
+        text += T(
+            L"已禁用",
+            L"Disabled");
+    } else {
+        const auto ipc =
+            app_.EverythingStatus();
+
+        if (ipc.availability ==
+            EverythingAvailability::
+                Available) {
+            text += T(
+                L"IPC 可用",
+                L"IPC available");
+        } else if (
+            ipc.availability ==
+            EverythingAvailability::
+                Unavailable) {
+            text += T(
+                L"IPC 不可用",
+                L"IPC unavailable");
+            text += L"  ·  ";
+            text += T(
+                L"已回退到应用搜索",
+                L"Application-search fallback active");
+        } else {
+            text += T(
+                L"正在检测 IPC",
+                L"Detecting IPC");
+        }
+
+        if (ipc.hasQuery) {
+            text += L"\r\n    ↳ ";
+            text += T(
+                L"最近查询：",
+                L"Last query: ");
+
+            switch (ipc.lastStatus) {
+            case EverythingQueryStatus::Success:
+                text += T(
+                    L"成功",
+                    L"Success");
+                break;
+            case EverythingQueryStatus::Unavailable:
+                text += T(
+                    L"不可用",
+                    L"Unavailable");
+                break;
+            case EverythingQueryStatus::SendTimeout:
+                text += T(
+                    L"发送超时",
+                    L"Send timeout");
+                break;
+            case EverythingQueryStatus::ReplyTimeout:
+                text += T(
+                    L"响应超时",
+                    L"Reply timeout");
+                break;
+            case EverythingQueryStatus::ProtocolError:
+                text += T(
+                    L"协议错误",
+                    L"Protocol error");
+                break;
+            case EverythingQueryStatus::Cancelled:
+                text += T(
+                    L"已取消",
+                    L"Cancelled");
+                break;
+            }
+
+            text += T(
+                L"  ·  显示 ",
+                L"  ·  returned ");
+            text += std::to_wstring(
+                ipc.lastResultCount);
+
+            if (ipc.lastTotalMatches > 0) {
+                text += L" / ";
+                text += std::to_wstring(
+                    ipc.lastTotalMatches);
+            }
+
+            text += T(
+                L"  ·  耗时 ",
+                L"  ·  latency ");
+            text += std::to_wstring(
+                std::max<std::int64_t>(
+                    0,
+                    (ipc.lastLatency.count() +
+                     500) /
+                        1000));
+            text += L" ms";
+
+            if (ipc.lastNativeError != 0) {
+                text += T(
+                    L"  ·  系统错误 ",
+                    L"  ·  native error ");
+                text += std::to_wstring(
+                    ipc.lastNativeError);
+            }
+        } else if (
+            ipc.availability ==
+            EverythingAvailability::
+                Available) {
+            text += T(
+                L"  ·  等待首次查询",
+                L"  ·  Waiting for first query");
         }
     }
 
@@ -1687,6 +1819,12 @@ void SettingsWindow::RefreshDataCompatibilityStatus() {
 
 void SettingsWindow::RefreshCommands() {
     RefreshCommandList(editingCommandId_);
+}
+
+void SettingsWindow::OnDynamicProviderStatusChanged() {
+    if (page_ == Page::Providers) {
+        RefreshProviderStatus();
+    }
 }
 
 void SettingsWindow::OnProgramIndexRefreshCompleted(
@@ -1802,8 +1940,8 @@ void SettingsWindow::UpdatePageHeader() {
             T(L"搜索来源", L"Search sources"));
         SetWindowTextW(
             pageDescription_,
-            T(L"控制哪些 Windows 应用来源参与启动器搜索。",
-              L"Choose which Windows application sources participate in launcher search."));
+            T(L"控制 Windows 应用来源和 Everything 文件 / 文件夹搜索，并查看运行状态。",
+              L"Choose Windows application sources and Everything file/folder search, and inspect runtime status."));
         break;
 
     case Page::Data:
@@ -1847,6 +1985,13 @@ bool SettingsWindow::ConfirmDiscardChanges() {
 }
 
 void SettingsWindow::ShowPage(Page page) {
+    if (page_ == Page::Providers &&
+        page != Page::Providers) {
+        KillTimer(
+            hwnd_,
+            kProviderStatusTimerId);
+    }
+
     if (page_ == Page::Commands &&
         page != Page::Commands &&
         !ConfirmDiscardChanges()) {
@@ -1879,6 +2024,11 @@ void SettingsWindow::ShowPage(Page page) {
         RefreshCommandList(editingCommandId_);
     } else if (
         page == Page::Providers) {
+        SetTimer(
+            hwnd_,
+            kProviderStatusTimerId,
+            1000,
+            nullptr);
         RefreshProviderStatus();
     } else if (
         page == Page::Data) {
@@ -3233,6 +3383,12 @@ void SettingsWindow::ToggleProviderSetting(
             std::string(
                 providers::kPath);
         break;
+    case kIdProviderEverything:
+        providerId =
+            std::string(
+                providers::
+                    kEverythingFilesystem);
+        break;
     default:
         return;
     }
@@ -3360,6 +3516,12 @@ bool SettingsWindow::ToggleChecked(
     case kIdProviderPath:
         return providerEnabled(
             providers::kPath);
+    case kIdProviderEverything:
+        return providers::IsEnabled(
+            settings.providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false);
     default:
         return false;
     }
@@ -4272,11 +4434,12 @@ void SettingsWindow::Layout() {
             providerCard.left -
             Scale(2);
 
-        std::array<HWND, 4> rows{
+        std::array<HWND, 5> rows{
             providerStartMenu_,
             providerPackaged_,
             providerAppPaths_,
             providerPath_,
+            providerEverything_,
         };
 
         for (std::size_t i = 0;
@@ -4300,16 +4463,16 @@ void SettingsWindow::Layout() {
             providerCard.bottom +
                 Scale(24),
             controlWidth,
-            Scale(156),
+            Scale(184),
             TRUE);
 
         MoveWindow(
             providerNote_,
             x,
             providerCard.bottom +
-                Scale(190),
+                Scale(218),
             controlWidth,
-            Scale(54),
+            Scale(60),
             TRUE);
     }
 
@@ -4448,7 +4611,7 @@ RECT SettingsWindow::ProviderCardRect() const {
         contentLeft,
         Scale(170),
         contentLeft + cardWidth,
-        Scale(170 + 58 * 4),
+        Scale(170 + 58 * 5),
     };
 }
 
@@ -4672,6 +4835,15 @@ void SettingsWindow::DrawGeneralToggle(
             L"Discover EXE, COM, BAT and CMD files exposed through the PATH environment variable.");
         break;
 
+    case kIdProviderEverything:
+        title = T(
+            L"Everything 文件与文件夹",
+            L"Everything files & folders");
+        description = T(
+            L"通过正在运行的标准版 Everything IPC 实时搜索文件和文件夹；Lite 版没有 IPC。",
+            L"Search files and folders live through a running standard Everything IPC instance; Everything Lite has no IPC.");
+        break;
+
     default:
         break;
     }
@@ -4728,7 +4900,7 @@ void SettingsWindow::DrawGeneralToggle(
 
     const bool lastRow =
         id == kIdShowTrayIcon ||
-        id == kIdProviderPath;
+        id == kIdProviderEverything;
 
     if (!lastRow) {
         HPEN separator =
@@ -4845,6 +5017,15 @@ void SettingsWindow::Show() {
     RefreshFromSettings();
     RefreshCommandList(editingCommandId_);
 
+    if (page_ == Page::Providers) {
+        SetTimer(
+            hwnd_,
+            kProviderStatusTimerId,
+            1000,
+            nullptr);
+        RefreshProviderStatus();
+    }
+
     if (!IsWindowVisible(hwnd_)) {
         CenterOnCurrentMonitor();
     }
@@ -4906,6 +5087,15 @@ LRESULT SettingsWindow::HandleMessage(
     LPARAM lParam) {
 
     switch (message) {
+    case WM_TIMER:
+        if (wParam ==
+            kProviderStatusTimerId &&
+            page_ == Page::Providers) {
+            RefreshProviderStatus();
+            return 0;
+        }
+        break;
+
     case WM_COMMAND: {
         const UINT id = LOWORD(wParam);
         const UINT notify = HIWORD(wParam);
@@ -5118,6 +5308,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdProviderPackaged:
         case kIdProviderAppPaths:
         case kIdProviderPath:
+        case kIdProviderEverything:
             if (notify == BN_CLICKED) {
                 ToggleProviderSetting(id);
             }
@@ -5220,7 +5411,8 @@ LRESULT SettingsWindow::HandleMessage(
              item->CtlID == kIdProviderStartMenu ||
              item->CtlID == kIdProviderPackaged ||
              item->CtlID == kIdProviderAppPaths ||
-             item->CtlID == kIdProviderPath)) {
+             item->CtlID == kIdProviderPath ||
+             item->CtlID == kIdProviderEverything)) {
             DrawGeneralToggle(*item);
             return TRUE;
         }
@@ -5712,6 +5904,10 @@ LRESULT SettingsWindow::HandleMessage(
     }
 
     case WM_CLOSE:
+        KillTimer(
+            hwnd_,
+            kProviderStatusTimerId);
+
         if (page_ == Page::Commands &&
             !ConfirmDiscardChanges()) {
             return 0;

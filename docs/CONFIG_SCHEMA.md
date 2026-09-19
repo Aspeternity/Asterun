@@ -11,10 +11,10 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.4.1-alpha.1:
+Each document carries its own schema version. As of v0.5.0-beta.1:
 
 ```text
-settings.json       schemaVersion 2
+settings.json       schemaVersion 3
 commands.json       schemaVersion 1
 usage.json          schemaVersion 1
 provider-cache.json schemaVersion 2
@@ -85,24 +85,25 @@ The formal v0.5 settings contract is still planned as schemaVersion 3 when Searc
 
 v0.5.0-alpha.3 also keeps every persisted schema unchanged. Unified ranking and Classic mixed-result behavior are runtime-only changes. The experimental `everything.filesystem` opt-in remains a generic schemaVersion 2 provider-map key and is still absent from defaults. No rank score, File/Folder result, dynamic query state or file execution history is persisted.
 
-As of v0.4.0-alpha.3, known provider IDs are:
+v0.5.0-beta.1 upgrades `settings.json` to **schemaVersion 3** and makes `everything.filesystem` a formal Search Sources setting. Its default is `false`; the four static Windows application sources keep their previous `true` defaults. Commands remain schemaVersion 1, usage remains schemaVersion 1 and provider-cache remains schemaVersion 2.
+
+Schema-2 settings migrate in place using the existing atomic save path. Because the schema-2 provider map already preserved unknown boolean provider IDs, an alpha user who manually set `"everything.filesystem": true` retains that choice after migration. A schema-2 file without the experimental key receives the new formal default `false`. The running SettingsStore records that this startup migrated an older schema and the source schema version for regression/diagnostic purposes.
+
+Downgrade safety is explicit. A v0.5.0-beta.1 schema-3 settings file opened by a schema-2 reader is returned as `UnsupportedSchema`; known fields may be read for compatibility, but writes are blocked and the original bytes are not replaced. CI exercises this with a simulated v0.4.1 schema ceiling of 2.
+
+The schema-3 change does **not** persist Everything query results, ranking scores, availability, latency or file usage. Those remain runtime-only diagnostics. `everything.filesystem` is still a Dynamic Query Provider and is not written into `provider-cache.json`.
+
+As of v0.5.0-beta.1, known provider IDs are:
 
 ```text
 windows.startmenu
 windows.packaged
 windows.apppaths
 windows.path
-```
-
-All four static Catalog providers default to enabled. Existing `settings.json` files without a `providers` object therefore keep the same discovery behavior after upgrading.
-
-The v0.5 dynamic provider ID is:
-
-```text
 everything.filesystem
 ```
 
-In alpha.2 it is intentionally **not** part of the default provider map and falls back to disabled.
+The first four are static Catalog providers and default to enabled. `everything.filesystem` is a Dynamic Query Provider and defaults to disabled. It participates only in live query-time search and is never stored in `provider-cache.json`.
 
 As of v0.2.0-beta.1, `startWithWindows` and the `hotkey` section are wired to live Windows behavior. A new hotkey is saved only after `RegisterHotKey` succeeds, so a conflicting binding does not overwrite the previous working configuration.
 
@@ -131,7 +132,7 @@ Automatic provider commands are never written into `commands.json`.
 
 Automatic Windows application discovery is cached separately from user configuration.
 
-Starting with v0.4.0-alpha.3, this generated file uses its own **provider-cache schemaVersion 2**. Commands and usage remain schemaVersion 1; settings moves independently to schemaVersion 2 in v0.4.1-alpha.1.
+Starting with v0.4.0-alpha.3, this generated file uses its own **provider-cache schemaVersion 2**. Commands and usage remain schemaVersion 1. Settings moved independently to schemaVersion 2 in v0.4.1-alpha.1 and schemaVersion 3 in v0.5.0-beta.1.
 
 The cache is grouped by stable provider ID:
 

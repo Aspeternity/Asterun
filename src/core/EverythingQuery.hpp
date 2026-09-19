@@ -50,10 +50,15 @@ struct EverythingQueryResult {
 };
 
 struct EverythingIpcStatusSnapshot {
-    EverythingAvailability availability{EverythingAvailability::Unknown};
-    EverythingQueryStatus lastStatus{EverythingQueryStatus::Unavailable};
+    EverythingAvailability availability{
+        EverythingAvailability::Unknown};
+    bool hasQuery{false};
+    EverythingQueryStatus lastStatus{
+        EverythingQueryStatus::Unavailable};
     std::chrono::microseconds lastLatency{0};
     std::uint32_t lastResultCount{0};
+    std::uint32_t lastTotalMatches{0};
+    std::uint32_t lastNativeError{0};
 };
 
 } // namespace altrun

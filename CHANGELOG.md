@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0-beta.1
+
+- Promoted `everything.filesystem` into the supported Settings > Search sources surface while keeping it disabled by default.
+- Bumped `settings.json` to schemaVersion 3; commands/usage remain schemaVersion 1 and provider-cache remains schemaVersion 2.
+- Added atomic schema-2 -> schema-3 migration tracking and regression coverage.
+- Preserved the alpha experimental `everything.filesystem: true` opt-in during migration; schema-2 files without the key migrate with Everything disabled.
+- Added an explicit schema-3 -> schema-2 downgrade regression proving the newer settings document remains byte-for-byte unchanged under read-only compatibility protection.
+- Added live Everything diagnostics to Search Sources: current IPC availability, last query status, returned/total matches, latency and native Windows error.
+- Added a one-second diagnostics refresh while Search Sources is visible plus immediate refresh after a dynamic query completes.
+- Added clear application-search fallback status when Everything is enabled but IPC is unavailable.
+- Added same-client unavailable -> available recovery coverage so starting/restarting Everything does not require restarting ALTRun Next.
+- Kept standard Everything as an external dependency: no auto-start, no bundled Everything executable/DLL and no Everything Lite IPC workaround.
+- Kept Everything File/Folder results out of provider-cache and usage persistence.
+- Preserved the alpha.3 unified ranking, execution behavior and frozen Classic launcher geometry.
+- Updated Windows version metadata to `0.5.0-beta.1` / `0.5.0.100`.
+
+
 ## 0.5.0-alpha.3
 
 - Replaced the alpha.2 static-first append policy with unified ranking across User Command, Application, Folder and File results.

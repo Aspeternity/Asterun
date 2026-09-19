@@ -20,6 +20,10 @@ public:
     bool
     IsAvailable() const noexcept override;
 
+    [[nodiscard]]
+    EverythingIpcStatusSnapshot
+    Status() const;
+
     void QueryAsync(
         DynamicQueryRequest request,
         Completion completion) override;

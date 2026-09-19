@@ -467,6 +467,13 @@ App::ProviderStatuses() const {
                 .providerEnabled);
 }
 
+EverythingIpcStatusSnapshot
+App::EverythingStatus() const {
+    return everythingProvider_
+        ? everythingProvider_->Status()
+        : EverythingIpcStatusSnapshot{};
+}
+
 std::wstring
 App::DataCompatibilityWarning() const {
 
@@ -1088,14 +1095,21 @@ void App::HandleDynamicQueryCompleted() {
         }
     }
 
-    if (!response || !window_) {
+    if (!response) {
         return;
     }
 
-    window_->ApplyDynamicResults(
-        response->generation,
-        std::move(
-            response->results));
+    if (window_) {
+        window_->ApplyDynamicResults(
+            response->generation,
+            std::move(
+                response->results));
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            OnDynamicProviderStatusChanged();
+    }
 }
 
 void App::FlushDetectedProviderChanges() {

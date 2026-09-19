@@ -55,6 +55,20 @@ bool EverythingProvider::IsAvailable()
     return client_.IsAvailable();
 }
 
+EverythingIpcStatusSnapshot
+EverythingProvider::Status() const {
+    auto status = client_.Status();
+
+    status.availability =
+        client_.IsAvailable()
+            ? EverythingAvailability::
+                Available
+            : EverythingAvailability::
+                Unavailable;
+
+    return status;
+}
+
 void EverythingProvider::QueryAsync(
     DynamicQueryRequest request,
     Completion completion) {

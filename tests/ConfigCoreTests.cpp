@@ -387,6 +387,10 @@ int main() {
     assert(providers::IsEnabled(
         featureSettings.Data().providerEnabled,
         providers::kPath));
+    assert(!providers::IsEnabled(
+        featureSettings.Data().providerEnabled,
+        providers::kEverythingFilesystem,
+        false));
 
     assert(featureSettings.SetProviderEnabled(
         std::string(providers::kPath),
@@ -430,16 +434,17 @@ int main() {
             .executeSingleResultImmediately);
 
     // Every provider toggle combination must survive a save/reload cycle.
-    const std::array<std::string_view, 4>
+    const std::array<std::string_view, 5>
         providerIds{
             providers::kStartMenu,
             providers::kPackaged,
             providers::kAppPaths,
             providers::kPath,
+            providers::kEverythingFilesystem,
         };
 
     for (unsigned mask = 0;
-         mask < 16;
+         mask < 32;
          ++mask) {
 
         const auto matrixPath =
@@ -491,6 +496,128 @@ int main() {
         }
     }
 
+    // v0.5 alpha schema-2 settings migrate in place to schema 3.
+    // An experimental Everything opt-in must survive the migration.
+    const auto v2EverythingSettings =
+        data /
+        "settings-v0.5-alpha-everything.json";
+
+    WriteText(
+        v2EverythingSettings,
+        "{\n"
+        "  \"schemaVersion\": 2,\n"
+        "  \"providers\": {\n"
+        "    \"windows.startmenu\": true,\n"
+        "    \"windows.packaged\": true,\n"
+        "    \"windows.apppaths\": true,\n"
+        "    \"windows.path\": true,\n"
+        "    \"everything.filesystem\": true\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore migratedEverything(
+        v2EverythingSettings);
+    migratedEverything.Load();
+
+    assert(
+        migratedEverything
+            .WasMigratedFromOlderSchema());
+    assert(
+        migratedEverything
+            .MigratedFromSchemaVersion() ==
+        2);
+    assert(providers::IsEnabled(
+        migratedEverything.Data()
+            .providerEnabled,
+        providers::kEverythingFilesystem,
+        false));
+
+    const auto migratedEverythingJson =
+        config::LoadJsonWithBackup(
+            v2EverythingSettings,
+            config::kSettingsSchemaVersion);
+
+    assert(migratedEverythingJson.value);
+    assert(
+        migratedEverythingJson.schemaVersion ==
+        3);
+    assert(
+        (*migratedEverythingJson.value)
+            ["providers"]
+            ["everything.filesystem"]
+            .get<bool>());
+
+    // Simulate v0.4.1 (schema ceiling 2) opening a beta schema-3 file.
+    // Downgrade must be read-only and must not alter the newer document.
+    const std::string betaV3BeforeDowngrade =
+        ReadText(v2EverythingSettings);
+
+    const auto v041DowngradeRead =
+        config::LoadJsonWithBackup(
+            v2EverythingSettings,
+            2);
+
+    assert(
+        v041DowngradeRead.status ==
+        config::JsonLoadStatus::
+            UnsupportedSchema);
+    assert(
+        v041DowngradeRead.schemaVersion ==
+        3);
+    assert(v041DowngradeRead.value);
+    assert(
+        ReadText(v2EverythingSettings) ==
+        betaV3BeforeDowngrade);
+
+    // Ordinary alpha users that never opted into Everything migrate to
+    // schema 3 with the new dynamic provider safely disabled.
+    const auto v2DefaultSettings =
+        data /
+        "settings-v0.5-alpha-default.json";
+
+    WriteText(
+        v2DefaultSettings,
+        "{\n"
+        "  \"schemaVersion\": 2,\n"
+        "  \"providers\": {\n"
+        "    \"windows.startmenu\": true,\n"
+        "    \"windows.packaged\": true,\n"
+        "    \"windows.apppaths\": true,\n"
+        "    \"windows.path\": true\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore migratedDefault(
+        v2DefaultSettings);
+    migratedDefault.Load();
+
+    assert(
+        migratedDefault
+            .WasMigratedFromOlderSchema());
+    assert(
+        migratedDefault
+            .MigratedFromSchemaVersion() ==
+        2);
+    assert(!providers::IsEnabled(
+        migratedDefault.Data()
+            .providerEnabled,
+        providers::kEverythingFilesystem,
+        false));
+
+    const auto migratedDefaultJson =
+        config::LoadJsonWithBackup(
+            v2DefaultSettings,
+            config::kSettingsSchemaVersion);
+    assert(migratedDefaultJson.value);
+    assert(
+        migratedDefaultJson.schemaVersion ==
+        3);
+    assert(
+        !(*migratedDefaultJson.value)
+             ["providers"]
+             ["everything.filesystem"]
+             .get<bool>());
+
     // Alpha-era settings without a providers object retain the current
     // default-enabled behavior for all discovery sources.
     const auto alphaSettings =
@@ -524,12 +651,21 @@ int main() {
         Language::EnUS);
 
     for (const auto providerId :
-         providerIds) {
+         std::array<std::string_view, 4>{
+             providers::kStartMenu,
+             providers::kPackaged,
+             providers::kAppPaths,
+             providers::kPath}) {
         assert(providers::IsEnabled(
             alphaReloaded.Data()
                 .providerEnabled,
             providerId));
     }
+    assert(!providers::IsEnabled(
+        alphaReloaded.Data()
+            .providerEnabled,
+        providers::kEverythingFilesystem,
+        false));
 
     assert(
         !alphaReloaded.Data()
@@ -590,6 +726,19 @@ int main() {
         v040SettingsPath);
 
     v041FromV040.Load();
+
+    assert(
+        v041FromV040
+            .WasMigratedFromOlderSchema());
+    assert(
+        v041FromV040
+            .MigratedFromSchemaVersion() ==
+        1);
+    assert(!providers::IsEnabled(
+        v041FromV040.Data()
+            .providerEnabled,
+        providers::kEverythingFilesystem,
+        false));
 
     assert(
         v041FromV040.Data()
@@ -981,6 +1130,11 @@ int main() {
     assert(
         !featureSettings.Data()
              .executeSingleResultImmediately);
+    assert(!providers::IsEnabled(
+        featureSettings.Data()
+            .providerEnabled,
+        providers::kEverythingFilesystem,
+        false));
     assert(featureSettings.Data().hotkeyModifiers.size() == 1);
     assert(featureSettings.Data().hotkeyModifiers[0] == "alt");
     assert(featureSettings.Data().hotkeyKey == "space");

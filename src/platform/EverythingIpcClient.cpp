@@ -198,7 +198,10 @@ void EverythingIpcClient::WorkerMain(
             EverythingQueryStatus::
                 Unavailable,
             {},
-            0);
+            0,
+            0,
+            GetLastError(),
+            false);
         return;
     }
 
@@ -224,7 +227,10 @@ void EverythingIpcClient::WorkerMain(
             EverythingQueryStatus::
                 Unavailable,
             {},
-            0);
+            0,
+            0,
+            GetLastError(),
+            false);
         return;
     }
 
@@ -618,7 +624,10 @@ void EverythingIpcClient::HandleReply(
         result.status,
         result.latency,
         static_cast<std::uint32_t>(
-            result.items.size()));
+            result.items.size()),
+        result.totalMatches,
+        result.nativeError,
+        true);
 
     if (generation ==
             latestGeneration_.load() &&
@@ -655,7 +664,10 @@ EverythingIpcClient::CompletePending(
         AvailabilityFor(status),
         status,
         result.latency,
-        0);
+        0,
+        0,
+        nativeError,
+        true);
 
     if (result.generation ==
             latestGeneration_.load() &&
@@ -702,7 +714,10 @@ EverythingIpcClient::CompleteInFlight(
         AvailabilityFor(status),
         status,
         latency,
-        0);
+        0,
+        0,
+        nativeError,
+        true);
 
     if (completion) {
         completion(
@@ -714,15 +729,23 @@ void EverythingIpcClient::UpdateStatus(
     EverythingAvailability availability,
     EverythingQueryStatus status,
     std::chrono::microseconds latency,
-    std::uint32_t resultCount) {
+    std::uint32_t resultCount,
+    std::uint32_t totalMatches,
+    std::uint32_t nativeError,
+    bool hasQuery) {
     std::scoped_lock lock(
         statusMutex_);
     status_.availability =
         availability;
+    status_.hasQuery = hasQuery;
     status_.lastStatus = status;
     status_.lastLatency = latency;
     status_.lastResultCount =
         resultCount;
+    status_.lastTotalMatches =
+        totalMatches;
+    status_.lastNativeError =
+        nativeError;
 }
 
 std::u16string

@@ -27,6 +27,7 @@ public:
     void RefreshCommands();
     void OnProgramIndexRefreshCompleted(
         int outcome);
+    void OnDynamicProviderStatusChanged();
 
 private:
     enum class Page {
@@ -181,6 +182,11 @@ private:
         kIdProviderAppPaths = 51603;
     static constexpr UINT
         kIdProviderPath = 51604;
+    static constexpr UINT
+        kIdProviderEverything = 51605;
+
+    static constexpr UINT_PTR
+        kProviderStatusTimerId = 0x51690;
 
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
@@ -395,6 +401,7 @@ private:
     HWND providerPackaged_{};
     HWND providerAppPaths_{};
     HWND providerPath_{};
+    HWND providerEverything_{};
     HWND providerStatus_{};
     HWND providerNote_{};
 

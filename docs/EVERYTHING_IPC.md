@@ -1,6 +1,6 @@
 # Everything IPC foundation
 
-v0.5.0-alpha.1 introduced the transport foundation. v0.5.0-alpha.2 connects that transport to the launcher through a dynamic provider and unified result model.
+v0.5.0-alpha.1 introduced the transport foundation, alpha.2 connected it to the launcher, alpha.3 unified ranking, and beta.1 promotes the dynamic provider into the supported Settings/diagnostics surface.
 
 ## Compatibility target
 
@@ -61,8 +61,8 @@ Alpha.2 fixes the dynamic provider ID as `everything.filesystem`. It is not adde
 ```text
 Static Search --------------------+
                                   |
-EverythingProvider -- async ------+--> static-first result merge --> Launcher
-                                      (alpha.2 temporary policy)
+EverythingProvider -- async ------+--> unified candidate ranking --> Launcher
+                                      (alpha.3+ policy)
 ```
 
 Files use the file name as `title`, parent directory as `subtitle`, and full path as `target`. Folders use the same presentation model with `ResultKind::Folder`. File execution opens the target with the Windows default application; folder execution opens the folder through Shell/Explorer.
@@ -82,4 +82,14 @@ Alpha.3 now supplies the unified ranking and mixed-result interaction policy. Ev
 
 The launcher requests approximately three times the visible result count from each side before final ranking, so a strong File/Folder match is not lost merely because ten static candidates arrived first. Numeric quick launch follows the final visible order. Single-result immediate execution waits until the current dynamic generation settles, and hide/manual execution cancels the deferred action.
 
-Settings/diagnostics and schemaVersion 3 still follow in the beta phase.
+## Beta 1 settings, diagnostics and fallback
+
+v0.5.0-beta.1 promotes `everything.filesystem` into Settings > Search sources and bumps settings to schemaVersion 3. The provider remains default-off. Enabling the checkbox creates the dynamic provider in the running process; disabling it tears the dynamic provider down and returns immediately to static-only search.
+
+The Search Sources page re-probes the Everything IPC window every second while visible and after completed dynamic queries. Diagnostics report current availability plus the last query status, returned/total result counts, latency and native error when present. Availability is intentionally not latched: Everything may be started after ALTRun Next or restarted after a failure, and a later query can recover without restarting the launcher.
+
+If Everything is enabled but unavailable, the dynamic request completes as `Unavailable` and ALTRun Next keeps the already-produced User Command/Application results. This is the supported fallback mode; ALTRun Next never auto-starts Everything and does not emulate IPC for Everything Lite.
+
+Schema-2 -> schema-3 migration preserves an alpha-era explicit `everything.filesystem=true` value. When the key was absent, schema 3 writes the formal default `false`. A schema-3 file presented to a schema-2 reader enters the existing newer-schema read-only path and remains byte-for-byte unchanged.
+
+Everything results and diagnostics remain ephemeral: no File/Folder result, match score, latency or availability state is persisted to provider-cache or usage history.

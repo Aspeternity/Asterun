@@ -36,6 +36,236 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.5.0-beta.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected beta.1 value {expected}"
+            )
+
+    provider_cache_schema = cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    )
+    if provider_cache_schema != 2:
+        fail("provider-cache schema must remain 2 in beta.1")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for provider_id in (
+        "windows.startmenu",
+        "windows.packaged",
+        "windows.apppaths",
+        "windows.path",
+        "everything.filesystem",
+    ):
+        if provider_id not in provider_text:
+            fail(f"provider ID missing in beta.1: {provider_id}")
+
+    for token in (
+        "{std::string(kStartMenu), true}",
+        "{std::string(kPackaged), true}",
+        "{std::string(kAppPaths), true}",
+        "{std::string(kPath), true}",
+        "{std::string(kEverythingFilesystem), false}",
+    ):
+        if token not in provider_text:
+            fail(f"beta.1 provider default contract missing: {token}")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 3:
+        fail("settings.example.json must use schemaVersion 3 in beta.1")
+
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("providers") != expected_providers:
+        fail(
+            "beta.1 example provider defaults no longer match the "
+            "formal schema-3 contract"
+        )
+
+    settings_hpp = read("src/core/Settings.hpp")
+    for token in (
+        "WasMigratedFromOlderSchema",
+        "MigratedFromSchemaVersion",
+        "migratedFromOlderSchema_",
+        "migratedFromSchemaVersion_",
+    ):
+        if token not in settings_hpp:
+            fail(f"settings migration diagnostics missing: {token}")
+
+    settings_cpp = read("src/core/Settings.cpp")
+    for token in (
+        "previousSchema",
+        "migratedFromOlderSchema_",
+        "migratedFromSchemaVersion_",
+        "if (Save())",
+    ):
+        if token not in settings_cpp:
+            fail(f"schema migration implementation missing: {token}")
+
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    for token in (
+        "settings-v0.5-alpha-everything.json",
+        "settings-v0.5-alpha-default.json",
+        "v041DowngradeRead",
+        "MigratedFromSchemaVersion",
+        "mask < 32",
+        "everything.filesystem",
+    ):
+        if token not in config_tests:
+            fail(f"beta.1 migration/downgrade regression missing: {token}")
+
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    settings_ui = read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "kIdProviderEverything",
+        "providerEverything_",
+        "kProviderStatusTimerId",
+        "OnDynamicProviderStatusChanged",
+    ):
+        if token not in settings_h:
+            fail(f"Everything Settings declaration missing: {token}")
+
+    for token in (
+        "Everything files & folders",
+        "Application-search fallback active",
+        "lastTotalMatches",
+        "lastNativeError",
+        "kProviderStatusTimerId",
+        "kIdProviderEverything",
+        "EverythingQueryStatus::ReplyTimeout",
+    ):
+        if token not in settings_ui:
+            fail(f"Everything Settings diagnostics missing: {token}")
+
+    app_hpp = read("src/app/App.hpp")
+    app_cpp = read("src/app/App.cpp")
+    if "EverythingStatus" not in app_hpp or "EverythingStatus" not in app_cpp:
+        fail("App no longer exposes Everything runtime diagnostics")
+    if "OnDynamicProviderStatusChanged" not in app_cpp:
+        fail("dynamic-query completion no longer refreshes Settings diagnostics")
+
+    everything_provider_h = read("src/core/EverythingProvider.hpp")
+    everything_provider_cpp = read("src/core/EverythingProvider.cpp")
+    if "Status() const" not in everything_provider_h:
+        fail("EverythingProvider status API is missing")
+    for token in (
+        "client_.Status()",
+        "client_.IsAvailable()",
+        "EverythingAvailability",
+    ):
+        if token not in everything_provider_cpp:
+            fail(f"EverythingProvider live availability probe missing: {token}")
+
+    query_types = read("src/core/EverythingQuery.hpp")
+    for token in (
+        "hasQuery",
+        "lastTotalMatches",
+        "lastNativeError",
+    ):
+        if token not in query_types:
+            fail(f"Everything diagnostics snapshot missing: {token}")
+
+    runtime_test = read("tests/EverythingIpcRuntimeTests.cpp")
+    for token in (
+        "generation = 351",
+        "generation = 352",
+        "recovered.txt",
+        "status.hasQuery",
+        "lastNativeError",
+        "lastTotalMatches",
+    ):
+        if token not in runtime_test:
+            fail(f"Everything fallback/recovery runtime test missing: {token}")
+
+    registry = read("src/core/ProviderRegistry.cpp")
+    if "everything.filesystem" in registry or "kEverythingFilesystem" in registry:
+        fail(
+            "everything.filesystem must remain a Dynamic Query Provider, "
+            "not a static ProviderRegistry discovery source"
+        )
+
+    combined_everything_source = (
+        read("src/core/EverythingIpcProtocol.hpp")
+        + read("src/platform/EverythingIpcClient.cpp")
+        + everything_provider_cpp
+    )
+    for forbidden in (
+        "Everything64.dll",
+        "Everything32.dll",
+        "LoadLibraryW",
+        "LoadLibraryA",
+    ):
+        if forbidden in combined_everything_source:
+            fail(
+                "beta.1 must keep native IPC with no Everything DLL "
+                f"dependency: found {forbidden}"
+            )
+
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_hpp,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during beta.1: {name}")
+
+    validation = ROOT / "docs" / "EVERYTHING_BETA_VALIDATION.md"
+    if not validation.exists():
+        fail("docs/EVERYTHING_BETA_VALIDATION.md is required for beta.1")
+
+    validation_text = validation.read_text(encoding="utf-8")
+    for token in (
+        "Schema 2 -> schema 3 migration",
+        "Downgrade protection",
+        "Everything availability and fallback",
+        "Diagnostics",
+        "Packaging",
+    ):
+        if token not in validation_text:
+            fail(f"Everything beta validation guide missing: {token}")
+
+    if "[x]" in validation_text.lower():
+        fail(
+            "manual Everything beta validation items must not be "
+            "pre-marked as completed by CI"
+        )
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        if "everything_ipc_runtime_tests" not in workflow:
+            fail(
+                f"{workflow_path} no longer runs Everything IPC runtime smoke"
+            )
+
+    print(
+        "v0.5.0-beta.1 Everything Settings/migration contract verified:",
+        "| settings=3 commands=1 usage=1 provider-cache=2",
+        "| Everything default-off | live diagnostics/fallback",
+        "| schema2 migration + schema2 downgrade protection",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.5.0-alpha.3":
     expected_schemas = {
         "kSettingsSchemaVersion": 2,

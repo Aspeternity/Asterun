@@ -106,7 +106,10 @@ private:
         EverythingAvailability availability,
         EverythingQueryStatus status,
         std::chrono::microseconds latency,
-        std::uint32_t resultCount);
+        std::uint32_t resultCount,
+        std::uint32_t totalMatches,
+        std::uint32_t nativeError,
+        bool hasQuery);
 
     [[nodiscard]] static std::u16string
     ToUtf16(

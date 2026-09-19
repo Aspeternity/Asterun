@@ -30,6 +30,7 @@ DefaultEnabled() {
         {std::string(kPackaged), true},
         {std::string(kAppPaths), true},
         {std::string(kPath), true},
+        {std::string(kEverythingFilesystem), false},
     };
 }
 

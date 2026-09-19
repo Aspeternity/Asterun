@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "general": {
     "startWithWindows": false,
     "showOnStartup": false,
@@ -32,6 +32,7 @@
     "windows.startmenu": true,
     "windows.packaged": true,
     "windows.apppaths": true,
-    "windows.path": true
+    "windows.path": true,
+    "everything.filesystem": false
   }
 }
