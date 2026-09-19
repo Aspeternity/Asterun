@@ -17,7 +17,7 @@ std::wstring_view LocalizedText(TextId id, Language language) {
     case TextId::SearchPlaceholder:
         return zh ? L"输入快捷词、程序名或路径…" : L"Type a keyword, app name, or path...";
     case TextId::ClassicHint:
-        return zh ? L"按下↑↓键选择快捷项，Enter键运行" : L"Use ↑↓ to select, Enter to run";
+        return zh ? L"按下Shift+Tab键显示上一项快捷项" : L"Press Shift+Tab to show the previous item";
     case TextId::CommandPrefix:
         return zh ? L"命令：" : L"Command: ";
     case TextId::TrayShow:
