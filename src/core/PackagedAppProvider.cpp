@@ -69,7 +69,7 @@ std::wstring NormalizeTarget(
         normalized.begin(),
         normalized.end(),
         L'/',
-        L'\');
+        L'\\');
 
     return normalized;
 }
