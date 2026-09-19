@@ -1,0 +1,44 @@
+#pragma once
+
+#include "Command.hpp"
+
+#include <filesystem>
+#include <unordered_map>
+#include <vector>
+
+namespace altrun {
+
+class UserCommandStore {
+public:
+    UserCommandStore(
+        std::filesystem::path jsonPath,
+        std::filesystem::path legacyTsvPath = {});
+
+    void Load();
+    bool Save() const;
+
+    [[nodiscard]] const std::vector<Command>& Commands() const noexcept {
+        return commands_;
+    }
+
+    [[nodiscard]] const std::unordered_map<std::wstring, std::wstring>& LegacyIdMap() const noexcept {
+        return legacyIdMap_;
+    }
+
+    [[nodiscard]] const std::filesystem::path& Path() const noexcept {
+        return jsonPath_;
+    }
+
+private:
+    bool LoadJson();
+    bool MigrateLegacyTsv();
+    void CreateDefaults();
+    void RebuildLegacyIdMap();
+
+    std::filesystem::path jsonPath_;
+    std::filesystem::path legacyTsvPath_;
+    std::vector<Command> commands_;
+    std::unordered_map<std::wstring, std::wstring> legacyIdMap_;
+};
+
+} // namespace altrun
