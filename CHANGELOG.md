@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1
+
+- Added persistent portable `settings.ini`.
+- Added Simplified Chinese and English UI strings.
+- Added live language switching from the tray menu.
+- Added **Classic ALTRun** and **Modern Compact** switchable UI styles.
+- Added localized search placeholder and application messages.
+- Added theme-specific geometry, fonts, colors and result rendering.
+- Kept search/indexing core independent from UI and localization.
+- Packaged a `settings.example.ini` with CI artifacts.
+
 ## 0.1.0 - development baseline
 
 - Created a clean-room C++23/Win32 project architecture.

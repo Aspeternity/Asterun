@@ -1,48 +1,91 @@
 # ALTRun Next
 
-ALTRun Next is a clean-room, modern Windows launcher inspired by the interaction model of classic ALTRun: tiny UI, keyboard-first operation, immediate response, and almost no visual noise.
+ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise.
 
-The project does **not** copy the original Delphi source. The UI/behavior is being reimplemented from scratch for current Windows versions.
+The project does **not** copy the original Delphi source. The behavior and visual direction are being reimplemented from scratch for current Windows versions.
 
-> Working codename. The final project name can still change before the first public release.
+## v0.1.1
 
-## v0.1.0 prototype
+Current development baseline:
 
-The first development baseline already includes:
-
-- Native C++23 + Win32 implementation
+- Native C++23 + Win32
 - `Alt + Space` global launcher hotkey
-- Classic compact input + result list + command preview layout
-- `Up` / `Down` / `Enter` / `Esc` keyboard operation
+- Two switchable UI styles:
+  - **Classic ALTRun** — compact silver/gray layout inspired by the old ALTRun experience
+  - **Modern Compact** — cleaner Win11-oriented layout without cards or oversized UI
+- Simplified Chinese (`zh-CN`) and English (`en-US`)
+- Language and UI can be changed from the tray menu without restarting
+- Settings persist in portable `settings.ini`
+- Localized search placeholder and system messages
 - Custom commands from `commands.tsv`
 - Automatic Start Menu shortcut indexing
 - Lightweight fuzzy matching
 - Usage frequency + recency ranking
-- Portable `usage.tsv` state next to the executable
+- Portable `usage.tsv` history
 - Windows 11 per-monitor DPI awareness v2
-- System tray: Show / Reload / Exit
-- GitHub Actions build design for x64 and ARM64
+- x64 and ARM64 GitHub Actions builds
+
+## UI and language
+
+Right-click the tray icon:
+
+```text
+显示 / Show
+重新加载 commands.tsv / Reload commands.tsv
+
+界面 / Appearance
+  ✓ 经典 ALTRun / Classic ALTRun
+    现代紧凑 / Modern Compact
+
+语言 / Language
+  ✓ 简体中文
+    English
+
+退出 / Exit
+```
+
+The default configuration is:
+
+```ini
+[general]
+ui=classic
+language=zh-CN
+```
+
+Changing UI or language writes the values to `settings.ini` next to `ALTRunNext.exe`.
+
+Supported UI values:
+
+- `classic`
+- `modern-compact`
+
+Supported language values:
+
+- `zh-CN`
+- `en-US`
 
 ## Architecture
 
 ```text
 ALTRunNext
 ├─ app
-│  └─ App                 process lifecycle / orchestration
+│  └─ App
 ├─ core
-│  ├─ Command             launcher data model
-│  ├─ CommandStore        custom + Start Menu command sources
-│  ├─ SearchEngine        query matching and ranking
-│  └─ UsageStore          frequency / recency persistence
+│  ├─ Command
+│  ├─ CommandStore
+│  ├─ Localization
+│  ├─ SearchEngine
+│  ├─ Settings
+│  └─ UsageStore
 ├─ platform
-│  └─ WinUtil             UTF-8, environment, Win32 helpers
+│  └─ WinUtil
 └─ ui
-   └─ LauncherWindow      classic Win32 launcher shell
+   └─ LauncherWindow
 ```
 
-The important rule is that the **search/launch core is separated from the launcher UI**. Later Classic, Classic Dark, or another renderer can be added without rewriting search/indexing.
+Search, settings, localization and rendering are separated so additional skins such as **Classic Dark**, **Windows 11**, or **Minimal** can be added without rewriting the launcher core.
 
-## Build on Windows 11
+## Build on Windows
 
 Requirements:
 
@@ -79,31 +122,8 @@ calc    Calculator       calc.exe
 gh      GitHub           https://github.com
 ```
 
-After editing the file, right-click the tray icon and choose **Reload commands.tsv**.
+After editing, right-click the tray icon and choose **重新加载 commands.tsv / Reload commands.tsv**.
 
-## Current UI direction
+## Next
 
-The daily launcher intentionally follows the classic ALTRun idea:
-
-```text
-┌────────────────────────────────────────────┐
-│ chrome                                     │
-├───────────────┬────────────────────────────┤
-│ chrome        │ Google Chrome              │
-│ chrome beta   │ Google Chrome Beta         │
-│ chromedriver  │ ChromeDriver               │
-├────────────────────────────────────────────┤
-│ C:\...\Google Chrome.lnk                  │
-└────────────────────────────────────────────┘
-```
-
-No cards, oversized icons, animation-heavy panels, or permanent settings chrome in the launcher itself.
-
-## Next milestone
-
-The next development version will focus on two things before adding more integrations:
-
-1. make the Classic UI visually closer to the old ALTRun skin and interaction details;
-2. add pinyin + Everything as providers without coupling them to the UI.
-
-See [ROADMAP.md](ROADMAP.md).
+The next milestone is to improve Classic visual fidelity and then add pinyin matching + Everything as search providers.
