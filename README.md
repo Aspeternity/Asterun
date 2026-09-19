@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.5.0-rc.1 — Release Candidate Stabilization & Real-world Validation
+
+RC1 freezes the v0.5.0 feature surface. No new provider, schema, launcher geometry or Everything transport is introduced after beta.2. The candidate keeps settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, the five existing provider IDs, Everything default-off, the 1.4-compatible Unicode Query2/WM_COPYDATA transport and the established Classic geometry.
+
+The beta.2 compatibility behavior is now treated as the RC baseline: unnamed Everything IPC is preferred, exactly one named instance may be selected conservatively when the unnamed endpoint is absent, multiple named instances fall back rather than guessing, and reply sender/payload/count/range validation remains mandatory. File/Folder results stay query-time only and are never written to provider-cache or usage history.
+
+RC1 adds a single packaged v0.5 validation checklist, `V0.5_RC_VALIDATION.md`, covering real Windows 10/11 desktop validation, Everything 1.4/current 1.5 beta, named/multiple instances, schema 2→3 migration and downgrade protection, mixed DPI, IME, UNC/extended-length paths, long-run soak, package/hash verification and final stable sign-off. The existing Everything compatibility matrix is also shipped in both x64 and ARM64 packages.
+
+Automated CI still covers Core tests, Windows current runtime smoke, Windows 10 API baseline, x64/ARM64 production builds, exact package contents, packaged x64 startup and SHA-256 self-verification. Manual checklist boxes remain intentionally unmarked until observed on real hardware/software; an RC tag is not itself a manual sign-off.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.200`.
+
 ## v0.5.0-beta.2 — Performance & Real-world Compatibility Hardening
 
 Beta 2 keeps the beta.1 settings/schema surface frozen and hardens the existing native Query2 IPC path for real Everything installations. The default unnamed `EVERYTHING_TASKBAR_NOTIFICATION` endpoint is always preferred. When that endpoint is absent, ALTRun Next can discover the standard named-instance form `EVERYTHING_TASKBAR_NOTIFICATION_(instance)`; it auto-selects only when exactly one named instance exists. Multiple named instances are reported as ambiguous and ALTRun Next falls back to application-only search rather than guessing which database to query.

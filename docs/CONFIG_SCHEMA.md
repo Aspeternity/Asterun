@@ -92,6 +92,8 @@ Schema-2 settings migrate in place using the existing atomic save path. Because 
 Downgrade safety is explicit. A v0.5.0-beta.1 schema-3 settings file opened by a schema-2 reader is returned as `UnsupportedSchema`; known fields may be read for compatibility, but writes are blocked and the original bytes are not replaced. CI exercises this with a simulated v0.4.1 schema ceiling of 2.
 
 The schema-3 change does **not** persist Everything query results, ranking scores, availability, latency or file usage. Those remain runtime-only diagnostics. `everything.filesystem` is still a Dynamic Query Provider and is not written into `provider-cache.json`.
+v0.5.0-rc.1 freezes the beta.2 persisted contract for the entire RC line. No schema/default change is permitted during RC stabilization.
+
 v0.5.0-beta.2 does not change any persisted schema or default. It is a transport/runtime compatibility release: settings remains schemaVersion 3, commands/usage remain schemaVersion 1, provider-cache remains schemaVersion 2 and `everything.filesystem` remains default-off. Named-instance endpoint discovery, IPC endpoint diagnostics, long-path handling and reply-validation state are runtime-only and are not persisted.
 
 

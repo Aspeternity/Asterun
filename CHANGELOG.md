@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0-rc.1
+
+- Entered v0.5.0 feature freeze: no new provider, schema, Classic geometry or Everything transport surface.
+- Froze settings schemaVersion 3, commands/usage schemaVersion 1 and provider-cache schemaVersion 2.
+- Froze provider IDs and safe defaults, including `everything.filesystem=false`.
+- Froze the beta.2 Everything compatibility baseline: unnamed-first endpoint selection, unique named-instance fallback, multi-instance ambiguity fallback, Query2 WM_COPYDATA and no Everything DLL/named-pipe dependency.
+- Added `docs/V0.5_RC_VALIDATION.md` as the stable-promotion checklist for Windows 10/11, Everything 1.4/1.5, migration/downgrade, mixed DPI, IME, paths, soak and package validation.
+- Added `V0.5_RC_VALIDATION.md` and `EVERYTHING_COMPATIBILITY.md` to both portable release ZIPs and the exact package allowlist.
+- Kept all real-desktop validation items intentionally unchecked until manually observed.
+- Limited post-RC changes to regression, compatibility, data-safety and publication/package fixes.
+- Updated Windows version metadata to `0.5.0-rc.1` / `0.5.0.200`.
+
+
 ## 0.5.0-beta.2
 
 - Added conservative Everything named-instance discovery using the documented `EVERYTHING_TASKBAR_NOTIFICATION_(instance)` class convention.

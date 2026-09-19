@@ -36,6 +36,239 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.5.0-rc.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected frozen RC1 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("provider-cache schema must remain 2 throughout v0.5 RC")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    expected_provider_tokens = (
+        '"windows.startmenu"',
+        '"windows.packaged"',
+        '"windows.apppaths"',
+        '"windows.path"',
+        '"everything.filesystem"',
+        "{std::string(kStartMenu), true}",
+        "{std::string(kPackaged), true}",
+        "{std::string(kAppPaths), true}",
+        "{std::string(kPath), true}",
+        "{std::string(kEverythingFilesystem), false}",
+    )
+    for token in expected_provider_tokens:
+        if token not in provider_text:
+            fail(f"RC1 provider/default freeze missing: {token}")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 3:
+        fail("RC1 settings.example.json must remain schemaVersion 3")
+    if settings.get("providers") != expected_providers:
+        fail("RC1 provider defaults changed after feature freeze")
+
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_hpp,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during RC freeze: {name}")
+
+    registry = read("src/core/ProviderRegistry.cpp")
+    if "everything.filesystem" in registry or "kEverythingFilesystem" in registry:
+        fail(
+            "Everything must remain a Dynamic Query Provider outside "
+            "the static ProviderRegistry during RC"
+        )
+
+    protocol_h = read("src/core/EverythingIpcProtocol.hpp")
+    protocol_cpp = read("src/core/EverythingIpcProtocol.cpp")
+    client_h = read("src/platform/EverythingIpcClient.hpp")
+    client_cpp = read("src/platform/EverythingIpcClient.cpp")
+    provider_cpp = read("src/core/EverythingProvider.cpp")
+    everything_source = (
+        protocol_h + protocol_cpp + client_h + client_cpp + provider_cpp
+    )
+
+    for token in (
+        "kCopyDataQuery2W = 18",
+        "kItemDriveOrRoot",
+        "discoverNamedInstances",
+        "maxReplyBytes",
+        "EnumNamedEverythingWindows",
+        "ambiguousNamedInstances",
+        "inFlight_->sourceWindow",
+        "ERROR_INSUFFICIENT_BUFFER",
+        "client_.Status()",
+        "1000",
+    ):
+        if token not in everything_source:
+            fail(f"RC1 lost frozen beta.2 Everything behavior: {token}")
+
+    for forbidden in (
+        "Everything64.dll",
+        "Everything32.dll",
+        "Everything3_",
+        r"\\.\PIPE\Everything IPC",
+        "LoadLibraryW",
+        "LoadLibraryA",
+    ):
+        if forbidden in everything_source:
+            fail(
+                "RC1 may not add an Everything DLL/SDK3 named-pipe "
+                f"dependency after feature freeze: {forbidden}"
+            )
+
+    runtime_test = read("tests/EverythingIpcRuntimeTests.cpp")
+    for token in (
+        'L"_(1.5b)"',
+        "status.ambiguousNamedInstances",
+        'L"drive-root"',
+        'L"unc"',
+        'L"longpath"',
+        "i < 128",
+        "500000",
+        "Mode::WrongSender",
+        "options.maxReplyBytes = 64",
+        ".limit = 5000",
+        "generation = 351",
+        "generation = 352",
+    ):
+        if token not in runtime_test:
+            fail(f"RC1 lost Everything runtime regression coverage: {token}")
+
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    for token in (
+        "settings-v0.5-alpha-everything.json",
+        "settings-v0.5-alpha-default.json",
+        "v041DowngradeRead",
+        "MigratedFromSchemaVersion",
+        "mask < 32",
+    ):
+        if token not in config_tests:
+            fail(f"RC1 lost migration/downgrade regression coverage: {token}")
+
+    rc_validation = read("docs/V0.5_RC_VALIDATION.md")
+    for token in (
+        "Frozen RC contract",
+        "Required environment matrix",
+        "Upgrade: v0.4.1 stable -> v0.5.0 RC",
+        "Downgrade protection",
+        "Everything 1.4 default instance",
+        "Everything 1.5 current beta",
+        "Named and multiple Everything instances",
+        "Mixed-DPI and UI validation",
+        "Long-run soak",
+        "Stable promotion gate",
+        "PASS / FAIL",
+    ):
+        if token not in rc_validation:
+            fail(f"RC1 validation checklist missing: {token}")
+
+    if "[x]" in rc_validation.lower():
+        fail(
+            "RC1 real-desktop validation items must not be "
+            "pre-marked as completed by automation"
+        )
+
+    compatibility = read("docs/EVERYTHING_COMPATIBILITY.md")
+    for token in (
+        "EVERYTHING_TASKBAR_NOTIFICATION_(instance-name)",
+        "1.4 unnamed/default instance",
+        "1.5a default alpha instance",
+        "1.5b+ unnamed/default instance",
+        "multiple named instances",
+        "RC1 freeze",
+    ):
+        if token not in compatibility:
+            fail(f"RC1 compatibility matrix missing: {token}")
+
+    package_script = read("scripts/verify_package.ps1")
+    for token in (
+        '"V0.5_RC_VALIDATION.md"',
+        '"EVERYTHING_COMPATIBILITY.md"',
+        "$allowedTopLevel",
+        "EXE fixed FileVersion",
+        "Top-level package entries: exact allowlist verified",
+    ):
+        if token not in package_script:
+            fail(f"RC1 package contract missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        for token in (
+            "everything_ipc_runtime_tests",
+            "V0.5_RC_VALIDATION.md",
+            "EVERYTHING_COMPATIBILITY.md",
+            "Verify package contract",
+        ):
+            if token not in workflow:
+                fail(f"{workflow_path} missing RC1 gate/package item: {token}")
+
+    build_workflow = read(".github/workflows/build.yml")
+    for token in (
+        "sha256sum -c SHA256SUMS.txt",
+        "Verify packaged x64 runtime startup",
+        "Check this is still the latest main commit",
+    ):
+        if token not in build_workflow:
+            fail(f"main publication hardening missing during RC1: {token}")
+
+    release_workflow = read(".github/workflows/release.yml")
+    for token in (
+        "Release tag preflight",
+        "verify_tag_version.py",
+        "sha256sum -c SHA256SUMS.txt",
+        "Verify packaged x64 runtime startup",
+    ):
+        if token not in release_workflow:
+            fail(f"tagged release hardening missing during RC1: {token}")
+
+    roadmap = read("ROADMAP.md")
+    for token in (
+        "v0.5.0-rc.1 freezes the v0.5 surface",
+        "regression/compatibility/data-safety/publication fixes",
+        "no release-blocking defect",
+    ):
+        if token not in roadmap:
+            fail(f"RC1 feature-freeze policy missing from roadmap: {token}")
+
+    print(
+        "v0.5.0-rc.1 release-candidate freeze verified:",
+        "| settings=3 commands=1 usage=1 provider-cache=2",
+        "| provider/default/Classic/Everything transport frozen",
+        "| packaged RC validation + compatibility matrix",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.5.0-beta.2":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,

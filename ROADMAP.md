@@ -104,6 +104,8 @@ In progress:
 - v0.5.0-beta.1 promotes Everything into Search Sources with a supported default-off toggle and live IPC/query diagnostics
 - Beta 1 upgrades settings to schemaVersion 3, preserves alpha opt-ins, adds explicit schema-2 downgrade read-only coverage and validates unavailable -> available recovery
 - v0.5.0-beta.2 hardens real-world compatibility with unnamed/named Everything instances, conservative multi-instance fallback, sender/payload validation, long/UNC/root path handling and high-churn/large-result runtime stress
+- v0.5.0-rc.1 freezes the v0.5 surface, packages the unified real-desktop validation matrix and limits further changes to regression/compatibility/data-safety/publication fixes
+- Stable v0.5.0 promotion requires explicit real Windows 10/11 + Everything 1.4/current 1.5 validation and no release-blocking defect; automated CI is necessary but not a substitute for manual sign-off
 
 ## v0.6.x - Smart actions & Windows integration
 

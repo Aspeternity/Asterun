@@ -73,6 +73,8 @@ jobs:
           Copy-Item config/*.example.* dist/
           Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
           Copy-Item docs/DESKTOP_VALIDATION.md dist/DESKTOP_VALIDATION.md
+          Copy-Item docs/V0.5_RC_VALIDATION.md dist/V0.5_RC_VALIDATION.md
+          Copy-Item docs/EVERYTHING_COMPATIBILITY.md dist/EVERYTHING_COMPATIBILITY.md
           Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip

@@ -1,6 +1,6 @@
 # Everything compatibility matrix
 
-ALTRun Next v0.5.0-beta.2 keeps one transport baseline: the Everything 1.4-compatible Unicode Query2 protocol over local Win32 `WM_COPYDATA`.
+ALTRun Next v0.5.0-rc.1 freezes the beta.2 transport baseline: the Everything 1.4-compatible Unicode Query2 protocol over local Win32 `WM_COPYDATA`.
 
 ## Endpoint selection
 
@@ -27,7 +27,7 @@ This behavior prevents ALTRun Next from silently querying the wrong Everything d
 
 ## Version matrix
 
-| Everything setup | beta.2 behavior |
+| Everything setup | RC1 behavior |
 | --- | --- |
 | 1.4 unnamed/default instance | Query2 WM_COPYDATA through the default class |
 | 1.4 single named instance | Unique named-instance fallback |
@@ -78,3 +78,8 @@ The launcher normally asks Everything for only a small candidate pool. `Everythi
 - oversized reply payload rejection.
 
 Everything results remain query-time only and are never persisted to `provider-cache.json` or `usage.json`.
+
+
+## RC1 freeze
+
+v0.5.0-rc.1 makes no protocol or endpoint-selection change relative to beta.2. This document is shipped inside both portable RC packages so a real-world validation run can identify the intended 1.4/1.5/named-instance behavior without relying on repository access. Any post-RC transport change requires a concrete release-blocking compatibility defect and corresponding regression coverage.
