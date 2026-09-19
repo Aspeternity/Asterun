@@ -4,6 +4,7 @@
 #include "TextCodec.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <array>
 #include <cwctype>
 #include <fstream>
