@@ -130,6 +130,8 @@ Disabled providers remain cached but are excluded from both search and change-to
 
 The Data -> Rebuild program index action remains an explicit full non-blocking refresh of all enabled providers.
 
+v0.4.0-beta.1 does **not** change the provider-cache schema. De-duplication counts and provider refresh errors are runtime diagnostics only; they are derived from the current cache/refresh session and are not persisted into user configuration.
+
 ## usage.json
 
 Usage statistics are keyed by stable command ID:

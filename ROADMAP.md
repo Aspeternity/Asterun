@@ -46,11 +46,15 @@ Current phase:
 - Incremental / change-driven provider refresh
 - Refresh debounce and provider scheduling
 - Provider cache counts and last-refresh diagnostics
+- Deterministic discovery de-duplication with regression coverage
+- Per-provider active/suppressed/error diagnostics
+- Windows 10 API baseline and Windows compatibility CI gate
 
-Planned before v0.4 beta:
+v0.4 beta hardening:
 
-- Discovery and de-duplication regression coverage
-- Windows 10 / Windows 11 compatibility verification
+- Validate upgrade behavior from the v0.4 alpha cache/settings formats
+- Exercise provider discovery on real Windows 10 and Windows 11 desktops
+- Fix only discovery/regression issues before the v0.4 stable milestone
 
 ## v0.5.x - Everything integration
 

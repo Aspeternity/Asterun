@@ -68,10 +68,28 @@ jobs:
           path: ALTRunNext-${{ matrix.arch }}.zip
 
 
+  windows-compat:
+    name: Windows 10 API baseline
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure x64 compatibility build
+        shell: pwsh
+        run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=OFF
+      - name: Build x64 compatibility target
+        shell: pwsh
+        run: cmake --build build-compat --config Release --parallel
+      - name: Verify compatibility artifact
+        shell: pwsh
+        run: |
+          if (-not (Test-Path build-compat/Release/ALTRunNext.exe)) {
+            throw "Windows compatibility build did not produce ALTRunNext.exe."
+          }
+
   development-release:
     name: Publish rolling development prerelease
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test-core, build-windows]
+    needs: [test-core, build-windows, windows-compat]
     runs-on: ubuntu-latest
     concurrency:
       group: altrun-development-release

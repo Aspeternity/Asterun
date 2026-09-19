@@ -1245,12 +1245,12 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.4.0-alpha.4", L"Version 0.4.0-alpha.4"));
+        T(L"版本 0.4.0-beta.1", L"Version 0.4.0-beta.1"));
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Alpha 4 加入来源变化检测、定向增量刷新与防抖调度。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Alpha 4 adds source change detection, targeted incremental refresh and debounce scheduling."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Beta 1 加入可测试的确定性去重、Provider 诊断与 Windows 兼容构建门槛。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Beta 1 adds deterministic tested de-duplication, provider diagnostics and a Windows compatibility build gate."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -1379,17 +1379,55 @@ void SettingsWindow::RefreshProviderStatus() {
 
         text += name;
         text += L"  ·  ";
-        text += status.enabled
-            ? T(L"已启用", L"Enabled")
-            : T(L"已禁用", L"Disabled");
+
+        if (!status.enabled) {
+            text += T(
+                L"已禁用",
+                L"Disabled");
+        } else if (
+            status.lastAttemptUnix > 0 &&
+            !status.lastAttemptSucceeded) {
+            text += T(
+                L"刷新失败",
+                L"Refresh failed");
+        } else {
+            text += T(
+                L"正常",
+                L"Healthy");
+        }
+
         text += L"  ·  ";
+        text += T(L"缓存 ", L"Cached ");
         text += std::to_wstring(
             status.commandCount);
-        text += T(L" 项", L" items");
+        text += T(L" / 搜索 ", L" / active ");
+        text += std::to_wstring(
+            status.activeCommandCount);
+
+        if (status.suppressedCommandCount >
+            0) {
+            text += T(L" / 去重 ", L" / dedup ");
+            text += std::to_wstring(
+                status.suppressedCommandCount);
+        }
+
         text += L"  ·  ";
-        text += T(L"上次刷新 ", L"Last refresh ");
+        text += T(
+            L"成功刷新 ",
+            L"Last success ");
         text += FormatLocalTime(
             status.lastRefreshUnix);
+
+        if (status.lastAttemptUnix > 0 &&
+            !status.lastAttemptSucceeded &&
+            !status.lastError.empty()) {
+
+            text += L"\r\n    ↳ ";
+            text += T(
+                L"错误：",
+                L"Error: ");
+            text += status.lastError;
+        }
 
         if (i + 1 <
             statuses.size()) {
@@ -3309,16 +3347,16 @@ void SettingsWindow::Layout() {
             providerCard.bottom +
                 Scale(24),
             controlWidth,
-            Scale(112),
+            Scale(156),
             TRUE);
 
         MoveWindow(
             providerNote_,
             x,
             providerCard.bottom +
-                Scale(146),
+                Scale(190),
             controlWidth,
-            Scale(60),
+            Scale(54),
             TRUE);
     }
 

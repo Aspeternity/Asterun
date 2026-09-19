@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Command.hpp"
+#include "CommandMerge.hpp"
 #include "ProviderCache.hpp"
 #include "ProviderIds.hpp"
 #include "ProviderRegistry.hpp"
@@ -8,6 +9,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -26,7 +28,12 @@ struct ProviderStatus {
     std::wstring name;
     bool enabled{false};
     std::size_t commandCount{0};
+    std::size_t activeCommandCount{0};
+    std::size_t suppressedCommandCount{0};
     std::int64_t lastRefreshUnix{0};
+    std::int64_t lastAttemptUnix{0};
+    bool lastAttemptSucceeded{true};
+    std::wstring lastError;
 };
 
 class CommandStore {
@@ -44,7 +51,7 @@ public:
     RefreshProviderCache(
         const ProviderEnableMap& enabled,
         const std::vector<std::string>&
-            selectedIds = {}) const;
+            selectedIds = {});
 
     [[nodiscard]] std::vector<
         ProviderDescriptor>
@@ -105,11 +112,13 @@ public:
     }
 
 private:
+    struct ProviderRuntimeDiagnostic {
+        std::int64_t lastAttemptUnix{0};
+        bool lastAttemptSucceeded{true};
+        std::wstring lastError;
+    };
+
     void RebuildMergedCommands();
-    void AddCommand(Command command);
-    static void AddCommandTo(
-        std::vector<Command>& output,
-        Command command);
 
     std::filesystem::path
         baseDirectory_;
@@ -125,6 +134,15 @@ private:
         providerCommands_;
     std::vector<Command>
         commands_;
+    CommandMergeStats
+        mergeStats_;
+
+    mutable std::mutex
+        providerDiagnosticsMutex_;
+    std::unordered_map<
+        std::string,
+        ProviderRuntimeDiagnostic>
+        providerDiagnostics_;
 };
 
 } // namespace altrun

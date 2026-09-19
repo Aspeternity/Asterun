@@ -1,53 +1,12 @@
 #include "CommandStore.hpp"
 
-#include "../platform/WinUtil.hpp"
-
-#include <algorithm>
 #include <chrono>
+#include <optional>
 #include <utility>
 
 namespace altrun {
 
 namespace {
-
-bool IsUserSource(
-    CommandSource source) {
-
-    return source ==
-        CommandSource::User;
-}
-
-std::wstring NormalizeForDedup(
-    std::wstring_view value) {
-
-    std::wstring result =
-        win::Lower(
-            win::Trim(value));
-
-    std::replace(
-        result.begin(),
-        result.end(),
-        L'/',
-        L'\\');
-
-    return result;
-}
-
-std::wstring NameKey(
-    const Command& command) {
-
-    std::wstring key =
-        win::CompactKeyword(
-            command.title);
-
-    if (key.empty()) {
-        key =
-            win::CompactKeyword(
-                command.keyword);
-    }
-
-    return key;
-}
 
 std::int64_t NowUnix() {
     return std::chrono::
@@ -57,6 +16,29 @@ std::int64_t NowUnix() {
                     system_clock::now()
                     .time_since_epoch())
         .count();
+}
+
+std::optional<CommandSource>
+SourceForProviderId(
+    std::string_view id) {
+
+    if (id == providers::kStartMenu) {
+        return CommandSource::StartMenu;
+    }
+
+    if (id == providers::kPackaged) {
+        return CommandSource::PackagedApp;
+    }
+
+    if (id == providers::kAppPaths) {
+        return CommandSource::AppPaths;
+    }
+
+    if (id == providers::kPath) {
+        return CommandSource::Path;
+    }
+
+    return std::nullopt;
 }
 
 } // namespace
@@ -81,6 +63,7 @@ void CommandStore::Reload(
     const ProviderEnableMap& enabled) {
 
     userCommandStore_.Load();
+
     ReloadProviderCache(
         enabled);
 }
@@ -113,12 +96,10 @@ void CommandStore::ReloadProviderCache(
             continue;
         }
 
-        for (const auto& command :
-             it->second.commands) {
-            AddCommandTo(
-                providerCommands_,
-                command);
-        }
+        providerCommands_.insert(
+            providerCommands_.end(),
+            it->second.commands.begin(),
+            it->second.commands.end());
     }
 
     RebuildMergedCommands();
@@ -128,7 +109,7 @@ ProviderRefreshOutcome
 CommandStore::RefreshProviderCache(
     const ProviderEnableMap& enabled,
     const std::vector<std::string>&
-        selectedIds) const {
+        selectedIds) {
 
     ProviderCacheData cache =
         providerCache_.Load();
@@ -145,11 +126,36 @@ CommandStore::RefreshProviderCache(
 
     std::size_t succeeded = 0;
     std::size_t failed = 0;
+
     const std::int64_t generatedAt =
         NowUnix();
 
+    {
+        std::scoped_lock lock(
+            providerDiagnosticsMutex_);
+
+        for (const auto& result :
+             results) {
+
+            auto& diagnostic =
+                providerDiagnostics_[
+                    result.id];
+
+            diagnostic.lastAttemptUnix =
+                generatedAt;
+            diagnostic
+                .lastAttemptSucceeded =
+                    result.success;
+            diagnostic.lastError =
+                result.success
+                    ? std::wstring{}
+                    : result.error;
+        }
+    }
+
     for (const auto& result :
          results) {
+
         if (!result.success) {
             ++failed;
             continue;
@@ -167,13 +173,34 @@ CommandStore::RefreshProviderCache(
         ++succeeded;
     }
 
-    // If every enabled provider failed, leave the previous cache untouched.
+    // If every selected/enabled provider failed, leave the previous cache
+    // untouched and keep the failure diagnostics visible in Settings.
     if (succeeded == 0) {
         return ProviderRefreshOutcome::
             Failed;
     }
 
     if (!providerCache_.Save(cache)) {
+        std::scoped_lock lock(
+            providerDiagnosticsMutex_);
+
+        for (const auto& result :
+             results) {
+            if (!result.success) {
+                continue;
+            }
+
+            auto& diagnostic =
+                providerDiagnostics_[
+                    result.id];
+
+            diagnostic
+                .lastAttemptSucceeded =
+                    false;
+            diagnostic.lastError =
+                L"Unable to persist provider cache.";
+        }
+
         return ProviderRefreshOutcome::
             Failed;
     }
@@ -206,6 +233,19 @@ CommandStore::ProviderStatuses(
     const ProviderCacheData cache =
         providerCache_.Load();
 
+    std::unordered_map<
+        std::string,
+        ProviderRuntimeDiagnostic>
+        diagnostics;
+
+    {
+        std::scoped_lock lock(
+            providerDiagnosticsMutex_);
+
+        diagnostics =
+            providerDiagnostics_;
+    }
+
     std::vector<ProviderStatus>
         statuses;
 
@@ -221,15 +261,52 @@ CommandStore::ProviderStatuses(
                 descriptor.id,
                 descriptor.defaultEnabled);
 
-        const auto it =
+        const auto cacheIt =
             cache.find(
                 descriptor.id);
 
-        if (it != cache.end()) {
+        if (cacheIt != cache.end()) {
             status.commandCount =
-                it->second.commands.size();
+                cacheIt->second.commands.size();
+
             status.lastRefreshUnix =
-                it->second.generatedAtUnix;
+                cacheIt->second
+                    .generatedAtUnix;
+        }
+
+        if (const auto source =
+                SourceForProviderId(
+                    descriptor.id)) {
+
+            if (status.enabled) {
+                status.activeCommandCount =
+                    mergeStats_.Accepted(
+                        *source);
+
+                status.suppressedCommandCount =
+                    mergeStats_.Suppressed(
+                        *source);
+            }
+        }
+
+        const auto diagnosticIt =
+            diagnostics.find(
+                descriptor.id);
+
+        if (diagnosticIt !=
+            diagnostics.end()) {
+
+            status.lastAttemptUnix =
+                diagnosticIt->second
+                    .lastAttemptUnix;
+
+            status.lastAttemptSucceeded =
+                diagnosticIt->second
+                    .lastAttemptSucceeded;
+
+            status.lastError =
+                diagnosticIt->second
+                    .lastError;
         }
 
         statuses.push_back(
@@ -319,107 +396,18 @@ bool CommandStore::ExportUserCommands(
 }
 
 void CommandStore::RebuildMergedCommands() {
-    commands_.clear();
+    CommandMergeResult merged =
+        MergeCommands(
+            userCommandStore_
+                .Commands(),
+            providerCommands_);
 
-    for (const auto& command :
-         userCommandStore_
-             .Commands()) {
-        if (!command.enabled) {
-            continue;
-        }
+    commands_ =
+        std::move(
+            merged.commands);
 
-        AddCommand(command);
-    }
-
-    for (const auto& command :
-         providerCommands_) {
-        if (!command.enabled) {
-            continue;
-        }
-
-        AddCommand(command);
-    }
-}
-
-void CommandStore::AddCommand(
-    Command command) {
-
-    AddCommandTo(
-        commands_,
-        std::move(command));
-}
-
-void CommandStore::AddCommandTo(
-    std::vector<Command>& output,
-    Command command) {
-
-    const std::wstring targetKey =
-        NormalizeForDedup(
-            command.target);
-
-    const std::wstring keywordKey =
-        win::Lower(
-            command.keyword);
-
-    const std::wstring nameKey =
-        NameKey(command);
-
-    for (const auto& existing :
-         output) {
-
-        const bool existingUser =
-            IsUserSource(
-                existing.source);
-
-        const bool incomingUser =
-            IsUserSource(
-                command.source);
-
-        const std::wstring
-            existingTarget =
-                NormalizeForDedup(
-                    existing.target);
-
-        if (!incomingUser &&
-            !targetKey.empty() &&
-            existingTarget ==
-                targetKey) {
-            return;
-        }
-
-        if (incomingUser &&
-            !existingUser &&
-            !targetKey.empty() &&
-            existingTarget ==
-                targetKey) {
-            continue;
-        }
-
-        if (existingUser ||
-            incomingUser) {
-            continue;
-        }
-
-        const std::wstring
-            existingKeyword =
-                win::Lower(
-                    existing.keyword);
-
-        const std::wstring
-            existingName =
-                NameKey(existing);
-
-        if (!nameKey.empty() &&
-            nameKey ==
-                existingName &&
-            keywordKey ==
-                existingKeyword) {
-            return;
-        }
-    }
-
-    output.push_back(
-        std::move(command));
+    mergeStats_ =
+        merged.stats;
 }
 
 } // namespace altrun

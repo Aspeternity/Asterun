@@ -14,6 +14,30 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.0-beta.1 — Discovery Hardening
+
+v0.4 Beta 1 freezes the Windows application-discovery architecture and focuses on regression safety, deterministic de-duplication and diagnostics.
+
+Provider results now pass through a standalone `CommandMerge` layer with explicit precedence:
+
+```text
+User shortcuts
+    >
+Start Menu
+    >
+Windows Apps
+    >
+App Paths
+    >
+PATH
+```
+
+Explicit user shortcuts are authoritative and are never silently de-duplicated against one another. Automatic provider entries are suppressed when they resolve to the same normalized target, or when two automatic entries expose the same normalized name plus keyword. Provider precedence is deterministic even if discovery/cache input order changes.
+
+The **Search sources** page now distinguishes cached commands, commands that actually participate in search after de-duplication, duplicate-suppressed commands, the last successful refresh time, and per-provider refresh failures from the current session.
+
+CI now includes a separate `windows-2022` x64 compatibility build while the executable is compiled against the Windows 10 API baseline (`_WIN32_WINNT=0x0A00`). A versioned beta release is blocked unless Core Tests, x64, ARM64 and the compatibility build all pass.
+
 ## v0.4.0-alpha.4 — Incremental Refresh
 
 v0.4 Alpha 4 changes automatic Windows discovery from "periodically rescan everything" into source-aware incremental refresh.

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0-beta.1
+
+- Extracted provider/user command de-duplication from `CommandStore` into a portable, independently testable `CommandMerge` core module.
+- Made provider precedence explicit and deterministic: user shortcuts > Start Menu > Windows Apps > App Paths > PATH.
+- Preserved explicit duplicate user shortcuts while suppressing automatic duplicates by normalized target or normalized name + keyword.
+- Added dedicated command-merge regression tests for user authority, provider priority, path normalization, semantic duplicate detection, distinct-entry preservation and disabled entries.
+- Changed `CommandStore` to retain raw enabled provider cache entries until the merge stage, making de-duplication statistics accurate.
+- Added per-provider diagnostics for cached count, active search count and duplicate-suppressed count.
+- Added current-session provider refresh diagnostics including last attempt time, success/failure state and provider error text.
+- Added a Windows 10 API compile baseline with `_WIN32_WINNT=0x0A00` and `WINVER=0x0A00`.
+- Added a separate `windows-2022` x64 compatibility build and made it a required gate for rolling/versioned releases.
+- Kept provider-cache schemaVersion 2 and settings schemaVersion 1 unchanged; no user-data migration is required from v0.4 alpha releases.
+- Updated Windows version metadata to `0.4.0-beta.1`.
+
+
 ## 0.4.0-alpha.4
 
 - Added lightweight change tokens to Start Menu, Windows Apps, App Paths and PATH providers.

@@ -77,6 +77,7 @@ target_include_directories(altrun_core PUBLIC src)
 target_link_libraries(altrun_core PUBLIC cpp_pinyin_static)
 
 add_library(altrun_config STATIC
+    src/core/CommandMerge.cpp
     src/core/ConfigIO.cpp
     src/core/ProviderCache.cpp
     src/core/Settings.cpp
@@ -155,7 +156,15 @@ if(WIN32)
         uxtheme
         uuid
     )
-    target_compile_definitions(ALTRunNext PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_compile_definitions(
+        ALTRunNext PRIVATE
+        UNICODE
+        _UNICODE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        _WIN32_WINNT=0x0A00
+        WINVER=0x0A00
+    )
 
     if(MSVC)
         target_compile_options(ALTRunNext PRIVATE /W4 /permissive- /utf-8 /EHsc)
@@ -181,4 +190,9 @@ if(BUILD_TESTING)
     target_link_libraries(config_core_tests PRIVATE altrun_config)
     target_include_directories(config_core_tests PRIVATE src)
     add_test(NAME config_core_tests COMMAND config_core_tests)
+
+    add_executable(command_merge_tests tests/CommandMergeTests.cpp)
+    target_link_libraries(command_merge_tests PRIVATE altrun_config)
+    target_include_directories(command_merge_tests PRIVATE src)
+    add_test(NAME command_merge_tests COMMAND command_merge_tests)
 endif()
