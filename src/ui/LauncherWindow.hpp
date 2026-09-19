@@ -104,6 +104,7 @@ private:
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
     bool trayIconAdded_{false};
+    bool imeComposing_{false};
     UINT dpi_{96};
     int widthLogical_{420};
     int rowHeightLogical_{16};

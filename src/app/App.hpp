@@ -104,7 +104,8 @@ public:
     bool SetProviderEnabled(
         std::string id,
         bool enabled);
-    bool RepairGlobalHotkey();
+    bool RepairGlobalHotkey(
+        bool forceRebind = true);
 
     [[nodiscard]] bool
     IsGlobalHotkeyRegistered() const noexcept {

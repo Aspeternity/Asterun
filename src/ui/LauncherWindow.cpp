@@ -931,6 +931,9 @@ void LauncherWindow::Toggle() {
 void LauncherWindow::Show() {
     if (!hwnd_) return;
 
+    // Do not carry an interrupted IME composition across launcher hides.
+    imeComposing_ = false;
+
     if (app_.SettingsData().clearQueryOnShow) {
         SetWindowTextW(edit_, L"");
     }
@@ -1294,15 +1297,32 @@ LRESULT CALLBACK LauncherWindow::EditProc(
 LRESULT LauncherWindow::HandleEditMessage(
     HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
 
+    if (message == WM_IME_STARTCOMPOSITION) {
+        imeComposing_ = true;
+    } else if (
+        message == WM_IME_ENDCOMPOSITION) {
+        imeComposing_ = false;
+    }
+
     if (message == WM_KEYDOWN) {
         const int quickLaunchIndex =
             QuickLaunchIndexForKey(
                 wParam);
 
         if (quickLaunchIndex >= 0) {
-            if (static_cast<std::size_t>(
+            // Bit 30 is set for key-repeat WM_KEYDOWN messages. Swallow
+            // repeats so holding a number cannot launch the same result
+            // many times when hide-after-launch is disabled.
+            const bool firstPress =
+                (lParam &
+                 (static_cast<LPARAM>(1)
+                  << 30)) == 0;
+
+            if (firstPress &&
+                static_cast<std::size_t>(
                     quickLaunchIndex) <
-                results_.size()) {
+                    results_.size()) {
+
                 ExecuteResultAt(
                     static_cast<
                         std::size_t>(
@@ -1378,7 +1398,11 @@ LRESULT LauncherWindow::HandleMessage(
     case WM_COMMAND:
         if (LOWORD(wParam) == 1001 &&
             HIWORD(wParam) == EN_CHANGE) {
-            RefreshResults(true);
+            // IME composition can emit intermediate EN_CHANGE events.
+            // Search may update live, but single-result auto execution must
+            // wait until composition is committed.
+            RefreshResults(
+                !imeComposing_);
             return 0;
         }
         if (LOWORD(wParam) == 1002 && HIWORD(wParam) == LBN_DBLCLK) {

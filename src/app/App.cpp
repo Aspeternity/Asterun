@@ -977,20 +977,25 @@ bool App::RestoreDefaultSettings() {
 
     const Settings defaults{};
 
-    if (!RebindGlobalHotkey(
-            defaults.hotkeyModifiers,
-            defaults.hotkeyKey)) {
+    // Release the optional binding first. An auxiliary hotkey may have
+    // been configured to the default primary binding (Alt + Space) while
+    // the primary used another key. Resetting in the opposite order would
+    // make RegisterHotKey report a false conflict against our own process.
+    if (!RebindAuxiliaryHotkey(
+            false,
+            defaults.auxiliaryHotkeyModifiers,
+            defaults.auxiliaryHotkeyKey)) {
         return false;
     }
 
-    if (!RebindAuxiliaryHotkey(
-            defaults.auxiliaryHotkeyEnabled,
-            defaults.auxiliaryHotkeyModifiers,
-            defaults.auxiliaryHotkeyKey)) {
+    if (!RebindGlobalHotkey(
+            defaults.hotkeyModifiers,
+            defaults.hotkeyKey)) {
 
-        RebindGlobalHotkey(
-            previous.hotkeyModifiers,
-            previous.hotkeyKey);
+        RebindAuxiliaryHotkey(
+            previous.auxiliaryHotkeyEnabled,
+            previous.auxiliaryHotkeyModifiers,
+            previous.auxiliaryHotkeyKey);
         return false;
     }
 
@@ -1278,22 +1283,49 @@ bool App::RebindGlobalHotkey(
     return false;
 }
 
-bool App::RepairGlobalHotkey() {
-    const bool primary =
-        RebindGlobalHotkey(
-            settingsStore_.Data()
-                .hotkeyModifiers,
-            settingsStore_.Data()
-                .hotkeyKey);
+bool App::RepairGlobalHotkey(
+    bool forceRebind) {
 
-    const bool auxiliary =
-        RebindAuxiliaryHotkey(
-            settingsStore_.Data()
-                .auxiliaryHotkeyEnabled,
-            settingsStore_.Data()
-                .auxiliaryHotkeyModifiers,
-            settingsStore_.Data()
-                .auxiliaryHotkeyKey);
+    const bool primary =
+        !forceRebind &&
+        hotkeyRegistered_
+            ? true
+            : RebindGlobalHotkey(
+                  settingsStore_.Data()
+                      .hotkeyModifiers,
+                  settingsStore_.Data()
+                      .hotkeyKey);
+
+    bool auxiliary = true;
+
+    if (settingsStore_.Data()
+            .auxiliaryHotkeyEnabled) {
+
+        auxiliary =
+            !forceRebind &&
+            auxiliaryHotkeyRegistered_
+                ? true
+                : RebindAuxiliaryHotkey(
+                      true,
+                      settingsStore_.Data()
+                          .auxiliaryHotkeyModifiers,
+                      settingsStore_.Data()
+                          .auxiliaryHotkeyKey);
+    } else if (
+        auxiliaryHotkeyRegistered_) {
+
+        auxiliary =
+            RebindAuxiliaryHotkey(
+                false,
+                {},
+                settingsStore_.Data()
+                    .auxiliaryHotkeyKey);
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
 
     return primary && auxiliary;
 }

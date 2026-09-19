@@ -72,8 +72,11 @@ In progress:
 - Optional single-result immediate execution
 - Settings UI now exposes show-on-startup, wildcard matching, numeric quick launch/order, single-result execution and the auxiliary hotkey
 - Primary and auxiliary hotkey registration state is surfaced independently in General settings
+- Alpha 3 hardens hotkey retry/reset behavior, IME-safe immediate execution, numeric-key repeat handling and high-DPI/narrow-window Settings layout
+- General Settings now supports responsive stacking plus vertical scrolling instead of requiring an oversized fixed-height window
+- Windows CI includes hotkey-codec regression coverage in both current and compatibility runners
 - Classic launcher geometry remains frozen
-- Remaining v0.4.1 work is compatibility/UX validation and any regression fixes before deciding whether another alpha/beta is needed
+- Remaining v0.4.1 work is real desktop validation and regression fixes before beta/RC promotion
 
 ## v0.5.x - Everything integration
 

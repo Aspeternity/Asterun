@@ -37,6 +37,26 @@ private:
         About,
     };
 
+    struct GeneralLayoutMetrics {
+        RECT behavior{};
+        RECT search{};
+        RECT monitor{};
+        int behaviorTitleTop{};
+        int searchTitleTop{};
+        int hotkeySectionTop{};
+        int primaryRowTop{};
+        int primaryKeyRowTop{};
+        int primaryStatusTop{};
+        int auxiliaryRowTop{};
+        int auxiliaryKeyRowTop{};
+        int auxiliaryStatusTop{};
+        int popupSectionTop{};
+        int noteTop{};
+        int contentBottom{};
+        bool stackedCards{false};
+        bool compactHotkeys{false};
+    };
+
     static constexpr int
         kSidebarWidthLogical = 190;
 
@@ -279,6 +299,12 @@ private:
     ControlText(HWND control) const;
     [[nodiscard]] bool
     ToggleChecked(UINT id) const;
+    [[nodiscard]] GeneralLayoutMetrics
+    BuildGeneralLayout(
+        int scrollOffset) const;
+    void UpdateGeneralScrollBar();
+    void ScrollGeneral(int delta);
+
     [[nodiscard]] RECT
     BehaviorCardRect() const;
     [[nodiscard]] RECT
@@ -423,6 +449,7 @@ private:
     bool syncing_{false};
     bool editingNew_{false};
     bool editorDirty_{false};
+    int generalScrollOffset_{0};
     std::wstring editingCommandId_;
     std::vector<std::wstring>
         filteredCommandIds_;

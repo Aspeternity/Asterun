@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.1-alpha.3 — Real-world Settings UX & Compatibility
+
+Alpha 3 is a hardening release for the settings added in alpha.1/alpha.2. It does not add another v0.4.1 feature surface and it keeps the Classic launcher geometry frozen.
+
+Global-hotkey handling now distinguishes between **retrying a missing registration** and **force revalidating after resume**. Opening Settings no longer tears down a working primary or auxiliary hotkey simply to refresh its status, while a binding that failed earlier is still retried. Resume events continue to force a real Windows re-registration and the Settings status is refreshed afterward.
+
+Restoring defaults is now transactional across both hotkeys. ALTRun Next first releases the optional auxiliary binding before restoring the default primary `Alt + Space`, preventing an auxiliary binding from creating a conflict against ALTRun Next itself. Any later reset failure rolls the previous primary/auxiliary configuration back.
+
+Single-result immediate execution is suppressed while an IME composition is in progress, preventing intermediate Chinese/Japanese/Korean composition text from launching a result before the composition is committed. Classic numeric quick launch also ignores auto-repeat keydown events, so holding a number cannot launch the same entry repeatedly when hide-after-launch is disabled.
+
+The General Settings page is now work-area aware and vertically scrollable. At narrow client widths the behavior cards stack instead of overflowing, hotkey controls switch to a compact two-line layout, and the Settings window is clamped to the current monitor work area at high DPI. The pre-alpha.2 minimum height is restored because the General page can now scroll safely.
+
+Windows CI now includes a dedicated hotkey-codec smoke test covering bare `Pause/Break`, modifier normalization and `MOD_NOREPEAT`. No configuration schema changes are introduced in alpha.3.
+
 ## v0.4.1-alpha.2 — Classic Settings UI
 
 Alpha 2 exposes the behavior core introduced in alpha.1 through the existing Settings Shell. The Classic launcher itself remains visually frozen.

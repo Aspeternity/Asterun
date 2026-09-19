@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.1-alpha.3
+
+- Hardened the v0.4.1 Settings/behavior feature set without adding a new launcher feature surface.
+- Changed Settings-open hotkey validation to retry only missing registrations instead of unregistering/re-registering bindings that are already working.
+- Kept resume handling as a forced hotkey revalidation and refresh Settings registration status after repair.
+- Fixed Restore defaults when the auxiliary hotkey occupies the default primary `Alt + Space`: the auxiliary binding is released first, and failures roll back the previous configuration.
+- Suppressed single-result immediate execution during active IME composition so intermediate CJK input cannot trigger an unintended launch.
+- Suppressed repeated Classic numeric quick-launch execution from keyboard auto-repeat.
+- Reset stale IME-composition state whenever the launcher is shown.
+- Made the General Settings page vertically scrollable when its content exceeds the current client area.
+- Added responsive General-page behavior: launcher/search cards stack on narrow windows and hotkey controls use a compact wrapped layout.
+- Clamped the Settings window to the active monitor work area so high-DPI scaling cannot center an oversized window partly off-screen.
+- Restored the Settings minimum height to the pre-alpha.2 value now that General can scroll.
+- Added Windows hotkey codec smoke coverage for `Pause/Break`, zero-modifier auxiliary bindings, modifier aliases and `MOD_NOREPEAT`.
+- Added Config Core regression coverage for numeric quick-launch order preservation and invalid-order canonicalization.
+- Kept settings schemaVersion 2, commands/usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows version metadata to `0.4.1-alpha.3` / `0.4.1.3`.
+
+
 ## 0.4.1-alpha.2
 
 - Added Settings UI for the v0.4.1 Classic-behavior core without changing the frozen Classic launcher geometry.

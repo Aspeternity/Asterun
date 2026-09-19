@@ -339,6 +339,42 @@ int main() {
         featureSettings.Data()
             .executeSingleResultImmediately);
 
+    assert(featureSettings.SetClassicBehavior(
+        false,
+        false,
+        "zero-to-nine",
+        false));
+    assert(
+        !featureSettings.Data()
+             .wildcardMatching);
+    assert(
+        !featureSettings.Data()
+             .numericQuickLaunch);
+    assert(
+        featureSettings.Data()
+            .numericQuickLaunchOrder ==
+        "zero-to-nine");
+    assert(
+        !featureSettings.Data()
+             .executeSingleResultImmediately);
+
+    assert(featureSettings.SetClassicBehavior(
+        false,
+        false,
+        "unexpected-order",
+        false));
+    assert(
+        featureSettings.Data()
+            .numericQuickLaunchOrder ==
+        "one-to-zero");
+
+    // Restore the enabled matrix used by the reload assertions below.
+    assert(featureSettings.SetClassicBehavior(
+        true,
+        true,
+        "zero-to-nine",
+        true));
+
     assert(providers::IsEnabled(
         featureSettings.Data().providerEnabled,
         providers::kStartMenu));

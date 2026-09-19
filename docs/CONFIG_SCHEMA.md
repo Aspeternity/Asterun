@@ -67,6 +67,8 @@ New schema-2 behavior defaults preserve v0.4.0 behavior: auxiliary hotkey disabl
 
 Starting with v0.4.1-alpha.2, all of these schema-2 fields are configurable from the General Settings page. The number-order selector is active only while numeric quick launch is enabled; disabling a feature does not delete its stored companion values.
 
+v0.4.1-alpha.3 does not change the schema. It hardens the runtime/UI contract around these fields: working hotkeys are not churned when Settings opens, failed registrations can still be retried, resume forces revalidation, Restore defaults avoids primary/auxiliary self-conflicts, and the General page can scroll/stack on constrained high-DPI displays.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text

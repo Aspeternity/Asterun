@@ -192,11 +192,13 @@ bool SettingsWindow::Create() {
         WS_EX_APPWINDOW,
         kSettingsClass,
         kSettingsTitle,
-        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        WS_OVERLAPPEDWINDOW |
+            WS_CLIPCHILDREN |
+            WS_VSCROLL,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         1080,
-        860,
+        800,
         nullptr,
         nullptr,
         instance_,
@@ -212,8 +214,13 @@ bool SettingsWindow::Create() {
         0,
         0,
         Scale(1080),
-        Scale(860),
+        Scale(800),
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+    ShowScrollBar(
+        hwnd_,
+        SB_VERT,
+        FALSE);
 
     backgroundBrush_ = CreateSolidBrush(kWindowBackground);
     sidebarBrush_ = CreateSolidBrush(kSidebarBackground);
@@ -1846,6 +1853,11 @@ void SettingsWindow::ShowPage(Page page) {
         return;
     }
 
+    if (page != page_ &&
+        page == Page::General) {
+        generalScrollOffset_ = 0;
+    }
+
     page_ = page;
 
     const auto setVisible = [](const std::vector<HWND>& controls, bool visible) {
@@ -3353,76 +3365,403 @@ bool SettingsWindow::ToggleChecked(
     }
 }
 
-RECT SettingsWindow::BehaviorCardRect() const {
+SettingsWindow::GeneralLayoutMetrics
+SettingsWindow::BuildGeneralLayout(
+    int scrollOffset) const {
+
     RECT client{};
-    GetClientRect(hwnd_, &client);
+    GetClientRect(
+        hwnd_,
+        &client);
 
     const int contentLeft =
         Scale(kSidebarWidthLogical) +
         Scale(42);
-    const int contentRight =
-        client.right -
-        Scale(42);
-    const int contentWidth =
-        std::max(
-            Scale(640),
-            contentRight -
-                contentLeft);
-    const int gap = Scale(18);
-    const int cardWidth =
-        std::max(
-            Scale(300),
-            (contentWidth - gap) / 2);
 
-    return {
+    const int contentRight =
+        std::max(
+            contentLeft + Scale(260),
+            client.right - Scale(42));
+
+    const int contentWidth =
+        contentRight - contentLeft;
+
+    const int gap =
+        Scale(18);
+
+    const bool stackedCards =
+        contentWidth <
+        Scale(650);
+
+    const int cardTop =
+        Scale(170);
+
+    const int behaviorRowHeight =
+        Scale(46);
+
+    const int searchRowHeight =
+        Scale(46);
+
+    const int behaviorWidth =
+        stackedCards
+            ? contentWidth
+            : (contentWidth - gap) / 2;
+
+    const int behaviorBottom =
+        cardTop +
+        behaviorRowHeight * 6;
+
+    int searchTitleTop =
+        Scale(138);
+
+    int searchTop =
+        cardTop;
+
+    int searchLeft =
+        contentLeft +
+        behaviorWidth +
+        gap;
+
+    if (stackedCards) {
+        searchTitleTop =
+            behaviorBottom +
+            Scale(18);
+
+        searchTop =
+            searchTitleTop +
+            Scale(32);
+
+        searchLeft =
+            contentLeft;
+    }
+
+    const int searchWidth =
+        stackedCards
+            ? contentWidth
+            : contentWidth -
+                behaviorWidth -
+                gap;
+
+    const int searchBottom =
+        searchTop +
+        searchRowHeight * 4;
+
+    const int cardsBottom =
+        std::max(
+            behaviorBottom,
+            searchBottom);
+
+    const bool compactHotkeys =
+        contentWidth <
+        Scale(650);
+
+    const int hotkeySectionTop =
+        cardsBottom +
+        Scale(16);
+
+    const int primaryRowTop =
+        hotkeySectionTop +
+        Scale(28);
+
+    const int primaryKeyRowTop =
+        compactHotkeys
+            ? primaryRowTop +
+                Scale(32)
+            : primaryRowTop;
+
+    const int primaryStatusTop =
+        compactHotkeys
+            ? primaryRowTop +
+                Scale(66)
+            : primaryRowTop +
+                Scale(32);
+
+    const int auxiliaryRowTop =
+        compactHotkeys
+            ? primaryRowTop +
+                Scale(94)
+            : primaryRowTop +
+                Scale(58);
+
+    const int auxiliaryKeyRowTop =
+        compactHotkeys
+            ? primaryRowTop +
+                Scale(126)
+            : auxiliaryRowTop;
+
+    const int auxiliaryStatusTop =
+        compactHotkeys
+            ? primaryRowTop +
+                Scale(160)
+            : auxiliaryRowTop +
+                Scale(32);
+
+    const int popupSectionTop =
+        compactHotkeys
+            ? primaryRowTop +
+                Scale(190)
+            : auxiliaryRowTop +
+                Scale(62);
+
+    const int monitorTop =
+        popupSectionTop +
+        Scale(30);
+
+    const int monitorBottom =
+        monitorTop +
+        Scale(54);
+
+    const int noteTop =
+        monitorBottom +
+        Scale(8);
+
+    GeneralLayoutMetrics metrics;
+
+    metrics.behavior = {
         contentLeft,
-        Scale(170),
-        contentLeft + cardWidth,
-        Scale(170 + 52 * 6),
+        cardTop - scrollOffset,
+        contentLeft +
+            behaviorWidth,
+        behaviorBottom -
+            scrollOffset,
     };
+
+    metrics.search = {
+        searchLeft,
+        searchTop - scrollOffset,
+        searchLeft +
+            searchWidth,
+        searchBottom -
+            scrollOffset,
+    };
+
+    metrics.monitor = {
+        contentLeft,
+        monitorTop - scrollOffset,
+        contentRight,
+        monitorBottom -
+            scrollOffset,
+    };
+
+    metrics.behaviorTitleTop =
+        Scale(138) -
+        scrollOffset;
+
+    metrics.searchTitleTop =
+        searchTitleTop -
+        scrollOffset;
+
+    metrics.hotkeySectionTop =
+        hotkeySectionTop -
+        scrollOffset;
+
+    metrics.primaryRowTop =
+        primaryRowTop -
+        scrollOffset;
+
+    metrics.primaryKeyRowTop =
+        primaryKeyRowTop -
+        scrollOffset;
+
+    metrics.primaryStatusTop =
+        primaryStatusTop -
+        scrollOffset;
+
+    metrics.auxiliaryRowTop =
+        auxiliaryRowTop -
+        scrollOffset;
+
+    metrics.auxiliaryKeyRowTop =
+        auxiliaryKeyRowTop -
+        scrollOffset;
+
+    metrics.auxiliaryStatusTop =
+        auxiliaryStatusTop -
+        scrollOffset;
+
+    metrics.popupSectionTop =
+        popupSectionTop -
+        scrollOffset;
+
+    metrics.noteTop =
+        noteTop -
+        scrollOffset;
+
+    metrics.contentBottom =
+        noteTop +
+        Scale(28);
+
+    metrics.stackedCards =
+        stackedCards;
+
+    metrics.compactHotkeys =
+        compactHotkeys;
+
+    return metrics;
+}
+
+void SettingsWindow::UpdateGeneralScrollBar() {
+    if (!hwnd_) return;
+
+    if (page_ != Page::General) {
+        generalScrollOffset_ = 0;
+        ShowScrollBar(
+            hwnd_,
+            SB_VERT,
+            FALSE);
+        return;
+    }
+
+    RECT client{};
+    GetClientRect(
+        hwnd_,
+        &client);
+
+    auto full =
+        BuildGeneralLayout(0);
+
+    int maximum =
+        std::max(
+            0,
+            full.contentBottom +
+                Scale(10) -
+                client.bottom);
+
+    ShowScrollBar(
+        hwnd_,
+        SB_VERT,
+        maximum > 0);
+
+    // Showing the scrollbar changes the client width and can switch the
+    // General page into its narrow stacked layout. Recalculate once using
+    // the final client area before clamping the scroll position.
+    GetClientRect(
+        hwnd_,
+        &client);
+
+    full =
+        BuildGeneralLayout(0);
+
+    maximum =
+        std::max(
+            0,
+            full.contentBottom +
+                Scale(10) -
+                client.bottom);
+
+    generalScrollOffset_ =
+        std::clamp(
+            generalScrollOffset_,
+            0,
+            maximum);
+
+    SCROLLINFO info{};
+    info.cbSize =
+        sizeof(info);
+    info.fMask =
+        SIF_RANGE |
+        SIF_PAGE |
+        SIF_POS;
+    info.nMin = 0;
+    info.nMax =
+        std::max(
+            0,
+            full.contentBottom +
+                Scale(10) - 1);
+    info.nPage =
+        static_cast<UINT>(
+            std::max(
+                1,
+                client.bottom));
+    info.nPos =
+        generalScrollOffset_;
+
+    SetScrollInfo(
+        hwnd_,
+        SB_VERT,
+        &info,
+        TRUE);
+}
+
+void SettingsWindow::ScrollGeneral(
+    int delta) {
+
+    if (page_ != Page::General ||
+        delta == 0) {
+        return;
+    }
+
+    UpdateGeneralScrollBar();
+
+    SCROLLINFO info{};
+    info.cbSize =
+        sizeof(info);
+    info.fMask =
+        SIF_RANGE |
+        SIF_PAGE;
+
+    GetScrollInfo(
+        hwnd_,
+        SB_VERT,
+        &info);
+
+    const int maximum =
+        std::max(
+            0,
+            info.nMax -
+                static_cast<int>(
+                    info.nPage) +
+                1);
+
+    const int next =
+        std::clamp(
+            generalScrollOffset_ +
+                delta,
+            0,
+            maximum);
+
+    if (next ==
+        generalScrollOffset_) {
+        return;
+    }
+
+    generalScrollOffset_ =
+        next;
+
+    Layout();
+
+    RedrawWindow(
+        hwnd_,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
+}
+
+RECT SettingsWindow::BehaviorCardRect() const {
+    return BuildGeneralLayout(
+        generalScrollOffset_)
+        .behavior;
 }
 
 RECT SettingsWindow::SearchBehaviorCardRect() const {
-    const RECT behavior =
-        BehaviorCardRect();
-
-    const int gap = Scale(18);
-
-    return {
-        behavior.right + gap,
-        behavior.top,
-        behavior.right + gap +
-            (behavior.right -
-             behavior.left),
-        Scale(170 + 52 * 4),
-    };
+    return BuildGeneralLayout(
+        generalScrollOffset_)
+        .search;
 }
 
 RECT SettingsWindow::MonitorCardRect() const {
-    RECT client{};
-    GetClientRect(hwnd_, &client);
-
-    const int contentLeft =
-        Scale(kSidebarWidthLogical) + Scale(42);
-    const int contentRight =
-        client.right - Scale(42);
-    const int contentWidth =
-        std::max(
-            Scale(320),
-            contentRight - contentLeft);
-    const int cardWidth =
-        contentWidth;
-
-    return {
-        contentLeft,
-        Scale(732),
-        contentLeft + cardWidth,
-        Scale(800),
-    };
+    return BuildGeneralLayout(
+        generalScrollOffset_)
+        .monitor;
 }
 
 void SettingsWindow::Layout() {
     if (!hwnd_) return;
+
+    UpdateGeneralScrollBar();
 
     RECT client{};
     GetClientRect(hwnd_, &client);
@@ -3463,10 +3802,16 @@ void SettingsWindow::Layout() {
             Scale(360),
             contentRight - contentLeft);
 
+    const int pageScroll =
+        page_ == Page::General
+            ? generalScrollOffset_
+            : 0;
+
     MoveWindow(
         pageTitle_,
         contentLeft,
-        Scale(30),
+        Scale(30) -
+            pageScroll,
         contentWidth,
         Scale(42),
         TRUE);
@@ -3474,7 +3819,8 @@ void SettingsWindow::Layout() {
     MoveWindow(
         pageDescription_,
         contentLeft,
-        Scale(76),
+        Scale(76) -
+            pageScroll,
         contentWidth,
         Scale(42),
         TRUE);
@@ -3692,44 +4038,45 @@ void SettingsWindow::Layout() {
     }
 
     if (page_ == Page::General) {
-        const int x = contentLeft;
-        const int controlWidth =
-            std::max(
-                Scale(640),
-                std::min(
-                    contentWidth,
-                    Scale(820)));
+        const auto metrics =
+            BuildGeneralLayout(
+                generalScrollOffset_);
 
-        const RECT behavior =
-            BehaviorCardRect();
-        const RECT search =
-            SearchBehaviorCardRect();
+        const int x =
+            metrics.monitor.left;
+
+        const int controlWidth =
+            metrics.monitor.right -
+            metrics.monitor.left;
 
         MoveWindow(
             generalBehaviorTitle_,
-            behavior.left,
-            Scale(138),
-            behavior.right -
-                behavior.left,
+            metrics.behavior.left,
+            metrics.behaviorTitleTop,
+            metrics.behavior.right -
+                metrics.behavior.left,
             Scale(28),
             TRUE);
 
         MoveWindow(
             searchBehaviorTitle_,
-            search.left,
-            Scale(138),
-            search.right -
-                search.left,
+            metrics.search.left,
+            metrics.searchTitleTop,
+            metrics.search.right -
+                metrics.search.left,
             Scale(28),
             TRUE);
 
         const int behaviorRowHeight =
-            Scale(52);
+            Scale(46);
+
         const int behaviorRowX =
-            behavior.left + Scale(1);
+            metrics.behavior.left +
+            Scale(1);
+
         const int behaviorRowWidth =
-            behavior.right -
-            behavior.left -
+            metrics.behavior.right -
+            metrics.behavior.left -
             Scale(2);
 
         std::array<HWND, 6> behaviorRows{
@@ -3744,10 +4091,11 @@ void SettingsWindow::Layout() {
         for (std::size_t i = 0;
              i < behaviorRows.size();
              ++i) {
+
             MoveWindow(
                 behaviorRows[i],
                 behaviorRowX,
-                behavior.top +
+                metrics.behavior.top +
                     Scale(1) +
                     static_cast<int>(i) *
                         behaviorRowHeight,
@@ -3757,12 +4105,15 @@ void SettingsWindow::Layout() {
         }
 
         const int searchRowHeight =
-            Scale(52);
+            Scale(46);
+
         const int searchRowX =
-            search.left + Scale(1);
+            metrics.search.left +
+            Scale(1);
+
         const int searchRowWidth =
-            search.right -
-            search.left -
+            metrics.search.right -
+            metrics.search.left -
             Scale(2);
 
         std::array<HWND, 3> searchRows{
@@ -3774,10 +4125,11 @@ void SettingsWindow::Layout() {
         for (std::size_t i = 0;
              i < searchRows.size();
              ++i) {
+
             MoveWindow(
                 searchRows[i],
                 searchRowX,
-                search.top +
+                metrics.search.top +
                     Scale(1) +
                     static_cast<int>(i) *
                         searchRowHeight,
@@ -3787,25 +4139,25 @@ void SettingsWindow::Layout() {
         }
 
         const int orderTop =
-            search.top +
-            Scale(52 * 3);
+            metrics.search.top +
+            Scale(46 * 3);
 
         MoveWindow(
             numericQuickLaunchOrderLabel_,
-            search.left +
+            metrics.search.left +
                 Scale(18),
             orderTop +
-                Scale(15),
+                Scale(11),
             Scale(105),
             Scale(24),
             TRUE);
 
         MoveWindow(
             numericQuickLaunchOrder_,
-            search.right -
+            metrics.search.right -
                 Scale(150),
             orderTop +
-                Scale(10),
+                Scale(7),
             Scale(132),
             Scale(180),
             TRUE);
@@ -3813,15 +4165,25 @@ void SettingsWindow::Layout() {
         MoveWindow(
             hotkeySectionTitle_,
             x,
-            Scale(506),
+            metrics.hotkeySectionTop,
             controlWidth,
             Scale(28),
             TRUE);
 
+        const int modifierWidth =
+            metrics.compactHotkeys
+                ? std::clamp(
+                      (controlWidth -
+                       Scale(140)) / 4,
+                      Scale(26),
+                      Scale(56))
+                : Scale(58);
+
         MoveWindow(
             primaryHotkeyLabel_,
             x,
-            Scale(542),
+            metrics.primaryRowTop +
+                Scale(2),
             Scale(72),
             Scale(28),
             TRUE);
@@ -3835,50 +4197,89 @@ void SettingsWindow::Layout() {
                  hotkeyAlt_,
                  hotkeyShift_,
                  hotkeyWin_}) {
+
             MoveWindow(
                 control,
                 hotkeyX,
-                Scale(540),
-                Scale(62),
+                metrics.primaryRowTop,
+                modifierWidth,
                 Scale(30),
                 TRUE);
-            hotkeyX += Scale(64);
+
+            hotkeyX +=
+                modifierWidth;
         }
+
+        const int keyRowX =
+            metrics.compactHotkeys
+                ? x + Scale(82)
+                : hotkeyX + Scale(10);
+
+        const int applyWidth =
+            Scale(80);
+
+        const int keyWidth =
+            metrics.compactHotkeys
+                ? std::max(
+                      Scale(80),
+                      std::min(
+                          Scale(140),
+                          controlWidth -
+                              Scale(82) -
+                              applyWidth -
+                              Scale(12)))
+                : std::max(
+                      Scale(110),
+                      std::min(
+                          Scale(138),
+                          controlWidth -
+                              (keyRowX - x) -
+                              applyWidth -
+                              Scale(12)));
 
         MoveWindow(
             hotkeyKey_,
-            x + Scale(350),
-            Scale(538),
-            Scale(138),
+            keyRowX,
+            metrics.primaryKeyRowTop -
+                Scale(2),
+            keyWidth,
             Scale(220),
             TRUE);
 
         MoveWindow(
             hotkeyApply_,
-            x + Scale(500),
-            Scale(538),
-            Scale(86),
+            keyRowX +
+                keyWidth +
+                Scale(8),
+            metrics.primaryKeyRowTop -
+                Scale(2),
+            applyWidth,
             Scale(32),
             TRUE);
 
         MoveWindow(
             hotkeyStatus_,
             x,
-            Scale(576),
+            metrics.primaryStatusTop,
             controlWidth,
-            Scale(26),
+            Scale(24),
             TRUE);
 
         MoveWindow(
             auxiliaryHotkeyEnabled_,
             x,
-            Scale(610),
-            Scale(174),
+            metrics.auxiliaryRowTop,
+            metrics.compactHotkeys
+                ? Scale(132)
+                : Scale(170),
             Scale(30),
             TRUE);
 
         int auxiliaryX =
-            x + Scale(184);
+            x +
+            (metrics.compactHotkeys
+                 ? Scale(140)
+                 : Scale(180));
 
         for (HWND control :
              std::array<HWND, 4>{
@@ -3886,84 +4287,106 @@ void SettingsWindow::Layout() {
                  auxiliaryHotkeyAlt_,
                  auxiliaryHotkeyShift_,
                  auxiliaryHotkeyWin_}) {
+
             MoveWindow(
                 control,
                 auxiliaryX,
-                Scale(610),
-                Scale(62),
+                metrics.auxiliaryRowTop,
+                modifierWidth,
                 Scale(30),
                 TRUE);
-            auxiliaryX += Scale(64);
+
+            auxiliaryX +=
+                modifierWidth;
         }
+
+        const int auxiliaryKeyX =
+            metrics.compactHotkeys
+                ? x + Scale(82)
+                : auxiliaryX +
+                    Scale(8);
+
+        const int auxiliaryKeyWidth =
+            metrics.compactHotkeys
+                ? keyWidth
+                : std::max(
+                      Scale(100),
+                      std::min(
+                          Scale(138),
+                          controlWidth -
+                              (auxiliaryKeyX - x) -
+                              applyWidth -
+                              Scale(12)));
 
         MoveWindow(
             auxiliaryHotkeyKey_,
-            x + Scale(452),
-            Scale(608),
-            Scale(138),
+            auxiliaryKeyX,
+            metrics.auxiliaryKeyRowTop -
+                Scale(2),
+            auxiliaryKeyWidth,
             Scale(220),
             TRUE);
 
         MoveWindow(
             auxiliaryHotkeyApply_,
-            x + Scale(602),
-            Scale(608),
-            Scale(86),
+            auxiliaryKeyX +
+                auxiliaryKeyWidth +
+                Scale(8),
+            metrics.auxiliaryKeyRowTop -
+                Scale(2),
+            applyWidth,
             Scale(32),
             TRUE);
 
         MoveWindow(
             auxiliaryHotkeyStatus_,
             x,
-            Scale(646),
+            metrics.auxiliaryStatusTop,
             controlWidth,
-            Scale(26),
+            Scale(24),
             TRUE);
 
         MoveWindow(
             popupSectionTitle_,
             x,
-            Scale(696),
+            metrics.popupSectionTop,
             controlWidth,
             Scale(28),
             TRUE);
 
-        const RECT monitor =
-            MonitorCardRect();
-
         const int monitorWidth =
-            monitor.right -
-            monitor.left;
+            metrics.monitor.right -
+            metrics.monitor.left;
 
         MoveWindow(
             popupMonitorLabel_,
-            monitor.left +
+            metrics.monitor.left +
                 Scale(18),
-            monitor.top +
-                Scale(12),
+            metrics.monitor.top +
+                Scale(9),
             Scale(180),
             Scale(22),
             TRUE);
 
         MoveWindow(
             popupMonitorDescription_,
-            monitor.left +
+            metrics.monitor.left +
                 Scale(18),
-            monitor.top +
-                Scale(35),
+            metrics.monitor.top +
+                Scale(30),
             std::max(
-                Scale(180),
+                Scale(160),
                 monitorWidth -
                     Scale(330)),
-            Scale(24),
+            Scale(22),
             TRUE);
 
         MoveWindow(
             popupMonitor_,
-            monitor.right -
+            metrics.monitor.right -
                 Scale(278),
-            monitor.top +
-                Scale(18),
+            metrics.monitor.top +
+                Scale(11),
             Scale(250),
             Scale(220),
             TRUE);
@@ -3971,9 +4394,9 @@ void SettingsWindow::Layout() {
         MoveWindow(
             generalNote_,
             x,
-            Scale(814),
+            metrics.noteTop,
             controlWidth,
-            Scale(34),
+            Scale(28),
             TRUE);
     }
 
@@ -4554,23 +4977,44 @@ void SettingsWindow::CenterOnCurrentMonitor() {
     RECT rect{};
     GetWindowRect(hwnd_, &rect);
 
-    const int width =
+    const int requestedWidth =
         rect.right - rect.left;
-    const int height =
+
+    const int requestedHeight =
         rect.bottom - rect.top;
 
     const int workWidth =
-        info.rcWork.right - info.rcWork.left;
+        info.rcWork.right -
+        info.rcWork.left;
+
     const int workHeight =
-        info.rcWork.bottom - info.rcWork.top;
+        info.rcWork.bottom -
+        info.rcWork.top;
+
+    // Per-monitor DPI can make the logical default larger than the
+    // available work area (for example 150% scaling on a 1080p panel).
+    // Never center an oversized Settings window partly off-screen.
+    const int width =
+        std::min(
+            requestedWidth,
+            workWidth);
+
+    const int height =
+        std::min(
+            requestedHeight,
+            workHeight);
 
     const int x =
         info.rcWork.left +
-        (workWidth - width) / 2;
+        std::max(
+            0,
+            (workWidth - width) / 2);
 
     const int y =
         info.rcWork.top +
-        (workHeight - height) / 2;
+        std::max(
+            0,
+            (workHeight - height) / 2);
 
     SetWindowPos(
         hwnd_,
@@ -4585,7 +5029,9 @@ void SettingsWindow::CenterOnCurrentMonitor() {
 void SettingsWindow::Show() {
     if (!hwnd_) return;
 
-    app_.RepairGlobalHotkey();
+    // Retry a binding that previously failed, but never tear down a
+    // working hotkey merely because the Settings window was opened.
+    app_.RepairGlobalHotkey(false);
     RefreshFromSettings();
     RefreshCommandList(editingCommandId_);
 
@@ -4971,6 +5417,83 @@ LRESULT SettingsWindow::HandleMessage(
         break;
     }
 
+    case WM_VSCROLL:
+        if (page_ == Page::General) {
+            SCROLLINFO info{};
+            info.cbSize =
+                sizeof(info);
+            info.fMask =
+                SIF_ALL;
+
+            GetScrollInfo(
+                hwnd_,
+                SB_VERT,
+                &info);
+
+            int next =
+                generalScrollOffset_;
+
+            switch (LOWORD(wParam)) {
+            case SB_LINEUP:
+                next -= Scale(40);
+                break;
+            case SB_LINEDOWN:
+                next += Scale(40);
+                break;
+            case SB_PAGEUP:
+                next -=
+                    static_cast<int>(
+                        info.nPage);
+                break;
+            case SB_PAGEDOWN:
+                next +=
+                    static_cast<int>(
+                        info.nPage);
+                break;
+            case SB_THUMBPOSITION:
+            case SB_THUMBTRACK:
+                next =
+                    info.nTrackPos;
+                break;
+            case SB_TOP:
+                next = 0;
+                break;
+            case SB_BOTTOM:
+                next =
+                    std::max(
+                        0,
+                        info.nMax -
+                            static_cast<int>(
+                                info.nPage) +
+                            1);
+                break;
+            default:
+                return 0;
+            }
+
+            ScrollGeneral(
+                next -
+                generalScrollOffset_);
+        }
+        return 0;
+
+    case WM_MOUSEWHEEL:
+        if (page_ == Page::General) {
+            const int wheel =
+                GET_WHEEL_DELTA_WPARAM(
+                    wParam);
+
+            if (wheel != 0) {
+                ScrollGeneral(
+                    -(wheel *
+                      Scale(72)) /
+                    WHEEL_DELTA);
+            }
+
+            return 0;
+        }
+        break;
+
     case WM_PAINT: {
         PAINTSTRUCT paint{};
         HDC dc =
@@ -5245,6 +5768,7 @@ LRESULT SettingsWindow::HandleMessage(
 
     case WM_DPICHANGED: {
         dpi_ = HIWORD(wParam);
+        generalScrollOffset_ = 0;
 
         const auto* suggested =
             reinterpret_cast<RECT*>(
@@ -5286,7 +5810,7 @@ LRESULT SettingsWindow::HandleMessage(
             Scale(920);
 
         info->ptMinTrackSize.y =
-            Scale(760);
+            Scale(680);
 
         return 0;
     }

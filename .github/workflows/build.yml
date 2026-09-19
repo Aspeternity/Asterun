@@ -83,12 +83,12 @@ jobs:
       - name: Configure provider smoke tests
         shell: pwsh
         run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
-      - name: Build provider smoke tests
+      - name: Build Windows smoke tests
         shell: pwsh
-        run: cmake --build build-smoke --config Release --target windows_provider_smoke_tests --parallel
-      - name: Run provider smoke tests
+        run: cmake --build build-smoke --config Release --target windows_provider_smoke_tests hotkey_tests --parallel
+      - name: Run Windows smoke tests
         shell: pwsh
-        run: ctest --test-dir build-smoke -C Release -R "^windows_provider_smoke_tests$" --output-on-failure
+        run: ctest --test-dir build-smoke -C Release -R "^(windows_provider_smoke_tests|hotkey_tests)$" --output-on-failure
 
   windows-compat:
     name: Windows 10 API baseline
@@ -100,16 +100,16 @@ jobs:
         run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
       - name: Build x64 compatibility target
         shell: pwsh
-        run: cmake --build build-compat --config Release --target ALTRunNext windows_provider_smoke_tests --parallel
+        run: cmake --build build-compat --config Release --target ALTRunNext windows_provider_smoke_tests hotkey_tests --parallel
       - name: Verify compatibility artifact
         shell: pwsh
         run: |
           if (-not (Test-Path build-compat/Release/ALTRunNext.exe)) {
             throw "Windows compatibility build did not produce ALTRunNext.exe."
           }
-      - name: Run provider compatibility smoke
+      - name: Run Windows compatibility smoke
         shell: pwsh
-        run: ctest --test-dir build-compat -C Release -R "^windows_provider_smoke_tests$" --output-on-failure
+        run: ctest --test-dir build-compat -C Release -R "^(windows_provider_smoke_tests|hotkey_tests)$" --output-on-failure
 
   development-release:
     name: Publish rolling development prerelease
