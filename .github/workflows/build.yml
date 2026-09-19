@@ -14,7 +14,7 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build tests
-        run: cmake --build build --target search_engine_tests --parallel
+        run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
@@ -37,8 +37,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
-          Copy-Item config/commands.example.tsv dist/commands.example.tsv
-          Copy-Item config/settings.example.ini dist/settings.example.ini
+          Copy-Item config/*.example.* dist/
+          Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
       - uses: actions/upload-artifact@v4
