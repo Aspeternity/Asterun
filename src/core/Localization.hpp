@@ -10,6 +10,7 @@ enum class TextId {
     CreateWindowFailed,
     UnableToLaunch,
     HotkeyBusy,
+    SearchPlaceholder,
     TrayShow,
     TrayReload,
     TrayAppearance,
