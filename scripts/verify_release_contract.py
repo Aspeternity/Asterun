@@ -243,7 +243,7 @@ if version == "0.5.0-beta.2":
         "1.4 unnamed/default instance",
         "1.5a default alpha instance",
         "1.5b+ unnamed/default instance",
-        "Multiple named instances",
+        "multiple named instances",
         "128 rapid replacement queries",
     ):
         if token not in compatibility:
