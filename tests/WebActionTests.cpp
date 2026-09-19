@@ -65,7 +65,7 @@ int main() {
             L"https://www.google.com/search?q=ALTRun%20Next");
 
         const auto alias = BuildWebActionResults(
-            commands, L"GOOGLE 心脏 MRI", 10);
+            commands, L"GOOGLE \u5FC3\u810F MRI", 10);
         assert(alias.size() == 1);
         assert(
             alias[0].target ==
