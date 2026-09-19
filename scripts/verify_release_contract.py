@@ -136,7 +136,8 @@ if version == "0.6.0-alpha.2":
 
     for token in (
         "ResolveLauncherAction",
-        "activationContext_.HasExplorer()",
+        "activationContext_",
+        ".HasExplorer()",
         "NavigateExplorerToFolder",
         "GetForegroundWindow",
     ):
