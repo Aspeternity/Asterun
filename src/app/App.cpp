@@ -24,6 +24,11 @@ App::App(HINSTANCE instance)
           baseDirectory_ / "dict") {}
 
 App::~App() {
+    if (providerRefreshThread_.joinable()) {
+        providerRefreshThread_.request_stop();
+        providerRefreshThread_.join();
+    }
+
     if (hotkeyRegistered_) {
         UnregisterHotKey(
             nullptr,
@@ -40,6 +45,8 @@ App::~App() {
 int App::Run() {
     std::error_code ec;
     std::filesystem::create_directories(dataDirectory_, ec);
+
+    uiThreadId_ = GetCurrentThreadId();
 
     settingsStore_.Load();
 
@@ -95,8 +102,19 @@ int App::Run() {
             MB_ICONWARNING | MB_OK);
     }
 
+    // Cached provider results are already searchable. Refresh automatic
+    // discovery off the startup path and hot-reload it when ready.
+    StartProviderRefresh();
+
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        if (msg.message == kProviderRefreshMessage &&
+            msg.hwnd == nullptr) {
+            HandleProviderRefreshCompleted(
+                msg.wParam != 0);
+            continue;
+        }
+
         if (msg.message == WM_HOTKEY &&
             msg.hwnd == nullptr &&
             msg.wParam ==
@@ -235,14 +253,85 @@ bool App::ClearUsageHistory() {
 }
 
 void App::RebuildProgramIndex() {
-    commandStore_.Reload();
+    StartProviderRefresh();
+}
 
-    if (window_) {
-        window_->RefreshResults();
+void App::StartProviderRefresh() {
+    bool expected = false;
+
+    if (!providerRefreshRunning_
+             .compare_exchange_strong(
+                 expected,
+                 true)) {
+        return;
+    }
+
+    if (providerRefreshThread_.joinable()) {
+        providerRefreshThread_.join();
+    }
+
+    const DWORD targetThread =
+        uiThreadId_;
+
+    providerRefreshThread_ =
+        std::jthread(
+            [this, targetThread](
+                std::stop_token stopToken) {
+
+                bool success = false;
+
+                try {
+                    if (!stopToken.stop_requested()) {
+                        auto discovered =
+                            commandStore_
+                                .DiscoverProviderCommands();
+
+                        if (!stopToken.stop_requested()) {
+                            success =
+                                commandStore_
+                                    .SaveProviderCache(
+                                        discovered);
+                        }
+                    }
+                } catch (...) {
+                    success = false;
+                }
+
+                if (targetThread != 0) {
+                    PostThreadMessageW(
+                        targetThread,
+                        kProviderRefreshMessage,
+                        success ? 1 : 0,
+                        0);
+                }
+            });
+}
+
+void App::HandleProviderRefreshCompleted(
+    bool success) {
+
+    if (providerRefreshThread_.joinable()) {
+        providerRefreshThread_.join();
+    }
+
+    providerRefreshRunning_ = false;
+
+    if (success) {
+        commandStore_.ReloadProviderCache();
+
+        if (window_) {
+            window_->RefreshResults();
+        }
+
+        if (settingsWindow_) {
+            settingsWindow_->RefreshCommands();
+        }
     }
 
     if (settingsWindow_) {
-        settingsWindow_->RefreshCommands();
+        settingsWindow_
+            ->OnProgramIndexRefreshCompleted(
+                success);
     }
 }
 

@@ -14,6 +14,30 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.0-alpha.2 — Background Provider Cache
+
+v0.4 Alpha 2 keeps the multi-source Windows application providers from Alpha 1, but moves automatic discovery off the launcher startup path.
+
+The runtime flow is now:
+
+```text
+Startup
+├─ load data/commands.json
+├─ load data/provider-cache.json
+└─ launcher becomes usable immediately
+        │
+        └─ background provider refresh
+           ├─ Start Menu
+           ├─ App Paths
+           ├─ PATH
+           └─ AppsFolder (UWP / MSIX / Store)
+                    │
+                    ├─ atomic cache write
+                    └─ UI-thread hot reload
+```
+
+`data/provider-cache.json` is generated state, not user configuration. It can be deleted safely; ALTRun Next will rebuild it in the background. The existing **Rebuild program index** action is now non-blocking and keeps the current cached results usable until the refreshed index is ready.
+
 ## v0.4.0-alpha.1 — Windows App Provider Core
 
 v0.4 begins the Windows 11 application-discovery phase. Search ranking and the launcher UI remain unchanged; the main change is where applications can come from.
@@ -234,6 +258,7 @@ language=zh-CN
 - Configurable global launcher hotkey (default `Alt+Space`)
 - Persistent user commands from `data/commands.json`
 - Multi-source Windows application discovery (Start Menu, App Paths, PATH, UWP/MSIX)
+- Persistent provider cache with non-blocking background refresh
 - Lightweight fuzzy matching
 - Chinese full-pinyin + pinyin-initial matching
 - Frequency + recency ranking

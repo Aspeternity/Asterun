@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Command.hpp"
+#include "ProviderCache.hpp"
 #include "StartMenuProvider.hpp"
 #include "UserCommandStore.hpp"
 #include "WindowsAppProvider.hpp"
@@ -20,6 +21,13 @@ public:
         std::filesystem::path dataDirectory);
 
     void Reload();
+    void ReloadProviderCache();
+
+    [[nodiscard]] std::vector<Command>
+    DiscoverProviderCommands() const;
+
+    [[nodiscard]] bool SaveProviderCache(
+        const std::vector<Command>& commands) const;
 
     bool CreateUserCommand(Command command, std::wstring* createdId = nullptr);
     bool UpdateUserCommand(std::wstring_view id, Command command);
@@ -51,12 +59,17 @@ public:
 private:
     void RebuildMergedCommands();
     void AddCommand(Command command);
+    static void AddCommandTo(
+        std::vector<Command>& output,
+        Command command);
 
     std::filesystem::path baseDirectory_;
     std::filesystem::path dataDirectory_;
     UserCommandStore userCommandStore_;
+    ProviderCache providerCache_;
     StartMenuProvider startMenuProvider_;
     WindowsAppProvider windowsAppProvider_;
+    std::vector<Command> providerCommands_;
     std::vector<Command> commands_;
 };
 

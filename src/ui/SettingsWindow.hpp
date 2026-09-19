@@ -22,6 +22,8 @@ public:
     void ApplyLanguage();
     void RefreshFromSettings();
     void RefreshCommands();
+    void OnProgramIndexRefreshCompleted(
+        bool success);
 
 private:
     enum class Page {

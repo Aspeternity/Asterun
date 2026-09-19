@@ -8,10 +8,12 @@
 
 #include <windows.h>
 
+#include <atomic>
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace altrun {
@@ -92,12 +94,17 @@ public:
 
 private:
     static constexpr int kGlobalHotkeyId = 0xA171;
+    static constexpr UINT kProviderRefreshMessage =
+        WM_APP + 0x171;
 
     bool LaunchCommand(const Command& command, bool recordUsage);
     bool ApplyStartupRegistration(bool enabled) const;
     bool RebindGlobalHotkey(
         const std::vector<std::string>& modifiers,
         std::string_view key);
+    void StartProviderRefresh();
+    void HandleProviderRefreshCompleted(
+        bool success);
 
     HINSTANCE instance_{};
     std::filesystem::path baseDirectory_;
@@ -108,6 +115,9 @@ private:
     SearchEngine searchEngine_;
     std::unique_ptr<LauncherWindow> window_;
     std::unique_ptr<SettingsWindow> settingsWindow_;
+    std::jthread providerRefreshThread_;
+    std::atomic_bool providerRefreshRunning_{false};
+    DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};
     bool hotkeyRegistered_{false};
     UINT currentHotkeyModifiers_{0};

@@ -52,11 +52,53 @@ CommandStore::CommandStore(
       dataDirectory_(std::move(dataDirectory)),
       userCommandStore_(
           dataDirectory_ / "commands.json",
-          baseDirectory_ / "commands.tsv") {}
+          baseDirectory_ / "commands.tsv"),
+      providerCache_(
+          dataDirectory_ /
+          "provider-cache.json") {}
 
 void CommandStore::Reload() {
     userCommandStore_.Load();
+    providerCommands_ =
+        providerCache_.Load();
     RebuildMergedCommands();
+}
+
+void CommandStore::ReloadProviderCache() {
+    providerCommands_ =
+        providerCache_.Load();
+    RebuildMergedCommands();
+}
+
+std::vector<Command>
+CommandStore::DiscoverProviderCommands() const {
+    std::vector<Command> discovered;
+
+    const std::array<
+        const ICommandProvider*,
+        2> providers{
+            &startMenuProvider_,
+            &windowsAppProvider_,
+        };
+
+    for (const ICommandProvider* provider :
+         providers) {
+        for (auto command :
+             provider->Discover()) {
+            AddCommandTo(
+                discovered,
+                std::move(command));
+        }
+    }
+
+    return discovered;
+}
+
+bool CommandStore::SaveProviderCache(
+    const std::vector<Command>& commands) const {
+
+    return providerCache_.Save(
+        commands);
 }
 
 bool CommandStore::CreateUserCommand(
@@ -146,24 +188,26 @@ void CommandStore::RebuildMergedCommands() {
         AddCommand(command);
     }
 
-    const std::array<
-        const ICommandProvider*,
-        2> providers{
-            &startMenuProvider_,
-            &windowsAppProvider_,
-        };
-
-    for (const ICommandProvider* provider :
-         providers) {
-        for (auto command :
-             provider->Discover()) {
-            AddCommand(
-                std::move(command));
+    for (const auto& command :
+         providerCommands_) {
+        if (!command.enabled) {
+            continue;
         }
+
+        AddCommand(command);
     }
 }
 
 void CommandStore::AddCommand(
+    Command command) {
+
+    AddCommandTo(
+        commands_,
+        std::move(command));
+}
+
+void CommandStore::AddCommandTo(
+    std::vector<Command>& output,
     Command command) {
 
     const std::wstring targetKey =
@@ -178,7 +222,7 @@ void CommandStore::AddCommand(
         NameKey(command);
 
     for (const auto& existing :
-         commands_) {
+         output) {
 
         const bool existingUser =
             IsUserSource(
@@ -193,9 +237,6 @@ void CommandStore::AddCommand(
                 NormalizeForDedup(
                     existing.target);
 
-        // A user-defined shortcut is authoritative for the same target.
-        // Multiple user shortcuts may intentionally point at the same app
-        // under different keywords, so user/user duplicates are preserved.
         if (!incomingUser &&
             !targetKey.empty() &&
             existingTarget == targetKey) {
@@ -223,10 +264,6 @@ void CommandStore::AddCommand(
             existingName =
                 NameKey(existing);
 
-        // Different automatic providers can expose the same app through
-        // a .lnk, App Paths, AppsFolder or PATH executable. Prefer the first
-        // higher-priority provider when both the effective name and keyword
-        // agree, even if their launch targets are represented differently.
         if (!nameKey.empty() &&
             nameKey == existingName &&
             keywordKey ==
@@ -235,7 +272,7 @@ void CommandStore::AddCommand(
         }
     }
 
-    commands_.push_back(
+    output.push_back(
         std::move(command));
 }
 

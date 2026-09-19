@@ -383,12 +383,23 @@ WindowsAppProvider::Discover() const {
     std::unordered_set<std::wstring>
         seenTargets;
 
+    // AppsFolder is COM-backed. Discovery can now run on a worker thread,
+    // so initialize an apartment on whichever thread calls this provider.
+    const HRESULT comResult =
+        CoInitializeEx(
+            nullptr,
+            COINIT_APARTMENTTHREADED);
+
     // Prefer richer shell entries first, then registry aliases, then raw
     // PATH executables. CommandStore separately places Start Menu above this
     // provider, so automatic-source ordering follows the search priorities.
     DiscoverPackagedApps(
         commands,
         seenTargets);
+
+    if (SUCCEEDED(comResult)) {
+        CoUninitialize();
+    }
 
     DiscoverAppPaths(
         commands,

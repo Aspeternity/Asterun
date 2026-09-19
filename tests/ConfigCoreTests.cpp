@@ -1,3 +1,4 @@
+#include "core/ProviderCache.hpp"
 #include "core/Settings.hpp"
 #include "core/UsageStore.hpp"
 #include "core/UserCommandStore.hpp"
@@ -206,6 +207,75 @@ int main() {
     assert(featureSettings.Data().hotkeyModifiers.size() == 1);
     assert(featureSettings.Data().hotkeyModifiers[0] == "alt");
     assert(featureSettings.Data().hotkeyKey == "space");
+
+    ProviderCache providerCache(
+        data / "provider-cache.json");
+
+    Command cachedStart;
+    cachedStart.id = L"start:test";
+    cachedStart.title = L"Test App";
+    cachedStart.keyword = L"test";
+    cachedStart.aliases = {L"tester"};
+    cachedStart.target =
+        L"C:\\ProgramData\\Test App.lnk";
+    cachedStart.source =
+        CommandSource::StartMenu;
+    cachedStart.basePriority = 20;
+
+    Command cachedUser;
+    cachedUser.id = L"user:test";
+    cachedUser.title = L"User App";
+    cachedUser.keyword = L"user";
+    cachedUser.target =
+        L"C:\\Apps\\User.exe";
+    cachedUser.source =
+        CommandSource::User;
+    cachedUser.basePriority = 120;
+
+    assert(providerCache.Save(
+        {cachedStart, cachedUser}));
+
+    auto cachedCommands =
+        providerCache.Load();
+
+    assert(cachedCommands.size() == 1);
+    assert(
+        cachedCommands[0].source ==
+        CommandSource::StartMenu);
+    assert(
+        cachedCommands[0].aliases.size() == 1);
+    assert(
+        cachedCommands[0].basePriority == 20);
+
+    Command cachedPackaged;
+    cachedPackaged.id =
+        L"packaged:test";
+    cachedPackaged.title =
+        L"Store Test";
+    cachedPackaged.keyword =
+        L"storetest";
+    cachedPackaged.target =
+        L"Test.Package_abc!App";
+    cachedPackaged.source =
+        CommandSource::PackagedApp;
+    cachedPackaged.basePriority = -5;
+
+    assert(providerCache.Save(
+        {cachedStart, cachedPackaged}));
+    assert(std::filesystem::exists(
+        data / "provider-cache.json.bak"));
+
+    WriteText(
+        data / "provider-cache.json",
+        "{ broken json");
+
+    cachedCommands =
+        providerCache.Load();
+
+    assert(cachedCommands.size() == 1);
+    assert(
+        cachedCommands[0].id ==
+        cachedStart.id);
 
     std::error_code ec;
     std::filesystem::remove_all(root, ec);

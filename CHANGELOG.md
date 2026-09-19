@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0-alpha.2
+
+- Added persistent automatic-provider caching in `data/provider-cache.json`.
+- Launcher startup now loads user commands plus the last known provider cache instead of synchronously rescanning Windows application sources.
+- Added a background provider refresh worker for Start Menu, App Paths, PATH and AppsFolder discovery.
+- Provider results are written atomically and hot-reloaded on the UI thread after a successful background scan.
+- Existing cached results remain searchable while discovery is in progress or if a refresh fails.
+- Changed Data -> Rebuild program index into a non-blocking background refresh.
+- Added Settings status feedback for background index refresh completion/failure without changing the Classic launcher layout.
+- Made `WindowsAppProvider` initialize a COM apartment on the discovery thread before enumerating `FOLDERID_AppsFolder`.
+- Added Config Core coverage for provider-cache round trips, user-command exclusion and `.bak` recovery.
+- Updated Windows version metadata to `0.4.0-alpha.2`.
+
+
 ## 0.4.0-alpha.1
 
 - Started the v0.4 Windows 11 application-discovery phase with a shared command-provider interface.

@@ -7,7 +7,8 @@ ALTRunNext.exe
 data/
 ├─ settings.json
 ├─ commands.json
-└─ usage.json
+├─ usage.json
+└─ provider-cache.json
 ```
 
 Every JSON document starts with:
@@ -72,7 +73,20 @@ Each command supports:
 - manual sort order
 - legacy ID aliases used only for migration
 
-Automatic Start Menu commands are supplied by `StartMenuProvider` at runtime and are never written into `commands.json`.
+Automatic provider commands are never written into `commands.json`.
+
+## provider-cache.json
+
+Starting with v0.4.0-alpha.2, automatic Windows application discovery is cached separately from user configuration.
+
+- contains only provider-generated entries from Start Menu, App Paths, PATH and AppsFolder;
+- never stores user-defined shortcuts;
+- is loaded during startup so the launcher does not wait for a full Windows application scan;
+- is refreshed in the background and replaced atomically after a successful scan;
+- uses the same one-generation `.bak` recovery behavior as the other JSON stores;
+- can be deleted safely at any time because it is generated state.
+
+The Data -> Rebuild program index action now starts the same background refresh instead of blocking the UI.
 
 ## usage.json
 

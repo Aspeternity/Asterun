@@ -78,6 +78,7 @@ target_link_libraries(altrun_core PUBLIC cpp_pinyin_static)
 
 add_library(altrun_config STATIC
     src/core/ConfigIO.cpp
+    src/core/ProviderCache.cpp
     src/core/Settings.cpp
     src/core/TextCodec.cpp
     src/core/UsageStore.cpp

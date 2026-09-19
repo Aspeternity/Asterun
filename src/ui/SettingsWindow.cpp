@@ -1134,12 +1134,12 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.4.0-alpha.1", L"Version 0.4.0-alpha.1"));
+        T(L"版本 0.4.0-alpha.2", L"Version 0.4.0-alpha.2"));
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Alpha 1 加入 Windows 11 多来源应用发现：App Paths、PATH 与 UWP / MSIX。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Alpha 1 adds multi-source Windows app discovery through App Paths, PATH and UWP/MSIX."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Alpha 2 加入 Provider 持久缓存与后台程序发现。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Alpha 2 adds persistent provider caching and background app discovery."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -1219,6 +1219,22 @@ void SettingsWindow::RefreshFromSettings() {
 
 void SettingsWindow::RefreshCommands() {
     RefreshCommandList(editingCommandId_);
+}
+
+void SettingsWindow::OnProgramIndexRefreshCompleted(
+    bool success) {
+
+    if (!dataStatus_) {
+        return;
+    }
+
+    SetWindowTextW(
+        dataStatus_,
+        success
+            ? T(L"程序索引已在后台刷新完成。",
+                L"Program index refreshed in the background.")
+            : T(L"程序索引后台刷新失败，继续使用现有缓存。",
+                L"Background index refresh failed. The existing cache is still in use."));
 }
 
 void SettingsWindow::UpdateNavLabels() {
@@ -2289,8 +2305,8 @@ void SettingsWindow::RebuildProgramIndex() {
 
     SetWindowTextW(
         dataStatus_,
-        T(L"开始菜单程序索引已重新扫描。",
-          L"Start Menu program index has been rescanned."));
+        T(L"程序索引正在后台重建，当前搜索结果仍可使用。",
+          L"Program index is rebuilding in the background. Current search results remain available."));
 }
 
 void SettingsWindow::RestoreDefaultSettings() {
