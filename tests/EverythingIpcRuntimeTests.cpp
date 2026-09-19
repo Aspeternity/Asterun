@@ -64,12 +64,47 @@ void AppendUtf16Field(
     bytes.push_back(std::byte{0});
 }
 
-std::vector<std::byte> BuildReply(
-    const Query2WireRequest& query) {
+struct FakeReplyItem {
+    std::uint32_t flags{0};
+    std::u16string name;
+    std::u16string path;
+    std::u16string fullPath;
+};
+
+void WriteU32At(
+    std::vector<std::byte>& bytes,
+    std::size_t offset,
+    std::uint32_t value) {
+    assert(offset + 4U <= bytes.size());
+    bytes[offset + 0] =
+        static_cast<std::byte>(
+            value & 0xffU);
+    bytes[offset + 1] =
+        static_cast<std::byte>(
+            (value >> 8U) & 0xffU);
+    bytes[offset + 2] =
+        static_cast<std::byte>(
+            (value >> 16U) & 0xffU);
+    bytes[offset + 3] =
+        static_cast<std::byte>(
+            (value >> 24U) & 0xffU);
+}
+
+std::vector<std::byte> BuildReplyItems(
+    const Query2WireRequest& query,
+    const std::vector<FakeReplyItem>& items,
+    std::uint32_t totalItems = 0) {
     std::vector<std::byte> bytes;
 
-    AppendU32(bytes, 1);
-    AppendU32(bytes, 1);
+    const auto count =
+        static_cast<std::uint32_t>(
+            items.size());
+    if (totalItems == 0) {
+        totalItems = count;
+    }
+
+    AppendU32(bytes, totalItems);
+    AppendU32(bytes, count);
     AppendU32(bytes, 0);
     AppendU32(
         bytes,
@@ -78,64 +113,191 @@ std::vector<std::byte> BuildReply(
         bytes,
         kSortNameAscending);
 
-    const bool folder =
-        query.search == u"folder";
-
-    AppendU32(
-        bytes,
-        folder
-            ? kItemFolder
-            : 0);
-    const auto dataOffsetPosition =
+    const auto tableOffset =
         bytes.size();
-    AppendU32(bytes, 0);
 
-    const auto dataOffset =
-        static_cast<std::uint32_t>(
-            bytes.size());
-    bytes[dataOffsetPosition + 0] =
-        static_cast<std::byte>(
-            dataOffset & 0xffU);
-    bytes[dataOffsetPosition + 1] =
-        static_cast<std::byte>(
-            (dataOffset >> 8U) & 0xffU);
-    bytes[dataOffsetPosition + 2] =
-        static_cast<std::byte>(
-            (dataOffset >> 16U) & 0xffU);
-    bytes[dataOffsetPosition + 3] =
-        static_cast<std::byte>(
-            (dataOffset >> 24U) & 0xffU);
-
-    const auto name =
-        folder
-            ? std::u16string(u"Folder")
-            : query.search + u".txt";
-    const std::u16string path =
-        u"C:\\Fake";
-    const auto fullPath =
-        path + u"\\" + name;
-
-    if ((query.requestFlags &
-         kRequestName) != 0U) {
-        AppendUtf16Field(
+    for (const auto& item : items) {
+        AppendU32(
             bytes,
-            name);
+            item.flags);
+        AppendU32(bytes, 0);
     }
-    if ((query.requestFlags &
-         kRequestPath) != 0U) {
-        AppendUtf16Field(
+
+    for (std::size_t i = 0;
+         i < items.size();
+         ++i) {
+        const auto dataOffset =
+            static_cast<std::uint32_t>(
+                bytes.size());
+
+        WriteU32At(
             bytes,
-            path);
-    }
-    if ((query.requestFlags &
-         kRequestFullPathAndName) !=
-        0U) {
-        AppendUtf16Field(
-            bytes,
-            fullPath);
+            tableOffset +
+                i * sizeof(Item2Header) +
+                4U,
+            dataOffset);
+
+        const auto& item = items[i];
+
+        if ((query.requestFlags &
+             kRequestName) != 0U) {
+            AppendUtf16Field(
+                bytes,
+                item.name);
+        }
+        if ((query.requestFlags &
+             kRequestPath) != 0U) {
+            AppendUtf16Field(
+                bytes,
+                item.path);
+        }
+        if ((query.requestFlags &
+             kRequestFullPathAndName) !=
+            0U) {
+            AppendUtf16Field(
+                bytes,
+                item.fullPath);
+        }
     }
 
     return bytes;
+}
+
+std::vector<std::byte> BuildReply(
+    const Query2WireRequest& query) {
+    if (query.search == u"folder") {
+        return BuildReplyItems(
+            query,
+            {{
+                .flags = kItemFolder,
+                .name = u"Folder",
+                .path = u"C:\\Fake",
+                .fullPath =
+                    u"C:\\Fake\\Folder",
+            }});
+    }
+
+    if (query.search == u"drive-root") {
+        return BuildReplyItems(
+            query,
+            {{
+                .flags =
+                    kItemFolder |
+                    kItemDriveOrRoot,
+                .name = u"C:",
+                .path = u"",
+                .fullPath = u"C:\\",
+            }});
+    }
+
+    if (query.search == u"unc") {
+        return BuildReplyItems(
+            query,
+            {{
+                .name = u"报告.txt",
+                .path =
+                    u"\\\\server\\share\\资料",
+                .fullPath =
+                    u"\\\\server\\share\\资料\\报告.txt",
+            }});
+    }
+
+    if (query.search == u"longpath") {
+        std::u16string path =
+            u"\\\\?\\C:\\";
+        path.append(
+            320,
+            u'a');
+        const std::u16string name =
+            u"deep-result.txt";
+        return BuildReplyItems(
+            query,
+            {{
+                .name = name,
+                .path = path,
+                .fullPath =
+                    path + u"\\" + name,
+            }});
+    }
+
+    if (query.search == u"many") {
+        const auto count =
+            std::min<std::uint32_t>(
+                query.maxResults,
+                256U);
+        std::vector<FakeReplyItem>
+            items;
+        items.reserve(count);
+
+        for (std::uint32_t i = 0;
+             i < count;
+             ++i) {
+            const auto suffix =
+                std::to_wstring(i);
+            std::u16string number;
+            number.reserve(
+                suffix.size());
+            for (const wchar_t ch :
+                 suffix) {
+                number.push_back(
+                    static_cast<
+                        char16_t>(ch));
+            }
+
+            FakeReplyItem item;
+            item.name =
+                u"item-" + number +
+                u".txt";
+            item.path =
+                u"C:\\Many";
+            item.fullPath =
+                item.path +
+                u"\\" +
+                item.name;
+            items.push_back(
+                std::move(item));
+        }
+
+        return BuildReplyItems(
+            query,
+            items,
+            500000U);
+    }
+
+    if (query.search == u"overlimit") {
+        const auto count =
+            query.maxResults + 1U;
+        std::vector<FakeReplyItem>
+            items;
+        items.reserve(count);
+
+        for (std::uint32_t i = 0;
+             i < count;
+             ++i) {
+            FakeReplyItem item;
+            item.name = u"x.txt";
+            item.path = u"C:\\Overflow";
+            item.fullPath =
+                u"C:\\Overflow\\x.txt";
+            items.push_back(
+                std::move(item));
+        }
+
+        return BuildReplyItems(
+            query,
+            items);
+    }
+
+    const auto name =
+        query.search + u".txt";
+    return BuildReplyItems(
+        query,
+        {{
+            .name = name,
+            .path = u"C:\\Fake",
+            .fullPath =
+                u"C:\\Fake\\" + name,
+        }});
 }
 
 class FakeEverythingServer {
@@ -144,6 +306,7 @@ public:
         Immediate,
         HoldFirstUntilSecond,
         NoReply,
+        WrongSender,
     };
 
     explicit FakeEverythingServer(
@@ -212,6 +375,17 @@ public:
             ? std::u16string{}
             : received_.back()
                 .query.search;
+    }
+
+    [[nodiscard]]
+    std::uint32_t LastMaxResults()
+        const {
+        std::scoped_lock lock(
+            mutex_);
+        return received_.empty()
+            ? 0U
+            : received_.back()
+                .query.maxResults;
     }
 
     bool WaitForReceived(
@@ -329,7 +503,9 @@ private:
             receivedCv_.notify_all();
 
             if (mode_ ==
-                Mode::Immediate) {
+                    Mode::Immediate ||
+                mode_ ==
+                    Mode::WrongSender) {
                 PostMessageW(
                     hwnd,
                     kSendReplyMessage,
@@ -408,7 +584,10 @@ private:
             replyWindow,
             WM_COPYDATA,
             reinterpret_cast<WPARAM>(
-                window_),
+                mode_ ==
+                        Mode::WrongSender
+                    ? GetDesktopWindow()
+                    : window_),
             reinterpret_cast<LPARAM>(
                 &copyData));
     }
@@ -555,6 +734,8 @@ OptionsFor(
     options.debounce = 10ms;
     options.sendTimeout = 200ms;
     options.replyTimeout = 250ms;
+    options.discoverNamedInstances =
+        false;
     return options;
 }
 
@@ -886,6 +1067,440 @@ int main() {
         }
 
         assert(!client.IsAvailable());
+    }
+
+    {
+        const std::wstring baseClass =
+            L"ALTRunNext.TestEverythingIpc.Named." +
+            std::to_wstring(
+                GetCurrentProcessId());
+        const std::wstring namedClass =
+            baseClass +
+            L"_(1.5b)";
+
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate,
+            namedClass);
+
+        auto options =
+            OptionsFor(baseClass);
+        options.discoverNamedInstances =
+            true;
+
+        EverythingIpcClient client(
+            options);
+        ResultCollector collector;
+
+        assert(client.IsAvailable());
+
+        auto status =
+            client.Status();
+        assert(
+            status.availability ==
+            EverythingAvailability::
+                Available);
+        assert(
+            status.namedInstanceFallback);
+        assert(
+            !status.ambiguousNamedInstances);
+        assert(
+            status.matchingWindowCount ==
+            1);
+        assert(
+            status.ipcWindowClass ==
+            namedClass);
+
+        client.QueryAsync(
+            {
+                .generation = 360,
+                .query = L"named",
+                .limit = 8,
+            },
+            collector.Callback());
+
+        assert(collector.WaitFor(1));
+        assert(
+            collector.Snapshot()
+                .back()
+                .status ==
+            EverythingQueryStatus::
+                Success);
+    }
+
+    {
+        const std::wstring baseClass =
+            L"ALTRunNext.TestEverythingIpc.Ambiguous." +
+            std::to_wstring(
+                GetCurrentProcessId());
+
+        FakeEverythingServer first(
+            FakeEverythingServer::
+                Mode::Immediate,
+            baseClass + L"_(one)");
+        FakeEverythingServer second(
+            FakeEverythingServer::
+                Mode::Immediate,
+            baseClass + L"_(two)");
+
+        auto options =
+            OptionsFor(baseClass);
+        options.discoverNamedInstances =
+            true;
+
+        EverythingIpcClient client(
+            options);
+        ResultCollector collector;
+
+        assert(!client.IsAvailable());
+
+        const auto status =
+            client.Status();
+        assert(
+            status.availability ==
+            EverythingAvailability::
+                Unavailable);
+        assert(
+            status.ambiguousNamedInstances);
+        assert(
+            !status.namedInstanceFallback);
+        assert(
+            status.matchingWindowCount ==
+            2);
+
+        client.QueryAsync(
+            {
+                .generation = 361,
+                .query = L"ambiguous",
+                .limit = 8,
+            },
+            collector.Callback());
+
+        assert(collector.WaitFor(1));
+        const auto result =
+            collector.Snapshot().back();
+        assert(
+            result.status ==
+            EverythingQueryStatus::
+                Unavailable);
+        assert(
+            result.nativeError ==
+            ERROR_MORE_DATA);
+        assert(
+            first.ReceivedCount() ==
+            0);
+        assert(
+            second.ReceivedCount() ==
+            0);
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        EverythingIpcClient client(
+            OptionsFor(
+                server.WindowClass()));
+        ResultCollector collector;
+
+        client.QueryAsync(
+            {
+                .generation = 500,
+                .query = L"drive-root",
+                .limit = 8,
+            },
+            collector.Callback());
+        assert(collector.WaitFor(1));
+
+        auto results =
+            collector.Snapshot();
+        assert(
+            results.back().items.size() ==
+            1);
+        const auto root =
+            results.back().items.front();
+        assert(root.root);
+        assert(
+            root.kind ==
+            EverythingItemKind::Folder);
+        assert(root.name == L"C:\\");
+        assert(root.parentPath.empty());
+        assert(root.fullPath == L"C:\\");
+
+        client.QueryAsync(
+            {
+                .generation = 501,
+                .query = L"unc",
+                .limit = 8,
+            },
+            collector.Callback());
+        assert(collector.WaitFor(2));
+
+        results = collector.Snapshot();
+        const auto unc =
+            results.back().items.front();
+        assert(
+            unc.parentPath ==
+            L"\\\\server\\share\\资料");
+        assert(
+            unc.fullPath ==
+            L"\\\\server\\share\\资料\\报告.txt");
+
+        client.QueryAsync(
+            {
+                .generation = 502,
+                .query = L"longpath",
+                .limit = 8,
+            },
+            collector.Callback());
+        assert(collector.WaitFor(3));
+
+        results = collector.Snapshot();
+        const auto longPath =
+            results.back().items.front();
+        assert(
+            longPath.fullPath.size() >
+            320);
+        assert(
+            longPath.fullPath.rfind(
+                L"\\\\?\\C:\\",
+                0) == 0);
+        assert(
+            longPath.name ==
+            L"deep-result.txt");
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        auto options =
+            OptionsFor(
+                server.WindowClass());
+        options.debounce = 60ms;
+
+        EverythingIpcClient client(
+            options);
+        ResultCollector collector;
+
+        for (std::uint64_t i = 0;
+             i < 128;
+             ++i) {
+            client.QueryAsync(
+                {
+                    .generation =
+                        600 + i,
+                    .query =
+                        L"burst-" +
+                        std::to_wstring(i),
+                    .limit = 8,
+                },
+                collector.Callback());
+        }
+
+        assert(collector.WaitFor(1));
+        assert(
+            server.ReceivedCount() ==
+            1);
+        assert(
+            server.LastSearch() ==
+            u"burst-127");
+
+        const auto results =
+            collector.Snapshot();
+        assert(results.size() == 1);
+        assert(
+            results.front().generation ==
+            727);
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        EverythingIpcClient client(
+            OptionsFor(
+                server.WindowClass()));
+        ResultCollector collector;
+
+        client.QueryAsync(
+            {
+                .generation = 800,
+                .query = L"many",
+                .limit = 256,
+            },
+            collector.Callback());
+
+        assert(collector.WaitFor(1));
+        const auto result =
+            collector.Snapshot().back();
+        assert(
+            result.status ==
+            EverythingQueryStatus::
+                Success);
+        assert(
+            result.items.size() ==
+            256);
+        assert(
+            result.totalMatches ==
+            500000);
+        assert(
+            result.items.back()
+                .name ==
+            L"item-255.txt");
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        EverythingIpcClient client(
+            OptionsFor(
+                server.WindowClass()));
+        ResultCollector collector;
+
+        client.QueryAsync(
+            {
+                .generation = 810,
+                .query = L"overlimit",
+                .limit = 8,
+            },
+            collector.Callback());
+
+        assert(collector.WaitFor(1));
+        const auto result =
+            collector.Snapshot().back();
+        assert(
+            result.status ==
+            EverythingQueryStatus::
+                ProtocolError);
+        assert(
+            result.nativeError ==
+            ERROR_INVALID_DATA);
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        auto options =
+            OptionsFor(
+                server.WindowClass());
+        options.maxReplyBytes = 64;
+
+        EverythingIpcClient client(
+            options);
+        ResultCollector collector;
+
+        client.QueryAsync(
+            {
+                .generation = 811,
+                .query = L"oversized",
+                .limit = 8,
+            },
+            collector.Callback());
+
+        assert(collector.WaitFor(1));
+        const auto result =
+            collector.Snapshot().back();
+        assert(
+            result.status ==
+            EverythingQueryStatus::
+                ProtocolError);
+        assert(
+            result.nativeError ==
+            ERROR_INSUFFICIENT_BUFFER);
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::WrongSender);
+        auto options =
+            OptionsFor(
+                server.WindowClass());
+        options.replyTimeout = 80ms;
+
+        EverythingIpcClient client(
+            options);
+        ResultCollector collector;
+
+        client.QueryAsync(
+            {
+                .generation = 812,
+                .query = L"spoofed",
+                .limit = 8,
+            },
+            collector.Callback());
+
+        assert(collector.WaitFor(1));
+        const auto result =
+            collector.Snapshot().back();
+        assert(
+            result.status ==
+            EverythingQueryStatus::
+                ReplyTimeout);
+        assert(
+            result.nativeError ==
+            ERROR_TIMEOUT);
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        EverythingProvider provider(
+            OptionsFor(
+                server.WindowClass()));
+
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::optional<
+            DynamicQueryResponse>
+            response;
+
+        provider.QueryAsync(
+            {
+                .generation = 850,
+                .query = L"many",
+                .limit = 5000,
+            },
+            [&](DynamicQueryResponse value) {
+                {
+                    std::scoped_lock lock(
+                        mutex);
+                    response =
+                        std::move(value);
+                }
+                cv.notify_all();
+            });
+
+        {
+            std::unique_lock lock(
+                mutex);
+            assert(
+                cv.wait_for(
+                    lock,
+                    2s,
+                    [&] {
+                        return response
+                            .has_value();
+                    }));
+        }
+
+        assert(response);
+        assert(
+            server.LastMaxResults() ==
+            1000);
+        assert(
+            response->status ==
+            DynamicQueryStatus::Success);
+        assert(
+            response->results.size() ==
+            256);
+        assert(
+            response->totalMatches ==
+            500000);
     }
 
     {

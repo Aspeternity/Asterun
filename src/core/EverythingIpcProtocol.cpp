@@ -218,6 +218,21 @@ ParseList2(std::span<const std::byte> bytes) {
         };
     }
 
+    if (numItems > list.totalItems) {
+        return {
+            std::nullopt,
+            "list2 returned item count exceeds total item count",
+        };
+    }
+
+    if (list.offset > list.totalItems ||
+        numItems > list.totalItems - list.offset) {
+        return {
+            std::nullopt,
+            "list2 offset/item count exceeds total item count",
+        };
+    }
+
     if (numItems >
         (std::numeric_limits<std::size_t>::max() -
          sizeof(List2Header)) /
@@ -265,10 +280,13 @@ ParseList2(std::span<const std::byte> bytes) {
         }
 
         ParsedList2Item item;
-        item.folder =
+        item.root =
             (flags &
-             (kItemFolder |
-              kItemDriveOrRoot)) != 0U;
+             kItemDriveOrRoot) != 0U;
+        item.folder =
+            item.root ||
+            (flags &
+             kItemFolder) != 0U;
 
         if ((list.requestFlags &
              kRequestName) != 0U) {

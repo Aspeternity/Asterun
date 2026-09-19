@@ -62,6 +62,7 @@ struct Query2WireRequest {
 
 struct ParsedList2Item {
     bool folder{false};
+    bool root{false};
     std::u16string name;
     std::u16string path;
     std::u16string fullPath;

@@ -34,8 +34,13 @@ Record OS build, Everything version/edition, ALTRun Next package architecture an
 - [ ] The schema-3 settings file remains byte-for-byte unchanged.
 - [ ] Reopen with v0.5.0 beta; the Everything choice and all prior settings are intact.
 
-## Everything availability and fallback
+## Everything availability, instances and fallback
 
+- [ ] Everything 1.4 unnamed/default instance is detected through `EVERYTHING_TASKBAR_NOTIFICATION`.
+- [ ] A single named Everything instance is detected through `EVERYTHING_TASKBAR_NOTIFICATION_(instance)` when no unnamed instance exists.
+- [ ] With two or more named Everything instances and no unnamed instance, Search Sources reports ambiguity and does not silently choose one.
+- [ ] When both an unnamed instance and named instances exist, the unnamed/default instance wins.
+- [ ] Everything 1.5b default unnamed instance works through the existing Query2 path.
 - [ ] With Everything disabled, application/user-command search behaves exactly as before.
 - [ ] Enable Everything while standard Everything is not running; Search Sources reports IPC unavailable and application-search fallback active.
 - [ ] Static application/user-command results remain responsive while IPC is unavailable.
@@ -53,8 +58,14 @@ Record OS build, Everything version/edition, ALTRun Next package architecture an
 - [ ] When a native Windows IPC error exists, the native error value is displayed.
 - [ ] Leaving Search Sources stops its periodic status refresh; reopening it resumes refresh.
 
-## Search and execution regression
+## Path, performance and search regression
 
+- [ ] A drive-root result such as `C:\` is shown/opened as a Folder without a fabricated parent path.
+- [ ] UNC file/folder targets remain intact.
+- [ ] Extended-length `\\?\` paths remain intact.
+- [ ] Unicode names and paths remain intact.
+- [ ] Rapid typing does not surface stale Everything generations.
+- [ ] Large total-match counts do not cause ALTRun Next to request all Everything results.
 - [ ] Exact File/Folder matches participate in the alpha.3 unified ranking as expected.
 - [ ] Static duplicate application targets remain authoritative over an Everything duplicate.
 - [ ] Enter/double-click opens files with the Windows default application and folders through Explorer/Shell.

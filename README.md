@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.5.0-beta.2 — Performance & Real-world Compatibility Hardening
+
+Beta 2 keeps the beta.1 settings/schema surface frozen and hardens the existing native Query2 IPC path for real Everything installations. The default unnamed `EVERYTHING_TASKBAR_NOTIFICATION` endpoint is always preferred. When that endpoint is absent, ALTRun Next can discover the standard named-instance form `EVERYTHING_TASKBAR_NOTIFICATION_(instance)`; it auto-selects only when exactly one named instance exists. Multiple named instances are reported as ambiguous and ALTRun Next falls back to application-only search rather than guessing which database to query.
+
+This keeps the 1.4-compatible Unicode Query2/WM_COPYDATA transport as the common baseline. Everything 1.5's newer SDK uses named pipes, but beta.2 intentionally does not adopt that 1.5-only transport or add an Everything DLL dependency. Current Everything 1.5 beta can use the normal unnamed endpoint, while legacy 1.5a/custom named-instance setups can use the conservative named-window fallback.
+
+IPC reply hardening now validates the sender HWND, enforces the requested result-count ceiling, rejects oversized reply payloads, rejects inconsistent LIST2 total/offset/count ranges, and preserves the drive/root flag separately from normal folders. File/folder normalization is covered for drive roots, UNC targets and extended-length `\\?\` paths.
+
+Windows runtime smoke now stresses 128-query debounce/coalescing, 256-result replies with large total-match counts, the provider's 1000-result transport cap, unavailable/recovery, unique/ambiguous named instances, spoofed reply senders, reply-size limits and malformed over-limit result lists.
+
+Persisted data remains unchanged from beta.1: settings schemaVersion 3, commands/usage schemaVersion 1 and provider-cache schemaVersion 2. Everything remains default-off and File/Folder results remain ephemeral. Classic launcher geometry remains frozen.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.101`.
+
 ## v0.5.0-beta.1 — Everything Settings, Diagnostics & Migration
 
 Beta 1 promotes Everything from an alpha-only raw JSON opt-in to a supported Search Sources setting. Settings > Search sources now includes **Everything files & folders** alongside Start Menu, Windows Apps, App Paths and PATH. Everything remains off by default; enabling it starts no process and installs nothing. ALTRun Next continues to use the native Everything 1.4-compatible Unicode Query2 IPC and requires a running standard Everything instance. Everything Lite has no IPC and is reported as unavailable.

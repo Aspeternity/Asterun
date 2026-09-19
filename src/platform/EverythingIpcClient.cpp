@@ -3,7 +3,9 @@
 #include "../core/EverythingIpcProtocol.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <limits>
+#include <vector>
 #include <span>
 #include <utility>
 
@@ -19,6 +21,58 @@ namespace {
             static_cast<std::int64_t>(
                 std::numeric_limits<UINT>::max()));
     return static_cast<UINT>(count);
+}
+
+struct NamedEndpointSearch {
+    std::wstring prefix;
+    HWND firstWindow{nullptr};
+    std::wstring firstClass;
+    std::uint32_t count{0};
+};
+
+BOOL CALLBACK EnumNamedEverythingWindows(
+    HWND hwnd,
+    LPARAM lParam) {
+    auto* search =
+        reinterpret_cast<
+            NamedEndpointSearch*>(
+                lParam);
+    if (!search) {
+        return FALSE;
+    }
+
+    wchar_t className[512]{};
+    const int length =
+        GetClassNameW(
+            hwnd,
+            className,
+            static_cast<int>(
+                std::size(className)));
+    if (length <= 0) {
+        return TRUE;
+    }
+
+    const std::wstring_view value(
+        className,
+        static_cast<std::size_t>(
+            length));
+
+    if (!value.starts_with(
+            search->prefix) ||
+        value.size() <=
+            search->prefix.size() ||
+        value.back() != L')') {
+        return TRUE;
+    }
+
+    ++search->count;
+    if (search->count == 1) {
+        search->firstWindow = hwnd;
+        search->firstClass.assign(
+            value);
+    }
+
+    return TRUE;
 }
 
 [[nodiscard]]
@@ -107,16 +161,36 @@ void EverythingIpcClient::QueryAsync(
 
 bool EverythingIpcClient::IsAvailable()
     const noexcept {
-    return FindWindowW(
-        options_.everythingWindowClass
-            .c_str(),
-        nullptr) != nullptr;
+    try {
+        return FindEndpoint().window !=
+            nullptr;
+    } catch (...) {
+        return false;
+    }
 }
 
 EverythingIpcStatusSnapshot
 EverythingIpcClient::Status() const {
+    const auto endpoint =
+        FindEndpoint();
+
     std::scoped_lock lock(statusMutex_);
-    return status_;
+    auto snapshot = status_;
+    snapshot.availability =
+        endpoint.window
+            ? EverythingAvailability::
+                Available
+            : EverythingAvailability::
+                Unavailable;
+    snapshot.ipcWindowClass =
+        endpoint.windowClass;
+    snapshot.namedInstanceFallback =
+        endpoint.namedInstanceFallback;
+    snapshot.ambiguousNamedInstances =
+        endpoint.ambiguousNamedInstances;
+    snapshot.matchingWindowCount =
+        endpoint.matchingWindowCount;
+    return snapshot;
 }
 
 LRESULT CALLBACK
@@ -314,6 +388,8 @@ EverythingIpcClient::HandleWindowMessage(
 
         HandleReply(
             hwnd,
+            reinterpret_cast<HWND>(
+                wParam),
             static_cast<std::uint32_t>(
                 copyData->dwData),
             copyData->lpData,
@@ -375,19 +451,21 @@ EverythingIpcClient::SendPendingQuery(
         return;
     }
 
-    const auto everythingWindow =
-        FindWindowW(
-            options_.everythingWindowClass
-                .c_str(),
-            nullptr);
-    if (!everythingWindow) {
+    const auto endpoint =
+        FindEndpoint();
+    if (!endpoint.window) {
         CompletePending(
             std::move(*pending),
             EverythingQueryStatus::
                 Unavailable,
-            ERROR_FILE_NOT_FOUND);
+            endpoint.ambiguousNamedInstances
+                ? ERROR_MORE_DATA
+                : ERROR_FILE_NOT_FOUND);
         return;
     }
+
+    const auto everythingWindow =
+        endpoint.window;
 
     if (inFlight_) {
         KillTimer(
@@ -424,6 +502,10 @@ EverythingIpcClient::SendPendingQuery(
         .generation =
             pending->request.generation,
         .replyToken = token,
+        .sourceWindow =
+            everythingWindow,
+        .maxResults =
+            pending->request.limit,
         .completion =
             std::move(
                 pending->completion),
@@ -493,18 +575,29 @@ EverythingIpcClient::SendPendingQuery(
 
 void EverythingIpcClient::HandleReply(
     HWND hwnd,
+    HWND sourceWindow,
     std::uint32_t replyToken,
     const void* data,
     std::size_t size) {
     if (!inFlight_ ||
         inFlight_->replyToken !=
-            replyToken) {
+            replyToken ||
+        inFlight_->sourceWindow !=
+            sourceWindow) {
         return;
     }
 
     KillTimer(
         hwnd,
         kReplyTimerId);
+
+    if (size > options_.maxReplyBytes) {
+        CompleteInFlight(
+            EverythingQueryStatus::
+                ProtocolError,
+            ERROR_INSUFFICIENT_BUFFER);
+        return;
+    }
 
     if (inFlight_->generation !=
         latestGeneration_.load()) {
@@ -522,7 +615,12 @@ void EverythingIpcClient::HandleReply(
     auto parsed =
         everything_ipc::ParseList2(
             bytes);
-    if (!parsed) {
+    if (!parsed ||
+        parsed.value->requestFlags !=
+            everything_ipc::
+                kDefaultRequestFlags ||
+        parsed.value->items.size() >
+            inFlight_->maxResults) {
         CompleteInFlight(
             EverythingQueryStatus::
                 ProtocolError,
@@ -559,6 +657,8 @@ void EverythingIpcClient::HandleReply(
     for (const auto& parsedItem :
          parsed.value->items) {
         EverythingIpcItem item;
+        item.root =
+            parsedItem.root;
         item.kind =
             parsedItem.folder
                 ? EverythingItemKind::
@@ -580,7 +680,14 @@ void EverythingIpcClient::HandleReply(
                     item.name);
         }
 
-        if (item.name.empty() &&
+        if (item.root) {
+            if (!item.fullPath.empty()) {
+                item.name =
+                    item.fullPath;
+            }
+            item.parentPath.clear();
+        } else if (
+            item.name.empty() &&
             !item.fullPath.empty()) {
             const auto separator =
                 item.fullPath
@@ -599,7 +706,8 @@ void EverythingIpcClient::HandleReply(
             }
         }
 
-        if (item.parentPath.empty() &&
+        if (!item.root &&
+            item.parentPath.empty() &&
             !item.fullPath.empty()) {
             const auto separator =
                 item.fullPath
@@ -614,8 +722,10 @@ void EverythingIpcClient::HandleReply(
             }
         }
 
-        result.items.push_back(
-            std::move(item));
+        if (!item.fullPath.empty()) {
+            result.items.push_back(
+                std::move(item));
+        }
     }
 
     UpdateStatus(
@@ -746,6 +856,63 @@ void EverythingIpcClient::UpdateStatus(
         totalMatches;
     status_.lastNativeError =
         nativeError;
+}
+
+EverythingIpcClient::Endpoint
+EverythingIpcClient::FindEndpoint()
+    const {
+    Endpoint endpoint;
+
+    if (options_.everythingWindowClass
+            .empty()) {
+        return endpoint;
+    }
+
+    if (const auto exact =
+            FindWindowW(
+                options_
+                    .everythingWindowClass
+                    .c_str(),
+                nullptr)) {
+        endpoint.window = exact;
+        endpoint.windowClass =
+            options_.everythingWindowClass;
+        endpoint.matchingWindowCount = 1;
+        return endpoint;
+    }
+
+    if (!options_.discoverNamedInstances) {
+        return endpoint;
+    }
+
+    NamedEndpointSearch search;
+    search.prefix =
+        options_.everythingWindowClass +
+        L"_(";
+
+    EnumWindows(
+        EnumNamedEverythingWindows,
+        reinterpret_cast<LPARAM>(
+            &search));
+
+    endpoint.matchingWindowCount =
+        search.count;
+
+    if (search.count == 1 &&
+        search.firstWindow) {
+        endpoint.window =
+            search.firstWindow;
+        endpoint.windowClass =
+            std::move(
+                search.firstClass);
+        endpoint.namedInstanceFallback =
+            true;
+    } else if (search.count > 1) {
+        endpoint.ambiguousNamedInstances =
+            true;
+    }
+
+    return endpoint;
 }
 
 std::u16string

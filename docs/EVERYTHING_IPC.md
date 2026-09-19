@@ -93,3 +93,14 @@ If Everything is enabled but unavailable, the dynamic request completes as `Unav
 Schema-2 -> schema-3 migration preserves an alpha-era explicit `everything.filesystem=true` value. When the key was absent, schema 3 writes the formal default `false`. A schema-3 file presented to a schema-2 reader enters the existing newer-schema read-only path and remains byte-for-byte unchanged.
 
 Everything results and diagnostics remain ephemeral: no File/Folder result, match score, latency or availability state is persisted to provider-cache or usage history.
+
+
+## Beta 2 compatibility hardening
+
+v0.5.0-beta.2 keeps the 1.4-compatible Query2/WM_COPYDATA transport and adds conservative named-instance discovery. The unnamed `EVERYTHING_TASKBAR_NOTIFICATION` endpoint always wins. If it is absent, ALTRun Next recognizes the documented `EVERYTHING_TASKBAR_NOTIFICATION_(instance)` form and uses it only when exactly one named endpoint is present. Multiple named endpoints are treated as ambiguous and trigger static-search fallback.
+
+The runtime now validates the reply sender HWND in addition to the reply token, limits accepted payload size, enforces the requested result ceiling and rejects inconsistent LIST2 total/count/offset combinations. Drive/root results preserve their root identity, and regression coverage includes UNC and extended-length paths.
+
+The provider still caps direct IPC result requests at 1000. CI additionally drives 128 rapid queries through the debounce/stale-discard path and accepts a 256-item LIST2 response representing 500,000 total matches.
+
+See `docs/EVERYTHING_COMPATIBILITY.md` for the 1.4/1.5/named-instance matrix. Everything 1.5 SDK3 named pipes remain out of scope for beta.2; no DLL or 1.5-only transport dependency is introduced.

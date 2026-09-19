@@ -183,6 +183,53 @@ int main() {
         list.value->items[1].name ==
         u"资料");
 
+    auto rootListBytes = listBytes;
+    const auto secondFlagsPos =
+        sizeof(List2Header) +
+        sizeof(Item2Header);
+    const std::uint32_t rootFlags =
+        kItemFolder |
+        kItemDriveOrRoot;
+    rootListBytes[secondFlagsPos + 0] =
+        static_cast<std::byte>(
+            rootFlags & 0xffU);
+    rootListBytes[secondFlagsPos + 1] =
+        static_cast<std::byte>(
+            (rootFlags >> 8U) & 0xffU);
+    rootListBytes[secondFlagsPos + 2] =
+        static_cast<std::byte>(
+            (rootFlags >> 16U) & 0xffU);
+    rootListBytes[secondFlagsPos + 3] =
+        static_cast<std::byte>(
+            (rootFlags >> 24U) & 0xffU);
+
+    const auto rootList =
+        ParseList2(rootListBytes);
+    assert(rootList);
+    assert(
+        rootList.value->items[1].folder);
+    assert(
+        rootList.value->items[1].root);
+
+    auto tooManyItems = listBytes;
+    tooManyItems[0] = std::byte{1};
+    tooManyItems[1] = std::byte{0};
+    tooManyItems[2] = std::byte{0};
+    tooManyItems[3] = std::byte{0};
+    assert(!ParseList2(tooManyItems));
+
+    auto badRange = listBytes;
+    // totalItems = 2, offset = 1, numItems = 2 => offset + count > total.
+    badRange[0] = std::byte{2};
+    badRange[1] = std::byte{0};
+    badRange[2] = std::byte{0};
+    badRange[3] = std::byte{0};
+    badRange[8] = std::byte{1};
+    badRange[9] = std::byte{0};
+    badRange[10] = std::byte{0};
+    badRange[11] = std::byte{0};
+    assert(!ParseList2(badRange));
+
     auto truncated = listBytes;
     truncated.resize(
         truncated.size() - 1U);

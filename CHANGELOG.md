@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0-beta.2
+
+- Added conservative Everything named-instance discovery using the documented `EVERYTHING_TASKBAR_NOTIFICATION_(instance)` class convention.
+- Preserved unnamed/default-instance precedence; a named instance is auto-selected only when exactly one candidate exists.
+- Added explicit ambiguous-multiple-instance fallback so ALTRun Next never silently chooses an arbitrary Everything database.
+- Exposed the active IPC window class, named-instance fallback state and ambiguous candidate count in Search Sources diagnostics.
+- Added sender-HWND validation for LIST2 replies to ignore spoofed or unrelated WM_COPYDATA responses.
+- Added a 16 MiB default reply-payload guard and requested-result-count enforcement before accepting dynamic results.
+- Hardened LIST2 parsing against item-count/total-count and offset-range inconsistencies.
+- Preserved the Everything drive/root flag and normalized drive roots without manufacturing a misleading parent path.
+- Added UNC and extended-length `\\?\` path runtime coverage.
+- Added 128-query debounce stress, 256-result/500000-total result smoke and provider transport-cap coverage.
+- Added wrong-sender, oversized-payload and over-limit-result runtime regressions.
+- Kept the 1.4-compatible Query2 WM_COPYDATA transport; no Everything DLL and no 1.5-only named-pipe dependency were added.
+- Kept settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, Everything default-off and Classic geometry unchanged.
+- Updated Windows version metadata to `0.5.0-beta.2` / `0.5.0.101`.
+
+
 ## 0.5.0-beta.1
 
 - Promoted `everything.filesystem` into the supported Settings > Search sources surface while keeping it disabled by default.

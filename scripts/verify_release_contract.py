@@ -36,6 +36,238 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.5.0-beta.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected beta.2 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("provider-cache schema must remain 2 in beta.2")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for token in (
+        "{std::string(kStartMenu), true}",
+        "{std::string(kPackaged), true}",
+        "{std::string(kAppPaths), true}",
+        "{std::string(kPath), true}",
+        "{std::string(kEverythingFilesystem), false}",
+    ):
+        if token not in provider_text:
+            fail(f"beta.2 provider/default contract missing: {token}")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 3:
+        fail("settings.example.json must remain schemaVersion 3")
+    if settings.get("providers") != expected_providers:
+        fail("beta.2 provider defaults changed unexpectedly")
+
+    protocol_h = read("src/core/EverythingIpcProtocol.hpp")
+    protocol_cpp = read("src/core/EverythingIpcProtocol.cpp")
+    for token in (
+        "kCopyDataQuery2W = 18",
+        "kItemDriveOrRoot",
+        "bool root{false}",
+    ):
+        if token not in protocol_h:
+            fail(f"Everything protocol hardening missing: {token}")
+    for token in (
+        "returned item count exceeds total item count",
+        "offset/item count exceeds total item count",
+        "item.root",
+    ):
+        if token not in protocol_cpp:
+            fail(f"LIST2 range/root validation missing: {token}")
+
+    client_h = read("src/platform/EverythingIpcClient.hpp")
+    client_cpp = read("src/platform/EverythingIpcClient.cpp")
+    for token in (
+        "discoverNamedInstances",
+        "maxReplyBytes",
+        "sourceWindow",
+        "maxResults",
+        "FindEndpoint",
+    ):
+        if token not in client_h:
+            fail(f"Everything client beta.2 declaration missing: {token}")
+    for token in (
+        "EnumWindows",
+        "EnumNamedEverythingWindows",
+        'L"_("',
+        "ambiguousNamedInstances",
+        "ERROR_MORE_DATA",
+        "ERROR_INSUFFICIENT_BUFFER",
+        "inFlight_->sourceWindow",
+        "options_.maxReplyBytes",
+        "parsed.value->items.size()",
+        "item.root",
+    ):
+        if token not in client_cpp:
+            fail(f"Everything client hardening missing: {token}")
+
+    query_types = read("src/core/EverythingQuery.hpp")
+    for token in (
+        "bool root{false}",
+        "ipcWindowClass",
+        "namedInstanceFallback",
+        "ambiguousNamedInstances",
+        "matchingWindowCount",
+    ):
+        if token not in query_types:
+            fail(f"Everything diagnostics/path state missing: {token}")
+
+    settings_ui = read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "Multiple named Everything instances detected",
+        "IPC endpoint: ",
+        "unique named instance auto-selected",
+        "matchingWindowCount",
+    ):
+        if token not in settings_ui:
+            fail(f"Settings named-instance diagnostics missing: {token}")
+
+    protocol_test = read("tests/EverythingIpcProtocolTests.cpp")
+    for token in (
+        "rootList.value->items[1].root",
+        "tooManyItems",
+        "badRange",
+    ):
+        if token not in protocol_test:
+            fail(f"portable LIST2 hardening regression missing: {token}")
+
+    runtime_test = read("tests/EverythingIpcRuntimeTests.cpp")
+    for token in (
+        'L"_(1.5b)"',
+        "status.ambiguousNamedInstances",
+        "status.matchingWindowCount ==",
+        'L"drive-root"',
+        'L"unc"',
+        'L"longpath"',
+        "i < 128",
+        "500000",
+        "Mode::WrongSender",
+        "options.maxReplyBytes = 64",
+        "ERROR_INSUFFICIENT_BUFFER",
+        "LastMaxResults",
+        ".limit = 5000",
+    ):
+        if token not in runtime_test:
+            fail(f"Everything beta.2 runtime stress missing: {token}")
+
+    everything_provider = read("src/core/EverythingProvider.cpp")
+    for token in (
+        "std::min<std::size_t>",
+        "request.limit",
+        "1000",
+        "client_.Status()",
+    ):
+        if token not in everything_provider:
+            fail(f"Everything provider performance boundary missing: {token}")
+
+    registry = read("src/core/ProviderRegistry.cpp")
+    if "everything.filesystem" in registry or "kEverythingFilesystem" in registry:
+        fail(
+            "everything.filesystem must remain dynamic and outside "
+            "the static ProviderRegistry"
+        )
+
+    combined_source = (
+        protocol_h
+        + protocol_cpp
+        + client_h
+        + client_cpp
+        + everything_provider
+    )
+    for forbidden in (
+        "Everything64.dll",
+        "Everything32.dll",
+        "Everything3_",
+        r"\\.\PIPE\Everything IPC",
+        "LoadLibraryW",
+        "LoadLibraryA",
+    ):
+        if forbidden in combined_source:
+            fail(
+                "beta.2 must keep the 1.4-compatible native Query2 "
+                f"baseline without a new DLL/named-pipe dependency: {forbidden}"
+            )
+
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_hpp,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during beta.2: {name}")
+
+    validation = read("docs/EVERYTHING_BETA_VALIDATION.md")
+    for token in (
+        "Everything 1.4 unnamed/default instance",
+        "single named Everything instance",
+        "two or more named Everything instances",
+        "Everything 1.5b default unnamed instance",
+        "UNC",
+        "Extended-length",
+        "Rapid typing",
+    ):
+        if token not in validation:
+            fail(f"beta.2 manual validation coverage missing: {token}")
+    if "[x]" in validation.lower():
+        fail("manual beta.2 validation items must remain unchecked")
+
+    compatibility = read("docs/EVERYTHING_COMPATIBILITY.md")
+    for token in (
+        "EVERYTHING_TASKBAR_NOTIFICATION_(instance-name)",
+        "1.4 unnamed/default instance",
+        "1.5a default alpha instance",
+        "1.5b+ unnamed/default instance",
+        "Multiple named instances",
+        "128 rapid replacement queries",
+    ):
+        if token not in compatibility:
+            fail(f"Everything compatibility matrix missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        if "everything_ipc_runtime_tests" not in workflow:
+            fail(
+                f"{workflow_path} no longer runs Everything IPC runtime smoke"
+            )
+
+    print(
+        "v0.5.0-beta.2 compatibility/performance contract verified:",
+        "| settings=3 commands=1 usage=1 provider-cache=2",
+        "| unnamed-first + unique named fallback",
+        "| long/UNC/root + burst/large-result IPC hardening",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.5.0-beta.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,

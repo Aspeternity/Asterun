@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -21,6 +22,9 @@ struct EverythingIpcClientOptions {
     std::chrono::milliseconds debounce{70};
     std::chrono::milliseconds sendTimeout{250};
     std::chrono::milliseconds replyTimeout{1000};
+    bool discoverNamedInstances{true};
+    std::size_t maxReplyBytes{
+        16U * 1024U * 1024U};
 };
 
 class EverythingIpcClient {
@@ -49,6 +53,14 @@ public:
     Status() const;
 
 private:
+    struct Endpoint {
+        HWND window{nullptr};
+        std::wstring windowClass;
+        bool namedInstanceFallback{false};
+        bool ambiguousNamedInstances{false};
+        std::uint32_t matchingWindowCount{0};
+    };
+
     struct PendingQuery {
         EverythingQueryRequest request;
         Completion completion;
@@ -57,6 +69,8 @@ private:
     struct InFlightQuery {
         std::uint64_t generation{0};
         std::uint32_t replyToken{0};
+        HWND sourceWindow{nullptr};
+        std::uint32_t maxResults{0};
         Completion completion;
         std::chrono::steady_clock::time_point
             started;
@@ -89,6 +103,7 @@ private:
         HWND hwnd);
     void HandleReply(
         HWND hwnd,
+        HWND sourceWindow,
         std::uint32_t replyToken,
         const void* data,
         std::size_t size);
@@ -110,6 +125,9 @@ private:
         std::uint32_t totalMatches,
         std::uint32_t nativeError,
         bool hasQuery);
+
+    [[nodiscard]] Endpoint
+    FindEndpoint() const;
 
     [[nodiscard]] static std::u16string
     ToUtf16(

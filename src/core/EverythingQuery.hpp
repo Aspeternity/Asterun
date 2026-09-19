@@ -35,6 +35,7 @@ struct EverythingQueryRequest {
 
 struct EverythingIpcItem {
     EverythingItemKind kind{EverythingItemKind::File};
+    bool root{false};
     std::wstring name;
     std::wstring parentPath;
     std::wstring fullPath;
@@ -59,6 +60,10 @@ struct EverythingIpcStatusSnapshot {
     std::uint32_t lastResultCount{0};
     std::uint32_t lastTotalMatches{0};
     std::uint32_t lastNativeError{0};
+    std::wstring ipcWindowClass;
+    bool namedInstanceFallback{false};
+    bool ambiguousNamedInstances{false};
+    std::uint32_t matchingWindowCount{0};
 };
 
 } // namespace altrun

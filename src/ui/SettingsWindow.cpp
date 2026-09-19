@@ -1419,8 +1419,8 @@ void SettingsWindow::ApplyLanguage() {
           L"Everything files & folders"));
     SetWindowTextW(
         providerNote_,
-        T(L"Windows 应用来源使用后台缓存；Everything 通过本机 IPC 实时查询，不会写入 provider-cache 或 usage。Everything 不可用时会自动回退为仅应用搜索。",
-          L"Windows application sources use the background cache. Everything is queried live over local IPC and is never written to provider-cache or usage. If Everything is unavailable, launcher search automatically falls back to application sources only."));
+        T(L"Windows 应用来源使用后台缓存；Everything 通过本机 IPC 实时查询。默认实例优先；仅检测到一个命名实例时才会自动选择。多实例歧义或 IPC 不可用时自动回退为仅应用搜索。",
+          L"Windows application sources use the background cache. Everything is queried live over local IPC. The unnamed instance is preferred; a named instance is auto-selected only when it is unique. Ambiguous or unavailable IPC falls back to application-only search."));
 
     SetWindowTextW(
         dataOpenLabel_,
@@ -1711,6 +1711,31 @@ void SettingsWindow::RefreshProviderStatus() {
             text += T(
                 L"正在检测 IPC",
                 L"Detecting IPC");
+        }
+
+        if (ipc.ambiguousNamedInstances) {
+            text += L"\r\n    ↳ ";
+            text += T(
+                L"检测到多个 Everything 命名实例（",
+                L"Multiple named Everything instances detected (");
+            text += std::to_wstring(
+                ipc.matchingWindowCount);
+            text += T(
+                L"），已禁用自动选择",
+                L"); automatic selection disabled");
+        } else if (
+            !ipc.ipcWindowClass.empty()) {
+            text += L"\r\n    ↳ ";
+            text += T(
+                L"IPC 端点：",
+                L"IPC endpoint: ");
+            text += ipc.ipcWindowClass;
+
+            if (ipc.namedInstanceFallback) {
+                text += T(
+                    L"  ·  已自动选择唯一命名实例",
+                    L"  ·  unique named instance auto-selected");
+            }
         }
 
         if (ipc.hasQuery) {

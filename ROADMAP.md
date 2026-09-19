@@ -103,7 +103,7 @@ In progress:
 - Alpha 3 also hardens mixed-result numeric execution, deferred single-result execution and Classic File/Folder presentation without changing geometry
 - v0.5.0-beta.1 promotes Everything into Search Sources with a supported default-off toggle and live IPC/query diagnostics
 - Beta 1 upgrades settings to schemaVersion 3, preserves alpha opt-ins, adds explicit schema-2 downgrade read-only coverage and validates unavailable -> available recovery
-- Beta 2 will focus on real-world performance/compatibility hardening across Everything 1.4/1.5, long paths, large result sets and lifecycle edge cases
+- v0.5.0-beta.2 hardens real-world compatibility with unnamed/named Everything instances, conservative multi-instance fallback, sender/payload validation, long/UNC/root path handling and high-churn/large-result runtime stress
 
 ## v0.6.x - Smart actions & Windows integration
 

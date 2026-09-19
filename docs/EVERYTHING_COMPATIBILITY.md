@@ -1,0 +1,80 @@
+# Everything compatibility matrix
+
+ALTRun Next v0.5.0-beta.2 keeps one transport baseline: the Everything 1.4-compatible Unicode Query2 protocol over local Win32 `WM_COPYDATA`.
+
+## Endpoint selection
+
+The default IPC class is:
+
+```text
+EVERYTHING_TASKBAR_NOTIFICATION
+```
+
+Named Everything instances use:
+
+```text
+EVERYTHING_TASKBAR_NOTIFICATION_(instance-name)
+```
+
+Selection is intentionally conservative:
+
+1. Prefer the unnamed/default class when it exists.
+2. If the unnamed class is absent, enumerate named-instance classes.
+3. Auto-select a named instance only when exactly one candidate exists.
+4. If multiple named instances exist, do not guess. Report ambiguity and fall back to application-only search.
+
+This behavior prevents ALTRun Next from silently querying the wrong Everything database on machines that deliberately run multiple instances.
+
+## Version matrix
+
+| Everything setup | beta.2 behavior |
+| --- | --- |
+| 1.4 unnamed/default instance | Query2 WM_COPYDATA through the default class |
+| 1.4 single named instance | Unique named-instance fallback |
+| 1.4 multiple named instances | Ambiguous; no automatic selection |
+| 1.5a default alpha instance | Unique `1.5a` named-instance fallback when no unnamed instance exists |
+| 1.5b+ unnamed/default instance | Query2 WM_COPYDATA through the default class |
+| 1.5b+ single custom named instance | Unique named-instance fallback |
+| 1.5b+ multiple named instances | Ambiguous; no automatic selection |
+| Everything Lite | IPC unavailable; static application search continues |
+
+Everything 1.5's SDK3 uses a newer named-pipe IPC transport. beta.2 deliberately does not switch to that 1.5-only path so one implementation continues to cover the existing 1.4-compatible Query2 contract. A future phase can add a second transport only if real-world validation demonstrates a concrete need.
+
+## Reply hardening
+
+beta.2 accepts a LIST2 response only when all of the following hold:
+
+- reply token matches the current in-flight request;
+- WM_COPYDATA sender HWND is the endpoint that received the query;
+- payload size is within the client safety limit;
+- LIST2 request flags match the requested name/path/full-path fields;
+- returned item count does not exceed the request limit;
+- LIST2 total/count/offset relationships are internally consistent;
+- all requested UTF-16 fields are bounded and null terminated.
+
+Unexpected replies fail closed and never replace static launcher results.
+
+## Path behavior
+
+File and folder targets remain opaque Windows paths. beta.2 specifically validates:
+
+- drive roots such as `C:\`;
+- UNC paths such as `\\server\share\folder\file.txt`;
+- extended-length paths such as `\\?\C:\...`;
+- Unicode file and directory names.
+
+Drive/root results keep an empty parent subtitle rather than deriving the misleading parent `C:` → `C:`/drive-relative variants.
+
+## Performance envelope
+
+The launcher normally asks Everything for only a small candidate pool. `EverythingProvider` additionally clamps direct transport requests to 1000 results. CI stress covers:
+
+- 128 rapid replacement queries coalesced by the debounce path;
+- 256 returned items with a 500,000-result total-match count;
+- stale-generation suppression;
+- reply timeout;
+- endpoint disappearance/recovery;
+- malformed over-limit replies;
+- oversized reply payload rejection.
+
+Everything results remain query-time only and are never persisted to `provider-cache.json` or `usage.json`.
