@@ -424,7 +424,7 @@ void LauncherWindow::Layout() {
 
     constexpr int titleHeightLogical = 30;
     constexpr int leftSideLogical = 7;
-    constexpr int rightSideLogical = 2;
+    constexpr int rightSideLogical = 7;
     constexpr int inputHeightLogical = 22;
     constexpr int inputWidthLogical = 190;
     constexpr int listTopGapLogical = 4;
@@ -692,7 +692,7 @@ void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
     // launcher. Previously the gradient reached the outer edge while the
     // content area was inset, producing a visible color break on both sides.
     const int leftRail = DpiScale(7);
-    const int rightRail = DpiScale(2);
+    const int rightRail = DpiScale(7);
     RECT title{
         client.left + leftRail,
         client.top,
@@ -762,7 +762,7 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     // above and below the title/content boundary to avoid the visible break
     // that appeared on the right edge in v0.1.5.
     const int leftRailWidth = DpiScale(7);
-    const int rightRailWidth = std::max(2, DpiScale(2));
+    const int rightRailWidth = DpiScale(7);
     RECT leftRail{
         client.left,
         client.top,
@@ -790,48 +790,119 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     FrameRect(dc, &inner, innerBorder);
     DeleteObject(innerBorder);
 
-    // v0.1.8 deliberately avoids a visible "right-side strip".
-    // The content now reaches almost to the outer frame; only a restrained
-    // narrow finish remains: one soft transition line plus the dark outer edge.
-    const LONG right = client.right;
-    const LONG outerEdge = right - 1;
-    const LONG transitionX = std::max<LONG>(
-        client.left,
-        right - static_cast<LONG>(std::max(2, DpiScale(2))));
+    // v0.1.9 restores the original full Classic frame width on the right,
+    // but avoids the "solid gray column" look. The old skin behaves like a
+    // beveled frame: its rail gradually darkens toward the bottom, while the
+    // innermost pixels softly inherit the color of the adjacent UI section.
+    const LONG railLeft = client.right - static_cast<LONG>(rightRailWidth);
+    const LONG railRight = client.right;
+    const LONG outerEdge = railRight - 1;
 
-    RECT transition{
-        transitionX,
-        client.top,
-        outerEdge,
-        client.bottom
+    // Base rail: vertical gray gradient, brighter near the title and darker
+    // near the command strip. This matches the visual weight of the original
+    // skin much better than a single flat gray fill.
+    constexpr int railBands = 32;
+    const COLORREF railTop = RGB(154, 157, 162);
+    const COLORREF railBottom = RGB(106, 109, 113);
+
+    for (int i = 0; i < railBands; ++i) {
+        RECT band{
+            railLeft,
+            client.top + (client.bottom - client.top) * i / railBands,
+            outerEdge,
+            client.top + (client.bottom - client.top) * (i + 1) / railBands
+        };
+        HBRUSH bandBrush = CreateSolidBrush(
+            MixColor(railTop, railBottom, i, railBands - 1));
+        FillRect(dc, &band, bandBrush);
+        DeleteObject(bandBrush);
+    }
+
+    // Blend the innermost part of the rail toward the adjacent section color.
+    // The transition remains full-height and full-width, but because it follows
+    // the title/green/list/command colors it reads as a frame rather than an
+    // unrelated vertical bar.
+    const int innerBlendWidth = std::max(2, DpiScale(2));
+    const int secondBlendWidth = std::max(1, DpiScale(1));
+
+    const int titleBottom = DpiScale(30);
+    const int hintBottom = titleBottom + DpiScale(22);
+    const int listTop = hintBottom + DpiScale(4);
+    const int listBottom = listTop + DpiScale(162);
+    const int commandTop = listBottom + DpiScale(6);
+    const int commandBottom = commandTop + DpiScale(18);
+
+    auto railColorAtY = [&](int y) -> COLORREF {
+        const int height = std::max(1, client.bottom - client.top - 1);
+        const int pos = std::clamp(y - client.top, 0, height);
+        return MixColor(railTop, railBottom, pos, height);
     };
-    HBRUSH transitionBrush = CreateSolidBrush(RGB(151, 156, 161));
-    FillRect(dc, &transition, transitionBrush);
-    DeleteObject(transitionBrush);
 
-    // A single softer inner line prevents the content from meeting the frame
-    // abruptly without reading as a separate decorative band.
-    RECT innerLine{
-        transitionX,
-        client.top,
-        std::min<LONG>(transitionX + 1, outerEdge),
-        client.bottom
+    auto paintSectionBlend = [&](int top, int bottom, COLORREF adjacent) {
+        top = std::clamp(top, client.top, client.bottom);
+        bottom = std::clamp(bottom, client.top, client.bottom);
+        if (bottom <= top) return;
+
+        const int midY = top + (bottom - top) / 2;
+        const COLORREF rail = railColorAtY(midY);
+
+        RECT soft{
+            railLeft,
+            top,
+            std::min<LONG>(railLeft + innerBlendWidth, outerEdge),
+            bottom
+        };
+        HBRUSH softBrush = CreateSolidBrush(MixColor(adjacent, rail, 1, 4));
+        FillRect(dc, &soft, softBrush);
+        DeleteObject(softBrush);
+
+        RECT middle{
+            soft.right,
+            top,
+            std::min<LONG>(soft.right + secondBlendWidth, outerEdge),
+            bottom
+        };
+        if (middle.right > middle.left) {
+            HBRUSH middleBrush = CreateSolidBrush(MixColor(adjacent, rail, 2, 3));
+            FillRect(dc, &middle, middleBrush);
+            DeleteObject(middleBrush);
+        }
     };
-    HBRUSH innerLineBrush = CreateSolidBrush(RGB(187, 191, 195));
-    FillRect(dc, &innerLine, innerLineBrush);
-    DeleteObject(innerLineBrush);
 
+    // Title: use the bright end of the horizontal title gradient as the
+    // neighboring color.
+    paintSectionBlend(client.top, titleBottom, RGB(181, 183, 186));
+
+    // Top input / hint strip.
+    paintSectionBlend(titleBottom, hintBottom, palette.accentBackground);
+
+    // Small separator gap before the list.
+    paintSectionBlend(hintBottom, listTop, RGB(126, 131, 136));
+
+    // Main result surface.
+    paintSectionBlend(listTop, listBottom, palette.controlBackground);
+
+    // Separator gap before the command strip.
+    paintSectionBlend(listBottom, commandTop, RGB(114, 119, 123));
+
+    // Bottom command strip.
+    paintSectionBlend(commandTop, commandBottom, RGB(181, 208, 184));
+
+    // Remaining bottom frame area continues the darker frame tone.
+    paintSectionBlend(commandBottom, client.bottom, RGB(106, 109, 113));
+
+    // One dark outer stroke ties the right side back into the top/bottom frame.
     RECT outerLine{
         outerEdge,
         client.top,
-        right,
+        railRight,
         client.bottom
     };
     HBRUSH outerBrush = CreateSolidBrush(RGB(75, 80, 86));
     FillRect(dc, &outerLine, outerBrush);
     DeleteObject(outerBrush);
 
-    // Corner controls are painted last so the right frame finish never clips the
+    // Corner controls are painted last so the right Classic frame never clips the
     // close button.
     PaintClassicLogo(dc, DpiScale(9), DpiScale(3));
     PaintClassicClose(dc, ClassicCloseRect());

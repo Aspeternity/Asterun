@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.9
+
+- Reverted the v0.1.8 narrow-right-edge experiment.
+- Restored the Classic right frame to the same 7 logical px width as the left frame.
+- Rebuilt the right rail as a vertical gray gradient rather than a flat solid strip.
+- Added section-aware inner blending so the title, green hint strip, white result list and green command strip transition naturally into the frame.
+- Kept a single dark outer stroke to visually connect the right edge with the top and bottom frame.
+- Preserved the existing left frame, window dimensions, result geometry, typography, colors and Modern Compact layout.
+- Bumped application, manifest and Windows resource version to 0.1.9.
+
+
 ## 0.1.8
 
 - Reworked the Classic right edge for visual naturalness rather than strict symmetry with the old skin.
