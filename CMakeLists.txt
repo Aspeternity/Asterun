@@ -1,10 +1,22 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.1.9 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+include(FetchContent)
+
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+set(JSON_Install OFF CACHE INTERNAL "")
+
+FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(nlohmann_json)
 
 add_library(altrun_core STATIC
     src/core/SearchEngine.cpp
@@ -12,11 +24,24 @@ add_library(altrun_core STATIC
 
 target_include_directories(altrun_core PUBLIC src)
 
-if(MSVC)
-    target_compile_options(altrun_core PRIVATE /W4 /permissive- /utf-8 /EHsc)
-else()
-    target_compile_options(altrun_core PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+add_library(altrun_config STATIC
+    src/core/ConfigIO.cpp
+    src/core/Settings.cpp
+    src/core/TextCodec.cpp
+    src/core/UsageStore.cpp
+    src/core/UserCommandStore.cpp
+)
+
+target_include_directories(altrun_config PUBLIC src)
+target_link_libraries(altrun_config PUBLIC nlohmann_json::nlohmann_json)
+
+foreach(target altrun_core altrun_config)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endforeach()
 
 if(WIN32)
     enable_language(RC)
@@ -26,8 +51,7 @@ if(WIN32)
         src/app/App.cpp
         src/core/CommandStore.cpp
         src/core/Localization.cpp
-        src/core/Settings.cpp
-        src/core/UsageStore.cpp
+        src/core/StartMenuProvider.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
         src/resources.rc
@@ -38,6 +62,7 @@ if(WIN32)
     target_link_libraries(
         ALTRunNext PRIVATE
         altrun_core
+        altrun_config
         shell32
         ole32
         comctl32
@@ -64,4 +89,9 @@ if(BUILD_TESTING)
     target_link_libraries(search_engine_tests PRIVATE altrun_core)
     target_include_directories(search_engine_tests PRIVATE src)
     add_test(NAME search_engine_tests COMMAND search_engine_tests)
+
+    add_executable(config_core_tests tests/ConfigCoreTests.cpp)
+    target_link_libraries(config_core_tests PRIVATE altrun_config)
+    target_include_directories(config_core_tests PRIVATE src)
+    add_test(NAME config_core_tests COMMAND config_core_tests)
 endif()
