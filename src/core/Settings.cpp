@@ -89,6 +89,7 @@ void SettingsStore::Load() {
     readOnlyDueToNewerSchema_ =
         false;
     unsupportedSchemaVersion_ = 0;
+    recoveredFromBackup_ = false;
 
     if (LoadJson()) {
         return;
@@ -114,6 +115,11 @@ bool SettingsStore::LoadJson() {
         config::LoadJsonWithBackup(
             jsonPath_,
             config::kSchemaVersion);
+
+    recoveredFromBackup_ =
+        load.status ==
+            config::JsonLoadStatus::
+                RecoveredBackup;
 
     if (load.status ==
         config::JsonLoadStatus::

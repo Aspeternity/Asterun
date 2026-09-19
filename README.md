@@ -14,6 +14,23 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.0-rc.1 — Release Candidate Stabilization
+
+v0.4 RC 1 freezes the Windows application-discovery feature set and turns release safety into a first-class contract.
+
+Startup data health now records whether `settings.json`, `commands.json` or `usage.json` was recovered from its `.bak` file. The Data page keeps that recovery notice visible for the running session, alongside newer-schema read-only protection. ALTRun Next also probes the portable `data/` directory at startup and warns immediately when the directory is not writable.
+
+The About-page version is no longer hard-coded. CMake generates it directly from the root `VERSION` file. CI validates that `VERSION`, the CMake base version, Windows FileVersion/ProductVersion metadata, the application manifest, README and CHANGELOG all describe the same release.
+
+Every Windows archive now passes a package-contract check after compression:
+
+- required EXE, dictionary, license and documentation entries must exist;
+- no unexpected runtime DLL may be present;
+- packaged `VERSION` must match the source version;
+- the packaged EXE FileVersion and ProductVersion must match `VERSION`.
+
+Successful development and versioned releases also publish `SHA256SUMS.txt` for the x64 and ARM64 ZIP archives.
+
 ## v0.4.0-beta.2 — Real-world Compatibility & Migration Hardening
 
 v0.4 Beta 2 focuses on data safety and upgrade/downgrade behavior rather than adding new launcher features.

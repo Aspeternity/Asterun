@@ -10,9 +10,63 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <fstream>
 #include <unordered_map>
 
 namespace altrun {
+
+namespace {
+
+bool ProbeDirectoryWritable(
+    const std::filesystem::path& directory) {
+
+    std::error_code ec;
+
+    if (!std::filesystem::exists(
+            directory,
+            ec) ||
+        ec) {
+        return false;
+    }
+
+    const auto probe =
+        directory /
+        (".altrun-write-test-" +
+         std::to_string(
+             GetCurrentProcessId()) +
+         ".tmp");
+
+    {
+        std::ofstream output(
+            probe,
+            std::ios::binary |
+                std::ios::trunc);
+
+        if (!output) {
+            return false;
+        }
+
+        output << "write-test";
+        output.flush();
+
+        if (!output) {
+            output.close();
+            std::filesystem::remove(
+                probe,
+                ec);
+            return false;
+        }
+    }
+
+    ec.clear();
+    std::filesystem::remove(
+        probe,
+        ec);
+
+    return !ec;
+}
+
+} // namespace
 
 App::App(HINSTANCE instance)
     : instance_(instance),
@@ -61,7 +115,15 @@ App::~App() {
 
 int App::Run() {
     std::error_code ec;
-    std::filesystem::create_directories(dataDirectory_, ec);
+
+    std::filesystem::create_directories(
+        dataDirectory_,
+        ec);
+
+    dataDirectoryWritable_ =
+        !ec &&
+        ProbeDirectoryWritable(
+            dataDirectory_);
 
     uiThreadId_ = GetCurrentThreadId();
 
@@ -92,6 +154,16 @@ int App::Run() {
             L"ALTRun Next",
             MB_ICONINFORMATION | MB_OK);
         return 0;
+    }
+
+    if (!dataDirectoryWritable_) {
+        MessageBoxW(
+            nullptr,
+            settingsStore_.Data().language == Language::ZhCN
+                ? L"ALTRun Next 的 data 目录当前不可写。\n\n程序仍会继续运行，但设置、快捷项和使用记录可能无法保存。请将程序移动到可写目录或检查文件夹权限。"
+                : L"The ALTRun Next data directory is not writable.\n\nThe launcher will continue running, but settings, shortcuts and usage history may not persist. Move ALTRun Next to a writable folder or check folder permissions.",
+            L"ALTRun Next",
+            MB_ICONWARNING | MB_OK);
     }
 
     ApplyStartupRegistration(
@@ -219,16 +291,20 @@ App::ProviderStatuses() const {
 std::wstring
 App::DataCompatibilityWarning() const {
 
-    struct Issue {
+    struct SchemaIssue {
         const wchar_t* file;
         int schemaVersion;
     };
 
-    std::vector<Issue> issues;
+    std::vector<SchemaIssue>
+        schemaIssues;
+
+    std::vector<const wchar_t*>
+        recoveredFiles;
 
     if (settingsStore_
             .IsReadOnlyDueToNewerSchema()) {
-        issues.push_back({
+        schemaIssues.push_back({
             L"settings.json",
             settingsStore_
                 .UnsupportedSchemaVersion(),
@@ -237,7 +313,7 @@ App::DataCompatibilityWarning() const {
 
     if (commandStore_
             .UserCommandsReadOnlyDueToNewerSchema()) {
-        issues.push_back({
+        schemaIssues.push_back({
             L"commands.json",
             commandStore_
                 .UserCommandsUnsupportedSchemaVersion(),
@@ -246,14 +322,34 @@ App::DataCompatibilityWarning() const {
 
     if (usageStore_
             .IsReadOnlyDueToNewerSchema()) {
-        issues.push_back({
+        schemaIssues.push_back({
             L"usage.json",
             usageStore_
                 .UnsupportedSchemaVersion(),
         });
     }
 
-    if (issues.empty()) {
+    if (settingsStore_
+            .WasRecoveredFromBackup()) {
+        recoveredFiles.push_back(
+            L"settings.json");
+    }
+
+    if (commandStore_
+            .UserCommandsRecoveredFromBackup()) {
+        recoveredFiles.push_back(
+            L"commands.json");
+    }
+
+    if (usageStore_
+            .WasRecoveredFromBackup()) {
+        recoveredFiles.push_back(
+            L"usage.json");
+    }
+
+    if (dataDirectoryWritable_ &&
+        schemaIssues.empty() &&
+        recoveredFiles.empty()) {
         return {};
     }
 
@@ -261,27 +357,71 @@ App::DataCompatibilityWarning() const {
         settingsStore_.Data().language ==
             Language::ZhCN;
 
-    std::wstring message =
-        zh
-            ? L"检测到由较新版本生成的数据文件。为避免降级覆盖数据，以下文件已进入只读兼容模式："
-            : L"Data created by a newer ALTRun Next version was detected. To prevent downgrade data loss, these files are read-only:";
+    std::wstring message;
 
-    message += L"\r\n";
+    if (!dataDirectoryWritable_) {
+        message +=
+            zh
+                ? L"数据目录不可写：设置、快捷项和使用记录可能无法保存。"
+                : L"Data directory is not writable; settings, shortcuts and usage history may not persist.";
+    }
 
-    for (std::size_t i = 0;
-         i < issues.size();
-         ++i) {
+    if (!schemaIssues.empty()) {
+        if (!message.empty()) {
+            message += L"\r\n\r\n";
+        }
 
-        message += L"  ";
-        message += issues[i].file;
-        message += L"  (schema ";
-        message += std::to_wstring(
-            issues[i].schemaVersion);
-        message += L")";
+        message +=
+            zh
+                ? L"检测到由较新版本生成的数据文件。为避免降级覆盖数据，以下文件已进入只读兼容模式："
+                : L"Data created by a newer ALTRun Next version was detected. To prevent downgrade data loss, these files are read-only:";
 
-        if (i + 1 <
-            issues.size()) {
-            message += L"\r\n";
+        message += L"\r\n";
+
+        for (std::size_t i = 0;
+             i < schemaIssues.size();
+             ++i) {
+
+            message += L"  ";
+            message +=
+                schemaIssues[i].file;
+            message += L"  (schema ";
+            message += std::to_wstring(
+                schemaIssues[i]
+                    .schemaVersion);
+            message += L")";
+
+            if (i + 1 <
+                schemaIssues.size()) {
+                message += L"\r\n";
+            }
+        }
+    }
+
+    if (!recoveredFiles.empty()) {
+        if (!message.empty()) {
+            message += L"\r\n\r\n";
+        }
+
+        message +=
+            zh
+                ? L"本次启动已从 .bak 自动恢复并修复以下数据文件："
+                : L"This startup recovered and repaired these data files from .bak:";
+
+        message += L"\r\n";
+
+        for (std::size_t i = 0;
+             i < recoveredFiles.size();
+             ++i) {
+
+            message += L"  ";
+            message +=
+                recoveredFiles[i];
+
+            if (i + 1 <
+                recoveredFiles.size()) {
+                message += L"\r\n";
+            }
         }
     }
 

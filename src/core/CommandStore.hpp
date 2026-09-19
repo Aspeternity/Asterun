@@ -123,6 +123,12 @@ public:
             .UnsupportedSchemaVersion();
     }
 
+    [[nodiscard]] bool
+    UserCommandsRecoveredFromBackup() const noexcept {
+        return userCommandStore_
+            .WasRecoveredFromBackup();
+    }
+
 private:
     struct ProviderRuntimeDiagnostic {
         std::int64_t lastAttemptUnix{0};

@@ -2,6 +2,25 @@ cmake_minimum_required(VERSION 3.24)
 
 project(ALTRunNext VERSION 0.4.0 LANGUAGES CXX)
 
+file(
+    STRINGS
+    "${CMAKE_CURRENT_SOURCE_DIR}/VERSION"
+    ALTRUN_VERSION
+    LIMIT_COUNT 1
+)
+string(STRIP "${ALTRUN_VERSION}" ALTRUN_VERSION)
+
+if(ALTRUN_VERSION STREQUAL "")
+    message(FATAL_ERROR "VERSION must contain the ALTRun Next version.")
+endif()
+
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+configure_file(
+    src/core/Version.hpp.in
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/Version.hpp"
+    @ONLY
+)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -140,7 +159,11 @@ if(WIN32)
         src/app.manifest
     )
 
-    target_include_directories(ALTRunNext PRIVATE src)
+    target_include_directories(
+        ALTRunNext PRIVATE
+        src
+        "${CMAKE_CURRENT_BINARY_DIR}/generated"
+    )
     target_link_libraries(
         ALTRunNext PRIVATE
         altrun_core

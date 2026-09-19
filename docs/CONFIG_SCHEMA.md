@@ -46,6 +46,8 @@ If the live JSON is unreadable, ALTRun Next attempts to read the `.bak` copy. St
 
 If `settings.json`, `commands.json` or `usage.json` has a `schemaVersion` newer than the running binary supports, ALTRun Next reads known fields when possible but treats that document as **read-only**. This makes temporary downgrades non-destructive: the older binary does not rewrite the newer document. The Data page lists files currently protected this way.
 
+Starting with v0.4.0-rc.1, each user-data store also remembers when the current startup recovered from a `.bak` file. The Data page reports those recovered files for the rest of the session, even though the primary JSON has already been repaired. Startup also probes whether the portable `data/` directory is writable and warns when changes may not persist.
+
 ## settings.json
 
 The first schema contains:

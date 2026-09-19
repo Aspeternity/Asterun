@@ -50,13 +50,15 @@ Current phase:
 - Per-provider active/suppressed/error diagnostics
 - Windows 10 API baseline and Windows compatibility CI gate
 
-v0.4 beta hardening:
+v0.4 release candidate:
 
 - Upgrade/migration matrix for alpha-era settings and provider caches
 - Backup self-healing and downgrade-safe newer-schema protection
+- Startup data-health diagnostics and portable-directory writeability checks
 - Windows Provider Registry runtime smoke tests on current and Windows Server 2022 runners
+- Version-metadata and final-package release gates
 - Manual provider discovery validation on real Windows 10 and Windows 11 desktops
-- Fix only discovery/regression issues before the v0.4 stable milestone
+- RC stage is feature-frozen: fix only discovery, migration, packaging and compatibility regressions before v0.4 stable
 
 ## v0.5.x - Everything integration
 

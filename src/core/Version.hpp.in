@@ -1,0 +1,13 @@
+#pragma once
+
+#include <string_view>
+
+namespace altrun {
+
+inline constexpr std::string_view
+    kVersion = "@ALTRUN_VERSION@";
+
+inline constexpr std::wstring_view
+    kVersionWide = L"@ALTRUN_VERSION@";
+
+} // namespace altrun

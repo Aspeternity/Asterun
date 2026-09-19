@@ -31,6 +31,10 @@ public:
         return unsupportedSchemaVersion_;
     }
 
+    [[nodiscard]] bool WasRecoveredFromBackup() const noexcept {
+        return recoveredFromBackup_;
+    }
+
 private:
     bool LoadJson();
     bool MigrateLegacyTsv(
@@ -42,6 +46,7 @@ private:
     UsageMap usage_;
     bool readOnlyDueToNewerSchema_{false};
     int unsupportedSchemaVersion_{0};
+    bool recoveredFromBackup_{false};
 };
 
 } // namespace altrun

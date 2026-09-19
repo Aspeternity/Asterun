@@ -194,6 +194,7 @@ private:
 
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};
+    bool dataDirectoryWritable_{true};
     bool hotkeyRegistered_{false};
     UINT currentHotkeyModifiers_{0};
     UINT currentHotkeyVk_{0};

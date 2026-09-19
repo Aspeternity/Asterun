@@ -16,22 +16,80 @@ jobs:
         arch: [x64, ARM64]
     steps:
       - uses: actions/checkout@v4
+      - name: Verify version metadata
+        shell: pwsh
+        run: python scripts/verify_version.py
       - name: Configure
         shell: pwsh
         run: cmake -S . -B build -A ${{ matrix.arch }} -DBUILD_TESTING=OFF
       - name: Build
         shell: pwsh
         run: cmake --build build --config Release --parallel
+      - name: Verify portable runtime
+        shell: pwsh
+        run: |
+          $unexpectedDlls = @(Get-ChildItem build/Release -File -Filter "*.dll" -ErrorAction SilentlyContinue)
+          if ($unexpectedDlls.Count -ne 0) {
+            $unexpectedDlls | ForEach-Object { Write-Host $_.FullName }
+            throw "Unexpected runtime DLL found beside ALTRunNext.exe."
+          }
+
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
+          Copy-Item -Recurse build/Release/dict dist/dict
+          Copy-Item -Recurse build/Release/third_party dist/third_party
           Copy-Item config/*.example.* dist/
           Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
           Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
+
+      - name: Verify package contract
+        shell: pwsh
+        run: |
+          $archive = "ALTRunNext-${{ matrix.arch }}.zip"
+          $verify = "verify-package"
+          Expand-Archive -Path $archive -DestinationPath $verify -Force
+
+          $required = @(
+            "ALTRunNext.exe",
+            "VERSION",
+            "README.md",
+            "CONFIG_SCHEMA.md",
+            "dict",
+            "third_party/cpp-pinyin-LICENSE.txt"
+          )
+
+          foreach ($entry in $required) {
+            if (-not (Test-Path (Join-Path $verify $entry))) {
+              throw "Release package is missing required entry: $entry"
+            }
+          }
+
+          $unexpectedDlls = @(
+            Get-ChildItem $verify -Recurse -File -Filter "*.dll" -ErrorAction SilentlyContinue
+          )
+          if ($unexpectedDlls.Count -ne 0) {
+            throw "Release package contains unexpected runtime DLLs."
+          }
+
+          $expectedVersion = (Get-Content VERSION -Raw).Trim()
+          $packagedVersion = (Get-Content (Join-Path $verify "VERSION") -Raw).Trim()
+          if ($packagedVersion -ne $expectedVersion) {
+            throw "Packaged VERSION '$packagedVersion' does not match '$expectedVersion'."
+          }
+
+          $versionInfo = (Get-Item (Join-Path $verify "ALTRunNext.exe")).VersionInfo
+          if ($versionInfo.FileVersion.Trim() -ne $expectedVersion) {
+            throw "EXE FileVersion '$($versionInfo.FileVersion)' does not match '$expectedVersion'."
+          }
+          if ($versionInfo.ProductVersion.Trim() -ne $expectedVersion) {
+            throw "EXE ProductVersion '$($versionInfo.ProductVersion)' does not match '$expectedVersion'."
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: ALTRunNext-${{ matrix.arch }}
@@ -44,9 +102,20 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Prepare checksums
+        shell: bash
+        run: |
+          find artifacts -type f -name 'ALTRunNext-x64.zip' -exec cp {} ALTRunNext-x64.zip \;
+          find artifacts -type f -name 'ALTRunNext-ARM64.zip' -exec cp {} ALTRunNext-ARM64.zip \;
+          test -f ALTRunNext-x64.zip
+          test -f ALTRunNext-ARM64.zip
+          sha256sum ALTRunNext-x64.zip ALTRunNext-ARM64.zip > SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           name: ALTRun Next ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
-          files: artifacts/**/*.zip
+          files: |
+            ALTRunNext-x64.zip
+            ALTRunNext-ARM64.zip
+            SHA256SUMS.txt

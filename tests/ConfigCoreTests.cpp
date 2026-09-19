@@ -246,6 +246,9 @@ int main() {
     assert(
         recovered.Data().language ==
         Language::EnUS);
+    assert(
+        recovered
+            .WasRecoveredFromBackup());
 
     // Backup recovery now self-heals the corrupt primary while preserving the
     // known-good backup instead of copying corrupt bytes over it.
@@ -554,6 +557,100 @@ int main() {
     assert(
         ReadText(futureUsagePath) ==
         futureUsageBefore);
+
+    // Recovery status remains visible to the running process after ConfigIO
+    // repairs the primary document.
+    const auto recoveredCommandsPath =
+        data /
+        "commands-recovered.json";
+
+    WriteText(
+        recoveredCommandsPath.string() +
+            ".bak",
+        "{\n"
+        "  \"schemaVersion\": 1,\n"
+        "  \"commands\": [\n"
+        "    {\n"
+        "      \"id\": \"recovered-command\",\n"
+        "      \"name\": \"Recovered Command\",\n"
+        "      \"keyword\": \"recovered\",\n"
+        "      \"target\": \"recovered.exe\"\n"
+        "    }\n"
+        "  ]\n"
+        "}\n");
+
+    WriteText(
+        recoveredCommandsPath,
+        "{ broken json");
+
+    UserCommandStore recoveredCommands(
+        recoveredCommandsPath);
+
+    recoveredCommands.Load();
+
+    assert(
+        recoveredCommands
+            .WasRecoveredFromBackup());
+    assert(
+        recoveredCommands.Commands().size() ==
+        1);
+    assert(
+        recoveredCommands.Commands()[0].id ==
+        L"recovered-command");
+
+    const auto healedCommands =
+        config::LoadJsonWithBackup(
+            recoveredCommandsPath,
+            config::kSchemaVersion);
+
+    assert(
+        healedCommands.status ==
+        config::JsonLoadStatus::
+            LoadedPrimary);
+
+    const auto recoveredUsagePath =
+        data /
+        "usage-recovered.json";
+
+    WriteText(
+        recoveredUsagePath.string() +
+            ".bak",
+        "{\n"
+        "  \"schemaVersion\": 1,\n"
+        "  \"usage\": {\n"
+        "    \"recovered-command\": {\n"
+        "      \"launches\": 3,\n"
+        "      \"lastUsedUnix\": 1700000500\n"
+        "    }\n"
+        "  }\n"
+        "}\n");
+
+    WriteText(
+        recoveredUsagePath,
+        "{ broken json");
+
+    UsageStore recoveredUsage(
+        recoveredUsagePath);
+
+    recoveredUsage.Load();
+
+    assert(
+        recoveredUsage
+            .WasRecoveredFromBackup());
+    assert(
+        recoveredUsage.Data()
+            .at(L"recovered-command")
+            .launches == 3);
+
+    const auto healedUsage =
+        config::LoadJsonWithBackup(
+            recoveredUsagePath,
+            config::kSchemaVersion);
+
+    assert(
+        healedUsage.status ==
+        config::JsonLoadStatus::
+            LoadedPrimary);
 
     assert(featureSettings.ResetDefaults());
     assert(!featureSettings.Data().startWithWindows);

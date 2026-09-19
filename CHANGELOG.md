@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0-rc.1
+
+- Entered the v0.4 release-candidate phase with the discovery feature set frozen.
+- Added startup writeability probing for the portable `data/` directory and a localized warning when settings cannot be persisted safely.
+- Added per-store recovery state for `settings.json`, `commands.json` and `usage.json` when Config Core self-heals from a valid `.bak`.
+- Extended the Data-page health notice to report recovered files, newer-schema read-only files and an unwritable data directory.
+- Added regression coverage proving settings, commands and usage recovery state remains visible after the primary JSON file is repaired.
+- Added a generated `Version.hpp` so the About page derives its version directly from the root `VERSION` file instead of a duplicated literal.
+- Added `scripts/verify_version.py` to gate releases on consistent VERSION, CMake base version, Windows resource metadata, manifest version, README and CHANGELOG.
+- Added post-package contract validation for required portable files, unexpected DLLs, packaged VERSION and EXE FileVersion/ProductVersion.
+- Added `SHA256SUMS.txt` to rolling and immutable GitHub releases.
+- Kept user-data schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows version metadata to `0.4.0-rc.1`.
+
+
 ## 0.4.0-beta.2
 
 - Hardened atomic JSON backup semantics so an invalid primary file can no longer overwrite a valid `.bak` during the next save.

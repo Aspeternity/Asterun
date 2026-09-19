@@ -2,6 +2,7 @@
 
 #include "../app/App.hpp"
 #include "../platform/Hotkey.hpp"
+#include "Version.hpp"
 
 #include <commctrl.h>
 #include <commdlg.h>
@@ -1243,14 +1244,18 @@ void SettingsWindow::ApplyLanguage() {
         dataResetSettings_,
         T(L"恢复默认设置", L"Restore default settings"));
 
+    std::wstring versionText =
+        T(L"版本 ", L"Version ");
+    versionText += kVersionWide;
+
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.4.0-beta.2", L"Version 0.4.0-beta.2"));
+        versionText.c_str());
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Beta 2 强化数据自愈、降级只读保护、迁移矩阵与 Windows Provider 运行验证。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Beta 2 hardens data self-recovery, downgrade read-only protection, migration coverage and Windows provider runtime validation."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 RC 1 聚焦启动数据自检、版本一致性和最终发布包验证。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.4 RC 1 focuses on startup data health, version consistency and final package verification."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -1456,8 +1461,8 @@ void SettingsWindow::RefreshDataCompatibilityStatus() {
     } else if (page_ == Page::Data) {
         SetWindowTextW(
             dataStatus_,
-            T(L"数据文件兼容性检查正常。",
-              L"Local data compatibility check passed."));
+            T(L"数据健康检查正常：目录可写，且本次启动未发生备份恢复或兼容保护。",
+              L"Data health check passed: the directory is writable and no backup recovery or compatibility protection was needed this startup."));
     }
 }
 
@@ -3451,7 +3456,7 @@ void SettingsWindow::Layout() {
         MoveWindow(
             dataStatus_,
             x, Scale(468),
-            width, Scale(100), TRUE);
+            width, Scale(126), TRUE);
     }
 
     if (page_ == Page::About) {
