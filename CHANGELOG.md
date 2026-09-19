@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.0-alpha.1
+
+- Added versioned JSON Config Core with `schemaVersion: 1`.
+- Moved live settings to `data/settings.json`.
+- Moved user shortcuts to `data/commands.json`.
+- Moved usage ranking history to `data/usage.json`.
+- Added automatic one-time migration from legacy `settings.ini`, `commands.tsv` and `usage.tsv`.
+- Legacy files are preserved unchanged for rollback.
+- Added stable UUID v4 identifiers for user commands.
+- Added `legacyIds` mapping so migrated usage history follows the new UUIDs.
+- Extended the user command model with aliases, type, icon source, enabled state, administrator launch, pinning and manual sort order.
+- Separated persistent user commands from automatic Start Menu discovery.
+- Added dedicated `StartMenuProvider`.
+- Added JSON atomic writes using temporary files, validation and one-generation `.bak` backups.
+- Added fallback loading from valid backup JSON when the live document is damaged.
+- Added portable Config Core migration/recovery tests.
+- Added JSON example files and Config Core schema documentation.
+- Added compile-time `nlohmann/json` dependency; no additional runtime is required.
+- Updated Windows version metadata to `0.2.0-alpha.1`.
+
+
 ## 0.1.9
 
 - Reverted the v0.1.8 narrow-right-edge experiment.
