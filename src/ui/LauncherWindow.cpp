@@ -484,9 +484,25 @@ void LauncherWindow::Layout() {
 }
 
 void LauncherWindow::Reposition() {
-    POINT cursor{};
-    GetCursorPos(&cursor);
-    const HMONITOR monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+    HMONITOR monitor = nullptr;
+    const auto& popupMonitor = app_.SettingsData().popupMonitor;
+
+    if (popupMonitor == "primary") {
+        POINT origin{0, 0};
+        monitor = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
+    } else if (popupMonitor == "active") {
+        HWND foreground = GetForegroundWindow();
+        monitor = MonitorFromWindow(
+            foreground,
+            MONITOR_DEFAULTTONEAREST);
+    } else {
+        POINT cursor{};
+        GetCursorPos(&cursor);
+        monitor = MonitorFromPoint(
+            cursor,
+            MONITOR_DEFAULTTONEAREST);
+    }
+
     MONITORINFO info{sizeof(info)};
     GetMonitorInfoW(monitor, &info);
 
@@ -914,6 +930,10 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
 void LauncherWindow::Show() {
     if (!hwnd_) return;
 
+    if (app_.SettingsData().clearQueryOnShow) {
+        SetWindowTextW(edit_, L"");
+    }
+
     Reposition();
     ShowWindow(hwnd_, SW_SHOWNORMAL);
     SetForegroundWindow(hwnd_);
@@ -1017,12 +1037,15 @@ void LauncherWindow::ExecuteSelection() {
     if (selected == LB_ERR || static_cast<std::size_t>(selected) >= results_.size()) return;
 
     if (app_.ExecuteCommand(results_[static_cast<std::size_t>(selected)].commandIndex)) {
-        Hide();
-        SetWindowTextW(edit_, L"");
+        if (app_.SettingsData().hideAfterLaunch) {
+            Hide();
+        }
     }
 }
 
 void LauncherWindow::AddTrayIcon() {
+    if (!app_.SettingsData().showTrayIcon || trayIconAdded_) return;
+
     NOTIFYICONDATAW data{};
     data.cbSize = sizeof(data);
     data.hWnd = hwnd_;
@@ -1035,16 +1058,26 @@ void LauncherWindow::AddTrayIcon() {
 
     data.uVersion = NOTIFYICON_VERSION_4;
     Shell_NotifyIconW(NIM_SETVERSION, &data);
+    trayIconAdded_ = true;
 }
 
 void LauncherWindow::RemoveTrayIcon() {
-    if (!hwnd_) return;
+    if (!hwnd_ || !trayIconAdded_) return;
 
     NOTIFYICONDATAW data{};
     data.cbSize = sizeof(data);
     data.hWnd = hwnd_;
     data.uID = 1;
     Shell_NotifyIconW(NIM_DELETE, &data);
+    trayIconAdded_ = false;
+}
+
+void LauncherWindow::ApplyGeneralSettings() {
+    if (app_.SettingsData().showTrayIcon) {
+        AddTrayIcon();
+    } else {
+        RemoveTrayIcon();
+    }
 }
 
 void LauncherWindow::ShowTrayMenu(POINT point) {
@@ -1055,6 +1088,11 @@ void LauncherWindow::ShowTrayMenu(POINT point) {
     const auto& settings = app_.SettingsData();
 
     AppendMenuW(menu, MF_STRING, kMenuShow, app_.Text(TextId::TrayShow).data());
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        kMenuSettings,
+        app_.SettingsData().language == Language::ZhCN ? L"设置\tF2" : L"Settings\tF2");
     AppendMenuW(menu, MF_STRING, kMenuReload, app_.Text(TextId::TrayReload).data());
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
@@ -1156,6 +1194,10 @@ LRESULT LauncherWindow::HandleEditMessage(
         case VK_TAB:
             MoveSelection((GetKeyState(VK_SHIFT) & 0x8000) != 0 ? -1 : 1);
             return 0;
+        case VK_F2:
+            Hide();
+            app_.ShowSettings();
+            return 0;
         case VK_ESCAPE:
             Hide();
             return 0;
@@ -1230,6 +1272,10 @@ LRESULT LauncherWindow::HandleMessage(
             return 0;
         case kMenuReload:
             app_.ReloadCommands();
+            return 0;
+        case kMenuSettings:
+            Hide();
+            app_.ShowSettings();
             return 0;
         case kMenuThemeClassic:
             app_.SetUiStyle(UiStyle::Classic);
@@ -1477,7 +1523,9 @@ LRESULT LauncherWindow::HandleMessage(
     }
 
     case WM_ACTIVATE:
-        if (LOWORD(wParam) == WA_INACTIVE && IsWindowVisible(hwnd_)) {
+        if (LOWORD(wParam) == WA_INACTIVE &&
+            IsWindowVisible(hwnd_) &&
+            app_.SettingsData().hideOnFocusLost) {
             Hide();
         }
         break;
