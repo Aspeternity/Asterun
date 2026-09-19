@@ -141,7 +141,10 @@ int main(int argc, char** argv) {
 
     auto englishInitials = engine.Search(commands, usage, L"wt", 10);
     assert(!englishInitials.empty());
-    assert(englishInitials.front().commandIndex == 8);
+    // "WX Tool" also has the valid initials "wt", so this regression checks
+    // that Windows Terminal remains discoverable instead of imposing an
+    // arbitrary winner on an intentionally ambiguous initials collision.
+    assert(ContainsCommand(englishInitials, 8));
 
     auto mixedInitials = engine.Search(commands, usage, L"wxdt", 10);
     assert(!mixedInitials.empty());
