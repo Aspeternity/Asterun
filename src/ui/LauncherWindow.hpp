@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 namespace altrun {
@@ -27,6 +28,7 @@ private:
     struct ThemePalette {
         COLORREF windowBackground{};
         COLORREF controlBackground{};
+        COLORREF accentBackground{};
         COLORREF text{};
         COLORREF mutedText{};
         COLORREF keyword{};
@@ -60,6 +62,9 @@ private:
     void Layout();
     void Reposition();
     void PaintWindowBackground(HDC dc);
+    void PaintClassicTitleBar(HDC dc, const RECT& client);
+    void PaintClassicLogo(HDC dc, int x, int y);
+    void PaintClassicClose(HDC dc, const RECT& rect);
     void UpdateHint();
     void UpdatePreview();
     void ExecuteSelection();
@@ -67,9 +72,12 @@ private:
     void AddTrayIcon();
     void RemoveTrayIcon();
     void ShowTrayMenu(POINT point);
-    std::wstring CurrentQuery() const;
-    ThemePalette CurrentPalette() const;
-    int DpiScale(int value) const;
+
+    [[nodiscard]] bool IsModern() const;
+    [[nodiscard]] RECT ClassicCloseRect() const;
+    [[nodiscard]] std::wstring CurrentQuery() const;
+    [[nodiscard]] ThemePalette CurrentPalette() const;
+    [[nodiscard]] int DpiScale(int value) const;
 
     App& app_;
     HINSTANCE instance_{};
@@ -81,13 +89,15 @@ private:
     WNDPROC oldEditProc_{};
     HFONT normalFont_{};
     HFONT boldFont_{};
+    HFONT titleFont_{};
     HBRUSH windowBrush_{};
     HBRUSH controlBrush_{};
+    HBRUSH accentBrush_{};
     UINT dpi_{96};
-    int widthLogical_{500};
-    int rowHeightLogical_{22};
+    int widthLogical_{420};
+    int rowHeightLogical_{16};
     std::size_t maxResults_{10};
-    std::size_t hintCycle_{0};
+    std::wstring titleText_{L"[ALTRun]"};
     std::vector<SearchResult> results_;
 };
 

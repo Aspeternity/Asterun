@@ -8,6 +8,7 @@
 #include <uxtheme.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 namespace altrun {
@@ -35,11 +36,18 @@ LauncherWindow::LauncherWindow(App& app, HINSTANCE instance)
 
 LauncherWindow::~LauncherWindow() {
     RemoveTrayIcon();
+
     if (hwnd_) UnregisterHotKey(hwnd_, kHotkeyId);
     if (normalFont_) DeleteObject(normalFont_);
     if (boldFont_) DeleteObject(boldFont_);
+    if (titleFont_) DeleteObject(titleFont_);
     if (windowBrush_) DeleteObject(windowBrush_);
     if (controlBrush_) DeleteObject(controlBrush_);
+    if (accentBrush_) DeleteObject(accentBrush_);
+}
+
+bool LauncherWindow::IsModern() const {
+    return app_.SettingsData().uiStyle == UiStyle::ModernCompact;
 }
 
 bool LauncherWindow::Create() {
@@ -67,7 +75,7 @@ bool LauncherWindow::Create() {
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         widthLogical_,
-        320,
+        250,
         nullptr,
         nullptr,
         instance_,
@@ -96,7 +104,7 @@ bool LauncherWindow::Create() {
 
 void LauncherWindow::CreateChildren() {
     edit_ = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
+        0,
         L"EDIT",
         L"",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
@@ -118,7 +126,7 @@ void LauncherWindow::CreateChildren() {
         nullptr);
 
     list_ = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
+        WS_EX_STATICEDGE,
         L"LISTBOX",
         L"",
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_OWNERDRAWFIXED | LBS_NOINTEGRALHEIGHT,
@@ -129,7 +137,7 @@ void LauncherWindow::CreateChildren() {
         nullptr);
 
     preview_ = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
+        0,
         L"STATIC",
         L"",
         WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE | SS_PATHELLIPSIS | SS_NOPREFIX,
@@ -145,9 +153,10 @@ void LauncherWindow::CreateChildren() {
 }
 
 LauncherWindow::ThemePalette LauncherWindow::CurrentPalette() const {
-    if (app_.SettingsData().uiStyle == UiStyle::ModernCompact) {
+    if (IsModern()) {
         return {
             RGB(246, 247, 249),
+            RGB(255, 255, 255),
             RGB(255, 255, 255),
             RGB(31, 41, 55),
             RGB(107, 114, 128),
@@ -160,15 +169,16 @@ LauncherWindow::ThemePalette LauncherWindow::CurrentPalette() const {
     }
 
     return {
-        RGB(226, 231, 236),
+        RGB(103, 109, 115),
+        RGB(244, 246, 248),
+        RGB(186, 214, 190),
+        RGB(38, 41, 145),
+        RGB(104, 119, 109),
+        RGB(38, 41, 145),
+        RGB(4, 119, 210),
         RGB(255, 255, 255),
-        RGB(0, 0, 0),
-        RGB(128, 128, 128),
-        RGB(0, 0, 0),
-        RGB(49, 106, 197),
-        RGB(255, 255, 255),
-        RGB(214, 214, 214),
-        RGB(128, 136, 145),
+        RGB(43, 45, 148),
+        RGB(91, 97, 104),
     };
 }
 
@@ -181,10 +191,15 @@ void LauncherWindow::RecreateBrushes() {
         DeleteObject(controlBrush_);
         controlBrush_ = nullptr;
     }
+    if (accentBrush_) {
+        DeleteObject(accentBrush_);
+        accentBrush_ = nullptr;
+    }
 
     const auto palette = CurrentPalette();
     windowBrush_ = CreateSolidBrush(palette.windowBackground);
     controlBrush_ = CreateSolidBrush(palette.controlBackground);
+    accentBrush_ = CreateSolidBrush(palette.accentBackground);
 }
 
 void LauncherWindow::ApplyFonts() {
@@ -196,14 +211,18 @@ void LauncherWindow::ApplyFonts() {
         DeleteObject(boldFont_);
         boldFont_ = nullptr;
     }
+    if (titleFont_) {
+        DeleteObject(titleFont_);
+        titleFont_ = nullptr;
+    }
 
-    const bool modern = app_.SettingsData().uiStyle == UiStyle::ModernCompact;
     const bool zh = app_.SettingsData().language == Language::ZhCN;
-    const int pointSize = modern ? 10 : 9;
+    const int pointSize = IsModern() ? 10 : 9;
     const int normalHeight = -MulDiv(pointSize, static_cast<int>(dpi_), 72);
+    const int titleHeight = -MulDiv(IsModern() ? 10 : 10, static_cast<int>(dpi_), 72);
 
     const wchar_t* face = nullptr;
-    if (modern) {
+    if (IsModern()) {
         face = zh ? L"Microsoft YaHei UI" : L"Segoe UI";
     } else {
         face = zh ? L"SimSun" : L"Tahoma";
@@ -219,6 +238,11 @@ void LauncherWindow::ApplyFonts() {
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_DONTCARE, face);
 
+    titleFont_ = CreateFontW(
+        titleHeight, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE, face);
+
     SendMessageW(edit_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
     SendMessageW(hint_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
     SendMessageW(list_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
@@ -229,18 +253,10 @@ void LauncherWindow::ApplyFonts() {
 void LauncherWindow::UpdateControlFrames() {
     if (!edit_ || !list_ || !preview_) return;
 
-    const bool modern = app_.SettingsData().uiStyle == UiStyle::ModernCompact;
-
-    auto applyFrame = [modern](HWND control, bool preview) {
+    auto setFrame = [](HWND control, LONG_PTR edge) {
         LONG_PTR style = GetWindowLongPtrW(control, GWL_EXSTYLE);
         style &= ~(WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
-
-        if (!modern) {
-            style |= WS_EX_CLIENTEDGE;
-        } else if (!preview) {
-            style |= WS_EX_STATICEDGE;
-        }
-
+        style |= edge;
         SetWindowLongPtrW(control, GWL_EXSTYLE, style);
         SetWindowPos(
             control,
@@ -249,15 +265,19 @@ void LauncherWindow::UpdateControlFrames() {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     };
 
-    applyFrame(edit_, false);
-    applyFrame(list_, false);
-    applyFrame(preview_, true);
+    if (IsModern()) {
+        setFrame(edit_, WS_EX_STATICEDGE);
+        setFrame(list_, WS_EX_STATICEDGE);
+        setFrame(preview_, 0);
 
-    if (modern) {
         SetWindowTheme(edit_, L"Explorer", nullptr);
         SetWindowTheme(list_, L"Explorer", nullptr);
         SetWindowTheme(preview_, L"Explorer", nullptr);
     } else {
+        setFrame(edit_, 0);
+        setFrame(list_, WS_EX_STATICEDGE);
+        setFrame(preview_, 0);
+
         SetWindowTheme(edit_, L"", L"");
         SetWindowTheme(list_, L"", L"");
         SetWindowTheme(preview_, L"", L"");
@@ -267,30 +287,53 @@ void LauncherWindow::UpdateControlFrames() {
 void LauncherWindow::UpdateWindowChrome() {
     if (!hwnd_) return;
 
-    const bool modern = app_.SettingsData().uiStyle == UiStyle::ModernCompact;
-    const int preference = modern ? kDwmRound : kDwmDoNotRound;
+    const int preference = IsModern() ? kDwmRound : kDwmDoNotRound;
     DwmSetWindowAttribute(
         hwnd_,
         kDwmWindowCornerPreference,
         &preference,
         sizeof(preference));
+
+    if (IsModern()) {
+        SetWindowRgn(hwnd_, nullptr, TRUE);
+        return;
+    }
+
+    RECT rect{};
+    GetWindowRect(hwnd_, &rect);
+    const int width = rect.right - rect.left;
+    const int height = rect.bottom - rect.top;
+    HRGN region = CreateRoundRectRgn(
+        0, 0,
+        width + 1,
+        height + 1,
+        DpiScale(7),
+        DpiScale(7));
+
+    if (SetWindowRgn(hwnd_, region, TRUE) == 0) {
+        DeleteObject(region);
+    }
 }
 
 void LauncherWindow::ApplyAppearance() {
-    const bool modern = app_.SettingsData().uiStyle == UiStyle::ModernCompact;
-
-    widthLogical_ = modern ? 620 : 500;
-    rowHeightLogical_ = modern ? 32 : 22;
-    maxResults_ = modern ? 9 : 10;
+    if (IsModern()) {
+        widthLogical_ = 620;
+        rowHeightLogical_ = 32;
+        maxResults_ = 9;
+    } else {
+        widthLogical_ = 420;
+        rowHeightLogical_ = 16;
+        maxResults_ = 10;
+    }
 
     RecreateBrushes();
     UpdateControlFrames();
-    UpdateWindowChrome();
     ApplyFonts();
 
-    ShowWindow(hint_, modern ? SW_HIDE : SW_SHOWNA);
+    ShowWindow(hint_, IsModern() ? SW_HIDE : SW_SHOWNA);
 
     Layout();
+    UpdateWindowChrome();
     UpdateHint();
     RefreshResults();
 
@@ -308,17 +351,16 @@ void LauncherWindow::ApplyAppearance() {
 void LauncherWindow::ApplyLanguage() {
     if (!edit_) return;
 
-    const bool modern = app_.SettingsData().uiStyle == UiStyle::ModernCompact;
-
     SendMessageW(
         edit_,
         EM_SETCUEBANNER,
         TRUE,
         reinterpret_cast<LPARAM>(
-            modern ? app_.Text(TextId::SearchPlaceholder).data() : L""));
+            IsModern() ? app_.Text(TextId::SearchPlaceholder).data() : L""));
 
     ApplyFonts();
     UpdateHint();
+    UpdatePreview();
     Layout();
 
     InvalidateRect(hwnd_, nullptr, TRUE);
@@ -335,69 +377,99 @@ int LauncherWindow::DpiScale(int value) const {
 void LauncherWindow::Layout() {
     if (!hwnd_) return;
 
-    const bool modern = app_.SettingsData().uiStyle == UiStyle::ModernCompact;
-    const int margin = DpiScale(modern ? 12 : 6);
-    const int inputHeight = DpiScale(modern ? 36 : 23);
-    const int gap = DpiScale(modern ? 8 : 4);
-    const int rowHeight = DpiScale(rowHeightLogical_);
-    const int listHeight = rowHeight * static_cast<int>(maxResults_) + DpiScale(modern ? 2 : 4);
-    const int previewHeight = DpiScale(modern ? 25 : 23);
-    const int width = DpiScale(widthLogical_);
-    const int height = margin + inputHeight + gap + listHeight + gap + previewHeight + margin;
+    int width = 0;
+    int height = 0;
+
+    if (IsModern()) {
+        const int margin = DpiScale(12);
+        const int inputHeight = DpiScale(36);
+        const int gap = DpiScale(8);
+        const int rowHeight = DpiScale(rowHeightLogical_);
+        const int listHeight = rowHeight * static_cast<int>(maxResults_) + DpiScale(2);
+        const int previewHeight = DpiScale(25);
+
+        width = DpiScale(widthLogical_);
+        height = margin + inputHeight + gap + listHeight + gap + previewHeight + margin;
+
+        SetWindowPos(
+            hwnd_, nullptr, 0, 0, width, height,
+            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+        MoveWindow(edit_, margin, margin, width - margin * 2, inputHeight, TRUE);
+        MoveWindow(hint_, 0, 0, 0, 0, FALSE);
+        MoveWindow(
+            list_,
+            margin,
+            margin + inputHeight + gap,
+            width - margin * 2,
+            listHeight,
+            TRUE);
+        MoveWindow(
+            preview_,
+            margin + DpiScale(3),
+            margin + inputHeight + gap + listHeight + gap,
+            width - margin * 2 - DpiScale(6),
+            previewHeight,
+            TRUE);
+        return;
+    }
+
+    constexpr int titleHeightLogical = 30;
+    constexpr int sideLogical = 7;
+    constexpr int inputHeightLogical = 22;
+    constexpr int inputWidthLogical = 190;
+    constexpr int listTopGapLogical = 4;
+    constexpr int listHeightLogical = 162;
+    constexpr int bottomGapLogical = 6;
+    constexpr int previewHeightLogical = 18;
+    constexpr int totalHeightLogical = 250;
+
+    width = DpiScale(widthLogical_);
+    height = DpiScale(totalHeightLogical);
 
     SetWindowPos(
-        hwnd_,
-        nullptr,
-        0, 0,
-        width,
-        height,
+        hwnd_, nullptr, 0, 0, width, height,
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
-    if (modern) {
-        MoveWindow(
-            edit_,
-            margin,
-            margin,
-            width - margin * 2,
-            inputHeight,
-            TRUE);
+    const int side = DpiScale(sideLogical);
+    const int titleHeight = DpiScale(titleHeightLogical);
+    const int inputHeight = DpiScale(inputHeightLogical);
+    const int inputWidth = DpiScale(inputWidthLogical);
+    const int contentWidth = width - side * 2;
+    const int listY = titleHeight + inputHeight + DpiScale(listTopGapLogical);
+    const int listHeight = DpiScale(listHeightLogical);
+    const int previewY = listY + listHeight + DpiScale(bottomGapLogical);
 
-        MoveWindow(hint_, 0, 0, 0, 0, FALSE);
-    } else {
-        const int editWidth = DpiScale(184);
-        const int hintGap = DpiScale(8);
+    MoveWindow(
+        edit_,
+        side,
+        titleHeight,
+        inputWidth,
+        inputHeight,
+        TRUE);
 
-        MoveWindow(
-            edit_,
-            margin,
-            margin,
-            editWidth,
-            inputHeight,
-            TRUE);
-
-        MoveWindow(
-            hint_,
-            margin + editWidth + hintGap,
-            margin,
-            width - margin * 2 - editWidth - hintGap,
-            inputHeight,
-            TRUE);
-    }
+    MoveWindow(
+        hint_,
+        side + inputWidth,
+        titleHeight,
+        contentWidth - inputWidth,
+        inputHeight,
+        TRUE);
 
     MoveWindow(
         list_,
-        margin,
-        margin + inputHeight + gap,
-        width - margin * 2,
+        side,
+        listY,
+        contentWidth,
         listHeight,
         TRUE);
 
     MoveWindow(
         preview_,
-        margin,
-        margin + inputHeight + gap + listHeight + gap,
-        width - margin * 2,
-        previewHeight,
+        side,
+        previewY,
+        contentWidth,
+        DpiScale(previewHeightLogical),
         TRUE);
 }
 
@@ -416,50 +488,170 @@ void LauncherWindow::Reposition() {
     const int workHeight = info.rcWork.bottom - info.rcWork.top;
 
     const int x = info.rcWork.left + (workWidth - width) / 2;
-    const int y = info.rcWork.top + std::max(DpiScale(70), (workHeight - height) / 5);
-    SetWindowPos(hwnd_, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
+    const int y = info.rcWork.top + std::max(DpiScale(45), (workHeight - height) / 5);
+
+    SetWindowPos(
+        hwnd_,
+        HWND_TOPMOST,
+        x, y,
+        width, height,
+        SWP_NOACTIVATE);
 }
 
-void LauncherWindow::PaintWindowBackground(HDC dc) {
-    RECT rect{};
-    GetClientRect(hwnd_, &rect);
+RECT LauncherWindow::ClassicCloseRect() const {
+    RECT client{};
+    GetClientRect(hwnd_, &client);
 
-    if (app_.SettingsData().uiStyle == UiStyle::ModernCompact) {
-        FillRect(dc, &rect, windowBrush_);
-        return;
-    }
+    const int size = DpiScale(24);
+    const int inset = DpiScale(4);
 
-    const COLORREF top = RGB(248, 250, 252);
-    const COLORREF bottom = RGB(207, 214, 221);
-    constexpr int bands = 24;
+    return {
+        client.right - inset - size,
+        inset,
+        client.right - inset,
+        inset + size,
+    };
+}
+
+void LauncherWindow::PaintClassicLogo(HDC dc, int x, int y) {
+    const int s = DpiScale(18);
+
+    std::array<POINT, 8> star{{
+        {x + s / 2, y},
+        {x + s * 3 / 5, y + s * 2 / 5},
+        {x + s, y + s / 2},
+        {x + s * 3 / 5, y + s * 3 / 5},
+        {x + s / 2, y + s},
+        {x + s * 2 / 5, y + s * 3 / 5},
+        {x, y + s / 2},
+        {x + s * 2 / 5, y + s * 2 / 5},
+    }};
+
+    HBRUSH blue = CreateSolidBrush(RGB(44, 118, 184));
+    HPEN outline = CreatePen(PS_SOLID, DpiScale(1), RGB(35, 70, 95));
+    HGDIOBJ oldBrush = SelectObject(dc, blue);
+    HGDIOBJ oldPen = SelectObject(dc, outline);
+    Polygon(dc, star.data(), static_cast<int>(star.size()));
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(blue);
+    DeleteObject(outline);
+
+    POINT diamond[4]{
+        {x + s / 2, y + DpiScale(3)},
+        {x + s - DpiScale(3), y + s / 2},
+        {x + s / 2, y + s - DpiScale(3)},
+        {x + DpiScale(3), y + s / 2},
+    };
+
+    HBRUSH gold = CreateSolidBrush(RGB(247, 193, 70));
+    oldBrush = SelectObject(dc, gold);
+    Polygon(dc, diamond, 4);
+    SelectObject(dc, oldBrush);
+    DeleteObject(gold);
+}
+
+void LauncherWindow::PaintClassicClose(HDC dc, const RECT& rect) {
+    const int width = std::max(2, DpiScale(3));
+
+    HPEN shadow = CreatePen(PS_SOLID, width + 1, RGB(116, 48, 45));
+    HGDIOBJ oldPen = SelectObject(dc, shadow);
+
+    MoveToEx(dc, rect.left + DpiScale(4), rect.top + DpiScale(5), nullptr);
+    LineTo(dc, rect.right - DpiScale(3), rect.bottom - DpiScale(4));
+    MoveToEx(dc, rect.right - DpiScale(3), rect.top + DpiScale(5), nullptr);
+    LineTo(dc, rect.left + DpiScale(4), rect.bottom - DpiScale(4));
+
+    SelectObject(dc, oldPen);
+    DeleteObject(shadow);
+
+    HPEN red = CreatePen(PS_SOLID, width, RGB(231, 95, 87));
+    oldPen = SelectObject(dc, red);
+
+    MoveToEx(dc, rect.left + DpiScale(4), rect.top + DpiScale(4), nullptr);
+    LineTo(dc, rect.right - DpiScale(4), rect.bottom - DpiScale(5));
+    MoveToEx(dc, rect.right - DpiScale(4), rect.top + DpiScale(4), nullptr);
+    LineTo(dc, rect.left + DpiScale(4), rect.bottom - DpiScale(5));
+
+    SelectObject(dc, oldPen);
+    DeleteObject(red);
+}
+
+void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
+    RECT title{client.left, client.top, client.right, DpiScale(30)};
+
+    constexpr int bands = 40;
+    const COLORREF left = RGB(96, 99, 102);
+    const COLORREF right = RGB(158, 161, 165);
 
     for (int i = 0; i < bands; ++i) {
-        RECT band = rect;
-        band.top = rect.top + (rect.bottom - rect.top) * i / bands;
-        band.bottom = rect.top + (rect.bottom - rect.top) * (i + 1) / bands;
+        RECT band = title;
+        band.left = title.left + (title.right - title.left) * i / bands;
+        band.right = title.left + (title.right - title.left) * (i + 1) / bands;
 
-        HBRUSH brush = CreateSolidBrush(MixColor(top, bottom, i, bands - 1));
+        HBRUSH brush = CreateSolidBrush(MixColor(left, right, i, bands - 1));
         FillRect(dc, &band, brush);
         DeleteObject(brush);
     }
 
-    const auto palette = CurrentPalette();
-    HBRUSH frame = CreateSolidBrush(palette.frame);
-    FrameRect(dc, &rect, frame);
-    DeleteObject(frame);
+    for (int y = DpiScale(2); y < title.bottom; y += std::max(2, DpiScale(2))) {
+        HPEN line = CreatePen(PS_SOLID, 1, RGB(122, 126, 130));
+        HGDIOBJ oldPen = SelectObject(dc, line);
+        MoveToEx(dc, title.left, y, nullptr);
+        LineTo(dc, title.right, y);
+        SelectObject(dc, oldPen);
+        DeleteObject(line);
+    }
 
-    RECT inner = rect;
-    InflateRect(&inner, -1, -1);
-    HBRUSH highlight = CreateSolidBrush(RGB(255, 255, 255));
-    FrameRect(dc, &inner, highlight);
-    DeleteObject(highlight);
+    PaintClassicLogo(dc, DpiScale(9), DpiScale(6));
+
+    RECT textRect = title;
+    textRect.left += DpiScale(38);
+    textRect.right -= DpiScale(38);
+
+    HGDIOBJ oldFont = SelectObject(dc, titleFont_);
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, RGB(232, 247, 37));
+
+    DrawTextW(
+        dc,
+        titleText_.c_str(),
+        -1,
+        &textRect,
+        DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS);
+
+    SelectObject(dc, oldFont);
+
+    PaintClassicClose(dc, ClassicCloseRect());
+}
+
+void LauncherWindow::PaintWindowBackground(HDC dc) {
+    RECT client{};
+    GetClientRect(hwnd_, &client);
+
+    if (IsModern()) {
+        FillRect(dc, &client, windowBrush_);
+        return;
+    }
+
+    FillRect(dc, &client, windowBrush_);
+    PaintClassicTitleBar(dc, client);
+
+    const auto palette = CurrentPalette();
+    HBRUSH border = CreateSolidBrush(RGB(75, 80, 86));
+    FrameRect(dc, &client, border);
+    DeleteObject(border);
+
+    RECT inner = client;
+    InflateRect(&inner, -DpiScale(2), -DpiScale(2));
+    HBRUSH innerBorder = CreateSolidBrush(palette.frame);
+    FrameRect(dc, &inner, innerBorder);
+    DeleteObject(innerBorder);
 }
 
 void LauncherWindow::Show() {
     if (!hwnd_) return;
 
-    ++hintCycle_;
-    UpdateHint();
     Reposition();
     ShowWindow(hwnd_, SW_SHOWNORMAL);
     SetForegroundWindow(hwnd_);
@@ -475,24 +667,9 @@ void LauncherWindow::Hide() {
 void LauncherWindow::UpdateHint() {
     if (!hint_) return;
 
-    if (app_.SettingsData().uiStyle == UiStyle::ModernCompact) {
-        SetWindowTextW(hint_, L"");
-        return;
-    }
-
-    TextId id = TextId::ClassicHintKeyboard;
-    switch (hintCycle_ % 3) {
-    case 1:
-        id = TextId::ClassicHintMouse;
-        break;
-    case 2:
-        id = TextId::ClassicHintTray;
-        break;
-    default:
-        break;
-    }
-
-    SetWindowTextW(hint_, app_.Text(id).data());
+    SetWindowTextW(
+        hint_,
+        IsModern() ? L"" : app_.Text(TextId::ClassicHint).data());
 }
 
 std::wstring LauncherWindow::CurrentQuery() const {
@@ -529,19 +706,37 @@ void LauncherWindow::UpdatePreview() {
     const LRESULT selected = SendMessageW(list_, LB_GETCURSEL, 0, 0);
     if (selected == LB_ERR || static_cast<std::size_t>(selected) >= results_.size()) {
         SetWindowTextW(preview_, L"");
+        titleText_ = L"[ALTRun]";
+        InvalidateRect(hwnd_, nullptr, FALSE);
         return;
     }
 
     const auto& command =
         app_.GetCommand(results_[static_cast<std::size_t>(selected)].commandIndex);
 
-    std::wstring preview = command.target;
+    titleText_ = L"[";
+    titleText_ += command.keyword;
+    titleText_ += L"]";
+
+    std::wstring preview;
+    if (!IsModern()) {
+        preview = app_.Text(TextId::CommandPrefix);
+    }
+
+    preview += command.target;
     if (!command.arguments.empty()) {
         preview += L"  ";
         preview += command.arguments;
     }
 
     SetWindowTextW(preview_, preview.c_str());
+
+    if (!IsModern()) {
+        RECT title{};
+        GetClientRect(hwnd_, &title);
+        title.bottom = DpiScale(30);
+        InvalidateRect(hwnd_, &title, FALSE);
+    }
 }
 
 void LauncherWindow::MoveSelection(int delta) {
@@ -641,6 +836,7 @@ void LauncherWindow::ShowTrayMenu(POINT point) {
     AppendMenuW(menu, MF_STRING, kMenuExit, app_.Text(TextId::TrayExit).data());
 
     SetForegroundWindow(hwnd_);
+
     TrackPopupMenu(
         menu,
         TPM_RIGHTBUTTON | TPM_BOTTOMALIGN | TPM_LEFTALIGN,
@@ -710,6 +906,37 @@ LRESULT LauncherWindow::HandleMessage(
     UINT message, WPARAM wParam, LPARAM lParam) {
 
     switch (message) {
+    case WM_NCHITTEST:
+        if (!IsModern()) {
+            POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+            ScreenToClient(hwnd_, &point);
+
+            const RECT close = ClassicCloseRect();
+            if (PtInRect(&close, point)) {
+                return HTCLIENT;
+            }
+
+            if (point.y >= 0 && point.y < DpiScale(30)) {
+                return HTCAPTION;
+            }
+        }
+        break;
+
+    case WM_LBUTTONUP:
+        if (!IsModern()) {
+            POINT point{
+                GET_X_LPARAM(lParam),
+                GET_Y_LPARAM(lParam),
+            };
+
+            const RECT close = ClassicCloseRect();
+            if (PtInRect(&close, point)) {
+                DestroyWindow(hwnd_);
+                return 0;
+            }
+        }
+        break;
+
     case WM_HOTKEY:
         if (wParam == kHotkeyId) {
             if (IsWindowVisible(hwnd_)) Hide();
@@ -773,9 +1000,12 @@ LRESULT LauncherWindow::HandleMessage(
     case WM_CTLCOLOREDIT: {
         const auto palette = CurrentPalette();
         HDC dc = reinterpret_cast<HDC>(wParam);
-        SetTextColor(dc, palette.text);
-        SetBkColor(dc, palette.controlBackground);
-        return reinterpret_cast<LRESULT>(controlBrush_);
+
+        SetTextColor(dc, IsModern() ? palette.text : RGB(0, 0, 0));
+        SetBkColor(dc, IsModern() ? palette.controlBackground : palette.accentBackground);
+
+        return reinterpret_cast<LRESULT>(
+            IsModern() ? controlBrush_ : accentBrush_);
     }
 
     case WM_CTLCOLORLISTBOX: {
@@ -791,18 +1021,12 @@ LRESULT LauncherWindow::HandleMessage(
         const HWND control = reinterpret_cast<HWND>(lParam);
         HDC dc = reinterpret_cast<HDC>(wParam);
 
-        if (control == hint_) {
-            SetTextColor(dc, palette.mutedText);
-            SetBkMode(dc, TRANSPARENT);
-            return reinterpret_cast<LRESULT>(GetStockObject(HOLLOW_BRUSH));
-        }
-
-        if (control == preview_) {
+        if (control == hint_ || control == preview_) {
             SetTextColor(dc, palette.mutedText);
 
-            if (app_.SettingsData().uiStyle == UiStyle::Classic) {
-                SetBkColor(dc, palette.controlBackground);
-                return reinterpret_cast<LRESULT>(controlBrush_);
+            if (!IsModern()) {
+                SetBkColor(dc, palette.accentBackground);
+                return reinterpret_cast<LRESULT>(accentBrush_);
             }
 
             SetBkColor(dc, palette.windowBackground);
@@ -820,7 +1044,6 @@ LRESULT LauncherWindow::HandleMessage(
         }
 
         const auto palette = CurrentPalette();
-        const bool modern = app_.SettingsData().uiStyle == UiStyle::ModernCompact;
         const bool selected = (item->itemState & ODS_SELECTED) != 0;
 
         const COLORREF background =
@@ -835,12 +1058,12 @@ LRESULT LauncherWindow::HandleMessage(
         const auto& command =
             app_.GetCommand(results_[item->itemID].commandIndex);
 
-        RECT keywordRect = item->rcItem;
-        RECT titleRect = item->rcItem;
-
-        if (modern) {
+        if (IsModern()) {
+            RECT keywordRect = item->rcItem;
             keywordRect.left += DpiScale(12);
             keywordRect.right = keywordRect.left + DpiScale(165);
+
+            RECT titleRect = item->rcItem;
             titleRect.left = keywordRect.right + DpiScale(10);
             titleRect.right -= DpiScale(12);
 
@@ -885,53 +1108,74 @@ LRESULT LauncherWindow::HandleMessage(
                 SelectObject(item->hDC, oldPen);
                 DeleteObject(pen);
             }
-        } else {
-            constexpr int classicKeywordColumn = 202;
-            keywordRect.left += DpiScale(6);
-            keywordRect.right = item->rcItem.left + DpiScale(classicKeywordColumn);
-            titleRect.left = keywordRect.right + DpiScale(7);
-            titleRect.right -= DpiScale(6);
 
-            const std::wstring shortcut =
-                std::to_wstring(static_cast<unsigned long long>(item->itemID + 1)) +
-                L"  " + command.keyword;
-
-            const auto oldFont = SelectObject(item->hDC, normalFont_);
-            SetTextColor(
-                item->hDC,
-                selected ? palette.selectionText : palette.keyword);
-
-            DrawTextW(
-                item->hDC,
-                shortcut.c_str(),
-                -1,
-                &keywordRect,
-                DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
-
-            SetTextColor(
-                item->hDC,
-                selected ? palette.selectionText : palette.text);
-
-            DrawTextW(
-                item->hDC,
-                command.title.c_str(),
-                -1,
-                &titleRect,
-                DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
-
-            const COLORREF lineColor =
-                selected ? RGB(117, 156, 212) : palette.separator;
-
-            HPEN separator = CreatePen(PS_SOLID, 1, lineColor);
-            HGDIOBJ oldPen = SelectObject(item->hDC, separator);
-            const int x = item->rcItem.left + DpiScale(classicKeywordColumn);
-            MoveToEx(item->hDC, x, item->rcItem.top, nullptr);
-            LineTo(item->hDC, x, item->rcItem.bottom);
-            SelectObject(item->hDC, oldPen);
-            DeleteObject(separator);
-
-            SelectObject(item->hDC, oldFont);
+            return TRUE;
         }
+
+        constexpr int hotkeyColumnLogical = 23;
+        constexpr int shortcutColumnLogical = 230;
+
+        RECT numberRect = item->rcItem;
+        numberRect.right = item->rcItem.left + DpiScale(hotkeyColumnLogical);
+
+        RECT keywordRect = item->rcItem;
+        keywordRect.left = numberRect.right + DpiScale(3);
+        keywordRect.right = item->rcItem.left + DpiScale(shortcutColumnLogical) - DpiScale(4);
+
+        RECT titleRect = item->rcItem;
+        titleRect.left = item->rcItem.left + DpiScale(shortcutColumnLogical) + DpiScale(8);
+        titleRect.right -= DpiScale(4);
+
+        const std::wstring number =
+            item->itemID == 9
+                ? L"0"
+                : std::to_wstring(static_cast<unsigned long long>(item->itemID + 1));
+
+        const auto oldFont = SelectObject(item->hDC, normalFont_);
+        const COLORREF fg =
+            selected ? palette.selectionText : palette.text;
+
+        SetTextColor(item->hDC, fg);
+
+        DrawTextW(
+            item->hDC,
+            number.c_str(),
+            -1,
+            &numberRect,
+            DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+
+        DrawTextW(
+            item->hDC,
+            command.keyword.c_str(),
+            -1,
+            &keywordRect,
+            DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+
+        DrawTextW(
+            item->hDC,
+            command.title.c_str(),
+            -1,
+            &titleRect,
+            DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+
+        const COLORREF separatorColor =
+            selected ? RGB(195, 226, 248) : palette.separator;
+
+        HPEN separator = CreatePen(PS_SOLID, 1, separatorColor);
+        HGDIOBJ oldPen = SelectObject(item->hDC, separator);
+
+        const int firstX = item->rcItem.left + DpiScale(hotkeyColumnLogical);
+        const int secondX = item->rcItem.left + DpiScale(shortcutColumnLogical);
+
+        MoveToEx(item->hDC, firstX, item->rcItem.top, nullptr);
+        LineTo(item->hDC, firstX, item->rcItem.bottom);
+
+        MoveToEx(item->hDC, secondX, item->rcItem.top, nullptr);
+        LineTo(item->hDC, secondX, item->rcItem.bottom);
+
+        SelectObject(item->hDC, oldPen);
+        DeleteObject(separator);
+        SelectObject(item->hDC, oldFont);
 
         return TRUE;
     }
@@ -951,6 +1195,7 @@ LRESULT LauncherWindow::HandleMessage(
 
         ApplyFonts();
         Layout();
+        UpdateWindowChrome();
         return 0;
     }
 

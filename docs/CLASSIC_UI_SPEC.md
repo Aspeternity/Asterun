@@ -1,85 +1,63 @@
 # Classic UI specification
 
-Classic mode is intentionally a **behavioral and visual homage** to the old ALTRun launcher while remaining a clean-room implementation.
+The v0.1.3 Classic skin is calibrated against a real screenshot of the original ALTRun running on the same Windows desktop where ALTRun Next was tested.
 
-## Frozen visual structure
+## Reference-derived geometry
 
-At 100% scale, v0.1.2 targets:
+The ALTRun Next v0.1.2 screenshot measured about 750 px wide while the code requested 500 logical px, confirming approximately 150% Windows scaling.
 
-- 500 px launcher width;
-- 6 px outer margin;
-- 23 px top input/hint row;
-- 184 px classic input width;
-- light-gray operation hint on the right;
-- 10 visible results;
-- 22 px result row height;
-- 202 px shortcut column;
-- white two-column result surface;
-- 23 px recessed command preview box;
-- square Win11 corners;
-- silver/gray vertical gradient outer shell.
+The original ALTRun reference measures about 628 px wide and 375 px high. Therefore the Classic target is approximately:
 
-## Classic result row
+- width: 420 logical px
+- height: 250 logical px
+- title bar: 30 logical px
+- top input/hint strip: 22 logical px
+- result row: 16 logical px
+- visible result rows: 10
+- bottom command strip: 18 logical px
 
-The left column renders:
+## Reference-derived colors
+
+Approximate sampled colors:
+
+- outer/frame gray: RGB(103,109,115)
+- top/bottom pale green: RGB(186,214,190)
+- result background: RGB(244,246,248)
+- selected row: RGB(4,119,210)
+- classic blue text/dividers: around RGB(38,41,145)
+
+## Result columns
+
+Classic is a three-column table:
+
+1. hotkey number
+2. shortcut keyword / aliases
+3. human-readable description
+
+The first ten visible hotkeys render exactly as:
 
 ```text
-1  chrome
-2  code
-3  calc
+1 2 3 4 5 6 7 8 9 0
 ```
 
-The right column renders the human-readable command title/description.
+## Title bar
 
-A subtle vertical divider separates both columns. Selection uses a full-width classic Windows blue highlight with white text.
+The title bar is custom drawn and contains:
 
-## Classic typography
+- a small launcher emblem on the left;
+- dynamic centered text in brackets, e.g. `[calc]`;
+- a large red X on the right;
+- a dark-to-light horizontal gray gradient with subtle scanline texture.
 
-- Simplified Chinese: SimSun, 9 pt
-- English: Tahoma, 9 pt
+## Top and bottom strips
 
-The goal is to preserve the compact desktop-tool character instead of making Classic look like a modern web application.
+The top row and bottom command row use the pale-green skin color rather than native white edit/static backgrounds.
 
-## Classic top hint
+The bottom row prefixes the selected target with:
 
-The upper-right hint cycles through only features that currently exist:
+- Chinese: `命令：`
+- English: `Command: `
 
-- keyboard selection / run / hide;
-- double-click launch and Alt+Space show/hide;
-- tray appearance/language/reload controls.
+## Separation from Modern Compact
 
-## Modern Compact separation
-
-Classic-specific behavior must not leak into Modern Compact.
-
-Modern Compact keeps:
-
-- 620 px width;
-- 32 px rows;
-- Win11 rounded corners;
-- themed controls;
-- larger spacing;
-- no shortcut numbering;
-- no classic vertical column divider.
-
-## Interaction shared by both themes
-
-| Input | Behavior |
-| --- | --- |
-| Alt+Space | Show/hide launcher |
-| typing | Filter and rank immediately |
-| Up/Down | Move selection without leaving the input box |
-| Enter | Launch selected result |
-| Escape | Hide launcher |
-| double click | Launch selected result |
-
-## Non-goals for Classic
-
-Do not add:
-
-- card layouts;
-- oversized icons;
-- navigation sidebars;
-- toolbar ribbons;
-- animation-heavy transitions;
-- settings pages inside the launcher surface.
+Modern Compact remains a separate UI path and is not forced to inherit Classic geometry, colors, numbering, or title-bar behavior.

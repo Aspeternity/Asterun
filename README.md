@@ -2,67 +2,54 @@
 
 ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise.
 
-The project does **not** copy the original Delphi source. The behavior and visual direction are being reimplemented from scratch for current Windows versions.
+## v0.1.3 — screenshot-driven Classic rebuild
 
-## v0.1.2
+Classic mode is now based on a real reference screenshot of the old ALTRun skin rather than a generic "classic Win32" interpretation.
 
-The Classic UI has received its first high-fidelity pass while **Modern Compact remains available and unchanged in direction**.
+At 150% Windows scaling, the target Classic window is approximately 630 × 375 physical pixels, which maps to about 420 × 250 logical pixels.
 
-### Classic ALTRun
+### Classic layout
 
-Classic mode now deliberately recreates the recognizable structure of the old launcher:
+```text
+┌──────────────────────────────────────────┐
+│  ✦                [calc]              X  │  dark gray custom title
+├───────────────────┬──────────────────────┤
+│ input             │ hint                 │  pale green
+├───┬──────────────────────┬───────────────┤
+│ 1 │ calc                 │ Calculator    │
+│ 2 │ cmd                  │ Command Prompt│
+│ 3 │ explorer             │ File Explorer │
+│ … │                      │               │
+│ 0 │ ...                  │ ...           │
+├──────────────────────────────────────────┤
+│ 命令：calc.exe                           │  pale green
+└──────────────────────────────────────────┘
+```
 
-- silver/gray vertical gradient shell;
-- square Win32 window corners on Windows 11;
-- classic, non-themed edit/list borders;
-- narrow input box at the upper-left;
-- light-gray contextual operation hint at the upper-right;
-- rotating hints when the launcher is shown;
-- compact white two-column result list;
-- numeric prefixes before shortcut keywords;
-- classic blue full-row selection;
-- fixed divider between shortcut and description columns;
-- separate recessed command preview box at the bottom;
-- compact 500 px baseline width and 22 px result rows;
-- SimSun for Simplified Chinese Classic UI and Tahoma for English Classic UI.
+Classic v0.1.3 specifically adds:
 
-### Modern Compact
+- 420 logical px baseline width
+- 250 logical px baseline height
+- custom gray gradient title bar
+- dynamic `[shortcut]` title
+- red close X
+- pale-green top and bottom strips
+- 16 logical px compact result rows
+- 1–9,0 hotkey number column
+- shortcut and description columns with two vertical dividers
+- reference-matched blue selection color
+- SimSun / Tahoma classic typography
 
-Modern Compact keeps the newer visual language:
-
-- wider 620 px layout;
-- Win11 rounded window corners;
-- modern themed controls;
-- larger 32 px result rows;
-- no numeric prefix or classic column divider;
-- modern blue-accent result rendering.
+Modern Compact remains available from the tray and keeps its Win11-oriented layout.
 
 ### Language
 
-- Simplified Chinese (`zh-CN`) — default
+- 简体中文 (`zh-CN`) — default
 - English (`en-US`)
-- UI and language can be switched live from the tray menu.
 
-## UI and language
+Right-click the tray icon to switch appearance or language.
 
-Right-click the tray icon:
-
-```text
-显示 / Show
-重新加载 commands.tsv / Reload commands.tsv
-
-界面 / Appearance
-  ✓ 经典 ALTRun / Classic ALTRun
-    现代紧凑 / Modern Compact
-
-语言 / Language
-  ✓ 简体中文
-    English
-
-退出 / Exit
-```
-
-Settings persist to `settings.ini` beside the executable:
+### Portable settings
 
 ```ini
 [general]
@@ -70,80 +57,19 @@ ui=classic
 language=zh-CN
 ```
 
-Supported UI values:
-
-- `classic`
-- `modern-compact`
-
-Supported language values:
-
-- `zh-CN`
-- `en-US`
-
-## Current core features
+### Core features
 
 - Native C++23 + Win32
-- `Alt + Space` global launcher hotkey
+- Alt+Space global launcher hotkey
 - Custom commands from `commands.tsv`
-- Automatic Start Menu shortcut indexing
+- Start Menu indexing
 - Lightweight fuzzy matching
-- Usage frequency + recency ranking
-- Portable `usage.tsv` history
-- Windows 11 per-monitor DPI awareness v2
-- x64 and ARM64 GitHub Actions builds
+- Frequency + recency ranking
+- x64 / ARM64 GitHub Actions builds
 
-## Architecture
-
-```text
-ALTRunNext
-├─ app
-│  └─ App
-├─ core
-│  ├─ Command
-│  ├─ CommandStore
-│  ├─ Localization
-│  ├─ SearchEngine
-│  ├─ Settings
-│  └─ UsageStore
-├─ platform
-│  └─ WinUtil
-└─ ui
-   └─ LauncherWindow
-```
-
-Search, settings, localization and rendering are separated so additional skins can be added without rewriting the launcher core.
-
-## Build on Windows
-
-Requirements:
-
-- Visual Studio 2022 or newer
-- Desktop development with C++ workload
-- CMake 3.24+
+## Build
 
 ```powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release
 ```
-
-Output:
-
-```text
-build/Release/ALTRunNext.exe
-```
-
-## Portable custom commands
-
-On first launch the app creates `commands.tsv` next to `ALTRunNext.exe`.
-
-Format:
-
-```text
-keyword<TAB>title<TAB>target<TAB>arguments<TAB>working_directory
-```
-
-After editing, right-click the tray icon and choose **重新加载 commands.tsv / Reload commands.tsv**.
-
-## Next
-
-The next search-focused milestone is pinyin matching + Everything provider integration. Further Classic work will be driven by real side-by-side screenshots and user testing.

@@ -1,39 +1,32 @@
 # Changelog
 
+## 0.1.3
+
+- Rebuilt Classic mode against a real user-provided old ALTRun screenshot instead of generic Win32 styling.
+- Reduced Classic width from 500 to 420 logical px; at 150% DPI this is about 630 physical px, matching the reference.
+- Reduced Classic result rows from 22 to 16 logical px.
+- Added a custom dark-gray horizontal-gradient title bar.
+- Added a small hand-drawn launcher emblem and large red close X.
+- Added a centered dynamic title such as `[calc]`, following the selected shortcut.
+- Added a pale-green top input/hint strip and pale-green bottom command strip.
+- Added localized `命令：` / `Command: ` prefix.
+- Rebuilt the result area into the original three-column structure: hotkey number, shortcut keyword, description.
+- Classic hotkeys now render `1..9, 0` for the first ten visible items.
+- Changed Classic result background and blue selection colors to values sampled from the reference screenshot.
+- Added the two vertical separators visible in the original list.
+- Kept Modern Compact as a separate rendering path.
+- Bumped application, manifest and Windows resource version to 0.1.3.
+
 ## 0.1.2
 
-- Reworked Classic ALTRun mode for much higher visual fidelity.
-- Added a silver/gray vertical gradient launcher shell.
-- Added a narrow upper-left input field and upper-right operation hint area.
-- Added rotating contextual hints that match the classic interaction style.
-- Added numeric shortcut prefixes in Classic result rows.
-- Added a fixed two-column shortcut/description layout and divider.
-- Added the classic full-row blue selection treatment.
-- Restyled the command preview as a separate recessed bottom box.
-- Switched Classic Chinese typography to SimSun and Classic English to Tahoma.
-- Disabled modern control theming in Classic mode.
-- Forced square Classic corners on Windows 11 while retaining rounded Modern Compact corners.
-- Preserved the Modern Compact layout and rendering path.
-- Bumped application, manifest and Windows resource version to 0.1.2.
+- Reworked Classic ALTRun mode for higher visual fidelity.
+- Added Classic square-corner and legacy-control behavior on Windows 11.
+- Added shortcut numbering and compact layout.
 
 ## 0.1.1
 
-- Added persistent portable `settings.ini`.
-- Added Simplified Chinese and English UI strings.
-- Added live language switching from the tray menu.
-- Added **Classic ALTRun** and **Modern Compact** switchable UI styles.
-- Added localized search placeholder and application messages.
-- Added theme-specific geometry, fonts, colors and result rendering.
-- Kept search/indexing core independent from UI and localization.
-- Packaged a `settings.example.ini` with CI artifacts.
+- Added portable settings, Simplified Chinese / English and live UI switching.
 
-## 0.1.0 - development baseline
+## 0.1.0
 
-- Created a clean-room C++23/Win32 project architecture.
-- Added classic compact launcher UI shell.
-- Added global Alt+Space activation.
-- Added custom TSV commands and Start Menu indexing.
-- Added lightweight fuzzy search and usage-based ranking.
-- Added per-monitor DPI v2 support and tray controls.
-- Added portable history storage.
-- Added x64/ARM64 CI and tagged-release workflows.
+- Created the clean-room C++23/Win32 development baseline.

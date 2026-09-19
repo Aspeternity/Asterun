@@ -16,12 +16,10 @@ std::wstring_view LocalizedText(TextId id, Language language) {
             : L"Alt+Space is already in use by another application.\n\nALTRun Next will keep running in the tray; hotkey customization will be added next.";
     case TextId::SearchPlaceholder:
         return zh ? L"输入快捷词、程序名或路径…" : L"Type a keyword, app name, or path...";
-    case TextId::ClassicHintKeyboard:
-        return zh ? L"↑↓ 选择　Enter 运行　Esc 隐藏" : L"↑↓ Select   Enter Run   Esc Hide";
-    case TextId::ClassicHintMouse:
-        return zh ? L"双击运行　Alt+Space 呼出 / 隐藏" : L"Double-click to run   Alt+Space show / hide";
-    case TextId::ClassicHintTray:
-        return zh ? L"托盘右键：界面 / 语言 / 重载" : L"Tray menu: appearance / language / reload";
+    case TextId::ClassicHint:
+        return zh ? L"按下↑↓键选择快捷项，Enter键运行" : L"Use ↑↓ to select, Enter to run";
+    case TextId::CommandPrefix:
+        return zh ? L"命令：" : L"Command: ";
     case TextId::TrayShow:
         return zh ? L"显示\tAlt+Space" : L"Show\tAlt+Space";
     case TextId::TrayReload:
@@ -41,6 +39,7 @@ std::wstring_view LocalizedText(TextId id, Language language) {
     case TextId::TrayExit:
         return zh ? L"退出" : L"Exit";
     }
+
     return L"";
 }
 
