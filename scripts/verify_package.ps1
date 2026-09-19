@@ -96,7 +96,81 @@ if ($packagedVersion -ne $expectedVersion) {
 
 $semver = [regex]::Match(
     $expectedVersion,
-    '^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$'
+    '^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+)(?:\.(\d+))?)?
+
+if (-not $semver.Success) {
+    throw "Unsupported VERSION format: '$expectedVersion'."
+}
+
+$major = [int]$semver.Groups[1].Value
+$minor = [int]$semver.Groups[2].Value
+$patch = [int]$semver.Groups[3].Value
+$channel = $semver.Groups[4].Value
+
+$channelNumber = if ($semver.Groups[5].Success) {
+    [int]$semver.Groups[5].Value
+} else {
+    0
+}
+
+$channelPatch = if ($semver.Groups[6].Success) {
+    [int]$semver.Groups[6].Value
+} else {
+    0
+}
+
+if ($channelPatch -ne 0 -and $channel -ne "alpha") {
+    throw "Only alpha prereleases currently support a hotfix component."
+}
+
+if ($channel -eq "alpha") {
+    if ($channelPatch -ne 0 -or $channelNumber -ge 3) {
+        $revision = $channelNumber * 10 + $channelPatch
+    } else {
+        $revision = $channelNumber
+    }
+} elseif ($channel -eq "beta") {
+    $revision = 99 + $channelNumber
+} elseif ($channel -eq "rc") {
+    $revision = 199 + $channelNumber
+} else {
+    $revision = 300
+}
+
+$expectedWindowsVersion =
+    "{0}.{1}.{2}.{3}" -f $major, $minor, $patch, $revision
+
+$versionInfo =
+    (Get-Item (Join-Path $verify "ALTRunNext.exe")).VersionInfo
+
+$fileVersion =
+    "{0}.{1}.{2}.{3}" -f
+        $versionInfo.FileMajorPart,
+        $versionInfo.FileMinorPart,
+        $versionInfo.FileBuildPart,
+        $versionInfo.FilePrivatePart
+
+$productVersion =
+    "{0}.{1}.{2}.{3}" -f
+        $versionInfo.ProductMajorPart,
+        $versionInfo.ProductMinorPart,
+        $versionInfo.ProductBuildPart,
+        $versionInfo.ProductPrivatePart
+
+if ($fileVersion -ne $expectedWindowsVersion) {
+    throw "EXE fixed FileVersion '$fileVersion' does not match '$expectedWindowsVersion'."
+}
+
+if ($productVersion -ne $expectedWindowsVersion) {
+    throw "EXE fixed ProductVersion '$productVersion' does not match '$expectedWindowsVersion'."
+}
+
+Write-Host "Package contract verified:"
+Write-Host "  Archive: $Archive"
+Write-Host "  VERSION: $expectedVersion"
+Write-Host "  Windows version: $expectedWindowsVersion"
+Write-Host "  Top-level package entries: exact allowlist verified"
+
 )
 
 if (-not $semver.Success) {
