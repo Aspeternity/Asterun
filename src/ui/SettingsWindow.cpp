@@ -3381,7 +3381,9 @@ SettingsWindow::BuildGeneralLayout(
     const int contentRight =
         std::max(
             contentLeft + Scale(260),
-            client.right - Scale(42));
+            static_cast<int>(
+                client.right) -
+                Scale(42));
 
     const int contentWidth =
         contentRight - contentLeft;
@@ -3625,7 +3627,8 @@ void SettingsWindow::UpdateGeneralScrollBar() {
             0,
             full.contentBottom +
                 Scale(10) -
-                client.bottom);
+                static_cast<int>(
+                    client.bottom));
 
     ShowScrollBar(
         hwnd_,
@@ -3647,7 +3650,8 @@ void SettingsWindow::UpdateGeneralScrollBar() {
             0,
             full.contentBottom +
                 Scale(10) -
-                client.bottom);
+                static_cast<int>(
+                    client.bottom));
 
     generalScrollOffset_ =
         std::clamp(
@@ -3672,7 +3676,8 @@ void SettingsWindow::UpdateGeneralScrollBar() {
         static_cast<UINT>(
             std::max(
                 1,
-                client.bottom));
+                static_cast<int>(
+                    client.bottom)));
     info.nPos =
         generalScrollOffset_;
 
@@ -5158,18 +5163,18 @@ LRESULT SettingsWindow::HandleMessage(
                         static_cast<int>(
                             filteredCommandIds_.size())) {
 
-                    const std::wstring id =
+                    const std::wstring selectedId =
                         filteredCommandIds_[
                             static_cast<std::size_t>(index)];
 
-                    if (id != editingCommandId_) {
+                    if (selectedId != editingCommandId_) {
                         if (!ConfirmDiscardChanges()) {
                             RefreshCommandList(
                                 editingCommandId_);
                             return 0;
                         }
 
-                        LoadCommandEditor(id);
+                        LoadCommandEditor(selectedId);
                     }
                 }
             }
