@@ -108,7 +108,7 @@ if version == "0.6.0-alpha.6":
         "SyncLegacyHotkeyMirrors",
         "ResetHotkeyBindings",
         'hotkey_actions::kActivate',
-        'hotkey_actions::kActivateSecondary',
+        "kActivateSecondary",
     ):
         if token not in settings_cpp:
             fail(f"alpha.6 settings migration/persistence missing: {token}")
