@@ -686,7 +686,16 @@ void LauncherWindow::PaintClassicClose(HDC dc, const RECT& rect) {
 }
 
 void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
-    RECT title{client.left, client.top, client.right, DpiScale(30)};
+    // Keep the same gray side rail from the title bar all the way down the
+    // launcher. Previously the gradient reached the outer edge while the
+    // content area was inset, producing a visible color break on both sides.
+    const int sideRail = DpiScale(7);
+    RECT title{
+        client.left + sideRail,
+        client.top,
+        client.right - sideRail,
+        DpiScale(30)
+    };
 
     constexpr int bands = 40;
     const COLORREF left = RGB(86, 91, 96);
@@ -714,8 +723,6 @@ void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
         DeleteObject(line);
     }
 
-    PaintClassicLogo(dc, DpiScale(9), DpiScale(3));
-
     RECT textRect = title;
     textRect.left += DpiScale(38);
     textRect.right -= DpiScale(38);
@@ -732,8 +739,6 @@ void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
         DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS);
 
     SelectObject(dc, oldFont);
-
-    PaintClassicClose(dc, ClassicCloseRect());
 }
 
 void LauncherWindow::PaintWindowBackground(HDC dc) {
@@ -749,6 +754,32 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     PaintClassicTitleBar(dc, client);
 
     const auto palette = CurrentPalette();
+
+    // Continuous Classic side rails. These intentionally use the same color
+    // above and below the title/content boundary to avoid the visible break
+    // that appeared on the right edge in v0.1.5.
+    const int railWidth = DpiScale(7);
+    RECT leftRail{
+        client.left,
+        client.top,
+        client.left + railWidth,
+        client.bottom
+    };
+    RECT rightRail{
+        client.right - railWidth,
+        client.top,
+        client.right,
+        client.bottom
+    };
+    FillRect(dc, &leftRail, windowBrush_);
+    FillRect(dc, &rightRail, windowBrush_);
+
+    // Repaint the title contents after the rails so the logo and close button
+    // remain above the continuous frame background.
+    PaintClassicLogo(dc, DpiScale(9), DpiScale(3));
+    PaintClassicClose(dc, ClassicCloseRect());
+
+    // The two final frame strokes are drawn last and span the full height.
     HBRUSH border = CreateSolidBrush(RGB(75, 80, 86));
     FrameRect(dc, &client, border);
     DeleteObject(border);

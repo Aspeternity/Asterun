@@ -2,6 +2,10 @@
 
 ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise.
 
+## v0.1.6 — Classic frame continuity fix
+
+Classic geometry remains frozen. This release fixes the visible color break where the title bar met the right-side frame by making both side rails continuous from top to bottom. The same correction is applied to the left edge.
+
 ## v0.1.3 — screenshot-driven Classic rebuild
 
 Classic mode is now based on a real reference screenshot of the old ALTRun skin rather than a generic "classic Win32" interpretation.

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.6
+
+- Fixed the visible Classic right-edge color interruption between the title bar and content area.
+- Root cause: the title gradient extended to the window edge while the content area used a 7 logical px gray side rail.
+- Inset the Classic title gradient by the same 7 logical px used by the content layout.
+- Added continuous left and right gray side rails spanning the full window height.
+- Moved the final outer and inner frame strokes to the end of Classic background painting.
+- Repainted the logo and close button above the side rails to preserve their appearance.
+- Applied the continuity fix symmetrically to both left and right edges.
+- Kept window size, row height, result columns, colors and Modern Compact geometry unchanged.
+- Bumped application, manifest and Windows resource version to 0.1.6.
+
+
 ## 0.1.5
 
 - Froze the already-matched Classic window geometry and result-table layout.
