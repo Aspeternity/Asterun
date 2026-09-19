@@ -18,18 +18,55 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
-# cpp-pinyin is linked statically. Its Mandarin dictionaries are copied next
-# to ALTRunNext.exe so the launcher remains portable and needs no installer.
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(CPP_PINYIN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(CPP_PINYIN_INSTALL OFF CACHE BOOL "" FORCE)
-
+# cpp-pinyin is intentionally NOT added through its upstream CMake project.
+# On Windows 1.0.2 can still produce cpp-pinyin.dll despite the parent trying
+# to force BUILD_SHARED_LIBS=OFF. ALTRun Next therefore populates the source
+# tree only and owns an explicit STATIC target. This guarantees the portable
+# EXE never has a runtime dependency on cpp-pinyin.dll.
 FetchContent_Declare(
     cpp_pinyin
     URL https://github.com/wolfgitpr/cpp-pinyin/archive/refs/tags/1.0.2.tar.gz
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR _altrun_source_only
 )
 FetchContent_MakeAvailable(cpp_pinyin)
+
+file(
+    GLOB_RECURSE
+    CPP_PINYIN_SOURCES
+    CONFIGURE_DEPENDS
+    "${cpp_pinyin_SOURCE_DIR}/src/*.cpp"
+)
+
+add_library(cpp_pinyin_static STATIC
+    ${CPP_PINYIN_SOURCES}
+)
+
+target_include_directories(
+    cpp_pinyin_static
+    PUBLIC
+        "${cpp_pinyin_SOURCE_DIR}/include"
+    PRIVATE
+        "${cpp_pinyin_SOURCE_DIR}/src"
+        "${cpp_pinyin_SOURCE_DIR}/src/toneUtil"
+)
+
+target_compile_definitions(
+    cpp_pinyin_static
+    PUBLIC CPP_PINYIN_STATIC
+)
+
+if(MSVC)
+    target_compile_options(
+        cpp_pinyin_static
+        PRIVATE /utf-8 /EHsc
+    )
+else()
+    target_compile_options(
+        cpp_pinyin_static
+        PRIVATE -Wall -Wextra -Wpedantic
+    )
+endif()
 
 add_library(altrun_core STATIC
     src/core/PinyinSearch.cpp
@@ -37,7 +74,7 @@ add_library(altrun_core STATIC
 )
 
 target_include_directories(altrun_core PUBLIC src)
-target_link_libraries(altrun_core PUBLIC cpp-pinyin::cpp-pinyin)
+target_link_libraries(altrun_core PUBLIC cpp_pinyin_static)
 
 add_library(altrun_config STATIC
     src/core/ConfigIO.cpp

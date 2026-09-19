@@ -1134,7 +1134,7 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.3.0-alpha.1", L"Version 0.3.0-alpha.1"));
+        T(L"版本 0.3.0-alpha.1.1", L"Version 0.3.0-alpha.1.1"));
 
     SetWindowTextW(
         aboutDescription_,

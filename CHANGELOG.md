@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0-alpha.1.1
+
+- Fixed the Windows startup failure caused by a missing `cpp-pinyin.dll` in the v0.3.0-alpha.1 package.
+- Stopped consuming cpp-pinyin through its upstream CMake target on Windows.
+- ALTRun Next now builds cpp-pinyin 1.0.2 sources into an explicit internal STATIC library, so `ALTRunNext.exe` has no cpp-pinyin runtime DLL dependency.
+- Added a Windows CI portability gate that fails the build if `cpp-pinyin.dll` or any unexpected DLL is produced beside the executable.
+- Kept the Mandarin dictionaries and Apache-2.0 license bundled in the portable archive.
+- Updated Windows version metadata to `0.3.0-alpha.1.1`.
+
+
 ## 0.3.0-alpha.1
 
 - Added the first Pinyin Search Core for Chinese shortcut and Start Menu names.
