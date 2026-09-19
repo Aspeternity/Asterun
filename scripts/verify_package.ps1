@@ -19,6 +19,7 @@ $required = @(
     "VERSION",
     "README.md",
     "CONFIG_SCHEMA.md",
+    "DESKTOP_VALIDATION.md",
     "dict",
     "third_party/cpp-pinyin-LICENSE.txt"
 )

@@ -69,6 +69,8 @@ Starting with v0.4.1-alpha.2, all of these schema-2 fields are configurable from
 
 v0.4.1-alpha.3 does not change the schema. It hardens the runtime/UI contract around these fields: working hotkeys are not churned when Settings opens, failed registrations can still be retried, resume forces revalidation, Restore defaults avoids primary/auxiliary self-conflicts, and the General page can scroll/stack on constrained high-DPI displays.
 
+v0.4.1-beta.1 declares this configuration surface frozen for the remainder of the v0.4.1 Beta/RC cycle. CI now rejects accidental changes to the v0.4.1 schema versions, stable provider IDs or documented default settings. Beta/RC regression fixes therefore do not require a data migration unless the release plan is explicitly reopened.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text

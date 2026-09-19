@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.1-beta.1 — Feature Freeze & Desktop Validation
+
+Beta 1 freezes the v0.4.1 product feature set. No new launcher behavior, provider, schema field or Classic visual redesign is introduced in this release.
+
+A new v0.4.1 release-contract gate now protects the frozen settings/commands/usage/provider-cache schema versions, the four stable Windows provider IDs, documented default settings and the established Classic launcher width/result geometry. The gate runs on main and on tag releases so accidental feature-surface drift is caught before publication.
+
+Windows package validation now includes an x64 portable runtime startup smoke in addition to compile/test/package checks. The smoke extracts the final ZIP, starts the packaged executable with an isolated writable data directory and non-conflicting test hotkey, verifies the process remains healthy through startup, checks write-probe cleanup, then terminates the test instance.
+
+The tag-triggered Release workflow is now aligned with the main publication path: Core Tests, v0.4.1 freeze verification, Windows provider/hotkey smoke tests, Windows 10 API-baseline compatibility, x64/ARM64 package contracts and the x64 packaged-runtime smoke must succeed before assets are published.
+
+A formal DESKTOP_VALIDATION.md checklist is shipped in each ZIP. It covers the remaining interactive items that hosted CI cannot honestly validate: real Windows 10/11 desktops, 100%/125%/150%/200% DPI, primary/auxiliary hotkey conflict and sleep/resume behavior, IME composition, Classic numeric execution, provider refresh and v0.4.0 upgrade/downgrade safety.
+
+Configuration remains frozen at settings schemaVersion 2, commands/usage schemaVersion 1 and provider-cache schemaVersion 2.
+
 ## v0.4.1-alpha.3 — Real-world Settings UX & Compatibility
 
 Alpha 3 is a hardening release for the settings added in alpha.1/alpha.2. It does not add another v0.4.1 feature surface and it keeps the Classic launcher geometry frozen.

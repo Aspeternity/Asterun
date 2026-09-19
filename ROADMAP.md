@@ -75,8 +75,12 @@ In progress:
 - Alpha 3 hardens hotkey retry/reset behavior, IME-safe immediate execution, numeric-key repeat handling and high-DPI/narrow-window Settings layout
 - General Settings now supports responsive stacking plus vertical scrolling instead of requiring an oversized fixed-height window
 - Windows CI includes hotkey-codec regression coverage in both current and compatibility runners
+- Beta 1 freezes schemas, provider IDs, safe defaults and core Classic geometry through a dedicated release-contract gate
+- Final x64 ZIPs receive a packaged-runtime startup smoke before publication
+- Tag-triggered releases now require the same Core/Windows smoke/compatibility gates as main publication
+- A packaged desktop-validation checklist defines the real Windows 10/11, DPI, hotkey, IME, provider and migration matrix
 - Classic launcher geometry remains frozen
-- Remaining v0.4.1 work is real desktop validation and regression fixes before beta/RC promotion
+- Remaining v0.4.1 work is execution of the real desktop checklist plus regression-only fixes before RC promotion
 
 ## v0.5.x - Everything integration
 

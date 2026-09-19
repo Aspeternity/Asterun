@@ -9,9 +9,63 @@ permissions:
   contents: write
 
 jobs:
+  test-core:
+    name: Core tests and release contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify version metadata
+        run: python3 scripts/verify_version.py
+      - name: Verify v0.4.1 feature freeze contract
+        run: python3 scripts/verify_release_contract.py
+      - name: Configure
+        run: cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Build tests
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows-smoke:
+    name: Windows runtime smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Windows smoke tests
+        shell: pwsh
+        run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
+      - name: Build Windows smoke tests
+        shell: pwsh
+        run: cmake --build build-smoke --config Release --target windows_provider_smoke_tests hotkey_tests --parallel
+      - name: Run Windows smoke tests
+        shell: pwsh
+        run: ctest --test-dir build-smoke -C Release -R "^(windows_provider_smoke_tests|hotkey_tests)$" --output-on-failure
+
+  windows-compat:
+    name: Windows 10 API baseline
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure x64 compatibility build
+        shell: pwsh
+        run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
+      - name: Build x64 compatibility target
+        shell: pwsh
+        run: cmake --build build-compat --config Release --target ALTRunNext windows_provider_smoke_tests hotkey_tests --parallel
+      - name: Verify compatibility artifact
+        shell: pwsh
+        run: |
+          if (-not (Test-Path build-compat/Release/ALTRunNext.exe)) {
+            throw "Windows compatibility build did not produce ALTRunNext.exe."
+          }
+      - name: Run Windows compatibility smoke
+        shell: pwsh
+        run: ctest --test-dir build-compat -C Release -R "^(windows_provider_smoke_tests|hotkey_tests)$" --output-on-failure
+
   build:
+    name: Package Windows (${{ matrix.arch }})
     runs-on: windows-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [x64, ARM64]
     steps:
@@ -19,6 +73,9 @@ jobs:
       - name: Verify version metadata
         shell: pwsh
         run: python scripts/verify_version.py
+      - name: Verify v0.4.1 feature freeze contract
+        shell: pwsh
+        run: python scripts/verify_release_contract.py
       - name: Configure
         shell: pwsh
         run: cmake -S . -B build -A ${{ matrix.arch }} -DBUILD_TESTING=OFF
@@ -28,6 +85,12 @@ jobs:
       - name: Verify portable runtime
         shell: pwsh
         run: |
+          $pinyinDlls = @(Get-ChildItem build -Recurse -File -Filter "cpp-pinyin.dll" -ErrorAction SilentlyContinue)
+          if ($pinyinDlls.Count -ne 0) {
+            $pinyinDlls | ForEach-Object { Write-Host $_.FullName }
+            throw "cpp-pinyin.dll was produced. ALTRun Next must link cpp-pinyin statically."
+          }
+
           $unexpectedDlls = @(Get-ChildItem build/Release -File -Filter "*.dll" -ErrorAction SilentlyContinue)
           if ($unexpectedDlls.Count -ne 0) {
             $unexpectedDlls | ForEach-Object { Write-Host $_.FullName }
@@ -43,6 +106,7 @@ jobs:
           Copy-Item -Recurse build/Release/third_party dist/third_party
           Copy-Item config/*.example.* dist/
           Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
+          Copy-Item docs/DESKTOP_VALIDATION.md dist/DESKTOP_VALIDATION.md
           Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
@@ -51,13 +115,18 @@ jobs:
         shell: pwsh
         run: '& ./scripts/verify_package.ps1 -Archive "ALTRunNext-${{ matrix.arch }}.zip"'
 
+      - name: Verify packaged x64 runtime startup
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: '& ./scripts/verify_runtime_smoke.ps1 -Archive "ALTRunNext-x64.zip"'
+
       - uses: actions/upload-artifact@v4
         with:
           name: ALTRunNext-${{ matrix.arch }}
           path: ALTRunNext-${{ matrix.arch }}.zip
 
   release:
-    needs: build
+    needs: [test-core, windows-smoke, windows-compat, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -71,6 +140,7 @@ jobs:
           test -f ALTRunNext-x64.zip
           test -f ALTRunNext-ARM64.zip
           sha256sum ALTRunNext-x64.zip ALTRunNext-ARM64.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           name: ALTRun Next ${{ github.ref_name }}

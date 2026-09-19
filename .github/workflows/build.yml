@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify version metadata
         run: python3 scripts/verify_version.py
+      - name: Verify v0.4.1 feature freeze contract
+        run: python3 scripts/verify_release_contract.py
       - name: Configure
         run: cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build tests
@@ -61,6 +63,7 @@ jobs:
           Copy-Item -Recurse build/Release/third_party dist/third_party
           Copy-Item config/*.example.* dist/
           Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
+          Copy-Item docs/DESKTOP_VALIDATION.md dist/DESKTOP_VALIDATION.md
           Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
@@ -68,6 +71,11 @@ jobs:
       - name: Verify package contract
         shell: pwsh
         run: '& ./scripts/verify_package.ps1 -Archive "ALTRunNext-${{ matrix.arch }}.zip"'
+
+      - name: Verify packaged x64 runtime startup
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: '& ./scripts/verify_runtime_smoke.ps1 -Archive "ALTRunNext-x64.zip"'
 
       - uses: actions/upload-artifact@v4
         with:

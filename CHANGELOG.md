@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1-beta.1
+
+- Entered v0.4.1 feature freeze; Beta/RC work is limited to regressions, compatibility and release validation.
+- Added scripts/verify_release_contract.py to lock the v0.4.1 settings/commands/usage/provider-cache schema versions, stable provider IDs, safe default settings and core Classic geometry.
+- Added docs/DESKTOP_VALIDATION.md with a repeatable real Windows 10/11 desktop matrix covering 100%/125%/150%/200% DPI, hotkey lifecycle, IME, Classic search behavior, provider refresh, migration/downgrade and final release assets.
+- Added scripts/verify_runtime_smoke.ps1 and an x64 final-ZIP startup smoke that validates the packaged executable can enter its portable runtime loop without crashing and leaves no writeability-probe residue.
+- Added DESKTOP_VALIDATION.md to x64/ARM64 release packages and made it part of the package contract.
+- Upgraded the tag-triggered Release workflow to require Core Tests, the v0.4.1 freeze contract, Windows provider/hotkey smoke tests and the Windows 10 API compatibility gate before release publication.
+- Kept main automatic publication and manual/external v* tag publication aligned on the same release-safety gates.
+- Kept settings schemaVersion 2, commands/usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Kept the Classic launcher feature set and visual geometry frozen.
+- Updated Windows version metadata to 0.4.1-beta.1 / 0.4.1.100.
+
+
 ## 0.4.1-alpha.3
 
 - Hardened the v0.4.1 Settings/behavior feature set without adding a new launcher feature surface.
