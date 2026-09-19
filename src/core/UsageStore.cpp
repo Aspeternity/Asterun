@@ -1,59 +1,154 @@
 #include "UsageStore.hpp"
 
-#include "../platform/WinUtil.hpp"
+#include "ConfigIO.hpp"
+#include "TextCodec.hpp"
 
+#include <chrono>
 #include <fstream>
+#include <string>
 
 namespace altrun {
 
-UsageStore::UsageStore(std::filesystem::path path) : path_(std::move(path)) {}
+namespace {
 
-void UsageStore::Load() {
+std::vector<std::wstring> SplitTabs(std::wstring_view line) {
+    std::vector<std::wstring> fields;
+    std::size_t start = 0;
+
+    while (start <= line.size()) {
+        const auto pos = line.find(L'\t', start);
+        if (pos == std::wstring_view::npos) {
+            fields.emplace_back(line.substr(start));
+            break;
+        }
+        fields.emplace_back(line.substr(start, pos - start));
+        start = pos + 1;
+    }
+
+    return fields;
+}
+
+std::int64_t UnixTimeNow() {
+    return std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+} // namespace
+
+UsageStore::UsageStore(
+    std::filesystem::path jsonPath,
+    std::filesystem::path legacyTsvPath)
+    : jsonPath_(std::move(jsonPath)),
+      legacyTsvPath_(std::move(legacyTsvPath)) {}
+
+void UsageStore::Load(
+    const std::unordered_map<std::wstring, std::wstring>& legacyIdMap) {
+
     usage_.clear();
-    std::ifstream input(path_, std::ios::binary);
-    if (!input) return;
+
+    if (LoadJson()) {
+        return;
+    }
+
+    if (!legacyTsvPath_.empty() && std::filesystem::exists(legacyTsvPath_)) {
+        MigrateLegacyTsv(legacyIdMap);
+    }
+
+    Save();
+}
+
+bool UsageStore::LoadJson() {
+    const auto json = config::LoadJsonWithBackup(jsonPath_);
+    if (!json) return false;
+
+    try {
+        const auto& root = *json;
+        if (!root.contains("usage") || !root["usage"].is_object()) {
+            return false;
+        }
+
+        for (auto it = root["usage"].begin(); it != root["usage"].end(); ++it) {
+            if (!it.value().is_object()) continue;
+
+            UsageStat stat;
+            stat.launches = it.value().value("launches", std::uint64_t{0});
+            stat.lastUsedUnix = it.value().value("lastUsedUnix", std::int64_t{0});
+
+            usage_[text::FromUtf8(it.key())] = stat;
+        }
+
+        return true;
+    } catch (...) {
+        usage_.clear();
+        return false;
+    }
+}
+
+bool UsageStore::MigrateLegacyTsv(
+    const std::unordered_map<std::wstring, std::wstring>& legacyIdMap) {
+
+    std::ifstream input(legacyTsvPath_, std::ios::binary);
+    if (!input) return false;
 
     std::string lineUtf8;
+    bool migratedAny = false;
+
     while (std::getline(input, lineUtf8)) {
         if (!lineUtf8.empty() && lineUtf8.back() == '\r') lineUtf8.pop_back();
-        const auto fields = win::SplitTabs(win::Utf8ToWide(lineUtf8));
+
+        const auto fields = SplitTabs(text::FromUtf8(lineUtf8));
         if (fields.size() < 3 || fields[0].empty()) continue;
 
         try {
+            std::wstring id = fields[0];
+
+            const auto mapped = legacyIdMap.find(id);
+            if (mapped != legacyIdMap.end()) {
+                id = mapped->second;
+            }
+
             UsageStat stat;
             stat.launches = std::stoull(fields[1]);
             stat.lastUsedUnix = std::stoll(fields[2]);
-            usage_[fields[0]] = stat;
+
+            auto& existing = usage_[id];
+            existing.launches += stat.launches;
+            existing.lastUsedUnix =
+                std::max(existing.lastUsedUnix, stat.lastUsedUnix);
+
+            migratedAny = true;
         } catch (...) {
-            // Ignore malformed history rows rather than blocking startup.
+            // Ignore malformed legacy rows. Migration should never prevent
+            // the launcher from starting.
         }
     }
+
+    return migratedAny;
 }
 
 void UsageStore::Record(std::wstring_view commandId) {
     auto& stat = usage_[std::wstring(commandId)];
     ++stat.launches;
-    stat.lastUsedUnix = win::UnixTimeNow();
+    stat.lastUsedUnix = UnixTimeNow();
     Save();
 }
 
-void UsageStore::Save() const {
-    const auto temp = path_.wstring() + L".tmp";
-    {
-        std::ofstream out(std::filesystem::path(temp), std::ios::binary | std::ios::trunc);
-        if (!out) return;
-        for (const auto& [id, stat] : usage_) {
-            out << win::WideToUtf8(id) << '\t' << stat.launches << '\t' << stat.lastUsedUnix << '\n';
-        }
+bool UsageStore::Save() const {
+    nlohmann::json usage = nlohmann::json::object();
+
+    for (const auto& [id, stat] : usage_) {
+        usage[text::ToUtf8(id)] = {
+            {"launches", stat.launches},
+            {"lastUsedUnix", stat.lastUsedUnix}
+        };
     }
 
-    std::error_code ec;
-    std::filesystem::rename(std::filesystem::path(temp), path_, ec);
-    if (ec) {
-        std::filesystem::remove(path_, ec);
-        ec.clear();
-        std::filesystem::rename(std::filesystem::path(temp), path_, ec);
-    }
+    nlohmann::json root = {
+        {"schemaVersion", config::kSchemaVersion},
+        {"usage", std::move(usage)}
+    };
+
+    return config::SaveJsonAtomic(jsonPath_, root);
 }
 
 } // namespace altrun
