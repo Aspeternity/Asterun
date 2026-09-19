@@ -14,6 +14,25 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.2.0-alpha.3 — Command Manager
+
+The Settings window now includes a real shortcut manager backed by `data/commands.json`.
+
+- searchable user-shortcut list;
+- create, edit and delete shortcuts;
+- primary keyword plus multiple aliases;
+- application / URL / folder / command types;
+- target, arguments and working-directory editing;
+- native target-file and working-directory pickers;
+- enabled, administrator and pinned flags;
+- test launch without modifying usage history;
+- manual move-up / move-down ordering;
+- duplicate-keyword warnings;
+- unsaved-change protection;
+- immediate Launcher refresh after saving, deleting or reordering.
+
+Start Menu results remain automatic provider data and are intentionally not shown as editable user shortcuts.
+
 ## v0.2.0-alpha.2 — Settings Shell
 
 This alpha adds the first independent modern Settings window on top of the JSON Config Core.
@@ -127,7 +146,7 @@ language=zh-CN
 
 - Native C++23 + Win32
 - Alt+Space global launcher hotkey
-- Custom commands from `commands.tsv`
+- Persistent user commands from `data/commands.json`
 - Start Menu indexing
 - Lightweight fuzzy matching
 - Frequency + recency ranking

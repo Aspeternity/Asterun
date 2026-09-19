@@ -69,6 +69,63 @@ const Command& App::GetCommand(std::size_t index) const {
     return commandStore_.Commands().at(index);
 }
 
+bool App::CreateUserCommand(
+    Command command,
+    std::wstring* createdId) {
+
+    if (!commandStore_.CreateUserCommand(
+            std::move(command),
+            createdId)) {
+        return false;
+    }
+
+    if (window_) window_->RefreshResults();
+    return true;
+}
+
+bool App::UpdateUserCommand(
+    std::wstring_view id,
+    Command command) {
+
+    if (!commandStore_.UpdateUserCommand(
+            id,
+            std::move(command))) {
+        return false;
+    }
+
+    if (window_) window_->RefreshResults();
+    return true;
+}
+
+bool App::DeleteUserCommand(
+    std::wstring_view id) {
+
+    if (!commandStore_.DeleteUserCommand(id)) {
+        return false;
+    }
+
+    if (window_) window_->RefreshResults();
+    return true;
+}
+
+bool App::MoveUserCommand(
+    std::wstring_view id,
+    int direction) {
+
+    if (!commandStore_.MoveUserCommand(
+            id,
+            direction)) {
+        return false;
+    }
+
+    if (window_) window_->RefreshResults();
+    return true;
+}
+
+bool App::TestCommand(const Command& command) {
+    return LaunchCommand(command, false);
+}
+
 std::wstring_view App::Text(TextId id) const {
     return LocalizedText(id, settingsStore_.Data().language);
 }
@@ -143,7 +200,14 @@ void App::OpenProjectPage() {
 }
 
 bool App::ExecuteCommand(std::size_t index) {
-    const auto& command = commandStore_.Commands().at(index);
+    return LaunchCommand(
+        commandStore_.Commands().at(index),
+        true);
+}
+
+bool App::LaunchCommand(
+    const Command& command,
+    bool recordUsage) {
 
     const std::wstring target = win::ExpandEnvironment(command.target);
     const std::wstring args = win::ExpandEnvironment(command.arguments);
@@ -177,7 +241,10 @@ bool App::ExecuteCommand(std::size_t index) {
         return false;
     }
 
-    usageStore_.Record(command.id);
+    if (recordUsage && !command.id.empty()) {
+        usageStore_.Record(command.id);
+    }
+
     return true;
 }
 

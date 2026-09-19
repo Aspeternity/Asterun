@@ -5,6 +5,8 @@
 #include "UserCommandStore.hpp"
 
 #include <filesystem>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -17,6 +19,11 @@ public:
         std::filesystem::path dataDirectory);
 
     void Reload();
+
+    bool CreateUserCommand(Command command, std::wstring* createdId = nullptr);
+    bool UpdateUserCommand(std::wstring_view id, Command command);
+    bool DeleteUserCommand(std::wstring_view id);
+    bool MoveUserCommand(std::wstring_view id, int direction);
 
     [[nodiscard]] const std::vector<Command>& Commands() const noexcept {
         return commands_;
@@ -35,6 +42,7 @@ public:
     }
 
 private:
+    void RebuildMergedCommands();
     void AddCommand(Command command);
 
     std::filesystem::path baseDirectory_;

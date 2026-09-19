@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0-alpha.3
+
+- Added the first full Command Manager to the Settings window.
+- Added a searchable master/detail view for persistent user shortcuts.
+- Added create, edit and delete operations backed by UserCommandStore rather than direct JSON editing.
+- Added persistent stable UUID handling for newly created shortcuts.
+- Added primary keyword, comma-separated aliases, command type, target, arguments and working-directory editing.
+- Added enabled, run-as-administrator and pinned options.
+- Added target file picker and working-directory folder picker.
+- Added test-run support without affecting usage ranking history.
+- Added manual move-up / move-down ordering.
+- Added duplicate primary-keyword warnings while still allowing intentional conflicts.
+- Added unsaved-change protection when switching shortcuts, pages or closing Settings.
+- Saving, deleting or reordering a shortcut refreshes the Launcher immediately.
+- Added CRUD persistence coverage to Config Core tests.
+- Added `comdlg32` for the native target-file picker.
+- Updated Windows version metadata to `0.2.0-alpha.3`.
+
+
 ## 0.2.0-alpha.2.1
 
 - Fixed Settings page-switch text ghosting caused by transparent STATIC control backgrounds.

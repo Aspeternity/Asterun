@@ -3,6 +3,8 @@
 #include "Command.hpp"
 
 #include <filesystem>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -16,6 +18,11 @@ public:
 
     void Load();
     bool Save() const;
+
+    bool Create(Command command, std::wstring* createdId = nullptr);
+    bool Update(std::wstring_view id, Command command);
+    bool Remove(std::wstring_view id);
+    bool Move(std::wstring_view id, int direction);
 
     [[nodiscard]] const std::vector<Command>& Commands() const noexcept {
         return commands_;

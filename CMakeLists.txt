@@ -67,6 +67,7 @@ if(WIN32)
         shell32
         ole32
         comctl32
+        comdlg32
         user32
         gdi32
         dwmapi

@@ -33,6 +33,16 @@ public:
 
     [[nodiscard]] const Command& GetCommand(std::size_t index) const;
 
+    [[nodiscard]] const std::vector<Command>& UserCommands() const noexcept {
+        return commandStore_.UserCommands();
+    }
+
+    bool CreateUserCommand(Command command, std::wstring* createdId = nullptr);
+    bool UpdateUserCommand(std::wstring_view id, Command command);
+    bool DeleteUserCommand(std::wstring_view id);
+    bool MoveUserCommand(std::wstring_view id, int direction);
+    bool TestCommand(const Command& command);
+
     [[nodiscard]] const Settings& SettingsData() const noexcept {
         return settingsStore_.Data();
     }
@@ -59,6 +69,8 @@ public:
     }
 
 private:
+    bool LaunchCommand(const Command& command, bool recordUsage);
+
     HINSTANCE instance_{};
     std::filesystem::path baseDirectory_;
     std::filesystem::path dataDirectory_;

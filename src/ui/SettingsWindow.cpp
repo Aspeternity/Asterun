@@ -3,9 +3,13 @@
 #include "../app/App.hpp"
 
 #include <commctrl.h>
+#include <commdlg.h>
+#include <shlobj.h>
 
 #include <algorithm>
 #include <array>
+#include <cwctype>
+#include <filesystem>
 #include <string>
 
 namespace altrun {
@@ -23,6 +27,79 @@ constexpr COLORREF kBorder = RGB(225, 229, 235);
 constexpr COLORREF kText = RGB(31, 41, 55);
 constexpr COLORREF kMuted = RGB(100, 107, 116);
 constexpr COLORREF kAccent = RGB(0, 120, 212);
+
+std::wstring TrimWide(std::wstring_view value) {
+    std::size_t first = 0;
+    std::size_t last = value.size();
+
+    while (first < last && std::iswspace(value[first])) ++first;
+    while (last > first && std::iswspace(value[last - 1])) --last;
+
+    return std::wstring(value.substr(first, last - first));
+}
+
+std::wstring LowerWide(std::wstring_view value) {
+    std::wstring out(value);
+    std::transform(
+        out.begin(),
+        out.end(),
+        out.begin(),
+        [](wchar_t c) {
+            return static_cast<wchar_t>(std::towlower(c));
+        });
+    return out;
+}
+
+bool ContainsInsensitive(
+    std::wstring_view value,
+    std::wstring_view needle) {
+
+    if (needle.empty()) return true;
+    return LowerWide(value).find(LowerWide(needle)) != std::wstring::npos;
+}
+
+bool IsChecked(HWND control) {
+    return SendMessageW(
+        control,
+        BM_GETCHECK,
+        0,
+        0) == BST_CHECKED;
+}
+
+void SetChecked(HWND control, bool checked) {
+    SendMessageW(
+        control,
+        BM_SETCHECK,
+        checked ? BST_CHECKED : BST_UNCHECKED,
+        0);
+}
+
+int TypeIndex(CommandType type) {
+    switch (type) {
+    case CommandType::Url:
+        return 1;
+    case CommandType::Folder:
+        return 2;
+    case CommandType::CommandLine:
+        return 3;
+    case CommandType::Application:
+    default:
+        return 0;
+    }
+}
+
+CommandType TypeFromIndex(int index) {
+    switch (index) {
+    case 1:
+        return CommandType::Url;
+    case 2:
+        return CommandType::Folder;
+    case 3:
+        return CommandType::CommandLine;
+    default:
+        return CommandType::Application;
+    }
+}
 
 } // namespace
 
@@ -47,7 +124,10 @@ const wchar_t* SettingsWindow::T(
 }
 
 int SettingsWindow::Scale(int value) const {
-    return MulDiv(value, static_cast<int>(dpi_), 96);
+    return MulDiv(
+        value,
+        static_cast<int>(dpi_),
+        96);
 }
 
 bool SettingsWindow::Create() {
@@ -78,8 +158,8 @@ bool SettingsWindow::Create() {
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        900,
-        640,
+        1080,
+        720,
         nullptr,
         nullptr,
         instance_,
@@ -92,9 +172,10 @@ bool SettingsWindow::Create() {
     SetWindowPos(
         hwnd_,
         nullptr,
-        0, 0,
-        Scale(900),
-        Scale(640),
+        0,
+        0,
+        Scale(1080),
+        Scale(720),
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
     backgroundBrush_ = CreateSolidBrush(kWindowBackground);
@@ -105,7 +186,8 @@ bool SettingsWindow::Create() {
     ApplyFonts();
     ApplyLanguage();
     RefreshFromSettings();
-    ShowPage(Page::General);
+    RefreshCommands();
+    ShowPage(Page::Commands);
     Layout();
     ShowWindow(hwnd_, SW_HIDE);
 
@@ -141,7 +223,8 @@ HWND SettingsWindow::CreateButton(
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | style,
         0, 0, 0, 0,
         hwnd_,
-        reinterpret_cast<HMENU>(static_cast<UINT_PTR>(id)),
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(id)),
         instance_,
         nullptr);
 }
@@ -156,7 +239,62 @@ HWND SettingsWindow::CreateCheckboxRow(
         BS_OWNERDRAW);
 }
 
+HWND SettingsWindow::CreateCheckbox(
+    const wchar_t* text,
+    UINT id) {
+
+    return CreateButton(
+        text,
+        id,
+        BS_AUTOCHECKBOX | BS_FLAT);
+}
+
+HWND SettingsWindow::CreateEdit(
+    UINT id,
+    DWORD style) {
+
+    HWND edit = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        L"EDIT",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | style,
+        0, 0, 0, 0,
+        hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(id)),
+        instance_,
+        nullptr);
+
+    SendMessageW(
+        edit,
+        EM_SETMARGINS,
+        EC_LEFTMARGIN | EC_RIGHTMARGIN,
+        MAKELPARAM(Scale(6), Scale(6)));
+
+    return edit;
+}
+
+std::wstring SettingsWindow::ControlText(
+    HWND control) const {
+
+    const int length =
+        GetWindowTextLengthW(control);
+
+    std::wstring value(
+        static_cast<std::size_t>(length + 1),
+        L'\0');
+
+    GetWindowTextW(
+        control,
+        value.data(),
+        length + 1);
+
+    value.resize(static_cast<std::size_t>(length));
+    return value;
+}
+
 void SettingsWindow::CreateControls() {
+    navCommands_ = CreateButton(L"", kIdNavCommands);
     navGeneral_ = CreateButton(L"", kIdNavGeneral);
     navAppearance_ = CreateButton(L"", kIdNavAppearance);
     navAbout_ = CreateButton(L"", kIdNavAbout);
@@ -166,9 +304,129 @@ void SettingsWindow::CreateControls() {
         L"",
         SS_LEFT | SS_NOPREFIX);
 
+    CreateCommandPage();
     CreateGeneralPage();
     CreateAppearancePage();
     CreateAboutPage();
+}
+
+void SettingsWindow::CreateCommandPage() {
+    commandSearch_ = CreateEdit(
+        kIdCommandSearch,
+        ES_AUTOHSCROLL);
+
+    commandNew_ =
+        CreateButton(L"", kIdCommandNew);
+
+    commandList_ = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        L"LISTBOX",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+            WS_VSCROLL | LBS_NOTIFY |
+            LBS_NOINTEGRALHEIGHT,
+        0, 0, 0, 0,
+        hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(kIdCommandList)),
+        instance_,
+        nullptr);
+
+    commandMoveUp_ =
+        CreateButton(L"", kIdCommandMoveUp);
+    commandMoveDown_ =
+        CreateButton(L"", kIdCommandMoveDown);
+
+    commandEditorTitle_ = CreateStatic(L"");
+
+    commandNameLabel_ = CreateStatic(L"");
+    commandName_ = CreateEdit(kIdCommandName);
+
+    commandKeywordLabel_ = CreateStatic(L"");
+    commandKeyword_ = CreateEdit(kIdCommandKeyword);
+
+    commandAliasesLabel_ = CreateStatic(L"");
+    commandAliases_ = CreateEdit(kIdCommandAliases);
+
+    commandTypeLabel_ = CreateStatic(L"");
+    commandType_ = CreateWindowExW(
+        0,
+        L"COMBOBOX",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+            CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 0, 0, 0,
+        hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(kIdCommandType)),
+        instance_,
+        nullptr);
+
+    commandTargetLabel_ = CreateStatic(L"");
+    commandTarget_ = CreateEdit(kIdCommandTarget);
+    commandBrowseTarget_ =
+        CreateButton(L"...", kIdCommandBrowseTarget);
+
+    commandArgumentsLabel_ = CreateStatic(L"");
+    commandArguments_ = CreateEdit(kIdCommandArguments);
+
+    commandWorkdirLabel_ = CreateStatic(L"");
+    commandWorkdir_ = CreateEdit(kIdCommandWorkdir);
+    commandBrowseWorkdir_ =
+        CreateButton(L"...", kIdCommandBrowseWorkdir);
+
+    commandEnabled_ =
+        CreateCheckbox(L"", kIdCommandEnabled);
+    commandAdmin_ =
+        CreateCheckbox(L"", kIdCommandAdmin);
+    commandPinned_ =
+        CreateCheckbox(L"", kIdCommandPinned);
+
+    commandTest_ =
+        CreateButton(L"", kIdCommandTest);
+    commandDelete_ =
+        CreateButton(L"", kIdCommandDelete);
+    commandCancel_ =
+        CreateButton(L"", kIdCommandCancel);
+    commandSave_ =
+        CreateButton(L"", kIdCommandSave);
+
+    commandStatus_ = CreateStatic(
+        L"",
+        SS_LEFT | SS_NOPREFIX);
+
+    commandControls_ = {
+        commandSearch_,
+        commandNew_,
+        commandList_,
+        commandMoveUp_,
+        commandMoveDown_,
+        commandEditorTitle_,
+        commandNameLabel_,
+        commandName_,
+        commandKeywordLabel_,
+        commandKeyword_,
+        commandAliasesLabel_,
+        commandAliases_,
+        commandTypeLabel_,
+        commandType_,
+        commandTargetLabel_,
+        commandTarget_,
+        commandBrowseTarget_,
+        commandArgumentsLabel_,
+        commandArguments_,
+        commandWorkdirLabel_,
+        commandWorkdir_,
+        commandBrowseWorkdir_,
+        commandEnabled_,
+        commandAdmin_,
+        commandPinned_,
+        commandTest_,
+        commandDelete_,
+        commandCancel_,
+        commandSave_,
+        commandStatus_,
+    };
 }
 
 void SettingsWindow::CreateGeneralPage() {
@@ -363,11 +621,41 @@ void SettingsWindow::ApplyFonts() {
         DEFAULT_PITCH | FF_DONTCARE,
         face);
 
-    std::vector<HWND> controls{
+    std::vector<HWND> normalControls{
+        navCommands_,
         navGeneral_,
         navAppearance_,
         navAbout_,
         pageDescription_,
+        commandSearch_,
+        commandNew_,
+        commandList_,
+        commandMoveUp_,
+        commandMoveDown_,
+        commandNameLabel_,
+        commandName_,
+        commandKeywordLabel_,
+        commandKeyword_,
+        commandAliasesLabel_,
+        commandAliases_,
+        commandTypeLabel_,
+        commandType_,
+        commandTargetLabel_,
+        commandTarget_,
+        commandBrowseTarget_,
+        commandArgumentsLabel_,
+        commandArguments_,
+        commandWorkdirLabel_,
+        commandWorkdir_,
+        commandBrowseWorkdir_,
+        commandEnabled_,
+        commandAdmin_,
+        commandPinned_,
+        commandTest_,
+        commandDelete_,
+        commandCancel_,
+        commandSave_,
+        commandStatus_,
         popupMonitorLabel_,
         popupMonitorDescription_,
         popupMonitor_,
@@ -385,7 +673,7 @@ void SettingsWindow::ApplyFonts() {
         openGitHub_,
     };
 
-    for (HWND control : controls) {
+    for (HWND control : normalControls) {
         if (control) {
             SendMessageW(
                 control,
@@ -395,7 +683,8 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
-    for (HWND control : std::array<HWND, 2>{
+    for (HWND control : std::array<HWND, 3>{
+             commandEditorTitle_,
              generalBehaviorTitle_,
              popupSectionTitle_}) {
         if (control) {
@@ -441,45 +730,141 @@ void SettingsWindow::ApplyFonts() {
 void SettingsWindow::ApplyLanguage() {
     if (!hwnd_) return;
 
+    const bool oldSyncing = syncing_;
     syncing_ = true;
 
     SetWindowTextW(
         hwnd_,
         T(L"ALTRun Next 设置", L"ALTRun Next Settings"));
 
+    SendMessageW(
+        commandSearch_,
+        EM_SETCUEBANNER,
+        TRUE,
+        reinterpret_cast<LPARAM>(
+            T(L"搜索快捷项...", L"Search shortcuts...")));
+
+    SetWindowTextW(
+        commandNew_,
+        T(L"+ 新建", L"+ New"));
+    SetWindowTextW(
+        commandMoveUp_,
+        T(L"上移", L"Move up"));
+    SetWindowTextW(
+        commandMoveDown_,
+        T(L"下移", L"Move down"));
+    SetWindowTextW(
+        commandEditorTitle_,
+        T(L"快捷项详情", L"Shortcut details"));
+    SetWindowTextW(
+        commandNameLabel_,
+        T(L"名称 *", L"Name *"));
+    SetWindowTextW(
+        commandKeywordLabel_,
+        T(L"主快捷词 *", L"Primary keyword *"));
+    SetWindowTextW(
+        commandAliasesLabel_,
+        T(L"别名（逗号分隔）", L"Aliases (comma separated)"));
+    SetWindowTextW(
+        commandTypeLabel_,
+        T(L"类型", L"Type"));
+    SetWindowTextW(
+        commandTargetLabel_,
+        T(L"目标 *", L"Target *"));
+    SetWindowTextW(
+        commandArgumentsLabel_,
+        T(L"参数", L"Arguments"));
+    SetWindowTextW(
+        commandWorkdirLabel_,
+        T(L"工作目录", L"Working directory"));
+    SetWindowTextW(
+        commandEnabled_,
+        T(L"启用", L"Enabled"));
+    SetWindowTextW(
+        commandAdmin_,
+        T(L"以管理员身份运行", L"Run as administrator"));
+    SetWindowTextW(
+        commandPinned_,
+        T(L"置顶", L"Pinned"));
+    SetWindowTextW(
+        commandTest_,
+        T(L"测试运行", L"Test"));
+    SetWindowTextW(
+        commandDelete_,
+        T(L"删除", L"Delete"));
+    SetWindowTextW(
+        commandCancel_,
+        T(L"取消更改", L"Discard changes"));
+    SetWindowTextW(
+        commandSave_,
+        T(L"保存", L"Save"));
+
+    const int oldType =
+        std::max(
+            0,
+            static_cast<int>(
+                SendMessageW(
+                    commandType_,
+                    CB_GETCURSEL,
+                    0,
+                    0)));
+
+    SendMessageW(commandType_, CB_RESETCONTENT, 0, 0);
+    SendMessageW(
+        commandType_,
+        CB_ADDSTRING,
+        0,
+        reinterpret_cast<LPARAM>(
+            T(L"应用程序", L"Application")));
+    SendMessageW(
+        commandType_,
+        CB_ADDSTRING,
+        0,
+        reinterpret_cast<LPARAM>(
+            T(L"网址", L"URL")));
+    SendMessageW(
+        commandType_,
+        CB_ADDSTRING,
+        0,
+        reinterpret_cast<LPARAM>(
+            T(L"文件夹", L"Folder")));
+    SendMessageW(
+        commandType_,
+        CB_ADDSTRING,
+        0,
+        reinterpret_cast<LPARAM>(
+            T(L"命令", L"Command")));
+    SendMessageW(
+        commandType_,
+        CB_SETCURSEL,
+        oldType,
+        0);
+
     SetWindowTextW(
         generalBehaviorTitle_,
         T(L"启动器行为", L"Launcher behavior"));
-
     SetWindowTextW(
         hideAfterLaunch_,
         T(L"执行后自动隐藏", L"Hide after launch"));
-
     SetWindowTextW(
         clearQueryOnShow_,
         T(L"呼出时清空搜索", L"Clear query on open"));
-
     SetWindowTextW(
         hideOnFocusLost_,
         T(L"失去焦点时隐藏", L"Hide when focus is lost"));
-
     SetWindowTextW(
         showTrayIcon_,
         T(L"显示系统托盘图标", L"Show system tray icon"));
-
     SetWindowTextW(
         popupSectionTitle_,
         T(L"呼出位置", L"Launcher placement"));
-
     SetWindowTextW(
         popupMonitorLabel_,
         T(L"显示器", L"Monitor"));
-
     SetWindowTextW(
         popupMonitorDescription_,
         T(L"选择启动器每次呼出时使用哪一块屏幕。",
           L"Choose which display the launcher uses when it opens."));
-
     SetWindowTextW(
         generalNote_,
         T(L"开机启动和自定义全局热键将在后续 alpha 中接入。",
@@ -544,12 +929,12 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.2.0-alpha.2.1", L"Version 0.2.0-alpha.2.1"));
+        T(L"版本 0.2.0-alpha.3", L"Version 0.2.0-alpha.3"));
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nClassic 主界面保持老 ALTRun 的操作感，设置中心使用独立的现代界面。",
-          L"A lightweight, keyboard-first Windows launcher.\nThe Classic launcher preserves the old ALTRun feel while Settings uses a separate modern shell."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\n快捷项管理器直接编辑 data/commands.json，保存后立即刷新 Launcher。",
+          L"A lightweight, keyboard-first Windows launcher.\nThe Command Manager edits data/commands.json and refreshes the launcher immediately."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -571,19 +956,22 @@ void SettingsWindow::ApplyLanguage() {
     UpdateNavLabels();
     UpdatePageHeader();
     RefreshFromSettings();
+    RefreshCommandList(editingCommandId_);
 
-    syncing_ = false;
+    syncing_ = oldSyncing;
 
     RedrawWindow(
         hwnd_,
         nullptr,
         nullptr,
-        RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        RDW_INVALIDATE | RDW_ERASE |
+            RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
 void SettingsWindow::RefreshFromSettings() {
     if (!hwnd_) return;
 
+    const bool oldSyncing = syncing_;
     syncing_ = true;
 
     const auto& settings = app_.SettingsData();
@@ -618,7 +1006,11 @@ void SettingsWindow::RefreshFromSettings() {
         if (control) InvalidateRect(control, nullptr, TRUE);
     }
 
-    syncing_ = false;
+    syncing_ = oldSyncing;
+}
+
+void SettingsWindow::RefreshCommands() {
+    RefreshCommandList(editingCommandId_);
 }
 
 void SettingsWindow::UpdateNavLabels() {
@@ -635,13 +1027,14 @@ void SettingsWindow::UpdateNavLabels() {
     };
 
     SetWindowTextW(
+        navCommands_,
+        label(Page::Commands, L"快捷项", L"Shortcuts").c_str());
+    SetWindowTextW(
         navGeneral_,
         label(Page::General, L"常规", L"General").c_str());
-
     SetWindowTextW(
         navAppearance_,
         label(Page::Appearance, L"外观", L"Appearance").c_str());
-
     SetWindowTextW(
         navAbout_,
         label(Page::About, L"关于", L"About").c_str());
@@ -649,6 +1042,16 @@ void SettingsWindow::UpdateNavLabels() {
 
 void SettingsWindow::UpdatePageHeader() {
     switch (page_) {
+    case Page::Commands:
+        SetWindowTextW(
+            pageTitle_,
+            T(L"快捷项", L"Shortcuts"));
+        SetWindowTextW(
+            pageDescription_,
+            T(L"管理用户自定义快捷项。开始菜单自动发现的程序不会写入这里。",
+              L"Manage user shortcuts. Automatically discovered Start Menu apps are not stored here."));
+        break;
+
     case Page::General:
         SetWindowTextW(
             pageTitle_,
@@ -681,47 +1084,680 @@ void SettingsWindow::UpdatePageHeader() {
     }
 }
 
+bool SettingsWindow::ConfirmDiscardChanges() {
+    if (!editorDirty_) return true;
+
+    const int result = MessageBoxW(
+        hwnd_,
+        T(L"当前快捷项有尚未保存的修改。\n\n确定放弃这些修改吗？",
+          L"The current shortcut has unsaved changes.\n\nDiscard them?"),
+        T(L"未保存的修改", L"Unsaved changes"),
+        MB_OKCANCEL | MB_ICONWARNING);
+
+    if (result != IDOK) {
+        return false;
+    }
+
+    editorDirty_ = false;
+    return true;
+}
+
 void SettingsWindow::ShowPage(Page page) {
+    if (page_ == Page::Commands &&
+        page != Page::Commands &&
+        !ConfirmDiscardChanges()) {
+        return;
+    }
+
     page_ = page;
 
     const auto setVisible = [](const std::vector<HWND>& controls, bool visible) {
         for (HWND control : controls) {
-            ShowWindow(control, visible ? SW_SHOW : SW_HIDE);
+            ShowWindow(
+                control,
+                visible ? SW_SHOW : SW_HIDE);
         }
     };
 
+    setVisible(commandControls_, page == Page::Commands);
     setVisible(generalControls_, page == Page::General);
     setVisible(appearanceControls_, page == Page::Appearance);
     setVisible(aboutControls_, page == Page::About);
+
+    if (page == Page::Commands) {
+        RefreshCommandList(editingCommandId_);
+    }
 
     UpdateNavLabels();
     UpdatePageHeader();
     Layout();
 
-    // Static controls use opaque backgrounds now, and the full redraw below
-    // also guarantees that switching pages never leaves stale glyphs behind.
     RedrawWindow(
         hwnd_,
         nullptr,
         nullptr,
-        RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        RDW_INVALIDATE | RDW_ERASE |
+            RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
-bool SettingsWindow::ToggleChecked(UINT id) const {
-    const auto& settings = app_.SettingsData();
+void SettingsWindow::RefreshCommandList(
+    std::wstring_view preferredId) {
 
-    switch (id) {
-    case kIdHideAfterLaunch:
-        return settings.hideAfterLaunch;
-    case kIdClearQueryOnShow:
-        return settings.clearQueryOnShow;
-    case kIdHideOnFocusLost:
-        return settings.hideOnFocusLost;
-    case kIdShowTrayIcon:
-        return settings.showTrayIcon;
-    default:
+    if (!commandList_) return;
+
+    const std::wstring filter =
+        TrimWide(ControlText(commandSearch_));
+
+    std::vector<const Command*> commands;
+    commands.reserve(app_.UserCommands().size());
+
+    for (const auto& command : app_.UserCommands()) {
+        bool matches =
+            filter.empty() ||
+            ContainsInsensitive(command.title, filter) ||
+            ContainsInsensitive(command.keyword, filter) ||
+            ContainsInsensitive(command.target, filter);
+
+        if (!matches) {
+            for (const auto& alias : command.aliases) {
+                if (ContainsInsensitive(alias, filter)) {
+                    matches = true;
+                    break;
+                }
+            }
+        }
+
+        if (matches) {
+            commands.push_back(&command);
+        }
+    }
+
+    std::stable_sort(
+        commands.begin(),
+        commands.end(),
+        [](const Command* a, const Command* b) {
+            if (a->sortOrder != b->sortOrder) {
+                return a->sortOrder < b->sortOrder;
+            }
+            return a->keyword < b->keyword;
+        });
+
+    const bool oldSyncing = syncing_;
+    syncing_ = true;
+
+    SendMessageW(commandList_, LB_RESETCONTENT, 0, 0);
+    filteredCommandIds_.clear();
+
+    int preferredIndex = -1;
+
+    for (const Command* command : commands) {
+        std::wstring label =
+            command->enabled ? L"✓  " : L"○  ";
+
+        if (command->pinned) {
+            label += L"★ ";
+        }
+
+        label += command->keyword;
+        label += L"    ";
+        label += command->title;
+
+        const LRESULT index = SendMessageW(
+            commandList_,
+            LB_ADDSTRING,
+            0,
+            reinterpret_cast<LPARAM>(label.c_str()));
+
+        if (index >= 0) {
+            filteredCommandIds_.push_back(command->id);
+
+            if (!preferredId.empty() &&
+                command->id == preferredId) {
+                preferredIndex =
+                    static_cast<int>(index);
+            }
+        }
+    }
+
+    if (preferredIndex >= 0) {
+        SendMessageW(
+            commandList_,
+            LB_SETCURSEL,
+            preferredIndex,
+            0);
+    } else if (
+        editingCommandId_.empty() &&
+        !editingNew_ &&
+        !filteredCommandIds_.empty()) {
+
+        SendMessageW(
+            commandList_,
+            LB_SETCURSEL,
+            0,
+            0);
+    } else {
+        SendMessageW(
+            commandList_,
+            LB_SETCURSEL,
+            static_cast<WPARAM>(-1),
+            0);
+    }
+
+    syncing_ = oldSyncing;
+
+    if (editingCommandId_.empty() &&
+        !editingNew_ &&
+        !filteredCommandIds_.empty()) {
+        LoadCommandEditor(filteredCommandIds_.front());
+    }
+
+    EnableWindow(
+        commandMoveUp_,
+        !editingCommandId_.empty());
+    EnableWindow(
+        commandMoveDown_,
+        !editingCommandId_.empty());
+}
+
+void SettingsWindow::LoadCommandEditor(
+    std::wstring_view id) {
+
+    const auto it = std::find_if(
+        app_.UserCommands().begin(),
+        app_.UserCommands().end(),
+        [&](const Command& command) {
+            return command.id == id;
+        });
+
+    if (it == app_.UserCommands().end()) {
+        ClearCommandEditor();
+        return;
+    }
+
+    const bool oldSyncing = syncing_;
+    syncing_ = true;
+
+    editingCommandId_ = it->id;
+    editingNew_ = false;
+    editorDirty_ = false;
+
+    SetWindowTextW(
+        commandEditorTitle_,
+        T(L"快捷项详情", L"Shortcut details"));
+
+    SetWindowTextW(commandName_, it->title.c_str());
+    SetWindowTextW(commandKeyword_, it->keyword.c_str());
+
+    std::wstring aliases;
+    for (std::size_t i = 0; i < it->aliases.size(); ++i) {
+        if (i > 0) aliases += L", ";
+        aliases += it->aliases[i];
+    }
+    SetWindowTextW(commandAliases_, aliases.c_str());
+
+    SendMessageW(
+        commandType_,
+        CB_SETCURSEL,
+        TypeIndex(it->type),
+        0);
+
+    SetWindowTextW(commandTarget_, it->target.c_str());
+    SetWindowTextW(commandArguments_, it->arguments.c_str());
+    SetWindowTextW(
+        commandWorkdir_,
+        it->workingDirectory.c_str());
+
+    SetChecked(commandEnabled_, it->enabled);
+    SetChecked(commandAdmin_, it->runAsAdmin);
+    SetChecked(commandPinned_, it->pinned);
+
+    SetWindowTextW(commandStatus_, L"");
+    SetCommandEditorEnabled(true);
+    EnableWindow(commandDelete_, TRUE);
+
+    syncing_ = oldSyncing;
+}
+
+void SettingsWindow::ClearCommandEditor() {
+    const bool oldSyncing = syncing_;
+    syncing_ = true;
+
+    editingCommandId_.clear();
+    editingNew_ = false;
+    editorDirty_ = false;
+
+    SetWindowTextW(
+        commandEditorTitle_,
+        T(L"快捷项详情", L"Shortcut details"));
+
+    SetWindowTextW(commandName_, L"");
+    SetWindowTextW(commandKeyword_, L"");
+    SetWindowTextW(commandAliases_, L"");
+    SendMessageW(commandType_, CB_SETCURSEL, 0, 0);
+    SetWindowTextW(commandTarget_, L"");
+    SetWindowTextW(commandArguments_, L"");
+    SetWindowTextW(commandWorkdir_, L"");
+    SetChecked(commandEnabled_, true);
+    SetChecked(commandAdmin_, false);
+    SetChecked(commandPinned_, false);
+    SetWindowTextW(commandStatus_, L"");
+
+    SetCommandEditorEnabled(false);
+
+    syncing_ = oldSyncing;
+}
+
+void SettingsWindow::SetCommandEditorEnabled(
+    bool enabled) {
+
+    for (HWND control : std::array<HWND, 16>{
+             commandName_,
+             commandKeyword_,
+             commandAliases_,
+             commandType_,
+             commandTarget_,
+             commandBrowseTarget_,
+             commandArguments_,
+             commandWorkdir_,
+             commandBrowseWorkdir_,
+             commandEnabled_,
+             commandAdmin_,
+             commandPinned_,
+             commandTest_,
+             commandDelete_,
+             commandCancel_,
+             commandSave_}) {
+        EnableWindow(
+            control,
+            enabled ? TRUE : FALSE);
+    }
+
+    EnableWindow(
+        commandDelete_,
+        enabled &&
+            !editingNew_ &&
+            !editingCommandId_.empty());
+}
+
+void SettingsWindow::BeginNewCommand() {
+    if (!ConfirmDiscardChanges()) return;
+
+    const bool oldSyncing = syncing_;
+    syncing_ = true;
+
+    editingCommandId_.clear();
+    editingNew_ = true;
+    editorDirty_ = false;
+
+    SendMessageW(
+        commandList_,
+        LB_SETCURSEL,
+        static_cast<WPARAM>(-1),
+        0);
+
+    SetWindowTextW(
+        commandEditorTitle_,
+        T(L"新建快捷项", L"New shortcut"));
+
+    SetWindowTextW(commandName_, L"");
+    SetWindowTextW(commandKeyword_, L"");
+    SetWindowTextW(commandAliases_, L"");
+    SendMessageW(commandType_, CB_SETCURSEL, 0, 0);
+    SetWindowTextW(commandTarget_, L"");
+    SetWindowTextW(commandArguments_, L"");
+    SetWindowTextW(commandWorkdir_, L"");
+    SetChecked(commandEnabled_, true);
+    SetChecked(commandAdmin_, false);
+    SetChecked(commandPinned_, false);
+    SetWindowTextW(commandStatus_, L"");
+
+    SetCommandEditorEnabled(true);
+    EnableWindow(commandDelete_, FALSE);
+
+    syncing_ = oldSyncing;
+
+    SetFocus(commandName_);
+}
+
+void SettingsWindow::MarkEditorDirty() {
+    if (syncing_) return;
+    if (editingNew_ || !editingCommandId_.empty()) {
+        editorDirty_ = true;
+        SetWindowTextW(
+            commandStatus_,
+            T(L"有未保存的修改", L"Unsaved changes"));
+    }
+}
+
+std::vector<std::wstring> SettingsWindow::ParseAliases(
+    std::wstring_view text) const {
+
+    std::vector<std::wstring> aliases;
+    std::wstring current;
+
+    auto flush = [&]() {
+        const std::wstring value = TrimWide(current);
+        current.clear();
+
+        if (value.empty()) return;
+
+        const auto duplicate = std::find_if(
+            aliases.begin(),
+            aliases.end(),
+            [&](const std::wstring& existing) {
+                return LowerWide(existing) == LowerWide(value);
+            });
+
+        if (duplicate == aliases.end()) {
+            aliases.push_back(value);
+        }
+    };
+
+    for (wchar_t c : text) {
+        if (c == L',' ||
+            c == L';' ||
+            c == L'，' ||
+            c == L'；') {
+            flush();
+        } else {
+            current.push_back(c);
+        }
+    }
+
+    flush();
+    return aliases;
+}
+
+Command SettingsWindow::CollectCommandEditor() const {
+    Command command;
+
+    command.title =
+        TrimWide(ControlText(commandName_));
+    command.keyword =
+        TrimWide(ControlText(commandKeyword_));
+    command.aliases =
+        ParseAliases(ControlText(commandAliases_));
+    command.type =
+        TypeFromIndex(
+            static_cast<int>(
+                SendMessageW(
+                    commandType_,
+                    CB_GETCURSEL,
+                    0,
+                    0)));
+    command.target =
+        TrimWide(ControlText(commandTarget_));
+    command.arguments =
+        TrimWide(ControlText(commandArguments_));
+    command.workingDirectory =
+        TrimWide(ControlText(commandWorkdir_));
+    command.icon = L"auto";
+    command.enabled = IsChecked(commandEnabled_);
+    command.runAsAdmin = IsChecked(commandAdmin_);
+    command.pinned = IsChecked(commandPinned_);
+    command.source = CommandSource::User;
+    command.basePriority = 120;
+
+    return command;
+}
+
+bool SettingsWindow::SaveCommandEditor() {
+    if (!editingNew_ && editingCommandId_.empty()) {
         return false;
     }
+
+    Command command = CollectCommandEditor();
+
+    if (command.title.empty() ||
+        command.keyword.empty() ||
+        command.target.empty()) {
+
+        MessageBoxW(
+            hwnd_,
+            T(L"名称、主快捷词和目标为必填项。",
+              L"Name, primary keyword and target are required."),
+            T(L"无法保存快捷项", L"Cannot save shortcut"),
+            MB_OK | MB_ICONWARNING);
+
+        return false;
+    }
+
+    const std::wstring keyword =
+        LowerWide(command.keyword);
+
+    bool duplicateKeyword = false;
+    for (const auto& existing : app_.UserCommands()) {
+        if (!editingCommandId_.empty() &&
+            existing.id == editingCommandId_) {
+            continue;
+        }
+
+        if (LowerWide(existing.keyword) == keyword) {
+            duplicateKeyword = true;
+            break;
+        }
+    }
+
+    if (duplicateKeyword) {
+        const int result = MessageBoxW(
+            hwnd_,
+            T(L"这个主快捷词已被另一个快捷项使用。\n\n仍然保存吗？",
+              L"This primary keyword is already used by another shortcut.\n\nSave anyway?"),
+            T(L"快捷词冲突", L"Keyword conflict"),
+            MB_YESNO | MB_ICONWARNING);
+
+        if (result != IDYES) {
+            return false;
+        }
+    }
+
+    std::wstring savedId = editingCommandId_;
+    bool saved = false;
+
+    if (editingNew_) {
+        saved = app_.CreateUserCommand(
+            std::move(command),
+            &savedId);
+    } else {
+        saved = app_.UpdateUserCommand(
+            editingCommandId_,
+            std::move(command));
+    }
+
+    if (!saved) {
+        MessageBoxW(
+            hwnd_,
+            T(L"写入 commands.json 失败。原数据未被替换。",
+              L"Failed to write commands.json. Existing data was not replaced."),
+            T(L"保存失败", L"Save failed"),
+            MB_OK | MB_ICONERROR);
+        return false;
+    }
+
+    editingNew_ = false;
+    editingCommandId_ = savedId;
+    editorDirty_ = false;
+
+    RefreshCommandList(savedId);
+    LoadCommandEditor(savedId);
+
+    SetWindowTextW(
+        commandStatus_,
+        T(L"已保存，Launcher 已刷新。",
+          L"Saved. The launcher has been refreshed."));
+
+    return true;
+}
+
+void SettingsWindow::DeleteEditingCommand() {
+    if (editingCommandId_.empty() || editingNew_) {
+        return;
+    }
+
+    const int result = MessageBoxW(
+        hwnd_,
+        T(L"确定删除这个快捷项吗？\n\n此操作会立即写入 commands.json。",
+          L"Delete this shortcut?\n\nThe change will be written to commands.json immediately."),
+        T(L"删除快捷项", L"Delete shortcut"),
+        MB_YESNO | MB_ICONWARNING);
+
+    if (result != IDYES) return;
+
+    const std::wstring id = editingCommandId_;
+
+    if (!app_.DeleteUserCommand(id)) {
+        MessageBoxW(
+            hwnd_,
+            T(L"删除失败。", L"Delete failed."),
+            T(L"快捷项", L"Shortcut"),
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    editingCommandId_.clear();
+    editingNew_ = false;
+    editorDirty_ = false;
+
+    RefreshCommandList();
+    if (filteredCommandIds_.empty()) {
+        ClearCommandEditor();
+    }
+
+    SetWindowTextW(
+        commandStatus_,
+        T(L"快捷项已删除。", L"Shortcut deleted."));
+}
+
+void SettingsWindow::MoveEditingCommand(int direction) {
+    if (editingCommandId_.empty() || editingNew_) {
+        return;
+    }
+
+    if (editorDirty_ && !ConfirmDiscardChanges()) {
+        return;
+    }
+
+    if (app_.MoveUserCommand(
+            editingCommandId_,
+            direction)) {
+        RefreshCommandList(editingCommandId_);
+        LoadCommandEditor(editingCommandId_);
+    }
+}
+
+void SettingsWindow::TestEditingCommand() {
+    Command command = CollectCommandEditor();
+
+    if (command.target.empty()) {
+        MessageBoxW(
+            hwnd_,
+            T(L"请先填写目标。", L"Enter a target first."),
+            T(L"测试运行", L"Test"),
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    if (app_.TestCommand(command)) {
+        SetWindowTextW(
+            commandStatus_,
+            T(L"测试运行已启动。", L"Test launch started."));
+    }
+}
+
+void SettingsWindow::BrowseCommandTarget() {
+    std::wstring current =
+        ControlText(commandTarget_);
+
+    std::array<wchar_t, 32768> file{};
+    if (!current.empty() &&
+        current.size() < file.size()) {
+        std::copy(
+            current.begin(),
+            current.end(),
+            file.begin());
+    }
+
+    const wchar_t filter[] =
+        L"Programs and shortcuts\0*.exe;*.lnk;*.bat;*.cmd;*.com;*.url\0"
+        L"All files\0*.*\0\0";
+
+    OPENFILENAMEW open{};
+    open.lStructSize = sizeof(open);
+    open.hwndOwner = hwnd_;
+    open.lpstrFile = file.data();
+    open.nMaxFile =
+        static_cast<DWORD>(file.size());
+    open.lpstrFilter = filter;
+    open.nFilterIndex = 1;
+    open.Flags =
+        OFN_FILEMUSTEXIST |
+        OFN_PATHMUSTEXIST |
+        OFN_EXPLORER |
+        OFN_NOCHANGEDIR;
+
+    if (!GetOpenFileNameW(&open)) {
+        return;
+    }
+
+    const std::filesystem::path path(file.data());
+
+    SetWindowTextW(
+        commandTarget_,
+        path.wstring().c_str());
+
+    if (TrimWide(ControlText(commandName_)).empty()) {
+        SetWindowTextW(
+            commandName_,
+            path.stem().wstring().c_str());
+    }
+
+    if (TrimWide(ControlText(commandWorkdir_)).empty()) {
+        SetWindowTextW(
+            commandWorkdir_,
+            path.parent_path().wstring().c_str());
+    }
+
+    if (SendMessageW(
+            commandType_,
+            CB_GETCURSEL,
+            0,
+            0) < 0) {
+        SendMessageW(
+            commandType_,
+            CB_SETCURSEL,
+            0,
+            0);
+    }
+
+    MarkEditorDirty();
+}
+
+void SettingsWindow::BrowseCommandWorkingDirectory() {
+    BROWSEINFOW browse{};
+    browse.hwndOwner = hwnd_;
+    browse.lpszTitle =
+        T(L"选择工作目录", L"Choose working directory");
+    browse.ulFlags =
+        BIF_RETURNONLYFSDIRS |
+        BIF_NEWDIALOGSTYLE |
+        BIF_EDITBOX;
+
+    PIDLIST_ABSOLUTE item =
+        SHBrowseForFolderW(&browse);
+
+    if (!item) return;
+
+    std::array<wchar_t, MAX_PATH> path{};
+    if (SHGetPathFromIDListW(
+            item,
+            path.data())) {
+        SetWindowTextW(
+            commandWorkdir_,
+            path.data());
+        MarkEditorDirty();
+    }
+
+    CoTaskMemFree(item);
 }
 
 void SettingsWindow::ToggleGeneralSetting(UINT id) {
@@ -819,17 +1855,39 @@ void SettingsWindow::ApplyAppearanceControls() {
     }
 }
 
+bool SettingsWindow::ToggleChecked(UINT id) const {
+    const auto& settings = app_.SettingsData();
+
+    switch (id) {
+    case kIdHideAfterLaunch:
+        return settings.hideAfterLaunch;
+    case kIdClearQueryOnShow:
+        return settings.clearQueryOnShow;
+    case kIdHideOnFocusLost:
+        return settings.hideOnFocusLost;
+    case kIdShowTrayIcon:
+        return settings.showTrayIcon;
+    default:
+        return false;
+    }
+}
+
 RECT SettingsWindow::BehaviorCardRect() const {
     RECT client{};
     GetClientRect(hwnd_, &client);
 
-    const int sidebar = Scale(kSidebarWidthLogical);
-    const int contentLeft = sidebar + Scale(42);
-    const int contentRight = client.right - Scale(42);
+    const int contentLeft =
+        Scale(kSidebarWidthLogical) + Scale(42);
+    const int contentRight =
+        client.right - Scale(42);
     const int contentWidth =
-        std::max(Scale(320), contentRight - contentLeft);
+        std::max(
+            Scale(320),
+            contentRight - contentLeft);
     const int cardWidth =
-        std::min(contentWidth, Scale(590));
+        std::min(
+            contentWidth,
+            Scale(590));
 
     return {
         contentLeft,
@@ -843,13 +1901,18 @@ RECT SettingsWindow::MonitorCardRect() const {
     RECT client{};
     GetClientRect(hwnd_, &client);
 
-    const int sidebar = Scale(kSidebarWidthLogical);
-    const int contentLeft = sidebar + Scale(42);
-    const int contentRight = client.right - Scale(42);
+    const int contentLeft =
+        Scale(kSidebarWidthLogical) + Scale(42);
+    const int contentRight =
+        client.right - Scale(42);
     const int contentWidth =
-        std::max(Scale(320), contentRight - contentLeft);
+        std::max(
+            Scale(320),
+            contentRight - contentLeft);
     const int cardWidth =
-        std::min(contentWidth, Scale(590));
+        std::min(
+            contentWidth,
+            Scale(590));
 
     return {
         contentLeft,
@@ -871,39 +1934,38 @@ void SettingsWindow::Layout() {
     const int navHeight = Scale(42);
     const int navGap = Scale(8);
 
-    MoveWindow(
+    std::array<HWND, 4> nav{
+        navCommands_,
         navGeneral_,
-        sidebarMargin,
-        Scale(82),
-        navWidth,
-        navHeight,
-        TRUE);
-
-    MoveWindow(
         navAppearance_,
-        sidebarMargin,
-        Scale(82) + navHeight + navGap,
-        navWidth,
-        navHeight,
-        TRUE);
-
-    MoveWindow(
         navAbout_,
-        sidebarMargin,
-        Scale(82) + (navHeight + navGap) * 2,
-        navWidth,
-        navHeight,
-        TRUE);
+    };
 
-    const int contentLeft = sidebar + Scale(42);
-    const int contentRight = client.right - Scale(42);
+    for (std::size_t i = 0; i < nav.size(); ++i) {
+        MoveWindow(
+            nav[i],
+            sidebarMargin,
+            Scale(72) +
+                static_cast<int>(i) *
+                    (navHeight + navGap),
+            navWidth,
+            navHeight,
+            TRUE);
+    }
+
+    const int contentLeft =
+        sidebar + Scale(38);
+    const int contentRight =
+        client.right - Scale(34);
     const int contentWidth =
-        std::max(Scale(320), contentRight - contentLeft);
+        std::max(
+            Scale(360),
+            contentRight - contentLeft);
 
     MoveWindow(
         pageTitle_,
         contentLeft,
-        Scale(34),
+        Scale(30),
         contentWidth,
         Scale(42),
         TRUE);
@@ -911,17 +1973,230 @@ void SettingsWindow::Layout() {
     MoveWindow(
         pageDescription_,
         contentLeft,
-        Scale(82),
+        Scale(76),
         contentWidth,
-        Scale(40),
+        Scale(42),
         TRUE);
 
-    const int x = contentLeft;
-    const int y = Scale(150);
-    const int controlWidth =
-        std::min(contentWidth, Scale(590));
+    if (page_ == Page::Commands) {
+        const int top = Scale(130);
+        const int leftWidth =
+            std::clamp(
+                Scale(300),
+                Scale(250),
+                std::max(
+                    Scale(250),
+                    contentWidth / 3));
+
+        const int gap = Scale(28);
+        const int editorX =
+            contentLeft + leftWidth + gap;
+        const int editorWidth =
+            std::max(
+                Scale(360),
+                contentRight - editorX);
+
+        MoveWindow(
+            commandSearch_,
+            contentLeft,
+            top,
+            leftWidth - Scale(90),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            commandNew_,
+            contentLeft + leftWidth - Scale(82),
+            top,
+            Scale(82),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            commandList_,
+            contentLeft,
+            top + Scale(46),
+            leftWidth,
+            std::max(
+                Scale(250),
+                client.bottom - top - Scale(118)),
+            TRUE);
+
+        MoveWindow(
+            commandMoveUp_,
+            contentLeft,
+            client.bottom - Scale(56),
+            (leftWidth - Scale(8)) / 2,
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            commandMoveDown_,
+            contentLeft +
+                (leftWidth - Scale(8)) / 2 +
+                Scale(8),
+            client.bottom - Scale(56),
+            (leftWidth - Scale(8)) / 2,
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            commandEditorTitle_,
+            editorX,
+            top,
+            editorWidth,
+            Scale(30),
+            TRUE);
+
+        const int labelWidth = Scale(112);
+        const int fieldX =
+            editorX + labelWidth;
+        const int fieldWidth =
+            std::max(
+                Scale(210),
+                editorWidth - labelWidth);
+        const int browseWidth = Scale(44);
+        const int rowHeight = Scale(42);
+        int y = top + Scale(42);
+
+        auto placeField =
+            [&](HWND label,
+                HWND control,
+                HWND browse = nullptr) {
+                MoveWindow(
+                    label,
+                    editorX,
+                    y + Scale(5),
+                    labelWidth - Scale(10),
+                    Scale(26),
+                    TRUE);
+
+                const int width =
+                    browse
+                        ? fieldWidth - browseWidth - Scale(8)
+                        : fieldWidth;
+
+                MoveWindow(
+                    control,
+                    fieldX,
+                    y,
+                    width,
+                    Scale(32),
+                    TRUE);
+
+                if (browse) {
+                    MoveWindow(
+                        browse,
+                        fieldX + width + Scale(8),
+                        y,
+                        browseWidth,
+                        Scale(32),
+                        TRUE);
+                }
+
+                y += rowHeight;
+            };
+
+        placeField(
+            commandNameLabel_,
+            commandName_);
+        placeField(
+            commandKeywordLabel_,
+            commandKeyword_);
+        placeField(
+            commandAliasesLabel_,
+            commandAliases_);
+        placeField(
+            commandTypeLabel_,
+            commandType_);
+        placeField(
+            commandTargetLabel_,
+            commandTarget_,
+            commandBrowseTarget_);
+        placeField(
+            commandArgumentsLabel_,
+            commandArguments_);
+        placeField(
+            commandWorkdirLabel_,
+            commandWorkdir_,
+            commandBrowseWorkdir_);
+
+        MoveWindow(
+            commandEnabled_,
+            fieldX,
+            y + Scale(4),
+            Scale(110),
+            Scale(28),
+            TRUE);
+
+        MoveWindow(
+            commandAdmin_,
+            fieldX + Scale(118),
+            y + Scale(4),
+            Scale(190),
+            Scale(28),
+            TRUE);
+
+        MoveWindow(
+            commandPinned_,
+            fieldX + Scale(316),
+            y + Scale(4),
+            Scale(90),
+            Scale(28),
+            TRUE);
+
+        y += Scale(48);
+
+        MoveWindow(
+            commandTest_,
+            fieldX,
+            y,
+            Scale(110),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            commandDelete_,
+            fieldX + Scale(120),
+            y,
+            Scale(92),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            commandCancel_,
+            std::max(
+                fieldX + Scale(222),
+                contentRight - Scale(190)),
+            y,
+            Scale(92),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            commandSave_,
+            contentRight - Scale(90),
+            y,
+            Scale(90),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            commandStatus_,
+            fieldX,
+            y + Scale(46),
+            fieldWidth,
+            Scale(32),
+            TRUE);
+    }
 
     if (page_ == Page::General) {
+        const int x = contentLeft;
+        const int controlWidth =
+            std::min(
+                contentWidth,
+                Scale(590));
+
         MoveWindow(
             generalBehaviorTitle_,
             x,
@@ -932,9 +2207,12 @@ void SettingsWindow::Layout() {
 
         const RECT behavior = BehaviorCardRect();
         const int rowHeight = Scale(58);
-        const int rowX = behavior.left + Scale(1);
+        const int rowX =
+            behavior.left + Scale(1);
         const int rowWidth =
-            behavior.right - behavior.left - Scale(2);
+            behavior.right -
+            behavior.left -
+            Scale(2);
 
         std::array<HWND, 4> rows{
             hideAfterLaunch_,
@@ -948,7 +2226,8 @@ void SettingsWindow::Layout() {
                 rows[i],
                 rowX,
                 behavior.top + Scale(1) +
-                    static_cast<int>(i) * rowHeight,
+                    static_cast<int>(i) *
+                        rowHeight,
                 rowWidth,
                 rowHeight,
                 TRUE);
@@ -1002,6 +2281,13 @@ void SettingsWindow::Layout() {
     }
 
     if (page_ == Page::Appearance) {
+        const int x = contentLeft;
+        const int y = Scale(150);
+        const int controlWidth =
+            std::min(
+                contentWidth,
+                Scale(570));
+
         MoveWindow(
             uiStyleLabel_,
             x, y,
@@ -1029,6 +2315,13 @@ void SettingsWindow::Layout() {
     }
 
     if (page_ == Page::About) {
+        const int x = contentLeft;
+        const int y = Scale(150);
+        const int controlWidth =
+            std::min(
+                contentWidth,
+                Scale(590));
+
         MoveWindow(
             aboutName_,
             x, y - Scale(12),
@@ -1061,7 +2354,8 @@ void SettingsWindow::Layout() {
 
         MoveWindow(
             openGitHub_,
-            x + Scale(196), y + Scale(270),
+            x + Scale(196),
+            y + Scale(270),
             Scale(120), Scale(38), TRUE);
     }
 }
@@ -1076,17 +2370,22 @@ void SettingsWindow::DrawGeneralToggle(
             ? kCardPressed
             : kCardBackground;
 
-    HBRUSH rowBrush = CreateSolidBrush(rowBackground);
+    HBRUSH rowBrush =
+        CreateSolidBrush(rowBackground);
     FillRect(item.hDC, &rect, rowBrush);
     DeleteObject(rowBrush);
 
-    const UINT id = static_cast<UINT>(item.CtlID);
-    const bool checked = ToggleChecked(id);
+    const UINT id =
+        static_cast<UINT>(item.CtlID);
+    const bool checked =
+        ToggleChecked(id);
 
     const int boxSize = Scale(20);
-    const int boxLeft = rect.left + Scale(18);
+    const int boxLeft =
+        rect.left + Scale(18);
     const int boxTop =
-        rect.top + (rect.bottom - rect.top - boxSize) / 2;
+        rect.top +
+        (rect.bottom - rect.top - boxSize) / 2;
 
     RECT box{
         boxLeft,
@@ -1097,12 +2396,17 @@ void SettingsWindow::DrawGeneralToggle(
 
     HBRUSH boxBrush =
         CreateSolidBrush(
-            checked ? kAccent : RGB(255, 255, 255));
+            checked
+                ? kAccent
+                : RGB(255, 255, 255));
+
     HPEN boxPen =
         CreatePen(
             PS_SOLID,
             std::max(1, Scale(1)),
-            checked ? kAccent : RGB(166, 174, 184));
+            checked
+                ? kAccent
+                : RGB(166, 174, 184));
 
     HGDIOBJ oldBrush =
         SelectObject(item.hDC, boxBrush);
@@ -1130,7 +2434,10 @@ void SettingsWindow::DrawGeneralToggle(
                 std::max(2, Scale(2)),
                 RGB(255, 255, 255));
 
-        oldPen = SelectObject(item.hDC, checkPen);
+        oldPen =
+            SelectObject(
+                item.hDC,
+                checkPen);
 
         MoveToEx(
             item.hDC,
@@ -1148,7 +2455,10 @@ void SettingsWindow::DrawGeneralToggle(
             box.left + Scale(16),
             box.top + Scale(6));
 
-        SelectObject(item.hDC, oldPen);
+        SelectObject(
+            item.hDC,
+            oldPen);
+
         DeleteObject(checkPen);
     }
 
@@ -1206,15 +2516,19 @@ void SettingsWindow::DrawGeneralToggle(
     };
 
     HGDIOBJ oldFont =
-        SelectObject(item.hDC, sectionFont_);
+        SelectObject(
+            item.hDC,
+            sectionFont_);
 
     SetTextColor(item.hDC, kText);
+
     DrawTextW(
         item.hDC,
         title,
         -1,
         &titleRect,
-        DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+        DT_LEFT | DT_SINGLELINE |
+            DT_VCENTER | DT_NOPREFIX);
 
     RECT descriptionRect{
         titleRect.left,
@@ -1223,17 +2537,24 @@ void SettingsWindow::DrawGeneralToggle(
         rect.bottom - Scale(7),
     };
 
-    SelectObject(item.hDC, normalFont_);
+    SelectObject(
+        item.hDC,
+        normalFont_);
+
     SetTextColor(item.hDC, kMuted);
+
     DrawTextW(
         item.hDC,
         description,
         -1,
         &descriptionRect,
-        DT_LEFT | DT_SINGLELINE | DT_VCENTER |
-            DT_END_ELLIPSIS | DT_NOPREFIX);
+        DT_LEFT | DT_SINGLELINE |
+            DT_VCENTER | DT_END_ELLIPSIS |
+            DT_NOPREFIX);
 
-    SelectObject(item.hDC, oldFont);
+    SelectObject(
+        item.hDC,
+        oldFont);
 
     if (id != kIdShowTrayIcon) {
         HPEN separator =
@@ -1242,7 +2563,10 @@ void SettingsWindow::DrawGeneralToggle(
                 1,
                 kBorder);
 
-        oldPen = SelectObject(item.hDC, separator);
+        oldPen =
+            SelectObject(
+                item.hDC,
+                separator);
 
         MoveToEx(
             item.hDC,
@@ -1255,14 +2579,22 @@ void SettingsWindow::DrawGeneralToggle(
             rect.right - Scale(14),
             rect.bottom - 1);
 
-        SelectObject(item.hDC, oldPen);
+        SelectObject(
+            item.hDC,
+            oldPen);
+
         DeleteObject(separator);
     }
 
     if (item.itemState & ODS_FOCUS) {
         RECT focus = rect;
-        InflateRect(&focus, -Scale(6), -Scale(5));
-        DrawFocusRect(item.hDC, &focus);
+        InflateRect(
+            &focus,
+            -Scale(6),
+            -Scale(5));
+        DrawFocusRect(
+            item.hDC,
+            &focus);
     }
 }
 
@@ -1281,8 +2613,10 @@ void SettingsWindow::CenterOnCurrentMonitor() {
     RECT rect{};
     GetWindowRect(hwnd_, &rect);
 
-    const int width = rect.right - rect.left;
-    const int height = rect.bottom - rect.top;
+    const int width =
+        rect.right - rect.left;
+    const int height =
+        rect.bottom - rect.top;
 
     const int workWidth =
         info.rcWork.right - info.rcWork.left;
@@ -1290,15 +2624,20 @@ void SettingsWindow::CenterOnCurrentMonitor() {
         info.rcWork.bottom - info.rcWork.top;
 
     const int x =
-        info.rcWork.left + (workWidth - width) / 2;
+        info.rcWork.left +
+        (workWidth - width) / 2;
+
     const int y =
-        info.rcWork.top + (workHeight - height) / 2;
+        info.rcWork.top +
+        (workHeight - height) / 2;
 
     SetWindowPos(
         hwnd_,
         nullptr,
-        x, y,
-        width, height,
+        x,
+        y,
+        width,
+        height,
         SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
@@ -1306,12 +2645,16 @@ void SettingsWindow::Show() {
     if (!hwnd_) return;
 
     RefreshFromSettings();
+    RefreshCommandList(editingCommandId_);
 
     if (!IsWindowVisible(hwnd_)) {
         CenterOnCurrentMonitor();
     }
 
-    ShowWindow(hwnd_, SW_SHOWNORMAL);
+    ShowWindow(
+        hwnd_,
+        SW_SHOWNORMAL);
+
     SetForegroundWindow(hwnd_);
 }
 
@@ -1340,7 +2683,9 @@ LRESULT CALLBACK SettingsWindow::WindowProc(
     } else {
         self =
             reinterpret_cast<SettingsWindow*>(
-                GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+                GetWindowLongPtrW(
+                    hwnd,
+                    GWLP_USERDATA));
     }
 
     if (self) {
@@ -1368,16 +2713,157 @@ LRESULT SettingsWindow::HandleMessage(
         const UINT notify = HIWORD(wParam);
 
         switch (id) {
+        case kIdNavCommands:
+            if (notify == BN_CLICKED) {
+                ShowPage(Page::Commands);
+            }
+            return 0;
+
         case kIdNavGeneral:
-            if (notify == BN_CLICKED) ShowPage(Page::General);
+            if (notify == BN_CLICKED) {
+                ShowPage(Page::General);
+            }
             return 0;
 
         case kIdNavAppearance:
-            if (notify == BN_CLICKED) ShowPage(Page::Appearance);
+            if (notify == BN_CLICKED) {
+                ShowPage(Page::Appearance);
+            }
             return 0;
 
         case kIdNavAbout:
-            if (notify == BN_CLICKED) ShowPage(Page::About);
+            if (notify == BN_CLICKED) {
+                ShowPage(Page::About);
+            }
+            return 0;
+
+        case kIdCommandSearch:
+            if (notify == EN_CHANGE && !syncing_) {
+                RefreshCommandList(editingCommandId_);
+            }
+            return 0;
+
+        case kIdCommandList:
+            if (notify == LBN_SELCHANGE && !syncing_) {
+                const int index =
+                    static_cast<int>(
+                        SendMessageW(
+                            commandList_,
+                            LB_GETCURSEL,
+                            0,
+                            0));
+
+                if (index >= 0 &&
+                    index <
+                        static_cast<int>(
+                            filteredCommandIds_.size())) {
+
+                    const std::wstring id =
+                        filteredCommandIds_[
+                            static_cast<std::size_t>(index)];
+
+                    if (id != editingCommandId_) {
+                        if (!ConfirmDiscardChanges()) {
+                            RefreshCommandList(
+                                editingCommandId_);
+                            return 0;
+                        }
+
+                        LoadCommandEditor(id);
+                    }
+                }
+            }
+            return 0;
+
+        case kIdCommandNew:
+            if (notify == BN_CLICKED) {
+                BeginNewCommand();
+            }
+            return 0;
+
+        case kIdCommandMoveUp:
+            if (notify == BN_CLICKED) {
+                MoveEditingCommand(-1);
+            }
+            return 0;
+
+        case kIdCommandMoveDown:
+            if (notify == BN_CLICKED) {
+                MoveEditingCommand(1);
+            }
+            return 0;
+
+        case kIdCommandBrowseTarget:
+            if (notify == BN_CLICKED) {
+                BrowseCommandTarget();
+            }
+            return 0;
+
+        case kIdCommandBrowseWorkdir:
+            if (notify == BN_CLICKED) {
+                BrowseCommandWorkingDirectory();
+            }
+            return 0;
+
+        case kIdCommandTest:
+            if (notify == BN_CLICKED) {
+                TestEditingCommand();
+            }
+            return 0;
+
+        case kIdCommandDelete:
+            if (notify == BN_CLICKED) {
+                DeleteEditingCommand();
+            }
+            return 0;
+
+        case kIdCommandCancel:
+            if (notify == BN_CLICKED) {
+                editorDirty_ = false;
+
+                if (editingNew_) {
+                    editingNew_ = false;
+                    editingCommandId_.clear();
+                    RefreshCommandList();
+                    if (filteredCommandIds_.empty()) {
+                        ClearCommandEditor();
+                    }
+                } else if (!editingCommandId_.empty()) {
+                    LoadCommandEditor(
+                        editingCommandId_);
+                }
+            }
+            return 0;
+
+        case kIdCommandSave:
+            if (notify == BN_CLICKED) {
+                SaveCommandEditor();
+            }
+            return 0;
+
+        case kIdCommandName:
+        case kIdCommandKeyword:
+        case kIdCommandAliases:
+        case kIdCommandTarget:
+        case kIdCommandArguments:
+        case kIdCommandWorkdir:
+            if (notify == EN_CHANGE) {
+                MarkEditorDirty();
+            }
+            return 0;
+
+        case kIdCommandType:
+            if (notify == CBN_SELCHANGE) {
+                MarkEditorDirty();
+            }
+            return 0;
+
+        case kIdCommandEnabled:
+        case kIdCommandAdmin:
+        case kIdCommandPinned:
+            if (notify == BN_CLICKED) {
+                MarkEditorDirty();
+            }
             return 0;
 
         case kIdHideAfterLaunch:
@@ -1422,7 +2908,8 @@ LRESULT SettingsWindow::HandleMessage(
 
     case WM_DRAWITEM: {
         const auto* item =
-            reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+            reinterpret_cast<DRAWITEMSTRUCT*>(
+                lParam);
 
         if (item &&
             (item->CtlID == kIdHideAfterLaunch ||
@@ -1437,11 +2924,17 @@ LRESULT SettingsWindow::HandleMessage(
 
     case WM_PAINT: {
         PAINTSTRUCT paint{};
-        HDC dc = BeginPaint(hwnd_, &paint);
+        HDC dc =
+            BeginPaint(
+                hwnd_,
+                &paint);
 
         RECT client{};
         GetClientRect(hwnd_, &client);
-        FillRect(dc, &client, backgroundBrush_);
+        FillRect(
+            dc,
+            &client,
+            backgroundBrush_);
 
         RECT sidebar{
             client.left,
@@ -1449,7 +2942,11 @@ LRESULT SettingsWindow::HandleMessage(
             Scale(kSidebarWidthLogical),
             client.bottom
         };
-        FillRect(dc, &sidebar, sidebarBrush_);
+
+        FillRect(
+            dc,
+            &sidebar,
+            sidebarBrush_);
 
         HPEN separator =
             CreatePen(
@@ -1458,7 +2955,9 @@ LRESULT SettingsWindow::HandleMessage(
                 kBorder);
 
         HGDIOBJ oldPen =
-            SelectObject(dc, separator);
+            SelectObject(
+                dc,
+                separator);
 
         const int sidebarX =
             Scale(kSidebarWidthLogical);
@@ -1474,15 +2973,22 @@ LRESULT SettingsWindow::HandleMessage(
             sidebarX,
             client.bottom);
 
-        SelectObject(dc, oldPen);
+        SelectObject(
+            dc,
+            oldPen);
+
         DeleteObject(separator);
 
         if (page_ == Page::General) {
-            for (const RECT card : std::array<RECT, 2>{
+            for (const RECT card :
+                 std::array<RECT, 2>{
                      BehaviorCardRect(),
                      MonitorCardRect()}) {
+
                 HBRUSH fill =
-                    CreateSolidBrush(kCardBackground);
+                    CreateSolidBrush(
+                        kCardBackground);
+
                 HPEN border =
                     CreatePen(
                         PS_SOLID,
@@ -1490,9 +2996,14 @@ LRESULT SettingsWindow::HandleMessage(
                         kBorder);
 
                 HGDIOBJ previousBrush =
-                    SelectObject(dc, fill);
+                    SelectObject(
+                        dc,
+                        fill);
+
                 HGDIOBJ previousPen =
-                    SelectObject(dc, border);
+                    SelectObject(
+                        dc,
+                        border);
 
                 RoundRect(
                     dc,
@@ -1503,14 +3014,81 @@ LRESULT SettingsWindow::HandleMessage(
                     Scale(8),
                     Scale(8));
 
-                SelectObject(dc, previousBrush);
-                SelectObject(dc, previousPen);
+                SelectObject(
+                    dc,
+                    previousBrush);
+
+                SelectObject(
+                    dc,
+                    previousPen);
+
                 DeleteObject(fill);
                 DeleteObject(border);
             }
         }
 
-        EndPaint(hwnd_, &paint);
+        if (page_ == Page::Commands) {
+            RECT clientRect{};
+            GetClientRect(hwnd_, &clientRect);
+
+            const int contentLeft =
+                Scale(kSidebarWidthLogical) +
+                Scale(38);
+
+            const int contentRight =
+                clientRect.right - Scale(34);
+
+            const int contentWidth =
+                std::max(
+                    Scale(360),
+                    contentRight - contentLeft);
+
+            const int leftWidth =
+                std::clamp(
+                    Scale(300),
+                    Scale(250),
+                    std::max(
+                        Scale(250),
+                        contentWidth / 3));
+
+            const int dividerX =
+                contentLeft +
+                leftWidth +
+                Scale(14);
+
+            HPEN divider =
+                CreatePen(
+                    PS_SOLID,
+                    1,
+                    kBorder);
+
+            oldPen =
+                SelectObject(
+                    dc,
+                    divider);
+
+            MoveToEx(
+                dc,
+                dividerX,
+                Scale(130),
+                nullptr);
+
+            LineTo(
+                dc,
+                dividerX,
+                client.bottom - Scale(22));
+
+            SelectObject(
+                dc,
+                oldPen);
+
+            DeleteObject(divider);
+        }
+
+        EndPaint(
+            hwnd_,
+            &paint);
+
         return 0;
     }
 
@@ -1518,20 +3096,26 @@ LRESULT SettingsWindow::HandleMessage(
         return 1;
 
     case WM_CTLCOLORSTATIC: {
-        HDC dc = reinterpret_cast<HDC>(wParam);
-        HWND control = reinterpret_cast<HWND>(lParam);
+        HDC dc =
+            reinterpret_cast<HDC>(wParam);
+
+        HWND control =
+            reinterpret_cast<HWND>(lParam);
 
         const bool cardStatic =
             control == popupMonitorLabel_ ||
             control == popupMonitorDescription_;
 
         const COLORREF background =
-            cardStatic ? kCardBackground : kWindowBackground;
+            cardStatic
+                ? kCardBackground
+                : kWindowBackground;
 
         SetBkMode(dc, OPAQUE);
         SetBkColor(dc, background);
 
         if (control == pageDescription_ ||
+            control == commandStatus_ ||
             control == generalNote_ ||
             control == popupMonitorDescription_ ||
             control == appearanceNote_ ||
@@ -1545,28 +3129,37 @@ LRESULT SettingsWindow::HandleMessage(
         }
 
         return reinterpret_cast<LRESULT>(
-            cardStatic ? cardBrush_ : backgroundBrush_);
+            cardStatic
+                ? cardBrush_
+                : backgroundBrush_);
     }
 
     case WM_SIZE:
         Layout();
-        InvalidateRect(hwnd_, nullptr, TRUE);
+        InvalidateRect(
+            hwnd_,
+            nullptr,
+            TRUE);
         return 0;
 
     case WM_DPICHANGED: {
         dpi_ = HIWORD(wParam);
 
         const auto* suggested =
-            reinterpret_cast<RECT*>(lParam);
+            reinterpret_cast<RECT*>(
+                lParam);
 
         SetWindowPos(
             hwnd_,
             nullptr,
             suggested->left,
             suggested->top,
-            suggested->right - suggested->left,
-            suggested->bottom - suggested->top,
-            SWP_NOZORDER | SWP_NOACTIVATE);
+            suggested->right -
+                suggested->left,
+            suggested->bottom -
+                suggested->top,
+            SWP_NOZORDER |
+                SWP_NOACTIVATE);
 
         ApplyFonts();
         Layout();
@@ -1575,22 +3168,38 @@ LRESULT SettingsWindow::HandleMessage(
             hwnd_,
             nullptr,
             nullptr,
-            RDW_INVALIDATE | RDW_ERASE |
-                RDW_ALLCHILDREN | RDW_UPDATENOW);
+            RDW_INVALIDATE |
+                RDW_ERASE |
+                RDW_ALLCHILDREN |
+                RDW_UPDATENOW);
+
         return 0;
     }
 
     case WM_GETMINMAXINFO: {
         auto* info =
-            reinterpret_cast<MINMAXINFO*>(lParam);
+            reinterpret_cast<MINMAXINFO*>(
+                lParam);
 
-        info->ptMinTrackSize.x = Scale(760);
-        info->ptMinTrackSize.y = Scale(540);
+        info->ptMinTrackSize.x =
+            Scale(920);
+
+        info->ptMinTrackSize.y =
+            Scale(620);
+
         return 0;
     }
 
     case WM_CLOSE:
-        ShowWindow(hwnd_, SW_HIDE);
+        if (page_ == Page::Commands &&
+            !ConfirmDiscardChanges()) {
+            return 0;
+        }
+
+        ShowWindow(
+            hwnd_,
+            SW_HIDE);
+
         return 0;
 
     case WM_DESTROY:

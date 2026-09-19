@@ -2,6 +2,7 @@
 #include "core/UsageStore.hpp"
 #include "core/UserCommandStore.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <filesystem>
@@ -78,6 +79,53 @@ int main() {
     commandsReloaded.Load();
     assert(commandsReloaded.Commands().size() == 2);
     assert(commandsReloaded.Commands()[0].id == calcId);
+
+    Command custom;
+    custom.title = L"Telegram";
+    custom.keyword = L"tg";
+    custom.aliases = {L"telegram"};
+    custom.target = L"C:\\Apps\\Telegram.exe";
+    custom.enabled = true;
+    custom.pinned = true;
+
+    std::wstring createdId;
+    assert(commandsReloaded.Create(custom, &createdId));
+    assert(!createdId.empty());
+    assert(commandsReloaded.Commands().size() == 3);
+
+    custom.title = L"Telegram Desktop";
+    custom.arguments = L"--test";
+    custom.enabled = false;
+    assert(commandsReloaded.Update(createdId, custom));
+
+    const auto updated = std::find_if(
+        commandsReloaded.Commands().begin(),
+        commandsReloaded.Commands().end(),
+        [&](const Command& command) {
+            return command.id == createdId;
+        });
+    assert(updated != commandsReloaded.Commands().end());
+    assert(updated->title == L"Telegram Desktop");
+    assert(updated->arguments == L"--test");
+    assert(!updated->enabled);
+    assert(updated->pinned);
+
+    assert(commandsReloaded.Move(createdId, -1));
+
+    UserCommandStore crudReloaded(data / "commands.json", legacyCommands);
+    crudReloaded.Load();
+    const auto persisted = std::find_if(
+        crudReloaded.Commands().begin(),
+        crudReloaded.Commands().end(),
+        [&](const Command& command) {
+            return command.id == createdId;
+        });
+    assert(persisted != crudReloaded.Commands().end());
+    assert(persisted->title == L"Telegram Desktop");
+    assert(!persisted->enabled);
+
+    assert(crudReloaded.Remove(createdId));
+    assert(crudReloaded.Commands().size() == 2);
 
     UsageStore usage(data / "usage.json", legacyUsage);
     usage.Load(commandsReloaded.LegacyIdMap());

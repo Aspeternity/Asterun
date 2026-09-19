@@ -291,6 +291,202 @@ void UserCommandStore::RebuildLegacyIdMap() {
     }
 }
 
+bool UserCommandStore::Create(
+    Command command,
+    std::wstring* createdId) {
+
+    command.keyword = TrimWide(command.keyword);
+    command.title = TrimWide(command.title);
+    command.target = TrimWide(command.target);
+    command.arguments = TrimWide(command.arguments);
+    command.workingDirectory = TrimWide(command.workingDirectory);
+
+    if (command.keyword.empty() || command.target.empty()) {
+        return false;
+    }
+
+    if (command.title.empty()) {
+        command.title = command.keyword;
+    }
+
+    if (command.id.empty()) {
+        command.id = GenerateUuidV4();
+    }
+
+    for (const auto& existing : commands_) {
+        if (existing.id == command.id) {
+            return false;
+        }
+    }
+
+    int nextOrder = 0;
+    for (const auto& existing : commands_) {
+        nextOrder = std::max(nextOrder, existing.sortOrder + 10);
+    }
+
+    command.sortOrder = nextOrder;
+    command.source = CommandSource::User;
+    command.basePriority = 120;
+
+    if (command.icon.empty()) {
+        command.icon = L"auto";
+    }
+
+    const auto previous = commands_;
+    commands_.push_back(std::move(command));
+    RebuildLegacyIdMap();
+
+    if (!Save()) {
+        commands_ = previous;
+        RebuildLegacyIdMap();
+        return false;
+    }
+
+    if (createdId) {
+        *createdId = commands_.back().id;
+    }
+
+    return true;
+}
+
+bool UserCommandStore::Update(
+    std::wstring_view id,
+    Command command) {
+
+    const auto it = std::find_if(
+        commands_.begin(),
+        commands_.end(),
+        [&](const Command& existing) {
+            return existing.id == id;
+        });
+
+    if (it == commands_.end()) {
+        return false;
+    }
+
+    command.keyword = TrimWide(command.keyword);
+    command.title = TrimWide(command.title);
+    command.target = TrimWide(command.target);
+    command.arguments = TrimWide(command.arguments);
+    command.workingDirectory = TrimWide(command.workingDirectory);
+
+    if (command.keyword.empty() || command.target.empty()) {
+        return false;
+    }
+
+    if (command.title.empty()) {
+        command.title = command.keyword;
+    }
+
+    const auto previous = commands_;
+
+    command.id = it->id;
+    command.sortOrder = it->sortOrder;
+    command.legacyIds = it->legacyIds;
+    command.source = CommandSource::User;
+    command.basePriority = 120;
+
+    if (command.icon.empty()) {
+        command.icon = L"auto";
+    }
+
+    *it = std::move(command);
+    RebuildLegacyIdMap();
+
+    if (!Save()) {
+        commands_ = previous;
+        RebuildLegacyIdMap();
+        return false;
+    }
+
+    return true;
+}
+
+bool UserCommandStore::Remove(std::wstring_view id) {
+    const auto previous = commands_;
+
+    const auto oldSize = commands_.size();
+    std::erase_if(
+        commands_,
+        [&](const Command& command) {
+            return command.id == id;
+        });
+
+    if (commands_.size() == oldSize) {
+        return false;
+    }
+
+    RebuildLegacyIdMap();
+
+    if (!Save()) {
+        commands_ = previous;
+        RebuildLegacyIdMap();
+        return false;
+    }
+
+    return true;
+}
+
+bool UserCommandStore::Move(
+    std::wstring_view id,
+    int direction) {
+
+    if (direction == 0 || commands_.size() < 2) {
+        return false;
+    }
+
+    std::stable_sort(
+        commands_.begin(),
+        commands_.end(),
+        [](const Command& a, const Command& b) {
+            if (a.sortOrder != b.sortOrder) {
+                return a.sortOrder < b.sortOrder;
+            }
+            return a.keyword < b.keyword;
+        });
+
+    const auto it = std::find_if(
+        commands_.begin(),
+        commands_.end(),
+        [&](const Command& command) {
+            return command.id == id;
+        });
+
+    if (it == commands_.end()) {
+        return false;
+    }
+
+    const auto index =
+        static_cast<std::ptrdiff_t>(
+            std::distance(commands_.begin(), it));
+
+    const auto targetIndex =
+        index + (direction < 0 ? -1 : 1);
+
+    if (targetIndex < 0 ||
+        targetIndex >=
+            static_cast<std::ptrdiff_t>(commands_.size())) {
+        return false;
+    }
+
+    const auto previous = commands_;
+
+    std::swap(
+        commands_[static_cast<std::size_t>(index)].sortOrder,
+        commands_[static_cast<std::size_t>(targetIndex)].sortOrder);
+
+    std::swap(
+        commands_[static_cast<std::size_t>(index)],
+        commands_[static_cast<std::size_t>(targetIndex)]);
+
+    if (!Save()) {
+        commands_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
 bool UserCommandStore::Save() const {
     nlohmann::json commandArray = nlohmann::json::array();
 

@@ -1,8 +1,11 @@
 #pragma once
 
+#include "../core/Command.hpp"
+
 #include <windows.h>
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace altrun {
@@ -18,9 +21,11 @@ public:
     void Show();
     void ApplyLanguage();
     void RefreshFromSettings();
+    void RefreshCommands();
 
 private:
     enum class Page {
+        Commands,
         General,
         Appearance,
         About,
@@ -28,6 +33,7 @@ private:
 
     static constexpr int kSidebarWidthLogical = 190;
 
+    static constexpr UINT kIdNavCommands = 51000;
     static constexpr UINT kIdNavGeneral = 51001;
     static constexpr UINT kIdNavAppearance = 51002;
     static constexpr UINT kIdNavAbout = 51003;
@@ -44,6 +50,28 @@ private:
     static constexpr UINT kIdOpenDataFolder = 51301;
     static constexpr UINT kIdOpenGitHub = 51302;
 
+    static constexpr UINT kIdCommandSearch = 51401;
+    static constexpr UINT kIdCommandNew = 51402;
+    static constexpr UINT kIdCommandList = 51403;
+    static constexpr UINT kIdCommandMoveUp = 51404;
+    static constexpr UINT kIdCommandMoveDown = 51405;
+    static constexpr UINT kIdCommandName = 51410;
+    static constexpr UINT kIdCommandKeyword = 51411;
+    static constexpr UINT kIdCommandAliases = 51412;
+    static constexpr UINT kIdCommandType = 51413;
+    static constexpr UINT kIdCommandTarget = 51414;
+    static constexpr UINT kIdCommandBrowseTarget = 51415;
+    static constexpr UINT kIdCommandArguments = 51416;
+    static constexpr UINT kIdCommandWorkdir = 51417;
+    static constexpr UINT kIdCommandBrowseWorkdir = 51418;
+    static constexpr UINT kIdCommandEnabled = 51419;
+    static constexpr UINT kIdCommandAdmin = 51420;
+    static constexpr UINT kIdCommandPinned = 51421;
+    static constexpr UINT kIdCommandTest = 51422;
+    static constexpr UINT kIdCommandDelete = 51423;
+    static constexpr UINT kIdCommandCancel = 51424;
+    static constexpr UINT kIdCommandSave = 51425;
+
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
         UINT message,
@@ -53,6 +81,7 @@ private:
     LRESULT HandleMessage(UINT message, WPARAM wParam, LPARAM lParam);
 
     void CreateControls();
+    void CreateCommandPage();
     void CreateGeneralPage();
     void CreateAppearancePage();
     void CreateAboutPage();
@@ -62,6 +91,24 @@ private:
     void ShowPage(Page page);
     void UpdateNavLabels();
     void UpdatePageHeader();
+
+    void RefreshCommandList(std::wstring_view preferredId = {});
+    void LoadCommandEditor(std::wstring_view id);
+    void BeginNewCommand();
+    void ClearCommandEditor();
+    void SetCommandEditorEnabled(bool enabled);
+    void MarkEditorDirty();
+    bool ConfirmDiscardChanges();
+    bool SaveCommandEditor();
+    void DeleteEditingCommand();
+    void MoveEditingCommand(int direction);
+    void TestEditingCommand();
+    void BrowseCommandTarget();
+    void BrowseCommandWorkingDirectory();
+    [[nodiscard]] Command CollectCommandEditor() const;
+    [[nodiscard]] std::vector<std::wstring> ParseAliases(
+        std::wstring_view text) const;
+
     void ToggleGeneralSetting(UINT id);
     void ApplyMonitorControl();
     void ApplyAppearanceControls();
@@ -81,6 +128,15 @@ private:
         const wchar_t* text,
         UINT id);
 
+    HWND CreateCheckbox(
+        const wchar_t* text,
+        UINT id);
+
+    HWND CreateEdit(
+        UINT id,
+        DWORD style = ES_AUTOHSCROLL);
+
+    [[nodiscard]] std::wstring ControlText(HWND control) const;
     [[nodiscard]] bool ToggleChecked(UINT id) const;
     [[nodiscard]] RECT BehaviorCardRect() const;
     [[nodiscard]] RECT MonitorCardRect() const;
@@ -92,11 +148,43 @@ private:
     HINSTANCE instance_{};
     HWND hwnd_{};
 
+    HWND navCommands_{};
     HWND navGeneral_{};
     HWND navAppearance_{};
     HWND navAbout_{};
     HWND pageTitle_{};
     HWND pageDescription_{};
+
+    HWND commandSearch_{};
+    HWND commandNew_{};
+    HWND commandList_{};
+    HWND commandMoveUp_{};
+    HWND commandMoveDown_{};
+    HWND commandEditorTitle_{};
+    HWND commandNameLabel_{};
+    HWND commandName_{};
+    HWND commandKeywordLabel_{};
+    HWND commandKeyword_{};
+    HWND commandAliasesLabel_{};
+    HWND commandAliases_{};
+    HWND commandTypeLabel_{};
+    HWND commandType_{};
+    HWND commandTargetLabel_{};
+    HWND commandTarget_{};
+    HWND commandBrowseTarget_{};
+    HWND commandArgumentsLabel_{};
+    HWND commandArguments_{};
+    HWND commandWorkdirLabel_{};
+    HWND commandWorkdir_{};
+    HWND commandBrowseWorkdir_{};
+    HWND commandEnabled_{};
+    HWND commandAdmin_{};
+    HWND commandPinned_{};
+    HWND commandTest_{};
+    HWND commandDelete_{};
+    HWND commandCancel_{};
+    HWND commandSave_{};
+    HWND commandStatus_{};
 
     HWND generalBehaviorTitle_{};
     HWND hideAfterLaunch_{};
@@ -132,9 +220,14 @@ private:
     HBRUSH cardBrush_{};
 
     UINT dpi_{96};
-    Page page_{Page::General};
+    Page page_{Page::Commands};
     bool syncing_{false};
+    bool editingNew_{false};
+    bool editorDirty_{false};
+    std::wstring editingCommandId_;
+    std::vector<std::wstring> filteredCommandIds_;
 
+    std::vector<HWND> commandControls_;
     std::vector<HWND> generalControls_;
     std::vector<HWND> appearanceControls_;
     std::vector<HWND> aboutControls_;

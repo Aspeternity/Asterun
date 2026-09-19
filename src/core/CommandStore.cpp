@@ -14,9 +14,63 @@ CommandStore::CommandStore(
           baseDirectory_ / "commands.tsv") {}
 
 void CommandStore::Reload() {
-    commands_.clear();
-
     userCommandStore_.Load();
+    RebuildMergedCommands();
+}
+
+bool CommandStore::CreateUserCommand(
+    Command command,
+    std::wstring* createdId) {
+
+    if (!userCommandStore_.Create(
+            std::move(command),
+            createdId)) {
+        return false;
+    }
+
+    RebuildMergedCommands();
+    return true;
+}
+
+bool CommandStore::UpdateUserCommand(
+    std::wstring_view id,
+    Command command) {
+
+    if (!userCommandStore_.Update(
+            id,
+            std::move(command))) {
+        return false;
+    }
+
+    RebuildMergedCommands();
+    return true;
+}
+
+bool CommandStore::DeleteUserCommand(
+    std::wstring_view id) {
+
+    if (!userCommandStore_.Remove(id)) {
+        return false;
+    }
+
+    RebuildMergedCommands();
+    return true;
+}
+
+bool CommandStore::MoveUserCommand(
+    std::wstring_view id,
+    int direction) {
+
+    if (!userCommandStore_.Move(id, direction)) {
+        return false;
+    }
+
+    RebuildMergedCommands();
+    return true;
+}
+
+void CommandStore::RebuildMergedCommands() {
+    commands_.clear();
 
     for (const auto& command : userCommandStore_.Commands()) {
         if (!command.enabled) continue;
