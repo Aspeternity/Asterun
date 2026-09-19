@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.7
+
+- Reworked the Classic right-side frame from a flat dark rail into an asymmetric 3D bevel.
+- Kept the already-natural left rail unchanged.
+- Added a bright inner highlight at the content/right-frame boundary.
+- Added a medium transition band followed by a light-gray horizontal bevel.
+- Preserved a one-pixel dark outer edge for definition.
+- Applied the right bevel continuously through the title bar, hint strip, result list and command strip.
+- Painted the close button after the bevel so it is never clipped by the frame.
+- Kept Classic geometry, result columns, row height and Modern Compact unchanged.
+- Bumped application, manifest and Windows resource version to 0.1.7.
+
+
 ## 0.1.6
 
 - Fixed the visible Classic right-edge color interruption between the title bar and content area.

@@ -774,12 +774,8 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     FillRect(dc, &leftRail, windowBrush_);
     FillRect(dc, &rightRail, windowBrush_);
 
-    // Repaint the title contents after the rails so the logo and close button
-    // remain above the continuous frame background.
-    PaintClassicLogo(dc, DpiScale(9), DpiScale(3));
-    PaintClassicClose(dc, ClassicCloseRect());
-
-    // The two final frame strokes are drawn last and span the full height.
+    // The two base frame strokes keep the left/top/bottom appearance that
+    // already matched the reference well.
     HBRUSH border = CreateSolidBrush(RGB(75, 80, 86));
     FrameRect(dc, &client, border);
     DeleteObject(border);
@@ -789,6 +785,73 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     HBRUSH innerBorder = CreateSolidBrush(palette.frame);
     FrameRect(dc, &inner, innerBorder);
     DeleteObject(innerBorder);
+
+    // The original ALTRun frame is intentionally asymmetric: the left rail is
+    // dark, while the right rail catches a much lighter bevel. v0.1.6 used the
+    // same dark fill on both sides, which made the right edge look like a flat
+    // strip even though the color discontinuity was gone.
+    //
+    // Repaint only the right rail after the generic frame strokes:
+    //   content -> bright inner highlight -> mid bevel -> light gray rail
+    //   -> one-pixel dark outer edge.
+    const int right = client.right;
+    const int railStart = right - railWidth;
+    const int outerEdge = right - 1;
+
+    const int highlightWidth = std::max(1, DpiScale(1));
+    const int midWidth = std::max(1, DpiScale(1));
+
+    RECT highlight{
+        railStart,
+        client.top,
+        std::min(railStart + highlightWidth, outerEdge),
+        client.bottom
+    };
+    HBRUSH highlightBrush = CreateSolidBrush(RGB(222, 225, 228));
+    FillRect(dc, &highlight, highlightBrush);
+    DeleteObject(highlightBrush);
+
+    RECT mid{
+        highlight.right,
+        client.top,
+        std::min(highlight.right + midWidth, outerEdge),
+        client.bottom
+    };
+    HBRUSH midBrush = CreateSolidBrush(RGB(164, 168, 175));
+    FillRect(dc, &mid, midBrush);
+    DeleteObject(midBrush);
+
+    const int bevelStart = mid.right;
+    const int bevelEnd = outerEdge;
+    const int bevelWidth = std::max(1, bevelEnd - bevelStart);
+
+    for (int x = bevelStart; x < bevelEnd; ++x) {
+        const int n = x - bevelStart;
+        RECT stripe{x, client.top, x + 1, client.bottom};
+        const COLORREF stripeColor = MixColor(
+            RGB(153, 157, 163),
+            RGB(143, 148, 154),
+            n,
+            std::max(1, bevelWidth - 1));
+        HBRUSH stripeBrush = CreateSolidBrush(stripeColor);
+        FillRect(dc, &stripe, stripeBrush);
+        DeleteObject(stripeBrush);
+    }
+
+    RECT outerLine{
+        outerEdge,
+        client.top,
+        right,
+        client.bottom
+    };
+    HBRUSH outerBrush = CreateSolidBrush(RGB(75, 80, 86));
+    FillRect(dc, &outerLine, outerBrush);
+    DeleteObject(outerBrush);
+
+    // Corner controls are painted last so the new right bevel never clips the
+    // close button.
+    PaintClassicLogo(dc, DpiScale(9), DpiScale(3));
+    PaintClassicClose(dc, ClassicCloseRect());
 }
 
 void LauncherWindow::Show() {
