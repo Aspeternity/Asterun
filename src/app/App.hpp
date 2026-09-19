@@ -16,6 +16,7 @@
 namespace altrun {
 
 class LauncherWindow;
+class SettingsWindow;
 
 class App {
 public:
@@ -39,7 +40,22 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
+    void SetGeneralSettings(
+        bool hideAfterLaunch,
+        bool clearQueryOnShow,
+        bool hideOnFocusLost,
+        bool showTrayIcon,
+        std::string popupMonitor);
+
+    void ShowSettings();
+    void OpenDataFolder();
+    void OpenProjectPage();
+
     bool ExecuteCommand(std::size_t index);
+
+    [[nodiscard]] const std::filesystem::path& DataDirectory() const noexcept {
+        return dataDirectory_;
+    }
 
 private:
     HINSTANCE instance_{};
@@ -50,6 +66,7 @@ private:
     SettingsStore settingsStore_;
     SearchEngine searchEngine_;
     std::unique_ptr<LauncherWindow> window_;
+    std::unique_ptr<SettingsWindow> settingsWindow_;
 };
 
 } // namespace altrun
