@@ -745,6 +745,66 @@ int main() {
             v3HotkeySettings) ==
         schema4BeforeDowngrade);
 
+    // A schema-3 global binding may legitimately use a chord that alpha.6
+    // introduces as a new launcher-local default. The established user global
+    // binding wins; the conflicting new optional action is disabled.
+    const auto v3ConflictSettings =
+        data /
+        "settings-v0.6-alpha5-hotkey-conflict.json";
+
+    WriteText(
+        v3ConflictSettings,
+        "{\n"
+        "  \"schemaVersion\": 3,\n"
+        "  \"hotkey\": {\n"
+        "    \"modifiers\": [],\n"
+        "    \"key\": \"f2\",\n"
+        "    \"auxiliary\": {\n"
+        "      \"enabled\": false,\n"
+        "      \"modifiers\": [],\n"
+        "      \"key\": \"pause\"\n"
+        "    }\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore migratedConflict(
+        v3ConflictSettings);
+    migratedConflict.Load();
+
+    const auto conflictPrimary =
+        EffectiveHotkeyBinding(
+            migratedConflict.Data()
+                .hotkeyBindings,
+            hotkey_actions::kActivate);
+    const auto conflictOpenSettings =
+        EffectiveHotkeyBinding(
+            migratedConflict.Data()
+                .hotkeyBindings,
+            hotkey_actions::
+                kOpenSettings);
+
+    assert(conflictPrimary.enabled);
+    assert(conflictPrimary.key == "f2");
+    assert(
+        conflictPrimary.modifiers
+            .empty());
+    assert(
+        !conflictOpenSettings.enabled);
+
+    const auto conflictJson =
+        config::LoadJsonWithBackup(
+            v3ConflictSettings,
+            config::kSettingsSchemaVersion);
+
+    assert(conflictJson.value);
+    assert(
+        !(*conflictJson.value)
+             ["hotkeys"]
+             ["bindings"]
+             ["launcher.openSettings"]
+             ["enabled"]
+             .get<bool>());
+
     // Alpha-era settings without a providers object retain the current
     // default-enabled behavior for all discovery sources.
     const auto alphaSettings =

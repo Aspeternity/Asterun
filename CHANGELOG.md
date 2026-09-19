@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0-alpha.6.1
+
+- Hardened schema-3 -> 4 Hotkey Registry migration when an existing user global activation chord collides with a newly introduced launcher-local default.
+- Preserve established primary/auxiliary global bindings; disable the conflicting new optional local action instead of creating duplicate enabled chords.
+- Seed schema-4 Registry globals from the legacy compatibility mirror before applying hotkeys.bindings, improving recovery from partial schema-4 documents.
+- Added Config Core regression coverage for a legacy primary F2 binding colliding with the new Open Settings default.
+- Kept settings schemaVersion 4, stable Hotkey Registry action IDs, commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider defaults and Classic geometry unchanged.
+- Updated Windows fixed version to 0.6.0.61.
+
 ## 0.6.0-alpha.6
 
 - Added a centralized Hotkey Registry with stable action IDs, scope metadata, defaults and validation.

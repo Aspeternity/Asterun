@@ -127,6 +127,63 @@ void ImportLegacyHotkeys(
         std::move(auxiliary);
 }
 
+void ResolveHotkeyBindingConflicts(
+    Settings& settings) {
+    std::vector<std::string>
+        acceptedActions;
+
+    for (const auto& action :
+         HotkeyActionRegistry()) {
+        auto binding =
+            EffectiveHotkeyBinding(
+                settings.hotkeyBindings,
+                action.id);
+
+        if (!binding.enabled) {
+            settings.hotkeyBindings[
+                action.id] =
+                std::move(binding);
+            continue;
+        }
+
+        bool conflicts = false;
+
+        for (const auto& acceptedId :
+             acceptedActions) {
+            const auto accepted =
+                EffectiveHotkeyBinding(
+                    settings.hotkeyBindings,
+                    acceptedId);
+
+            if (SameHotkeyChord(
+                    binding,
+                    accepted)) {
+                conflicts = true;
+                break;
+            }
+        }
+
+        if (conflicts &&
+            !action.required) {
+            // Registry order gives existing global activation bindings
+            // priority over the new optional launcher-local defaults during
+            // schema-3 -> 4 migration. Preserve the user's established chord
+            // and disable the newly introduced conflicting optional action.
+            binding.enabled = false;
+            settings.hotkeyBindings[
+                action.id] =
+                std::move(binding);
+            continue;
+        }
+
+        settings.hotkeyBindings[
+            action.id] =
+            std::move(binding);
+        acceptedActions.push_back(
+            action.id);
+    }
+}
+
 } // namespace
 
 SettingsStore::SettingsStore(
@@ -367,6 +424,14 @@ bool SettingsStore::LoadJson() {
             }
         }
 
+        // Always seed the Registry from the schema-3 compatibility
+        // mirror first. A complete schema-4 document then overrides those
+        // entries below; a partial/corrupt schema-4 document still keeps the
+        // user's last known global activation bindings instead of silently
+        // reverting them to defaults.
+        ImportLegacyHotkeys(
+            settings_);
+
         if (load.schemaVersion >= 4 &&
             root.contains("hotkeys") &&
             root["hotkeys"].is_object()) {
@@ -441,13 +506,12 @@ bool SettingsStore::LoadJson() {
                     }
                 }
             }
-
-            SyncLegacyHotkeyMirrors(
-                settings_);
-        } else {
-            ImportLegacyHotkeys(
-                settings_);
         }
+
+        ResolveHotkeyBindingConflicts(
+            settings_);
+        SyncLegacyHotkeyMirrors(
+            settings_);
 
         if (root.contains("behavior") &&
             root["behavior"].is_object()) {

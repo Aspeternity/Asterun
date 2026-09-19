@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-alpha.6.1 — Hotkey Migration Collision Hardening
+
+Alpha 6.1 hardens schema-3 → 4 migration for users who had already customized a global activation chord to a key that alpha.6 introduces as a launcher-local default, such as `F2`, `Ctrl+Enter` or `Ctrl+Shift+C`.
+
+Migration priority is deterministic: existing user global activation bindings are preserved. If a newly introduced optional launcher-local default would duplicate one of those established chords, the new local action is migrated as **disabled** rather than changing the user's global binding or persisting two enabled actions with the same chord.
+
+Schema-4 loading also seeds global activation from the compatibility `hotkey` mirror before applying `hotkeys.bindings`, making a partial schema-4 document fail safer. The Hotkey Registry surface, action IDs and settings schema stay unchanged from alpha.6. Windows fixed FileVersion/ProductVersion is `0.6.0.61`.
+
 ## v0.6.0-alpha.6 — Centralized Hotkey Registry & Settings
 
 Alpha 6 replaces feature-specific hard-coded shortcut checks with a centralized **Hotkey Registry** and a dedicated **Hotkeys / 快捷键** Settings page. New hotkey-enabled actions now have a stable action ID, scope, default binding and validation policy in one registry.

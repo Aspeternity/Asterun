@@ -36,7 +36,7 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version == "0.6.0-alpha.6":
+if version in ("0.6.0-alpha.6", "0.6.0-alpha.6.1"):
     expected_schemas = {
         "kSettingsSchemaVersion": 4,
         "kCommandsSchemaVersion": 1,
@@ -105,6 +105,7 @@ if version == "0.6.0-alpha.6":
         'root.contains("hotkeys")',
         '"bindings"',
         "ImportLegacyHotkeys",
+        "ResolveHotkeyBindingConflicts",
         "SyncLegacyHotkeyMirrors",
         "ResetHotkeyBindings",
         'hotkey_actions::kActivate',
@@ -153,9 +154,11 @@ if version == "0.6.0-alpha.6":
     config_tests = read("tests/ConfigCoreTests.cpp")
     for token in (
         "settings-v0.6-alpha5-hotkeys.json",
+        "settings-v0.6-alpha5-hotkey-conflict.json",
         "MigratedFromSchemaVersion",
         "schema4BeforeDowngrade",
         "alpha5DowngradeRead",
+        "conflictOpenSettings",
     ):
         if token not in config_tests:
             fail(f"alpha.6 schema-3 -> 4 migration coverage missing: {token}")
