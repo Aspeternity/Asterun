@@ -75,6 +75,8 @@ v0.4.1-beta.2 does not change any schema. Regression coverage now includes a rep
 
 v0.4.1-rc.1 also keeps every schema unchanged. RC1 changes only release-candidate validation/publication contracts: tag/VERSION alignment, checksum self-verification and an exact portable-package root allowlist. No migration is performed when moving from beta.2 to RC1.
 
+v0.4.1 Stable keeps the same schema versions and performs no additional migration from RC1. Stable promotion changes only release/version metadata; the schemaVersion 2 downgrade-safety contract remains unchanged.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text

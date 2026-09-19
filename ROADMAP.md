@@ -62,7 +62,7 @@ Release hardening:
 
 ## v0.4.1 - Classic settings parity
 
-In progress:
+Completed in v0.4.1:
 
 - Independent settings schemaVersion 2 with downgrade-safe migration
 - Optional auxiliary global hotkey
@@ -78,6 +78,8 @@ In progress:
 - Beta 1 freezes schemas, provider IDs, safe defaults and core Classic geometry through a dedicated release-contract gate
 - Beta 2 makes Release-mode assertion tests effective, adds real RegisterHotKey runtime smoke, and moves Classic behavior / Settings layout decisions behind portable regression-tested helpers
 - Automated validation covers 100%/125%/150%/200% General-page layout invariants, IME-safe single-result gating, numeric quick-launch mapping and v0.4.0 settings migration/downgrade protection
+- RC1 hardens publication with tag/VERSION preflight, checksum self-verification and an exact portable-package top-level allowlist
+- v0.4.1 Stable preserves the frozen schema/provider/Classic contracts and uses Windows fixed version 0.4.1.300
 - RC1 hardens publication with tag/VERSION preflight, checksum self-verification and an exact portable-package top-level allowlist
 - Final x64 ZIPs receive a packaged-runtime startup smoke before publication
 - Tag-triggered releases require the same Core/Windows smoke/compatibility gates as main publication and now fail fast on a mismatched release tag

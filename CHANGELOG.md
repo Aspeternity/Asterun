@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1
+
+- Promoted the frozen v0.4.1 RC1 feature set to Stable without adding new launcher behavior.
+- Kept settings schemaVersion 2, commands/usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Kept the stable Windows provider IDs and frozen Classic launcher geometry unchanged.
+- Retained show-on-startup, the optional auxiliary hotkey with bare Pause support, wildcard matching, Classic numeric quick execution/order and optional single-result immediate execution.
+- Retained transactional primary/auxiliary hotkey registration, resume revalidation, IME-safe immediate execution and numeric-key auto-repeat suppression.
+- Retained responsive/scrollable General Settings layout and high-DPI work-area clamping.
+- Retained tag/VERSION preflight, Release-mode assertion integrity, real RegisterHotKey smoke, Windows 10 API-baseline validation, exact ZIP allowlisting, x64 packaged-runtime startup smoke and SHA256 self-verification.
+- Updated Windows version metadata to `0.4.1` / `0.4.1.300`.
+- Kept `DESKTOP_VALIDATION.md` as the explicit manual Windows desktop QA record without fabricating unchecked observations.
+
+
 ## 0.4.1-rc.1
 
 - Entered the v0.4.1 release-candidate phase with the feature set, schemas, provider IDs and Classic geometry still frozen.

@@ -4,14 +4,14 @@ ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, 
 
 ## Downloads
 
-### Stable v0.4.0
+### Stable v0.4.1
 
-The current stable release is published at the immutable `v0.4.0` tag:
+The current stable release is published at the immutable `v0.4.1` tag:
 
-- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.4.0
-- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.0/ALTRunNext-x64.zip
-- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.0/ALTRunNext-ARM64.zip
-- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.0/SHA256SUMS.txt
+- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.4.1
+- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.1/ALTRunNext-x64.zip
+- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.1/ALTRunNext-ARM64.zip
+- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.1/SHA256SUMS.txt
 
 ### Rolling development build
 
@@ -22,6 +22,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.4.1 — Stable Classic Settings Parity
+
+v0.4.1 promotes the RC1 feature set to stable without adding another feature, changing a data schema, changing a provider ID or modifying the frozen Classic launcher geometry.
+
+The stable release adds the independent settings schemaVersion 2, show-on-startup, the optional auxiliary global hotkey with bare `Pause` support, opt-in `* / ?` wildcard matching, Classic numeric quick execution with selectable 1–9,0 or 0–9 order, and optional single-result immediate execution. Hotkey registration remains transactional and is revalidated after resume; IME composition and numeric-key auto-repeat retain the RC hardening behavior.
+
+General Settings keeps the responsive stacked layout, vertical scrolling and high-DPI work-area clamping introduced during the v0.4.1 cycle. Existing Start Menu, Windows Apps, App Paths and PATH discovery behavior remains unchanged.
+
+Release safety is unchanged from RC1: tag/VERSION preflight, Release-mode assertions, real `RegisterHotKey` smoke, Windows 10 API-baseline validation, x64/ARM64 package contracts, exact ZIP top-level allowlisting, packaged x64 runtime startup smoke and SHA256 self-verification all remain required. Stable Windows FileVersion/ProductVersion is `0.4.1.300`.
+
+The packaged `DESKTOP_VALIDATION.md` remains the explicit real-desktop QA checklist; the Stable promotion does not rewrite or fabricate unchecked manual observations.
 
 ## v0.4.1-rc.1 — Release Candidate Stabilization
 
