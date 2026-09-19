@@ -2017,9 +2017,9 @@ void SettingsWindow::Layout() {
             contentLeft,
             top + Scale(46),
             leftWidth,
-            std::max(
+            std::max<int>(
                 Scale(250),
-                client.bottom - top - Scale(118)),
+                static_cast<int>(client.bottom) - top - Scale(118)),
             TRUE);
 
         MoveWindow(
