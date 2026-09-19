@@ -798,13 +798,13 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     const int railStart = right - railWidth;
     const int outerEdge = right - 1;
 
-    const int highlightWidth = std::max(1, DpiScale(1));
-    const int midWidth = std::max(1, DpiScale(1));
+    const LONG highlightWidth = static_cast<LONG>(std::max(1, DpiScale(1)));
+    const LONG midWidth = static_cast<LONG>(std::max(1, DpiScale(1)));
 
     RECT highlight{
         railStart,
         client.top,
-        std::min(railStart + highlightWidth, outerEdge),
+        std::min<LONG>(railStart + highlightWidth, outerEdge),
         client.bottom
     };
     HBRUSH highlightBrush = CreateSolidBrush(RGB(222, 225, 228));
@@ -814,7 +814,7 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     RECT mid{
         highlight.right,
         client.top,
-        std::min(highlight.right + midWidth, outerEdge),
+        std::min<LONG>(highlight.right + midWidth, outerEdge),
         client.bottom
     };
     HBRUSH midBrush = CreateSolidBrush(RGB(164, 168, 175));
