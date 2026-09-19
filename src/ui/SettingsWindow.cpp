@@ -89,6 +89,14 @@ bool SettingsWindow::Create() {
 
     dpi_ = GetDpiForWindow(hwnd_);
 
+    SetWindowPos(
+        hwnd_,
+        nullptr,
+        0, 0,
+        Scale(900),
+        Scale(620),
+        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+
     backgroundBrush_ = CreateSolidBrush(RGB(255, 255, 255));
     sidebarBrush_ = CreateSolidBrush(RGB(246, 247, 249));
 
@@ -96,6 +104,7 @@ bool SettingsWindow::Create() {
     ApplyFonts();
     ApplyLanguage();
     RefreshFromSettings();
+    ShowPage(Page::General);
     Layout();
     ShowWindow(hwnd_, SW_HIDE);
 
