@@ -118,7 +118,7 @@ GetBrowserWindow(
 }
 
 [[nodiscard]] bool
-GetActiveViewAndFolder(
+GetActiveViewContext(
     IWebBrowser2* browser,
     HWND* viewWindow,
     std::wstring* folderPath) {
@@ -127,6 +127,9 @@ GetActiveViewAndFolder(
         !folderPath) {
         return false;
     }
+
+    *viewWindow = nullptr;
+    folderPath->clear();
 
     ComPtr<IServiceProvider>
         serviceProvider;
@@ -172,13 +175,19 @@ GetActiveViewAndFolder(
         return false;
     }
 
+    // The Shell view itself is enough to identify a safe Explorer source
+    // context. The current location can be virtual (Home, This PC, Quick
+    // access, Network...) and therefore may not have a filesystem path.
+    *viewWindow =
+        shellViewWindow;
+
     ComPtr<IFolderView>
         folderView;
 
     if (FAILED(
             shellView.As(
                 &folderView))) {
-        return false;
+        return true;
     }
 
     ComPtr<IShellFolder>
@@ -189,7 +198,7 @@ GetActiveViewAndFolder(
                 IID_PPV_ARGS(
                     folder
                         .GetAddressOf())))) {
-        return false;
+        return true;
     }
 
     ComPtr<IPersistFolder2>
@@ -198,7 +207,7 @@ GetActiveViewAndFolder(
     if (FAILED(
             folder.As(
                 &persistFolder))) {
-        return false;
+        return true;
     }
 
     PIDLIST_ABSOLUTE folderId{};
@@ -207,7 +216,7 @@ GetActiveViewAndFolder(
                 GetCurFolder(
                     &folderId)) ||
         !folderId) {
-        return false;
+        return true;
     }
 
     std::wstring path(
@@ -225,7 +234,7 @@ GetActiveViewAndFolder(
     CoTaskMemFree(folderId);
 
     if (!converted) {
-        return false;
+        return true;
     }
 
     const auto terminator =
@@ -236,14 +245,10 @@ GetActiveViewAndFolder(
         path.resize(terminator);
     }
 
-    if (path.empty()) {
-        return false;
+    if (!path.empty()) {
+        *folderPath =
+            std::move(path);
     }
-
-    *viewWindow =
-        shellViewWindow;
-    *folderPath =
-        std::move(path);
 
     return true;
 }
@@ -349,8 +354,8 @@ EnumerateExplorerCandidates(
         }
 
         candidate.state
-            .hasFilesystemFolder =
-            GetActiveViewAndFolder(
+            .hasShellView =
+            GetActiveViewContext(
                 browser.Get(),
                 &candidate
                      .viewWindow,
@@ -358,7 +363,7 @@ EnumerateExplorerCandidates(
                      .folderPath);
 
         if (!candidate.state
-                 .hasFilesystemFolder) {
+                 .hasShellView) {
             continue;
         }
 

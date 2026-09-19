@@ -118,7 +118,8 @@ In progress:
 - Direct HTTP/HTTPS and www. input becomes an executable URL action
 - Existing URL user commands can use {query} as a UTF-8 percent-encoded web-search template through their keyword/aliases
 - v0.6.0-alpha.2 adds per-launch Windows Activation Context capture before the launcher takes foreground focus
-- Alpha 2 resolves the active filesystem Explorer conservatively through the Windows Shell model and refuses ambiguous multi-tab/multi-window guesses
+- Alpha 2.1 hardens that context so virtual Explorer sources such as Home / This PC / Quick access remain valid even though they have no filesystem source path
+- Explorer resolution remains conservative through the Windows Shell model and refuses ambiguous multi-tab/multi-window guesses
 - Everything Folder results keep Enter=open while Ctrl+Enter navigates the captured Explorer to that folder
 - Contextual navigation is session-scoped and cleared when the launcher hides
 - settings/commands/usage/provider-cache schemas and v0.5 provider defaults remain unchanged

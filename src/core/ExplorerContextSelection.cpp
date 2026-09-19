@@ -24,7 +24,7 @@ SelectExplorerContextCandidate(
             candidates[i];
 
         if (!candidate
-                 .hasFilesystemFolder) {
+                 .hasShellView) {
             continue;
         }
 

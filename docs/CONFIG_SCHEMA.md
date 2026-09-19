@@ -24,6 +24,8 @@ Schema versions are intentionally independent so adding launcher preferences doe
 
 v0.6.0-alpha.2 introduces only runtime Windows Activation Context and Explorer navigation state. The captured foreground HWND, Explorer view/browser handles and current folder are **session-only** and are never written to settings.json, commands.json, usage.json or provider-cache.json. No schema migration is performed.
 
+v0.6.0-alpha.2.1 keeps that persistence contract unchanged and allows virtual Explorer source locations such as Home / This PC / Quick access. Their source filesystem path is simply absent from the session snapshot; no shell namespace identifier or additional state is persisted.
+
 ## Migration
 
 On the first v0.2.0-alpha.1 launch:

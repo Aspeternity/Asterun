@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-alpha.2.1 — Explorer Virtual-Location Hotfix
+
+Alpha 2.1 fixes contextual folder navigation when ALTRun Next is invoked from Explorer **Home / 主文件夹**, This PC, Quick access, Network or another Shell namespace location that has no ordinary filesystem path.
+
+The alpha.2 implementation correctly captured Explorer through the Windows Shell automation model, but it treated the source Explorer context as valid only when the source location could also be converted to a filesystem path. That condition was unnecessarily strict: Ctrl+Enter only needs a reliable captured Explorer browser/view plus a filesystem path for the **destination** folder.
+
+The source context now becomes valid as soon as a unique active Explorer Shell view is resolved. The current source path remains optional diagnostic data. Filesystem locations continue to behave exactly as before, ambiguous Windows 11 tab/window candidates are still rejected instead of guessed, and Ctrl+Enter from a non-Explorer application still falls back to normal folder opening.
+
+No persisted schema, provider default, Everything transport or Classic geometry changes in this hotfix. Windows fixed FileVersion/ProductVersion is `0.6.0.21`.
+
 ## v0.6.0-alpha.2 — Windows Context & Explorer Navigation
 
 Alpha 2 turns the v0.6 Smart Action contract into the first context-aware Windows action. When the global hotkey opens ALTRun Next from File Explorer, the application captures the foreground Explorer **before** the launcher takes focus and keeps that activation snapshot for the current launcher session.

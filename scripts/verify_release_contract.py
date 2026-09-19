@@ -27,7 +27,7 @@ def cpp_int(path: str, name: str) -> int:
 
 version = read("VERSION").strip()
 match = re.fullmatch(
-    r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?",
+    r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+)(?:\.(\d+))?)?",
     version,
 )
 if not match:
@@ -36,7 +36,7 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version == "0.6.0-alpha.2":
+if version in ("0.6.0-alpha.2", "0.6.0-alpha.2.1"):
     expected_schemas = {
         "kSettingsSchemaVersion": 3,
         "kCommandsSchemaVersion": 1,
@@ -106,6 +106,7 @@ if version == "0.6.0-alpha.2":
 
     selection = read("src/core/ExplorerContextSelection.cpp")
     for token in (
+        "hasShellView",
         "focused.size() == 1",
         "visible.size() == 1",
         "valid.size() == 1",
@@ -119,6 +120,7 @@ if version == "0.6.0-alpha.2":
         "CLSID_ShellWindows",
         "SID_STopLevelBrowser",
         "QueryActiveShellView",
+        "GetActiveViewContext",
         "IPersistFolder2",
         "SHGetPathFromIDListEx",
         "GetGUIThreadInfo",
@@ -127,6 +129,20 @@ if version == "0.6.0-alpha.2":
     ):
         if token not in windows_context:
             fail(f"Windows Explorer context integration missing: {token}")
+
+    context_header = read("src/platform/WindowsContext.hpp")
+    has_explorer_body = re.search(
+        r"HasExplorer\(\) const noexcept \{(.*?)\n    \}",
+        context_header,
+        re.DOTALL,
+    )
+    if not has_explorer_body:
+        fail("WindowsContextSnapshot::HasExplorer contract was not found")
+    if "explorerFolder" in has_explorer_body.group(1):
+        fail(
+            "Explorer source context must not require a filesystem path; "
+            "Home/This PC/Quick access must remain navigable sources"
+        )
 
     app = read("src/app/App.cpp")
     capture_pos = app.find("CaptureActivationContext();")

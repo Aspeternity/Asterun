@@ -14,7 +14,7 @@ def fail(message: str) -> None:
 
 version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 match = re.fullmatch(
-    r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?",
+    r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+)(?:\.(\d+))?)?",
     version,
 )
 if not match:
@@ -23,9 +23,16 @@ if not match:
 major, minor, patch = map(int, match.group(1, 2, 3))
 channel = match.group(4)
 channel_number = int(match.group(5) or 0)
+channel_patch = int(match.group(6) or 0)
+
+if channel_patch and channel != "alpha":
+    fail("only alpha prereleases currently support a hotfix component")
 
 if channel == "alpha":
-    revision = channel_number
+    if channel_patch or channel_number >= 3:
+        revision = channel_number * 10 + channel_patch
+    else:
+        revision = channel_number
 elif channel == "beta":
     revision = 99 + channel_number
 elif channel == "rc":

@@ -26,6 +26,8 @@ struct WindowsContextSnapshot {
     HWND foregroundWindow{};
     HWND explorerBrowserWindow{};
     HWND explorerViewWindow{};
+    // Optional diagnostic/source path. Shell namespace locations such as
+    // Home, This PC and Quick access legitimately have no filesystem path.
     std::wstring explorerFolder;
 
     [[nodiscard]] bool
@@ -36,8 +38,7 @@ struct WindowsContextSnapshot {
             explorerBrowserWindow !=
                 nullptr &&
             explorerViewWindow !=
-                nullptr &&
-            !explorerFolder.empty();
+                nullptr;
     }
 };
 

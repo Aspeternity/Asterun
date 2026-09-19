@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0-alpha.2.1
+
+- Fixed Ctrl+Enter Explorer navigation when ALTRun Next is invoked from Home / 主文件夹, This PC, Quick access, Network or another virtual Shell namespace location.
+- Changed Explorer source-context validity from "active Shell view plus filesystem source path" to "active Shell view"; only the destination Folder result still requires a filesystem path.
+- Kept the source filesystem path as optional session-only diagnostic data when one exists.
+- Preserved focused-view/visible-view/single-candidate selection and the no-guess ambiguity policy for Windows 11 tabs and multiple Explorer windows.
+- Added release-contract protection so future changes cannot accidentally make Explorer source validity depend on explorerFolder again.
+- Extended version tooling to support alpha hotfix versions such as alpha.2.1; Windows fixed version for this build is 0.6.0.21.
+- Kept settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider defaults and Classic geometry 420/16/10 unchanged.
+
 ## 0.6.0-alpha.2
 
 - Added per-launch Activation Context capture before ALTRun Next takes foreground focus.

@@ -8,6 +8,8 @@ using namespace altrun;
 
 int main() {
     {
+        // A single valid Shell view is enough even when its current location
+        // is a virtual namespace location with no filesystem path.
         const std::array candidates{
             ExplorerContextCandidateState{
                 true, false, false},
@@ -80,6 +82,8 @@ int main() {
     }
 
     {
+        // Candidates without an active Shell view are not Explorer contexts,
+        // regardless of focus/visibility signals.
         const std::array candidates{
             ExplorerContextCandidateState{
                 false, true, true},
