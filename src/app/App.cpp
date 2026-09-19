@@ -11,17 +11,19 @@ App::App(HINSTANCE instance)
     : instance_(instance),
       baseDirectory_(win::ExecutableDirectory()),
       commandStore_(baseDirectory_),
-      usageStore_(baseDirectory_ / "usage.tsv") {}
+      usageStore_(baseDirectory_ / "usage.tsv"),
+      settingsStore_(baseDirectory_ / "settings.ini") {}
 
 App::~App() = default;
 
 int App::Run() {
+    settingsStore_.Load();
     commandStore_.Reload();
     usageStore_.Load();
 
     window_ = std::make_unique<LauncherWindow>(*this, instance_);
     if (!window_->Create()) {
-        MessageBoxW(nullptr, L"Unable to create ALTRun Next launcher window.", L"ALTRun Next", MB_ICONERROR | MB_OK);
+        MessageBoxW(nullptr, Text(TextId::CreateWindowFailed).data(), L"ALTRun Next", MB_ICONERROR | MB_OK);
         return 1;
     }
 
@@ -46,6 +48,20 @@ const Command& App::GetCommand(std::size_t index) const {
     return commandStore_.Commands().at(index);
 }
 
+std::wstring_view App::Text(TextId id) const {
+    return LocalizedText(id, settingsStore_.Data().language);
+}
+
+void App::SetUiStyle(UiStyle style) {
+    settingsStore_.SetUiStyle(style);
+    if (window_) window_->ApplyAppearance();
+}
+
+void App::SetLanguage(Language language) {
+    settingsStore_.SetLanguage(language);
+    if (window_) window_->ApplyLanguage();
+}
+
 bool App::ExecuteCommand(std::size_t index) {
     const auto& command = commandStore_.Commands().at(index);
 
@@ -64,7 +80,7 @@ bool App::ExecuteCommand(std::size_t index) {
 
     if (!ShellExecuteExW(&info)) {
         const DWORD error = GetLastError();
-        std::wstring message = L"Unable to launch:\n" + target + L"\n\n" + win::FormatWin32Error(error);
+        std::wstring message = std::wstring(Text(TextId::UnableToLaunch)) + L"\n" + target + L"\n\n" + win::FormatWin32Error(error);
         MessageBoxW(nullptr, message.c_str(), L"ALTRun Next", MB_ICONERROR | MB_OK);
         return false;
     }
