@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.8
+
+- Reworked the Classic right edge for visual naturalness rather than strict symmetry with the old skin.
+- Reduced the Classic right-side reserved rail from 7 logical px to 2 logical px while keeping the left side at 7.
+- Extended the input/hint, result list and bottom command strip closer to the right frame.
+- Removed the wide multi-band v0.1.7 bevel that read visually as a separate vertical decoration.
+- Replaced it with a restrained narrow finish: one soft transition line and one dark outer edge.
+- Extended the title gradient to the same new right-side boundary so the entire frame remains consistent.
+- Kept the window size, row height, left frame, column separators, selection colors and Modern Compact unchanged.
+- Bumped application, manifest and Windows resource version to 0.1.8.
+
+
 ## 0.1.7
 
 - Reworked the Classic right-side frame from a flat dark rail into an asymmetric 3D bevel.

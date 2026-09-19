@@ -423,7 +423,8 @@ void LauncherWindow::Layout() {
     }
 
     constexpr int titleHeightLogical = 30;
-    constexpr int sideLogical = 7;
+    constexpr int leftSideLogical = 7;
+    constexpr int rightSideLogical = 2;
     constexpr int inputHeightLogical = 22;
     constexpr int inputWidthLogical = 190;
     constexpr int listTopGapLogical = 4;
@@ -439,18 +440,19 @@ void LauncherWindow::Layout() {
         hwnd_, nullptr, 0, 0, width, height,
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
-    const int side = DpiScale(sideLogical);
+    const int leftSide = DpiScale(leftSideLogical);
+    const int rightSide = DpiScale(rightSideLogical);
     const int titleHeight = DpiScale(titleHeightLogical);
     const int inputHeight = DpiScale(inputHeightLogical);
     const int inputWidth = DpiScale(inputWidthLogical);
-    const int contentWidth = width - side * 2;
+    const int contentWidth = width - leftSide - rightSide;
     const int listY = titleHeight + inputHeight + DpiScale(listTopGapLogical);
     const int listHeight = DpiScale(listHeightLogical);
     const int previewY = listY + listHeight + DpiScale(bottomGapLogical);
 
     MoveWindow(
         edit_,
-        side,
+        leftSide,
         titleHeight,
         inputWidth,
         inputHeight,
@@ -458,7 +460,7 @@ void LauncherWindow::Layout() {
 
     MoveWindow(
         hint_,
-        side + inputWidth,
+        leftSide + inputWidth,
         titleHeight,
         contentWidth - inputWidth,
         inputHeight,
@@ -466,7 +468,7 @@ void LauncherWindow::Layout() {
 
     MoveWindow(
         list_,
-        side,
+        leftSide,
         listY,
         contentWidth,
         listHeight,
@@ -474,7 +476,7 @@ void LauncherWindow::Layout() {
 
     MoveWindow(
         preview_,
-        side,
+        leftSide,
         previewY,
         contentWidth,
         DpiScale(previewHeightLogical),
@@ -689,11 +691,12 @@ void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
     // Keep the same gray side rail from the title bar all the way down the
     // launcher. Previously the gradient reached the outer edge while the
     // content area was inset, producing a visible color break on both sides.
-    const int sideRail = DpiScale(7);
+    const int leftRail = DpiScale(7);
+    const int rightRail = DpiScale(2);
     RECT title{
-        client.left + sideRail,
+        client.left + leftRail,
         client.top,
-        client.right - sideRail,
+        client.right - rightRail,
         DpiScale(30)
     };
 
@@ -758,15 +761,16 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     // Continuous Classic side rails. These intentionally use the same color
     // above and below the title/content boundary to avoid the visible break
     // that appeared on the right edge in v0.1.5.
-    const int railWidth = DpiScale(7);
+    const int leftRailWidth = DpiScale(7);
+    const int rightRailWidth = std::max(2, DpiScale(2));
     RECT leftRail{
         client.left,
         client.top,
-        client.left + railWidth,
+        client.left + leftRailWidth,
         client.bottom
     };
     RECT rightRail{
-        client.right - railWidth,
+        client.right - rightRailWidth,
         client.top,
         client.right,
         client.bottom
@@ -786,57 +790,36 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     FrameRect(dc, &inner, innerBorder);
     DeleteObject(innerBorder);
 
-    // The original ALTRun frame is intentionally asymmetric: the left rail is
-    // dark, while the right rail catches a much lighter bevel. v0.1.6 used the
-    // same dark fill on both sides, which made the right edge look like a flat
-    // strip even though the color discontinuity was gone.
-    //
-    // Repaint only the right rail after the generic frame strokes:
-    //   content -> bright inner highlight -> mid bevel -> light gray rail
-    //   -> one-pixel dark outer edge.
-    const int right = client.right;
-    const int railStart = right - railWidth;
-    const int outerEdge = right - 1;
+    // v0.1.8 deliberately avoids a visible "right-side strip".
+    // The content now reaches almost to the outer frame; only a restrained
+    // narrow finish remains: one soft transition line plus the dark outer edge.
+    const LONG right = client.right;
+    const LONG outerEdge = right - 1;
+    const LONG transitionX = std::max<LONG>(
+        client.left,
+        right - static_cast<LONG>(std::max(2, DpiScale(2))));
 
-    const LONG highlightWidth = static_cast<LONG>(std::max(1, DpiScale(1)));
-    const LONG midWidth = static_cast<LONG>(std::max(1, DpiScale(1)));
-
-    RECT highlight{
-        railStart,
+    RECT transition{
+        transitionX,
         client.top,
-        std::min<LONG>(railStart + highlightWidth, outerEdge),
+        outerEdge,
         client.bottom
     };
-    HBRUSH highlightBrush = CreateSolidBrush(RGB(222, 225, 228));
-    FillRect(dc, &highlight, highlightBrush);
-    DeleteObject(highlightBrush);
+    HBRUSH transitionBrush = CreateSolidBrush(RGB(151, 156, 161));
+    FillRect(dc, &transition, transitionBrush);
+    DeleteObject(transitionBrush);
 
-    RECT mid{
-        highlight.right,
+    // A single softer inner line prevents the content from meeting the frame
+    // abruptly without reading as a separate decorative band.
+    RECT innerLine{
+        transitionX,
         client.top,
-        std::min<LONG>(highlight.right + midWidth, outerEdge),
+        std::min<LONG>(transitionX + 1, outerEdge),
         client.bottom
     };
-    HBRUSH midBrush = CreateSolidBrush(RGB(164, 168, 175));
-    FillRect(dc, &mid, midBrush);
-    DeleteObject(midBrush);
-
-    const int bevelStart = mid.right;
-    const int bevelEnd = outerEdge;
-    const int bevelWidth = std::max(1, bevelEnd - bevelStart);
-
-    for (int x = bevelStart; x < bevelEnd; ++x) {
-        const int n = x - bevelStart;
-        RECT stripe{x, client.top, x + 1, client.bottom};
-        const COLORREF stripeColor = MixColor(
-            RGB(153, 157, 163),
-            RGB(143, 148, 154),
-            n,
-            std::max(1, bevelWidth - 1));
-        HBRUSH stripeBrush = CreateSolidBrush(stripeColor);
-        FillRect(dc, &stripe, stripeBrush);
-        DeleteObject(stripeBrush);
-    }
+    HBRUSH innerLineBrush = CreateSolidBrush(RGB(187, 191, 195));
+    FillRect(dc, &innerLine, innerLineBrush);
+    DeleteObject(innerLineBrush);
 
     RECT outerLine{
         outerEdge,
@@ -848,7 +831,7 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     FillRect(dc, &outerLine, outerBrush);
     DeleteObject(outerBrush);
 
-    // Corner controls are painted last so the new right bevel never clips the
+    // Corner controls are painted last so the right frame finish never clips the
     // close button.
     PaintClassicLogo(dc, DpiScale(9), DpiScale(3));
     PaintClassicClose(dc, ClassicCloseRect());
