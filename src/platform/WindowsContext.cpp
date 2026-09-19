@@ -2,6 +2,10 @@
 
 #include "../core/ExplorerContextSelection.hpp"
 
+#include <ole2.h>
+#include <oaidl.h>
+#include <ocidl.h>
+#include <oleauto.h>
 #include <exdisp.h>
 #include <servprov.h>
 #include <shlobj.h>
