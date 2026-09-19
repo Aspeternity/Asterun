@@ -54,6 +54,7 @@ if(WIN32)
         src/core/StartMenuProvider.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
+        src/ui/SettingsWindow.cpp
         src/resources.rc
         src/app.manifest
     )
