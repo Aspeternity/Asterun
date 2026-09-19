@@ -29,21 +29,34 @@ public:
     int Run();
     void ReloadCommands();
 
-    [[nodiscard]] std::vector<SearchResult> Search(
+    [[nodiscard]] std::vector<SearchResult>
+    Search(
         std::wstring_view query,
         std::size_t limit) const;
 
-    [[nodiscard]] const Command& GetCommand(std::size_t index) const;
+    [[nodiscard]] const Command&
+    GetCommand(
+        std::size_t index) const;
 
-    [[nodiscard]] const std::vector<Command>& UserCommands() const noexcept {
-        return commandStore_.UserCommands();
+    [[nodiscard]] const std::vector<Command>&
+    UserCommands() const noexcept {
+        return commandStore_
+            .UserCommands();
     }
 
-    bool CreateUserCommand(Command command, std::wstring* createdId = nullptr);
-    bool UpdateUserCommand(std::wstring_view id, Command command);
-    bool DeleteUserCommand(std::wstring_view id);
-    bool MoveUserCommand(std::wstring_view id, int direction);
-    bool TestCommand(const Command& command);
+    bool CreateUserCommand(
+        Command command,
+        std::wstring* createdId = nullptr);
+    bool UpdateUserCommand(
+        std::wstring_view id,
+        Command command);
+    bool DeleteUserCommand(
+        std::wstring_view id);
+    bool MoveUserCommand(
+        std::wstring_view id,
+        int direction);
+    bool TestCommand(
+        const Command& command);
 
     bool ImportUserCommands(
         const std::filesystem::path& path,
@@ -56,11 +69,13 @@ public:
     void RebuildProgramIndex();
     bool RestoreDefaultSettings();
 
-    [[nodiscard]] const Settings& SettingsData() const noexcept {
+    [[nodiscard]] const Settings&
+    SettingsData() const noexcept {
         return settingsStore_.Data();
     }
 
-    [[nodiscard]] std::wstring_view Text(TextId id) const;
+    [[nodiscard]] std::wstring_view
+    Text(TextId id) const;
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
@@ -68,13 +83,21 @@ public:
     bool SetHotkeySettings(
         std::vector<std::string> modifiers,
         std::string key);
+    bool SetProviderEnabled(
+        std::string id,
+        bool enabled);
     bool RepairGlobalHotkey();
-    [[nodiscard]] bool IsGlobalHotkeyRegistered() const noexcept {
+
+    [[nodiscard]] bool
+    IsGlobalHotkeyRegistered() const noexcept {
         return hotkeyRegistered_;
     }
-    [[nodiscard]] DWORD GlobalHotkeyLastError() const noexcept {
+
+    [[nodiscard]] DWORD
+    GlobalHotkeyLastError() const noexcept {
         return hotkeyLastError_;
     }
+
     void SetGeneralSettings(
         bool hideAfterLaunch,
         bool clearQueryOnShow,
@@ -86,43 +109,60 @@ public:
     void OpenDataFolder();
     void OpenProjectPage();
 
-    bool ExecuteCommand(std::size_t index);
+    bool ExecuteCommand(
+        std::size_t index);
 
-    [[nodiscard]] const std::filesystem::path& DataDirectory() const noexcept {
+    [[nodiscard]] const std::filesystem::path&
+    DataDirectory() const noexcept {
         return dataDirectory_;
     }
 
 private:
-    static constexpr int kGlobalHotkeyId = 0xA171;
-    static constexpr UINT kProviderRefreshMessage =
-        WM_APP + 0x171;
+    static constexpr int
+        kGlobalHotkeyId = 0xA171;
 
-    bool LaunchCommand(const Command& command, bool recordUsage);
-    bool ApplyStartupRegistration(bool enabled) const;
+    static constexpr UINT
+        kProviderRefreshMessage =
+            WM_APP + 0x171;
+
+    bool LaunchCommand(
+        const Command& command,
+        bool recordUsage);
+    bool ApplyStartupRegistration(
+        bool enabled) const;
     bool RebindGlobalHotkey(
         const std::vector<std::string>& modifiers,
         std::string_view key);
     void StartProviderRefresh();
     void HandleProviderRefreshCompleted(
-        bool success);
+        ProviderRefreshOutcome outcome);
 
     HINSTANCE instance_{};
-    std::filesystem::path baseDirectory_;
-    std::filesystem::path dataDirectory_;
+    std::filesystem::path
+        baseDirectory_;
+    std::filesystem::path
+        dataDirectory_;
     CommandStore commandStore_;
     UsageStore usageStore_;
     SettingsStore settingsStore_;
     SearchEngine searchEngine_;
-    std::unique_ptr<LauncherWindow> window_;
-    std::unique_ptr<SettingsWindow> settingsWindow_;
-    std::jthread providerRefreshThread_;
-    std::atomic_bool providerRefreshRunning_{false};
+    std::unique_ptr<LauncherWindow>
+        window_;
+    std::unique_ptr<SettingsWindow>
+        settingsWindow_;
+    std::jthread
+        providerRefreshThread_;
+    std::atomic_bool
+        providerRefreshRunning_{false};
+    std::atomic_bool
+        providerRefreshPending_{false};
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};
     bool hotkeyRegistered_{false};
     UINT currentHotkeyModifiers_{0};
     UINT currentHotkeyVk_{0};
-    DWORD hotkeyLastError_{ERROR_SUCCESS};
+    DWORD hotkeyLastError_{
+        ERROR_SUCCESS};
 };
 
 } // namespace altrun

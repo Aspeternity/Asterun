@@ -2,9 +2,9 @@
 
 #include "Command.hpp"
 #include "ProviderCache.hpp"
-#include "StartMenuProvider.hpp"
+#include "ProviderIds.hpp"
+#include "ProviderRegistry.hpp"
 #include "UserCommandStore.hpp"
-#include "WindowsAppProvider.hpp"
 
 #include <filesystem>
 #include <string>
@@ -14,46 +14,73 @@
 
 namespace altrun {
 
+enum class ProviderRefreshOutcome {
+    Failed = 0,
+    Success = 1,
+    Partial = 2,
+};
+
 class CommandStore {
 public:
     CommandStore(
         std::filesystem::path baseDirectory,
         std::filesystem::path dataDirectory);
 
-    void Reload();
-    void ReloadProviderCache();
+    void Reload(
+        const ProviderEnableMap& enabled);
+    void ReloadProviderCache(
+        const ProviderEnableMap& enabled);
 
-    [[nodiscard]] std::vector<Command>
-    DiscoverProviderCommands() const;
+    [[nodiscard]] ProviderRefreshOutcome
+    RefreshProviderCache(
+        const ProviderEnableMap& enabled) const;
 
-    [[nodiscard]] bool SaveProviderCache(
-        const std::vector<Command>& commands) const;
+    [[nodiscard]] std::vector<
+        ProviderDescriptor>
+    ProviderDescriptors() const;
 
-    bool CreateUserCommand(Command command, std::wstring* createdId = nullptr);
-    bool UpdateUserCommand(std::wstring_view id, Command command);
-    bool DeleteUserCommand(std::wstring_view id);
-    bool MoveUserCommand(std::wstring_view id, int direction);
+    bool CreateUserCommand(
+        Command command,
+        std::wstring* createdId = nullptr);
+    bool UpdateUserCommand(
+        std::wstring_view id,
+        Command command);
+    bool DeleteUserCommand(
+        std::wstring_view id);
+    bool MoveUserCommand(
+        std::wstring_view id,
+        int direction);
     bool ImportUserCommands(
         const std::filesystem::path& path,
         bool legacyMode,
         std::size_t* imported = nullptr,
         std::size_t* skipped = nullptr);
-    bool ExportUserCommands(const std::filesystem::path& path) const;
+    bool ExportUserCommands(
+        const std::filesystem::path& path) const;
 
-    [[nodiscard]] const std::vector<Command>& Commands() const noexcept {
+    [[nodiscard]] const std::vector<Command>&
+    Commands() const noexcept {
         return commands_;
     }
 
-    [[nodiscard]] const std::vector<Command>& UserCommands() const noexcept {
-        return userCommandStore_.Commands();
+    [[nodiscard]] const std::vector<Command>&
+    UserCommands() const noexcept {
+        return userCommandStore_
+            .Commands();
     }
 
-    [[nodiscard]] const std::unordered_map<std::wstring, std::wstring>& LegacyIdMap() const noexcept {
-        return userCommandStore_.LegacyIdMap();
+    [[nodiscard]] const std::unordered_map<
+        std::wstring,
+        std::wstring>&
+    LegacyIdMap() const noexcept {
+        return userCommandStore_
+            .LegacyIdMap();
     }
 
-    [[nodiscard]] const std::filesystem::path& UserCommandsPath() const noexcept {
-        return userCommandStore_.Path();
+    [[nodiscard]] const std::filesystem::path&
+    UserCommandsPath() const noexcept {
+        return userCommandStore_
+            .Path();
     }
 
 private:
@@ -63,14 +90,20 @@ private:
         std::vector<Command>& output,
         Command command);
 
-    std::filesystem::path baseDirectory_;
-    std::filesystem::path dataDirectory_;
-    UserCommandStore userCommandStore_;
-    ProviderCache providerCache_;
-    StartMenuProvider startMenuProvider_;
-    WindowsAppProvider windowsAppProvider_;
-    std::vector<Command> providerCommands_;
-    std::vector<Command> commands_;
+    std::filesystem::path
+        baseDirectory_;
+    std::filesystem::path
+        dataDirectory_;
+    UserCommandStore
+        userCommandStore_;
+    ProviderCache
+        providerCache_;
+    ProviderRegistry
+        providerRegistry_;
+    std::vector<Command>
+        providerCommands_;
+    std::vector<Command>
+        commands_;
 };
 
 } // namespace altrun

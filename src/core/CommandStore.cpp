@@ -3,14 +3,18 @@
 #include "../platform/WinUtil.hpp"
 
 #include <algorithm>
-#include <array>
+#include <chrono>
+#include <utility>
 
 namespace altrun {
 
 namespace {
 
-bool IsUserSource(CommandSource source) {
-    return source == CommandSource::User;
+bool IsUserSource(
+    CommandSource source) {
+
+    return source ==
+        CommandSource::User;
 }
 
 std::wstring NormalizeForDedup(
@@ -29,7 +33,9 @@ std::wstring NormalizeForDedup(
     return result;
 }
 
-std::wstring NameKey(const Command& command) {
+std::wstring NameKey(
+    const Command& command) {
+
     std::wstring key =
         win::CompactKeyword(
             command.title);
@@ -43,62 +49,143 @@ std::wstring NameKey(const Command& command) {
     return key;
 }
 
+std::int64_t NowUnix() {
+    return std::chrono::
+        duration_cast<
+            std::chrono::seconds>(
+                std::chrono::
+                    system_clock::now()
+                    .time_since_epoch())
+        .count();
+}
+
 } // namespace
 
 CommandStore::CommandStore(
     std::filesystem::path baseDirectory,
     std::filesystem::path dataDirectory)
-    : baseDirectory_(std::move(baseDirectory)),
-      dataDirectory_(std::move(dataDirectory)),
+    : baseDirectory_(
+          std::move(baseDirectory)),
+      dataDirectory_(
+          std::move(dataDirectory)),
       userCommandStore_(
-          dataDirectory_ / "commands.json",
-          baseDirectory_ / "commands.tsv"),
+          dataDirectory_ /
+              "commands.json",
+          baseDirectory_ /
+              "commands.tsv"),
       providerCache_(
           dataDirectory_ /
-          "provider-cache.json") {}
+              "provider-cache.json") {}
 
-void CommandStore::Reload() {
+void CommandStore::Reload(
+    const ProviderEnableMap& enabled) {
+
     userCommandStore_.Load();
-    providerCommands_ =
-        providerCache_.Load();
-    RebuildMergedCommands();
+    ReloadProviderCache(
+        enabled);
 }
 
-void CommandStore::ReloadProviderCache() {
-    providerCommands_ =
+void CommandStore::ReloadProviderCache(
+    const ProviderEnableMap& enabled) {
+
+    providerCommands_.clear();
+
+    const ProviderCacheData cache =
         providerCache_.Load();
-    RebuildMergedCommands();
-}
 
-std::vector<Command>
-CommandStore::DiscoverProviderCommands() const {
-    std::vector<Command> discovered;
+    for (const auto& descriptor :
+         providerRegistry_
+             .Descriptors()) {
 
-    const std::array<
-        const ICommandProvider*,
-        2> providers{
-            &startMenuProvider_,
-            &windowsAppProvider_,
-        };
+        if (!providers::IsEnabled(
+                enabled,
+                descriptor.id,
+                descriptor
+                    .defaultEnabled)) {
+            continue;
+        }
 
-    for (const ICommandProvider* provider :
-         providers) {
-        for (auto command :
-             provider->Discover()) {
+        const auto it =
+            cache.find(
+                descriptor.id);
+
+        if (it == cache.end()) {
+            continue;
+        }
+
+        for (const auto& command :
+             it->second.commands) {
             AddCommandTo(
-                discovered,
-                std::move(command));
+                providerCommands_,
+                command);
         }
     }
 
-    return discovered;
+    RebuildMergedCommands();
 }
 
-bool CommandStore::SaveProviderCache(
-    const std::vector<Command>& commands) const {
+ProviderRefreshOutcome
+CommandStore::RefreshProviderCache(
+    const ProviderEnableMap& enabled) const {
 
-    return providerCache_.Save(
-        commands);
+    ProviderCacheData cache =
+        providerCache_.Load();
+
+    const auto results =
+        providerRegistry_.Discover(
+            enabled);
+
+    if (results.empty()) {
+        return ProviderRefreshOutcome::
+            Success;
+    }
+
+    std::size_t succeeded = 0;
+    std::size_t failed = 0;
+    const std::int64_t generatedAt =
+        NowUnix();
+
+    for (const auto& result :
+         results) {
+        if (!result.success) {
+            ++failed;
+            continue;
+        }
+
+        ProviderCacheEntry entry;
+        entry.generatedAtUnix =
+            generatedAt;
+        entry.commands =
+            result.commands;
+
+        cache[result.id] =
+            std::move(entry);
+
+        ++succeeded;
+    }
+
+    // If every enabled provider failed, leave the previous cache untouched.
+    if (succeeded == 0) {
+        return ProviderRefreshOutcome::
+            Failed;
+    }
+
+    if (!providerCache_.Save(cache)) {
+        return ProviderRefreshOutcome::
+            Failed;
+    }
+
+    return failed == 0
+        ? ProviderRefreshOutcome::
+              Success
+        : ProviderRefreshOutcome::
+              Partial;
+}
+
+std::vector<ProviderDescriptor>
+CommandStore::ProviderDescriptors() const {
+    return providerRegistry_
+        .Descriptors();
 }
 
 bool CommandStore::CreateUserCommand(
@@ -132,7 +219,8 @@ bool CommandStore::UpdateUserCommand(
 bool CommandStore::DeleteUserCommand(
     std::wstring_view id) {
 
-    if (!userCommandStore_.Remove(id)) {
+    if (!userCommandStore_.Remove(
+            id)) {
         return false;
     }
 
@@ -144,7 +232,9 @@ bool CommandStore::MoveUserCommand(
     std::wstring_view id,
     int direction) {
 
-    if (!userCommandStore_.Move(id, direction)) {
+    if (!userCommandStore_.Move(
+            id,
+            direction)) {
         return false;
     }
 
@@ -173,14 +263,16 @@ bool CommandStore::ImportUserCommands(
 bool CommandStore::ExportUserCommands(
     const std::filesystem::path& path) const {
 
-    return userCommandStore_.ExportTsv(path);
+    return userCommandStore_
+        .ExportTsv(path);
 }
 
 void CommandStore::RebuildMergedCommands() {
     commands_.clear();
 
     for (const auto& command :
-         userCommandStore_.Commands()) {
+         userCommandStore_
+             .Commands()) {
         if (!command.enabled) {
             continue;
         }
@@ -239,14 +331,16 @@ void CommandStore::AddCommandTo(
 
         if (!incomingUser &&
             !targetKey.empty() &&
-            existingTarget == targetKey) {
+            existingTarget ==
+                targetKey) {
             return;
         }
 
         if (incomingUser &&
             !existingUser &&
             !targetKey.empty() &&
-            existingTarget == targetKey) {
+            existingTarget ==
+                targetKey) {
             continue;
         }
 
@@ -265,7 +359,8 @@ void CommandStore::AddCommandTo(
                 NameKey(existing);
 
         if (!nameKey.empty() &&
-            nameKey == existingName &&
+            nameKey ==
+                existingName &&
             keywordKey ==
                 existingKeyword) {
             return;

@@ -15,5 +15,11 @@
   "appearance": {
     "launcher": "classic",
     "language": "zh-CN"
+  },
+  "providers": {
+    "windows.startmenu": true,
+    "windows.packaged": true,
+    "windows.apppaths": true,
+    "windows.path": true
   }
 }

@@ -298,6 +298,7 @@ void SettingsWindow::CreateControls() {
     navCommands_ = CreateButton(L"", kIdNavCommands);
     navGeneral_ = CreateButton(L"", kIdNavGeneral);
     navAppearance_ = CreateButton(L"", kIdNavAppearance);
+    navProviders_ = CreateButton(L"", kIdNavProviders);
     navData_ = CreateButton(L"", kIdNavData);
     navAbout_ = CreateButton(L"", kIdNavAbout);
 
@@ -309,6 +310,7 @@ void SettingsWindow::CreateControls() {
     CreateCommandPage();
     CreateGeneralPage();
     CreateAppearancePage();
+    CreateProviderPage();
     CreateDataPage();
     CreateAboutPage();
 }
@@ -619,6 +621,42 @@ void SettingsWindow::CreateAppearancePage() {
     };
 }
 
+void SettingsWindow::CreateProviderPage() {
+    providerSectionTitle_ =
+        CreateStatic(L"");
+
+    providerStartMenu_ =
+        CreateCheckboxRow(
+            L"",
+            kIdProviderStartMenu);
+    providerPackaged_ =
+        CreateCheckboxRow(
+            L"",
+            kIdProviderPackaged);
+    providerAppPaths_ =
+        CreateCheckboxRow(
+            L"",
+            kIdProviderAppPaths);
+    providerPath_ =
+        CreateCheckboxRow(
+            L"",
+            kIdProviderPath);
+
+    providerNote_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+
+    providerControls_ = {
+        providerSectionTitle_,
+        providerStartMenu_,
+        providerPackaged_,
+        providerAppPaths_,
+        providerPath_,
+        providerNote_,
+    };
+}
+
 void SettingsWindow::CreateDataPage() {
     dataOpenLabel_ = CreateStatic(L"");
     dataOpenFolder_ =
@@ -762,6 +800,7 @@ void SettingsWindow::ApplyFonts() {
         navCommands_,
         navGeneral_,
         navAppearance_,
+        navProviders_,
         navData_,
         navAbout_,
         pageDescription_,
@@ -810,6 +849,11 @@ void SettingsWindow::ApplyFonts() {
         languageLabel_,
         language_,
         appearanceNote_,
+        providerStartMenu_,
+        providerPackaged_,
+        providerAppPaths_,
+        providerPath_,
+        providerNote_,
         dataOpenLabel_,
         dataOpenFolder_,
         dataTransferLabel_,
@@ -839,11 +883,12 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
-    for (HWND control : std::array<HWND, 7>{
+    for (HWND control : std::array<HWND, 8>{
              commandEditorTitle_,
              generalBehaviorTitle_,
              hotkeySectionTitle_,
              popupSectionTitle_,
+             providerSectionTitle_,
              dataOpenLabel_,
              dataTransferLabel_,
              dataMaintenanceLabel_}) {
@@ -872,12 +917,16 @@ void SettingsWindow::ApplyFonts() {
             TRUE);
     }
 
-    for (HWND control : std::array<HWND, 5>{
+    for (HWND control : std::array<HWND, 9>{
              startWithWindows_,
              hideAfterLaunch_,
              clearQueryOnShow_,
              hideOnFocusLost_,
-             showTrayIcon_}) {
+             showTrayIcon_,
+             providerStartMenu_,
+             providerPackaged_,
+             providerAppPaths_,
+             providerPath_}) {
         if (control) {
             SendMessageW(
                 control,
@@ -1100,6 +1149,26 @@ void SettingsWindow::ApplyLanguage() {
           L"Appearance and language changes apply immediately and are saved to data/settings.json."));
 
     SetWindowTextW(
+        providerSectionTitle_,
+        T(L"Windows 应用来源", L"Windows application sources"));
+    SetWindowTextW(
+        providerStartMenu_,
+        T(L"开始菜单", L"Start Menu"));
+    SetWindowTextW(
+        providerPackaged_,
+        T(L"Windows Apps", L"Windows Apps"));
+    SetWindowTextW(
+        providerAppPaths_,
+        T(L"App Paths", L"App Paths"));
+    SetWindowTextW(
+        providerPath_,
+        T(L"PATH", L"PATH"));
+    SetWindowTextW(
+        providerNote_,
+        T(L"来源开关会立即影响搜索结果；重新启用时先使用已有缓存，并在后台刷新最新索引。",
+          L"Source changes affect search immediately. Re-enabled sources use their existing cache first and refresh in the background."));
+
+    SetWindowTextW(
         dataOpenLabel_,
         T(L"数据目录", L"Data directory"));
     SetWindowTextW(
@@ -1134,12 +1203,12 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.4.0-alpha.2", L"Version 0.4.0-alpha.2"));
+        T(L"版本 0.4.0-alpha.3", L"Version 0.4.0-alpha.3"));
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Alpha 2 加入 Provider 持久缓存与后台程序发现。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Alpha 2 adds persistent provider caching and background app discovery."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Alpha 3 加入 Provider Registry、独立来源缓存与搜索来源控制。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Alpha 3 adds the Provider Registry, per-source caching and search-source controls."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -1205,13 +1274,22 @@ void SettingsWindow::RefreshFromSettings() {
 
     RefreshHotkeyControls();
 
-    for (HWND control : std::array<HWND, 5>{
+    for (HWND control : std::array<HWND, 9>{
              startWithWindows_,
              hideAfterLaunch_,
              clearQueryOnShow_,
              hideOnFocusLost_,
-             showTrayIcon_}) {
-        if (control) InvalidateRect(control, nullptr, TRUE);
+             showTrayIcon_,
+             providerStartMenu_,
+             providerPackaged_,
+             providerAppPaths_,
+             providerPath_}) {
+        if (control) {
+            InvalidateRect(
+                control,
+                nullptr,
+                TRUE);
+        }
     }
 
     syncing_ = oldSyncing;
@@ -1222,19 +1300,36 @@ void SettingsWindow::RefreshCommands() {
 }
 
 void SettingsWindow::OnProgramIndexRefreshCompleted(
-    bool success) {
+    int outcome) {
 
     if (!dataStatus_) {
         return;
     }
 
+    const wchar_t* status = nullptr;
+
+    if (outcome ==
+        static_cast<int>(
+            ProviderRefreshOutcome::Success)) {
+        status =
+            T(L"程序索引已在后台刷新完成。",
+              L"Program index refreshed in the background.");
+    } else if (
+        outcome ==
+        static_cast<int>(
+            ProviderRefreshOutcome::Partial)) {
+        status =
+            T(L"程序索引已部分刷新；失败来源继续使用各自的旧缓存。",
+              L"Program index partially refreshed. Failed sources keep their previous cache.");
+    } else {
+        status =
+            T(L"程序索引后台刷新失败，继续使用现有缓存。",
+              L"Background index refresh failed. The existing cache is still in use.");
+    }
+
     SetWindowTextW(
         dataStatus_,
-        success
-            ? T(L"程序索引已在后台刷新完成。",
-                L"Program index refreshed in the background.")
-            : T(L"程序索引后台刷新失败，继续使用现有缓存。",
-                L"Background index refresh failed. The existing cache is still in use."));
+        status);
 }
 
 void SettingsWindow::UpdateNavLabels() {
@@ -1259,6 +1354,9 @@ void SettingsWindow::UpdateNavLabels() {
     SetWindowTextW(
         navAppearance_,
         label(Page::Appearance, L"外观", L"Appearance").c_str());
+    SetWindowTextW(
+        navProviders_,
+        label(Page::Providers, L"搜索来源", L"Search sources").c_str());
     SetWindowTextW(
         navData_,
         label(Page::Data, L"数据", L"Data").c_str());
@@ -1297,6 +1395,16 @@ void SettingsWindow::UpdatePageHeader() {
             pageDescription_,
             T(L"选择启动器样式和界面语言。",
               L"Choose the launcher style and interface language."));
+        break;
+
+    case Page::Providers:
+        SetWindowTextW(
+            pageTitle_,
+            T(L"搜索来源", L"Search sources"));
+        SetWindowTextW(
+            pageDescription_,
+            T(L"控制哪些 Windows 应用来源参与启动器搜索。",
+              L"Choose which Windows application sources participate in launcher search."));
         break;
 
     case Page::Data:
@@ -1359,6 +1467,7 @@ void SettingsWindow::ShowPage(Page page) {
     setVisible(commandControls_, page == Page::Commands);
     setVisible(generalControls_, page == Page::General);
     setVisible(appearanceControls_, page == Page::Appearance);
+    setVisible(providerControls_, page == Page::Providers);
     setVisible(dataControls_, page == Page::Data);
     setVisible(aboutControls_, page == Page::About);
 
@@ -2386,6 +2495,57 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
         settings.popupMonitor);
 }
 
+void SettingsWindow::ToggleProviderSetting(
+    UINT id) {
+
+    if (syncing_) {
+        return;
+    }
+
+    std::string providerId;
+
+    switch (id) {
+    case kIdProviderStartMenu:
+        providerId =
+            std::string(
+                providers::kStartMenu);
+        break;
+    case kIdProviderPackaged:
+        providerId =
+            std::string(
+                providers::kPackaged);
+        break;
+    case kIdProviderAppPaths:
+        providerId =
+            std::string(
+                providers::kAppPaths);
+        break;
+    case kIdProviderPath:
+        providerId =
+            std::string(
+                providers::kPath);
+        break;
+    default:
+        return;
+    }
+
+    const bool enabled =
+        !ToggleChecked(id);
+
+    if (!app_.SetProviderEnabled(
+            std::move(providerId),
+            enabled)) {
+        MessageBoxW(
+            hwnd_,
+            T(L"无法保存搜索来源设置。",
+              L"Unable to save search-source settings."),
+            L"ALTRun Next",
+            MB_OK | MB_ICONERROR);
+
+        RefreshFromSettings();
+    }
+}
+
 void SettingsWindow::ApplyMonitorControl() {
     if (syncing_) return;
 
@@ -2446,8 +2606,19 @@ void SettingsWindow::ApplyAppearanceControls() {
     }
 }
 
-bool SettingsWindow::ToggleChecked(UINT id) const {
-    const auto& settings = app_.SettingsData();
+bool SettingsWindow::ToggleChecked(
+    UINT id) const {
+
+    const auto& settings =
+        app_.SettingsData();
+
+    const auto providerEnabled =
+        [&](std::string_view providerId) {
+            return providers::IsEnabled(
+                settings.providerEnabled,
+                providerId,
+                true);
+        };
 
     switch (id) {
     case kIdStartWithWindows:
@@ -2460,6 +2631,18 @@ bool SettingsWindow::ToggleChecked(UINT id) const {
         return settings.hideOnFocusLost;
     case kIdShowTrayIcon:
         return settings.showTrayIcon;
+    case kIdProviderStartMenu:
+        return providerEnabled(
+            providers::kStartMenu);
+    case kIdProviderPackaged:
+        return providerEnabled(
+            providers::kPackaged);
+    case kIdProviderAppPaths:
+        return providerEnabled(
+            providers::kAppPaths);
+    case kIdProviderPath:
+        return providerEnabled(
+            providers::kPath);
     default:
         return false;
     }
@@ -2527,10 +2710,11 @@ void SettingsWindow::Layout() {
     const int navHeight = Scale(42);
     const int navGap = Scale(8);
 
-    std::array<HWND, 5> nav{
+    std::array<HWND, 6> nav{
         navCommands_,
         navGeneral_,
         navAppearance_,
+        navProviders_,
         navData_,
         navAbout_,
     };
@@ -2957,6 +3141,66 @@ void SettingsWindow::Layout() {
             controlWidth, Scale(52), TRUE);
     }
 
+    if (page_ == Page::Providers) {
+        const int x = contentLeft;
+        const int controlWidth =
+            std::min(
+                contentWidth,
+                Scale(590));
+
+        MoveWindow(
+            providerSectionTitle_,
+            x,
+            Scale(138),
+            controlWidth,
+            Scale(28),
+            TRUE);
+
+        const RECT providerCard =
+            ProviderCardRect();
+
+        const int rowHeight =
+            Scale(58);
+        const int rowX =
+            providerCard.left +
+            Scale(1);
+        const int rowWidth =
+            providerCard.right -
+            providerCard.left -
+            Scale(2);
+
+        std::array<HWND, 4> rows{
+            providerStartMenu_,
+            providerPackaged_,
+            providerAppPaths_,
+            providerPath_,
+        };
+
+        for (std::size_t i = 0;
+             i < rows.size();
+             ++i) {
+            MoveWindow(
+                rows[i],
+                rowX,
+                providerCard.top +
+                    Scale(1) +
+                    static_cast<int>(i) *
+                        rowHeight,
+                rowWidth,
+                rowHeight,
+                TRUE);
+        }
+
+        MoveWindow(
+            providerNote_,
+            x,
+            providerCard.bottom +
+                Scale(28),
+            controlWidth,
+            Scale(60),
+            TRUE);
+    }
+
     if (page_ == Page::Data) {
         const int x = contentLeft;
         const int width =
@@ -3065,6 +3309,37 @@ void SettingsWindow::Layout() {
             Scale(120), Scale(38), TRUE);
     }
 }
+
+RECT SettingsWindow::ProviderCardRect() const {
+    RECT client{};
+    GetClientRect(
+        hwnd_,
+        &client);
+
+    const int contentLeft =
+        Scale(kSidebarWidthLogical) +
+        Scale(42);
+    const int contentRight =
+        client.right -
+        Scale(42);
+    const int contentWidth =
+        std::max(
+            Scale(320),
+            contentRight -
+                contentLeft);
+    const int cardWidth =
+        std::min(
+            contentWidth,
+            Scale(590));
+
+    return {
+        contentLeft,
+        Scale(170),
+        contentLeft + cardWidth,
+        Scale(170 + 58 * 4),
+    };
+}
+
 
 void SettingsWindow::DrawGeneralToggle(
     const DRAWITEMSTRUCT& item) {
@@ -3217,6 +3492,38 @@ void SettingsWindow::DrawGeneralToggle(
             L"Keep the tray entry for Settings, reload and exit actions.");
         break;
 
+    case kIdProviderStartMenu:
+        title = T(
+            L"开始菜单",
+            L"Start Menu");
+        description = T(
+            L"发现当前用户和所有用户开始菜单中的快捷方式与程序。",
+            L"Discover shortcuts and programs from the current-user and all-users Start Menu.");
+        break;
+
+    case kIdProviderPackaged:
+        title = T(
+            L"Windows Apps",
+            L"Windows Apps");
+        description = T(
+            L"发现 Microsoft Store、UWP 和 MSIX 应用。",
+            L"Discover Microsoft Store, UWP and MSIX applications.");
+        break;
+
+    case kIdProviderAppPaths:
+        title = L"App Paths";
+        description = T(
+            L"从 Windows 注册表的 App Paths 中发现传统桌面程序。",
+            L"Discover traditional desktop apps from the Windows App Paths registry.");
+        break;
+
+    case kIdProviderPath:
+        title = L"PATH";
+        description = T(
+            L"发现 PATH 环境变量目录中的 EXE、COM、BAT 和 CMD。",
+            L"Discover EXE, COM, BAT and CMD files exposed through the PATH environment variable.");
+        break;
+
     default:
         break;
     }
@@ -3271,7 +3578,11 @@ void SettingsWindow::DrawGeneralToggle(
         item.hDC,
         oldFont);
 
-    if (id != kIdShowTrayIcon) {
+    const bool lastRow =
+        id == kIdShowTrayIcon ||
+        id == kIdProviderPath;
+
+    if (!lastRow) {
         HPEN separator =
             CreatePen(
                 PS_SOLID,
@@ -3447,6 +3758,12 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
+        case kIdNavProviders:
+            if (notify == BN_CLICKED) {
+                ShowPage(Page::Providers);
+            }
+            return 0;
+
         case kIdNavData:
             if (notify == BN_CLICKED) {
                 ShowPage(Page::Data);
@@ -3598,6 +3915,15 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
+        case kIdProviderStartMenu:
+        case kIdProviderPackaged:
+        case kIdProviderAppPaths:
+        case kIdProviderPath:
+            if (notify == BN_CLICKED) {
+                ToggleProviderSetting(id);
+            }
+            return 0;
+
         case kIdHotkeyApply:
             if (notify == BN_CLICKED) {
                 ApplyHotkeyControl();
@@ -3687,7 +4013,11 @@ LRESULT SettingsWindow::HandleMessage(
              item->CtlID == kIdHideAfterLaunch ||
              item->CtlID == kIdClearQueryOnShow ||
              item->CtlID == kIdHideOnFocusLost ||
-             item->CtlID == kIdShowTrayIcon)) {
+             item->CtlID == kIdShowTrayIcon ||
+             item->CtlID == kIdProviderStartMenu ||
+             item->CtlID == kIdProviderPackaged ||
+             item->CtlID == kIdProviderAppPaths ||
+             item->CtlID == kIdProviderPath)) {
             DrawGeneralToggle(*item);
             return TRUE;
         }
@@ -3799,6 +4129,50 @@ LRESULT SettingsWindow::HandleMessage(
             }
         }
 
+        if (page_ == Page::Providers) {
+            const RECT card =
+                ProviderCardRect();
+
+            HBRUSH fill =
+                CreateSolidBrush(
+                    kCardBackground);
+
+            HPEN border =
+                CreatePen(
+                    PS_SOLID,
+                    1,
+                    kBorder);
+
+            HGDIOBJ previousBrush =
+                SelectObject(
+                    dc,
+                    fill);
+
+            HGDIOBJ previousPen =
+                SelectObject(
+                    dc,
+                    border);
+
+            RoundRect(
+                dc,
+                card.left,
+                card.top,
+                card.right,
+                card.bottom,
+                Scale(8),
+                Scale(8));
+
+            SelectObject(
+                dc,
+                previousBrush);
+            SelectObject(
+                dc,
+                previousPen);
+
+            DeleteObject(fill);
+            DeleteObject(border);
+        }
+
         if (page_ == Page::Commands) {
             RECT clientRect{};
             GetClientRect(hwnd_, &clientRect);
@@ -3893,6 +4267,7 @@ LRESULT SettingsWindow::HandleMessage(
             control == generalNote_ ||
             control == popupMonitorDescription_ ||
             control == appearanceNote_ ||
+            control == providerNote_ ||
             control == aboutVersion_ ||
             control == aboutDescription_ ||
             control == dataPathLabel_ ||

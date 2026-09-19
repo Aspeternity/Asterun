@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ProviderIds.hpp"
+
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -27,8 +29,12 @@ struct Settings {
     bool showTrayIcon{true};
     std::string popupMonitor{"cursor"};
 
-    std::vector<std::string> hotkeyModifiers{"alt"};
+    std::vector<std::string>
+        hotkeyModifiers{"alt"};
     std::string hotkeyKey{"space"};
+
+    ProviderEnableMap providerEnabled{
+        providers::DefaultEnabled()};
 };
 
 class SettingsStore {
@@ -46,6 +52,9 @@ public:
     bool SetHotkey(
         std::vector<std::string> modifiers,
         std::string key);
+    bool SetProviderEnabled(
+        std::string id,
+        bool enabled);
     bool ResetDefaults();
     void SetGeneral(
         bool hideAfterLaunch,
@@ -54,8 +63,15 @@ public:
         bool showTrayIcon,
         std::string popupMonitor);
 
-    [[nodiscard]] const Settings& Data() const noexcept { return settings_; }
-    [[nodiscard]] const std::filesystem::path& Path() const noexcept { return jsonPath_; }
+    [[nodiscard]] const Settings&
+    Data() const noexcept {
+        return settings_;
+    }
+
+    [[nodiscard]] const std::filesystem::path&
+    Path() const noexcept {
+        return jsonPath_;
+    }
 
 private:
     bool LoadJson();

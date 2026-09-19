@@ -14,7 +14,9 @@ class App;
 
 class SettingsWindow {
 public:
-    SettingsWindow(App& app, HINSTANCE instance);
+    SettingsWindow(
+        App& app,
+        HINSTANCE instance);
     ~SettingsWindow();
 
     bool Create();
@@ -23,73 +25,135 @@ public:
     void RefreshFromSettings();
     void RefreshCommands();
     void OnProgramIndexRefreshCompleted(
-        bool success);
+        int outcome);
 
 private:
     enum class Page {
         Commands,
         General,
         Appearance,
+        Providers,
         Data,
         About,
     };
 
-    static constexpr int kSidebarWidthLogical = 190;
+    static constexpr int
+        kSidebarWidthLogical = 190;
 
-    static constexpr UINT kIdNavCommands = 51000;
-    static constexpr UINT kIdNavGeneral = 51001;
-    static constexpr UINT kIdNavAppearance = 51002;
-    static constexpr UINT kIdNavData = 51003;
-    static constexpr UINT kIdNavAbout = 51004;
+    static constexpr UINT
+        kIdNavCommands = 51000;
+    static constexpr UINT
+        kIdNavGeneral = 51001;
+    static constexpr UINT
+        kIdNavAppearance = 51002;
+    static constexpr UINT
+        kIdNavData = 51003;
+    static constexpr UINT
+        kIdNavAbout = 51004;
+    static constexpr UINT
+        kIdNavProviders = 51005;
 
-    static constexpr UINT kIdStartWithWindows = 51100;
-    static constexpr UINT kIdHideAfterLaunch = 51101;
-    static constexpr UINT kIdClearQueryOnShow = 51102;
-    static constexpr UINT kIdHideOnFocusLost = 51103;
-    static constexpr UINT kIdShowTrayIcon = 51104;
-    static constexpr UINT kIdPopupMonitor = 51105;
-    static constexpr UINT kIdHotkeyCtrl = 51110;
-    static constexpr UINT kIdHotkeyAlt = 51111;
-    static constexpr UINT kIdHotkeyShift = 51112;
-    static constexpr UINT kIdHotkeyWin = 51113;
-    static constexpr UINT kIdHotkeyKey = 51114;
-    static constexpr UINT kIdHotkeyApply = 51115;
+    static constexpr UINT
+        kIdStartWithWindows = 51100;
+    static constexpr UINT
+        kIdHideAfterLaunch = 51101;
+    static constexpr UINT
+        kIdClearQueryOnShow = 51102;
+    static constexpr UINT
+        kIdHideOnFocusLost = 51103;
+    static constexpr UINT
+        kIdShowTrayIcon = 51104;
+    static constexpr UINT
+        kIdPopupMonitor = 51105;
+    static constexpr UINT
+        kIdHotkeyCtrl = 51110;
+    static constexpr UINT
+        kIdHotkeyAlt = 51111;
+    static constexpr UINT
+        kIdHotkeyShift = 51112;
+    static constexpr UINT
+        kIdHotkeyWin = 51113;
+    static constexpr UINT
+        kIdHotkeyKey = 51114;
+    static constexpr UINT
+        kIdHotkeyApply = 51115;
 
-    static constexpr UINT kIdUiStyle = 51201;
-    static constexpr UINT kIdLanguage = 51202;
+    static constexpr UINT
+        kIdUiStyle = 51201;
+    static constexpr UINT
+        kIdLanguage = 51202;
 
-    static constexpr UINT kIdOpenDataFolder = 51301;
-    static constexpr UINT kIdOpenGitHub = 51302;
+    static constexpr UINT
+        kIdOpenDataFolder = 51301;
+    static constexpr UINT
+        kIdOpenGitHub = 51302;
 
-    static constexpr UINT kIdCommandSearch = 51401;
-    static constexpr UINT kIdCommandNew = 51402;
-    static constexpr UINT kIdCommandList = 51403;
-    static constexpr UINT kIdCommandMoveUp = 51404;
-    static constexpr UINT kIdCommandMoveDown = 51405;
-    static constexpr UINT kIdCommandName = 51410;
-    static constexpr UINT kIdCommandKeyword = 51411;
-    static constexpr UINT kIdCommandAliases = 51412;
-    static constexpr UINT kIdCommandType = 51413;
-    static constexpr UINT kIdCommandTarget = 51414;
-    static constexpr UINT kIdCommandBrowseTarget = 51415;
-    static constexpr UINT kIdCommandArguments = 51416;
-    static constexpr UINT kIdCommandWorkdir = 51417;
-    static constexpr UINT kIdCommandBrowseWorkdir = 51418;
-    static constexpr UINT kIdCommandEnabled = 51419;
-    static constexpr UINT kIdCommandAdmin = 51420;
-    static constexpr UINT kIdCommandPinned = 51421;
-    static constexpr UINT kIdCommandTest = 51422;
-    static constexpr UINT kIdCommandDelete = 51423;
-    static constexpr UINT kIdCommandCancel = 51424;
-    static constexpr UINT kIdCommandSave = 51425;
+    static constexpr UINT
+        kIdCommandSearch = 51401;
+    static constexpr UINT
+        kIdCommandNew = 51402;
+    static constexpr UINT
+        kIdCommandList = 51403;
+    static constexpr UINT
+        kIdCommandMoveUp = 51404;
+    static constexpr UINT
+        kIdCommandMoveDown = 51405;
+    static constexpr UINT
+        kIdCommandName = 51410;
+    static constexpr UINT
+        kIdCommandKeyword = 51411;
+    static constexpr UINT
+        kIdCommandAliases = 51412;
+    static constexpr UINT
+        kIdCommandType = 51413;
+    static constexpr UINT
+        kIdCommandTarget = 51414;
+    static constexpr UINT
+        kIdCommandBrowseTarget = 51415;
+    static constexpr UINT
+        kIdCommandArguments = 51416;
+    static constexpr UINT
+        kIdCommandWorkdir = 51417;
+    static constexpr UINT
+        kIdCommandBrowseWorkdir = 51418;
+    static constexpr UINT
+        kIdCommandEnabled = 51419;
+    static constexpr UINT
+        kIdCommandAdmin = 51420;
+    static constexpr UINT
+        kIdCommandPinned = 51421;
+    static constexpr UINT
+        kIdCommandTest = 51422;
+    static constexpr UINT
+        kIdCommandDelete = 51423;
+    static constexpr UINT
+        kIdCommandCancel = 51424;
+    static constexpr UINT
+        kIdCommandSave = 51425;
 
-    static constexpr UINT kIdDataOpenFolder = 51501;
-    static constexpr UINT kIdDataImportTsv = 51502;
-    static constexpr UINT kIdDataImportLegacy = 51503;
-    static constexpr UINT kIdDataExport = 51504;
-    static constexpr UINT kIdDataClearUsage = 51505;
-    static constexpr UINT kIdDataRebuildIndex = 51506;
-    static constexpr UINT kIdDataResetSettings = 51507;
+    static constexpr UINT
+        kIdDataOpenFolder = 51501;
+    static constexpr UINT
+        kIdDataImportTsv = 51502;
+    static constexpr UINT
+        kIdDataImportLegacy = 51503;
+    static constexpr UINT
+        kIdDataExport = 51504;
+    static constexpr UINT
+        kIdDataClearUsage = 51505;
+    static constexpr UINT
+        kIdDataRebuildIndex = 51506;
+    static constexpr UINT
+        kIdDataResetSettings = 51507;
+
+    static constexpr UINT
+        kIdProviderStartMenu = 51601;
+    static constexpr UINT
+        kIdProviderPackaged = 51602;
+    static constexpr UINT
+        kIdProviderAppPaths = 51603;
+    static constexpr UINT
+        kIdProviderPath = 51604;
 
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
@@ -97,12 +161,16 @@ private:
         WPARAM wParam,
         LPARAM lParam);
 
-    LRESULT HandleMessage(UINT message, WPARAM wParam, LPARAM lParam);
+    LRESULT HandleMessage(
+        UINT message,
+        WPARAM wParam,
+        LPARAM lParam);
 
     void CreateControls();
     void CreateCommandPage();
     void CreateGeneralPage();
     void CreateAppearancePage();
+    void CreateProviderPage();
     void CreateDataPage();
     void CreateAboutPage();
     void ApplyFonts();
@@ -112,34 +180,45 @@ private:
     void UpdateNavLabels();
     void UpdatePageHeader();
 
-    void RefreshCommandList(std::wstring_view preferredId = {});
-    void LoadCommandEditor(std::wstring_view id);
+    void RefreshCommandList(
+        std::wstring_view preferredId = {});
+    void LoadCommandEditor(
+        std::wstring_view id);
     void BeginNewCommand();
     void ClearCommandEditor();
-    void SetCommandEditorEnabled(bool enabled);
+    void SetCommandEditorEnabled(
+        bool enabled);
     void MarkEditorDirty();
     bool ConfirmDiscardChanges();
     bool SaveCommandEditor();
     void DeleteEditingCommand();
-    void MoveEditingCommand(int direction);
+    void MoveEditingCommand(
+        int direction);
     void TestEditingCommand();
     void BrowseCommandTarget();
     void BrowseCommandWorkingDirectory();
-    [[nodiscard]] Command CollectCommandEditor() const;
-    [[nodiscard]] std::vector<std::wstring> ParseAliases(
+    [[nodiscard]] Command
+    CollectCommandEditor() const;
+    [[nodiscard]] std::vector<std::wstring>
+    ParseAliases(
         std::wstring_view text) const;
 
-    void ToggleGeneralSetting(UINT id);
+    void ToggleGeneralSetting(
+        UINT id);
+    void ToggleProviderSetting(
+        UINT id);
     void ApplyMonitorControl();
     void ApplyHotkeyControl();
     void RefreshHotkeyControls();
     void ApplyAppearanceControls();
-    void ImportCommands(bool legacyMode);
+    void ImportCommands(
+        bool legacyMode);
     void ExportCommands();
     void ClearUsageHistory();
     void RebuildProgramIndex();
     void RestoreDefaultSettings();
-    void DrawGeneralToggle(const DRAWITEMSTRUCT& item);
+    void DrawGeneralToggle(
+        const DRAWITEMSTRUCT& item);
 
     HWND CreateStatic(
         const wchar_t* text,
@@ -149,7 +228,8 @@ private:
     HWND CreateButton(
         const wchar_t* text,
         UINT id,
-        DWORD style = BS_PUSHBUTTON | BS_FLAT);
+        DWORD style =
+            BS_PUSHBUTTON | BS_FLAT);
 
     HWND CreateCheckboxRow(
         const wchar_t* text,
@@ -161,15 +241,24 @@ private:
 
     HWND CreateEdit(
         UINT id,
-        DWORD style = ES_AUTOHSCROLL);
+        DWORD style =
+            ES_AUTOHSCROLL);
 
-    [[nodiscard]] std::wstring ControlText(HWND control) const;
-    [[nodiscard]] bool ToggleChecked(UINT id) const;
-    [[nodiscard]] RECT BehaviorCardRect() const;
-    [[nodiscard]] RECT MonitorCardRect() const;
+    [[nodiscard]] std::wstring
+    ControlText(HWND control) const;
+    [[nodiscard]] bool
+    ToggleChecked(UINT id) const;
+    [[nodiscard]] RECT
+    BehaviorCardRect() const;
+    [[nodiscard]] RECT
+    MonitorCardRect() const;
+    [[nodiscard]] RECT
+    ProviderCardRect() const;
 
     int Scale(int value) const;
-    const wchar_t* T(const wchar_t* zh, const wchar_t* en) const;
+    const wchar_t* T(
+        const wchar_t* zh,
+        const wchar_t* en) const;
 
     App& app_;
     HINSTANCE instance_{};
@@ -178,6 +267,7 @@ private:
     HWND navCommands_{};
     HWND navGeneral_{};
     HWND navAppearance_{};
+    HWND navProviders_{};
     HWND navData_{};
     HWND navAbout_{};
     HWND pageTitle_{};
@@ -240,6 +330,13 @@ private:
     HWND language_{};
     HWND appearanceNote_{};
 
+    HWND providerSectionTitle_{};
+    HWND providerStartMenu_{};
+    HWND providerPackaged_{};
+    HWND providerAppPaths_{};
+    HWND providerPath_{};
+    HWND providerNote_{};
+
     HWND dataOpenLabel_{};
     HWND dataOpenFolder_{};
     HWND dataTransferLabel_{};
@@ -274,13 +371,21 @@ private:
     bool editingNew_{false};
     bool editorDirty_{false};
     std::wstring editingCommandId_;
-    std::vector<std::wstring> filteredCommandIds_;
+    std::vector<std::wstring>
+        filteredCommandIds_;
 
-    std::vector<HWND> commandControls_;
-    std::vector<HWND> generalControls_;
-    std::vector<HWND> appearanceControls_;
-    std::vector<HWND> dataControls_;
-    std::vector<HWND> aboutControls_;
+    std::vector<HWND>
+        commandControls_;
+    std::vector<HWND>
+        generalControls_;
+    std::vector<HWND>
+        appearanceControls_;
+    std::vector<HWND>
+        providerControls_;
+    std::vector<HWND>
+        dataControls_;
+    std::vector<HWND>
+        aboutControls_;
 };
 
 } // namespace altrun

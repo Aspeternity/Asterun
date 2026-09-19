@@ -202,11 +202,41 @@ int main() {
     assert(featureSettings.Data().hotkeyModifiers.size() == 2);
     assert(featureSettings.Data().hotkeyKey == "k");
 
+    assert(providers::IsEnabled(
+        featureSettings.Data().providerEnabled,
+        providers::kStartMenu));
+    assert(providers::IsEnabled(
+        featureSettings.Data().providerEnabled,
+        providers::kPackaged));
+    assert(providers::IsEnabled(
+        featureSettings.Data().providerEnabled,
+        providers::kAppPaths));
+    assert(providers::IsEnabled(
+        featureSettings.Data().providerEnabled,
+        providers::kPath));
+
+    assert(featureSettings.SetProviderEnabled(
+        std::string(providers::kPath),
+        false));
+    assert(!providers::IsEnabled(
+        featureSettings.Data().providerEnabled,
+        providers::kPath));
+
+    SettingsStore providerSettingsReloaded(
+        data / "settings-features.json");
+    providerSettingsReloaded.Load();
+    assert(!providers::IsEnabled(
+        providerSettingsReloaded.Data().providerEnabled,
+        providers::kPath));
+
     assert(featureSettings.ResetDefaults());
     assert(!featureSettings.Data().startWithWindows);
     assert(featureSettings.Data().hotkeyModifiers.size() == 1);
     assert(featureSettings.Data().hotkeyModifiers[0] == "alt");
     assert(featureSettings.Data().hotkeyKey == "space");
+    assert(providers::IsEnabled(
+        featureSettings.Data().providerEnabled,
+        providers::kPath));
 
     ProviderCache providerCache(
         data / "provider-cache.json");
@@ -232,20 +262,49 @@ int main() {
         CommandSource::User;
     cachedUser.basePriority = 120;
 
-    assert(providerCache.Save(
-        {cachedStart, cachedUser}));
+    ProviderCacheData cacheData;
 
-    auto cachedCommands =
+    ProviderCacheEntry startEntry;
+    startEntry.generatedAtUnix =
+        1700000100;
+    startEntry.commands = {
+        cachedStart,
+        cachedUser,
+    };
+
+    cacheData[
+        std::string(
+            providers::kStartMenu)] =
+        startEntry;
+
+    assert(providerCache.Save(
+        cacheData));
+
+    auto cachedData =
         providerCache.Load();
 
-    assert(cachedCommands.size() == 1);
+    const auto startCache =
+        cachedData.find(
+            std::string(
+                providers::kStartMenu));
+
+    assert(startCache !=
+        cachedData.end());
     assert(
-        cachedCommands[0].source ==
+        startCache->second
+            .generatedAtUnix ==
+        1700000100);
+    assert(
+        startCache->second
+            .commands.size() == 1);
+    assert(
+        startCache->second
+            .commands[0].source ==
         CommandSource::StartMenu);
     assert(
-        cachedCommands[0].aliases.size() == 1);
-    assert(
-        cachedCommands[0].basePriority == 20);
+        startCache->second
+            .commands[0]
+            .aliases.size() == 1);
 
     Command cachedPackaged;
     cachedPackaged.id =
@@ -260,22 +319,87 @@ int main() {
         CommandSource::PackagedApp;
     cachedPackaged.basePriority = -5;
 
+    ProviderCacheEntry packagedEntry;
+    packagedEntry.generatedAtUnix =
+        1700000200;
+    packagedEntry.commands = {
+        cachedPackaged,
+    };
+
+    cacheData[
+        std::string(
+            providers::kPackaged)] =
+        packagedEntry;
+
     assert(providerCache.Save(
-        {cachedStart, cachedPackaged}));
+        cacheData));
     assert(std::filesystem::exists(
-        data / "provider-cache.json.bak"));
+        data /
+            "provider-cache.json.bak"));
 
     WriteText(
         data / "provider-cache.json",
         "{ broken json");
 
-    cachedCommands =
+    cachedData =
         providerCache.Load();
 
-    assert(cachedCommands.size() == 1);
+    // The .bak is the previous known-good cache generation.
+    assert(cachedData.size() == 1);
     assert(
-        cachedCommands[0].id ==
-        cachedStart.id);
+        cachedData.at(
+            std::string(
+                providers::kStartMenu))
+            .commands.size() == 1);
+
+    const auto legacyProviderCache =
+        data /
+        "provider-cache-legacy.json";
+
+    WriteText(
+        legacyProviderCache,
+        "{\n"
+        "  \"schemaVersion\": 1,\n"
+        "  \"generatedAtUnix\": 1700000300,\n"
+        "  \"commands\": [\n"
+        "    {\n"
+        "      \"id\": \"start:legacy\",\n"
+        "      \"name\": \"Legacy Start\",\n"
+        "      \"keyword\": \"legacy\",\n"
+        "      \"type\": \"application\",\n"
+        "      \"target\": \"legacy.lnk\",\n"
+        "      \"source\": \"start-menu\",\n"
+        "      \"basePriority\": 0\n"
+        "    },\n"
+        "    {\n"
+        "      \"id\": \"path:legacy\",\n"
+        "      \"name\": \"Legacy Tool\",\n"
+        "      \"keyword\": \"tool\",\n"
+        "      \"type\": \"application\",\n"
+        "      \"target\": \"tool.exe\",\n"
+        "      \"source\": \"path\",\n"
+        "      \"basePriority\": -35\n"
+        "    }\n"
+        "  ]\n"
+        "}\n");
+
+    ProviderCache legacyCache(
+        legacyProviderCache);
+
+    const auto migratedCache =
+        legacyCache.Load();
+
+    assert(
+        migratedCache.at(
+            std::string(
+                providers::kStartMenu))
+            .generatedAtUnix ==
+        1700000300);
+    assert(
+        migratedCache.at(
+            std::string(
+                providers::kPath))
+            .commands.size() == 1);
 
     std::error_code ec;
     std::filesystem::remove_all(root, ec);

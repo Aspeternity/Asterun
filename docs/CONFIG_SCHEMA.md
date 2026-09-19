@@ -50,7 +50,19 @@ The first schema contains:
 
 - `general` — startup, launcher behavior, tray visibility and monitor placement;
 - `hotkey` — global-hotkey modifiers and key;
-- `appearance` — launcher skin and interface language.
+- `appearance` — launcher skin and interface language;
+- `providers` — stable provider IDs mapped to enabled / disabled state.
+
+As of v0.4.0-alpha.3, known provider IDs are:
+
+```text
+windows.startmenu
+windows.packaged
+windows.apppaths
+windows.path
+```
+
+All four default to enabled. Existing `settings.json` files without a `providers` object therefore keep the same discovery behavior after upgrading.
 
 As of v0.2.0-beta.1, `startWithWindows` and the `hotkey` section are wired to live Windows behavior. A new hotkey is saved only after `RegisterHotKey` succeeds, so a conflicting binding does not overwrite the previous working configuration.
 
@@ -77,16 +89,42 @@ Automatic provider commands are never written into `commands.json`.
 
 ## provider-cache.json
 
-Starting with v0.4.0-alpha.2, automatic Windows application discovery is cached separately from user configuration.
+Automatic Windows application discovery is cached separately from user configuration.
 
-- contains only provider-generated entries from Start Menu, App Paths, PATH and AppsFolder;
+Starting with v0.4.0-alpha.3, this generated file uses its own **provider-cache schemaVersion 2** even though the user configuration documents remain Config Core schemaVersion 1.
+
+The cache is grouped by stable provider ID:
+
+```json
+{
+  "schemaVersion": 2,
+  "providers": {
+    "windows.startmenu": {
+      "generatedAtUnix": 1700000000,
+      "commands": []
+    },
+    "windows.packaged": {
+      "generatedAtUnix": 1700000000,
+      "commands": []
+    }
+  }
+}
+```
+
+Properties:
+
+- contains only automatically discovered commands;
 - never stores user-defined shortcuts;
-- is loaded during startup so the launcher does not wait for a full Windows application scan;
-- is refreshed in the background and replaced atomically after a successful scan;
-- uses the same one-generation `.bak` recovery behavior as the other JSON stores;
-- can be deleted safely at any time because it is generated state.
+- loads before background discovery so startup does not wait for a Windows application scan;
+- updates successful providers independently;
+- retains the previous cache for a provider whose refresh fails;
+- preserves disabled-provider cache entries so re-enabling a source can restore results immediately;
+- uses the same atomic write and one-generation `.bak` recovery behavior as the other JSON stores;
+- can be deleted safely because it is generated state.
 
-The Data -> Rebuild program index action now starts the same background refresh instead of blocking the UI.
+The flat provider-cache schemaVersion 1 written by v0.4.0-alpha.2 is recognized automatically. Its commands are grouped by `CommandSource` in memory and the next successful refresh writes schemaVersion 2.
+
+The Data -> Rebuild program index action starts the same non-blocking provider refresh.
 
 ## usage.json
 

@@ -79,8 +79,11 @@ int App::Run() {
 
     ApplyStartupRegistration(
         settingsStore_.Data().startWithWindows);
-    commandStore_.Reload();
-    usageStore_.Load(commandStore_.LegacyIdMap());
+    commandStore_.Reload(
+        settingsStore_.Data()
+            .providerEnabled);
+    usageStore_.Load(
+        commandStore_.LegacyIdMap());
 
     window_ = std::make_unique<LauncherWindow>(*this, instance_);
     if (!window_->Create()) {
@@ -111,7 +114,9 @@ int App::Run() {
         if (msg.message == kProviderRefreshMessage &&
             msg.hwnd == nullptr) {
             HandleProviderRefreshCompleted(
-                msg.wParam != 0);
+                static_cast<
+                    ProviderRefreshOutcome>(
+                        msg.wParam));
             continue;
         }
 
@@ -133,8 +138,13 @@ int App::Run() {
 }
 
 void App::ReloadCommands() {
-    commandStore_.Reload();
-    if (window_) window_->RefreshResults();
+    commandStore_.Reload(
+        settingsStore_.Data()
+            .providerEnabled);
+
+    if (window_) {
+        window_->RefreshResults();
+    }
 }
 
 std::vector<SearchResult> App::Search(
@@ -263,75 +273,100 @@ void App::StartProviderRefresh() {
              .compare_exchange_strong(
                  expected,
                  true)) {
+        providerRefreshPending_ = true;
         return;
     }
 
-    if (providerRefreshThread_.joinable()) {
-        providerRefreshThread_.join();
+    if (providerRefreshThread_
+            .joinable()) {
+        providerRefreshThread_
+            .join();
     }
 
     const DWORD targetThread =
         uiThreadId_;
 
+    const ProviderEnableMap enabled =
+        settingsStore_.Data()
+            .providerEnabled;
+
     providerRefreshThread_ =
         std::jthread(
-            [this, targetThread](
-                std::stop_token stopToken) {
+            [this,
+             targetThread,
+             enabled](
+                std::stop_token
+                    stopToken) {
 
-                bool success = false;
+                ProviderRefreshOutcome
+                    outcome =
+                        ProviderRefreshOutcome::
+                            Failed;
 
                 try {
-                    if (!stopToken.stop_requested()) {
-                        auto discovered =
+                    if (!stopToken
+                             .stop_requested()) {
+                        outcome =
                             commandStore_
-                                .DiscoverProviderCommands();
-
-                        if (!stopToken.stop_requested()) {
-                            success =
-                                commandStore_
-                                    .SaveProviderCache(
-                                        discovered);
-                        }
+                                .RefreshProviderCache(
+                                    enabled);
                     }
                 } catch (...) {
-                    success = false;
+                    outcome =
+                        ProviderRefreshOutcome::
+                            Failed;
                 }
 
                 if (targetThread != 0) {
                     PostThreadMessageW(
                         targetThread,
                         kProviderRefreshMessage,
-                        success ? 1 : 0,
+                        static_cast<WPARAM>(
+                            outcome),
                         0);
                 }
             });
 }
 
 void App::HandleProviderRefreshCompleted(
-    bool success) {
+    ProviderRefreshOutcome outcome) {
 
-    if (providerRefreshThread_.joinable()) {
-        providerRefreshThread_.join();
+    if (providerRefreshThread_
+            .joinable()) {
+        providerRefreshThread_
+            .join();
     }
 
     providerRefreshRunning_ = false;
 
-    if (success) {
-        commandStore_.ReloadProviderCache();
+    if (outcome !=
+        ProviderRefreshOutcome::Failed) {
+
+        commandStore_
+            .ReloadProviderCache(
+                settingsStore_.Data()
+                    .providerEnabled);
 
         if (window_) {
             window_->RefreshResults();
         }
 
         if (settingsWindow_) {
-            settingsWindow_->RefreshCommands();
+            settingsWindow_
+                ->RefreshCommands();
         }
     }
 
     if (settingsWindow_) {
         settingsWindow_
             ->OnProgramIndexRefreshCompleted(
-                success);
+                static_cast<int>(
+                    outcome));
+    }
+
+    if (providerRefreshPending_
+            .exchange(false)) {
+        StartProviderRefresh();
     }
 }
 
@@ -365,11 +400,18 @@ bool App::RestoreDefaultSettings() {
         return false;
     }
 
+    commandStore_.ReloadProviderCache(
+        settingsStore_.Data()
+            .providerEnabled);
+
     if (window_) {
         window_->ApplyAppearance();
         window_->ApplyLanguage();
         window_->ApplyGeneralSettings();
+        window_->RefreshResults();
     }
+
+    StartProviderRefresh();
 
     if (settingsWindow_) {
         settingsWindow_->ApplyLanguage();
@@ -540,6 +582,35 @@ bool App::SetHotkeySettings(
         settingsWindow_->RefreshFromSettings();
     }
 
+    return true;
+}
+
+bool App::SetProviderEnabled(
+    std::string id,
+    bool enabled) {
+
+    if (!settingsStore_
+             .SetProviderEnabled(
+                 std::move(id),
+                 enabled)) {
+        return false;
+    }
+
+    commandStore_
+        .ReloadProviderCache(
+            settingsStore_.Data()
+                .providerEnabled);
+
+    if (window_) {
+        window_->RefreshResults();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_
+            ->RefreshFromSettings();
+    }
+
+    StartProviderRefresh();
     return true;
 }
 

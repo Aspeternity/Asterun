@@ -1,5 +1,6 @@
 #include "StartMenuProvider.hpp"
 
+#include "ProviderIds.hpp"
 #include "../platform/WinUtil.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -11,7 +12,9 @@ namespace altrun {
 
 namespace {
 
-std::filesystem::path KnownFolder(REFKNOWNFOLDERID id) {
+std::filesystem::path KnownFolder(
+    REFKNOWNFOLDERID id) {
+
     PWSTR path = nullptr;
 
     if (FAILED(SHGetKnownFolderPath(
@@ -40,10 +43,26 @@ std::wstring MakeId(
 
 } // namespace
 
-std::vector<Command> StartMenuProvider::Discover() const {
+const ProviderDescriptor&
+StartMenuProvider::Descriptor() const noexcept {
+    static const ProviderDescriptor descriptor{
+        std::string(providers::kStartMenu),
+        L"Start Menu",
+        true,
+        40,
+    };
+    return descriptor;
+}
+
+std::vector<Command>
+StartMenuProvider::Discover() const {
     std::vector<Command> commands;
-    ScanPath(KnownFolder(FOLDERID_StartMenu), commands);
-    ScanPath(KnownFolder(FOLDERID_CommonStartMenu), commands);
+    ScanPath(
+        KnownFolder(FOLDERID_StartMenu),
+        commands);
+    ScanPath(
+        KnownFolder(FOLDERID_CommonStartMenu),
+        commands);
     return commands;
 }
 
@@ -51,13 +70,17 @@ void StartMenuProvider::ScanPath(
     const std::filesystem::path& root,
     std::vector<Command>& output) const {
 
-    if (root.empty() || !std::filesystem::exists(root)) return;
+    if (root.empty() ||
+        !std::filesystem::exists(root)) {
+        return;
+    }
 
     std::error_code ec;
 
     for (std::filesystem::recursive_directory_iterator it(
              root,
-             std::filesystem::directory_options::skip_permission_denied,
+             std::filesystem::directory_options::
+                 skip_permission_denied,
              ec),
          end;
          it != end;
@@ -68,10 +91,15 @@ void StartMenuProvider::ScanPath(
             continue;
         }
 
-        if (!it->is_regular_file(ec)) continue;
+        if (!it->is_regular_file(ec)) {
+            continue;
+        }
 
         const auto extension =
-            win::Lower(it->path().extension().wstring());
+            win::Lower(
+                it->path()
+                    .extension()
+                    .wstring());
 
         if (extension != L".lnk" &&
             extension != L".url" &&
@@ -80,21 +108,34 @@ void StartMenuProvider::ScanPath(
         }
 
         Command command;
-        command.title = it->path().stem().wstring();
-        command.keyword = win::CompactKeyword(command.title);
-        command.target = it->path().wstring();
-        command.type = CommandType::Application;
+        command.title =
+            it->path().stem().wstring();
+        command.keyword =
+            win::CompactKeyword(
+                command.title);
+        command.target =
+            it->path().wstring();
+        command.type =
+            CommandType::Application;
         command.icon = L"auto";
         command.enabled = true;
-        command.source = CommandSource::StartMenu;
+        command.source =
+            CommandSource::StartMenu;
         command.basePriority = 0;
 
         if (command.keyword.empty()) {
-            command.keyword = win::Lower(command.title);
+            command.keyword =
+                win::Lower(
+                    command.title);
         }
 
-        command.id = MakeId(command.keyword, command.target);
-        output.push_back(std::move(command));
+        command.id =
+            MakeId(
+                command.keyword,
+                command.target);
+
+        output.push_back(
+            std::move(command));
     }
 }
 

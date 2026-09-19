@@ -124,10 +124,13 @@ if(WIN32)
     add_executable(ALTRunNext WIN32
         src/main.cpp
         src/app/App.cpp
+        src/core/AppPathsProvider.cpp
         src/core/CommandStore.cpp
         src/core/Localization.cpp
+        src/core/PackagedAppProvider.cpp
+        src/core/PathProvider.cpp
+        src/core/ProviderRegistry.cpp
         src/core/StartMenuProvider.cpp
-        src/core/WindowsAppProvider.cpp
         src/platform/Hotkey.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp

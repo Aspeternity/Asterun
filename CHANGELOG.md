@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0-alpha.3
+
+- Replaced the combined Windows application scanner with four independent providers: Start Menu, Windows Apps, App Paths and PATH.
+- Added `ProviderRegistry` with stable provider IDs, metadata, default-enabled state and provider priority.
+- Added provider IDs `windows.startmenu`, `windows.packaged`, `windows.apppaths` and `windows.path`.
+- Added a Settings -> Search sources page with independent enable/disable controls for all four Windows providers.
+- Provider source changes now affect the live search index immediately; re-enabled sources reuse their existing cache while a background refresh runs.
+- Added queued provider refresh behavior so source changes made during an active scan are refreshed again using the newest settings.
+- Upgraded `provider-cache.json` to cache schema 2 with independent per-provider timestamps and command arrays.
+- Added automatic in-memory migration from the flat v0.4.0-alpha.2 provider cache.
+- Added provider-level failure isolation: successful providers update independently while failed providers retain their previous cached data.
+- Added partial-refresh status reporting in Settings.
+- Extended Config Core tests for provider defaults, settings persistence, schema-2 provider cache, user-command exclusion, backup recovery and alpha.2 cache migration.
+- Rewrote the project roadmap to match the actual v0.2-v0.4 development history and the planned v0.5+ direction.
+- Removed the runtime use of the old combined `WindowsAppProvider`.
+- Updated Windows version metadata to `0.4.0-alpha.3`.
+
+
 ## 0.4.0-alpha.2
 
 - Added persistent automatic-provider caching in `data/provider-cache.json`.

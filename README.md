@@ -14,6 +14,33 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.0-alpha.3 — Provider Registry & Source Control
+
+v0.4 Alpha 3 turns the Windows application-discovery layer into a real provider system while keeping the Classic launcher visually unchanged.
+
+The provider registry is now:
+
+```text
+ProviderRegistry
+├─ windows.startmenu   → StartMenuProvider
+├─ windows.packaged    → PackagedAppProvider
+├─ windows.apppaths    → AppPathsProvider
+└─ windows.path        → PathProvider
+        │
+        ▼
+per-provider cache
+        │
+        ▼
+CommandStore
+        │
+        ▼
+SearchEngine
+```
+
+Each provider has a stable ID, metadata, default-enabled state and priority. The Settings window now includes **Search sources**, where Start Menu, Windows Apps, App Paths and PATH discovery can be enabled or disabled independently.
+
+`data/provider-cache.json` is upgraded to cache schema 2 and stores each provider independently. If one provider fails to refresh, successful providers still update while the failing provider keeps its previous cached results. Alpha 2's flat cache schema is migrated automatically in memory and rewritten as schema 2 after the next successful refresh.
+
 ## v0.4.0-alpha.2 — Background Provider Cache
 
 v0.4 Alpha 2 keeps the multi-source Windows application providers from Alpha 1, but moves automatic discovery off the launcher startup path.
@@ -258,7 +285,8 @@ language=zh-CN
 - Configurable global launcher hotkey (default `Alt+Space`)
 - Persistent user commands from `data/commands.json`
 - Multi-source Windows application discovery (Start Menu, App Paths, PATH, UWP/MSIX)
-- Persistent provider cache with non-blocking background refresh
+- Persistent per-provider cache with non-blocking background refresh
+- Configurable Windows search sources through Provider Registry
 - Lightweight fuzzy matching
 - Chinese full-pinyin + pinyin-initial matching
 - Frequency + recency ranking
