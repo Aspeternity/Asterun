@@ -93,6 +93,7 @@ private:
     HBRUSH windowBrush_{};
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
+    HBRUSH bottomBrush_{};
     UINT dpi_{96};
     int widthLogical_{420};
     int rowHeightLogical_{16};
