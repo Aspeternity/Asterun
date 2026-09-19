@@ -23,7 +23,7 @@ std::wstring_view LocalizedText(TextId id, Language language) {
     case TextId::TrayShow:
         return zh ? L"显示\tAlt+Space" : L"Show\tAlt+Space";
     case TextId::TrayReload:
-        return zh ? L"重新加载 commands.tsv" : L"Reload commands.tsv";
+        return zh ? L"重新加载快捷项" : L"Reload commands";
     case TextId::TrayAppearance:
         return zh ? L"界面" : L"Appearance";
     case TextId::TrayClassic:
