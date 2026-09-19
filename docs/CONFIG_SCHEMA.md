@@ -73,6 +73,8 @@ v0.4.1-beta.1 declares this configuration surface frozen for the remainder of th
 
 v0.4.1-beta.2 does not change any schema. Regression coverage now includes a representative v0.4.0 schema-1 settings document and verifies that migration preserves existing preferences while applying safe defaults for new schema-2 fields. The same test simulates an older schema-1 reader and confirms the migrated schema-2 file remains byte-for-byte unchanged under downgrade protection.
 
+v0.4.1-rc.1 also keeps every schema unchanged. RC1 changes only release-candidate validation/publication contracts: tag/VERSION alignment, checksum self-verification and an exact portable-package root allowlist. No migration is performed when moving from beta.2 to RC1.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text

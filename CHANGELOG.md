@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1-rc.1
+
+- Entered the v0.4.1 release-candidate phase with the feature set, schemas, provider IDs and Classic geometry still frozen.
+- Added `scripts/verify_tag_version.py` so a tag-triggered release is rejected unless the pushed tag exactly matches `v` + `VERSION`.
+- Added a dedicated Release preflight job so tag/version/metadata/freeze-contract failures occur before expensive Windows build jobs start.
+- Added main-CI coverage proving the tag guard accepts the current version tag and rejects an intentionally mismatched tag.
+- Added checksum self-verification with `sha256sum -c SHA256SUMS.txt` to both main automatic publication and tag-triggered publication.
+- Tightened the portable ZIP contract to an exact top-level allowlist, preventing stale or unexpected root entries from entering release assets.
+- Extended the frozen v0.4.1 release-contract gate so tag preflight, checksum verification and package allowlisting cannot be removed accidentally during RC stabilization.
+- Retained beta.2 Release-mode assertion integrity, desktop-layout validation, real RegisterHotKey smoke, v0.4.0 migration/downgrade tests and Windows 10 compatibility gates.
+- Kept settings schemaVersion 2, commands/usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Kept all user-facing v0.4.1 behavior and Classic launcher geometry unchanged.
+- Updated Windows version metadata to `0.4.1-rc.1` / `0.4.1.200`.
+
+
 ## 0.4.1-beta.2
 
 - Kept the v0.4.1 feature set frozen; this release contains validation-integrity and compatibility hardening only.

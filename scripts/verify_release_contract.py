@@ -210,6 +210,32 @@ for token in (
     if token not in settings_cpp:
         fail(f"SettingsWindow is no longer wired to validated layout helper: {token}")
 
+release_workflow = read(".github/workflows/release.yml")
+for token in (
+    "Release tag preflight",
+    "verify_tag_version.py",
+    "sha256sum -c SHA256SUMS.txt",
+):
+    if token not in release_workflow:
+        fail(f"release-candidate workflow hardening is missing: {token}")
+
+build_workflow = read(".github/workflows/build.yml")
+if "sha256sum -c SHA256SUMS.txt" not in build_workflow:
+    fail("main release checksum self-verification is missing")
+
+package_script = read("scripts/verify_package.ps1")
+for token in (
+    "$allowedTopLevel",
+    "commands.example.json",
+    "DESKTOP_VALIDATION.md",
+):
+    if token not in package_script:
+        fail(f"package allowlist hardening is missing: {token}")
+
+tag_script = ROOT / "scripts" / "verify_tag_version.py"
+if not tag_script.exists():
+    fail("scripts/verify_tag_version.py is required for RC publication")
+
 print(
     "v0.4.1 frozen release contract verified:",
     version,

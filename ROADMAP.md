@@ -77,12 +77,13 @@ In progress:
 - Windows CI includes hotkey-codec regression coverage in both current and compatibility runners
 - Beta 1 freezes schemas, provider IDs, safe defaults and core Classic geometry through a dedicated release-contract gate
 - Beta 2 makes Release-mode assertion tests effective, adds real RegisterHotKey runtime smoke, and moves Classic behavior / Settings layout decisions behind portable regression-tested helpers
-- Automated validation now covers 100%/125%/150%/200% General-page layout invariants, IME-safe single-result gating, numeric quick-launch mapping and v0.4.0 settings migration/downgrade protection
+- Automated validation covers 100%/125%/150%/200% General-page layout invariants, IME-safe single-result gating, numeric quick-launch mapping and v0.4.0 settings migration/downgrade protection
+- RC1 hardens publication with tag/VERSION preflight, checksum self-verification and an exact portable-package top-level allowlist
 - Final x64 ZIPs receive a packaged-runtime startup smoke before publication
-- Tag-triggered releases require the same Core/Windows smoke/compatibility gates as main publication
+- Tag-triggered releases require the same Core/Windows smoke/compatibility gates as main publication and now fail fast on a mismatched release tag
 - A packaged desktop-validation checklist defines the remaining real Windows 10/11, mixed-DPI, provider and interactive-input matrix
 - Classic launcher geometry remains frozen
-- Remaining v0.4.1 work is execution of the manual desktop checklist plus regression-only fixes before RC promotion
+- RC fixes are limited to regressions, compatibility, data safety and publication/package issues; stable promotion follows manual desktop sign-off with no release-blocking defect
 
 ## v0.5.x - Everything integration
 

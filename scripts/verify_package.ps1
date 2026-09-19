@@ -30,6 +30,50 @@ foreach ($entry in $required) {
     }
 }
 
+$allowedTopLevel = @(
+    "ALTRunNext.exe",
+    "VERSION",
+    "README.md",
+    "CONFIG_SCHEMA.md",
+    "DESKTOP_VALIDATION.md",
+    "commands.example.json",
+    "commands.example.tsv",
+    "settings.example.ini",
+    "settings.example.json",
+    "usage.example.json",
+    "dict",
+    "third_party"
+)
+
+$actualTopLevel = @(
+    Get-ChildItem $verify -Force |
+        ForEach-Object { $_.Name }
+)
+
+$unexpectedTopLevel = @(
+    $actualTopLevel |
+        Where-Object { $_ -notin $allowedTopLevel }
+)
+
+if ($unexpectedTopLevel.Count -ne 0) {
+    $unexpectedTopLevel | ForEach-Object {
+        Write-Host "Unexpected top-level package entry: $_"
+    }
+    throw "Release package contains unexpected top-level entries."
+}
+
+$missingTopLevel = @(
+    $allowedTopLevel |
+        Where-Object { $_ -notin $actualTopLevel }
+)
+
+if ($missingTopLevel.Count -ne 0) {
+    $missingTopLevel | ForEach-Object {
+        Write-Host "Missing top-level package entry: $_"
+    }
+    throw "Release package top-level allowlist is incomplete."
+}
+
 $unexpectedDlls = @(
     Get-ChildItem $verify -Recurse -File -Filter "*.dll" -ErrorAction SilentlyContinue
 )
@@ -105,3 +149,4 @@ Write-Host "Package contract verified:"
 Write-Host "  Archive: $Archive"
 Write-Host "  VERSION: $expectedVersion"
 Write-Host "  Windows version: $expectedWindowsVersion"
+Write-Host "  Top-level package entries: exact allowlist verified"

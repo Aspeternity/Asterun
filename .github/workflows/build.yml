@@ -18,6 +18,15 @@ jobs:
         run: python3 scripts/verify_version.py
       - name: Verify v0.4.1 feature freeze contract
         run: python3 scripts/verify_release_contract.py
+      - name: Verify release tag guard
+        shell: bash
+        run: |
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          python3 scripts/verify_tag_version.py "v$VERSION"
+          if python3 scripts/verify_tag_version.py "v0.0.0"; then
+            echo "Mismatched tag unexpectedly passed validation."
+            exit 1
+          fi
       - name: Configure
         run: cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build tests
@@ -158,6 +167,8 @@ jobs:
           test -f ALTRunNext-x64.zip
           test -f ALTRunNext-ARM64.zip
           sha256sum ALTRunNext-x64.zip ALTRunNext-ARM64.zip > SHA256SUMS.txt
+          test "$(wc -l < SHA256SUMS.txt)" -eq 2
+          sha256sum -c SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Publish dev-latest prerelease

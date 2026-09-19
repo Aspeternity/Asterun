@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.1-rc.1 — Release Candidate Stabilization
+
+RC1 keeps the v0.4.1 feature set and data schemas frozen. The candidate contains no new launcher behavior; changes from beta.2 are limited to publication safety and final release-contract hardening.
+
+Tag-triggered releases now start with a dedicated preflight job. The pushed tag must exactly equal `v` + the repository `VERSION` before Windows builds are allowed to start, preventing a manually mistyped or stale tag from publishing a package whose internal version differs from the release name. The same guard is exercised on every successful main build with both a matching and intentionally mismatched tag.
+
+Both main publication and tag-triggered publication now self-verify the generated `SHA256SUMS.txt` before creating a GitHub Release. The portable package contract also enforces an exact top-level allowlist, so stale build output, a stray `data/` directory or any other unexpected root entry cannot silently enter x64/ARM64 ZIP assets.
+
+All beta.2 validation-integrity gates remain active: Release-mode assertions, real `RegisterHotKey` runtime smoke, 100%/125%/150%/200% layout checks, IME-safe single-result gating, v0.4.0 migration/downgrade protection, Windows 10 API baseline, final ZIP runtime startup and frozen Classic geometry/schema contracts.
+
+RC1 is therefore a release-candidate build for real desktop validation. The packaged `DESKTOP_VALIDATION.md` remains the manual Windows 10/11 sign-off matrix; unchecked manual items are not represented as automated passes.
+
 ## v0.4.1-beta.2 — Validation Integrity & Real Desktop Hardening
 
 Beta 2 keeps the v0.4.1 feature set frozen and focuses on whether the release gates actually prove the behavior they claim to cover.

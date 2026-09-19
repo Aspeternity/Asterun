@@ -9,15 +9,24 @@ permissions:
   contents: write
 
 jobs:
-  test-core:
-    name: Core tests and release contract
+  preflight:
+    name: Release tag preflight
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify tag matches VERSION
+        run: python3 scripts/verify_tag_version.py "$GITHUB_REF_NAME"
       - name: Verify version metadata
         run: python3 scripts/verify_version.py
       - name: Verify v0.4.1 feature freeze contract
         run: python3 scripts/verify_release_contract.py
+
+  test-core:
+    name: Core tests
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Configure
         run: cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build tests
@@ -27,6 +36,7 @@ jobs:
 
   windows-smoke:
     name: Windows runtime smoke
+    needs: preflight
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +52,7 @@ jobs:
 
   windows-compat:
     name: Windows 10 API baseline
+    needs: preflight
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +74,7 @@ jobs:
 
   build:
     name: Package Windows (${{ matrix.arch }})
+    needs: preflight
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -70,12 +82,6 @@ jobs:
         arch: [x64, ARM64]
     steps:
       - uses: actions/checkout@v4
-      - name: Verify version metadata
-        shell: pwsh
-        run: python scripts/verify_version.py
-      - name: Verify v0.4.1 feature freeze contract
-        shell: pwsh
-        run: python scripts/verify_release_contract.py
       - name: Configure
         shell: pwsh
         run: cmake -S . -B build -A ${{ matrix.arch }} -DBUILD_TESTING=OFF
@@ -126,7 +132,7 @@ jobs:
           path: ALTRunNext-${{ matrix.arch }}.zip
 
   release:
-    needs: [test-core, windows-smoke, windows-compat, build]
+    needs: [preflight, test-core, windows-smoke, windows-compat, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -140,6 +146,8 @@ jobs:
           test -f ALTRunNext-x64.zip
           test -f ALTRunNext-ARM64.zip
           sha256sum ALTRunNext-x64.zip ALTRunNext-ARM64.zip > SHA256SUMS.txt
+          test "$(wc -l < SHA256SUMS.txt)" -eq 2
+          sha256sum -c SHA256SUMS.txt
           cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
