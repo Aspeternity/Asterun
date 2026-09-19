@@ -1,7 +1,6 @@
 #include "LauncherWindow.hpp"
 
 #include "../app/App.hpp"
-#include "../platform/Hotkey.hpp"
 
 #include <windowsx.h>
 #include <commctrl.h>
@@ -39,9 +38,6 @@ LauncherWindow::LauncherWindow(App& app, HINSTANCE instance)
 LauncherWindow::~LauncherWindow() {
     RemoveTrayIcon();
 
-    if (hwnd_ && hotkeyRegistered_) {
-        UnregisterHotKey(hwnd_, kHotkeyId);
-    }
     if (normalFont_) DeleteObject(normalFont_);
     if (boldFont_) DeleteObject(boldFont_);
     if (titleFont_) DeleteObject(titleFont_);
@@ -53,64 +49,6 @@ LauncherWindow::~LauncherWindow() {
 
 bool LauncherWindow::IsModern() const {
     return app_.SettingsData().uiStyle == UiStyle::ModernCompact;
-}
-
-bool LauncherWindow::RebindHotkey(
-    const std::vector<std::string>& modifiers,
-    std::string_view key) {
-
-    if (!hwnd_) return false;
-
-    const UINT newModifiers =
-        hotkey::ModifiersFromNames(modifiers);
-
-    const UINT newVk =
-        hotkey::KeyFromName(key);
-
-    if (newVk == 0) {
-        return false;
-    }
-
-    if (hotkeyRegistered_ &&
-        currentHotkeyModifiers_ == newModifiers &&
-        currentHotkeyVk_ == newVk) {
-        return true;
-    }
-
-    const bool hadOld = hotkeyRegistered_;
-    const UINT oldModifiers = currentHotkeyModifiers_;
-    const UINT oldVk = currentHotkeyVk_;
-
-    if (hadOld) {
-        UnregisterHotKey(hwnd_, kHotkeyId);
-        hotkeyRegistered_ = false;
-    }
-
-    if (RegisterHotKey(
-            hwnd_,
-            kHotkeyId,
-            newModifiers,
-            newVk)) {
-
-        currentHotkeyModifiers_ = newModifiers;
-        currentHotkeyVk_ = newVk;
-        hotkeyRegistered_ = true;
-        return true;
-    }
-
-    if (hadOld &&
-        RegisterHotKey(
-            hwnd_,
-            kHotkeyId,
-            oldModifiers,
-            oldVk)) {
-
-        currentHotkeyModifiers_ = oldModifiers;
-        currentHotkeyVk_ = oldVk;
-        hotkeyRegistered_ = true;
-    }
-
-    return false;
 }
 
 bool LauncherWindow::Create() {
@@ -151,17 +89,6 @@ bool LauncherWindow::Create() {
     ApplyAppearance();
     ApplyLanguage();
     AddTrayIcon();
-
-    if (!RebindHotkey(
-            app_.SettingsData().hotkeyModifiers,
-            app_.SettingsData().hotkeyKey)) {
-
-        MessageBoxW(
-            nullptr,
-            app_.Text(TextId::HotkeyBusy).data(),
-            L"ALTRun Next",
-            MB_ICONWARNING | MB_OK);
-    }
 
     RefreshResults();
     ShowWindow(hwnd_, SW_HIDE);
@@ -991,6 +918,16 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     PaintClassicClose(dc, ClassicCloseRect());
 }
 
+void LauncherWindow::Toggle() {
+    if (!hwnd_) return;
+
+    if (IsWindowVisible(hwnd_)) {
+        Hide();
+    } else {
+        Show();
+    }
+}
+
 void LauncherWindow::Show() {
     if (!hwnd_) return;
 
@@ -1308,14 +1245,6 @@ LRESULT LauncherWindow::HandleMessage(
         }
         break;
 
-    case WM_HOTKEY:
-        if (wParam == kHotkeyId) {
-            if (IsWindowVisible(hwnd_)) Hide();
-            else Show();
-            return 0;
-        }
-        break;
-
     case WM_COMMAND:
         if (LOWORD(wParam) == 1001 && HIWORD(wParam) == EN_CHANGE) {
             RefreshResults();
@@ -1586,6 +1515,13 @@ LRESULT LauncherWindow::HandleMessage(
         return 0;
     }
 
+    case WM_POWERBROADCAST:
+        if (wParam == PBT_APMRESUMEAUTOMATIC ||
+            wParam == PBT_APMRESUMESUSPEND) {
+            app_.RepairGlobalHotkey();
+        }
+        return TRUE;
+
     case WM_ACTIVATE:
         if (LOWORD(wParam) == WA_INACTIVE &&
             IsWindowVisible(hwnd_) &&
@@ -1610,7 +1546,6 @@ LRESULT LauncherWindow::HandleMessage(
 
     case WM_DESTROY:
         RemoveTrayIcon();
-        UnregisterHotKey(hwnd_, kHotkeyId);
         hwnd_ = nullptr;
         PostQuitMessage(0);
         return 0;

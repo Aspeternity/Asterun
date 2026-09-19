@@ -66,6 +66,13 @@ public:
     bool SetHotkeySettings(
         std::vector<std::string> modifiers,
         std::string key);
+    bool RepairGlobalHotkey();
+    [[nodiscard]] bool IsGlobalHotkeyRegistered() const noexcept {
+        return hotkeyRegistered_;
+    }
+    [[nodiscard]] DWORD GlobalHotkeyLastError() const noexcept {
+        return hotkeyLastError_;
+    }
     void SetGeneralSettings(
         bool hideAfterLaunch,
         bool clearQueryOnShow,
@@ -84,8 +91,13 @@ public:
     }
 
 private:
+    static constexpr int kGlobalHotkeyId = 0xA171;
+
     bool LaunchCommand(const Command& command, bool recordUsage);
     bool ApplyStartupRegistration(bool enabled) const;
+    bool RebindGlobalHotkey(
+        const std::vector<std::string>& modifiers,
+        std::string_view key);
 
     HINSTANCE instance_{};
     std::filesystem::path baseDirectory_;
@@ -96,6 +108,11 @@ private:
     SearchEngine searchEngine_;
     std::unique_ptr<LauncherWindow> window_;
     std::unique_ptr<SettingsWindow> settingsWindow_;
+    HANDLE singleInstanceMutex_{};
+    bool hotkeyRegistered_{false};
+    UINT currentHotkeyModifiers_{0};
+    UINT currentHotkeyVk_{0};
+    DWORD hotkeyLastError_{ERROR_SUCCESS};
 };
 
 } // namespace altrun

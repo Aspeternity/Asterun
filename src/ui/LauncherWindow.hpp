@@ -6,7 +6,6 @@
 
 #include <cstddef>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace altrun {
@@ -25,9 +24,7 @@ public:
     void ApplyAppearance();
     void ApplyLanguage();
     void ApplyGeneralSettings();
-    bool RebindHotkey(
-        const std::vector<std::string>& modifiers,
-        std::string_view key);
+    void Toggle();
 
 private:
     struct ThemePalette {
@@ -43,7 +40,6 @@ private:
         COLORREF frame{};
     };
 
-    static constexpr UINT kHotkeyId = 0xA171;
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kMenuShow = 40001;
     static constexpr UINT kMenuReload = 40002;
@@ -101,9 +97,6 @@ private:
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
     bool trayIconAdded_{false};
-    bool hotkeyRegistered_{false};
-    UINT currentHotkeyModifiers_{0};
-    UINT currentHotkeyVk_{0};
     UINT dpi_{96};
     int widthLogical_{420};
     int rowHeightLogical_{16};

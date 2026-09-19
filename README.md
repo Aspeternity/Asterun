@@ -14,6 +14,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.2.0-beta.1.1 — Hotkey reliability hotfix
+
+This hotfix rebuilds the global-hotkey lifecycle so the Settings display reflects the real Windows registration state.
+
+- global hotkeys are owned by the UI thread rather than the hidden Launcher window;
+- saving a hotkey always performs a real Windows re-registration, even when the combination did not change;
+- failed changes restore the previous working hotkey;
+- Settings shows whether the current binding is actually registered and exposes the Windows error code on failure;
+- the binding is revalidated when Settings opens and after resume from suspend;
+- only one ALTRun Next instance can run per Windows session, preventing two tray processes from fighting over the hotkey.
+
 ## v0.2.0-beta.1 — Hotkey & Data
 
 Beta 1 completes the first settings/data workflow before visual polish.

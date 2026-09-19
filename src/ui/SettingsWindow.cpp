@@ -2057,6 +2057,27 @@ void SettingsWindow::RefreshHotkeyControls() {
         T(L"当前热键：", L"Current hotkey: ");
     status += display;
 
+    if (app_.IsGlobalHotkeyRegistered()) {
+        status += T(
+            L"  ·  已注册",
+            L"  ·  Registered");
+    } else {
+        status += T(
+            L"  ·  未注册",
+            L"  ·  Not registered");
+
+        const DWORD error =
+            app_.GlobalHotkeyLastError();
+
+        if (error != ERROR_SUCCESS) {
+            status += T(
+                L"（错误码 ",
+                L" (error ");
+            status += std::to_wstring(error);
+            status += T(L"）", L")");
+        }
+    }
+
     SetWindowTextW(
         hotkeyStatus_,
         status.c_str());
@@ -3322,6 +3343,7 @@ void SettingsWindow::CenterOnCurrentMonitor() {
 void SettingsWindow::Show() {
     if (!hwnd_) return;
 
+    app_.RepairGlobalHotkey();
     RefreshFromSettings();
     RefreshCommandList(editingCommandId_);
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0-beta.1.1
+
+- Fixed cases where Settings showed a saved global hotkey while the runtime binding was not actually usable.
+- Moved global hotkey ownership from the hidden Launcher HWND to the main UI thread message queue.
+- Removed the cached same-hotkey early-success path; applying a hotkey now always performs a real unregister/register transaction with Windows.
+- Failed hotkey changes atomically restore the previous working binding.
+- Added runtime hotkey status to Settings: Registered / Not registered plus the Windows error code when available.
+- Revalidates the configured hotkey when Settings opens and after Windows resumes from suspend.
+- Added a per-session single-instance guard so multiple ALTRun Next processes cannot silently compete for the same global hotkey.
+- The application message loop now handles thread-level WM_HOTKEY directly and toggles the Launcher independently of Launcher window visibility/focus.
+- Updated Windows version metadata to `0.2.0-beta.1.1`.
+
+
 ## 0.2.0-beta.1
 
 - Added configurable global launcher hotkeys instead of a hard-coded Alt+Space binding.

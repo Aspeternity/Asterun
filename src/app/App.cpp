@@ -1,5 +1,6 @@
 #include "App.hpp"
 
+#include "../platform/Hotkey.hpp"
 #include "../platform/WinUtil.hpp"
 #include "../ui/LauncherWindow.hpp"
 #include "../ui/SettingsWindow.hpp"
@@ -20,13 +21,53 @@ App::App(HINSTANCE instance)
           dataDirectory_ / "settings.json",
           baseDirectory_ / "settings.ini") {}
 
-App::~App() = default;
+App::~App() {
+    if (hotkeyRegistered_) {
+        UnregisterHotKey(
+            nullptr,
+            kGlobalHotkeyId);
+        hotkeyRegistered_ = false;
+    }
+
+    if (singleInstanceMutex_) {
+        CloseHandle(singleInstanceMutex_);
+        singleInstanceMutex_ = nullptr;
+    }
+}
 
 int App::Run() {
     std::error_code ec;
     std::filesystem::create_directories(dataDirectory_, ec);
 
     settingsStore_.Load();
+
+    SetLastError(ERROR_SUCCESS);
+    singleInstanceMutex_ =
+        CreateMutexW(
+            nullptr,
+            FALSE,
+            L"Local\\Aspeternity.ALTRunNext.SingleInstance.v1");
+
+    if (!singleInstanceMutex_) {
+        MessageBoxW(
+            nullptr,
+            L"Unable to create the ALTRun Next single-instance guard.",
+            L"ALTRun Next",
+            MB_ICONERROR | MB_OK);
+        return 1;
+    }
+
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        MessageBoxW(
+            nullptr,
+            settingsStore_.Data().language == Language::ZhCN
+                ? L"ALTRun Next 已经在运行。\n\n请检查系统托盘，避免多个实例同时抢占全局热键。"
+                : L"ALTRun Next is already running.\n\nCheck the system tray. Multiple instances are blocked to prevent global-hotkey conflicts.",
+            L"ALTRun Next",
+            MB_ICONINFORMATION | MB_OK);
+        return 0;
+    }
+
     ApplyStartupRegistration(
         settingsStore_.Data().startWithWindows);
     commandStore_.Reload();
@@ -42,8 +83,28 @@ int App::Run() {
         return 1;
     }
 
+    if (!RebindGlobalHotkey(
+            settingsStore_.Data().hotkeyModifiers,
+            settingsStore_.Data().hotkeyKey)) {
+        MessageBoxW(
+            nullptr,
+            Text(TextId::HotkeyBusy).data(),
+            L"ALTRun Next",
+            MB_ICONWARNING | MB_OK);
+    }
+
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        if (msg.message == WM_HOTKEY &&
+            msg.hwnd == nullptr &&
+            msg.wParam ==
+                static_cast<WPARAM>(kGlobalHotkeyId)) {
+            if (window_) {
+                window_->Toggle();
+            }
+            continue;
+        }
+
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
@@ -189,19 +250,16 @@ bool App::RestoreDefaultSettings() {
 
     const Settings defaults{};
 
-    if (window_ &&
-        !window_->RebindHotkey(
+    if (!RebindGlobalHotkey(
             defaults.hotkeyModifiers,
             defaults.hotkeyKey)) {
         return false;
     }
 
     if (!ApplyStartupRegistration(false)) {
-        if (window_) {
-            window_->RebindHotkey(
-                previous.hotkeyModifiers,
-                previous.hotkeyKey);
-        }
+        RebindGlobalHotkey(
+            previous.hotkeyModifiers,
+            previous.hotkeyKey);
         return false;
     }
 
@@ -209,11 +267,9 @@ bool App::RestoreDefaultSettings() {
         ApplyStartupRegistration(
             previous.startWithWindows);
 
-        if (window_) {
-            window_->RebindHotkey(
-                previous.hotkeyModifiers,
-                previous.hotkeyKey);
-        }
+        RebindGlobalHotkey(
+            previous.hotkeyModifiers,
+            previous.hotkeyKey);
 
         return false;
     }
@@ -268,6 +324,100 @@ bool App::SetStartWithWindows(bool enabled) {
     return true;
 }
 
+bool App::RebindGlobalHotkey(
+    const std::vector<std::string>& modifiers,
+    std::string_view key) {
+
+    const UINT newModifiers =
+        hotkey::ModifiersFromNames(modifiers);
+
+    const UINT newVk =
+        hotkey::KeyFromName(key);
+
+    constexpr UINT kModifierMask =
+        MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_WIN;
+
+    if (newVk == 0 ||
+        (newModifiers & kModifierMask) == 0) {
+        hotkeyLastError_ = ERROR_INVALID_PARAMETER;
+        return false;
+    }
+
+    const bool hadOld =
+        hotkeyRegistered_;
+
+    const UINT oldModifiers =
+        currentHotkeyModifiers_;
+
+    const UINT oldVk =
+        currentHotkeyVk_;
+
+    // Always unregister and register again, even when the requested
+    // combination is unchanged. The old implementation returned early
+    // based only on its cached flag, which could report success after the
+    // actual Windows registration had become unavailable.
+    if (hadOld) {
+        UnregisterHotKey(
+            nullptr,
+            kGlobalHotkeyId);
+        hotkeyRegistered_ = false;
+    }
+
+    SetLastError(ERROR_SUCCESS);
+
+    if (RegisterHotKey(
+            nullptr,
+            kGlobalHotkeyId,
+            newModifiers,
+            newVk)) {
+
+        currentHotkeyModifiers_ =
+            newModifiers;
+        currentHotkeyVk_ =
+            newVk;
+        hotkeyRegistered_ = true;
+        hotkeyLastError_ = ERROR_SUCCESS;
+        return true;
+    }
+
+    const DWORD registrationError =
+        GetLastError();
+
+    // Re-establish the previous working binding when a new combination
+    // cannot be registered. This makes changing a hotkey transactional.
+    if (hadOld &&
+        oldVk != 0 &&
+        RegisterHotKey(
+            nullptr,
+            kGlobalHotkeyId,
+            oldModifiers,
+            oldVk)) {
+
+        currentHotkeyModifiers_ =
+            oldModifiers;
+        currentHotkeyVk_ =
+            oldVk;
+        hotkeyRegistered_ = true;
+    } else {
+        currentHotkeyModifiers_ = 0;
+        currentHotkeyVk_ = 0;
+        hotkeyRegistered_ = false;
+    }
+
+    hotkeyLastError_ =
+        registrationError != ERROR_SUCCESS
+            ? registrationError
+            : ERROR_HOTKEY_ALREADY_REGISTERED;
+
+    return false;
+}
+
+bool App::RepairGlobalHotkey() {
+    return RebindGlobalHotkey(
+        settingsStore_.Data().hotkeyModifiers,
+        settingsStore_.Data().hotkeyKey);
+}
+
 bool App::SetHotkeySettings(
     std::vector<std::string> modifiers,
     std::string key) {
@@ -278,8 +428,7 @@ bool App::SetHotkeySettings(
     const auto previousKey =
         settingsStore_.Data().hotkeyKey;
 
-    if (window_ &&
-        !window_->RebindHotkey(
+    if (!RebindGlobalHotkey(
             modifiers,
             key)) {
         return false;
@@ -289,11 +438,9 @@ bool App::SetHotkeySettings(
             std::move(modifiers),
             std::move(key))) {
 
-        if (window_) {
-            window_->RebindHotkey(
-                previousModifiers,
-                previousKey);
-        }
+        RebindGlobalHotkey(
+            previousModifiers,
+            previousKey);
 
         return false;
     }
