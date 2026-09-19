@@ -1,5 +1,6 @@
 #include "platform/WindowsContext.hpp"
 
+#include <objbase.h>
 #include <windows.h>
 
 #include <cassert>
