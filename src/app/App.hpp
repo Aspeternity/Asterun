@@ -25,9 +25,16 @@ public:
     int Run();
     void ReloadCommands();
 
-    [[nodiscard]] std::vector<SearchResult> Search(std::wstring_view query, std::size_t limit) const;
+    [[nodiscard]] std::vector<SearchResult> Search(
+        std::wstring_view query,
+        std::size_t limit) const;
+
     [[nodiscard]] const Command& GetCommand(std::size_t index) const;
-    [[nodiscard]] const Settings& SettingsData() const noexcept { return settingsStore_.Data(); }
+
+    [[nodiscard]] const Settings& SettingsData() const noexcept {
+        return settingsStore_.Data();
+    }
+
     [[nodiscard]] std::wstring_view Text(TextId id) const;
 
     void SetUiStyle(UiStyle style);
@@ -37,6 +44,7 @@ public:
 private:
     HINSTANCE instance_{};
     std::filesystem::path baseDirectory_;
+    std::filesystem::path dataDirectory_;
     CommandStore commandStore_;
     UsageStore usageStore_;
     SettingsStore settingsStore_;
