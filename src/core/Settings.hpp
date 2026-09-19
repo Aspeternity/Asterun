@@ -1,6 +1,8 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
+#include <vector>
 
 namespace altrun {
 
@@ -17,22 +19,39 @@ enum class Language {
 struct Settings {
     UiStyle uiStyle{UiStyle::Classic};
     Language language{Language::ZhCN};
+
+    bool startWithWindows{false};
+    bool hideAfterLaunch{true};
+    bool clearQueryOnShow{true};
+    bool hideOnFocusLost{true};
+    bool showTrayIcon{true};
+    std::string popupMonitor{"cursor"};
+
+    std::vector<std::string> hotkeyModifiers{"alt"};
+    std::string hotkeyKey{"space"};
 };
 
 class SettingsStore {
 public:
-    explicit SettingsStore(std::filesystem::path path);
+    SettingsStore(
+        std::filesystem::path jsonPath,
+        std::filesystem::path legacyIniPath = {});
 
     void Load();
-    void Save() const;
+    bool Save() const;
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
 
     [[nodiscard]] const Settings& Data() const noexcept { return settings_; }
+    [[nodiscard]] const std::filesystem::path& Path() const noexcept { return jsonPath_; }
 
 private:
-    std::filesystem::path path_;
+    bool LoadJson();
+    bool MigrateLegacyIni();
+
+    std::filesystem::path jsonPath_;
+    std::filesystem::path legacyIniPath_;
     Settings settings_;
 };
 
