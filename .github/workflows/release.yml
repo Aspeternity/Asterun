@@ -29,6 +29,7 @@ jobs:
           Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
           Copy-Item config/*.example.* dist/
           Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
+          Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
       - uses: actions/upload-artifact@v4
