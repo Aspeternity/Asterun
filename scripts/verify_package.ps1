@@ -1,0 +1,106 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$Archive
+)
+
+$ErrorActionPreference = "Stop"
+
+$archivePath = (Resolve-Path $Archive).Path
+$verify = Join-Path (Get-Location) "verify-package"
+
+if (Test-Path $verify) {
+    Remove-Item $verify -Recurse -Force
+}
+
+Expand-Archive -Path $archivePath -DestinationPath $verify -Force
+
+$required = @(
+    "ALTRunNext.exe",
+    "VERSION",
+    "README.md",
+    "CONFIG_SCHEMA.md",
+    "dict",
+    "third_party/cpp-pinyin-LICENSE.txt"
+)
+
+foreach ($entry in $required) {
+    if (-not (Test-Path (Join-Path $verify $entry))) {
+        throw "Release package is missing required entry: $entry"
+    }
+}
+
+$unexpectedDlls = @(
+    Get-ChildItem $verify -Recurse -File -Filter "*.dll" -ErrorAction SilentlyContinue
+)
+
+if ($unexpectedDlls.Count -ne 0) {
+    $unexpectedDlls | ForEach-Object { Write-Host $_.FullName }
+    throw "Release package contains unexpected runtime DLLs."
+}
+
+$expectedVersion = (Get-Content VERSION -Raw).Trim()
+$packagedVersion = (Get-Content (Join-Path $verify "VERSION") -Raw).Trim()
+
+if ($packagedVersion -ne $expectedVersion) {
+    throw "Packaged VERSION '$packagedVersion' does not match '$expectedVersion'."
+}
+
+$semver = [regex]::Match(
+    $expectedVersion,
+    '^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$'
+)
+
+if (-not $semver.Success) {
+    throw "Unsupported VERSION format: '$expectedVersion'."
+}
+
+$major = [int]$semver.Groups[1].Value
+$minor = [int]$semver.Groups[2].Value
+$patch = [int]$semver.Groups[3].Value
+$channel = $semver.Groups[4].Value
+
+$channelNumber = if ($semver.Groups[5].Success) {
+    [int]$semver.Groups[5].Value
+} else {
+    0
+}
+
+$revision = switch ($channel) {
+    "alpha" { $channelNumber }
+    "beta"  { 99 + $channelNumber }
+    "rc"    { 199 + $channelNumber }
+    default { 300 }
+}
+
+$expectedWindowsVersion =
+    "{0}.{1}.{2}.{3}" -f $major, $minor, $patch, $revision
+
+$versionInfo =
+    (Get-Item (Join-Path $verify "ALTRunNext.exe")).VersionInfo
+
+$fileVersion =
+    "{0}.{1}.{2}.{3}" -f
+        $versionInfo.FileMajorPart,
+        $versionInfo.FileMinorPart,
+        $versionInfo.FileBuildPart,
+        $versionInfo.FilePrivatePart
+
+$productVersion =
+    "{0}.{1}.{2}.{3}" -f
+        $versionInfo.ProductMajorPart,
+        $versionInfo.ProductMinorPart,
+        $versionInfo.ProductBuildPart,
+        $versionInfo.ProductPrivatePart
+
+if ($fileVersion -ne $expectedWindowsVersion) {
+    throw "EXE fixed FileVersion '$fileVersion' does not match '$expectedWindowsVersion'."
+}
+
+if ($productVersion -ne $expectedWindowsVersion) {
+    throw "EXE fixed ProductVersion '$productVersion' does not match '$expectedWindowsVersion'."
+}
+
+Write-Host "Package contract verified:"
+Write-Host "  Archive: $Archive"
+Write-Host "  VERSION: $expectedVersion"
+Write-Host "  Windows version: $expectedWindowsVersion"
