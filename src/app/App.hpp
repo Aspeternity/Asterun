@@ -1,11 +1,11 @@
 #pragma once
 
 #include "../core/CommandStore.hpp"
+#include "../core/Localization.hpp"
 #include "../core/SearchEngine.hpp"
+#include "../core/Settings.hpp"
 #include "../core/UsageStore.hpp"
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 
 #include <filesystem>
@@ -27,6 +27,11 @@ public:
 
     [[nodiscard]] std::vector<SearchResult> Search(std::wstring_view query, std::size_t limit) const;
     [[nodiscard]] const Command& GetCommand(std::size_t index) const;
+    [[nodiscard]] const Settings& SettingsData() const noexcept { return settingsStore_.Data(); }
+    [[nodiscard]] std::wstring_view Text(TextId id) const;
+
+    void SetUiStyle(UiStyle style);
+    void SetLanguage(Language language);
     bool ExecuteCommand(std::size_t index);
 
 private:
@@ -34,6 +39,7 @@ private:
     std::filesystem::path baseDirectory_;
     CommandStore commandStore_;
     UsageStore usageStore_;
+    SettingsStore settingsStore_;
     SearchEngine searchEngine_;
     std::unique_ptr<LauncherWindow> window_;
 };
