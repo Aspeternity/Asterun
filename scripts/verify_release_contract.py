@@ -36,6 +36,289 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.5.0":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected frozen Stable value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("provider-cache schema must remain 2 in stable v0.5.0")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for token in (
+        '"windows.startmenu"',
+        '"windows.packaged"',
+        '"windows.apppaths"',
+        '"windows.path"',
+        '"everything.filesystem"',
+        "{std::string(kStartMenu), true}",
+        "{std::string(kPackaged), true}",
+        "{std::string(kAppPaths), true}",
+        "{std::string(kPath), true}",
+        "{std::string(kEverythingFilesystem), false}",
+    ):
+        if token not in provider_text:
+            fail(f"Stable provider/default freeze missing: {token}")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 3:
+        fail("Stable settings.example.json must remain schemaVersion 3")
+
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_hpp,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during stable promotion: {name}")
+
+    layout_h = read("src/core/SettingsLayout.hpp")
+    layout_cpp = read("src/core/SettingsLayout.cpp")
+    for token in (
+        "kContentLeftInsetLogical = 38",
+        "kContentRightInsetLogical = 34",
+        "kToggleRowLogical = 54",
+    ):
+        if token not in layout_h:
+            fail(f"Stable polished Settings metric missing: {token}")
+    for token in (
+        "kContentLeftInsetLogical",
+        "kContentRightInsetLogical",
+        "kToggleRowLogical",
+    ):
+        if token not in layout_cpp:
+            fail(f"Stable Settings layout helper is not using: {token}")
+
+    settings_ui = read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "SS_LEFTNOWORDWRAP | SS_NOPREFIX",
+        "labelWidth = Scale(132)",
+        "fieldWidth * 24 / 100",
+        "fieldWidth * 22 / 100",
+        "const int actionWidth",
+        "settings_layout::",
+        "kToggleRowLogical",
+        "Scale(108)",
+        "providerCard.bottom +",
+        "Scale(140)",
+        "Scale(188)",
+        "rect.top + Scale(27)",
+        "rect.top + Scale(29)",
+        "Scale(960)",
+        "BS_OWNERDRAW",
+        "DrawNavigationButton",
+        "RGB(232, 241, 250)",
+        "Everything not detected",
+        "Get Everything",
+        "Recheck",
+    ):
+        if token not in settings_ui:
+            fail(f"Stable Settings polish integration missing: {token}")
+
+    if "const int behaviorRowHeight =\n            Scale(46)" in settings_ui:
+        fail("Stable regressed General owner-draw rows back to 46px")
+    if 'page_ == page ? L"●  "' in settings_ui:
+        fail("Stable regressed to text-bullet navigation selection")
+
+    desktop_test = read("tests/DesktopValidationTests.cpp")
+    for token in (
+        "kToggleRowLogical >= 54",
+        "kContentLeftInsetLogical == 38",
+        "kContentRightInsetLogical == 34",
+        "wide.behavior.bottom -",
+        "wide.search.bottom -",
+        "96, 120, 144, 192",
+    ):
+        if token not in desktop_test:
+            fail(f"Stable DPI/layout regression coverage missing: {token}")
+
+    registry = read("src/core/ProviderRegistry.cpp")
+    if "everything.filesystem" in registry or "kEverythingFilesystem" in registry:
+        fail(
+            "Everything must remain a Dynamic Query Provider outside "
+            "the static ProviderRegistry during stable promotion"
+        )
+
+    protocol_h = read("src/core/EverythingIpcProtocol.hpp")
+    client_cpp = read("src/platform/EverythingIpcClient.cpp")
+    provider_cpp = read("src/core/EverythingProvider.cpp")
+    everything_source = protocol_h + client_cpp + provider_cpp
+    for token in (
+        "kCopyDataQuery2W = 18",
+        "discoverNamedInstances",
+        "EnumNamedEverythingWindows",
+        "ambiguousNamedInstances",
+        "inFlight_->sourceWindow",
+        "client_.Status()",
+        "1000",
+    ):
+        if token not in everything_source:
+            fail(f"Stable lost frozen Everything transport behavior: {token}")
+
+    for forbidden in (
+        "Everything64.dll",
+        "Everything32.dll",
+        "Everything3_",
+        r"\\.\PIPE\Everything IPC",
+        "LoadLibraryW",
+        "LoadLibraryA",
+    ):
+        if forbidden in everything_source:
+            fail(
+                "Stable may not add an Everything DLL/SDK3 named-pipe "
+                f"dependency: {forbidden}"
+            )
+
+    validation = read("docs/V0.5_RC_VALIDATION.md")
+    for token in (
+        "General Launcher/Search behavior rows show title and description",
+        "Shortcut editor labels remain single-line",
+        "Enabled/Admin/Pinned controls stay inside",
+        "Test/Delete/Discard/Save buttons remain separated",
+        "Search Sources diagnostics do not overlap",
+        "cards align with the page-header content gutter",
+    ):
+        if token not in validation:
+            fail(f"Stable manual UI validation coverage missing: {token}")
+
+    if "[x]" in validation.lower():
+        fail(
+            "Stable real-desktop validation items must not be "
+            "pre-marked as completed by automation"
+        )
+
+    package_script = read("scripts/verify_package.ps1")
+    for token in (
+        '"V0.5_RC_VALIDATION.md"',
+        '"EVERYTHING_COMPATIBILITY.md"',
+        "$allowedTopLevel",
+        "EXE fixed FileVersion",
+    ):
+        if token not in package_script:
+            fail(f"Stable package contract missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        for token in (
+            "everything_ipc_runtime_tests",
+            "V0.5_RC_VALIDATION.md",
+            "EVERYTHING_COMPATIBILITY.md",
+            "Verify package contract",
+        ):
+            if token not in workflow:
+                fail(f"{workflow_path} missing Stable gate/package item: {token}")
+
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("providers") != expected_providers:
+        fail("stable v0.5.0 provider defaults changed from RC3")
+
+    runtime_test = read("tests/EverythingIpcRuntimeTests.cpp")
+    for token in (
+        "generation = 351",
+        "generation = 352",
+        'L"_(1.5b)"',
+        "status.ambiguousNamedInstances",
+        'L"drive-root"',
+        'L"unc"',
+        'L"longpath"',
+        "i < 128",
+        "500000",
+        "Mode::WrongSender",
+    ):
+        if token not in runtime_test:
+            fail(f"stable v0.5.0 lost Everything regression coverage: {token}")
+
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    for token in (
+        "settings-v0.5-alpha-everything.json",
+        "settings-v0.5-alpha-default.json",
+        "v041DowngradeRead",
+        "MigratedFromSchemaVersion",
+        "mask < 32",
+    ):
+        if token not in config_tests:
+            fail(f"stable v0.5.0 lost migration/downgrade coverage: {token}")
+
+    package_script = read("scripts/verify_package.ps1")
+    if "default { 300 }" not in package_script:
+        fail("stable v0.5.0 package revision must remain 300")
+
+    build_workflow = read(".github/workflows/build.yml")
+    for token in (
+        'if [[ "$VERSION" == *-* ]]; then',
+        'EXTRA_ARGS+=(--prerelease)',
+        'TAG="v$VERSION"',
+        "sha256sum -c SHA256SUMS.txt",
+    ):
+        if token not in build_workflow:
+            fail(f"stable main publication guard missing: {token}")
+
+    release_workflow = read(".github/workflows/release.yml")
+    for token in (
+        "prerelease: ${{ contains(github.ref_name, '-') }}",
+        "sha256sum -c SHA256SUMS.txt",
+        "everything_ipc_runtime_tests",
+    ):
+        if token not in release_workflow:
+            fail(f"stable tag-release guard missing: {token}")
+
+    readme = read("README.md")
+    for token in (
+        "## v0.5.0 — Stable",
+        "### Stable v0.5.0",
+        "/releases/tag/v0.5.0",
+        "0.5.0.300",
+    ):
+        if token not in readme:
+            fail(f"stable README metadata missing: {token}")
+
+    changelog = read("CHANGELOG.md")
+    if "## 0.5.0" not in changelog:
+        fail("stable v0.5.0 changelog entry missing")
+
+    roadmap = read("ROADMAP.md")
+    for token in (
+        "Completed in v0.5.0:",
+        "v0.5.0 Stable promotes the frozen RC3 line",
+        "0.5.0.300",
+    ):
+        if token not in roadmap:
+            fail(f"stable roadmap state missing: {token}")
+    print(
+        "v0.5.0 Stable promotion contract verified:",
+        "| schemas/providers/Classic/Everything frozen",
+        "| 54px owner-draw rows + single-line editor labels",
+        "| 100/125/150/200% DPI layout regression coverage",
+        "| Windows revision 300 | non-prerelease publication path",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.5.0-rc.3":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,

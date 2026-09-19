@@ -4,14 +4,14 @@ ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, 
 
 ## Downloads
 
-### Stable v0.4.1
+### Stable v0.5.0
 
-The current stable release is published at the immutable `v0.4.1` tag:
+The current stable release is published at the immutable `v0.5.0` tag:
 
-- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.4.1
-- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.1/ALTRunNext-x64.zip
-- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.1/ALTRunNext-ARM64.zip
-- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.4.1/SHA256SUMS.txt
+- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.5.0
+- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.5.0/ALTRunNext-x64.zip
+- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.5.0/ALTRunNext-ARM64.zip
+- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.5.0/SHA256SUMS.txt
 
 ### Rolling development build
 
@@ -22,6 +22,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.5.0 — Stable
+
+v0.5.0 promotes the validated RC3 code line to Stable without adding new launcher features or changing the frozen v0.5 contracts.
+
+The release brings native Everything-backed File/Folder search into ALTRun Next through the external standard Everything application. Search remains responsive when Everything is unavailable, recovers without restarting ALTRun Next after Everything starts again, and combines User Commands, Applications, Folders and Files through the unified ranking path. Everything remains disabled by default and continues to use the 1.4-compatible Unicode Query2/WM_COPYDATA transport with conservative named-instance fallback.
+
+Settings schemaVersion 3 is now the stable v0.5 settings format. v0.4.1 schema-2 settings migrate atomically while preserving existing preferences, and newer schema-3 settings stay protected from writes when temporarily opened by a v0.4.1-era binary. Commands/usage remain schemaVersion 1 and provider-cache remains schemaVersion 2.
+
+The final RC3 Settings polish is included unchanged: 54-logical-pixel owner-drawn toggle rows, single-line shortcut-editor labels, width-aware editor actions, separated Everything diagnostics/onboarding controls, aligned page gutters and owner-drawn sidebar navigation. Classic Launcher geometry remains frozen at 420 logical px width, 16 logical px row height and 10 visible results.
+
+Stable publication keeps the full release safety chain: Core regression tests, 100/125/150/200% layout checks, current-Windows runtime smoke, Windows 10 API-baseline smoke, x64/ARM64 production builds, exact package allowlisting, packaged x64 startup smoke and SHA-256 self-verification. The packaged RC validation document is retained as the explicit real-desktop regression record; Stable promotion does not rewrite unchecked observations as automated passes.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.300`.
 
 ## v0.5.0-rc.3 — Final Settings UI Polish & Stable Candidate
 

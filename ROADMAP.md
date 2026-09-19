@@ -88,7 +88,7 @@ Completed in v0.4.1:
 
 ## v0.5.x - Everything integration
 
-In progress:
+Completed in v0.5.0:
 
 - v0.5.0-alpha.1 establishes native Everything 1.4-compatible Unicode Query2 IPC over WM_COPYDATA
 - Dedicated worker thread and hidden reply window keep Everything IPC off the launcher/UI thread
@@ -107,8 +107,8 @@ In progress:
 - v0.5.0-rc.1 freezes the v0.5 surface, packages the unified real-desktop validation matrix and limits further changes to regression/compatibility/data-safety/publication fixes
 - v0.5.0-rc.2 addresses real-desktop Everything onboarding: actionable missing-installation guidance plus official-download and immediate-recheck actions, without adding dependency management or changing frozen v0.5 contracts
 - v0.5.0-rc.3 is the final Settings UI polish candidate: fixes default/DPI text overlap, shortcut-editor label/action layout, Search Sources diagnostics spacing and sidebar navigation styling while preserving every frozen v0.5 core contract
-- After RC3, v0.5.0 Stable is promoted from the validated RC line unless a release-blocking regression requires another narrowly scoped RC fix
-- Stable v0.5.0 promotion requires explicit real Windows 10/11 + Everything 1.4/current 1.5 validation and no release-blocking defect; automated CI is necessary but not a substitute for manual sign-off
+- v0.5.0 Stable promotes the frozen RC3 line without new features and uses Windows fixed version 0.5.0.300
+- The packaged v0.5 RC validation matrix remains the manual regression record; automated CI is necessary but is not represented as a substitute for unrecorded desktop observations
 
 ## v0.6.x - Smart actions & Windows integration
 

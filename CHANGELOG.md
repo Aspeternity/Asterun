@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0
+
+- Promoted the frozen v0.5.0 RC3 code line to Stable without adding new launcher behavior.
+- Shipped native external Everything File/Folder search with unified User Command/Application/Folder/File ranking and dynamic recovery/fallback.
+- Kept Everything disabled by default and retained the Unicode Query2/WM_COPYDATA transport, unnamed-first endpoint selection and conservative unique-named-instance fallback.
+- Stabilized settings schemaVersion 3 with atomic v0.4.1 schema-2 migration and newer-schema downgrade read-only protection; commands/usage remain schemaVersion 1 and provider-cache remains schemaVersion 2.
+- Retained the RC3 Settings polish: 54-logical-pixel owner-draw rows, single-line shortcut-editor labels, width-aware actions, separated Everything diagnostics/onboarding and owner-drawn sidebar navigation.
+- Preserved Classic Launcher geometry at 420 logical px width, 16 logical px row height and 10 visible results.
+- Retained current-Windows and Windows 10 runtime smoke, 100/125/150/200% layout regression coverage, x64/ARM64 package contracts, packaged x64 startup smoke and SHA256 self-verification.
+- Updated the primary Stable download links from v0.4.1 to v0.5.0.
+- Updated Windows version metadata to `0.5.0` / `0.5.0.300`.
+- Kept the packaged v0.5 RC validation checklist as the explicit manual regression record rather than fabricating unchecked observations.
+
+
 ## 0.5.0-rc.3
 
 - Fixed the General Settings title/description overlap by replacing 46px owner-draw rows with a shared 54-logical-pixel toggle-row metric.
