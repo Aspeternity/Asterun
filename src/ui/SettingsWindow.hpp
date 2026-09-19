@@ -182,6 +182,7 @@ private:
 
     void RefreshCommandList(
         std::wstring_view preferredId = {});
+    void RefreshProviderStatus();
     void LoadCommandEditor(
         std::wstring_view id);
     void BeginNewCommand();
@@ -335,6 +336,7 @@ private:
     HWND providerPackaged_{};
     HWND providerAppPaths_{};
     HWND providerPath_{};
+    HWND providerStatus_{};
     HWND providerNote_{};
 
     HWND dataOpenLabel_{};

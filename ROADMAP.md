@@ -43,12 +43,12 @@ Current phase:
 - Persistent provider cache and non-blocking background refresh
 - Provider Registry with stable IDs and source controls
 - Per-provider cache and provider-level refresh failure isolation
+- Incremental / change-driven provider refresh
+- Refresh debounce and provider scheduling
+- Provider cache counts and last-refresh diagnostics
 
 Planned before v0.4 beta:
 
-- Incremental / change-driven provider refresh
-- Refresh debounce and provider scheduling
-- Provider status and diagnostics refinement
 - Discovery and de-duplication regression coverage
 - Windows 10 / Windows 11 compatibility verification
 

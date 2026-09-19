@@ -6,6 +6,7 @@
 #include "ProviderRegistry.hpp"
 #include "UserCommandStore.hpp"
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -18,6 +19,14 @@ enum class ProviderRefreshOutcome {
     Failed = 0,
     Success = 1,
     Partial = 2,
+};
+
+struct ProviderStatus {
+    std::string id;
+    std::wstring name;
+    bool enabled{false};
+    std::size_t commandCount{0};
+    std::int64_t lastRefreshUnix{0};
 };
 
 class CommandStore {
@@ -33,11 +42,23 @@ public:
 
     [[nodiscard]] ProviderRefreshOutcome
     RefreshProviderCache(
-        const ProviderEnableMap& enabled) const;
+        const ProviderEnableMap& enabled,
+        const std::vector<std::string>&
+            selectedIds = {}) const;
 
     [[nodiscard]] std::vector<
         ProviderDescriptor>
     ProviderDescriptors() const;
+
+    [[nodiscard]] std::vector<
+        ProviderChangeToken>
+    ProviderChangeTokens(
+        const ProviderEnableMap& enabled) const;
+
+    [[nodiscard]] std::vector<
+        ProviderStatus>
+    ProviderStatuses(
+        const ProviderEnableMap& enabled) const;
 
     bool CreateUserCommand(
         Command command,

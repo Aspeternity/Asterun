@@ -12,6 +12,25 @@
 
 namespace altrun {
 
+namespace {
+
+bool IsSelected(
+    std::string_view id,
+    const std::vector<std::string>& selectedIds) {
+
+    if (selectedIds.empty()) {
+        return true;
+    }
+
+    return std::find(
+               selectedIds.begin(),
+               selectedIds.end(),
+               id) !=
+        selectedIds.end();
+}
+
+} // namespace
+
 ProviderRegistry::ProviderRegistry() {
     providers_.push_back(
         std::make_unique<
@@ -31,8 +50,10 @@ ProviderRegistry::ProviderRegistry() {
         providers_.end(),
         [](const auto& left,
            const auto& right) {
-            return left->Descriptor().priority >
-                right->Descriptor().priority;
+            return left->Descriptor()
+                       .priority >
+                right->Descriptor()
+                    .priority;
         });
 }
 
@@ -55,17 +76,23 @@ ProviderRegistry::Descriptors() const {
 
 std::vector<ProviderDiscoveryResult>
 ProviderRegistry::Discover(
-    const ProviderEnableMap& enabled) const {
+    const ProviderEnableMap& enabled,
+    const std::vector<std::string>&
+        selectedIds) const {
 
     std::vector<ProviderDiscoveryResult>
         results;
 
     for (const auto& provider :
          providers_) {
+
         const auto& descriptor =
             provider->Descriptor();
 
-        if (!providers::IsEnabled(
+        if (!IsSelected(
+                descriptor.id,
+                selectedIds) ||
+            !providers::IsEnabled(
                 enabled,
                 descriptor.id,
                 descriptor.defaultEnabled)) {
@@ -93,6 +120,48 @@ ProviderRegistry::Discover(
     }
 
     return results;
+}
+
+std::vector<ProviderChangeToken>
+ProviderRegistry::ChangeTokens(
+    const ProviderEnableMap& enabled) const {
+
+    std::vector<ProviderChangeToken>
+        tokens;
+
+    tokens.reserve(
+        providers_.size());
+
+    for (const auto& provider :
+         providers_) {
+
+        const auto& descriptor =
+            provider->Descriptor();
+
+        if (!providers::IsEnabled(
+                enabled,
+                descriptor.id,
+                descriptor.defaultEnabled)) {
+            continue;
+        }
+
+        ProviderChangeToken token;
+        token.id =
+            descriptor.id;
+
+        try {
+            token.token =
+                provider->ChangeToken();
+            token.success = true;
+        } catch (...) {
+            token.success = false;
+        }
+
+        tokens.push_back(
+            std::move(token));
+    }
+
+    return tokens;
 }
 
 } // namespace altrun

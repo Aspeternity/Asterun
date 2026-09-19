@@ -126,14 +126,17 @@ void CommandStore::ReloadProviderCache(
 
 ProviderRefreshOutcome
 CommandStore::RefreshProviderCache(
-    const ProviderEnableMap& enabled) const {
+    const ProviderEnableMap& enabled,
+    const std::vector<std::string>&
+        selectedIds) const {
 
     ProviderCacheData cache =
         providerCache_.Load();
 
     const auto results =
         providerRegistry_.Discover(
-            enabled);
+            enabled,
+            selectedIds);
 
     if (results.empty()) {
         return ProviderRefreshOutcome::
@@ -186,6 +189,54 @@ std::vector<ProviderDescriptor>
 CommandStore::ProviderDescriptors() const {
     return providerRegistry_
         .Descriptors();
+}
+
+std::vector<ProviderChangeToken>
+CommandStore::ProviderChangeTokens(
+    const ProviderEnableMap& enabled) const {
+
+    return providerRegistry_
+        .ChangeTokens(enabled);
+}
+
+std::vector<ProviderStatus>
+CommandStore::ProviderStatuses(
+    const ProviderEnableMap& enabled) const {
+
+    const ProviderCacheData cache =
+        providerCache_.Load();
+
+    std::vector<ProviderStatus>
+        statuses;
+
+    for (const auto& descriptor :
+         providerRegistry_.Descriptors()) {
+
+        ProviderStatus status;
+        status.id = descriptor.id;
+        status.name = descriptor.name;
+        status.enabled =
+            providers::IsEnabled(
+                enabled,
+                descriptor.id,
+                descriptor.defaultEnabled);
+
+        const auto it =
+            cache.find(
+                descriptor.id);
+
+        if (it != cache.end()) {
+            status.commandCount =
+                it->second.commands.size();
+            status.lastRefreshUnix =
+                it->second.generatedAtUnix;
+        }
+
+        statuses.push_back(
+            std::move(status));
+    }
+
+    return statuses;
 }
 
 bool CommandStore::CreateUserCommand(

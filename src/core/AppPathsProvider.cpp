@@ -1,5 +1,6 @@
 #include "AppPathsProvider.hpp"
 
+#include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/WinUtil.hpp"
 
@@ -9,15 +10,20 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace altrun {
 
 namespace {
+
+constexpr wchar_t kAppPathsKey[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths";
 
 std::wstring StripQuotes(
     std::wstring value) {
@@ -165,14 +171,11 @@ void EnumerateAppPathsKey(
     std::vector<Command>& output,
     std::unordered_set<std::wstring>& seenTargets) {
 
-    constexpr wchar_t kKeyPath[] =
-        L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths";
-
     HKEY appPaths{};
 
     if (RegOpenKeyExW(
             root,
-            kKeyPath,
+            kAppPathsKey,
             0,
             KEY_READ | view,
             &appPaths) != ERROR_SUCCESS) {
@@ -200,7 +203,8 @@ void EnumerateAppPathsKey(
                 nullptr,
                 nullptr);
 
-        if (status == ERROR_NO_MORE_ITEMS) {
+        if (status ==
+            ERROR_NO_MORE_ITEMS) {
             break;
         }
 
@@ -273,6 +277,103 @@ void EnumerateAppPathsKey(
     RegCloseKey(appPaths);
 }
 
+void FingerprintAppPathsKey(
+    HKEY root,
+    REGSAM view,
+    std::vector<std::uint64_t>& items) {
+
+    HKEY appPaths{};
+
+    if (RegOpenKeyExW(
+            root,
+            kAppPathsKey,
+            0,
+            KEY_READ | view,
+            &appPaths) != ERROR_SUCCESS) {
+        return;
+    }
+
+    DWORD index = 0;
+
+    for (;;) {
+        std::array<wchar_t, 512>
+            nameBuffer{};
+
+        DWORD nameLength =
+            static_cast<DWORD>(
+                nameBuffer.size());
+
+        FILETIME lastWrite{};
+
+        const LSTATUS status =
+            RegEnumKeyExW(
+                appPaths,
+                index,
+                nameBuffer.data(),
+                &nameLength,
+                nullptr,
+                nullptr,
+                nullptr,
+                &lastWrite);
+
+        if (status ==
+            ERROR_NO_MORE_ITEMS) {
+            break;
+        }
+
+        ++index;
+
+        if (status != ERROR_SUCCESS ||
+            nameLength == 0) {
+            continue;
+        }
+
+        std::wstring name(
+            nameBuffer.data(),
+            nameLength);
+
+        std::uint64_t itemHash =
+            fingerprint::kOffset;
+
+        fingerprint::Mix(
+            itemHash,
+            name);
+
+        const std::uint64_t timeValue =
+            (static_cast<std::uint64_t>(
+                 lastWrite.dwHighDateTime)
+             << 32u) |
+            lastWrite.dwLowDateTime;
+
+        fingerprint::Mix(
+            itemHash,
+            timeValue);
+
+        HKEY appKey{};
+
+        if (RegOpenKeyExW(
+                appPaths,
+                name.c_str(),
+                0,
+                KEY_READ | view,
+                &appKey) == ERROR_SUCCESS) {
+
+            fingerprint::Mix(
+                itemHash,
+                RegistryString(
+                    appKey,
+                    nullptr));
+
+            RegCloseKey(appKey);
+        }
+
+        items.push_back(
+            itemHash);
+    }
+
+    RegCloseKey(appPaths);
+}
+
 } // namespace
 
 const ProviderDescriptor&
@@ -314,6 +415,49 @@ AppPathsProvider::Discover() const {
     }
 
     return commands;
+}
+
+std::uint64_t
+AppPathsProvider::ChangeToken() const {
+    std::vector<std::uint64_t> items;
+
+    constexpr std::array<REGSAM, 2>
+        views{
+            KEY_WOW64_64KEY,
+            KEY_WOW64_32KEY,
+        };
+
+    for (const REGSAM view : views) {
+        FingerprintAppPathsKey(
+            HKEY_CURRENT_USER,
+            view,
+            items);
+
+        FingerprintAppPathsKey(
+            HKEY_LOCAL_MACHINE,
+            view,
+            items);
+    }
+
+    std::sort(
+        items.begin(),
+        items.end());
+
+    std::uint64_t hash =
+        fingerprint::kOffset;
+
+    fingerprint::Mix(
+        hash,
+        static_cast<std::uint64_t>(
+            items.size()));
+
+    for (const auto item : items) {
+        fingerprint::Mix(
+            hash,
+            item);
+    }
+
+    return hash;
 }
 
 } // namespace altrun

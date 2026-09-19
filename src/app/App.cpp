@@ -7,6 +7,11 @@
 
 #include <shellapi.h>
 
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <unordered_map>
+
 namespace altrun {
 
 App::App(HINSTANCE instance)
@@ -24,6 +29,18 @@ App::App(HINSTANCE instance)
           baseDirectory_ / "dict") {}
 
 App::~App() {
+    if (providerDebounceTimer_ != 0) {
+        KillTimer(
+            nullptr,
+            providerDebounceTimer_);
+        providerDebounceTimer_ = 0;
+    }
+
+    if (providerMonitorThread_.joinable()) {
+        providerMonitorThread_.request_stop();
+        providerMonitorThread_.join();
+    }
+
     if (providerRefreshThread_.joinable()) {
         providerRefreshThread_.request_stop();
         providerRefreshThread_.join();
@@ -106,8 +123,10 @@ int App::Run() {
     }
 
     // Cached provider results are already searchable. Refresh automatic
-    // discovery off the startup path and hot-reload it when ready.
+    // discovery off the startup path, then keep lightweight provider
+    // fingerprints under observation for source-specific updates.
     StartProviderRefresh();
+    StartProviderMonitor();
 
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
@@ -117,6 +136,29 @@ int App::Run() {
                 static_cast<
                     ProviderRefreshOutcome>(
                         msg.wParam));
+            continue;
+        }
+
+        if (msg.message ==
+                kProviderChangedMessage &&
+            msg.hwnd == nullptr) {
+            HandleProviderChangedSignal();
+            continue;
+        }
+
+        if (msg.message == WM_TIMER &&
+            msg.hwnd == nullptr &&
+            providerDebounceTimer_ != 0 &&
+            msg.wParam ==
+                providerDebounceTimer_) {
+
+            KillTimer(
+                nullptr,
+                providerDebounceTimer_);
+
+            providerDebounceTimer_ = 0;
+
+            FlushDetectedProviderChanges();
             continue;
         }
 
@@ -158,8 +200,20 @@ std::vector<SearchResult> App::Search(
         limit);
 }
 
-const Command& App::GetCommand(std::size_t index) const {
-    return commandStore_.Commands().at(index);
+const Command& App::GetCommand(
+    std::size_t index) const {
+
+    return commandStore_
+        .Commands()
+        .at(index);
+}
+
+std::vector<ProviderStatus>
+App::ProviderStatuses() const {
+    return commandStore_
+        .ProviderStatuses(
+            settingsStore_.Data()
+                .providerEnabled);
 }
 
 bool App::CreateUserCommand(
@@ -266,14 +320,62 @@ void App::RebuildProgramIndex() {
     StartProviderRefresh();
 }
 
-void App::StartProviderRefresh() {
+void App::StartProviderRefresh(
+    std::vector<std::string>
+        selectedIds) {
+
+    const auto& enabled =
+        settingsStore_.Data()
+            .providerEnabled;
+
+    if (!selectedIds.empty()) {
+        selectedIds.erase(
+            std::remove_if(
+                selectedIds.begin(),
+                selectedIds.end(),
+                [&](const std::string& id) {
+                    return !providers::IsEnabled(
+                        enabled,
+                        id,
+                        true);
+                }),
+            selectedIds.end());
+
+        std::sort(
+            selectedIds.begin(),
+            selectedIds.end());
+
+        selectedIds.erase(
+            std::unique(
+                selectedIds.begin(),
+                selectedIds.end()),
+            selectedIds.end());
+
+        if (selectedIds.empty()) {
+            return;
+        }
+    }
+
     bool expected = false;
 
     if (!providerRefreshRunning_
              .compare_exchange_strong(
                  expected,
                  true)) {
-        providerRefreshPending_ = true;
+
+        if (selectedIds.empty()) {
+            providerRefreshFullPending_ =
+                true;
+            providerRefreshIdsPending_
+                .clear();
+        } else if (
+            !providerRefreshFullPending_) {
+            providerRefreshIdsPending_
+                .insert(
+                    selectedIds.begin(),
+                    selectedIds.end());
+        }
+
         return;
     }
 
@@ -286,15 +388,19 @@ void App::StartProviderRefresh() {
     const DWORD targetThread =
         uiThreadId_;
 
-    const ProviderEnableMap enabled =
-        settingsStore_.Data()
-            .providerEnabled;
+    const ProviderEnableMap
+        enabledSnapshot =
+            settingsStore_.Data()
+                .providerEnabled;
 
     providerRefreshThread_ =
         std::jthread(
             [this,
              targetThread,
-             enabled](
+             enabledSnapshot,
+             selectedIds =
+                 std::move(
+                     selectedIds)](
                 std::stop_token
                     stopToken) {
 
@@ -309,7 +415,8 @@ void App::StartProviderRefresh() {
                         outcome =
                             commandStore_
                                 .RefreshProviderCache(
-                                    enabled);
+                                    enabledSnapshot,
+                                    selectedIds);
                     }
                 } catch (...) {
                     outcome =
@@ -364,9 +471,259 @@ void App::HandleProviderRefreshCompleted(
                     outcome));
     }
 
-    if (providerRefreshPending_
-            .exchange(false)) {
+    if (providerRefreshFullPending_) {
+        providerRefreshFullPending_ =
+            false;
+        providerRefreshIdsPending_
+            .clear();
         StartProviderRefresh();
+        return;
+    }
+
+    if (!providerRefreshIdsPending_
+             .empty()) {
+
+        std::vector<std::string>
+            pending(
+                providerRefreshIdsPending_
+                    .begin(),
+                providerRefreshIdsPending_
+                    .end());
+
+        providerRefreshIdsPending_
+            .clear();
+
+        StartProviderRefresh(
+            std::move(pending));
+    }
+}
+
+void App::StartProviderMonitor() {
+    if (providerMonitorThread_
+            .joinable()) {
+        return;
+    }
+
+    {
+        std::scoped_lock lock(
+            providerMonitorConfigMutex_);
+
+        providerMonitorEnabled_ =
+            settingsStore_.Data()
+                .providerEnabled;
+    }
+
+    const DWORD targetThread =
+        uiThreadId_;
+
+    providerMonitorThread_ =
+        std::jthread(
+            [this, targetThread](
+                std::stop_token
+                    stopToken) {
+
+                std::unordered_map<
+                    std::string,
+                    std::uint64_t>
+                    baseline;
+
+                ProviderEnableMap
+                    enabledSnapshot;
+
+                {
+                    std::scoped_lock lock(
+                        providerMonitorConfigMutex_);
+
+                    enabledSnapshot =
+                        providerMonitorEnabled_;
+                }
+
+                for (const auto& token :
+                     commandStore_
+                         .ProviderChangeTokens(
+                             enabledSnapshot)) {
+                    if (token.success) {
+                        baseline[token.id] =
+                            token.token;
+                    }
+                }
+
+                constexpr auto
+                    kPollInterval =
+                        std::chrono::
+                            milliseconds(5000);
+
+                constexpr auto
+                    kSleepSlice =
+                        std::chrono::
+                            milliseconds(100);
+
+                while (!stopToken
+                            .stop_requested()) {
+
+                    auto remaining =
+                        kPollInterval;
+
+                    while (remaining >
+                               std::chrono::
+                                   milliseconds(0) &&
+                           !stopToken
+                                .stop_requested()) {
+
+                        const auto slice =
+                            std::min(
+                                remaining,
+                                kSleepSlice);
+
+                        std::this_thread::
+                            sleep_for(slice);
+
+                        remaining -= slice;
+                    }
+
+                    if (stopToken
+                            .stop_requested()) {
+                        break;
+                    }
+
+                    {
+                        std::scoped_lock lock(
+                            providerMonitorConfigMutex_);
+
+                        enabledSnapshot =
+                            providerMonitorEnabled_;
+                    }
+
+                    std::vector<std::string>
+                        changed;
+
+                    std::unordered_set<std::string>
+                        observed;
+
+                    for (const auto& token :
+                         commandStore_
+                             .ProviderChangeTokens(
+                                 enabledSnapshot)) {
+
+                        if (!token.success) {
+                            continue;
+                        }
+
+                        observed.insert(
+                            token.id);
+
+                        const auto previous =
+                            baseline.find(
+                                token.id);
+
+                        if (previous !=
+                                baseline.end() &&
+                            previous->second !=
+                                token.token) {
+                            changed.push_back(
+                                token.id);
+                        }
+
+                        baseline[token.id] =
+                            token.token;
+                    }
+
+                    for (auto it =
+                             baseline.begin();
+                         it != baseline.end();) {
+                        if (observed.find(
+                                it->first) ==
+                            observed.end()) {
+                            it =
+                                baseline.erase(it);
+                        } else {
+                            ++it;
+                        }
+                    }
+
+                    if (changed.empty()) {
+                        continue;
+                    }
+
+                    {
+                        std::scoped_lock lock(
+                            detectedProviderMutex_);
+
+                        detectedProviderIds_
+                            .insert(
+                                changed.begin(),
+                                changed.end());
+                    }
+
+                    if (targetThread != 0) {
+                        PostThreadMessageW(
+                            targetThread,
+                            kProviderChangedMessage,
+                            0,
+                            0);
+                    }
+                }
+            });
+}
+
+void App::HandleProviderChangedSignal() {
+    if (providerDebounceTimer_ != 0) {
+        KillTimer(
+            nullptr,
+            providerDebounceTimer_);
+        providerDebounceTimer_ = 0;
+    }
+
+    providerDebounceTimer_ =
+        SetTimer(
+            nullptr,
+            0,
+            750,
+            nullptr);
+
+    if (providerDebounceTimer_ == 0) {
+        FlushDetectedProviderChanges();
+    }
+}
+
+void App::FlushDetectedProviderChanges() {
+    std::unordered_set<std::string>
+        detected;
+
+    {
+        std::scoped_lock lock(
+            detectedProviderMutex_);
+
+        detected.swap(
+            detectedProviderIds_);
+    }
+
+    if (detected.empty()) {
+        return;
+    }
+
+    std::vector<std::string>
+        enabledChanges;
+
+    const auto& enabled =
+        settingsStore_.Data()
+            .providerEnabled;
+
+    for (const auto& id :
+         detected) {
+        if (providers::IsEnabled(
+                enabled,
+                id,
+                true)) {
+            enabledChanges.push_back(
+                id);
+        }
+    }
+
+    if (!enabledChanges.empty()) {
+        StartProviderRefresh(
+            std::move(
+                enabledChanges));
     }
 }
 
@@ -403,6 +760,15 @@ bool App::RestoreDefaultSettings() {
     commandStore_.ReloadProviderCache(
         settingsStore_.Data()
             .providerEnabled);
+
+    {
+        std::scoped_lock lock(
+            providerMonitorConfigMutex_);
+
+        providerMonitorEnabled_ =
+            settingsStore_.Data()
+                .providerEnabled;
+    }
 
     if (window_) {
         window_->ApplyAppearance();
@@ -589,6 +955,9 @@ bool App::SetProviderEnabled(
     std::string id,
     bool enabled) {
 
+    const std::string providerId =
+        id;
+
     if (!settingsStore_
              .SetProviderEnabled(
                  std::move(id),
@@ -601,6 +970,15 @@ bool App::SetProviderEnabled(
             settingsStore_.Data()
                 .providerEnabled);
 
+    {
+        std::scoped_lock lock(
+            providerMonitorConfigMutex_);
+
+        providerMonitorEnabled_ =
+            settingsStore_.Data()
+                .providerEnabled;
+    }
+
     if (window_) {
         window_->RefreshResults();
     }
@@ -610,7 +988,11 @@ bool App::SetProviderEnabled(
             ->RefreshFromSettings();
     }
 
-    StartProviderRefresh();
+    if (enabled) {
+        StartProviderRefresh(
+            {providerId});
+    }
+
     return true;
 }
 

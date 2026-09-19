@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
+#include <ctime>
 #include <cwctype>
 #include <filesystem>
 #include <string>
@@ -57,6 +59,39 @@ bool ContainsInsensitive(
 
     if (needle.empty()) return true;
     return LowerWide(value).find(LowerWide(needle)) != std::wstring::npos;
+}
+
+std::wstring FormatLocalTime(
+    std::int64_t unixTime) {
+
+    if (unixTime <= 0) {
+        return L"—";
+    }
+
+    const std::time_t value =
+        static_cast<std::time_t>(
+            unixTime);
+
+    std::tm local{};
+
+    if (localtime_s(
+            &local,
+            &value) != 0) {
+        return L"—";
+    }
+
+    wchar_t buffer[32]{};
+
+    if (std::wcsftime(
+            buffer,
+            sizeof(buffer) /
+                sizeof(buffer[0]),
+            L"%Y-%m-%d %H:%M:%S",
+            &local) == 0) {
+        return L"—";
+    }
+
+    return buffer;
 }
 
 bool IsChecked(HWND control) {
@@ -642,6 +677,11 @@ void SettingsWindow::CreateProviderPage() {
             L"",
             kIdProviderPath);
 
+    providerStatus_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+
     providerNote_ =
         CreateStatic(
             L"",
@@ -653,6 +693,7 @@ void SettingsWindow::CreateProviderPage() {
         providerPackaged_,
         providerAppPaths_,
         providerPath_,
+        providerStatus_,
         providerNote_,
     };
 }
@@ -853,6 +894,7 @@ void SettingsWindow::ApplyFonts() {
         providerPackaged_,
         providerAppPaths_,
         providerPath_,
+        providerStatus_,
         providerNote_,
         dataOpenLabel_,
         dataOpenFolder_,
@@ -1165,8 +1207,8 @@ void SettingsWindow::ApplyLanguage() {
         T(L"PATH", L"PATH"));
     SetWindowTextW(
         providerNote_,
-        T(L"来源开关会立即影响搜索结果；重新启用时先使用已有缓存，并在后台刷新最新索引。",
-          L"Source changes affect search immediately. Re-enabled sources use their existing cache first and refresh in the background."));
+        T(L"ALTRun Next 会低频检测来源变化，只刷新发生变化的来源；短时间内的连续变化会自动合并。",
+          L"ALTRun Next watches sources at low frequency and refreshes only changed providers. Rapid changes are debounced automatically."));
 
     SetWindowTextW(
         dataOpenLabel_,
@@ -1203,12 +1245,12 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.4.0-alpha.3", L"Version 0.4.0-alpha.3"));
+        T(L"版本 0.4.0-alpha.4", L"Version 0.4.0-alpha.4"));
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Alpha 3 加入 Provider Registry、独立来源缓存与搜索来源控制。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Alpha 3 adds the Provider Registry, per-source caching and search-source controls."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4 Alpha 4 加入来源变化检测、定向增量刷新与防抖调度。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.4 Alpha 4 adds source change detection, targeted incremental refresh and debounce scheduling."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -1292,7 +1334,72 @@ void SettingsWindow::RefreshFromSettings() {
         }
     }
 
+    RefreshProviderStatus();
+
     syncing_ = oldSyncing;
+}
+
+void SettingsWindow::RefreshProviderStatus() {
+    if (!providerStatus_) {
+        return;
+    }
+
+    const auto statuses =
+        app_.ProviderStatuses();
+
+    std::wstring text;
+
+    for (std::size_t i = 0;
+         i < statuses.size();
+         ++i) {
+
+        const auto& status =
+            statuses[i];
+
+        std::wstring name =
+            status.name;
+
+        if (status.id ==
+            providers::kStartMenu) {
+            name =
+                T(L"开始菜单", L"Start Menu");
+        } else if (
+            status.id ==
+            providers::kPackaged) {
+            name = L"Windows Apps";
+        } else if (
+            status.id ==
+            providers::kAppPaths) {
+            name = L"App Paths";
+        } else if (
+            status.id ==
+            providers::kPath) {
+            name = L"PATH";
+        }
+
+        text += name;
+        text += L"  ·  ";
+        text += status.enabled
+            ? T(L"已启用", L"Enabled")
+            : T(L"已禁用", L"Disabled");
+        text += L"  ·  ";
+        text += std::to_wstring(
+            status.commandCount);
+        text += T(L" 项", L" items");
+        text += L"  ·  ";
+        text += T(L"上次刷新 ", L"Last refresh ");
+        text += FormatLocalTime(
+            status.lastRefreshUnix);
+
+        if (i + 1 <
+            statuses.size()) {
+            text += L"\r\n";
+        }
+    }
+
+    SetWindowTextW(
+        providerStatus_,
+        text.c_str());
 }
 
 void SettingsWindow::RefreshCommands() {
@@ -1330,6 +1437,8 @@ void SettingsWindow::OnProgramIndexRefreshCompleted(
     SetWindowTextW(
         dataStatus_,
         status);
+
+    RefreshProviderStatus();
 }
 
 void SettingsWindow::UpdateNavLabels() {
@@ -1473,6 +1582,9 @@ void SettingsWindow::ShowPage(Page page) {
 
     if (page == Page::Commands) {
         RefreshCommandList(editingCommandId_);
+    } else if (
+        page == Page::Providers) {
+        RefreshProviderStatus();
     }
 
     UpdateNavLabels();
@@ -3192,10 +3304,19 @@ void SettingsWindow::Layout() {
         }
 
         MoveWindow(
+            providerStatus_,
+            x,
+            providerCard.bottom +
+                Scale(24),
+            controlWidth,
+            Scale(112),
+            TRUE);
+
+        MoveWindow(
             providerNote_,
             x,
             providerCard.bottom +
-                Scale(28),
+                Scale(146),
             controlWidth,
             Scale(60),
             TRUE);
@@ -4267,6 +4388,7 @@ LRESULT SettingsWindow::HandleMessage(
             control == generalNote_ ||
             control == popupMonitorDescription_ ||
             control == appearanceNote_ ||
+            control == providerStatus_ ||
             control == providerNote_ ||
             control == aboutVersion_ ||
             control == aboutDescription_ ||

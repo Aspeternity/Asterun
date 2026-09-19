@@ -1,5 +1,6 @@
 #include "StartMenuProvider.hpp"
 
+#include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/WinUtil.hpp"
 
@@ -7,6 +8,10 @@
 #define NOMINMAX
 #include <windows.h>
 #include <shlobj.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <system_error>
 
 namespace altrun {
 
@@ -41,6 +46,18 @@ std::wstring MakeId(
         win::Lower(target);
 }
 
+bool IsStartMenuEntry(
+    const std::filesystem::path& path) {
+
+    const auto extension =
+        win::Lower(
+            path.extension().wstring());
+
+    return extension == L".lnk" ||
+           extension == L".url" ||
+           extension == L".exe";
+}
+
 } // namespace
 
 const ProviderDescriptor&
@@ -57,13 +74,47 @@ StartMenuProvider::Descriptor() const noexcept {
 std::vector<Command>
 StartMenuProvider::Discover() const {
     std::vector<Command> commands;
+
     ScanPath(
         KnownFolder(FOLDERID_StartMenu),
         commands);
     ScanPath(
         KnownFolder(FOLDERID_CommonStartMenu),
         commands);
+
     return commands;
+}
+
+std::uint64_t
+StartMenuProvider::ChangeToken() const {
+    std::vector<std::uint64_t> items;
+
+    FingerprintPath(
+        KnownFolder(FOLDERID_StartMenu),
+        items);
+    FingerprintPath(
+        KnownFolder(FOLDERID_CommonStartMenu),
+        items);
+
+    std::sort(
+        items.begin(),
+        items.end());
+
+    std::uint64_t hash =
+        fingerprint::kOffset;
+
+    fingerprint::Mix(
+        hash,
+        static_cast<std::uint64_t>(
+            items.size()));
+
+    for (const auto item : items) {
+        fingerprint::Mix(
+            hash,
+            item);
+    }
+
+    return hash;
 }
 
 void StartMenuProvider::ScanPath(
@@ -91,19 +142,9 @@ void StartMenuProvider::ScanPath(
             continue;
         }
 
-        if (!it->is_regular_file(ec)) {
-            continue;
-        }
-
-        const auto extension =
-            win::Lower(
-                it->path()
-                    .extension()
-                    .wstring());
-
-        if (extension != L".lnk" &&
-            extension != L".url" &&
-            extension != L".exe") {
+        if (!it->is_regular_file(ec) ||
+            !IsStartMenuEntry(
+                it->path())) {
             continue;
         }
 
@@ -136,6 +177,80 @@ void StartMenuProvider::ScanPath(
 
         output.push_back(
             std::move(command));
+    }
+}
+
+void StartMenuProvider::FingerprintPath(
+    const std::filesystem::path& root,
+    std::vector<std::uint64_t>& items) const {
+
+    if (root.empty()) {
+        return;
+    }
+
+    std::error_code ec;
+
+    if (!std::filesystem::is_directory(
+            root,
+            ec)) {
+        return;
+    }
+
+    for (std::filesystem::recursive_directory_iterator it(
+             root,
+             std::filesystem::directory_options::
+                 skip_permission_denied,
+             ec),
+         end;
+         it != end;
+         it.increment(ec)) {
+
+        if (ec) {
+            ec.clear();
+            continue;
+        }
+
+        if (!it->is_regular_file(ec) ||
+            !IsStartMenuEntry(
+                it->path())) {
+            continue;
+        }
+
+        std::uint64_t itemHash =
+            fingerprint::kOffset;
+
+        fingerprint::Mix(
+            itemHash,
+            it->path().wstring());
+
+        const auto writeTime =
+            it->last_write_time(ec);
+
+        if (!ec) {
+            fingerprint::Mix(
+                itemHash,
+                static_cast<std::uint64_t>(
+                    writeTime
+                        .time_since_epoch()
+                        .count()));
+        } else {
+            ec.clear();
+        }
+
+        const auto size =
+            it->file_size(ec);
+
+        if (!ec) {
+            fingerprint::Mix(
+                itemHash,
+                static_cast<std::uint64_t>(
+                    size));
+        } else {
+            ec.clear();
+        }
+
+        items.push_back(
+            itemHash);
     }
 }
 

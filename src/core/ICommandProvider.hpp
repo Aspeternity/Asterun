@@ -2,6 +2,7 @@
 
 #include "Command.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,12 @@ struct ProviderDiscoveryResult {
     std::wstring error;
 };
 
+struct ProviderChangeToken {
+    std::string id;
+    std::uint64_t token{0};
+    bool success{false};
+};
+
 class ICommandProvider {
 public:
     virtual ~ICommandProvider() = default;
@@ -30,6 +37,9 @@ public:
 
     [[nodiscard]] virtual std::vector<Command>
     Discover() const = 0;
+
+    [[nodiscard]] virtual std::uint64_t
+    ChangeToken() const = 0;
 };
 
 } // namespace altrun

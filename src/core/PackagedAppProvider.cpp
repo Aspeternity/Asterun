@@ -1,5 +1,6 @@
 #include "PackagedAppProvider.hpp"
 
+#include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/WinUtil.hpp"
 
@@ -12,16 +13,23 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace altrun {
 
 namespace {
 
 using Microsoft::WRL::ComPtr;
+
+struct ShellApp {
+    std::wstring title;
+    std::wstring target;
+};
 
 std::wstring NormalizeTarget(
     std::wstring_view target) {
@@ -34,30 +42,15 @@ std::wstring NormalizeTarget(
         normalized.begin(),
         normalized.end(),
         L'/',
-        L'\\');
+        L'\');
 
     return normalized;
 }
 
-} // namespace
+std::vector<ShellApp>
+EnumerateAppsFolder() {
 
-const ProviderDescriptor&
-PackagedAppProvider::Descriptor() const noexcept {
-    static const ProviderDescriptor descriptor{
-        std::string(providers::kPackaged),
-        L"Windows Apps",
-        true,
-        30,
-    };
-    return descriptor;
-}
-
-std::vector<Command>
-PackagedAppProvider::Discover() const {
-
-    std::vector<Command> commands;
-    std::unordered_set<std::wstring>
-        seenTargets;
+    std::vector<ShellApp> apps;
 
     const HRESULT comResult =
         CoInitializeEx(
@@ -135,43 +128,14 @@ PackagedAppProvider::Discover() const {
                 CoTaskMemFree(
                     rawTarget);
 
-                const std::wstring targetKey =
-                    NormalizeTarget(target);
-
-                if (targetKey.empty() ||
-                    !seenTargets.insert(
-                        targetKey).second) {
+                if (target.empty()) {
                     continue;
                 }
 
-                Command command;
-                command.title =
-                    std::move(title);
-                command.keyword =
-                    win::CompactKeyword(
-                        command.title);
-
-                if (command.keyword.empty()) {
-                    command.keyword =
-                        win::Lower(
-                            command.title);
-                }
-
-                command.target =
-                    std::move(target);
-                command.type =
-                    CommandType::Application;
-                command.icon = L"auto";
-                command.enabled = true;
-                command.source =
-                    CommandSource::PackagedApp;
-                command.basePriority = -5;
-                command.id =
-                    L"packaged:" +
-                    targetKey;
-
-                commands.push_back(
-                    std::move(command));
+                apps.push_back({
+                    std::move(title),
+                    std::move(target),
+                });
             }
         }
     }
@@ -180,7 +144,119 @@ PackagedAppProvider::Discover() const {
         CoUninitialize();
     }
 
+    return apps;
+}
+
+} // namespace
+
+const ProviderDescriptor&
+PackagedAppProvider::Descriptor() const noexcept {
+    static const ProviderDescriptor descriptor{
+        std::string(providers::kPackaged),
+        L"Windows Apps",
+        true,
+        30,
+    };
+    return descriptor;
+}
+
+std::vector<Command>
+PackagedAppProvider::Discover() const {
+
+    std::vector<Command> commands;
+    std::unordered_set<std::wstring>
+        seenTargets;
+
+    for (auto app :
+         EnumerateAppsFolder()) {
+
+        const std::wstring targetKey =
+            NormalizeTarget(
+                app.target);
+
+        if (targetKey.empty() ||
+            !seenTargets.insert(
+                targetKey).second) {
+            continue;
+        }
+
+        Command command;
+        command.title =
+            std::move(app.title);
+        command.keyword =
+            win::CompactKeyword(
+                command.title);
+
+        if (command.keyword.empty()) {
+            command.keyword =
+                win::Lower(
+                    command.title);
+        }
+
+        command.target =
+            std::move(app.target);
+        command.type =
+            CommandType::Application;
+        command.icon = L"auto";
+        command.enabled = true;
+        command.source =
+            CommandSource::PackagedApp;
+        command.basePriority = -5;
+        command.id =
+            L"packaged:" +
+            targetKey;
+
+        commands.push_back(
+            std::move(command));
+    }
+
     return commands;
+}
+
+std::uint64_t
+PackagedAppProvider::ChangeToken() const {
+
+    std::vector<std::uint64_t> items;
+
+    for (const auto& app :
+         EnumerateAppsFolder()) {
+
+        std::uint64_t itemHash =
+            fingerprint::kOffset;
+
+        fingerprint::Mix(
+            itemHash,
+            app.title);
+
+        fingerprint::Mix(
+            itemHash,
+            NormalizeTarget(
+                app.target));
+
+        items.push_back(
+            itemHash);
+    }
+
+    std::sort(
+        items.begin(),
+        items.end());
+
+    std::uint64_t hash =
+        fingerprint::kOffset;
+
+    fingerprint::Mix(
+        hash,
+        static_cast<std::uint64_t>(
+            items.size()));
+
+    for (const auto item :
+         items) {
+        fingerprint::Mix(
+            hash,
+            item);
+    }
+
+    return hash;
 }
 
 } // namespace altrun

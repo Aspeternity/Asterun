@@ -14,6 +14,36 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.0-alpha.4 — Incremental Refresh
+
+v0.4 Alpha 4 changes automatic Windows discovery from "periodically rescan everything" into source-aware incremental refresh.
+
+Each enabled provider now exposes a lightweight change token. ALTRun Next checks those tokens in a low-frequency monitor thread and refreshes only providers whose underlying source changed.
+
+```text
+Provider monitor (5 s)
+        │
+        ├─ Start Menu fingerprint
+        ├─ Windows Apps fingerprint
+        ├─ App Paths fingerprint
+        └─ PATH fingerprint
+                │
+                ▼
+        changed provider IDs
+                │
+          750 ms debounce
+                │
+                ▼
+      targeted background refresh
+                │
+                ▼
+     per-provider cache hot reload
+```
+
+Rapid source changes are coalesced before discovery starts. If a refresh is already running, new provider IDs are queued and processed afterward instead of forcing another full scan. Disabled providers are excluded from both search and change-token monitoring.
+
+The **Search sources** page now also shows each provider's enabled state, cached command count and last successful cache refresh time.
+
 ## v0.4.0-alpha.3 — Provider Registry & Source Control
 
 v0.4 Alpha 3 turns the Windows application-discovery layer into a real provider system while keeping the Classic launcher visually unchanged.

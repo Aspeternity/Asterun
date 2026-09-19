@@ -124,7 +124,11 @@ Properties:
 
 The flat provider-cache schemaVersion 1 written by v0.4.0-alpha.2 is recognized automatically. Its commands are grouped by `CommandSource` in memory and the next successful refresh writes schemaVersion 2.
 
-The Data -> Rebuild program index action starts the same non-blocking provider refresh.
+Starting with v0.4.0-alpha.4, enabled providers also expose lightweight change tokens. A low-frequency monitor compares those tokens and schedules a background refresh only for providers whose source changed. Changes arriving close together are debounced for 750 ms, and source-specific refresh requests are queued if another provider refresh is already running.
+
+Disabled providers remain cached but are excluded from both search and change-token monitoring. Re-enabling a provider restores its cached commands immediately and schedules a targeted background refresh.
+
+The Data -> Rebuild program index action remains an explicit full non-blocking refresh of all enabled providers.
 
 ## usage.json
 

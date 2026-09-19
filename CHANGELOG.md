@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0-alpha.4
+
+- Added lightweight change tokens to Start Menu, Windows Apps, App Paths and PATH providers.
+- Added a low-frequency provider monitor that detects source changes without blocking the launcher UI.
+- Added targeted provider refresh so a changed source no longer forces unrelated providers to rescan.
+- Added 750 ms debounce scheduling to coalesce bursts of application-install/update changes.
+- Added queued provider refresh requests when discovery is already running, preserving source-specific requests without falling back to a full rescan.
+- Disabled providers are excluded from change-token monitoring as well as search results.
+- Improved PATH discovery to observe process PATH plus current machine/user registry PATH values, allowing newly added PATH directories to be discovered without restarting ALTRun Next.
+- Added provider runtime status in Settings: enabled state, cached command count and last successful cache refresh time.
+- Manual **Rebuild program index** remains an explicit full refresh of all enabled providers.
+- Added cross-platform ProviderFingerprint coverage to Config Core tests.
+- Updated Windows version metadata to `0.4.0-alpha.4`.
+
+
 ## 0.4.0-alpha.3
 
 - Replaced the combined Windows application scanner with four independent providers: Start Menu, Windows Apps, App Paths and PATH.

@@ -4,13 +4,17 @@
 
 namespace altrun {
 
-class PackagedAppProvider final : public ICommandProvider {
+class PackagedAppProvider final :
+    public ICommandProvider {
 public:
     [[nodiscard]] const ProviderDescriptor&
     Descriptor() const noexcept override;
 
     [[nodiscard]] std::vector<Command>
     Discover() const override;
+
+    [[nodiscard]] std::uint64_t
+    ChangeToken() const override;
 };
 
 } // namespace altrun

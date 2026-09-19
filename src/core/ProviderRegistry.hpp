@@ -4,6 +4,7 @@
 #include "ProviderIds.hpp"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace altrun {
@@ -17,6 +18,12 @@ public:
 
     [[nodiscard]] std::vector<ProviderDiscoveryResult>
     Discover(
+        const ProviderEnableMap& enabled,
+        const std::vector<std::string>&
+            selectedIds = {}) const;
+
+    [[nodiscard]] std::vector<ProviderChangeToken>
+    ChangeTokens(
         const ProviderEnableMap& enabled) const;
 
 private:

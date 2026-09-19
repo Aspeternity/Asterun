@@ -11,9 +11,11 @@
 #include <atomic>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 namespace altrun {
@@ -43,6 +45,9 @@ public:
         return commandStore_
             .UserCommands();
     }
+
+    [[nodiscard]] std::vector<ProviderStatus>
+    ProviderStatuses() const;
 
     bool CreateUserCommand(
         Command command,
@@ -125,6 +130,10 @@ private:
         kProviderRefreshMessage =
             WM_APP + 0x171;
 
+    static constexpr UINT
+        kProviderChangedMessage =
+            WM_APP + 0x172;
+
     bool LaunchCommand(
         const Command& command,
         bool recordUsage);
@@ -133,9 +142,16 @@ private:
     bool RebindGlobalHotkey(
         const std::vector<std::string>& modifiers,
         std::string_view key);
-    void StartProviderRefresh();
+
+    void StartProviderRefresh(
+        std::vector<std::string>
+            selectedIds = {});
     void HandleProviderRefreshCompleted(
         ProviderRefreshOutcome outcome);
+
+    void StartProviderMonitor();
+    void HandleProviderChangedSignal();
+    void FlushDetectedProviderChanges();
 
     HINSTANCE instance_{};
     std::filesystem::path
@@ -150,12 +166,29 @@ private:
         window_;
     std::unique_ptr<SettingsWindow>
         settingsWindow_;
+
     std::jthread
         providerRefreshThread_;
+    std::jthread
+        providerMonitorThread_;
     std::atomic_bool
         providerRefreshRunning_{false};
-    std::atomic_bool
-        providerRefreshPending_{false};
+
+    bool providerRefreshFullPending_{false};
+    std::unordered_set<std::string>
+        providerRefreshIdsPending_;
+
+    std::mutex
+        providerMonitorConfigMutex_;
+    ProviderEnableMap
+        providerMonitorEnabled_;
+
+    std::mutex
+        detectedProviderMutex_;
+    std::unordered_set<std::string>
+        detectedProviderIds_;
+    UINT_PTR providerDebounceTimer_{0};
+
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};
     bool hotkeyRegistered_{false};

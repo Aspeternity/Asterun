@@ -1,4 +1,5 @@
 #include "core/ProviderCache.hpp"
+#include "core/ProviderFingerprint.hpp"
 #include "core/Settings.hpp"
 #include "core/UsageStore.hpp"
 #include "core/UserCommandStore.hpp"
@@ -24,6 +25,36 @@ void WriteText(const std::filesystem::path& path, const std::string& text) {
 } // namespace
 
 int main() {
+    const auto fingerprintA =
+        fingerprint::Hash(
+            std::wstring_view(
+                L"provider-a"));
+    const auto fingerprintA2 =
+        fingerprint::Hash(
+            std::wstring_view(
+                L"provider-a"));
+    const auto fingerprintB =
+        fingerprint::Hash(
+            std::wstring_view(
+                L"provider-b"));
+
+    assert(fingerprintA ==
+        fingerprintA2);
+    assert(fingerprintA !=
+        fingerprintB);
+
+    std::uint64_t mixedFingerprint =
+        fingerprint::kOffset;
+    fingerprint::Mix(
+        mixedFingerprint,
+        std::string_view(
+            "windows.startmenu"));
+    fingerprint::Mix(
+        mixedFingerprint,
+        std::uint64_t{42});
+    assert(mixedFingerprint !=
+        fingerprint::kOffset);
+
     const auto nonce =
         std::chrono::high_resolution_clock::now().time_since_epoch().count();
 
