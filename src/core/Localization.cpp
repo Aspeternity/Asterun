@@ -14,6 +14,8 @@ std::wstring_view LocalizedText(TextId id, Language language) {
         return zh
             ? L"Alt+Space 已被其他程序占用。\n\nALTRun Next 会继续在系统托盘运行；后续版本将支持自定义快捷键。"
             : L"Alt+Space is already in use by another application.\n\nALTRun Next will keep running in the tray; hotkey customization will be added next.";
+    case TextId::SearchPlaceholder:
+        return zh ? L"输入快捷词、程序名或路径…" : L"Type a keyword, app name, or path...";
     case TextId::TrayShow:
         return zh ? L"显示\tAlt+Space" : L"Show\tAlt+Space";
     case TextId::TrayReload:
