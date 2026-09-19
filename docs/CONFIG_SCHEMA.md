@@ -28,6 +28,8 @@ v0.6.0-alpha.2.1 keeps that persistence contract unchanged and allows virtual Ex
 
 v0.6.0-alpha.3 adds standard Open / Save / folder-picker activation context, also as runtime-only state. Captured file-dialog HWND/process identifiers are cleared when the launcher hides and are never serialized. No schema migration is performed.
 
+v0.6.0-alpha.4 adds Total Commander activation context and `{folder}` command templates without changing the persisted document shape. Captured TC HWND/process/panel/folder data is session-only. A user command may contain the literal `{folder}` token in target, arguments or workingDirectory; substitution happens in memory from a captured real filesystem folder and the stored command remains unchanged. Commands requiring `{folder}` are omitted from launcher search when no filesystem context is available. commands.json therefore remains schemaVersion 1.
+
 ## Migration
 
 On the first v0.2.0-alpha.1 launch:
@@ -145,6 +147,8 @@ Each command supports:
 - legacy ID aliases used only for migration
 
 Automatic provider commands are never written into `commands.json`.
+
+Starting with v0.6.0-alpha.4, user commands may use `{folder}` in `target`, `arguments` or `workingDirectory`. This is a runtime template, not a schema field. It resolves only from a real filesystem folder captured when ALTRun Next is invoked from File Explorer or Total Commander.
 
 ## provider-cache.json
 

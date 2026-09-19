@@ -19,6 +19,7 @@ enum class WindowsContextKind {
     None,
     Explorer,
     FileDialog,
+    TotalCommander,
 };
 
 struct WindowsContextSnapshot {
@@ -29,6 +30,10 @@ struct WindowsContextSnapshot {
     HWND explorerViewWindow{};
     HWND fileDialogWindow{};
     DWORD fileDialogProcessId{};
+    HWND totalCommanderWindow{};
+    DWORD totalCommanderProcessId{};
+    int totalCommanderActivePanel{0};
+    std::wstring totalCommanderFolder;
     // Optional diagnostic/source path. Shell namespace locations such as
     // Home, This PC and Quick access legitimately have no filesystem path.
     std::wstring explorerFolder;
@@ -53,6 +58,33 @@ struct WindowsContextSnapshot {
                 nullptr &&
             fileDialogProcessId != 0;
     }
+
+    [[nodiscard]] bool
+    HasTotalCommander() const noexcept {
+        return kind ==
+                WindowsContextKind::
+                    TotalCommander &&
+            totalCommanderWindow !=
+                nullptr &&
+            totalCommanderProcessId != 0 &&
+            (totalCommanderActivePanel == 1 ||
+             totalCommanderActivePanel == 2);
+    }
+
+    [[nodiscard]] std::wstring_view
+    CurrentFilesystemFolder() const noexcept {
+        if (HasExplorer() &&
+            !explorerFolder.empty()) {
+            return explorerFolder;
+        }
+
+        if (HasTotalCommander() &&
+            !totalCommanderFolder.empty()) {
+            return totalCommanderFolder;
+        }
+
+        return {};
+    }
 };
 
 [[nodiscard]] WindowsContextSnapshot
@@ -66,6 +98,11 @@ NavigateExplorerToFolder(
 
 [[nodiscard]] bool
 NavigateFileDialogToFolder(
+    const WindowsContextSnapshot& context,
+    std::wstring_view folderPath);
+
+[[nodiscard]] bool
+NavigateTotalCommanderToFolder(
     const WindowsContextSnapshot& context,
     std::wstring_view folderPath);
 

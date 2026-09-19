@@ -21,11 +21,15 @@ enum class LauncherActionKind {
     OpenUrl,
     NavigateExplorer,
     NavigateFileDialog,
+    NavigateTotalCommander,
 };
 
 enum class LauncherExecutionIntent {
     Default,
-    NavigateCurrentExplorer,
+    NavigateCurrentFileManager,
+    // Compatibility alias for the alpha.2 public/internal contract.
+    NavigateCurrentExplorer =
+        NavigateCurrentFileManager,
 };
 
 struct LauncherAction {

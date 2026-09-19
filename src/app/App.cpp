@@ -1,6 +1,7 @@
 #include "App.hpp"
 
 #include "../core/EverythingProvider.hpp"
+#include "../core/CommandTemplate.hpp"
 #include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
 #include "../core/ResultMerger.hpp"
@@ -333,9 +334,9 @@ int App::Run() {
                      kAuxiliaryHotkeyId))) {
 
             if (window_) {
-                // Capture the foreground Explorer before ALTRun Next takes
-                // focus. Hiding an already-visible launcher must not replace
-                // the session snapshot with ALTRun Next itself.
+                // Capture the foreground Windows context before ALTRun Next
+                // takes focus. Hiding an already-visible launcher must not
+                // replace the session snapshot with ALTRun Next itself.
                 if (!window_->IsVisible()) {
                     CaptureActivationContext();
                 }
@@ -366,9 +367,57 @@ std::vector<LauncherResult> App::Search(
     std::wstring_view query,
     std::size_t limit) const {
 
+    const auto& sourceCommands =
+        commandStore_.Commands();
+
+    const std::wstring_view
+        contextFolder =
+            activationContext_
+                .CurrentFilesystemFolder();
+
+    // Keep a same-order working set so {folder} can be resolved for search,
+    // presentation and {query} web aliases without mutating persisted
+    // commands. Contextual commands are intentionally absent when there is
+    // no real filesystem folder to substitute.
+    std::vector<Command>
+        searchableCommands;
+    std::vector<std::size_t>
+        sourceIndices;
+
+    searchableCommands.reserve(
+        sourceCommands.size());
+    sourceIndices.reserve(
+        sourceCommands.size());
+
+    for (std::size_t index = 0;
+         index < sourceCommands.size();
+         ++index) {
+        const auto& source =
+            sourceCommands[index];
+
+        if (source.source ==
+                CommandSource::User &&
+            UsesFolderTemplate(
+                source)) {
+            if (contextFolder.empty()) {
+                continue;
+            }
+
+            searchableCommands.push_back(
+                ResolveFolderTemplate(
+                    source,
+                    contextFolder));
+        } else {
+            searchableCommands.push_back(
+                source);
+        }
+
+        sourceIndices.push_back(index);
+    }
+
     const auto matches =
         searchEngine_.Search(
-            commandStore_.Commands(),
+            searchableCommands,
             usageStore_.Data(),
             query,
             limit,
@@ -378,12 +427,20 @@ std::vector<LauncherResult> App::Search(
     std::vector<LauncherResult> results;
     results.reserve(matches.size());
 
-    const auto& commands =
-        commandStore_.Commands();
-
     for (const auto& match : matches) {
+        if (match.commandIndex >=
+            searchableCommands.size()) {
+            continue;
+        }
+
         const auto& command =
-            commands.at(match.commandIndex);
+            searchableCommands[
+                match.commandIndex];
+
+        const std::size_t
+            sourceIndex =
+                sourceIndices[
+                    match.commandIndex];
 
         LauncherResult result;
         result.id = command.id;
@@ -401,28 +458,50 @@ std::vector<LauncherResult> App::Search(
                 : command.keyword;
         result.subtitle = command.title;
         result.target = command.target;
-        result.detail = CommandDetail(command);
+        result.detail =
+            CommandDetail(command);
         result.score = match.score;
         result.action.kind =
-            LauncherActionKind::ExecuteCommand;
+            LauncherActionKind::
+                ExecuteCommand;
         result.action.commandIndex =
-            match.commandIndex;
+            sourceIndex;
 
-        results.push_back(std::move(result));
+        results.push_back(
+            std::move(result));
     }
 
     auto webActions =
         BuildWebActionResults(
-            commands,
+            searchableCommands,
             query,
             limit);
+
+    // WebAction receives the context-resolved working set, so remap its
+    // working-set index back to the persisted CommandStore index before the
+    // action reaches execution/usage tracking.
+    for (auto& action : webActions) {
+        if (action.action.commandIndex ==
+            static_cast<std::size_t>(-1)) {
+            continue;
+        }
+
+        if (action.action.commandIndex >=
+            sourceIndices.size()) {
+            action.action.commandIndex =
+                static_cast<std::size_t>(-1);
+            continue;
+        }
+
+        action.action.commandIndex =
+            sourceIndices[
+                action.action.commandIndex];
+    }
 
     if (webActions.empty()) {
         return results;
     }
 
-    // When a URL template matches its keyword/alias, show the resolved action
-    // instead of the unresolved {query} command beside it.
     for (const auto& action : webActions) {
         if (action.action.commandIndex ==
             static_cast<std::size_t>(-1)) {
@@ -435,7 +514,8 @@ std::vector<LauncherResult> App::Search(
                 results.end(),
                 [&](const LauncherResult& result) {
                     return result.action.kind ==
-                            LauncherActionKind::ExecuteCommand &&
+                            LauncherActionKind::
+                                ExecuteCommand &&
                         result.action.commandIndex ==
                             action.action.commandIndex;
                 }),
@@ -1904,7 +1984,9 @@ bool App::ExecuteResult(
             activationContext_
                 .HasExplorer(),
             activationContext_
-                .HasFileDialog());
+                .HasFileDialog(),
+            activationContext_
+                .HasTotalCommander());
 
     if (action.kind ==
         LauncherActionKind::ExecuteCommand) {
@@ -1946,6 +2028,18 @@ bool App::ExecuteResult(
                 target);
     }
 
+    if (action.kind ==
+        LauncherActionKind::
+            NavigateTotalCommander) {
+        const auto context =
+            activationContext_;
+
+        return win::
+            NavigateTotalCommanderToFolder(
+                context,
+                target);
+    }
+
     switch (action.kind) {
     case LauncherActionKind::OpenFile:
     case LauncherActionKind::OpenFolder:
@@ -1953,6 +2047,7 @@ bool App::ExecuteResult(
         break;
     case LauncherActionKind::NavigateExplorer:
     case LauncherActionKind::NavigateFileDialog:
+    case LauncherActionKind::NavigateTotalCommander:
     case LauncherActionKind::ExecuteCommand:
         return false;
     }
@@ -2017,15 +2112,52 @@ bool App::LaunchCommand(
     const Command& command,
     bool recordUsage) {
 
-    const std::wstring target = win::ExpandEnvironment(command.target);
-    const std::wstring args = win::ExpandEnvironment(command.arguments);
-    const std::wstring cwd = win::ExpandEnvironment(command.workingDirectory);
+    Command resolved = command;
+
+    if (command.source ==
+            CommandSource::User &&
+        UsesFolderTemplate(
+            command)) {
+        const std::wstring_view folder =
+            activationContext_
+                .CurrentFilesystemFolder();
+
+        if (folder.empty()) {
+            MessageBoxW(
+                nullptr,
+                settingsStore_.Data().language ==
+                        Language::ZhCN
+                    ? L"此命令需要 {folder}，但当前没有可用的文件系统目录上下文。\n\n请从文件资源管理器或 Total Commander 的真实目录中唤起 ALTRun Next。"
+                    : L"This command requires {folder}, but no filesystem-folder context is available.\n\nInvoke ALTRun Next from a real folder in File Explorer or Total Commander.",
+                L"ALTRun Next",
+                MB_ICONINFORMATION | MB_OK);
+            return false;
+        }
+
+        resolved =
+            ResolveFolderTemplate(
+                command,
+                folder);
+    }
+
+    const std::wstring target =
+        win::ExpandEnvironment(
+            resolved.target);
+    const std::wstring args =
+        win::ExpandEnvironment(
+            resolved.arguments);
+    const std::wstring cwd =
+        win::ExpandEnvironment(
+            resolved.workingDirectory);
 
     SHELLEXECUTEINFOW info{};
     info.cbSize = sizeof(info);
     info.fMask = SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
     info.hwnd = nullptr;
-    info.lpVerb = command.runAsAdmin ? L"runas" : nullptr;
+    info.lpVerb =
+        resolved.runAsAdmin
+            ? L"runas"
+            : nullptr;
     info.lpFile = target.c_str();
     info.lpParameters = args.empty() ? nullptr : args.c_str();
     info.lpDirectory = cwd.empty() ? nullptr : cwd.c_str();
@@ -2049,8 +2181,10 @@ bool App::LaunchCommand(
         return false;
     }
 
-    if (recordUsage && !command.id.empty()) {
-        usageStore_.Record(command.id);
+    if (recordUsage &&
+        !command.id.empty()) {
+        usageStore_.Record(
+            command.id);
     }
 
     return true;

@@ -89,6 +89,7 @@ endif()
 
 add_library(altrun_core STATIC
     src/core/ClassicBehavior.cpp
+    src/core/CommandTemplate.cpp
     src/core/EverythingIpcProtocol.cpp
     src/core/ExplorerContextSelection.cpp
     src/core/LauncherActionPolicy.cpp
@@ -312,6 +313,26 @@ if(BUILD_TESTING)
     add_test(
         NAME web_action_tests
         COMMAND web_action_tests
+    )
+
+    add_executable(
+        command_template_tests
+        tests/CommandTemplateTests.cpp
+    )
+    target_link_libraries(
+        command_template_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        command_template_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        command_template_tests
+    )
+    add_test(
+        NAME command_template_tests
+        COMMAND command_template_tests
     )
 
     add_executable(

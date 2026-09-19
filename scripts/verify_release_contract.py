@@ -36,6 +36,185 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0-alpha.4":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected v0.6 alpha.4 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("v0.6 alpha.4 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 3:
+        fail("v0.6 alpha.4 settings must remain schemaVersion 3")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 alpha.4 changed frozen provider defaults")
+
+    result_contract = read("src/core/LauncherResult.hpp")
+    for token in (
+        "NavigateTotalCommander",
+        "NavigateCurrentFileManager",
+        "NavigateCurrentExplorer",
+        "NavigateFileDialog",
+    ):
+        if token not in result_contract:
+            fail(f"alpha.4 action contract missing: {token}")
+
+    action_policy = read("src/core/LauncherActionPolicy.cpp")
+    for token in (
+        "totalCommanderContextAvailable",
+        "NavigateTotalCommander",
+        "NavigateCurrentFileManager",
+        "NavigateExplorer",
+        "NavigateFileDialog",
+        "ResultKind::Folder",
+    ):
+        if token not in action_policy:
+            fail(f"alpha.4 action policy missing: {token}")
+
+    context_header = read("src/platform/WindowsContext.hpp")
+    for token in (
+        "TotalCommander",
+        "totalCommanderWindow",
+        "totalCommanderProcessId",
+        "totalCommanderActivePanel",
+        "totalCommanderFolder",
+        "HasTotalCommander",
+        "CurrentFilesystemFolder",
+        "NavigateTotalCommanderToFolder",
+    ):
+        if token not in context_header:
+            fail(f"alpha.4 Total Commander context missing: {token}")
+
+    windows_context = read("src/platform/WindowsContext.cpp")
+    for token in (
+        'L"TTOTAL_CMD"',
+        "WM_USER + 50",
+        "1000",
+        "kTotalCommanderLeftPathControl",
+        "kTotalCommanderRightPathControl",
+        "WM_GETTEXT",
+        "WM_COPYDATA",
+        "kTotalCommanderChangeDirectory",
+        "WideCharToMultiByte",
+        "0xEF",
+        "0xBB",
+        "0xBF",
+        "NavigateTotalCommanderToFolder",
+    ):
+        if token not in windows_context:
+            fail(f"alpha.4 Total Commander integration missing: {token}")
+
+    if "FindWindowW" in windows_context:
+        fail(
+            "alpha.4 must target the captured foreground Total Commander "
+            "window, not a guessed global instance"
+        )
+
+    command_template = read("src/core/CommandTemplate.cpp")
+    for token in (
+        'L"{folder}"',
+        "UsesFolderTemplate",
+        "ResolveFolderTemplate",
+        "command.target",
+        "command.arguments",
+        "command.workingDirectory",
+    ):
+        if token not in command_template:
+            fail(f"alpha.4 {{folder}} template contract missing: {token}")
+
+    app = read("src/app/App.cpp")
+    for token in (
+        "CurrentFilesystemFolder",
+        "searchableCommands",
+        "sourceIndices",
+        "ResolveFolderTemplate",
+        "UsesFolderTemplate",
+        "HasTotalCommander",
+        "NavigateTotalCommanderToFolder",
+    ):
+        if token not in app:
+            fail(f"alpha.4 App integration missing: {token}")
+
+    template_tests = read("tests/CommandTemplateTests.cpp")
+    for token in (
+        "{folder}",
+        "workingDirectory",
+        "\\\\server",
+    ):
+        if token not in template_tests:
+            fail(f"alpha.4 command-template tests missing: {token}")
+
+    runtime_tests = read("tests/WindowsContextRuntimeTests.cpp")
+    for token in (
+        'L"TTOTAL_CMD"',
+        "WM_USER + 50",
+        "WM_COPYDATA",
+        "HasTotalCommander",
+        "DecodeTotalCommanderPath",
+    ):
+        if token not in runtime_tests:
+            fail(f"alpha.4 Total Commander runtime smoke missing: {token}")
+
+    cmake = read("CMakeLists.txt")
+    for token in (
+        "src/core/CommandTemplate.cpp",
+        "command_template_tests",
+        "windows_context_runtime_tests",
+    ):
+        if token not in cmake:
+            fail(f"alpha.4 build/test wiring missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        if "command_template_tests" not in workflow:
+            fail(
+                f"{workflow_path} does not run command_template_tests on Windows"
+            )
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_header,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed in v0.6 alpha.4: {name}")
+
+    print(
+        "v0.6.0-alpha.4 Total Commander/{folder} contract verified:",
+        "| schemas unchanged | Classic 420/16/10",
+        "| captured TC active panel | WM_COPYDATA CD",
+        "| contextual user-command templates",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.6.0-alpha.3":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,

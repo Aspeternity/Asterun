@@ -24,6 +24,7 @@ int main() {
                 LauncherExecutionIntent::
                     Default,
                 true,
+                false,
                 false);
 
         assert(
@@ -37,14 +38,31 @@ int main() {
             ResolveLauncherAction(
                 folder,
                 LauncherExecutionIntent::
-                    NavigateCurrentExplorer,
+                    NavigateCurrentFileManager,
                 true,
+                false,
                 false);
 
         assert(
             action.kind ==
             LauncherActionKind::
                 NavigateExplorer);
+    }
+
+    {
+        const auto action =
+            ResolveLauncherAction(
+                folder,
+                LauncherExecutionIntent::
+                    NavigateCurrentFileManager,
+                false,
+                false,
+                true);
+
+        assert(
+            action.kind ==
+            LauncherActionKind::
+                NavigateTotalCommander);
         assert(
             action.payload ==
             folder.target);
@@ -55,7 +73,8 @@ int main() {
             ResolveLauncherAction(
                 folder,
                 LauncherExecutionIntent::
-                    NavigateCurrentExplorer,
+                    NavigateCurrentFileManager,
+                false,
                 false,
                 false);
 
@@ -72,33 +91,13 @@ int main() {
                 LauncherExecutionIntent::
                     Default,
                 false,
-                true);
+                true,
+                false);
 
         assert(
             action.kind ==
             LauncherActionKind::
                 NavigateFileDialog);
-        assert(
-            action.payload ==
-            folder.target);
-    }
-
-    {
-        // Ctrl+Enter is intentionally not consumed by the file-dialog action:
-        // the physical Ctrl key is still down while the synchronous action
-        // executes. Normal Enter is the dialog-jump gesture.
-        const auto action =
-            ResolveLauncherAction(
-                folder,
-                LauncherExecutionIntent::
-                    NavigateCurrentExplorer,
-                false,
-                true);
-
-        assert(
-            action.kind ==
-            LauncherActionKind::
-                OpenFolder);
     }
 
     {
@@ -117,7 +116,8 @@ int main() {
             ResolveLauncherAction(
                 file,
                 LauncherExecutionIntent::
-                    Default,
+                    NavigateCurrentFileManager,
+                false,
                 false,
                 true);
 

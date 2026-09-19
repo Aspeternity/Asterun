@@ -23,6 +23,50 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-alpha.4 — Total Commander Context & {folder} Templates
+
+Alpha 4 extends Windows Activation Context to **Total Commander 9+** and adds the developer-oriented `{folder}` user-command template.
+
+When ALTRun Next is invoked from a foreground Total Commander window, it captures that exact `TTOTAL_CMD` HWND, process ID, active panel and (when the active panel is a normal filesystem location) its current folder. Folder search keeps the same file-manager gesture introduced for Explorer:
+
+- Enter keeps normal Folder execution.
+- Ctrl+Enter navigates the **captured Total Commander active/source panel** to the Folder result.
+- Multiple Total Commander instances are safe: ALTRun Next sends the navigation command to the exact window captured at hotkey activation rather than finding an arbitrary global instance.
+- If the captured window disappears, changes process, becomes ambiguous, or the active panel changes before execution, contextual navigation is refused instead of targeting another panel/window.
+- Total Commander is optional. When it is absent or does not support the query protocol, normal ALTRun Next behavior is unchanged.
+
+The integration uses Total Commander's external-control interfaces: `WM_USER+50` obtains the active panel/path control and `WM_COPYDATA` with the `CD` command changes the source panel. Unicode destinations are sent as UTF-8 with a BOM. No Total Commander plugin, DLL or configuration file is required.
+
+### `{folder}` developer commands
+
+User Commands may place the literal token `{folder}` in **Target**, **Arguments**, and/or **Working Directory**. At launcher activation time it resolves to the captured real filesystem folder from File Explorer or Total Commander's active panel.
+
+Example — VS Code in the current folder:
+
+```text
+Name: VS Code Here
+Keyword: codehere
+Type: Application
+Target: code
+Arguments: "{folder}"
+Working Directory: {folder}
+```
+
+Example — PowerShell in the current folder:
+
+```text
+Name: PowerShell Here
+Keyword: pshere
+Type: Application
+Target: powershell.exe
+Arguments: -NoExit
+Working Directory: {folder}
+```
+
+Contextual commands are not shown by launcher search when no real filesystem folder is available. Explorer Home / This PC and Total Commander FTP/plugin panels therefore never substitute an empty string, a remembered old path, or a guessed location. The persisted command itself is never rewritten: substitution happens in a session-only working copy immediately before search/presentation and is revalidated again before execution. `{folder}` may coexist with `{query}` in a URL command because the folder token is resolved before web-action generation.
+
+No persistence migration is required: settings remains schemaVersion 3, commands/usage remain schemaVersion 1, provider-cache remains schemaVersion 2, and Classic geometry remains 420/16/10. Windows fixed FileVersion/ProductVersion is `0.6.0.40`.
+
 ## v0.6.0-alpha.3 — Open / Save Dialog Folder Jump
 
 Alpha 3 extends the Activation Context foundation to Windows standard Open / Save / folder-picker dialogs. If ALTRun Next is invoked while a supported Common Item Dialog or Explorer-style Common File Dialog is foreground, a filesystem **Folder** result now uses the captured dialog as its default navigation surface.

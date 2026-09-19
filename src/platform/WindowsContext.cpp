@@ -25,6 +25,24 @@ namespace {
 
 using Microsoft::WRL::ComPtr;
 
+constexpr UINT
+    kTotalCommanderQueryMessage =
+        WM_USER + 50;
+constexpr WPARAM
+    kTotalCommanderActivePanelQuery =
+        1000;
+constexpr WPARAM
+    kTotalCommanderLeftPathControl =
+        9;
+constexpr WPARAM
+    kTotalCommanderRightPathControl =
+        10;
+constexpr ULONG_PTR
+    kTotalCommanderChangeDirectory =
+        static_cast<ULONG_PTR>('C') +
+        256u *
+            static_cast<ULONG_PTR>('D');
+
 struct ExplorerShellCandidate {
     ComPtr<IWebBrowser2> browser;
     HWND browserWindow{};
@@ -131,6 +149,317 @@ HasDescendantClass(
             &search));
 
     return search.found;
+}
+
+[[nodiscard]] bool
+SendMessageTimeoutValue(
+    HWND window,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    DWORD_PTR* result,
+    UINT timeoutMs = 150) {
+    if (!window ||
+        !IsWindow(window) ||
+        !result) {
+        return false;
+    }
+
+    *result = 0;
+
+    return SendMessageTimeoutW(
+               window,
+               message,
+               wParam,
+               lParam,
+               SMTO_ABORTIFHUNG |
+                   SMTO_BLOCK,
+               timeoutMs,
+               result) != 0;
+}
+
+[[nodiscard]] bool
+IsFilesystemPath(
+    std::wstring_view path) {
+    if (path.size() >= 3 &&
+        ((path[0] >= L'A' &&
+          path[0] <= L'Z') ||
+         (path[0] >= L'a' &&
+          path[0] <= L'z')) &&
+        path[1] == L':' &&
+        (path[2] == L'\\' ||
+         path[2] == L'/')) {
+        return true;
+    }
+
+    if (path.size() >= 3 &&
+        path[0] == L'\\' &&
+        path[1] == L'\\' &&
+        path[2] != L'\\') {
+        return true;
+    }
+
+    if (path.starts_with(
+            L"\\\\?\\") &&
+        path.size() > 4) {
+        return true;
+    }
+
+    return false;
+}
+
+[[nodiscard]] std::wstring
+ReadWindowTextWithTimeout(
+    HWND window) {
+    DWORD_PTR rawLength{};
+
+    if (!SendMessageTimeoutValue(
+            window,
+            WM_GETTEXTLENGTH,
+            0,
+            0,
+            &rawLength)) {
+        return {};
+    }
+
+    const auto length =
+        static_cast<std::size_t>(
+            rawLength);
+
+    if (length == 0 ||
+        length > 32767) {
+        return {};
+    }
+
+    std::wstring text(
+        length + 1,
+        L'\0');
+
+    DWORD_PTR copied{};
+
+    if (!SendMessageTimeoutValue(
+            window,
+            WM_GETTEXT,
+            static_cast<WPARAM>(
+                text.size()),
+            reinterpret_cast<LPARAM>(
+                text.data()),
+            &copied)) {
+        return {};
+    }
+
+    text.resize(
+        std::min(
+            length,
+            static_cast<std::size_t>(
+                copied)));
+
+    return text;
+}
+
+[[nodiscard]] std::wstring
+NormalizeTotalCommanderFolder(
+    std::wstring pathText) {
+    if (pathText.empty()) {
+        return {};
+    }
+
+    const auto lastSeparator =
+        pathText.find_last_of(
+            L"\\/");
+
+    if (lastSeparator !=
+        std::wstring::npos) {
+        const std::wstring_view tail(
+            pathText.data() +
+                lastSeparator + 1,
+            pathText.size() -
+                lastSeparator - 1);
+
+        if (tail.find(L'*') !=
+                std::wstring_view::npos ||
+            tail.find(L'?') !=
+                std::wstring_view::npos) {
+            const bool driveRoot =
+                lastSeparator == 2 &&
+                pathText.size() >= 3 &&
+                pathText[1] == L':';
+
+            pathText.resize(
+                driveRoot
+                    ? lastSeparator + 1
+                    : lastSeparator);
+        }
+    }
+
+    // TC's path control commonly carries a trailing separator before its
+    // wildcard. Keep drive roots intact but remove optional trailing
+    // separators elsewhere so a developer can safely quote the folder token.
+    while (pathText.size() > 3 &&
+           (pathText.back() == L'\\' ||
+            pathText.back() == L'/')) {
+        pathText.pop_back();
+    }
+
+    return IsFilesystemPath(
+               pathText)
+        ? pathText
+        : std::wstring{};
+}
+
+[[nodiscard]] bool
+QueryTotalCommanderActivePanel(
+    HWND window,
+    int* activePanel) {
+    if (!activePanel) {
+        return false;
+    }
+
+    DWORD_PTR result{};
+
+    if (!SendMessageTimeoutValue(
+            window,
+            kTotalCommanderQueryMessage,
+            kTotalCommanderActivePanelQuery,
+            0,
+            &result)) {
+        return false;
+    }
+
+    if (result != 1 &&
+        result != 2) {
+        return false;
+    }
+
+    *activePanel =
+        static_cast<int>(
+            result);
+    return true;
+}
+
+[[nodiscard]] std::wstring
+QueryTotalCommanderFolder(
+    HWND window,
+    int activePanel) {
+    const WPARAM pathQuery =
+        activePanel == 1
+            ? kTotalCommanderLeftPathControl
+            : kTotalCommanderRightPathControl;
+
+    DWORD_PTR rawControl{};
+
+    if (!SendMessageTimeoutValue(
+            window,
+            kTotalCommanderQueryMessage,
+            pathQuery,
+            0,
+            &rawControl)) {
+        return {};
+    }
+
+    HWND pathControl =
+        reinterpret_cast<HWND>(
+            rawControl);
+
+    if (!pathControl ||
+        !IsWindow(pathControl)) {
+        return {};
+    }
+
+    return NormalizeTotalCommanderFolder(
+        ReadWindowTextWithTimeout(
+            pathControl));
+}
+
+[[nodiscard]] std::string
+WideToUtf8(
+    std::wstring_view value) {
+    if (value.empty()) {
+        return {};
+    }
+
+    const int required =
+        WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            value.data(),
+            static_cast<int>(
+                value.size()),
+            nullptr,
+            0,
+            nullptr,
+            nullptr);
+
+    if (required <= 0) {
+        return {};
+    }
+
+    std::string result(
+        static_cast<std::size_t>(
+            required),
+        '\0');
+
+    if (WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            value.data(),
+            static_cast<int>(
+                value.size()),
+            result.data(),
+            required,
+            nullptr,
+            nullptr) != required) {
+        return {};
+    }
+
+    return result;
+}
+
+[[nodiscard]] bool
+CaptureTotalCommanderContext(
+    HWND foregroundRoot,
+    WindowsContextSnapshot*
+        snapshot) {
+    if (!snapshot ||
+        !WindowClassEquals(
+            foregroundRoot,
+            L"TTOTAL_CMD")) {
+        return false;
+    }
+
+    DWORD processId{};
+    GetWindowThreadProcessId(
+        foregroundRoot,
+        &processId);
+
+    if (processId == 0) {
+        return false;
+    }
+
+    int activePanel{};
+    if (!QueryTotalCommanderActivePanel(
+            foregroundRoot,
+            &activePanel)) {
+        return false;
+    }
+
+    snapshot->kind =
+        WindowsContextKind::
+            TotalCommander;
+    snapshot->foregroundWindow =
+        foregroundRoot;
+    snapshot->totalCommanderWindow =
+        foregroundRoot;
+    snapshot->totalCommanderProcessId =
+        processId;
+    snapshot->totalCommanderActivePanel =
+        activePanel;
+    snapshot->totalCommanderFolder =
+        QueryTotalCommanderFolder(
+            foregroundRoot,
+            activePanel);
+
+    return true;
 }
 
 [[nodiscard]] bool
@@ -670,6 +999,12 @@ CaptureWindowsContext(
         RootWindow(
             foregroundWindow);
 
+    if (CaptureTotalCommanderContext(
+            foregroundRoot,
+            &snapshot)) {
+        return snapshot;
+    }
+
     if (IsSupportedFileDialogWindow(
             foregroundRoot)) {
         DWORD processId{};
@@ -845,6 +1180,110 @@ bool NavigateFileDialogToFolder(
             KEYEVENTF_KEYUP)) {
         return false;
     }
+
+    return true;
+}
+
+bool NavigateTotalCommanderToFolder(
+    const WindowsContextSnapshot&
+        context,
+    std::wstring_view folderPath) {
+    if (!context.HasTotalCommander() ||
+        folderPath.empty() ||
+        !IsFilesystemPath(
+            folderPath) ||
+        !IsWindow(
+            context
+                .totalCommanderWindow) ||
+        !WindowClassEquals(
+            context
+                .totalCommanderWindow,
+            L"TTOTAL_CMD")) {
+        return false;
+    }
+
+    DWORD processId{};
+    GetWindowThreadProcessId(
+        context.totalCommanderWindow,
+        &processId);
+
+    if (processId == 0 ||
+        processId !=
+            context
+                .totalCommanderProcessId) {
+        return false;
+    }
+
+    int activePanel{};
+    if (!QueryTotalCommanderActivePanel(
+            context
+                .totalCommanderWindow,
+            &activePanel) ||
+        activePanel !=
+            context
+                .totalCommanderActivePanel) {
+        return false;
+    }
+
+    const std::string utf8Path =
+        WideToUtf8(
+            folderPath);
+
+    if (utf8Path.empty()) {
+        return false;
+    }
+
+    // Total Commander's WM_COPYDATA "CD" protocol accepts UTF-8 paths when
+    // prefixed by a UTF-8 BOM. "\r\0S\0" means change the source/active
+    // panel only, leaving the target panel untouched.
+    std::vector<unsigned char>
+        payload;
+
+    payload.reserve(
+        utf8Path.size() + 7);
+
+    payload.push_back(0xEF);
+    payload.push_back(0xBB);
+    payload.push_back(0xBF);
+    payload.insert(
+        payload.end(),
+        utf8Path.begin(),
+        utf8Path.end());
+    payload.push_back(
+        static_cast<unsigned char>(
+            '\r'));
+    payload.push_back(0);
+    payload.push_back(
+        static_cast<unsigned char>(
+            'S'));
+    payload.push_back(0);
+
+    COPYDATASTRUCT copy{};
+    copy.dwData =
+        kTotalCommanderChangeDirectory;
+    copy.cbData =
+        static_cast<DWORD>(
+            payload.size());
+    copy.lpData =
+        payload.data();
+
+    DWORD_PTR receiverResult{};
+
+    if (!SendMessageTimeoutValue(
+            context
+                .totalCommanderWindow,
+            WM_COPYDATA,
+            0,
+            reinterpret_cast<LPARAM>(
+                &copy),
+            &receiverResult,
+            500)) {
+        return false;
+    }
+
+    SetForegroundWindow(
+        context
+            .totalCommanderWindow);
 
     return true;
 }

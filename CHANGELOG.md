@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0-alpha.4
+
+- Added Total Commander 9+ as a runtime Activation Context without introducing a provider or hard dependency.
+- Capture the exact foreground TTOTAL_CMD window, process ID, active panel and filesystem folder when available.
+- Added NavigateTotalCommander to the Smart Action contract and generalized Ctrl+Enter intent to NavigateCurrentFileManager while preserving the previous NavigateCurrentExplorer alias.
+- Ctrl+Enter on a Folder result now navigates the captured Total Commander active/source panel.
+- Use Total Commander's WM_USER+50 active-panel/path-control queries and WM_COPYDATA CD protocol; Unicode target paths are sent as UTF-8 with BOM.
+- Revalidate the exact captured TC window/process/active panel before navigation, so multiple instances and stale contexts are not guessed.
+- Added {folder} templates for User Command Target, Arguments and Working Directory.
+- Resolve {folder} from a real Explorer filesystem path or Total Commander active-panel filesystem path without mutating commands.json.
+- Contextual commands are excluded from search when the activation context has no real filesystem folder; no empty, stale or guessed fallback is substituted.
+- {folder} is resolved before {query} web-action generation, allowing deliberate combinations in URL commands.
+- Added portable CommandTemplate regression tests and a fake-TOTAL_CMD Windows runtime smoke that validates active-panel capture and WM_COPYDATA navigation without installing Total Commander in CI.
+- Kept settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider defaults and Classic geometry 420/16/10 unchanged.
+- Updated Windows fixed version to 0.6.0.40.
+
 ## 0.6.0-alpha.3
 
 - Added Windows Activation Context detection for standard Open / Save / folder-picker dialogs.

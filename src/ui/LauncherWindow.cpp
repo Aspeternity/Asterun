@@ -1541,7 +1541,7 @@ LRESULT LauncherWindow::HandleEditMessage(
             ExecuteSelection(
                 navigateExplorer
                     ? LauncherExecutionIntent::
-                        NavigateCurrentExplorer
+                        NavigateCurrentFileManager
                     : LauncherExecutionIntent::
                         Default);
             return 0;

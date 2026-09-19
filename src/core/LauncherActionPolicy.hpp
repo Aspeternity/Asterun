@@ -9,6 +9,7 @@ ResolveLauncherAction(
     const LauncherResult& result,
     LauncherExecutionIntent intent,
     bool explorerContextAvailable,
-    bool fileDialogContextAvailable = false);
+    bool fileDialogContextAvailable = false,
+    bool totalCommanderContextAvailable = false);
 
 } // namespace altrun
