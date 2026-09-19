@@ -2,6 +2,35 @@
 
 ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise.
 
+## v0.2.0-alpha.1 — Config Core
+
+This alpha moves persistent state to a versioned JSON data layer before the Settings UI is built.
+
+Live data now lives under:
+
+```text
+data/
+├─ settings.json
+├─ commands.json
+└─ usage.json
+```
+
+On first launch, existing `settings.ini`, `commands.tsv` and `usage.tsv` are migrated automatically. Legacy files are left untouched so rollback remains possible.
+
+Key changes:
+
+- `schemaVersion: 1` for all JSON documents;
+- atomic `.tmp` writes with one-generation `.bak` recovery;
+- stable UUIDs for user commands;
+- old command IDs retained in `legacyIds` so usage history survives migration;
+- aliases, enabled state, admin launch, pinning and manual order are part of the command model;
+- user commands are separated from runtime Start Menu discovery;
+- Start Menu discovery is now a dedicated provider and is never persisted into `commands.json`;
+- portable Config Core migration/recovery tests run in CI;
+- `nlohmann/json` is compile-time only; the final EXE still has no JSON runtime dependency.
+
+See `docs/CONFIG_SCHEMA.md` for the schema.
+
 ## v0.1.9 — natural full-width Classic right frame
 
 Classic once again uses equal 7 logical px left and right frame widths. The right side is no longer a flat gray column: it now uses a top-to-bottom frame gradient plus section-aware inner blending, so each content band transitions naturally into the frame while preserving the classic full-width border.
