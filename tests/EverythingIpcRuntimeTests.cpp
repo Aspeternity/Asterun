@@ -1,4 +1,5 @@
 #include "core/EverythingIpcProtocol.hpp"
+#include "core/EverythingProvider.hpp"
 #include "platform/EverythingIpcClient.hpp"
 
 #include <windows.h>
@@ -9,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <thread>
@@ -76,7 +78,14 @@ std::vector<std::byte> BuildReply(
         bytes,
         kSortNameAscending);
 
-    AppendU32(bytes, 0);
+    const bool folder =
+        query.search == u"folder";
+
+    AppendU32(
+        bytes,
+        folder
+            ? kItemFolder
+            : 0);
     const auto dataOffsetPosition =
         bytes.size();
     AppendU32(bytes, 0);
@@ -98,7 +107,9 @@ std::vector<std::byte> BuildReply(
             (dataOffset >> 24U) & 0xffU);
 
     const auto name =
-        query.search + u".txt";
+        folder
+            ? std::u16string(u"Folder")
+            : query.search + u".txt";
     const std::u16string path =
         u"C:\\Fake";
     const auto fullPath =
@@ -773,6 +784,151 @@ int main() {
             results[0].status ==
             EverythingQueryStatus::
                 ReplyTimeout);
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        EverythingProvider provider(
+            OptionsFor(
+                server.WindowClass()));
+
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::optional<
+            DynamicQueryResponse>
+            response;
+
+        provider.QueryAsync(
+            {
+                .generation = 401,
+                .query = L"报告",
+                .limit = 8,
+            },
+            [&](DynamicQueryResponse value) {
+                {
+                    std::scoped_lock lock(
+                        mutex);
+                    response =
+                        std::move(value);
+                }
+                cv.notify_all();
+            });
+
+        {
+            std::unique_lock lock(
+                mutex);
+            const bool completed =
+                cv.wait_for(
+                    lock,
+                    2s,
+                    [&] {
+                        return response
+                            .has_value();
+                    });
+            assert(completed);
+        }
+
+        assert(response);
+        assert(
+            response->generation ==
+            401);
+        assert(
+            response->providerId ==
+            "everything.filesystem");
+        assert(
+            response->status ==
+            DynamicQueryStatus::Success);
+        assert(
+            response->results.size() ==
+            1);
+
+        const auto& result =
+            response->results.front();
+
+        assert(
+            result.kind ==
+            ResultKind::File);
+        assert(
+            result.title ==
+            L"报告.txt");
+        assert(
+            result.subtitle ==
+            L"C:\\Fake");
+        assert(
+            result.target ==
+            L"C:\\Fake\\报告.txt");
+        assert(
+            result.action.kind ==
+            LauncherActionKind::
+                OpenFile);
+    }
+
+    {
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        EverythingProvider provider(
+            OptionsFor(
+                server.WindowClass()));
+
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::optional<
+            DynamicQueryResponse>
+            response;
+
+        provider.QueryAsync(
+            {
+                .generation = 402,
+                .query = L"folder",
+                .limit = 8,
+            },
+            [&](DynamicQueryResponse value) {
+                {
+                    std::scoped_lock lock(
+                        mutex);
+                    response =
+                        std::move(value);
+                }
+                cv.notify_all();
+            });
+
+        {
+            std::unique_lock lock(
+                mutex);
+            assert(
+                cv.wait_for(
+                    lock,
+                    2s,
+                    [&] {
+                        return response
+                            .has_value();
+                    }));
+        }
+
+        assert(response);
+        assert(
+            response->results.size() ==
+            1);
+
+        const auto& result =
+            response->results.front();
+
+        assert(
+            result.kind ==
+            ResultKind::Folder);
+        assert(
+            result.title ==
+            L"Folder");
+        assert(
+            result.target ==
+            L"C:\\Fake\\Folder");
+        assert(
+            result.action.kind ==
+            LauncherActionKind::
+                OpenFolder);
     }
 
     return 0;

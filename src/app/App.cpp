@@ -1,5 +1,7 @@
 #include "App.hpp"
 
+#include "../core/EverythingProvider.hpp"
+#include "../core/ProviderIds.hpp"
 #include "../platform/Hotkey.hpp"
 #include "../platform/WinUtil.hpp"
 #include "../ui/LauncherWindow.hpp"
@@ -16,6 +18,39 @@
 namespace altrun {
 
 namespace {
+
+[[nodiscard]] std::string_view
+ProviderIdForCommand(
+    CommandSource source) {
+    switch (source) {
+    case CommandSource::StartMenu:
+        return providers::kStartMenu;
+    case CommandSource::PackagedApp:
+        return providers::kPackaged;
+    case CommandSource::AppPaths:
+        return providers::kAppPaths;
+    case CommandSource::Path:
+        return providers::kPath;
+    case CommandSource::User:
+        return "user.commands";
+    }
+
+    return "user.commands";
+}
+
+[[nodiscard]] std::wstring
+CommandDetail(
+    const Command& command) {
+    std::wstring detail =
+        command.target;
+
+    if (!command.arguments.empty()) {
+        detail += L"  ";
+        detail += command.arguments;
+    }
+
+    return detail;
+}
 
 bool ProbeDirectoryWritable(
     const std::filesystem::path& directory) {
@@ -83,6 +118,9 @@ App::App(HINSTANCE instance)
           baseDirectory_ / "dict") {}
 
 App::~App() {
+    // Stop the dynamic IPC worker before UI/state members begin destruction.
+    everythingProvider_.reset();
+
     if (providerDebounceTimer_ != 0) {
         KillTimer(
             nullptr,
@@ -136,6 +174,17 @@ int App::Run() {
     uiThreadId_ = GetCurrentThreadId();
 
     settingsStore_.Load();
+
+    if (providers::IsEnabled(
+            settingsStore_.Data()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false)) {
+        everythingProvider_ =
+            std::make_unique<
+                EverythingProvider>();
+    }
 
     SetLastError(ERROR_SUCCESS);
     singleInstanceMutex_ =
@@ -232,6 +281,13 @@ int App::Run() {
 
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        if (msg.message ==
+                kDynamicQueryMessage &&
+            msg.hwnd == nullptr) {
+            HandleDynamicQueryCompleted();
+            continue;
+        }
+
         if (msg.message == kProviderRefreshMessage &&
             msg.hwnd == nullptr) {
             HandleProviderRefreshCompleted(
@@ -296,25 +352,111 @@ void App::ReloadCommands() {
     }
 }
 
-std::vector<SearchResult> App::Search(
+std::vector<LauncherResult> App::Search(
     std::wstring_view query,
     std::size_t limit) const {
 
-    return searchEngine_.Search(
-        commandStore_.Commands(),
-        usageStore_.Data(),
-        query,
-        limit,
-        settingsStore_.Data()
-            .wildcardMatching);
+    const auto matches =
+        searchEngine_.Search(
+            commandStore_.Commands(),
+            usageStore_.Data(),
+            query,
+            limit,
+            settingsStore_.Data()
+                .wildcardMatching);
+
+    std::vector<LauncherResult>
+        results;
+    results.reserve(matches.size());
+
+    const auto& commands =
+        commandStore_.Commands();
+
+    for (const auto& match : matches) {
+        const auto& command =
+            commands.at(
+                match.commandIndex);
+
+        LauncherResult result;
+        result.id = command.id;
+        result.providerId =
+            std::string(
+                ProviderIdForCommand(
+                    command.source));
+        result.kind =
+            command.source ==
+                    CommandSource::User
+                ? ResultKind::UserCommand
+                : ResultKind::Application;
+        result.title =
+            command.keyword.empty()
+                ? command.title
+                : command.keyword;
+        result.subtitle =
+            command.title;
+        result.target =
+            command.target;
+        result.detail =
+            CommandDetail(command);
+        result.score =
+            match.score;
+        result.action.kind =
+            LauncherActionKind::
+                ExecuteCommand;
+        result.action.commandIndex =
+            match.commandIndex;
+
+        results.push_back(
+            std::move(result));
+    }
+
+    return results;
 }
 
-const Command& App::GetCommand(
-    std::size_t index) const {
+bool App::DynamicSearchEnabled()
+    const {
+    return everythingProvider_ &&
+        providers::IsEnabled(
+            settingsStore_.Data()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false);
+}
 
-    return commandStore_
-        .Commands()
-        .at(index);
+void App::BeginDynamicSearch(
+    std::uint64_t generation,
+    std::wstring query,
+    std::size_t limit) {
+    if (!DynamicSearchEnabled() ||
+        query.empty()) {
+        return;
+    }
+
+    DynamicQueryRequest request;
+    request.generation = generation;
+    request.query = std::move(query);
+    request.limit = limit;
+
+    everythingProvider_->QueryAsync(
+        std::move(request),
+        [this](
+            DynamicQueryResponse response) {
+            {
+                std::scoped_lock lock(
+                    dynamicQueryMutex_);
+                dynamicQueryPending_ =
+                    std::move(response);
+            }
+
+            if (uiThreadId_ != 0) {
+                PostThreadMessageW(
+                    uiThreadId_,
+                    kDynamicQueryMessage,
+                    0,
+                    0);
+            }
+        });
 }
 
 std::vector<ProviderStatus>
@@ -930,6 +1072,32 @@ void App::HandleProviderChangedSignal() {
     }
 }
 
+void App::HandleDynamicQueryCompleted() {
+    std::optional<DynamicQueryResponse>
+        response;
+
+    {
+        std::scoped_lock lock(
+            dynamicQueryMutex_);
+
+        if (dynamicQueryPending_) {
+            response =
+                std::move(
+                    dynamicQueryPending_);
+            dynamicQueryPending_.reset();
+        }
+    }
+
+    if (!response || !window_) {
+        return;
+    }
+
+    window_->ApplyDynamicResults(
+        response->generation,
+        std::move(
+            response->results));
+}
+
 void App::FlushDetectedProviderChanges() {
     std::unordered_set<std::string>
         detected;
@@ -1028,6 +1196,14 @@ bool App::RestoreDefaultSettings() {
     commandStore_.ReloadProviderCache(
         settingsStore_.Data()
             .providerEnabled);
+
+    everythingProvider_.reset();
+
+    {
+        std::scoped_lock lock(
+            dynamicQueryMutex_);
+        dynamicQueryPending_.reset();
+    }
 
     {
         std::scoped_lock lock(
@@ -1469,6 +1645,35 @@ bool App::SetProviderEnabled(
         return false;
     }
 
+    if (providerId ==
+        providers::
+            kEverythingFilesystem) {
+        if (enabled) {
+            if (!everythingProvider_) {
+                everythingProvider_ =
+                    std::make_unique<
+                        EverythingProvider>();
+            }
+        } else {
+            everythingProvider_.reset();
+
+            std::scoped_lock lock(
+                dynamicQueryMutex_);
+            dynamicQueryPending_.reset();
+        }
+
+        if (window_) {
+            window_->RefreshResults();
+        }
+
+        if (settingsWindow_) {
+            settingsWindow_
+                ->RefreshFromSettings();
+        }
+
+        return true;
+    }
+
     commandStore_
         .ReloadProviderCache(
             settingsStore_.Data()
@@ -1638,6 +1843,62 @@ bool App::ExecuteCommand(std::size_t index) {
     return LaunchCommand(
         commandStore_.Commands().at(index),
         true);
+}
+
+bool App::ExecuteResult(
+    const LauncherResult& result) {
+    if (result.action.kind ==
+        LauncherActionKind::
+            ExecuteCommand) {
+        if (result.action.commandIndex ==
+            static_cast<std::size_t>(-1)) {
+            return false;
+        }
+
+        return ExecuteCommand(
+            result.action.commandIndex);
+    }
+
+    if (result.target.empty()) {
+        return false;
+    }
+
+    SHELLEXECUTEINFOW info{};
+    info.cbSize = sizeof(info);
+    info.fMask =
+        SEE_MASK_NOASYNC |
+        SEE_MASK_FLAG_NO_UI;
+    info.hwnd = nullptr;
+    info.lpVerb = L"open";
+    info.lpFile =
+        result.target.c_str();
+    info.nShow = SW_SHOWNORMAL;
+
+    if (ShellExecuteExW(&info)) {
+        return true;
+    }
+
+    const DWORD error =
+        GetLastError();
+
+    std::wstring message =
+        std::wstring(
+            Text(
+                TextId::
+                    UnableToLaunch)) +
+        L"\n" +
+        result.target +
+        L"\n\n" +
+        win::FormatWin32Error(
+            error);
+
+    MessageBoxW(
+        nullptr,
+        message.c_str(),
+        L"ALTRun Next",
+        MB_ICONERROR | MB_OK);
+
+    return false;
 }
 
 bool App::LaunchCommand(

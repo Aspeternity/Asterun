@@ -36,6 +36,182 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.5.0-alpha.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 2,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected alpha.2 value {expected}"
+            )
+
+    provider_cache_schema = cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    )
+    if provider_cache_schema != 2:
+        fail("provider-cache schema must remain 2 in alpha.2")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for provider_id in (
+        "windows.startmenu",
+        "windows.packaged",
+        "windows.apppaths",
+        "windows.path",
+        "everything.filesystem",
+    ):
+        if provider_id not in provider_text:
+            fail(f"provider ID missing in alpha.2: {provider_id}")
+
+    if "{std::string(kEverythingFilesystem)" in provider_text:
+        fail(
+            "everything.filesystem must remain absent from DefaultEnabled "
+            "during alpha.2"
+        )
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 2:
+        fail("settings schema must remain 2 in alpha.2")
+    if "everything.filesystem" in settings.get("providers", {}):
+        fail(
+            "everything.filesystem must remain default-off and absent from "
+            "the alpha.2 example settings"
+        )
+
+    launcher_result = read("src/core/LauncherResult.hpp")
+    for token in (
+        "enum class ResultKind",
+        "UserCommand",
+        "Application",
+        "File",
+        "Folder",
+        "LauncherActionKind",
+        "providerId",
+        "subtitle",
+        "target",
+        "score",
+        "action",
+    ):
+        if token not in launcher_result:
+            fail(f"LauncherResult contract missing: {token}")
+
+    dynamic_provider = read("src/core/DynamicQueryProvider.hpp")
+    for token in (
+        "DynamicQueryRequest",
+        "DynamicQueryResponse",
+        "class DynamicQueryProvider",
+        "QueryAsync",
+    ):
+        if token not in dynamic_provider:
+            fail(f"dynamic provider contract missing: {token}")
+
+    everything_provider = read("src/core/EverythingProvider.cpp")
+    for token in (
+        "kEverythingFilesystem",
+        "ResultKind::Folder",
+        "ResultKind::File",
+        "OpenFolder",
+        "OpenFile",
+    ):
+        if token not in everything_provider:
+            fail(f"EverythingProvider mapping missing: {token}")
+
+    app = read("src/app/App.cpp")
+    for token in (
+        "BeginDynamicSearch",
+        "kDynamicQueryMessage",
+        "HandleDynamicQueryCompleted",
+        "DynamicSearchEnabled",
+        "ExecuteResult",
+        "ShellExecuteExW",
+    ):
+        if token not in app:
+            fail(f"App dynamic-result integration missing: {token}")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    for token in (
+        "ApplyDynamicResults",
+        "MergeLauncherResultsStaticFirst",
+        "searchGeneration_",
+        "DynamicSearchEnabled",
+        "ExecuteResult",
+    ):
+        if token not in launcher:
+            fail(f"Launcher dynamic-result integration missing: {token}")
+
+    merger = read("src/core/ResultMerger.cpp")
+    for token in (
+        "MergeLauncherResultsStaticFirst",
+        "SameLauncherTarget",
+    ):
+        if token not in merger:
+            fail(f"alpha.2 merger contract missing: {token}")
+
+    combined_everything_source = (
+        read("src/core/EverythingIpcProtocol.hpp")
+        + read("src/platform/EverythingIpcClient.cpp")
+        + everything_provider
+    )
+    for forbidden in (
+        "Everything64.dll",
+        "Everything32.dll",
+        "LoadLibraryW",
+        "LoadLibraryA",
+    ):
+        if forbidden in combined_everything_source:
+            fail(
+                "alpha.2 must keep native IPC with no Everything DLL "
+                f"dependency: found {forbidden}"
+            )
+
+    cmake_text = read("CMakeLists.txt")
+    for token in (
+        "EverythingProvider.cpp",
+        "LauncherResult.cpp",
+        "ResultMerger.cpp",
+        "result_merger_tests",
+        "everything_ipc_runtime_tests",
+    ):
+        if token not in cmake_text:
+            fail(f"alpha.2 build/test wiring missing: {token}")
+
+    runtime_test = read("tests/EverythingIpcRuntimeTests.cpp")
+    for token in (
+        "EverythingProvider provider",
+        "everything.filesystem",
+        "LauncherActionKind",
+    ):
+        if token not in runtime_test:
+            fail(f"EverythingProvider runtime mapping test missing: {token}")
+
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_hpp,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(
+                f"Classic geometry changed during alpha.2: {name}"
+            )
+
+    print(
+        "v0.5.0-alpha.2 dynamic result contract verified:",
+        "| settings=2 commands=1 usage=1 provider-cache=2",
+        "| Everything default-off | no Everything DLL",
+        "| unified LauncherResult + async File/Folder results",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.5.0-alpha.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 2,

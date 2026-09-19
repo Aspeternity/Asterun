@@ -19,6 +19,9 @@ inline constexpr std::string_view kAppPaths =
     "windows.apppaths";
 inline constexpr std::string_view kPath =
     "windows.path";
+inline constexpr std::string_view
+    kEverythingFilesystem =
+        "everything.filesystem";
 
 [[nodiscard]] inline ProviderEnableMap
 DefaultEnabled() {

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../core/CommandStore.hpp"
+#include "../core/DynamicQueryProvider.hpp"
+#include "../core/LauncherResult.hpp"
 #include "../core/Localization.hpp"
 #include "../core/SearchEngine.hpp"
 #include "../core/Settings.hpp"
@@ -12,6 +14,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -20,6 +23,7 @@
 
 namespace altrun {
 
+class EverythingProvider;
 class LauncherWindow;
 class SettingsWindow;
 
@@ -31,14 +35,18 @@ public:
     int Run();
     void ReloadCommands();
 
-    [[nodiscard]] std::vector<SearchResult>
+    [[nodiscard]] std::vector<LauncherResult>
     Search(
         std::wstring_view query,
         std::size_t limit) const;
 
-    [[nodiscard]] const Command&
-    GetCommand(
-        std::size_t index) const;
+    void BeginDynamicSearch(
+        std::uint64_t generation,
+        std::wstring query,
+        std::size_t limit);
+
+    [[nodiscard]] bool
+    DynamicSearchEnabled() const;
 
     [[nodiscard]] const std::vector<Command>&
     UserCommands() const noexcept {
@@ -141,6 +149,9 @@ public:
     bool ExecuteCommand(
         std::size_t index);
 
+    bool ExecuteResult(
+        const LauncherResult& result);
+
     [[nodiscard]] const std::filesystem::path&
     DataDirectory() const noexcept {
         return dataDirectory_;
@@ -160,6 +171,10 @@ private:
     static constexpr UINT
         kProviderChangedMessage =
             WM_APP + 0x172;
+
+    static constexpr UINT
+        kDynamicQueryMessage =
+            WM_APP + 0x173;
 
     bool LaunchCommand(
         const Command& command,
@@ -183,6 +198,7 @@ private:
     void StartProviderMonitor();
     void HandleProviderChangedSignal();
     void FlushDetectedProviderChanges();
+    void HandleDynamicQueryCompleted();
 
     HINSTANCE instance_{};
     std::filesystem::path
@@ -193,6 +209,8 @@ private:
     UsageStore usageStore_;
     SettingsStore settingsStore_;
     SearchEngine searchEngine_;
+    std::unique_ptr<EverythingProvider>
+        everythingProvider_;
     std::unique_ptr<LauncherWindow>
         window_;
     std::unique_ptr<SettingsWindow>
@@ -219,6 +237,10 @@ private:
     std::unordered_set<std::string>
         detectedProviderIds_;
     UINT_PTR providerDebounceTimer_{0};
+
+    std::mutex dynamicQueryMutex_;
+    std::optional<DynamicQueryResponse>
+        dynamicQueryPending_;
 
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};

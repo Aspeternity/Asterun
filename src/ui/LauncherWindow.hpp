@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../core/SearchEngine.hpp"
+#include "../core/LauncherResult.hpp"
 
 #include <windows.h>
 
@@ -22,6 +22,9 @@ public:
     void Hide();
     void RefreshResults(
         bool allowImmediateExecution = false);
+    void ApplyDynamicResults(
+        std::uint64_t generation,
+        std::vector<LauncherResult> results);
     void ApplyAppearance();
     void ApplyLanguage();
     void ApplyGeneralSettings();
@@ -70,6 +73,8 @@ private:
     void PaintClassicClose(HDC dc, const RECT& rect);
     void UpdateHint();
     void UpdatePreview();
+    void RebuildVisibleResults(
+        bool allowImmediateExecution);
     void ExecuteSelection();
     void ExecuteResultAt(
         std::size_t resultIndex);
@@ -110,7 +115,12 @@ private:
     int rowHeightLogical_{16};
     std::size_t maxResults_{10};
     std::wstring titleText_{L"[ALTRun]"};
-    std::vector<SearchResult> results_;
+    std::uint64_t searchGeneration_{0};
+    std::vector<LauncherResult>
+        staticResults_;
+    std::vector<LauncherResult>
+        dynamicResults_;
+    std::vector<LauncherResult> results_;
 };
 
 } // namespace altrun

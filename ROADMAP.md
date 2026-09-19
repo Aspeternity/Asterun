@@ -96,9 +96,11 @@ In progress:
 - Portable Query2/LIST2 protocol parsing with Unicode and malformed-payload regression tests
 - Real Win32 fake-Everything runtime smoke tests run without installing Everything in CI
 - x64 and ARM64 production builds compile the IPC foundation without adding an Everything runtime DLL
-- settings remains schemaVersion 2 in alpha.1; everything.filesystem and schemaVersion 3 are reserved for later v0.5 phases
-- Alpha 2 will introduce LauncherResult / DynamicQueryProvider / everything.filesystem and actual File/Folder launcher results
-- Later phases will add unified ranking, Settings/diagnostics and real-world 1.4/1.5 compatibility hardening
+- settings remains schemaVersion 2 through alpha.2; the formal schemaVersion 3 migration remains reserved for the Settings phase
+- v0.5.0-alpha.2 introduces LauncherResult / DynamicQueryProvider / everything.filesystem and actual asynchronous File/Folder launcher results
+- Alpha 2 keeps Everything default-off through explicit raw provider opt-in, preserves Classic geometry and keeps file results ephemeral
+- Alpha 3 will add unified cross-kind/provider ranking plus mixed-result numeric/single-result behavior hardening
+- Later phases will add Settings/diagnostics and real-world 1.4/1.5 compatibility hardening
 
 ## v0.6.x - Smart actions & Windows integration
 

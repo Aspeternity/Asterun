@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0-alpha.2
+
+- Added the unified `LauncherResult` / `ResultKind` / `LauncherAction` model between App and Launcher.
+- Added the generic `DynamicQueryProvider` contract and fixed dynamic provider ID `everything.filesystem`.
+- Added `EverythingProvider` to translate query-time Everything IPC File/Folder items into unified launcher results.
+- Added UI-thread handoff for asynchronous dynamic responses with generation validation on top of the IPC client's stale-reply protection.
+- Kept static User Command/Application search synchronous and non-blocking; dynamic Everything results arrive later and rebuild the visible result list.
+- Added a conservative alpha.2 result merger: static results first, dynamic results appended into remaining slots, target de-duplication performed case-insensitively.
+- File rows render file name + parent path in the existing Classic columns; long text keeps the existing ellipsis behavior without changing Classic geometry.
+- Added unified execution: static commands keep their existing execution path, Files open with the default Windows application, and Folders open through Shell/Explorer.
+- Kept dynamic File/Folder results ephemeral and out of provider-cache/usage persistence.
+- Kept Everything disabled by default; alpha testers can explicitly opt in with `providers["everything.filesystem"] = true` in `data/settings.json`.
+- Kept settings schemaVersion 2 and deferred the formal schemaVersion 3 / Settings UI integration to the later Settings phase.
+- Suppressed single-result immediate execution while dynamic search is enabled; mixed-result immediate-execution policy remains an alpha.3 task.
+- Added portable result-merger regression tests and extended real WM_COPYDATA runtime coverage through `EverythingProvider` result mapping.
+- Updated Windows version metadata to `0.5.0-alpha.2` / `0.5.0.2`.
+
+
 ## 0.5.0-alpha.1
 
 - Added a portable Everything Query2 protocol layer for native Unicode `WM_COPYDATA` IPC without an Everything DLL dependency.

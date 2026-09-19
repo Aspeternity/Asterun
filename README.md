@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.5.0-alpha.2 — Dynamic File & Folder Results
+
+Alpha 2 connects the native Everything IPC foundation to the launcher through a new unified `LauncherResult` model. Existing static Catalog search still returns immediately; Everything runs independently as a `DynamicQueryProvider`, and its File/Folder results are merged only after the asynchronous reply reaches the UI thread.
+
+`everything.filesystem` is now the fixed dynamic provider ID. The provider remains **off by default** in this alpha and is deliberately not added to the default settings document or Settings UI yet. For alpha testing, explicitly add `"everything.filesystem": true` inside the existing `providers` object in `data/settings.json`, then restart ALTRun Next with normal Everything already running. Removing the key or setting it to `false` disables the dynamic provider again.
+
+The initial merge policy is intentionally conservative: static User Command/Application results keep their existing order and Everything File/Folder results are appended into remaining result slots, with case-insensitive target de-duplication. Cross-kind/provider weighting is reserved for alpha.3. Classic geometry is unchanged; file rows reuse the existing two text columns as file name + parent path, with ellipsis for long paths.
+
+Enter/double-click executes the unified result action. Files open through the Windows default application and folders open through Explorer/Shell. Everything results remain query-time ephemeral data: they are not written to `provider-cache.json` or `usage.json`. Dynamic replies never trigger single-result immediate execution in alpha.2; that mixed-result policy is intentionally deferred to alpha.3.
+
+Settings remains schemaVersion 2 in alpha.2. The formal schemaVersion 3 migration and user-facing Search Sources controls remain scheduled for the Settings/diagnostics phase.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.2`.
+
 ## v0.5.0-alpha.1 — Everything IPC Foundation
 
 This alpha begins the Everything file/folder-search architecture without exposing file results in the launcher yet. Existing User Commands, Start Menu, Windows Apps, App Paths and PATH search behavior remains unchanged.

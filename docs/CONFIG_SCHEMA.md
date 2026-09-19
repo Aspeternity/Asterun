@@ -79,6 +79,10 @@ v0.4.1 Stable keeps the same schema versions and performs no additional migratio
 
 v0.5.0-alpha.1 does not change any persisted schema. The Everything IPC foundation is intentionally transport-only: `settings.json` remains schemaVersion 2, `commands.json` / `usage.json` remain schemaVersion 1, and `provider-cache.json` remains schemaVersion 2. No `everything.filesystem` provider setting is written in alpha.1, and Everything query results are not persisted to provider-cache or usage history. The planned settings schemaVersion 3 migration is deferred until the Settings/provider integration phase.
 
+v0.5.0-alpha.2 still does not bump the persisted schema. It introduces the dynamic provider ID `everything.filesystem`, but the provider is absent from defaults and therefore remains disabled unless an alpha tester explicitly adds `"everything.filesystem": true` to the existing `providers` object. The schemaVersion 2 provider map already preserves boolean provider keys generically, so this experimental opt-in can be read without changing the document shape. File/folder query results remain ephemeral and are not written to `provider-cache.json` or `usage.json`.
+
+The formal v0.5 settings contract is still planned as schemaVersion 3 when Search Sources / Everything diagnostics become user-facing. That later bump is what provides explicit downgrade read-only protection for the complete v0.5 settings surface.
+
 As of v0.4.0-alpha.3, known provider IDs are:
 
 ```text
@@ -88,7 +92,15 @@ windows.apppaths
 windows.path
 ```
 
-All four default to enabled. Existing `settings.json` files without a `providers` object therefore keep the same discovery behavior after upgrading.
+All four static Catalog providers default to enabled. Existing `settings.json` files without a `providers` object therefore keep the same discovery behavior after upgrading.
+
+The v0.5 dynamic provider ID is:
+
+```text
+everything.filesystem
+```
+
+In alpha.2 it is intentionally **not** part of the default provider map and falls back to disabled.
 
 As of v0.2.0-beta.1, `startWithWindows` and the `hotkey` section are wired to live Windows behavior. A new hotkey is saved only after `RegisterHotKey` succeeds, so a conflicting binding does not overwrite the previous working configuration.
 

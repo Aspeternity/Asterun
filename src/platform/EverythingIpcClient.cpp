@@ -586,6 +586,11 @@ void EverythingIpcClient::HandleReply(
                     ? item.fullPath
                     : item.fullPath.substr(
                         separator + 1U);
+
+            if (item.name.empty()) {
+                item.name =
+                    item.fullPath;
+            }
         }
 
         if (item.parentPath.empty() &&

@@ -2,6 +2,7 @@
 
 #include "../app/App.hpp"
 #include "../core/ClassicBehavior.hpp"
+#include "../core/ResultMerger.hpp"
 
 #include <windowsx.h>
 #include <commctrl.h>
@@ -11,7 +12,9 @@
 
 #include <algorithm>
 #include <array>
+#include <iterator>
 #include <string>
+#include <utility>
 
 namespace altrun {
 
@@ -971,20 +974,141 @@ void LauncherWindow::RefreshResults(
     bool allowImmediateExecution) {
     if (!list_) return;
 
-    results_ = app_.Search(CurrentQuery(), maxResults_);
-    SendMessageW(list_, WM_SETREDRAW, FALSE, 0);
-    SendMessageW(list_, LB_RESETCONTENT, 0, 0);
+    const std::wstring query =
+        CurrentQuery();
 
-    for (std::size_t i = 0; i < results_.size(); ++i) {
-        SendMessageW(list_, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L""));
+    ++searchGeneration_;
+    staticResults_ =
+        app_.Search(
+            query,
+            maxResults_);
+    dynamicResults_.clear();
+
+    RebuildVisibleResults(
+        allowImmediateExecution);
+
+    if (!query.empty()) {
+        app_.BeginDynamicSearch(
+            searchGeneration_,
+            query,
+            maxResults_);
+    }
+}
+
+void LauncherWindow::ApplyDynamicResults(
+    std::uint64_t generation,
+    std::vector<LauncherResult> results) {
+    if (generation !=
+        searchGeneration_) {
+        return;
+    }
+
+    dynamicResults_ =
+        std::move(results);
+
+    // Dynamic replies never trigger single-result immediate execution in
+    // alpha.2. The mixed-result policy is intentionally deferred to alpha.3.
+    RebuildVisibleResults(false);
+}
+
+void LauncherWindow::RebuildVisibleResults(
+    bool allowImmediateExecution) {
+    std::wstring selectedId;
+    std::string selectedProvider;
+
+    const LRESULT previous =
+        SendMessageW(
+            list_,
+            LB_GETCURSEL,
+            0,
+            0);
+
+    if (previous != LB_ERR &&
+        static_cast<std::size_t>(
+            previous) <
+            results_.size()) {
+        selectedId =
+            results_[
+                static_cast<std::size_t>(
+                    previous)]
+                .id;
+        selectedProvider =
+            results_[
+                static_cast<std::size_t>(
+                    previous)]
+                .providerId;
+    }
+
+    results_ =
+        MergeLauncherResultsStaticFirst(
+            staticResults_,
+            dynamicResults_,
+            maxResults_);
+
+    SendMessageW(
+        list_,
+        WM_SETREDRAW,
+        FALSE,
+        0);
+    SendMessageW(
+        list_,
+        LB_RESETCONTENT,
+        0,
+        0);
+
+    for (std::size_t i = 0;
+         i < results_.size();
+         ++i) {
+        SendMessageW(
+            list_,
+            LB_ADDSTRING,
+            0,
+            reinterpret_cast<LPARAM>(
+                L""));
     }
 
     if (!results_.empty()) {
-        SendMessageW(list_, LB_SETCURSEL, 0, 0);
+        std::size_t selection = 0;
+
+        if (!selectedId.empty()) {
+            const auto it =
+                std::find_if(
+                    results_.begin(),
+                    results_.end(),
+                    [&](const LauncherResult&
+                            result) {
+                        return result.id ==
+                                   selectedId &&
+                            result.providerId ==
+                                   selectedProvider;
+                    });
+
+            if (it != results_.end()) {
+                selection =
+                    static_cast<std::size_t>(
+                        std::distance(
+                            results_.begin(),
+                            it));
+            }
+        }
+
+        SendMessageW(
+            list_,
+            LB_SETCURSEL,
+            static_cast<WPARAM>(
+                selection),
+            0);
     }
 
-    SendMessageW(list_, WM_SETREDRAW, TRUE, 0);
-    InvalidateRect(list_, nullptr, TRUE);
+    SendMessageW(
+        list_,
+        WM_SETREDRAW,
+        TRUE,
+        0);
+    InvalidateRect(
+        list_,
+        nullptr,
+        TRUE);
     UpdatePreview();
 
     const bool queryEmpty =
@@ -992,13 +1116,14 @@ void LauncherWindow::RefreshResults(
 
     if (classic_behavior::
             ShouldExecuteSingleResult(
-                allowImmediateExecution,
+                allowImmediateExecution &&
+                    !app_.
+                        DynamicSearchEnabled(),
                 app_.SettingsData()
                     .executeSingleResultImmediately,
                 imeComposing_,
                 queryEmpty,
                 results_.size())) {
-
         ExecuteResultAt(0);
     }
 }
@@ -1014,23 +1139,26 @@ void LauncherWindow::UpdatePreview() {
         return;
     }
 
-    const auto& command =
-        app_.GetCommand(results_[static_cast<std::size_t>(selected)].commandIndex);
+    const auto& result =
+        results_[
+            static_cast<std::size_t>(
+                selected)];
 
     titleText_ = L"[";
-    titleText_ += command.keyword;
+    titleText_ += result.title;
     titleText_ += L"]";
 
     std::wstring preview;
     if (!IsModern()) {
-        preview = app_.Text(TextId::CommandPrefix);
+        preview =
+            app_.Text(
+                TextId::CommandPrefix);
     }
 
-    preview += command.target;
-    if (!command.arguments.empty()) {
-        preview += L"  ";
-        preview += command.arguments;
-    }
+    preview +=
+        result.detail.empty()
+            ? result.target
+            : result.detail;
 
     SetWindowTextW(preview_, preview.c_str());
 
@@ -1078,9 +1206,8 @@ void LauncherWindow::ExecuteResultAt(
         return;
     }
 
-    if (app_.ExecuteCommand(
-            results_[resultIndex]
-                .commandIndex) &&
+    if (app_.ExecuteResult(
+            results_[resultIndex]) &&
         app_.SettingsData()
             .hideAfterLaunch) {
         Hide();
@@ -1525,8 +1652,8 @@ LRESULT LauncherWindow::HandleMessage(
 
         SetBkMode(item->hDC, TRANSPARENT);
 
-        const auto& command =
-            app_.GetCommand(results_[item->itemID].commandIndex);
+        const auto& result =
+            results_[item->itemID];
 
         if (IsModern()) {
             RECT keywordRect = item->rcItem;
@@ -1544,7 +1671,7 @@ LRESULT LauncherWindow::HandleMessage(
 
             DrawTextW(
                 item->hDC,
-                command.keyword.c_str(),
+                result.title.c_str(),
                 -1,
                 &keywordRect,
                 DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
@@ -1556,7 +1683,7 @@ LRESULT LauncherWindow::HandleMessage(
 
             DrawTextW(
                 item->hDC,
-                command.title.c_str(),
+                result.subtitle.c_str(),
                 -1,
                 &titleRect,
                 DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
@@ -1615,14 +1742,14 @@ LRESULT LauncherWindow::HandleMessage(
 
         DrawTextW(
             item->hDC,
-            command.keyword.c_str(),
+            result.title.c_str(),
             -1,
             &keywordRect,
             DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
 
         DrawTextW(
             item->hDC,
-            command.title.c_str(),
+            result.subtitle.c_str(),
             -1,
             &titleRect,
             DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
