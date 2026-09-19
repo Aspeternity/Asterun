@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -A ${{ matrix.arch }} -DBUILD_TESTING=OFF
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release --parallel
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
+          Copy-Item config/commands.example.tsv dist/commands.example.tsv
+          Copy-Item README.md dist/README.md
+          Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALTRunNext-${{ matrix.arch }}
+          path: ALTRunNext-${{ matrix.arch }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/**/*.zip
