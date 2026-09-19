@@ -6,6 +6,7 @@
 
 #include <commctrl.h>
 #include <commdlg.h>
+#include <shellapi.h>
 #include <shlobj.h>
 
 #include <algorithm>
@@ -813,6 +814,15 @@ void SettingsWindow::CreateProviderPage() {
             L"",
             SS_LEFT | SS_NOPREFIX);
 
+    providerGetEverything_ =
+        CreateButton(
+            L"",
+            kIdProviderGetEverything);
+    providerRecheckEverything_ =
+        CreateButton(
+            L"",
+            kIdProviderRecheckEverything);
+
     providerNote_ =
         CreateStatic(
             L"",
@@ -826,6 +836,8 @@ void SettingsWindow::CreateProviderPage() {
         providerPath_,
         providerEverything_,
         providerStatus_,
+        providerGetEverything_,
+        providerRecheckEverything_,
         providerNote_,
     };
 }
@@ -1040,6 +1052,8 @@ void SettingsWindow::ApplyFonts() {
         providerPath_,
         providerEverything_,
         providerStatus_,
+        providerGetEverything_,
+        providerRecheckEverything_,
         providerNote_,
         dataOpenLabel_,
         dataOpenFolder_,
@@ -1418,6 +1432,14 @@ void SettingsWindow::ApplyLanguage() {
         T(L"Everything 文件与文件夹",
           L"Everything files & folders"));
     SetWindowTextW(
+        providerGetEverything_,
+        T(L"获取 Everything",
+          L"Get Everything"));
+    SetWindowTextW(
+        providerRecheckEverything_,
+        T(L"重新检测",
+          L"Recheck"));
+    SetWindowTextW(
         providerNote_,
         T(L"Windows 应用来源使用后台缓存；Everything 通过本机 IPC 实时查询。默认实例优先；仅检测到一个命名实例时才会自动选择。多实例歧义或 IPC 不可用时自动回退为仅应用搜索。",
           L"Windows application sources use the background cache. Everything is queried live over local IPC. The unnamed instance is preferred; a named instance is auto-selected only when it is unique. Ambiguous or unavailable IPC falls back to application-only search."));
@@ -1677,6 +1699,9 @@ void SettingsWindow::RefreshProviderStatus() {
                 kEverythingFilesystem,
             false);
 
+    bool showGetEverything = false;
+    bool showRecheck = false;
+
     text += T(
         L"Everything 文件与文件夹",
         L"Everything files & folders");
@@ -1690,136 +1715,209 @@ void SettingsWindow::RefreshProviderStatus() {
         const auto ipc =
             app_.EverythingStatus();
 
-        if (ipc.availability ==
-            EverythingAvailability::
-                Available) {
-            text += T(
-                L"IPC 可用",
-                L"IPC available");
-        } else if (
+        const bool endpointMissing =
             ipc.availability ==
-            EverythingAvailability::
-                Unavailable) {
+                EverythingAvailability::
+                    Unavailable &&
+            !ipc.ambiguousNamedInstances &&
+            ipc.ipcWindowClass.empty();
+
+        showGetEverything =
+            endpointMissing;
+        showRecheck =
+            ipc.availability !=
+                EverythingAvailability::
+                    Available;
+
+        if (endpointMissing) {
             text += T(
-                L"IPC 不可用",
-                L"IPC unavailable");
+                L"未检测到 Everything",
+                L"Everything not detected");
             text += L"  ·  ";
             text += T(
                 L"已回退到应用搜索",
                 L"Application-search fallback active");
+
+            text += L"\r\n    ↳ ";
+            text += T(
+                L"请安装并运行标准版 Everything；ALTRun Next 不内置或自动启动 Everything，Lite 版没有 IPC。",
+                L"Install and run standard Everything. ALTRun Next does not bundle or auto-start Everything; Everything Lite has no IPC.");
         } else {
-            text += T(
-                L"正在检测 IPC",
-                L"Detecting IPC");
-        }
-
-        if (ipc.ambiguousNamedInstances) {
-            text += L"\r\n    ↳ ";
-            text += T(
-                L"检测到多个 Everything 命名实例（",
-                L"Multiple named Everything instances detected (");
-            text += std::to_wstring(
-                ipc.matchingWindowCount);
-            text += T(
-                L"），已禁用自动选择",
-                L"); automatic selection disabled");
-        } else if (
-            !ipc.ipcWindowClass.empty()) {
-            text += L"\r\n    ↳ ";
-            text += T(
-                L"IPC 端点：",
-                L"IPC endpoint: ");
-            text += ipc.ipcWindowClass;
-
-            if (ipc.namedInstanceFallback) {
+            if (ipc.availability ==
+                EverythingAvailability::
+                    Available) {
                 text += T(
-                    L"  ·  已自动选择唯一命名实例",
-                    L"  ·  unique named instance auto-selected");
-            }
-        }
-
-        if (ipc.hasQuery) {
-            text += L"\r\n    ↳ ";
-            text += T(
-                L"最近查询：",
-                L"Last query: ");
-
-            switch (ipc.lastStatus) {
-            case EverythingQueryStatus::Success:
+                    L"IPC 可用",
+                    L"IPC available");
+            } else if (
+                ipc.availability ==
+                EverythingAvailability::
+                    Unavailable) {
                 text += T(
-                    L"成功",
-                    L"Success");
-                break;
-            case EverythingQueryStatus::Unavailable:
+                    L"IPC 不可用",
+                    L"IPC unavailable");
+                text += L"  ·  ";
                 text += T(
-                    L"不可用",
-                    L"Unavailable");
-                break;
-            case EverythingQueryStatus::SendTimeout:
+                    L"已回退到应用搜索",
+                    L"Application-search fallback active");
+            } else {
                 text += T(
-                    L"发送超时",
-                    L"Send timeout");
-                break;
-            case EverythingQueryStatus::ReplyTimeout:
-                text += T(
-                    L"响应超时",
-                    L"Reply timeout");
-                break;
-            case EverythingQueryStatus::ProtocolError:
-                text += T(
-                    L"协议错误",
-                    L"Protocol error");
-                break;
-            case EverythingQueryStatus::Cancelled:
-                text += T(
-                    L"已取消",
-                    L"Cancelled");
-                break;
+                    L"正在检测 IPC",
+                    L"Detecting IPC");
             }
 
-            text += T(
-                L"  ·  显示 ",
-                L"  ·  returned ");
-            text += std::to_wstring(
-                ipc.lastResultCount);
-
-            if (ipc.lastTotalMatches > 0) {
-                text += L" / ";
+            if (ipc.ambiguousNamedInstances) {
+                text += L"\r\n    ↳ ";
+                text += T(
+                    L"检测到多个 Everything 命名实例（",
+                    L"Multiple named Everything instances detected (");
                 text += std::to_wstring(
-                    ipc.lastTotalMatches);
-            }
-
-            text += T(
-                L"  ·  耗时 ",
-                L"  ·  latency ");
-            text += std::to_wstring(
-                std::max<std::int64_t>(
-                    0,
-                    (ipc.lastLatency.count() +
-                     500) /
-                        1000));
-            text += L" ms";
-
-            if (ipc.lastNativeError != 0) {
+                    ipc.matchingWindowCount);
                 text += T(
-                    L"  ·  系统错误 ",
-                    L"  ·  native error ");
-                text += std::to_wstring(
-                    ipc.lastNativeError);
+                    L"），已禁用自动选择",
+                    L"); automatic selection disabled");
+            } else if (
+                !ipc.ipcWindowClass.empty()) {
+                text += L"\r\n    ↳ ";
+                text += T(
+                    L"IPC 端点：",
+                    L"IPC endpoint: ");
+                text += ipc.ipcWindowClass;
+
+                if (ipc.namedInstanceFallback) {
+                    text += T(
+                        L"  ·  已自动选择唯一命名实例",
+                        L"  ·  unique named instance auto-selected");
+                }
             }
-        } else if (
-            ipc.availability ==
-            EverythingAvailability::
-                Available) {
-            text += T(
-                L"  ·  等待首次查询",
-                L"  ·  Waiting for first query");
+
+            if (ipc.hasQuery) {
+                text += L"\r\n    ↳ ";
+                text += T(
+                    L"最近查询：",
+                    L"Last query: ");
+
+                switch (ipc.lastStatus) {
+                case EverythingQueryStatus::Success:
+                    text += T(
+                        L"成功",
+                        L"Success");
+                    break;
+                case EverythingQueryStatus::Unavailable:
+                    text += T(
+                        L"不可用",
+                        L"Unavailable");
+                    break;
+                case EverythingQueryStatus::SendTimeout:
+                    text += T(
+                        L"发送超时",
+                        L"Send timeout");
+                    break;
+                case EverythingQueryStatus::ReplyTimeout:
+                    text += T(
+                        L"响应超时",
+                        L"Reply timeout");
+                    break;
+                case EverythingQueryStatus::ProtocolError:
+                    text += T(
+                        L"协议错误",
+                        L"Protocol error");
+                    break;
+                case EverythingQueryStatus::Cancelled:
+                    text += T(
+                        L"已取消",
+                        L"Cancelled");
+                    break;
+                }
+
+                text += T(
+                    L"  ·  显示 ",
+                    L"  ·  returned ");
+                text += std::to_wstring(
+                    ipc.lastResultCount);
+
+                if (ipc.lastTotalMatches > 0) {
+                    text += L" / ";
+                    text += std::to_wstring(
+                        ipc.lastTotalMatches);
+                }
+
+                text += T(
+                    L"  ·  耗时 ",
+                    L"  ·  latency ");
+                text += std::to_wstring(
+                    std::max<std::int64_t>(
+                        0,
+                        (ipc.lastLatency.count() +
+                         500) /
+                            1000));
+                text += L" ms";
+
+                if (ipc.lastNativeError != 0) {
+                    text += T(
+                        L"  ·  系统错误 ",
+                        L"  ·  native error ");
+                    text += std::to_wstring(
+                        ipc.lastNativeError);
+                }
+            } else if (
+                ipc.availability ==
+                EverythingAvailability::
+                    Available) {
+                text += T(
+                    L"  ·  等待首次查询",
+                    L"  ·  Waiting for first query");
+            }
         }
     }
+
+    const bool providerPageVisible =
+        page_ == Page::Providers;
+
+    ShowWindow(
+        providerGetEverything_,
+        providerPageVisible &&
+                showGetEverything
+            ? SW_SHOW
+            : SW_HIDE);
+    ShowWindow(
+        providerRecheckEverything_,
+        providerPageVisible &&
+                showRecheck
+            ? SW_SHOW
+            : SW_HIDE);
 
     SetWindowTextW(
         providerStatus_,
         text.c_str());
+}
+
+void SettingsWindow::OpenEverythingDownloadPage() {
+    const wchar_t* url =
+        app_.SettingsData().language ==
+                Language::ZhCN
+            ? L"https://www.voidtools.com/zh-cn/downloads/"
+            : L"https://www.voidtools.com/downloads/";
+
+    const auto result =
+        reinterpret_cast<INT_PTR>(
+            ShellExecuteW(
+                hwnd_,
+                L"open",
+                url,
+                nullptr,
+                nullptr,
+                SW_SHOWNORMAL));
+
+    if (result <= 32) {
+        MessageBoxW(
+            hwnd_,
+            T(L"无法打开 Everything 官方下载页面。请手动访问 voidtools.com 下载标准版 Everything。",
+              L"Could not open the official Everything download page. Visit voidtools.com manually and download standard Everything."),
+            T(L"获取 Everything",
+              L"Get Everything"),
+            MB_OK | MB_ICONWARNING);
+    }
 }
 
 void SettingsWindow::RefreshDataCompatibilityStatus() {
@@ -4492,6 +4590,24 @@ void SettingsWindow::Layout() {
             TRUE);
 
         MoveWindow(
+            providerGetEverything_,
+            x,
+            providerCard.bottom +
+                Scale(164),
+            Scale(146),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            providerRecheckEverything_,
+            x + Scale(158),
+            providerCard.bottom +
+                Scale(164),
+            Scale(120),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
             providerNote_,
             x,
             providerCard.bottom +
@@ -5336,6 +5452,18 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdProviderEverything:
             if (notify == BN_CLICKED) {
                 ToggleProviderSetting(id);
+            }
+            return 0;
+
+        case kIdProviderGetEverything:
+            if (notify == BN_CLICKED) {
+                OpenEverythingDownloadPage();
+            }
+            return 0;
+
+        case kIdProviderRecheckEverything:
+            if (notify == BN_CLICKED) {
+                RefreshProviderStatus();
             }
             return 0;
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0-rc.2
+
+- Replaced the confusing raw `ERROR_FILE_NOT_FOUND (2)` primary Everything diagnosis with explicit “Everything not detected” onboarding when no IPC endpoint exists.
+- Added bilingual guidance that standard Everything must be installed/running, ALTRun Next does not bundle or auto-start it, and Everything Lite has no IPC.
+- Added **Get Everything** to open the official voidtools download page.
+- Added **Recheck** to immediately re-probe Everything availability without restarting ALTRun Next.
+- Kept ambiguous named-instance diagnostics separate from the missing-Everything onboarding path.
+- Kept application-only fallback active while Everything is unavailable.
+- Did not add automatic download/install/start/update management; managed Everything remains post-v0.5 work.
+- Preserved settings schemaVersion 3, provider IDs/defaults, Query2/WM_COPYDATA, persistence boundaries and Classic launcher geometry.
+- Updated Windows version metadata to `0.5.0-rc.2` / `0.5.0.201`.
+
+
 ## 0.5.0-rc.1
 
 - Entered v0.5.0 feature freeze: no new provider, schema, Classic geometry or Everything transport surface.

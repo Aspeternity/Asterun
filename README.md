@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.5.0-rc.2 — Everything Onboarding & Diagnostics UX
+
+RC2 is a release-candidate UX fix discovered during real desktop validation. It does not change the frozen v0.5 provider/schema/transport surface.
+
+When Everything search is enabled but no Everything IPC endpoint is present, Search Sources now reports **Everything not detected** instead of surfacing raw Windows error 2 as the primary diagnosis. The page explains that ALTRun Next does not bundle or auto-start Everything, that the standard edition must be installed and running, and that Everything Lite has no IPC. Application-search fallback remains active.
+
+Two small recovery actions are available only while Everything is unavailable: **Get Everything** opens the official voidtools download page in the default browser, and **Recheck** immediately re-probes the existing live IPC status. Starting Everything later still requires no ALTRun Next restart. Ambiguous named-instance diagnostics remain distinct from the missing-installation guidance.
+
+This remains an external-first integration. RC2 does not download, install, update, start or manage Everything. A future managed/portable Everything workflow remains a post-v0.5 feature.
+
+All frozen RC contracts remain unchanged: settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, Everything default-off, Query2/WM_COPYDATA, no Everything DLL/named-pipe dependency and unchanged Classic launcher geometry.
+
+Windows fixed FileVersion/ProductVersion for this build is `0.5.0.201`.
+
 ## v0.5.0-rc.1 — Release Candidate Stabilization & Real-world Validation
 
 RC1 freezes the v0.5.0 feature surface. No new provider, schema, launcher geometry or Everything transport is introduced after beta.2. The candidate keeps settings schemaVersion 3, commands/usage schemaVersion 1, provider-cache schemaVersion 2, the five existing provider IDs, Everything default-off, the 1.4-compatible Unicode Query2/WM_COPYDATA transport and the established Classic geometry.

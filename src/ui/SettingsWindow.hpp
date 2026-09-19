@@ -184,6 +184,10 @@ private:
         kIdProviderPath = 51604;
     static constexpr UINT
         kIdProviderEverything = 51605;
+    static constexpr UINT
+        kIdProviderGetEverything = 51606;
+    static constexpr UINT
+        kIdProviderRecheckEverything = 51607;
 
     static constexpr UINT_PTR
         kProviderStatusTimerId = 0x51690;
@@ -216,6 +220,7 @@ private:
     void RefreshCommandList(
         std::wstring_view preferredId = {});
     void RefreshProviderStatus();
+    void OpenEverythingDownloadPage();
     void RefreshDataCompatibilityStatus();
     void LoadCommandEditor(
         std::wstring_view id);
@@ -403,6 +408,8 @@ private:
     HWND providerPath_{};
     HWND providerEverything_{};
     HWND providerStatus_{};
+    HWND providerGetEverything_{};
+    HWND providerRecheckEverything_{};
     HWND providerNote_{};
 
     HWND dataOpenLabel_{};

@@ -36,6 +36,225 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.5.0-rc.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 3,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(
+                f"{name}={actual}, expected frozen RC2 value {expected}"
+            )
+
+    if cpp_int(
+        "src/core/ProviderCache.cpp",
+        "kProviderCacheSchemaVersion",
+    ) != 2:
+        fail("provider-cache schema must remain 2 throughout v0.5 RC")
+
+    provider_text = read("src/core/ProviderIds.hpp")
+    for token in (
+        '"windows.startmenu"',
+        '"windows.packaged"',
+        '"windows.apppaths"',
+        '"windows.path"',
+        '"everything.filesystem"',
+        "{std::string(kStartMenu), true}",
+        "{std::string(kPackaged), true}",
+        "{std::string(kAppPaths), true}",
+        "{std::string(kPath), true}",
+        "{std::string(kEverythingFilesystem), false}",
+    ):
+        if token not in provider_text:
+            fail(f"RC2 provider/default freeze missing: {token}")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 3:
+        fail("RC2 settings.example.json must remain schemaVersion 3")
+    if settings.get("providers") != expected_providers:
+        fail("RC2 provider defaults changed after feature freeze")
+
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_hpp,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during RC2: {name}")
+
+    registry = read("src/core/ProviderRegistry.cpp")
+    if "everything.filesystem" in registry or "kEverythingFilesystem" in registry:
+        fail(
+            "Everything must remain a Dynamic Query Provider outside "
+            "the static ProviderRegistry during RC2"
+        )
+
+    protocol_h = read("src/core/EverythingIpcProtocol.hpp")
+    client_cpp = read("src/platform/EverythingIpcClient.cpp")
+    provider_cpp = read("src/core/EverythingProvider.cpp")
+    everything_source = protocol_h + client_cpp + provider_cpp
+
+    for token in (
+        "kCopyDataQuery2W = 18",
+        "discoverNamedInstances",
+        "EnumNamedEverythingWindows",
+        "ambiguousNamedInstances",
+        "inFlight_->sourceWindow",
+        "ERROR_INSUFFICIENT_BUFFER",
+        "client_.Status()",
+        "1000",
+    ):
+        if token not in everything_source:
+            fail(f"RC2 lost frozen Everything transport behavior: {token}")
+
+    for forbidden in (
+        "Everything64.dll",
+        "Everything32.dll",
+        "Everything3_",
+        r"\\.\PIPE\Everything IPC",
+        "LoadLibraryW",
+        "LoadLibraryA",
+    ):
+        if forbidden in everything_source:
+            fail(
+                "RC2 may not add an Everything DLL/SDK3 named-pipe "
+                f"dependency: {forbidden}"
+            )
+
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    settings_ui = read("src/ui/SettingsWindow.cpp")
+
+    for token in (
+        "kIdProviderGetEverything",
+        "kIdProviderRecheckEverything",
+        "providerGetEverything_",
+        "providerRecheckEverything_",
+        "OpenEverythingDownloadPage",
+    ):
+        if token not in settings_h:
+            fail(f"RC2 Everything onboarding declaration missing: {token}")
+
+    for token in (
+        "Everything not detected",
+        "未检测到 Everything",
+        "ALTRun Next does not bundle or auto-start Everything",
+        "ALTRun Next 不内置或自动启动 Everything",
+        "Get Everything",
+        "获取 Everything",
+        "Recheck",
+        "重新检测",
+        "https://www.voidtools.com/downloads/",
+        "https://www.voidtools.com/zh-cn/downloads/",
+        "ShellExecuteW",
+        "endpointMissing",
+        "showGetEverything =",
+        "showRecheck =",
+        "Application-search fallback active",
+    ):
+        if token not in settings_ui:
+            fail(f"RC2 Everything onboarding UX missing: {token}")
+
+    if "URLDownloadToFile" in settings_ui or "WinHttp" in settings_ui:
+        fail(
+            "RC2 onboarding must not become an automatic Everything "
+            "download/install manager"
+        )
+
+    validation = read("docs/V0.5_RC_VALIDATION.md")
+    for token in (
+        "Everything not detected",
+        "Get Everything opens the official voidtools download page",
+        "Recheck immediately refreshes the status",
+        "system error 2",
+    ):
+        if token not in validation:
+            fail(f"RC2 real-desktop onboarding validation missing: {token}")
+
+    if "[x]" in validation.lower():
+        fail(
+            "RC2 real-desktop validation items must not be "
+            "pre-marked as completed by automation"
+        )
+
+    runtime_test = read("tests/EverythingIpcRuntimeTests.cpp")
+    for token in (
+        "generation = 351",
+        "generation = 352",
+        'L"_(1.5b)"',
+        "status.ambiguousNamedInstances",
+        'L"drive-root"',
+        'L"unc"',
+        'L"longpath"',
+        "i < 128",
+        "500000",
+        "Mode::WrongSender",
+    ):
+        if token not in runtime_test:
+            fail(f"RC2 lost beta.2 IPC regression coverage: {token}")
+
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    for token in (
+        "settings-v0.5-alpha-everything.json",
+        "settings-v0.5-alpha-default.json",
+        "v041DowngradeRead",
+        "MigratedFromSchemaVersion",
+        "mask < 32",
+    ):
+        if token not in config_tests:
+            fail(f"RC2 lost migration/downgrade regression coverage: {token}")
+
+    package_script = read("scripts/verify_package.ps1")
+    for token in (
+        '"V0.5_RC_VALIDATION.md"',
+        '"EVERYTHING_COMPATIBILITY.md"',
+        "$allowedTopLevel",
+        "EXE fixed FileVersion",
+    ):
+        if token not in package_script:
+            fail(f"RC2 package contract missing: {token}")
+
+    for workflow_path in (
+        ".github/workflows/build.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = read(workflow_path)
+        for token in (
+            "everything_ipc_runtime_tests",
+            "V0.5_RC_VALIDATION.md",
+            "EVERYTHING_COMPATIBILITY.md",
+            "Verify package contract",
+        ):
+            if token not in workflow:
+                fail(f"{workflow_path} missing RC2 gate/package item: {token}")
+
+    roadmap = read("ROADMAP.md")
+    if "v0.5.0-rc.2 addresses real-desktop Everything onboarding" not in roadmap:
+        fail("RC2 onboarding fix is not recorded in ROADMAP.md")
+
+    print(
+        "v0.5.0-rc.2 Everything onboarding/freeze verified:",
+        "| settings=3 commands=1 usage=1 provider-cache=2",
+        "| actionable missing-IPC guidance + official download/recheck",
+        "| no dependency manager | frozen Query2/Classic contracts",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.5.0-rc.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 3,
