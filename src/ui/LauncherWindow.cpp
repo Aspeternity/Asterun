@@ -45,6 +45,7 @@ LauncherWindow::~LauncherWindow() {
     if (windowBrush_) DeleteObject(windowBrush_);
     if (controlBrush_) DeleteObject(controlBrush_);
     if (accentBrush_) DeleteObject(accentBrush_);
+    if (bottomBrush_) DeleteObject(bottomBrush_);
 }
 
 bool LauncherWindow::IsModern() const {
@@ -171,7 +172,7 @@ LauncherWindow::ThemePalette LauncherWindow::CurrentPalette() const {
 
     return {
         RGB(103, 109, 115),
-        RGB(244, 246, 248),
+        RGB(244, 245, 247),
         RGB(186, 214, 190),
         RGB(38, 41, 145),
         RGB(104, 119, 109),
@@ -196,11 +197,17 @@ void LauncherWindow::RecreateBrushes() {
         DeleteObject(accentBrush_);
         accentBrush_ = nullptr;
     }
+    if (bottomBrush_) {
+        DeleteObject(bottomBrush_);
+        bottomBrush_ = nullptr;
+    }
 
     const auto palette = CurrentPalette();
     windowBrush_ = CreateSolidBrush(palette.windowBackground);
     controlBrush_ = CreateSolidBrush(palette.controlBackground);
     accentBrush_ = CreateSolidBrush(palette.accentBackground);
+    bottomBrush_ = CreateSolidBrush(
+        IsModern() ? palette.windowBackground : RGB(181, 208, 184));
 }
 
 void LauncherWindow::ApplyFonts() {
@@ -515,67 +522,143 @@ RECT LauncherWindow::ClassicCloseRect() const {
 }
 
 void LauncherWindow::PaintClassicLogo(HDC dc, int x, int y) {
-    const int s = DpiScale(18);
+    // Clean-room recreation of the visual character of the old ALTRun emblem:
+    // a blue folded/arrow shape behind an orange five-point star.
+    const int s = DpiScale(24);
 
-    std::array<POINT, 8> star{{
-        {x + s / 2, y},
-        {x + s * 3 / 5, y + s * 2 / 5},
-        {x + s, y + s / 2},
-        {x + s * 3 / 5, y + s * 3 / 5},
-        {x + s / 2, y + s},
-        {x + s * 2 / 5, y + s * 3 / 5},
-        {x, y + s / 2},
-        {x + s * 2 / 5, y + s * 2 / 5},
-    }};
+    POINT shadow[7]{
+        {x + DpiScale(8),  y + DpiScale(2)},
+        {x + DpiScale(17), y + DpiScale(6)},
+        {x + DpiScale(24), y + DpiScale(12)},
+        {x + DpiScale(20), y + DpiScale(21)},
+        {x + DpiScale(13), y + DpiScale(23)},
+        {x + DpiScale(4),  y + DpiScale(16)},
+        {x + DpiScale(6),  y + DpiScale(7)},
+    };
 
-    HBRUSH blue = CreateSolidBrush(RGB(44, 118, 184));
-    HPEN outline = CreatePen(PS_SOLID, DpiScale(1), RGB(35, 70, 95));
-    HGDIOBJ oldBrush = SelectObject(dc, blue);
-    HGDIOBJ oldPen = SelectObject(dc, outline);
-    Polygon(dc, star.data(), static_cast<int>(star.size()));
+    HBRUSH dark = CreateSolidBrush(RGB(42, 62, 83));
+    HPEN darkPen = CreatePen(PS_SOLID, DpiScale(1), RGB(33, 47, 62));
+    HGDIOBJ oldBrush = SelectObject(dc, dark);
+    HGDIOBJ oldPen = SelectObject(dc, darkPen);
+    Polygon(dc, shadow, 7);
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(dark);
+    DeleteObject(darkPen);
+
+    POINT blueShape[7]{
+        {x + DpiScale(7),  y + DpiScale(1)},
+        {x + DpiScale(17), y + DpiScale(6)},
+        {x + DpiScale(22), y + DpiScale(11)},
+        {x + DpiScale(19), y + DpiScale(19)},
+        {x + DpiScale(13), y + DpiScale(22)},
+        {x + DpiScale(3),  y + DpiScale(15)},
+        {x + DpiScale(5),  y + DpiScale(6)},
+    };
+
+    HBRUSH blue = CreateSolidBrush(RGB(64, 124, 194));
+    HPEN bluePen = CreatePen(PS_SOLID, DpiScale(1), RGB(26, 73, 123));
+    oldBrush = SelectObject(dc, blue);
+    oldPen = SelectObject(dc, bluePen);
+    Polygon(dc, blueShape, 7);
     SelectObject(dc, oldBrush);
     SelectObject(dc, oldPen);
     DeleteObject(blue);
-    DeleteObject(outline);
+    DeleteObject(bluePen);
 
-    POINT diamond[4]{
-        {x + s / 2, y + DpiScale(3)},
-        {x + s - DpiScale(3), y + s / 2},
-        {x + s / 2, y + s - DpiScale(3)},
-        {x + DpiScale(3), y + s / 2},
+    POINT paleWing[4]{
+        {x + DpiScale(17), y + DpiScale(6)},
+        {x + DpiScale(24), y + DpiScale(10)},
+        {x + DpiScale(22), y + DpiScale(15)},
+        {x + DpiScale(18), y + DpiScale(12)},
     };
 
-    HBRUSH gold = CreateSolidBrush(RGB(247, 193, 70));
-    oldBrush = SelectObject(dc, gold);
-    Polygon(dc, diamond, 4);
+    HBRUSH pale = CreateSolidBrush(RGB(246, 226, 139));
+    HPEN palePen = CreatePen(PS_SOLID, DpiScale(1), RGB(107, 101, 72));
+    oldBrush = SelectObject(dc, pale);
+    oldPen = SelectObject(dc, palePen);
+    Polygon(dc, paleWing, 4);
     SelectObject(dc, oldBrush);
-    DeleteObject(gold);
+    SelectObject(dc, oldPen);
+    DeleteObject(pale);
+    DeleteObject(palePen);
+
+    // Ten-point polygon forming a five-point foreground star.
+    POINT star[10]{
+        {x + DpiScale(8),  y + DpiScale(5)},
+        {x + DpiScale(10), y + DpiScale(10)},
+        {x + DpiScale(15), y + DpiScale(10)},
+        {x + DpiScale(11), y + DpiScale(13)},
+        {x + DpiScale(13), y + DpiScale(18)},
+        {x + DpiScale(8),  y + DpiScale(15)},
+        {x + DpiScale(3),  y + DpiScale(19)},
+        {x + DpiScale(5),  y + DpiScale(13)},
+        {x + DpiScale(1),  y + DpiScale(10)},
+        {x + DpiScale(6),  y + DpiScale(10)},
+    };
+
+    HBRUSH orange = CreateSolidBrush(RGB(249, 168, 67));
+    HPEN starPen = CreatePen(PS_SOLID, DpiScale(1), RGB(123, 82, 34));
+    oldBrush = SelectObject(dc, orange);
+    oldPen = SelectObject(dc, starPen);
+    Polygon(dc, star, 10);
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(orange);
+    DeleteObject(starPen);
+
+    // Small highlights mimic the glossy early-Windows skin without using
+    // the original artwork.
+    HPEN highlight = CreatePen(PS_SOLID, DpiScale(1), RGB(255, 222, 153));
+    oldPen = SelectObject(dc, highlight);
+    MoveToEx(dc, x + DpiScale(3), y + DpiScale(11), nullptr);
+    LineTo(dc, x + DpiScale(8), y + DpiScale(7));
+    MoveToEx(dc, x + DpiScale(5), y + DpiScale(15), nullptr);
+    LineTo(dc, x + DpiScale(8), y + DpiScale(14));
+    SelectObject(dc, oldPen);
+    DeleteObject(highlight);
+
+    (void)s;
 }
 
 void LauncherWindow::PaintClassicClose(HDC dc, const RECT& rect) {
-    const int width = std::max(2, DpiScale(3));
+    // Chunky beveled X matching the visual weight of the original skin.
+    const int inset = DpiScale(4);
+    const int wide = std::max(4, DpiScale(6));
+    const int medium = std::max(3, DpiScale(5));
+    const int thin = std::max(1, DpiScale(2));
 
-    HPEN shadow = CreatePen(PS_SOLID, width + 1, RGB(116, 48, 45));
+    const int x1 = rect.left + inset;
+    const int y1 = rect.top + inset;
+    const int x2 = rect.right - inset;
+    const int y2 = rect.bottom - inset;
+
+    HPEN shadow = CreatePen(PS_SOLID, wide, RGB(111, 48, 48));
     HGDIOBJ oldPen = SelectObject(dc, shadow);
-
-    MoveToEx(dc, rect.left + DpiScale(4), rect.top + DpiScale(5), nullptr);
-    LineTo(dc, rect.right - DpiScale(3), rect.bottom - DpiScale(4));
-    MoveToEx(dc, rect.right - DpiScale(3), rect.top + DpiScale(5), nullptr);
-    LineTo(dc, rect.left + DpiScale(4), rect.bottom - DpiScale(4));
-
+    MoveToEx(dc, x1 + DpiScale(1), y1 + DpiScale(2), nullptr);
+    LineTo(dc, x2 + DpiScale(1), y2 + DpiScale(2));
+    MoveToEx(dc, x2 + DpiScale(1), y1 + DpiScale(2), nullptr);
+    LineTo(dc, x1 + DpiScale(1), y2 + DpiScale(2));
     SelectObject(dc, oldPen);
     DeleteObject(shadow);
 
-    HPEN red = CreatePen(PS_SOLID, width, RGB(231, 95, 87));
-    oldPen = SelectObject(dc, red);
-
-    MoveToEx(dc, rect.left + DpiScale(4), rect.top + DpiScale(4), nullptr);
-    LineTo(dc, rect.right - DpiScale(4), rect.bottom - DpiScale(5));
-    MoveToEx(dc, rect.right - DpiScale(4), rect.top + DpiScale(4), nullptr);
-    LineTo(dc, rect.left + DpiScale(4), rect.bottom - DpiScale(5));
-
+    HPEN body = CreatePen(PS_SOLID, medium, RGB(213, 85, 83));
+    oldPen = SelectObject(dc, body);
+    MoveToEx(dc, x1, y1, nullptr);
+    LineTo(dc, x2, y2);
+    MoveToEx(dc, x2, y1, nullptr);
+    LineTo(dc, x1, y2);
     SelectObject(dc, oldPen);
-    DeleteObject(red);
+    DeleteObject(body);
+
+    HPEN light = CreatePen(PS_SOLID, thin, RGB(255, 174, 160));
+    oldPen = SelectObject(dc, light);
+    MoveToEx(dc, x1 + DpiScale(1), y1, nullptr);
+    LineTo(dc, x2 - DpiScale(3), y2 - DpiScale(4));
+    MoveToEx(dc, x2 - DpiScale(1), y1, nullptr);
+    LineTo(dc, x1 + DpiScale(3), y2 - DpiScale(4));
+    SelectObject(dc, oldPen);
+    DeleteObject(light);
 }
 
 void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
@@ -604,7 +687,7 @@ void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
         DeleteObject(line);
     }
 
-    PaintClassicLogo(dc, DpiScale(9), DpiScale(6));
+    PaintClassicLogo(dc, DpiScale(8), DpiScale(3));
 
     RECT textRect = title;
     textRect.left += DpiScale(38);
@@ -892,6 +975,9 @@ LRESULT LauncherWindow::HandleEditMessage(
         case VK_RETURN:
             ExecuteSelection();
             return 0;
+        case VK_TAB:
+            MoveSelection((GetKeyState(VK_SHIFT) & 0x8000) != 0 ? -1 : 1);
+            return 0;
         case VK_ESCAPE:
             Hide();
             return 0;
@@ -932,7 +1018,7 @@ LRESULT LauncherWindow::HandleMessage(
 
             const RECT close = ClassicCloseRect();
             if (PtInRect(&close, point)) {
-                DestroyWindow(hwnd_);
+                Hide();
                 return 0;
             }
         }
@@ -1022,12 +1108,24 @@ LRESULT LauncherWindow::HandleMessage(
         const HWND control = reinterpret_cast<HWND>(lParam);
         HDC dc = reinterpret_cast<HDC>(wParam);
 
-        if (control == hint_ || control == preview_) {
+        if (control == hint_) {
             SetTextColor(dc, palette.mutedText);
 
             if (!IsModern()) {
                 SetBkColor(dc, palette.accentBackground);
                 return reinterpret_cast<LRESULT>(accentBrush_);
+            }
+
+            SetBkColor(dc, palette.windowBackground);
+            return reinterpret_cast<LRESULT>(windowBrush_);
+        }
+
+        if (control == preview_) {
+            SetTextColor(dc, palette.mutedText);
+
+            if (!IsModern()) {
+                SetBkColor(dc, RGB(181, 208, 184));
+                return reinterpret_cast<LRESULT>(bottomBrush_);
             }
 
             SetBkColor(dc, palette.windowBackground);
