@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.2.0 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,11 +18,26 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+# cpp-pinyin is linked statically. Its Mandarin dictionaries are copied next
+# to ALTRunNext.exe so the launcher remains portable and needs no installer.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(CPP_PINYIN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CPP_PINYIN_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    cpp_pinyin
+    URL https://github.com/wolfgitpr/cpp-pinyin/archive/refs/tags/1.0.2.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(cpp_pinyin)
+
 add_library(altrun_core STATIC
+    src/core/PinyinSearch.cpp
     src/core/SearchEngine.cpp
 )
 
 target_include_directories(altrun_core PUBLIC src)
+target_link_libraries(altrun_core PUBLIC cpp-pinyin::cpp-pinyin)
 
 add_library(altrun_config STATIC
     src/core/ConfigIO.cpp
@@ -42,6 +57,28 @@ foreach(target altrun_core altrun_config)
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
     endif()
 endforeach()
+
+function(altrun_copy_pinyin_runtime target)
+    add_custom_command(
+        TARGET ${target}
+        POST_BUILD
+        COMMAND
+            ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:${target}>/dict/mandarin"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_directory
+            "${cpp_pinyin_SOURCE_DIR}/res/dict/mandarin"
+            "$<TARGET_FILE_DIR:${target}>/dict/mandarin"
+        COMMAND
+            ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:${target}>/third_party"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${cpp_pinyin_SOURCE_DIR}/LICENSE"
+            "$<TARGET_FILE_DIR:${target}>/third_party/cpp-pinyin-LICENSE.txt"
+        VERBATIM
+    )
+endfunction()
 
 if(WIN32)
     enable_language(RC)
@@ -85,6 +122,8 @@ if(WIN32)
     set_target_properties(ALTRunNext PROPERTIES
         OUTPUT_NAME "ALTRunNext"
     )
+
+    altrun_copy_pinyin_runtime(ALTRunNext)
 endif()
 
 include(CTest)
@@ -92,6 +131,7 @@ if(BUILD_TESTING)
     add_executable(search_engine_tests tests/SearchEngineTests.cpp)
     target_link_libraries(search_engine_tests PRIVATE altrun_core)
     target_include_directories(search_engine_tests PRIVATE src)
+    altrun_copy_pinyin_runtime(search_engine_tests)
     add_test(NAME search_engine_tests COMMAND search_engine_tests)
 
     add_executable(config_core_tests tests/ConfigCoreTests.cpp)

@@ -40,6 +40,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
+          Copy-Item -Recurse build/Release/dict dist/dict
+          Copy-Item -Recurse build/Release/third_party dist/third_party
           Copy-Item config/*.example.* dist/
           Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
           Copy-Item VERSION dist/VERSION

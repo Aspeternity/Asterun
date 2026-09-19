@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0-alpha.1
+
+- Added the first Pinyin Search Core for Chinese shortcut and Start Menu names.
+- Added full-pinyin matching, so names such as `微信` can be found with `weixin`.
+- Added pinyin-initial matching, so `微信`, `网易云音乐` and `计算器` can be found with `wx`, `wyy` and `jsq`.
+- Added phrase-aware polyphonic conversion through cpp-pinyin 1.0.2; for example, `重庆` indexes as `chongqing`.
+- Pinyin is a derived runtime search signal only and is never persisted into `commands.json`.
+- Primary keywords and explicit aliases continue to rank above derived pinyin matches.
+- Added an in-memory pinyin-form cache so a Chinese field is converted only once per process.
+- Pinyin conversion is attempted only for Latin/digit search queries and only for fields containing supported Han characters.
+- Added graceful fallback: if the Mandarin dictionary is missing or fails to initialize, the original keyword/title/alias/fuzzy search remains fully functional.
+- Added portable Mandarin dictionaries and the cpp-pinyin Apache-2.0 license to x64/ARM64 release packages.
+- Added CI coverage for Chinese literal search, full pinyin, initials, polyphonic words, ranking priority and dictionary-missing fallback.
+- Updated Windows version metadata to `0.3.0-alpha.1`.
+
+
 ## 0.2.0-beta.1.1
 
 - Fixed cases where Settings showed a saved global hotkey while the runtime binding was not actually usable.

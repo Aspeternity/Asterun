@@ -14,6 +14,21 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.3.0-alpha.1 — Pinyin Search Core
+
+v0.3 starts the search-experience phase while keeping the launcher and Settings UI visually frozen.
+
+Chinese names now gain derived runtime search keys without changing user data:
+
+- `微信` → `weixin` / `wx`
+- `网易云音乐` → `wangyiyunyinyue` / `wyyy` (prefixes such as `wyy` also match)
+- `计算器` → `jisuanqi` / `jsq`
+- phrase-aware polyphonic conversion, e.g. `重庆` → `chongqing`
+
+Pinyin matching applies to user shortcut keywords, aliases and titles as well as automatically discovered Start Menu titles. Explicit keywords and aliases remain stronger ranking signals than generated pinyin.
+
+The conversion layer uses `cpp-pinyin 1.0.2` (Apache-2.0). Release archives include the required Mandarin dictionary under `dict/mandarin` and the dependency license under `third_party/`. If those dictionary files are missing, ALTRun Next simply falls back to the original search behavior.
+
 ## v0.2.0-beta.1.1 — Hotkey reliability hotfix
 
 This hotfix rebuilds the global-hotkey lifecycle so the Settings display reflects the real Windows registration state.
@@ -177,6 +192,7 @@ language=zh-CN
 - Persistent user commands from `data/commands.json`
 - Start Menu indexing
 - Lightweight fuzzy matching
+- Chinese full-pinyin + pinyin-initial matching
 - Frequency + recency ranking
 - x64 / ARM64 GitHub Actions builds
 

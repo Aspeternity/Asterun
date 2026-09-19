@@ -19,7 +19,9 @@ App::App(HINSTANCE instance)
           baseDirectory_ / "usage.tsv"),
       settingsStore_(
           dataDirectory_ / "settings.json",
-          baseDirectory_ / "settings.ini") {}
+          baseDirectory_ / "settings.ini"),
+      searchEngine_(
+          baseDirectory_ / "dict") {}
 
 App::~App() {
     if (hotkeyRegistered_) {
