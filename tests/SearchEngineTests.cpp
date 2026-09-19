@@ -68,6 +68,8 @@ int main(int argc, char** argv) {
         MakeCommand(L"6", L"计算器", L"计算器", L"calc-cn.exe", 5),
         MakeCommand(L"7", L"重庆银行", L"重庆银行", L"cqbank.exe", 6),
         MakeCommand(L"8", L"wx", L"WX Tool", L"wx-tool.exe", 7),
+        MakeCommand(L"9", L"terminal", L"Windows Terminal", L"wt.exe", 8),
+        MakeCommand(L"10", L"wechatdev", L"微信 DevTools", L"wechat-dev.exe", 9),
     };
 
     commands[1].aliases = {L"vscode", L"vs"};
@@ -124,6 +126,29 @@ int main(int argc, char** argv) {
     auto polyphonic = engine.Search(commands, usage, L"chongqing", 10);
     assert(!polyphonic.empty());
     assert(polyphonic.front().commandIndex == 6);
+
+    auto hybridPinyin = engine.Search(commands, usage, L"wangyy", 10);
+    assert(!hybridPinyin.empty());
+    assert(hybridPinyin.front().commandIndex == 4);
+
+    auto spacedPinyin = engine.Search(commands, usage, L"wei x", 10);
+    assert(!spacedPinyin.empty());
+    assert(spacedPinyin.front().commandIndex == 3);
+
+    auto multiWord = engine.Search(commands, usage, L"visual code", 10);
+    assert(!multiWord.empty());
+    assert(multiWord.front().commandIndex == 1);
+
+    auto englishInitials = engine.Search(commands, usage, L"wt", 10);
+    assert(!englishInitials.empty());
+    assert(englishInitials.front().commandIndex == 8);
+
+    auto mixedInitials = engine.Search(commands, usage, L"wxdt", 10);
+    assert(!mixedInitials.empty());
+    assert(mixedInitials.front().commandIndex == 9);
+
+    auto impossibleMultiWord = engine.Search(commands, usage, L"visual music", 10);
+    assert(impossibleMultiWord.empty());
 
     usage[L"3"] = UsageStat{42, 4102444800LL};
     auto frequent = engine.Search(commands, usage, L"", 10);

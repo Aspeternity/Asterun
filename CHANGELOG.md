@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0-alpha.2
+
+- Added multi-token search so spaced queries such as `visual code` can match all requested terms across a command.
+- Added English word/camel-case initials, including matches such as `Windows Terminal` -> `wt`.
+- Added hybrid pinyin matching that can mix full syllables and initials in one query, for example `网易云音乐` -> `wangyy`.
+- Added spaced pinyin token matching such as `微信` -> `wei x`.
+- Improved mixed Chinese/English abbreviation handling, including `微信 DevTools` -> `wxdt`.
+- Kept explicit user keywords and aliases ranked above automatically derived initials and pinyin.
+- Multi-token queries now require every query token to match before receiving the multi-token ranking bonus.
+- Extended SearchEngine CI tests for hybrid pinyin, spaced pinyin, multi-word search, English initials and mixed Chinese/English initials.
+- Updated Windows version metadata to `0.3.0-alpha.2`.
+
+
 ## 0.3.0-alpha.1.1
 
 - Fixed the Windows startup failure caused by a missing `cpp-pinyin.dll` in the v0.3.0-alpha.1 package.

@@ -14,6 +14,21 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.3.0-alpha.2 — Smart Search
+
+The second v0.3 alpha focuses on search ergonomics rather than UI changes.
+
+New query styles include:
+
+- `Visual Studio Code` -> `vsc`
+- `Windows Terminal` -> `wt`
+- `网易云音乐` -> `wangyy`
+- `微信` -> `wei x`
+- `微信 DevTools` -> `wxdt`
+- multi-word queries such as `visual code`
+
+Explicit user keywords and aliases still outrank automatically derived initials and pinyin forms.
+
 ## v0.3.0-alpha.1.1 — Portable runtime hotfix
 
 This hotfix fixes the Windows launch error from v0.3.0-alpha.1 where `ALTRunNext.exe` could require a missing `cpp-pinyin.dll`.

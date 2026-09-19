@@ -129,6 +129,127 @@ std::wstring NormalizeAsciiPiece(
     return output;
 }
 
+std::vector<std::string> SplitAsciiWords(
+    std::string_view value) {
+
+    std::vector<std::string> words;
+    std::string current;
+
+    auto flush = [&]() {
+        if (!current.empty()) {
+            words.push_back(current);
+            current.clear();
+        }
+    };
+
+    for (std::size_t i = 0; i < value.size(); ++i) {
+        const unsigned char ch =
+            static_cast<unsigned char>(value[i]);
+
+        if (ch >= 0x80u ||
+            !std::isalnum(ch)) {
+            flush();
+            continue;
+        }
+
+        const bool upper =
+            std::isupper(ch) != 0;
+
+        const bool previousLower =
+            !current.empty() &&
+            std::islower(
+                static_cast<unsigned char>(
+                    current.back())) != 0;
+
+        const bool previousUpper =
+            !current.empty() &&
+            std::isupper(
+                static_cast<unsigned char>(
+                    current.back())) != 0;
+
+        const bool nextLower =
+            i + 1 < value.size() &&
+            static_cast<unsigned char>(
+                value[i + 1]) < 0x80u &&
+            std::islower(
+                static_cast<unsigned char>(
+                    value[i + 1])) != 0;
+
+        if (!current.empty() &&
+            upper &&
+            (previousLower ||
+             (previousUpper &&
+              nextLower &&
+              current.size() > 1))) {
+            flush();
+        }
+
+        current.push_back(
+            static_cast<char>(ch));
+    }
+
+    flush();
+    return words;
+}
+
+bool IsShortUpperAcronym(
+    std::string_view value) {
+
+    if (value.size() < 2 ||
+        value.size() > 4) {
+        return false;
+    }
+
+    return std::all_of(
+        value.begin(),
+        value.end(),
+        [](unsigned char ch) {
+            return std::isdigit(ch) ||
+                   std::isupper(ch);
+        });
+}
+
+void AppendAsciiForms(
+    PinyinForms& forms,
+    std::string_view raw) {
+
+    const std::wstring compact =
+        NormalizeAsciiPiece(raw);
+
+    if (compact.empty()) {
+        return;
+    }
+
+    forms.full += compact;
+
+    const auto words =
+        SplitAsciiWords(raw);
+
+    if (words.empty()) {
+        forms.initials += compact;
+        forms.syllables.push_back(compact);
+        return;
+    }
+
+    for (const auto& word : words) {
+        const std::wstring normalized =
+            NormalizeAsciiPiece(word);
+
+        if (normalized.empty()) {
+            continue;
+        }
+
+        forms.syllables.push_back(normalized);
+
+        if (IsShortUpperAcronym(word)) {
+            forms.initials += normalized;
+        } else {
+            forms.initials.push_back(
+                normalized.front());
+        }
+    }
+}
+
 PinyinForms BuildForms(
     const Pinyin::Pinyin& converter,
     std::wstring_view text) {
@@ -145,26 +266,26 @@ PinyinForms BuildForms(
             false);
 
     for (const auto& item : result) {
+        if (item.error) {
+            AppendAsciiForms(
+                forms,
+                item.hanzi);
+            continue;
+        }
+
         const std::wstring normalized =
             NormalizeAsciiPiece(
-                item.error
-                    ? item.hanzi
-                    : item.pinyin);
+                item.pinyin);
 
         if (normalized.empty()) {
             continue;
         }
 
         forms.full += normalized;
-
-        if (item.error) {
-            // cpp-pinyin groups consecutive Latin letters into one result.
-            // Keep that group intact so "微信 PC" yields initials "wxpc".
-            forms.initials += normalized;
-        } else {
-            forms.initials.push_back(
-                normalized.front());
-        }
+        forms.initials.push_back(
+            normalized.front());
+        forms.syllables.push_back(
+            normalized);
     }
 
     return forms;

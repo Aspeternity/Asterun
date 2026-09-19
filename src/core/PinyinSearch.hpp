@@ -4,12 +4,14 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace altrun {
 
 struct PinyinForms {
     std::wstring full;
     std::wstring initials;
+    std::vector<std::wstring> syllables;
 };
 
 class PinyinSearch {

@@ -1134,12 +1134,12 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.3.0-alpha.1.1", L"Version 0.3.0-alpha.1.1"));
+        T(L"版本 0.3.0-alpha.2", L"Version 0.3.0-alpha.2"));
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.3 Alpha 1 加入中文全拼和拼音首字母搜索。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.3 Alpha 1 adds full-pinyin and pinyin-initial search for Chinese names."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.3 Alpha 2 加入多关键词、英文缩写和混合拼音搜索。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.3 Alpha 2 adds smarter multi-word, acronym and hybrid-pinyin search."));
 
     SetWindowTextW(
         dataPathLabel_,

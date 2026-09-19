@@ -4,6 +4,8 @@
 #include <chrono>
 #include <cmath>
 #include <cwctype>
+#include <limits>
+#include <numeric>
 #include <utility>
 
 namespace altrun {
@@ -32,6 +34,43 @@ std::wstring SearchEngine::Normalize(
     }
 
     return out;
+}
+
+std::vector<std::wstring> SearchEngine::QueryTokens(
+    std::wstring_view text) {
+
+    std::vector<std::wstring> tokens;
+    std::wstring current;
+
+    auto flush = [&]() {
+        const std::wstring normalized =
+            Normalize(current);
+
+        current.clear();
+
+        if (normalized.empty()) {
+            return;
+        }
+
+        if (std::find(
+                tokens.begin(),
+                tokens.end(),
+                normalized) ==
+            tokens.end()) {
+            tokens.push_back(normalized);
+        }
+    };
+
+    for (const wchar_t ch : text) {
+        if (std::iswspace(ch)) {
+            flush();
+        } else {
+            current.push_back(ch);
+        }
+    }
+
+    flush();
+    return tokens;
 }
 
 int SearchEngine::MatchScore(
@@ -71,7 +110,6 @@ int SearchEngine::MatchScore(
                     100));
     }
 
-    // Lightweight ordered-subsequence matching remains the final fallback.
     std::size_t qi = 0;
     int gaps = 0;
     int run = 0;
@@ -195,6 +233,194 @@ bool SearchEngine::IsPinyinQuery(
     return hasLetter;
 }
 
+std::wstring SearchEngine::WordInitials(
+    std::wstring_view field) {
+
+    std::wstring initials;
+    bool boundary = true;
+    wchar_t previous = 0;
+
+    for (std::size_t i = 0; i < field.size(); ++i) {
+        const wchar_t ch = field[i];
+
+        if (!std::iswalnum(ch) ||
+            ch > 0x7F) {
+            boundary = true;
+            previous = 0;
+            continue;
+        }
+
+        const bool upper =
+            std::iswupper(ch) != 0;
+
+        const bool previousLower =
+            previous != 0 &&
+            std::iswlower(previous) != 0;
+
+        const bool previousUpper =
+            previous != 0 &&
+            std::iswupper(previous) != 0;
+
+        const bool nextLower =
+            i + 1 < field.size() &&
+            field[i + 1] <= 0x7F &&
+            std::iswlower(field[i + 1]) != 0;
+
+        const bool camelBoundary =
+            upper &&
+            (previousLower ||
+             (previousUpper &&
+              nextLower));
+
+        if (boundary ||
+            camelBoundary) {
+            initials.push_back(
+                static_cast<wchar_t>(
+                    std::towlower(ch)));
+        }
+
+        boundary = false;
+        previous = ch;
+    }
+
+    return initials;
+}
+
+int SearchEngine::DerivedInitialMatchScore(
+    std::wstring_view field,
+    std::wstring_view normalizedQuery) {
+
+    const std::wstring initials =
+        WordInitials(field);
+
+    if (initials.size() < 2) {
+        return 0;
+    }
+
+    const int score =
+        MatchScore(
+            initials,
+            normalizedQuery);
+
+    return score > 0
+        ? std::max(1, score - 35)
+        : 0;
+}
+
+int SearchEngine::HybridPinyinPrefixScore(
+    const PinyinForms& forms,
+    std::wstring_view normalizedQuery) {
+
+    if (normalizedQuery.empty() ||
+        forms.syllables.empty()) {
+        return 0;
+    }
+
+    constexpr int kImpossible =
+        std::numeric_limits<int>::min() / 4;
+
+    std::vector<int> states(
+        normalizedQuery.size() + 1,
+        kImpossible);
+
+    states[0] = 0;
+
+    int bestComplete = kImpossible;
+
+    for (const auto& syllable : forms.syllables) {
+        if (syllable.empty()) {
+            continue;
+        }
+
+        std::vector<int> next(
+            normalizedQuery.size() + 1,
+            kImpossible);
+
+        for (std::size_t pos = 0;
+             pos <= normalizedQuery.size();
+             ++pos) {
+
+            if (states[pos] == kImpossible) {
+                continue;
+            }
+
+            if (pos == normalizedQuery.size()) {
+                bestComplete =
+                    std::max(
+                        bestComplete,
+                        states[pos]);
+                continue;
+            }
+
+            const auto remaining =
+                normalizedQuery.substr(pos);
+
+            if (remaining.size() >=
+                    syllable.size() &&
+                remaining.starts_with(
+                    syllable)) {
+
+                const std::size_t newPos =
+                    pos + syllable.size();
+
+                next[newPos] =
+                    std::max(
+                        next[newPos],
+                        states[pos] +
+                            static_cast<int>(
+                                syllable.size()) *
+                                8 +
+                            12);
+            }
+
+            if (remaining.front() ==
+                syllable.front()) {
+
+                next[pos + 1] =
+                    std::max(
+                        next[pos + 1],
+                        states[pos] + 5);
+            }
+
+            if (remaining.size() <
+                    syllable.size() &&
+                syllable.starts_with(
+                    remaining)) {
+
+                bestComplete =
+                    std::max(
+                        bestComplete,
+                        states[pos] +
+                            static_cast<int>(
+                                remaining.size()) *
+                                7 +
+                            6);
+            }
+        }
+
+        states = std::move(next);
+
+        if (states[normalizedQuery.size()] !=
+            kImpossible) {
+            bestComplete =
+                std::max(
+                    bestComplete,
+                    states[normalizedQuery.size()]);
+        }
+    }
+
+    if (bestComplete == kImpossible) {
+        return 0;
+    }
+
+    return 875 +
+        std::min(
+            75,
+            std::max(
+                0,
+                bestComplete));
+}
+
 int SearchEngine::PinyinMatchScore(
     std::wstring_view field,
     std::wstring_view normalizedQuery) const {
@@ -230,9 +456,134 @@ int SearchEngine::PinyinMatchScore(
                 initialsScore - 20);
     }
 
-    return std::max(
+    const int hybridScore =
+        HybridPinyinPrefixScore(
+            *forms,
+            normalizedQuery);
+
+    return std::max({
         fullScore,
-        initialsScore);
+        initialsScore,
+        hybridScore
+    });
+}
+
+int SearchEngine::CommandTextScore(
+    const Command& command,
+    std::wstring_view normalizedQuery) const {
+
+    if (normalizedQuery.empty()) {
+        return 0;
+    }
+
+    const int keywordScore =
+        MatchScore(
+            command.keyword,
+            normalizedQuery);
+
+    const int titleScore =
+        MatchScore(
+            command.title,
+            normalizedQuery);
+
+    const int targetScore =
+        MatchScore(
+            command.target,
+            normalizedQuery);
+
+    int aliasScore = 0;
+
+    for (const auto& alias :
+         command.aliases) {
+        aliasScore =
+            std::max(
+                aliasScore,
+                MatchScore(
+                    alias,
+                    normalizedQuery));
+    }
+
+    const int keywordInitial =
+        DerivedInitialMatchScore(
+            command.keyword,
+            normalizedQuery);
+
+    const int titleInitial =
+        DerivedInitialMatchScore(
+            command.title,
+            normalizedQuery);
+
+    int aliasInitial = 0;
+
+    for (const auto& alias :
+         command.aliases) {
+        aliasInitial =
+            std::max(
+                aliasInitial,
+                DerivedInitialMatchScore(
+                    alias,
+                    normalizedQuery));
+    }
+
+    int pinyinScore = 0;
+
+    if (pinyin_.Available() &&
+        IsPinyinQuery(normalizedQuery)) {
+
+        const int keywordPinyin =
+            PinyinMatchScore(
+                command.keyword,
+                normalizedQuery);
+
+        const int titlePinyin =
+            PinyinMatchScore(
+                command.title,
+                normalizedQuery);
+
+        int aliasPinyin = 0;
+
+        for (const auto& alias :
+             command.aliases) {
+            aliasPinyin =
+                std::max(
+                    aliasPinyin,
+                    PinyinMatchScore(
+                        alias,
+                        normalizedQuery));
+        }
+
+        pinyinScore =
+            std::max({
+                keywordPinyin > 0
+                    ? keywordPinyin + 60
+                    : 0,
+                aliasPinyin > 0
+                    ? aliasPinyin + 40
+                    : 0,
+                titlePinyin
+            });
+    }
+
+    return std::max({
+        keywordScore > 0
+            ? keywordScore + 140
+            : 0,
+        aliasScore > 0
+            ? aliasScore + 120
+            : 0,
+        titleScore,
+        targetScore > 0
+            ? std::max(1, targetScore - 120)
+            : 0,
+        keywordInitial > 0
+            ? keywordInitial + 45
+            : 0,
+        aliasInitial > 0
+            ? aliasInitial + 25
+            : 0,
+        titleInitial,
+        pinyinScore
+    });
 }
 
 std::vector<SearchResult> SearchEngine::Search(
@@ -251,9 +602,8 @@ std::vector<SearchResult> SearchEngine::Search(
     const std::wstring normalizedQuery =
         Normalize(query);
 
-    const bool usePinyin =
-        pinyin_.Available() &&
-        IsPinyinQuery(normalizedQuery);
+    const auto queryTokens =
+        QueryTokens(query);
 
     for (std::size_t i = 0;
          i < commands.size();
@@ -278,84 +628,62 @@ std::vector<SearchResult> SearchEngine::Search(
         }
 
         if (normalizedQuery.empty()) {
-            // Empty query behaves like classic ALTRun's frequent/recent list.
             if (stat == nullptr ||
                 stat->launches == 0) {
                 score -= 100;
             }
         } else {
-            const int keywordScore =
-                MatchScore(
-                    command.keyword,
+            int textScore =
+                CommandTextScore(
+                    command,
                     normalizedQuery);
 
-            const int titleScore =
-                MatchScore(
-                    command.title,
-                    normalizedQuery);
+            if (queryTokens.size() > 1) {
+                int weakest =
+                    std::numeric_limits<int>::max();
 
-            const int targetScore =
-                MatchScore(
-                    command.target,
-                    normalizedQuery);
+                int total = 0;
+                bool allTokensMatched = true;
 
-            int aliasScore = 0;
+                for (const auto& token :
+                     queryTokens) {
+                    const int tokenScore =
+                        CommandTextScore(
+                            command,
+                            token);
 
-            for (const auto& alias :
-                 command.aliases) {
-                aliasScore =
-                    std::max(
-                        aliasScore,
-                        MatchScore(
-                            alias,
-                            normalizedQuery));
-            }
+                    if (tokenScore <= 0) {
+                        allTokensMatched = false;
+                        break;
+                    }
 
-            int pinyinScore = 0;
+                    weakest =
+                        std::min(
+                            weakest,
+                            tokenScore);
 
-            if (usePinyin) {
-                const int keywordPinyin =
-                    PinyinMatchScore(
-                        command.keyword,
-                        normalizedQuery);
-
-                const int titlePinyin =
-                    PinyinMatchScore(
-                        command.title,
-                        normalizedQuery);
-
-                int aliasPinyin = 0;
-
-                for (const auto& alias :
-                     command.aliases) {
-                    aliasPinyin =
-                        std::max(
-                            aliasPinyin,
-                            PinyinMatchScore(
-                                alias,
-                                normalizedQuery));
+                    total += tokenScore;
                 }
 
-                pinyinScore =
-                    std::max({
-                        keywordPinyin > 0
-                            ? keywordPinyin + 60
-                            : 0,
-                        aliasPinyin > 0
-                            ? aliasPinyin + 40
-                            : 0,
-                        titlePinyin
-                    });
-            }
+                if (allTokensMatched) {
+                    const int average =
+                        total /
+                        static_cast<int>(
+                            queryTokens.size());
 
-            const int textScore =
-                std::max({
-                    keywordScore + 140,
-                    aliasScore + 120,
-                    titleScore,
-                    targetScore - 120,
-                    pinyinScore
-                });
+                    const int multiTokenScore =
+                        std::min(
+                            1180,
+                            weakest +
+                                average / 5 +
+                                40);
+
+                    textScore =
+                        std::max(
+                            textScore,
+                            multiTokenScore);
+                }
+            }
 
             if (textScore <= 0) {
                 continue;

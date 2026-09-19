@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -43,6 +44,9 @@ private:
     [[nodiscard]] static std::wstring Normalize(
         std::wstring_view text);
 
+    [[nodiscard]] static std::vector<std::wstring> QueryTokens(
+        std::wstring_view text);
+
     [[nodiscard]] static int MatchScore(
         std::wstring_view field,
         std::wstring_view query);
@@ -53,8 +57,23 @@ private:
     [[nodiscard]] static bool IsPinyinQuery(
         std::wstring_view normalizedQuery);
 
+    [[nodiscard]] static std::wstring WordInitials(
+        std::wstring_view field);
+
+    [[nodiscard]] static int DerivedInitialMatchScore(
+        std::wstring_view field,
+        std::wstring_view normalizedQuery);
+
+    [[nodiscard]] static int HybridPinyinPrefixScore(
+        const PinyinForms& forms,
+        std::wstring_view normalizedQuery);
+
     [[nodiscard]] int PinyinMatchScore(
         std::wstring_view field,
+        std::wstring_view normalizedQuery) const;
+
+    [[nodiscard]] int CommandTextScore(
+        const Command& command,
         std::wstring_view normalizedQuery) const;
 
     PinyinSearch pinyin_;
