@@ -5,6 +5,7 @@
 #include <commctrl.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 namespace altrun {
@@ -14,17 +15,14 @@ namespace {
 constexpr wchar_t kSettingsClass[] = L"ALTRunNext.Settings";
 constexpr wchar_t kSettingsTitle[] = L"ALTRun Next Settings";
 
-void SetCheck(HWND control, bool checked) {
-    SendMessageW(
-        control,
-        BM_SETCHECK,
-        checked ? BST_CHECKED : BST_UNCHECKED,
-        0);
-}
-
-bool IsChecked(HWND control) {
-    return SendMessageW(control, BM_GETCHECK, 0, 0) == BST_CHECKED;
-}
+constexpr COLORREF kWindowBackground = RGB(255, 255, 255);
+constexpr COLORREF kSidebarBackground = RGB(246, 247, 249);
+constexpr COLORREF kCardBackground = RGB(249, 250, 252);
+constexpr COLORREF kCardPressed = RGB(243, 246, 249);
+constexpr COLORREF kBorder = RGB(225, 229, 235);
+constexpr COLORREF kText = RGB(31, 41, 55);
+constexpr COLORREF kMuted = RGB(100, 107, 116);
+constexpr COLORREF kAccent = RGB(0, 120, 212);
 
 } // namespace
 
@@ -35,8 +33,10 @@ SettingsWindow::~SettingsWindow() {
     if (normalFont_) DeleteObject(normalFont_);
     if (titleFont_) DeleteObject(titleFont_);
     if (appNameFont_) DeleteObject(appNameFont_);
+    if (sectionFont_) DeleteObject(sectionFont_);
     if (backgroundBrush_) DeleteObject(backgroundBrush_);
     if (sidebarBrush_) DeleteObject(sidebarBrush_);
+    if (cardBrush_) DeleteObject(cardBrush_);
 }
 
 const wchar_t* SettingsWindow::T(
@@ -75,11 +75,11 @@ bool SettingsWindow::Create() {
         WS_EX_APPWINDOW,
         kSettingsClass,
         kSettingsTitle,
-        WS_OVERLAPPEDWINDOW,
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         900,
-        620,
+        640,
         nullptr,
         nullptr,
         instance_,
@@ -94,11 +94,12 @@ bool SettingsWindow::Create() {
         nullptr,
         0, 0,
         Scale(900),
-        Scale(620),
+        Scale(640),
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
-    backgroundBrush_ = CreateSolidBrush(RGB(255, 255, 255));
-    sidebarBrush_ = CreateSolidBrush(RGB(246, 247, 249));
+    backgroundBrush_ = CreateSolidBrush(kWindowBackground);
+    sidebarBrush_ = CreateSolidBrush(kSidebarBackground);
+    cardBrush_ = CreateSolidBrush(kCardBackground);
 
     CreateControls();
     ApplyFonts();
@@ -145,14 +146,14 @@ HWND SettingsWindow::CreateButton(
         nullptr);
 }
 
-HWND SettingsWindow::CreateCheckbox(
+HWND SettingsWindow::CreateCheckboxRow(
     const wchar_t* text,
     UINT id) {
 
     return CreateButton(
         text,
         id,
-        BS_AUTOCHECKBOX | BS_FLAT);
+        BS_OWNERDRAW);
 }
 
 void SettingsWindow::CreateControls() {
@@ -171,16 +172,22 @@ void SettingsWindow::CreateControls() {
 }
 
 void SettingsWindow::CreateGeneralPage() {
-    hideAfterLaunch_ =
-        CreateCheckbox(L"", kIdHideAfterLaunch);
-    clearQueryOnShow_ =
-        CreateCheckbox(L"", kIdClearQueryOnShow);
-    hideOnFocusLost_ =
-        CreateCheckbox(L"", kIdHideOnFocusLost);
-    showTrayIcon_ =
-        CreateCheckbox(L"", kIdShowTrayIcon);
+    generalBehaviorTitle_ = CreateStatic(L"");
 
+    hideAfterLaunch_ =
+        CreateCheckboxRow(L"", kIdHideAfterLaunch);
+    clearQueryOnShow_ =
+        CreateCheckboxRow(L"", kIdClearQueryOnShow);
+    hideOnFocusLost_ =
+        CreateCheckboxRow(L"", kIdHideOnFocusLost);
+    showTrayIcon_ =
+        CreateCheckboxRow(L"", kIdShowTrayIcon);
+
+    popupSectionTitle_ = CreateStatic(L"");
     popupMonitorLabel_ = CreateStatic(L"");
+    popupMonitorDescription_ = CreateStatic(
+        L"",
+        SS_LEFT | SS_NOPREFIX);
 
     popupMonitor_ = CreateWindowExW(
         0,
@@ -200,11 +207,14 @@ void SettingsWindow::CreateGeneralPage() {
         SS_LEFT | SS_NOPREFIX);
 
     generalControls_ = {
+        generalBehaviorTitle_,
         hideAfterLaunch_,
         clearQueryOnShow_,
         hideOnFocusLost_,
         showTrayIcon_,
+        popupSectionTitle_,
         popupMonitorLabel_,
+        popupMonitorDescription_,
         popupMonitor_,
         generalNote_,
     };
@@ -295,6 +305,10 @@ void SettingsWindow::ApplyFonts() {
         DeleteObject(appNameFont_);
         appNameFont_ = nullptr;
     }
+    if (sectionFont_) {
+        DeleteObject(sectionFont_);
+        sectionFont_ = nullptr;
+    }
 
     const wchar_t* face =
         app_.SettingsData().language == Language::ZhCN
@@ -305,6 +319,18 @@ void SettingsWindow::ApplyFonts() {
         -MulDiv(10, static_cast<int>(dpi_), 72),
         0, 0, 0,
         FW_NORMAL,
+        FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE,
+        face);
+
+    sectionFont_ = CreateFontW(
+        -MulDiv(11, static_cast<int>(dpi_), 72),
+        0, 0, 0,
+        FW_SEMIBOLD,
         FALSE, FALSE, FALSE,
         DEFAULT_CHARSET,
         OUT_DEFAULT_PRECIS,
@@ -342,11 +368,8 @@ void SettingsWindow::ApplyFonts() {
         navAppearance_,
         navAbout_,
         pageDescription_,
-        hideAfterLaunch_,
-        clearQueryOnShow_,
-        hideOnFocusLost_,
-        showTrayIcon_,
         popupMonitorLabel_,
+        popupMonitorDescription_,
         popupMonitor_,
         generalNote_,
         uiStyleLabel_,
@@ -372,6 +395,18 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
+    for (HWND control : std::array<HWND, 2>{
+             generalBehaviorTitle_,
+             popupSectionTitle_}) {
+        if (control) {
+            SendMessageW(
+                control,
+                WM_SETFONT,
+                reinterpret_cast<WPARAM>(sectionFont_),
+                TRUE);
+        }
+    }
+
     if (pageTitle_) {
         SendMessageW(
             pageTitle_,
@@ -387,6 +422,20 @@ void SettingsWindow::ApplyFonts() {
             reinterpret_cast<WPARAM>(appNameFont_),
             TRUE);
     }
+
+    for (HWND control : std::array<HWND, 4>{
+             hideAfterLaunch_,
+             clearQueryOnShow_,
+             hideOnFocusLost_,
+             showTrayIcon_}) {
+        if (control) {
+            SendMessageW(
+                control,
+                WM_SETFONT,
+                reinterpret_cast<WPARAM>(normalFont_),
+                TRUE);
+        }
+    }
 }
 
 void SettingsWindow::ApplyLanguage() {
@@ -399,28 +448,37 @@ void SettingsWindow::ApplyLanguage() {
         T(L"ALTRun Next 设置", L"ALTRun Next Settings"));
 
     SetWindowTextW(
+        generalBehaviorTitle_,
+        T(L"启动器行为", L"Launcher behavior"));
+
+    SetWindowTextW(
         hideAfterLaunch_,
-        T(L"执行快捷项后自动隐藏启动器",
-          L"Hide launcher after executing a command"));
+        T(L"执行后自动隐藏", L"Hide after launch"));
 
     SetWindowTextW(
         clearQueryOnShow_,
-        T(L"每次呼出时清空搜索内容",
-          L"Clear search query whenever the launcher opens"));
+        T(L"呼出时清空搜索", L"Clear query on open"));
 
     SetWindowTextW(
         hideOnFocusLost_,
-        T(L"启动器失去焦点时自动隐藏",
-          L"Hide launcher when it loses focus"));
+        T(L"失去焦点时隐藏", L"Hide when focus is lost"));
 
     SetWindowTextW(
         showTrayIcon_,
-        T(L"显示系统托盘图标",
-          L"Show system tray icon"));
+        T(L"显示系统托盘图标", L"Show system tray icon"));
+
+    SetWindowTextW(
+        popupSectionTitle_,
+        T(L"呼出位置", L"Launcher placement"));
 
     SetWindowTextW(
         popupMonitorLabel_,
-        T(L"启动器呼出位置", L"Launcher monitor"));
+        T(L"显示器", L"Monitor"));
+
+    SetWindowTextW(
+        popupMonitorDescription_,
+        T(L"选择启动器每次呼出时使用哪一块屏幕。",
+          L"Choose which display the launcher uses when it opens."));
 
     SetWindowTextW(
         generalNote_,
@@ -486,7 +544,7 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutVersion_,
-        T(L"版本 0.2.0-alpha.2", L"Version 0.2.0-alpha.2"));
+        T(L"版本 0.2.0-alpha.2.1", L"Version 0.2.0-alpha.2.1"));
 
     SetWindowTextW(
         aboutDescription_,
@@ -515,7 +573,12 @@ void SettingsWindow::ApplyLanguage() {
     RefreshFromSettings();
 
     syncing_ = false;
-    InvalidateRect(hwnd_, nullptr, TRUE);
+
+    RedrawWindow(
+        hwnd_,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
 void SettingsWindow::RefreshFromSettings() {
@@ -524,11 +587,6 @@ void SettingsWindow::RefreshFromSettings() {
     syncing_ = true;
 
     const auto& settings = app_.SettingsData();
-
-    SetCheck(hideAfterLaunch_, settings.hideAfterLaunch);
-    SetCheck(clearQueryOnShow_, settings.clearQueryOnShow);
-    SetCheck(hideOnFocusLost_, settings.hideOnFocusLost);
-    SetCheck(showTrayIcon_, settings.showTrayIcon);
 
     int monitorIndex = 0;
     if (settings.popupMonitor == "active") monitorIndex = 1;
@@ -551,6 +609,14 @@ void SettingsWindow::RefreshFromSettings() {
         CB_SETCURSEL,
         settings.language == Language::EnUS ? 1 : 0,
         0);
+
+    for (HWND control : std::array<HWND, 4>{
+             hideAfterLaunch_,
+             clearQueryOnShow_,
+             hideOnFocusLost_,
+             showTrayIcon_}) {
+        if (control) InvalidateRect(control, nullptr, TRUE);
+    }
 
     syncing_ = false;
 }
@@ -631,12 +697,74 @@ void SettingsWindow::ShowPage(Page page) {
     UpdateNavLabels();
     UpdatePageHeader();
     Layout();
+
+    // Static controls use opaque backgrounds now, and the full redraw below
+    // also guarantees that switching pages never leaves stale glyphs behind.
+    RedrawWindow(
+        hwnd_,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
-void SettingsWindow::ApplyGeneralControls() {
+bool SettingsWindow::ToggleChecked(UINT id) const {
+    const auto& settings = app_.SettingsData();
+
+    switch (id) {
+    case kIdHideAfterLaunch:
+        return settings.hideAfterLaunch;
+    case kIdClearQueryOnShow:
+        return settings.clearQueryOnShow;
+    case kIdHideOnFocusLost:
+        return settings.hideOnFocusLost;
+    case kIdShowTrayIcon:
+        return settings.showTrayIcon;
+    default:
+        return false;
+    }
+}
+
+void SettingsWindow::ToggleGeneralSetting(UINT id) {
     if (syncing_) return;
 
-    int monitorIndex =
+    const auto settings = app_.SettingsData();
+
+    bool hideAfterLaunch = settings.hideAfterLaunch;
+    bool clearQueryOnShow = settings.clearQueryOnShow;
+    bool hideOnFocusLost = settings.hideOnFocusLost;
+    bool showTrayIcon = settings.showTrayIcon;
+
+    switch (id) {
+    case kIdHideAfterLaunch:
+        hideAfterLaunch = !hideAfterLaunch;
+        break;
+    case kIdClearQueryOnShow:
+        clearQueryOnShow = !clearQueryOnShow;
+        break;
+    case kIdHideOnFocusLost:
+        hideOnFocusLost = !hideOnFocusLost;
+        break;
+    case kIdShowTrayIcon:
+        showTrayIcon = !showTrayIcon;
+        break;
+    default:
+        return;
+    }
+
+    app_.SetGeneralSettings(
+        hideAfterLaunch,
+        clearQueryOnShow,
+        hideOnFocusLost,
+        showTrayIcon,
+        settings.popupMonitor);
+}
+
+void SettingsWindow::ApplyMonitorControl() {
+    if (syncing_) return;
+
+    const auto settings = app_.SettingsData();
+
+    const int monitorIndex =
         static_cast<int>(SendMessageW(
             popupMonitor_,
             CB_GETCURSEL,
@@ -648,10 +776,10 @@ void SettingsWindow::ApplyGeneralControls() {
     else if (monitorIndex == 2) popupMonitor = "primary";
 
     app_.SetGeneralSettings(
-        IsChecked(hideAfterLaunch_),
-        IsChecked(clearQueryOnShow_),
-        IsChecked(hideOnFocusLost_),
-        IsChecked(showTrayIcon_),
+        settings.hideAfterLaunch,
+        settings.clearQueryOnShow,
+        settings.hideOnFocusLost,
+        settings.showTrayIcon,
         std::move(popupMonitor));
 }
 
@@ -689,6 +817,46 @@ void SettingsWindow::ApplyAppearanceControls() {
     if (language != app_.SettingsData().language) {
         app_.SetLanguage(language);
     }
+}
+
+RECT SettingsWindow::BehaviorCardRect() const {
+    RECT client{};
+    GetClientRect(hwnd_, &client);
+
+    const int sidebar = Scale(kSidebarWidthLogical);
+    const int contentLeft = sidebar + Scale(42);
+    const int contentRight = client.right - Scale(42);
+    const int contentWidth =
+        std::max(Scale(320), contentRight - contentLeft);
+    const int cardWidth =
+        std::min(contentWidth, Scale(590));
+
+    return {
+        contentLeft,
+        Scale(176),
+        contentLeft + cardWidth,
+        Scale(176 + 58 * 4),
+    };
+}
+
+RECT SettingsWindow::MonitorCardRect() const {
+    RECT client{};
+    GetClientRect(hwnd_, &client);
+
+    const int sidebar = Scale(kSidebarWidthLogical);
+    const int contentLeft = sidebar + Scale(42);
+    const int contentRight = client.right - Scale(42);
+    const int contentWidth =
+        std::max(Scale(320), contentRight - contentLeft);
+    const int cardWidth =
+        std::min(contentWidth, Scale(590));
+
+    return {
+        contentLeft,
+        Scale(468),
+        contentLeft + cardWidth,
+        Scale(550),
+    };
 }
 
 void SettingsWindow::Layout() {
@@ -729,12 +897,13 @@ void SettingsWindow::Layout() {
 
     const int contentLeft = sidebar + Scale(42);
     const int contentRight = client.right - Scale(42);
-    const int contentWidth = std::max(Scale(320), contentRight - contentLeft);
+    const int contentWidth =
+        std::max(Scale(320), contentRight - contentLeft);
 
     MoveWindow(
         pageTitle_,
         contentLeft,
-        Scale(36),
+        Scale(34),
         contentWidth,
         Scale(42),
         TRUE);
@@ -744,54 +913,91 @@ void SettingsWindow::Layout() {
         contentLeft,
         Scale(82),
         contentWidth,
-        Scale(42),
+        Scale(40),
         TRUE);
 
     const int x = contentLeft;
     const int y = Scale(150);
-    const int controlWidth = std::min(contentWidth, Scale(570));
-    const int row = Scale(42);
+    const int controlWidth =
+        std::min(contentWidth, Scale(590));
 
     if (page_ == Page::General) {
         MoveWindow(
+            generalBehaviorTitle_,
+            x,
+            Scale(142),
+            controlWidth,
+            Scale(28),
+            TRUE);
+
+        const RECT behavior = BehaviorCardRect();
+        const int rowHeight = Scale(58);
+        const int rowX = behavior.left + Scale(1);
+        const int rowWidth =
+            behavior.right - behavior.left - Scale(2);
+
+        std::array<HWND, 4> rows{
             hideAfterLaunch_,
-            x, y,
-            controlWidth, Scale(28), TRUE);
-
-        MoveWindow(
             clearQueryOnShow_,
-            x, y + row,
-            controlWidth, Scale(28), TRUE);
-
-        MoveWindow(
             hideOnFocusLost_,
-            x, y + row * 2,
-            controlWidth, Scale(28), TRUE);
+            showTrayIcon_,
+        };
+
+        for (std::size_t i = 0; i < rows.size(); ++i) {
+            MoveWindow(
+                rows[i],
+                rowX,
+                behavior.top + Scale(1) +
+                    static_cast<int>(i) * rowHeight,
+                rowWidth,
+                rowHeight,
+                TRUE);
+        }
 
         MoveWindow(
-            showTrayIcon_,
-            x, y + row * 3,
-            controlWidth, Scale(28), TRUE);
+            popupSectionTitle_,
+            x,
+            Scale(434),
+            controlWidth,
+            Scale(28),
+            TRUE);
+
+        const RECT monitor = MonitorCardRect();
+        const int monitorWidth =
+            monitor.right - monitor.left;
 
         MoveWindow(
             popupMonitorLabel_,
-            x, y + row * 4 + Scale(12),
-            Scale(190), Scale(28), TRUE);
+            monitor.left + Scale(18),
+            monitor.top + Scale(14),
+            Scale(220),
+            Scale(24),
+            TRUE);
+
+        MoveWindow(
+            popupMonitorDescription_,
+            monitor.left + Scale(18),
+            monitor.top + Scale(40),
+            std::max(
+                Scale(180),
+                monitorWidth - Scale(330)),
+            Scale(30),
+            TRUE);
 
         MoveWindow(
             popupMonitor_,
-            x,
-            y + row * 4 + Scale(45),
-            Scale(320),
+            monitor.right - Scale(278),
+            monitor.top + Scale(23),
+            Scale(250),
             Scale(220),
             TRUE);
 
         MoveWindow(
             generalNote_,
             x,
-            y + row * 4 + Scale(92),
+            Scale(568),
             controlWidth,
-            Scale(48),
+            Scale(36),
             TRUE);
     }
 
@@ -857,6 +1063,206 @@ void SettingsWindow::Layout() {
             openGitHub_,
             x + Scale(196), y + Scale(270),
             Scale(120), Scale(38), TRUE);
+    }
+}
+
+void SettingsWindow::DrawGeneralToggle(
+    const DRAWITEMSTRUCT& item) {
+
+    RECT rect = item.rcItem;
+
+    const COLORREF rowBackground =
+        (item.itemState & ODS_SELECTED)
+            ? kCardPressed
+            : kCardBackground;
+
+    HBRUSH rowBrush = CreateSolidBrush(rowBackground);
+    FillRect(item.hDC, &rect, rowBrush);
+    DeleteObject(rowBrush);
+
+    const UINT id = static_cast<UINT>(item.CtlID);
+    const bool checked = ToggleChecked(id);
+
+    const int boxSize = Scale(20);
+    const int boxLeft = rect.left + Scale(18);
+    const int boxTop =
+        rect.top + (rect.bottom - rect.top - boxSize) / 2;
+
+    RECT box{
+        boxLeft,
+        boxTop,
+        boxLeft + boxSize,
+        boxTop + boxSize,
+    };
+
+    HBRUSH boxBrush =
+        CreateSolidBrush(
+            checked ? kAccent : RGB(255, 255, 255));
+    HPEN boxPen =
+        CreatePen(
+            PS_SOLID,
+            std::max(1, Scale(1)),
+            checked ? kAccent : RGB(166, 174, 184));
+
+    HGDIOBJ oldBrush =
+        SelectObject(item.hDC, boxBrush);
+    HGDIOBJ oldPen =
+        SelectObject(item.hDC, boxPen);
+
+    RoundRect(
+        item.hDC,
+        box.left,
+        box.top,
+        box.right,
+        box.bottom,
+        Scale(5),
+        Scale(5));
+
+    SelectObject(item.hDC, oldBrush);
+    SelectObject(item.hDC, oldPen);
+    DeleteObject(boxBrush);
+    DeleteObject(boxPen);
+
+    if (checked) {
+        HPEN checkPen =
+            CreatePen(
+                PS_SOLID,
+                std::max(2, Scale(2)),
+                RGB(255, 255, 255));
+
+        oldPen = SelectObject(item.hDC, checkPen);
+
+        MoveToEx(
+            item.hDC,
+            box.left + Scale(5),
+            box.top + Scale(10),
+            nullptr);
+
+        LineTo(
+            item.hDC,
+            box.left + Scale(9),
+            box.top + Scale(14));
+
+        LineTo(
+            item.hDC,
+            box.left + Scale(16),
+            box.top + Scale(6));
+
+        SelectObject(item.hDC, oldPen);
+        DeleteObject(checkPen);
+    }
+
+    const wchar_t* title = L"";
+    const wchar_t* description = L"";
+
+    switch (id) {
+    case kIdHideAfterLaunch:
+        title = T(
+            L"执行后自动隐藏",
+            L"Hide after launch");
+        description = T(
+            L"成功启动快捷项后自动收起启动器。",
+            L"Automatically close the launcher after a command starts.");
+        break;
+
+    case kIdClearQueryOnShow:
+        title = T(
+            L"呼出时清空搜索",
+            L"Clear query on open");
+        description = T(
+            L"每次呼出启动器时从空白搜索开始。",
+            L"Start with an empty search every time the launcher opens.");
+        break;
+
+    case kIdHideOnFocusLost:
+        title = T(
+            L"失去焦点时隐藏",
+            L"Hide when focus is lost");
+        description = T(
+            L"切换到其他窗口时自动收起启动器。",
+            L"Hide the launcher automatically when another window is focused.");
+        break;
+
+    case kIdShowTrayIcon:
+        title = T(
+            L"显示系统托盘图标",
+            L"Show system tray icon");
+        description = T(
+            L"保留托盘入口，用于打开设置、重新加载或退出。",
+            L"Keep the tray entry for Settings, reload and exit actions.");
+        break;
+
+    default:
+        break;
+    }
+
+    SetBkMode(item.hDC, TRANSPARENT);
+
+    RECT titleRect{
+        box.right + Scale(14),
+        rect.top + Scale(8),
+        rect.right - Scale(16),
+        rect.top + Scale(31),
+    };
+
+    HGDIOBJ oldFont =
+        SelectObject(item.hDC, sectionFont_);
+
+    SetTextColor(item.hDC, kText);
+    DrawTextW(
+        item.hDC,
+        title,
+        -1,
+        &titleRect,
+        DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+
+    RECT descriptionRect{
+        titleRect.left,
+        rect.top + Scale(31),
+        titleRect.right,
+        rect.bottom - Scale(7),
+    };
+
+    SelectObject(item.hDC, normalFont_);
+    SetTextColor(item.hDC, kMuted);
+    DrawTextW(
+        item.hDC,
+        description,
+        -1,
+        &descriptionRect,
+        DT_LEFT | DT_SINGLELINE | DT_VCENTER |
+            DT_END_ELLIPSIS | DT_NOPREFIX);
+
+    SelectObject(item.hDC, oldFont);
+
+    if (id != kIdShowTrayIcon) {
+        HPEN separator =
+            CreatePen(
+                PS_SOLID,
+                1,
+                kBorder);
+
+        oldPen = SelectObject(item.hDC, separator);
+
+        MoveToEx(
+            item.hDC,
+            rect.left + Scale(52),
+            rect.bottom - 1,
+            nullptr);
+
+        LineTo(
+            item.hDC,
+            rect.right - Scale(14),
+            rect.bottom - 1);
+
+        SelectObject(item.hDC, oldPen);
+        DeleteObject(separator);
+    }
+
+    if (item.itemState & ODS_FOCUS) {
+        RECT focus = rect;
+        InflateRect(&focus, -Scale(6), -Scale(5));
+        DrawFocusRect(item.hDC, &focus);
     }
 }
 
@@ -978,28 +1384,53 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdClearQueryOnShow:
         case kIdHideOnFocusLost:
         case kIdShowTrayIcon:
-            if (notify == BN_CLICKED) ApplyGeneralControls();
+            if (notify == BN_CLICKED) {
+                ToggleGeneralSetting(id);
+            }
             return 0;
 
         case kIdPopupMonitor:
-            if (notify == CBN_SELCHANGE) ApplyGeneralControls();
+            if (notify == CBN_SELCHANGE) {
+                ApplyMonitorControl();
+            }
             return 0;
 
         case kIdUiStyle:
         case kIdLanguage:
-            if (notify == CBN_SELCHANGE) ApplyAppearanceControls();
+            if (notify == CBN_SELCHANGE) {
+                ApplyAppearanceControls();
+            }
             return 0;
 
         case kIdOpenDataFolder:
-            if (notify == BN_CLICKED) app_.OpenDataFolder();
+            if (notify == BN_CLICKED) {
+                app_.OpenDataFolder();
+            }
             return 0;
 
         case kIdOpenGitHub:
-            if (notify == BN_CLICKED) app_.OpenProjectPage();
+            if (notify == BN_CLICKED) {
+                app_.OpenProjectPage();
+            }
             return 0;
 
         default:
             break;
+        }
+        break;
+    }
+
+    case WM_DRAWITEM: {
+        const auto* item =
+            reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+
+        if (item &&
+            (item->CtlID == kIdHideAfterLaunch ||
+             item->CtlID == kIdClearQueryOnShow ||
+             item->CtlID == kIdHideOnFocusLost ||
+             item->CtlID == kIdShowTrayIcon)) {
+            DrawGeneralToggle(*item);
+            return TRUE;
         }
         break;
     }
@@ -1024,46 +1455,102 @@ LRESULT SettingsWindow::HandleMessage(
             CreatePen(
                 PS_SOLID,
                 1,
-                RGB(229, 231, 235));
+                kBorder);
 
         HGDIOBJ oldPen =
             SelectObject(dc, separator);
 
-        const int x = Scale(kSidebarWidthLogical);
-        MoveToEx(dc, x, client.top, nullptr);
-        LineTo(dc, x, client.bottom);
+        const int sidebarX =
+            Scale(kSidebarWidthLogical);
+
+        MoveToEx(
+            dc,
+            sidebarX,
+            client.top,
+            nullptr);
+
+        LineTo(
+            dc,
+            sidebarX,
+            client.bottom);
 
         SelectObject(dc, oldPen);
         DeleteObject(separator);
+
+        if (page_ == Page::General) {
+            for (const RECT card : std::array<RECT, 2>{
+                     BehaviorCardRect(),
+                     MonitorCardRect()}) {
+                HBRUSH fill =
+                    CreateSolidBrush(kCardBackground);
+                HPEN border =
+                    CreatePen(
+                        PS_SOLID,
+                        1,
+                        kBorder);
+
+                HGDIOBJ previousBrush =
+                    SelectObject(dc, fill);
+                HGDIOBJ previousPen =
+                    SelectObject(dc, border);
+
+                RoundRect(
+                    dc,
+                    card.left,
+                    card.top,
+                    card.right,
+                    card.bottom,
+                    Scale(8),
+                    Scale(8));
+
+                SelectObject(dc, previousBrush);
+                SelectObject(dc, previousPen);
+                DeleteObject(fill);
+                DeleteObject(border);
+            }
+        }
 
         EndPaint(hwnd_, &paint);
         return 0;
     }
 
+    case WM_ERASEBKGND:
+        return 1;
+
     case WM_CTLCOLORSTATIC: {
         HDC dc = reinterpret_cast<HDC>(wParam);
         HWND control = reinterpret_cast<HWND>(lParam);
 
-        SetBkMode(dc, TRANSPARENT);
+        const bool cardStatic =
+            control == popupMonitorLabel_ ||
+            control == popupMonitorDescription_;
+
+        const COLORREF background =
+            cardStatic ? kCardBackground : kWindowBackground;
+
+        SetBkMode(dc, OPAQUE);
+        SetBkColor(dc, background);
 
         if (control == pageDescription_ ||
             control == generalNote_ ||
+            control == popupMonitorDescription_ ||
             control == appearanceNote_ ||
             control == aboutVersion_ ||
             control == aboutDescription_ ||
             control == dataPathLabel_ ||
             control == dataPath_) {
-            SetTextColor(dc, RGB(100, 107, 116));
+            SetTextColor(dc, kMuted);
         } else {
-            SetTextColor(dc, RGB(31, 41, 55));
+            SetTextColor(dc, kText);
         }
 
         return reinterpret_cast<LRESULT>(
-            GetStockObject(HOLLOW_BRUSH));
+            cardStatic ? cardBrush_ : backgroundBrush_);
     }
 
     case WM_SIZE:
         Layout();
+        InvalidateRect(hwnd_, nullptr, TRUE);
         return 0;
 
     case WM_DPICHANGED: {
@@ -1083,6 +1570,13 @@ LRESULT SettingsWindow::HandleMessage(
 
         ApplyFonts();
         Layout();
+
+        RedrawWindow(
+            hwnd_,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE | RDW_ERASE |
+                RDW_ALLCHILDREN | RDW_UPDATENOW);
         return 0;
     }
 
@@ -1091,7 +1585,7 @@ LRESULT SettingsWindow::HandleMessage(
             reinterpret_cast<MINMAXINFO*>(lParam);
 
         info->ptMinTrackSize.x = Scale(760);
-        info->ptMinTrackSize.y = Scale(520);
+        info->ptMinTrackSize.y = Scale(540);
         return 0;
     }
 

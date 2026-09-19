@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0-alpha.2.1
+
+- Fixed Settings page-switch text ghosting caused by transparent STATIC control backgrounds.
+- Added full content redraw when switching Settings pages and changing language.
+- Rebuilt the General page into clearly separated Launcher behavior and Launcher placement sections.
+- Replaced tiny native checkboxes with full-width owner-drawn setting rows and 20 logical px check indicators.
+- Added concise secondary descriptions for every General toggle.
+- Added card borders and row separators for clearer visual grouping.
+- Improved spacing and slightly increased the Settings window height for the new layout.
+- Kept Command Manager work reserved for v0.2.0-alpha.3.
+
+
 ## 0.2.0-alpha.2
 
 - Added an independent modern Win32 Settings Shell.

@@ -62,8 +62,10 @@ private:
     void ShowPage(Page page);
     void UpdateNavLabels();
     void UpdatePageHeader();
-    void ApplyGeneralControls();
+    void ToggleGeneralSetting(UINT id);
+    void ApplyMonitorControl();
     void ApplyAppearanceControls();
+    void DrawGeneralToggle(const DRAWITEMSTRUCT& item);
 
     HWND CreateStatic(
         const wchar_t* text,
@@ -75,9 +77,13 @@ private:
         UINT id,
         DWORD style = BS_PUSHBUTTON | BS_FLAT);
 
-    HWND CreateCheckbox(
+    HWND CreateCheckboxRow(
         const wchar_t* text,
         UINT id);
+
+    [[nodiscard]] bool ToggleChecked(UINT id) const;
+    [[nodiscard]] RECT BehaviorCardRect() const;
+    [[nodiscard]] RECT MonitorCardRect() const;
 
     int Scale(int value) const;
     const wchar_t* T(const wchar_t* zh, const wchar_t* en) const;
@@ -92,11 +98,14 @@ private:
     HWND pageTitle_{};
     HWND pageDescription_{};
 
+    HWND generalBehaviorTitle_{};
     HWND hideAfterLaunch_{};
     HWND clearQueryOnShow_{};
     HWND hideOnFocusLost_{};
     HWND showTrayIcon_{};
+    HWND popupSectionTitle_{};
     HWND popupMonitorLabel_{};
+    HWND popupMonitorDescription_{};
     HWND popupMonitor_{};
     HWND generalNote_{};
 
@@ -117,8 +126,10 @@ private:
     HFONT normalFont_{};
     HFONT titleFont_{};
     HFONT appNameFont_{};
+    HFONT sectionFont_{};
     HBRUSH backgroundBrush_{};
     HBRUSH sidebarBrush_{};
+    HBRUSH cardBrush_{};
 
     UINT dpi_{96};
     Page page_{Page::General};
