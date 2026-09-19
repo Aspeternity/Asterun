@@ -60,6 +60,7 @@ int main() {
     assert(!frequent.empty());
     assert(frequent.front().commandIndex == 2);
 
+    usage.clear();
     commands[0].pinned = true;
     auto pinned = engine.Search(commands, usage, L"", 10);
     assert(!pinned.empty());
