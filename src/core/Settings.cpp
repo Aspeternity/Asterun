@@ -114,7 +114,7 @@ bool SettingsStore::LoadJson() {
     auto load =
         config::LoadJsonWithBackup(
             jsonPath_,
-            config::kSchemaVersion);
+            config::kSettingsSchemaVersion);
 
     recoveredFromBackup_ =
         load.status ==
@@ -187,6 +187,11 @@ bool SettingsStore::LoadJson() {
                     "startWithWindows",
                     settings_
                         .startWithWindows);
+            settings_.showOnStartup =
+                general.value(
+                    "showOnStartup",
+                    settings_
+                        .showOnStartup);
             settings_.hideAfterLaunch =
                 general.value(
                     "hideAfterLaunch",
@@ -258,6 +263,91 @@ bool SettingsStore::LoadJson() {
                         .push_back("alt");
                 }
             }
+
+            if (hotkey.contains(
+                    "auxiliary") &&
+                hotkey["auxiliary"]
+                    .is_object()) {
+
+                const auto& auxiliary =
+                    hotkey["auxiliary"];
+
+                settings_
+                    .auxiliaryHotkeyEnabled =
+                        auxiliary.value(
+                            "enabled",
+                            settings_
+                                .auxiliaryHotkeyEnabled);
+
+                settings_.auxiliaryHotkeyKey =
+                    LowerAscii(
+                        auxiliary.value(
+                            "key",
+                            settings_
+                                .auxiliaryHotkeyKey));
+
+                if (auxiliary.contains(
+                        "modifiers") &&
+                    auxiliary["modifiers"]
+                        .is_array()) {
+
+                    settings_
+                        .auxiliaryHotkeyModifiers
+                        .clear();
+
+                    for (const auto& item :
+                         auxiliary["modifiers"]) {
+                        if (!item.is_string()) {
+                            continue;
+                        }
+
+                        settings_
+                            .auxiliaryHotkeyModifiers
+                            .push_back(
+                                LowerAscii(
+                                    item.get<
+                                        std::string>()));
+                    }
+                }
+            }
+        }
+
+        if (root.contains("behavior") &&
+            root["behavior"].is_object()) {
+
+            const auto& behavior =
+                root["behavior"];
+
+            settings_.wildcardMatching =
+                behavior.value(
+                    "wildcardMatching",
+                    settings_
+                        .wildcardMatching);
+
+            settings_.numericQuickLaunch =
+                behavior.value(
+                    "numericQuickLaunch",
+                    settings_
+                        .numericQuickLaunch);
+
+            const std::string numericOrder =
+                LowerAscii(
+                    behavior.value(
+                        "numericQuickLaunchOrder",
+                        settings_
+                            .numericQuickLaunchOrder));
+
+            settings_.numericQuickLaunchOrder =
+                numericOrder == "zero-to-nine"
+                    ? "zero-to-nine"
+                    : "one-to-zero";
+
+            settings_
+                .executeSingleResultImmediately =
+                    behavior.value(
+                        "executeSingleResultImmediately",
+                        settings_
+                            .executeSingleResultImmediately);
         }
 
         // Provider settings were introduced after the original schema.
@@ -283,6 +373,13 @@ bool SettingsStore::LoadJson() {
                     it.value()
                         .get<bool>();
             }
+        }
+
+        if (!readOnlyDueToNewerSchema_ &&
+            load.schemaVersion > 0 &&
+            load.schemaVersion <
+                config::kSettingsSchemaVersion) {
+            Save();
         }
 
         return true;
@@ -394,10 +491,12 @@ bool SettingsStore::Save() const {
 
     nlohmann::json root = {
         {"schemaVersion",
-         config::kSchemaVersion},
+         config::kSettingsSchemaVersion},
         {"general", {
             {"startWithWindows",
              settings_.startWithWindows},
+            {"showOnStartup",
+             settings_.showOnStartup},
             {"hideAfterLaunch",
              settings_.hideAfterLaunch},
             {"clearQueryOnShow",
@@ -413,7 +512,30 @@ bool SettingsStore::Save() const {
             {"modifiers",
              settings_.hotkeyModifiers},
             {"key",
-             settings_.hotkeyKey}
+             settings_.hotkeyKey},
+            {"auxiliary", {
+                {"enabled",
+                 settings_
+                     .auxiliaryHotkeyEnabled},
+                {"modifiers",
+                 settings_
+                     .auxiliaryHotkeyModifiers},
+                {"key",
+                 settings_
+                     .auxiliaryHotkeyKey}
+            }}
+        }},
+        {"behavior", {
+            {"wildcardMatching",
+             settings_.wildcardMatching},
+            {"numericQuickLaunch",
+             settings_.numericQuickLaunch},
+            {"numericQuickLaunchOrder",
+             settings_
+                 .numericQuickLaunchOrder},
+            {"executeSingleResultImmediately",
+             settings_
+                 .executeSingleResultImmediately}
         }},
         {"appearance", {
             {"launcher",
@@ -483,6 +605,23 @@ bool SettingsStore::SetStartWithWindows(
     return true;
 }
 
+bool SettingsStore::SetShowOnStartup(
+    bool enabled) {
+
+    const Settings previous =
+        settings_;
+
+    settings_.showOnStartup =
+        enabled;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
 bool SettingsStore::SetHotkey(
     std::vector<std::string> modifiers,
     std::string key) {
@@ -495,6 +634,67 @@ bool SettingsStore::SetHotkey(
     settings_.hotkeyKey =
         LowerAscii(
             std::move(key));
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::SetAuxiliaryHotkey(
+    bool enabled,
+    std::vector<std::string> modifiers,
+    std::string key) {
+
+    const Settings previous =
+        settings_;
+
+    settings_.auxiliaryHotkeyEnabled =
+        enabled;
+    settings_.auxiliaryHotkeyModifiers =
+        std::move(modifiers);
+    settings_.auxiliaryHotkeyKey =
+        LowerAscii(
+            std::move(key));
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::SetClassicBehavior(
+    bool wildcardMatching,
+    bool numericQuickLaunch,
+    std::string numericQuickLaunchOrder,
+    bool executeSingleResultImmediately) {
+
+    const Settings previous =
+        settings_;
+
+    settings_.wildcardMatching =
+        wildcardMatching;
+    settings_.numericQuickLaunch =
+        numericQuickLaunch;
+
+    numericQuickLaunchOrder =
+        LowerAscii(
+            std::move(
+                numericQuickLaunchOrder));
+
+    settings_.numericQuickLaunchOrder =
+        numericQuickLaunchOrder ==
+                "zero-to-nine"
+            ? "zero-to-nine"
+            : "one-to-zero";
+
+    settings_
+        .executeSingleResultImmediately =
+            executeSingleResultImmediately;
 
     if (!Save()) {
         settings_ = previous;

@@ -1,4 +1,4 @@
-# Config Core schema — schemaVersion 1
+# Config Core schemas
 
 ALTRun Next now stores live configuration under the portable `data/` directory:
 
@@ -11,13 +11,16 @@ data/
 └─ provider-cache.json
 ```
 
-Every JSON document starts with:
+Each document carries its own schema version. As of v0.4.1-alpha.1:
 
-```json
-{
-  "schemaVersion": 1
-}
+```text
+settings.json       schemaVersion 2
+commands.json       schemaVersion 1
+usage.json          schemaVersion 1
+provider-cache.json schemaVersion 2
 ```
+
+Schema versions are intentionally independent so adding launcher preferences does not force unrelated command or usage migrations.
 
 ## Migration
 
@@ -50,12 +53,17 @@ Starting with v0.4.0-rc.1, each user-data store also remembers when the current 
 
 ## settings.json
 
-The first schema contains:
+v0.4.1-alpha.1 upgrades settings to **schemaVersion 2**. A schema-1 settings document is read with the same defaults as v0.4.0 and then rewritten atomically as schema 2. Because v0.4.0 supports settings schema 1 only, temporarily downgrading after the migration places `settings.json` into the existing read-only compatibility mode instead of deleting the new fields.
 
-- `general` — startup, launcher behavior, tray visibility and monitor placement;
-- `hotkey` — global-hotkey modifiers and key;
+Schema 2 contains:
+
+- `general` — startup, launcher behavior, tray visibility and monitor placement, including optional show-on-startup;
+- `hotkey` — primary global hotkey plus an optional auxiliary hotkey;
+- `behavior` — opt-in wildcard matching, Classic numeric quick launch/order and single-result immediate execution;
 - `appearance` — launcher skin and interface language;
 - `providers` — stable provider IDs mapped to enabled / disabled state.
+
+New schema-2 behavior defaults preserve v0.4.0 behavior: auxiliary hotkey disabled, wildcard matching disabled, numeric quick launch disabled, numeric order `one-to-zero` (1–9,0), single-result immediate execution disabled and show-on-startup disabled. The auxiliary binding defaults to bare `Pause` when enabled and intentionally permits an empty modifier list.
 
 As of v0.4.0-alpha.3, known provider IDs are:
 
@@ -95,7 +103,7 @@ Automatic provider commands are never written into `commands.json`.
 
 Automatic Windows application discovery is cached separately from user configuration.
 
-Starting with v0.4.0-alpha.3, this generated file uses its own **provider-cache schemaVersion 2** even though the user configuration documents remain Config Core schemaVersion 1.
+Starting with v0.4.0-alpha.3, this generated file uses its own **provider-cache schemaVersion 2**. Commands and usage remain schemaVersion 1; settings moves independently to schemaVersion 2 in v0.4.1-alpha.1.
 
 The cache is grouped by stable provider ID:
 

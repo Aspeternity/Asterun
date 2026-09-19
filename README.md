@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.4.1-alpha.1 — Settings Schema & Classic Behavior Core
+
+This alpha starts the Classic-settings parity phase before Everything integration. It adds behavior core and migration safety without changing the frozen Classic launcher geometry or adding the new controls to the Settings UI yet.
+
+`settings.json` now has an independent schemaVersion 2 while `commands.json` and `usage.json` remain schemaVersion 1. Existing schema-1 settings are migrated atomically to schema 2. Downgrading to v0.4.0 therefore activates the existing newer-schema read-only guard instead of silently dropping v0.4.1 settings.
+
+The new schema and runtime support an optional auxiliary global hotkey (bare Pause by default), show-on-startup, opt-in `*` / `?` glob matching, Classic numeric quick execution with either 1–9,0 or 0–9 ordering, and optional immediate execution when a non-empty query has exactly one result. All new behaviors default to off, preserving v0.4.0 interaction unless explicitly enabled in `data/settings.json`.
+
+The auxiliary hotkey participates in the same transactional Windows registration lifecycle as the primary hotkey and is revalidated after resume. Numeric quick launch is intentionally limited to Classic mode so Modern Compact does not gain invisible number shortcuts.
+
 ## v0.4.0 — Stable Windows Application Discovery
 
 v0.4.0 promotes the RC1 discovery architecture to stable without adding new v0.4 features. The Classic Launcher remains unchanged.

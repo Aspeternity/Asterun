@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.4.0 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.4.1 LANGUAGES CXX)
 
 file(
     STRINGS

@@ -150,6 +150,63 @@ int main(int argc, char** argv) {
     auto impossibleMultiWord = engine.Search(commands, usage, L"visual music", 10);
     assert(impossibleMultiWord.empty());
 
+    auto wildcardDisabled =
+        engine.Search(
+            commands,
+            usage,
+            L"calc*",
+            10,
+            false);
+    assert(wildcardDisabled.empty());
+
+    auto wildcardKeyword =
+        engine.Search(
+            commands,
+            usage,
+            L"calc*",
+            10,
+            true);
+    assert(!wildcardKeyword.empty());
+    assert(
+        wildcardKeyword.front()
+            .commandIndex == 2);
+
+    auto wildcardAlias =
+        engine.Search(
+            commands,
+            usage,
+            L"?scode",
+            10,
+            true);
+    assert(!wildcardAlias.empty());
+    assert(
+        wildcardAlias.front()
+            .commandIndex == 1);
+
+    auto wildcardTitle =
+        engine.Search(
+            commands,
+            usage,
+            L"windows*terminal",
+            10,
+            true);
+    assert(!wildcardTitle.empty());
+    assert(
+        wildcardTitle.front()
+            .commandIndex == 8);
+
+    auto wildcardTarget =
+        engine.Search(
+            commands,
+            usage,
+            L"*cloudmusic.exe",
+            10,
+            true);
+    assert(!wildcardTarget.empty());
+    assert(
+        wildcardTarget.front()
+            .commandIndex == 4);
+
     usage[L"3"] = UsageStat{42, 4102444800LL};
     auto frequent = engine.Search(commands, usage, L"", 10);
     assert(!frequent.empty());

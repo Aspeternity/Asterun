@@ -221,7 +221,7 @@ bool UserCommandStore::LoadJson() {
     auto load =
         config::LoadJsonWithBackup(
             jsonPath_,
-            config::kSchemaVersion);
+            config::kCommandsSchemaVersion);
 
     recoveredFromBackup_ =
         load.status ==
@@ -823,7 +823,7 @@ bool UserCommandStore::Save() const {
     }
 
     nlohmann::json root = {
-        {"schemaVersion", config::kSchemaVersion},
+        {"schemaVersion", config::kCommandsSchemaVersion},
         {"commands", std::move(commandArray)}
     };
 

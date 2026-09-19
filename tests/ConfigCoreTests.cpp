@@ -255,7 +255,7 @@ int main() {
     const auto healedSettings =
         config::LoadJsonWithBackup(
             data / "settings.json",
-            config::kSchemaVersion);
+            config::kSettingsSchemaVersion);
 
     assert(
         healedSettings.status ==
@@ -266,21 +266,78 @@ int main() {
     const auto healedBackup =
         config::LoadJsonWithBackup(
             data / "settings.json.bak",
-            config::kSchemaVersion);
+            config::kSettingsSchemaVersion);
 
     assert(healedBackup.value);
 
     SettingsStore featureSettings(data / "settings-features.json");
     featureSettings.Load();
+
+    const auto initialFeatureSettings =
+        config::LoadJsonWithBackup(
+            data / "settings-features.json",
+            config::kSettingsSchemaVersion);
+
+    assert(initialFeatureSettings.value);
+    assert(
+        initialFeatureSettings.schemaVersion ==
+        config::kSettingsSchemaVersion);
+
     assert(!featureSettings.Data().startWithWindows);
+    assert(!featureSettings.Data().showOnStartup);
+    assert(!featureSettings.Data().auxiliaryHotkeyEnabled);
+    assert(featureSettings.Data().auxiliaryHotkeyKey == "pause");
+    assert(!featureSettings.Data().wildcardMatching);
+    assert(!featureSettings.Data().numericQuickLaunch);
+    assert(
+        featureSettings.Data().numericQuickLaunchOrder ==
+        "one-to-zero");
+    assert(
+        !featureSettings.Data()
+             .executeSingleResultImmediately);
+
     assert(featureSettings.SetStartWithWindows(true));
     assert(featureSettings.Data().startWithWindows);
+
+    assert(featureSettings.SetShowOnStartup(true));
+    assert(featureSettings.Data().showOnStartup);
 
     assert(featureSettings.SetHotkey(
         {"ctrl", "shift"},
         "k"));
     assert(featureSettings.Data().hotkeyModifiers.size() == 2);
     assert(featureSettings.Data().hotkeyKey == "k");
+
+    assert(featureSettings.SetAuxiliaryHotkey(
+        true,
+        {},
+        "pause"));
+    assert(
+        featureSettings.Data()
+            .auxiliaryHotkeyEnabled);
+    assert(
+        featureSettings.Data()
+            .auxiliaryHotkeyModifiers
+            .empty());
+    assert(
+        featureSettings.Data()
+            .auxiliaryHotkeyKey ==
+        "pause");
+
+    assert(featureSettings.SetClassicBehavior(
+        true,
+        true,
+        "zero-to-nine",
+        true));
+    assert(featureSettings.Data().wildcardMatching);
+    assert(featureSettings.Data().numericQuickLaunch);
+    assert(
+        featureSettings.Data()
+            .numericQuickLaunchOrder ==
+        "zero-to-nine");
+    assert(
+        featureSettings.Data()
+            .executeSingleResultImmediately);
 
     assert(providers::IsEnabled(
         featureSettings.Data().providerEnabled,
@@ -308,6 +365,33 @@ int main() {
     assert(!providers::IsEnabled(
         providerSettingsReloaded.Data().providerEnabled,
         providers::kPath));
+    assert(
+        providerSettingsReloaded.Data()
+            .showOnStartup);
+    assert(
+        providerSettingsReloaded.Data()
+            .auxiliaryHotkeyEnabled);
+    assert(
+        providerSettingsReloaded.Data()
+            .auxiliaryHotkeyModifiers
+            .empty());
+    assert(
+        providerSettingsReloaded.Data()
+            .auxiliaryHotkeyKey ==
+        "pause");
+    assert(
+        providerSettingsReloaded.Data()
+            .wildcardMatching);
+    assert(
+        providerSettingsReloaded.Data()
+            .numericQuickLaunch);
+    assert(
+        providerSettingsReloaded.Data()
+            .numericQuickLaunchOrder ==
+        "zero-to-nine");
+    assert(
+        providerSettingsReloaded.Data()
+            .executeSingleResultImmediately);
 
     // Every provider toggle combination must survive a save/reload cycle.
     const std::array<std::string_view, 4>
@@ -410,6 +494,27 @@ int main() {
                 .providerEnabled,
             providerId));
     }
+
+    assert(
+        !alphaReloaded.Data()
+             .showOnStartup);
+    assert(
+        !alphaReloaded.Data()
+             .wildcardMatching);
+    assert(
+        !alphaReloaded.Data()
+             .numericQuickLaunch);
+
+    const auto upgradedAlphaSettings =
+        config::LoadJsonWithBackup(
+            alphaSettings,
+            config::kSettingsSchemaVersion);
+
+    assert(upgradedAlphaSettings.value);
+    assert(
+        upgradedAlphaSettings
+            .schemaVersion ==
+        config::kSettingsSchemaVersion);
 
     // A future settings schema remains usable for known fields but is
     // read-only so an older binary cannot overwrite newer data.
@@ -601,7 +706,7 @@ int main() {
     const auto healedCommands =
         config::LoadJsonWithBackup(
             recoveredCommandsPath,
-            config::kSchemaVersion);
+            config::kCommandsSchemaVersion);
 
     assert(
         healedCommands.status ==
@@ -645,7 +750,7 @@ int main() {
     const auto healedUsage =
         config::LoadJsonWithBackup(
             recoveredUsagePath,
-            config::kSchemaVersion);
+            config::kUsageSchemaVersion);
 
     assert(
         healedUsage.status ==
@@ -654,6 +759,31 @@ int main() {
 
     assert(featureSettings.ResetDefaults());
     assert(!featureSettings.Data().startWithWindows);
+    assert(!featureSettings.Data().showOnStartup);
+    assert(
+        !featureSettings.Data()
+             .auxiliaryHotkeyEnabled);
+    assert(
+        featureSettings.Data()
+            .auxiliaryHotkeyModifiers
+            .empty());
+    assert(
+        featureSettings.Data()
+            .auxiliaryHotkeyKey ==
+        "pause");
+    assert(
+        !featureSettings.Data()
+             .wildcardMatching);
+    assert(
+        !featureSettings.Data()
+             .numericQuickLaunch);
+    assert(
+        featureSettings.Data()
+            .numericQuickLaunchOrder ==
+        "one-to-zero");
+    assert(
+        !featureSettings.Data()
+             .executeSingleResultImmediately);
     assert(featureSettings.Data().hotkeyModifiers.size() == 1);
     assert(featureSettings.Data().hotkeyModifiers[0] == "alt");
     assert(featureSettings.Data().hotkeyKey == "space");

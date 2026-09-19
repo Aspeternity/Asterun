@@ -34,7 +34,8 @@ public:
         const std::vector<Command>& commands,
         const UsageMap& usage,
         std::wstring_view query,
-        std::size_t limit = 12) const;
+        std::size_t limit = 12,
+        bool allowWildcards = false) const;
 
     [[nodiscard]] bool PinyinAvailable() const noexcept {
         return pinyin_.Available();
@@ -50,6 +51,14 @@ private:
     [[nodiscard]] static int MatchScore(
         std::wstring_view field,
         std::wstring_view query);
+
+    [[nodiscard]] static bool GlobMatch(
+        std::wstring_view field,
+        std::wstring_view pattern);
+
+    [[nodiscard]] static int WildcardMatchScore(
+        std::wstring_view field,
+        std::wstring_view normalizedPattern);
 
     [[nodiscard]] static int UsageScore(
         const UsageStat* stat);
@@ -75,6 +84,10 @@ private:
     [[nodiscard]] int CommandTextScore(
         const Command& command,
         std::wstring_view normalizedQuery) const;
+
+    [[nodiscard]] static int CommandWildcardScore(
+        const Command& command,
+        std::wstring_view normalizedPattern);
 
     PinyinSearch pinyin_;
 };

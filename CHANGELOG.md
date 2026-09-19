@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.1-alpha.1
+
+- Started the Classic-settings parity phase without changing the frozen Classic launcher geometry.
+- Split configuration compatibility by document: settings.json moves to schemaVersion 2 while commands.json and usage.json remain schemaVersion 1 and provider-cache.json remains schemaVersion 2.
+- Added atomic schema-1 -> schema-2 settings migration so v0.4.0 downgrades enter read-only compatibility mode instead of dropping new preferences.
+- Added show-on-startup state with a default of disabled.
+- Added an optional auxiliary global hotkey with an independent Windows hotkey ID, transactional registration/rollback and resume repair; the default auxiliary binding is bare Pause and remains disabled until enabled.
+- Added Pause/Break support to the hotkey key-name codec.
+- Added opt-in * / ? glob matching across keyword, aliases, title and target while preserving the existing fuzzy/pinyin path for normal queries.
+- Added Classic numeric quick execution for top-ten results with selectable 1–9,0 or 0–9 ordering.
+- Added optional immediate execution when a non-empty user query has exactly one result.
+- Kept every new behavior disabled by default so upgrading from v0.4.0 does not change launcher interaction until the user opts in.
+- Updated settings.example.json and CONFIG_SCHEMA.md for settings schemaVersion 2.
+- Added Config Core migration/persistence coverage and SearchEngine wildcard regression coverage.
+- Updated Windows version metadata to `0.4.1-alpha.1` / `0.4.1.1`.
+
+
 ## 0.4.0
 
 - Promoted v0.4.0-rc.1 to the stable v0.4.0 release with no additional discovery features.

@@ -67,6 +67,7 @@ UINT KeyFromName(std::string_view keyView) {
     }
 
     if (key == "space") return VK_SPACE;
+    if (key == "pause" || key == "break") return VK_PAUSE;
     if (key == "tab") return VK_TAB;
     if (key == "enter" || key == "return") return VK_RETURN;
     if (key == "escape" || key == "esc") return VK_ESCAPE;
@@ -119,6 +120,7 @@ std::string KeyName(UINT virtualKey) {
 
     switch (virtualKey) {
     case VK_SPACE: return "space";
+    case VK_PAUSE: return "pause";
     case VK_TAB: return "tab";
     case VK_RETURN: return "enter";
     case VK_ESCAPE: return "escape";
@@ -157,6 +159,7 @@ std::wstring KeyDisplayName(UINT virtualKey) {
 
     switch (virtualKey) {
     case VK_SPACE: return L"Space";
+    case VK_PAUSE: return L"Pause";
     case VK_TAB: return L"Tab";
     case VK_RETURN: return L"Enter";
     case VK_ESCAPE: return L"Esc";

@@ -88,9 +88,19 @@ public:
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
     bool SetStartWithWindows(bool enabled);
+    bool SetShowOnStartup(bool enabled);
     bool SetHotkeySettings(
         std::vector<std::string> modifiers,
         std::string key);
+    bool SetAuxiliaryHotkeySettings(
+        bool enabled,
+        std::vector<std::string> modifiers,
+        std::string key);
+    bool SetClassicBehavior(
+        bool wildcardMatching,
+        bool numericQuickLaunch,
+        std::string numericQuickLaunchOrder,
+        bool executeSingleResultImmediately);
     bool SetProviderEnabled(
         std::string id,
         bool enabled);
@@ -104,6 +114,16 @@ public:
     [[nodiscard]] DWORD
     GlobalHotkeyLastError() const noexcept {
         return hotkeyLastError_;
+    }
+
+    [[nodiscard]] bool
+    IsAuxiliaryHotkeyRegistered() const noexcept {
+        return auxiliaryHotkeyRegistered_;
+    }
+
+    [[nodiscard]] DWORD
+    AuxiliaryHotkeyLastError() const noexcept {
+        return auxiliaryHotkeyLastError_;
     }
 
     void SetGeneralSettings(
@@ -129,6 +149,9 @@ private:
     static constexpr int
         kGlobalHotkeyId = 0xA171;
 
+    static constexpr int
+        kAuxiliaryHotkeyId = 0xA172;
+
     static constexpr UINT
         kProviderRefreshMessage =
             WM_APP + 0x171;
@@ -143,6 +166,10 @@ private:
     bool ApplyStartupRegistration(
         bool enabled) const;
     bool RebindGlobalHotkey(
+        const std::vector<std::string>& modifiers,
+        std::string_view key);
+    bool RebindAuxiliaryHotkey(
+        bool enabled,
         const std::vector<std::string>& modifiers,
         std::string_view key);
 
@@ -199,6 +226,12 @@ private:
     UINT currentHotkeyModifiers_{0};
     UINT currentHotkeyVk_{0};
     DWORD hotkeyLastError_{
+        ERROR_SUCCESS};
+
+    bool auxiliaryHotkeyRegistered_{false};
+    UINT currentAuxiliaryHotkeyModifiers_{0};
+    UINT currentAuxiliaryHotkeyVk_{0};
+    DWORD auxiliaryHotkeyLastError_{
         ERROR_SUCCESS};
 };
 

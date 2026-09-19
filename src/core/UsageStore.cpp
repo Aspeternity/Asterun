@@ -71,7 +71,7 @@ bool UsageStore::LoadJson() {
     auto load =
         config::LoadJsonWithBackup(
             jsonPath_,
-            config::kSchemaVersion);
+            config::kUsageSchemaVersion);
 
     recoveredFromBackup_ =
         load.status ==
@@ -207,7 +207,7 @@ bool UsageStore::Save() const {
     }
 
     nlohmann::json root = {
-        {"schemaVersion", config::kSchemaVersion},
+        {"schemaVersion", config::kUsageSchemaVersion},
         {"usage", std::move(usage)}
     };
 

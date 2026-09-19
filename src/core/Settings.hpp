@@ -23,6 +23,7 @@ struct Settings {
     Language language{Language::ZhCN};
 
     bool startWithWindows{false};
+    bool showOnStartup{false};
     bool hideAfterLaunch{true};
     bool clearQueryOnShow{true};
     bool hideOnFocusLost{true};
@@ -32,6 +33,16 @@ struct Settings {
     std::vector<std::string>
         hotkeyModifiers{"alt"};
     std::string hotkeyKey{"space"};
+
+    bool auxiliaryHotkeyEnabled{false};
+    std::vector<std::string>
+        auxiliaryHotkeyModifiers{};
+    std::string auxiliaryHotkeyKey{"pause"};
+
+    bool wildcardMatching{false};
+    bool numericQuickLaunch{false};
+    std::string numericQuickLaunchOrder{"one-to-zero"};
+    bool executeSingleResultImmediately{false};
 
     ProviderEnableMap providerEnabled{
         providers::DefaultEnabled()};
@@ -49,9 +60,19 @@ public:
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
     bool SetStartWithWindows(bool enabled);
+    bool SetShowOnStartup(bool enabled);
     bool SetHotkey(
         std::vector<std::string> modifiers,
         std::string key);
+    bool SetAuxiliaryHotkey(
+        bool enabled,
+        std::vector<std::string> modifiers,
+        std::string key);
+    bool SetClassicBehavior(
+        bool wildcardMatching,
+        bool numericQuickLaunch,
+        std::string numericQuickLaunchOrder,
+        bool executeSingleResultImmediately);
     bool SetProviderEnabled(
         std::string id,
         bool enabled);

@@ -60,6 +60,19 @@ Release hardening:
 - Real Windows 10/11 desktop discovery remains part of manual release QA in addition to automated smoke coverage
 - v0.4.0 stable was promoted from RC1 without adding new v0.4 features
 
+## v0.4.1 - Classic settings parity
+
+In progress:
+
+- Independent settings schemaVersion 2 with downgrade-safe migration
+- Optional auxiliary global hotkey
+- Show-on-startup behavior
+- Opt-in * / ? wildcard search
+- Classic numeric quick execution and selectable number order
+- Optional single-result immediate execution
+- Settings UI controls for the new behavior core are reserved for the next v0.4.1 alpha
+- Classic launcher geometry remains frozen
+
 ## v0.5.x - Everything integration
 
 Planned:

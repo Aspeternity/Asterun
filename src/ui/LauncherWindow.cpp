@@ -963,7 +963,8 @@ std::wstring LauncherWindow::CurrentQuery() const {
     return text;
 }
 
-void LauncherWindow::RefreshResults() {
+void LauncherWindow::RefreshResults(
+    bool allowImmediateExecution) {
     if (!list_) return;
 
     results_ = app_.Search(CurrentQuery(), maxResults_);
@@ -981,6 +982,15 @@ void LauncherWindow::RefreshResults() {
     SendMessageW(list_, WM_SETREDRAW, TRUE, 0);
     InvalidateRect(list_, nullptr, TRUE);
     UpdatePreview();
+
+    if (allowImmediateExecution &&
+        app_.SettingsData()
+            .executeSingleResultImmediately &&
+        !CurrentQuery().empty() &&
+        results_.size() == 1) {
+
+        ExecuteResultAt(0);
+    }
 }
 
 void LauncherWindow::UpdatePreview() {
@@ -1034,14 +1044,117 @@ void LauncherWindow::MoveSelection(int delta) {
 }
 
 void LauncherWindow::ExecuteSelection() {
-    const LRESULT selected = SendMessageW(list_, LB_GETCURSEL, 0, 0);
-    if (selected == LB_ERR || static_cast<std::size_t>(selected) >= results_.size()) return;
+    const LRESULT selected =
+        SendMessageW(
+            list_,
+            LB_GETCURSEL,
+            0,
+            0);
 
-    if (app_.ExecuteCommand(results_[static_cast<std::size_t>(selected)].commandIndex)) {
-        if (app_.SettingsData().hideAfterLaunch) {
-            Hide();
-        }
+    if (selected == LB_ERR) {
+        return;
     }
+
+    ExecuteResultAt(
+        static_cast<std::size_t>(
+            selected));
+}
+
+void LauncherWindow::ExecuteResultAt(
+    std::size_t resultIndex) {
+
+    if (resultIndex >=
+        results_.size()) {
+        return;
+    }
+
+    if (app_.ExecuteCommand(
+            results_[resultIndex]
+                .commandIndex) &&
+        app_.SettingsData()
+            .hideAfterLaunch) {
+        Hide();
+    }
+}
+
+int LauncherWindow::QuickLaunchIndexForKey(
+    WPARAM key) const {
+
+    if (IsModern() ||
+        !app_.SettingsData()
+             .numericQuickLaunch) {
+        return -1;
+    }
+
+    if ((GetKeyState(VK_CONTROL) &
+             0x8000) != 0 ||
+        (GetKeyState(VK_MENU) &
+             0x8000) != 0 ||
+        (GetKeyState(VK_SHIFT) &
+             0x8000) != 0 ||
+        (GetKeyState(VK_LWIN) &
+             0x8000) != 0 ||
+        (GetKeyState(VK_RWIN) &
+             0x8000) != 0) {
+        return -1;
+    }
+
+    int digit = -1;
+
+    if (key >= L'0' &&
+        key <= L'9') {
+        digit =
+            static_cast<int>(
+                key - L'0');
+    } else if (
+        key >= VK_NUMPAD0 &&
+        key <= VK_NUMPAD9) {
+        digit =
+            static_cast<int>(
+                key - VK_NUMPAD0);
+    }
+
+    if (digit < 0) {
+        return -1;
+    }
+
+    if (app_.SettingsData()
+            .numericQuickLaunchOrder ==
+        "zero-to-nine") {
+        return digit;
+    }
+
+    return digit == 0
+        ? 9
+        : digit - 1;
+}
+
+std::wstring
+LauncherWindow::ResultNumberLabel(
+    std::size_t resultIndex) const {
+
+    if (app_.SettingsData()
+            .numericQuickLaunchOrder ==
+        "zero-to-nine") {
+
+        return resultIndex < 10
+            ? std::to_wstring(
+                  static_cast<
+                      unsigned long long>(
+                      resultIndex))
+            : L"";
+    }
+
+    if (resultIndex >= 10) {
+        return L"";
+    }
+
+    return resultIndex == 9
+        ? L"0"
+        : std::to_wstring(
+              static_cast<
+                  unsigned long long>(
+                  resultIndex + 1));
 }
 
 void LauncherWindow::AddTrayIcon() {
@@ -1182,6 +1295,23 @@ LRESULT LauncherWindow::HandleEditMessage(
     HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
 
     if (message == WM_KEYDOWN) {
+        const int quickLaunchIndex =
+            QuickLaunchIndexForKey(
+                wParam);
+
+        if (quickLaunchIndex >= 0) {
+            if (static_cast<std::size_t>(
+                    quickLaunchIndex) <
+                results_.size()) {
+                ExecuteResultAt(
+                    static_cast<
+                        std::size_t>(
+                        quickLaunchIndex));
+            }
+
+            return 0;
+        }
+
         switch (wParam) {
         case VK_DOWN:
             MoveSelection(1);
@@ -1246,8 +1376,9 @@ LRESULT LauncherWindow::HandleMessage(
         break;
 
     case WM_COMMAND:
-        if (LOWORD(wParam) == 1001 && HIWORD(wParam) == EN_CHANGE) {
-            RefreshResults();
+        if (LOWORD(wParam) == 1001 &&
+            HIWORD(wParam) == EN_CHANGE) {
+            RefreshResults(true);
             return 0;
         }
         if (LOWORD(wParam) == 1002 && HIWORD(wParam) == LBN_DBLCLK) {
@@ -1443,9 +1574,8 @@ LRESULT LauncherWindow::HandleMessage(
         titleRect.right -= DpiScale(4);
 
         const std::wstring number =
-            item->itemID == 9
-                ? L"0"
-                : std::to_wstring(static_cast<unsigned long long>(item->itemID + 1));
+            ResultNumberLabel(
+                item->itemID);
 
         const auto oldFont = SelectObject(item->hDC, normalFont_);
         const COLORREF fg =

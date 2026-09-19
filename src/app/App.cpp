@@ -107,6 +107,14 @@ App::~App() {
         hotkeyRegistered_ = false;
     }
 
+    if (auxiliaryHotkeyRegistered_) {
+        UnregisterHotKey(
+            nullptr,
+            kAuxiliaryHotkeyId);
+        auxiliaryHotkeyRegistered_ =
+            false;
+    }
+
     if (singleInstanceMutex_) {
         CloseHandle(singleInstanceMutex_);
         singleInstanceMutex_ = nullptr;
@@ -194,6 +202,28 @@ int App::Run() {
             MB_ICONWARNING | MB_OK);
     }
 
+    if (!RebindAuxiliaryHotkey(
+            settingsStore_.Data()
+                .auxiliaryHotkeyEnabled,
+            settingsStore_.Data()
+                .auxiliaryHotkeyModifiers,
+            settingsStore_.Data()
+                .auxiliaryHotkeyKey)) {
+
+        MessageBoxW(
+            nullptr,
+            settingsStore_.Data().language ==
+                    Language::ZhCN
+                ? L"辅助热键注册失败，主热键仍可继续使用。请检查该按键是否已被其他程序占用。"
+                : L"The auxiliary hotkey could not be registered. The primary hotkey remains available. Check whether another application already uses the binding.",
+            L"ALTRun Next",
+            MB_ICONWARNING | MB_OK);
+    }
+
+    if (settingsStore_.Data().showOnStartup) {
+        window_->Show();
+    }
+
     // Cached provider results are already searchable. Refresh automatic
     // discovery off the startup path, then keep lightweight provider
     // fingerprints under observation for source-specific updates.
@@ -236,8 +266,13 @@ int App::Run() {
 
         if (msg.message == WM_HOTKEY &&
             msg.hwnd == nullptr &&
-            msg.wParam ==
-                static_cast<WPARAM>(kGlobalHotkeyId)) {
+            (msg.wParam ==
+                 static_cast<WPARAM>(
+                     kGlobalHotkeyId) ||
+             msg.wParam ==
+                 static_cast<WPARAM>(
+                     kAuxiliaryHotkeyId))) {
+
             if (window_) {
                 window_->Toggle();
             }
@@ -269,7 +304,9 @@ std::vector<SearchResult> App::Search(
         commandStore_.Commands(),
         usageStore_.Data(),
         query,
-        limit);
+        limit,
+        settingsStore_.Data()
+            .wildcardMatching);
 }
 
 const Command& App::GetCommand(
@@ -946,10 +983,25 @@ bool App::RestoreDefaultSettings() {
         return false;
     }
 
+    if (!RebindAuxiliaryHotkey(
+            defaults.auxiliaryHotkeyEnabled,
+            defaults.auxiliaryHotkeyModifiers,
+            defaults.auxiliaryHotkeyKey)) {
+
+        RebindGlobalHotkey(
+            previous.hotkeyModifiers,
+            previous.hotkeyKey);
+        return false;
+    }
+
     if (!ApplyStartupRegistration(false)) {
         RebindGlobalHotkey(
             previous.hotkeyModifiers,
             previous.hotkeyKey);
+        RebindAuxiliaryHotkey(
+            previous.auxiliaryHotkeyEnabled,
+            previous.auxiliaryHotkeyModifiers,
+            previous.auxiliaryHotkeyKey);
         return false;
     }
 
@@ -960,6 +1012,10 @@ bool App::RestoreDefaultSettings() {
         RebindGlobalHotkey(
             previous.hotkeyModifiers,
             previous.hotkeyKey);
+        RebindAuxiliaryHotkey(
+            previous.auxiliaryHotkeyEnabled,
+            previous.auxiliaryHotkeyModifiers,
+            previous.auxiliaryHotkeyKey);
 
         return false;
     }
@@ -1028,6 +1084,110 @@ bool App::SetStartWithWindows(bool enabled) {
     }
 
     return true;
+}
+
+bool App::RebindAuxiliaryHotkey(
+    bool enabled,
+    const std::vector<std::string>& modifiers,
+    std::string_view key) {
+
+    if (!enabled) {
+        if (auxiliaryHotkeyRegistered_) {
+            UnregisterHotKey(
+                nullptr,
+                kAuxiliaryHotkeyId);
+        }
+
+        auxiliaryHotkeyRegistered_ =
+            false;
+        currentAuxiliaryHotkeyModifiers_ =
+            0;
+        currentAuxiliaryHotkeyVk_ = 0;
+        auxiliaryHotkeyLastError_ =
+            ERROR_SUCCESS;
+        return true;
+    }
+
+    const UINT newModifiers =
+        hotkey::ModifiersFromNames(
+            modifiers);
+
+    const UINT newVk =
+        hotkey::KeyFromName(key);
+
+    if (newVk == 0) {
+        auxiliaryHotkeyLastError_ =
+            ERROR_INVALID_PARAMETER;
+        return false;
+    }
+
+    const bool hadOld =
+        auxiliaryHotkeyRegistered_;
+
+    const UINT oldModifiers =
+        currentAuxiliaryHotkeyModifiers_;
+
+    const UINT oldVk =
+        currentAuxiliaryHotkeyVk_;
+
+    if (hadOld) {
+        UnregisterHotKey(
+            nullptr,
+            kAuxiliaryHotkeyId);
+        auxiliaryHotkeyRegistered_ =
+            false;
+    }
+
+    SetLastError(ERROR_SUCCESS);
+
+    if (RegisterHotKey(
+            nullptr,
+            kAuxiliaryHotkeyId,
+            newModifiers,
+            newVk)) {
+
+        currentAuxiliaryHotkeyModifiers_ =
+            newModifiers;
+        currentAuxiliaryHotkeyVk_ =
+            newVk;
+        auxiliaryHotkeyRegistered_ =
+            true;
+        auxiliaryHotkeyLastError_ =
+            ERROR_SUCCESS;
+        return true;
+    }
+
+    const DWORD registrationError =
+        GetLastError();
+
+    if (hadOld &&
+        oldVk != 0 &&
+        RegisterHotKey(
+            nullptr,
+            kAuxiliaryHotkeyId,
+            oldModifiers,
+            oldVk)) {
+
+        currentAuxiliaryHotkeyModifiers_ =
+            oldModifiers;
+        currentAuxiliaryHotkeyVk_ =
+            oldVk;
+        auxiliaryHotkeyRegistered_ =
+            true;
+    } else {
+        currentAuxiliaryHotkeyModifiers_ =
+            0;
+        currentAuxiliaryHotkeyVk_ = 0;
+        auxiliaryHotkeyRegistered_ =
+            false;
+    }
+
+    auxiliaryHotkeyLastError_ =
+        registrationError != ERROR_SUCCESS
+            ? registrationError
+            : ERROR_HOTKEY_ALREADY_REGISTERED;
+
+    return false;
 }
 
 bool App::RebindGlobalHotkey(
@@ -1119,9 +1279,40 @@ bool App::RebindGlobalHotkey(
 }
 
 bool App::RepairGlobalHotkey() {
-    return RebindGlobalHotkey(
-        settingsStore_.Data().hotkeyModifiers,
-        settingsStore_.Data().hotkeyKey);
+    const bool primary =
+        RebindGlobalHotkey(
+            settingsStore_.Data()
+                .hotkeyModifiers,
+            settingsStore_.Data()
+                .hotkeyKey);
+
+    const bool auxiliary =
+        RebindAuxiliaryHotkey(
+            settingsStore_.Data()
+                .auxiliaryHotkeyEnabled,
+            settingsStore_.Data()
+                .auxiliaryHotkeyModifiers,
+            settingsStore_.Data()
+                .auxiliaryHotkeyKey);
+
+    return primary && auxiliary;
+}
+
+bool App::SetShowOnStartup(
+    bool enabled) {
+
+    if (!settingsStore_
+             .SetShowOnStartup(
+                 enabled)) {
+        return false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
 }
 
 bool App::SetHotkeySettings(
@@ -1153,6 +1344,80 @@ bool App::SetHotkeySettings(
 
     if (settingsWindow_) {
         settingsWindow_->RefreshFromSettings();
+    }
+
+    return true;
+}
+
+bool App::SetAuxiliaryHotkeySettings(
+    bool enabled,
+    std::vector<std::string> modifiers,
+    std::string key) {
+
+    const bool previousEnabled =
+        settingsStore_.Data()
+            .auxiliaryHotkeyEnabled;
+
+    const auto previousModifiers =
+        settingsStore_.Data()
+            .auxiliaryHotkeyModifiers;
+
+    const auto previousKey =
+        settingsStore_.Data()
+            .auxiliaryHotkeyKey;
+
+    if (!RebindAuxiliaryHotkey(
+            enabled,
+            modifiers,
+            key)) {
+        return false;
+    }
+
+    if (!settingsStore_
+             .SetAuxiliaryHotkey(
+                 enabled,
+                 std::move(modifiers),
+                 std::move(key))) {
+
+        RebindAuxiliaryHotkey(
+            previousEnabled,
+            previousModifiers,
+            previousKey);
+
+        return false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
+bool App::SetClassicBehavior(
+    bool wildcardMatching,
+    bool numericQuickLaunch,
+    std::string numericQuickLaunchOrder,
+    bool executeSingleResultImmediately) {
+
+    if (!settingsStore_
+             .SetClassicBehavior(
+                 wildcardMatching,
+                 numericQuickLaunch,
+                 std::move(
+                     numericQuickLaunchOrder),
+                 executeSingleResultImmediately)) {
+        return false;
+    }
+
+    if (window_) {
+        window_->RefreshResults();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
     }
 
     return true;

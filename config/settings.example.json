@@ -1,7 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "general": {
     "startWithWindows": false,
+    "showOnStartup": false,
     "hideAfterLaunch": true,
     "clearQueryOnShow": true,
     "hideOnFocusLost": true,
@@ -10,7 +11,18 @@
   },
   "hotkey": {
     "modifiers": ["alt"],
-    "key": "space"
+    "key": "space",
+    "auxiliary": {
+      "enabled": false,
+      "modifiers": [],
+      "key": "pause"
+    }
+  },
+  "behavior": {
+    "wildcardMatching": false,
+    "numericQuickLaunch": false,
+    "numericQuickLaunchOrder": "one-to-zero",
+    "executeSingleResultImmediately": false
   },
   "appearance": {
     "launcher": "classic",

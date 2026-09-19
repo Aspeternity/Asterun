@@ -157,6 +157,99 @@ int SearchEngine::MatchScore(
             gaps * 8);
 }
 
+bool SearchEngine::GlobMatch(
+    std::wstring_view field,
+    std::wstring_view pattern) {
+
+    const std::wstring value =
+        Normalize(field);
+
+    if (value.empty() ||
+        pattern.empty()) {
+        return false;
+    }
+
+    std::size_t valueIndex = 0;
+    std::size_t patternIndex = 0;
+    std::size_t starIndex =
+        std::wstring::npos;
+    std::size_t starMatch = 0;
+
+    while (valueIndex < value.size()) {
+        if (patternIndex <
+                pattern.size() &&
+            (pattern[patternIndex] ==
+                 L'?' ||
+             pattern[patternIndex] ==
+                 value[valueIndex])) {
+
+            ++patternIndex;
+            ++valueIndex;
+            continue;
+        }
+
+        if (patternIndex <
+                pattern.size() &&
+            pattern[patternIndex] ==
+                L'*') {
+
+            starIndex =
+                patternIndex++;
+            starMatch =
+                valueIndex;
+            continue;
+        }
+
+        if (starIndex !=
+            std::wstring::npos) {
+
+            patternIndex =
+                starIndex + 1;
+            valueIndex =
+                ++starMatch;
+            continue;
+        }
+
+        return false;
+    }
+
+    while (patternIndex <
+               pattern.size() &&
+           pattern[patternIndex] ==
+               L'*') {
+        ++patternIndex;
+    }
+
+    return patternIndex ==
+        pattern.size();
+}
+
+int SearchEngine::WildcardMatchScore(
+    std::wstring_view field,
+    std::wstring_view normalizedPattern) {
+
+    if (!GlobMatch(
+            field,
+            normalizedPattern)) {
+        return 0;
+    }
+
+    const auto literalCount =
+        static_cast<int>(
+            std::count_if(
+                normalizedPattern.begin(),
+                normalizedPattern.end(),
+                [](wchar_t ch) {
+                    return ch != L'*' &&
+                           ch != L'?';
+                }));
+
+    return 820 +
+        std::min(
+            literalCount * 12,
+            160);
+}
+
 int SearchEngine::UsageScore(
     const UsageStat* stat) {
 
@@ -586,11 +679,59 @@ int SearchEngine::CommandTextScore(
     });
 }
 
+int SearchEngine::CommandWildcardScore(
+    const Command& command,
+    std::wstring_view normalizedPattern) {
+
+    const int keywordScore =
+        WildcardMatchScore(
+            command.keyword,
+            normalizedPattern);
+
+    int aliasScore = 0;
+
+    for (const auto& alias :
+         command.aliases) {
+        aliasScore =
+            std::max(
+                aliasScore,
+                WildcardMatchScore(
+                    alias,
+                    normalizedPattern));
+    }
+
+    const int titleScore =
+        WildcardMatchScore(
+            command.title,
+            normalizedPattern);
+
+    const int targetScore =
+        WildcardMatchScore(
+            command.target,
+            normalizedPattern);
+
+    return std::max({
+        keywordScore > 0
+            ? keywordScore + 140
+            : 0,
+        aliasScore > 0
+            ? aliasScore + 120
+            : 0,
+        titleScore,
+        targetScore > 0
+            ? std::max(
+                  1,
+                  targetScore - 120)
+            : 0
+    });
+}
+
 std::vector<SearchResult> SearchEngine::Search(
     const std::vector<Command>& commands,
     const UsageMap& usage,
     std::wstring_view query,
-    std::size_t limit) const {
+    std::size_t limit,
+    bool allowWildcards) const {
 
     std::vector<SearchResult> results;
 
@@ -604,6 +745,12 @@ std::vector<SearchResult> SearchEngine::Search(
 
     const auto queryTokens =
         QueryTokens(query);
+
+    const bool wildcardQuery =
+        allowWildcards &&
+        normalizedQuery
+            .find_first_of(L"*?") !=
+            std::wstring::npos;
 
     for (std::size_t i = 0;
          i < commands.size();
@@ -634,11 +781,16 @@ std::vector<SearchResult> SearchEngine::Search(
             }
         } else {
             int textScore =
-                CommandTextScore(
-                    command,
-                    normalizedQuery);
+                wildcardQuery
+                    ? CommandWildcardScore(
+                          command,
+                          normalizedQuery)
+                    : CommandTextScore(
+                          command,
+                          normalizedQuery);
 
-            if (queryTokens.size() > 1) {
+            if (!wildcardQuery &&
+                queryTokens.size() > 1) {
                 int weakest =
                     std::numeric_limits<int>::max();
 

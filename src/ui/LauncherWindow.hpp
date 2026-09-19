@@ -20,7 +20,8 @@ public:
     bool Create();
     void Show();
     void Hide();
-    void RefreshResults();
+    void RefreshResults(
+        bool allowImmediateExecution = false);
     void ApplyAppearance();
     void ApplyLanguage();
     void ApplyGeneralSettings();
@@ -70,6 +71,12 @@ private:
     void UpdateHint();
     void UpdatePreview();
     void ExecuteSelection();
+    void ExecuteResultAt(
+        std::size_t resultIndex);
+    [[nodiscard]] int QuickLaunchIndexForKey(
+        WPARAM key) const;
+    [[nodiscard]] std::wstring ResultNumberLabel(
+        std::size_t resultIndex) const;
     void MoveSelection(int delta);
     void AddTrayIcon();
     void RemoveTrayIcon();
