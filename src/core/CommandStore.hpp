@@ -1,29 +1,46 @@
 #pragma once
 
 #include "Command.hpp"
+#include "StartMenuProvider.hpp"
+#include "UserCommandStore.hpp"
 
 #include <filesystem>
+#include <unordered_map>
 #include <vector>
 
 namespace altrun {
 
 class CommandStore {
 public:
-    explicit CommandStore(std::filesystem::path baseDirectory);
+    CommandStore(
+        std::filesystem::path baseDirectory,
+        std::filesystem::path dataDirectory);
 
     void Reload();
-    [[nodiscard]] const std::vector<Command>& Commands() const noexcept { return commands_; }
-    [[nodiscard]] const std::filesystem::path& CustomCommandsPath() const noexcept { return customCommandsPath_; }
+
+    [[nodiscard]] const std::vector<Command>& Commands() const noexcept {
+        return commands_;
+    }
+
+    [[nodiscard]] const std::vector<Command>& UserCommands() const noexcept {
+        return userCommandStore_.Commands();
+    }
+
+    [[nodiscard]] const std::unordered_map<std::wstring, std::wstring>& LegacyIdMap() const noexcept {
+        return userCommandStore_.LegacyIdMap();
+    }
+
+    [[nodiscard]] const std::filesystem::path& UserCommandsPath() const noexcept {
+        return userCommandStore_.Path();
+    }
 
 private:
-    void EnsureDefaultCustomCommands();
-    void LoadCustomCommands();
-    void LoadStartMenuCommands();
-    void ScanStartMenuPath(const std::filesystem::path& root);
     void AddCommand(Command command);
 
     std::filesystem::path baseDirectory_;
-    std::filesystem::path customCommandsPath_;
+    std::filesystem::path dataDirectory_;
+    UserCommandStore userCommandStore_;
+    StartMenuProvider startMenuProvider_;
     std::vector<Command> commands_;
 };
 
