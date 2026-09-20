@@ -34,7 +34,7 @@ private:
         Commands,
         General,
         Hotkeys,
-        Actions,
+        Diagnostics,
         Appearance,
         Providers,
         Data,

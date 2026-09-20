@@ -74,7 +74,19 @@ if version == "0.6.0-beta.2":
     if set(bindings) != expected_bindings:
         fail("v0.6 beta.2 changed frozen Hotkey Registry action IDs")
 
-    settings_ui = read("src/ui/SettingsWindow.hpp") + read("src/ui/SettingsWindow.cpp")
+    settings_header = read("src/ui/SettingsWindow.hpp")
+    settings_ui = settings_header + read("src/ui/SettingsWindow.cpp")
+
+    page_enum_start = settings_header.find("enum class Page")
+    page_enum_end = settings_header.find("};", page_enum_start)
+    if (
+        page_enum_start < 0
+        or page_enum_end < 0
+        or "Diagnostics," not in settings_header[page_enum_start:page_enum_end]
+        or "Actions," in settings_header[page_enum_start:page_enum_end]
+    ):
+        fail("beta.2 Page enum did not complete the Actions -> Diagnostics rename")
+
     for token in (
         "Page::Diagnostics",
         "kIdNavDiagnostics",
