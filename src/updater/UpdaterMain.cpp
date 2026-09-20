@@ -192,23 +192,23 @@ ReadTrimmedText(
         return false;
     }
 
-    std::string bytes(
+    std::string content(
         std::istreambuf_iterator<char>(
             input),
         std::istreambuf_iterator<char>());
 
-    while (!bytes.empty() &&
-           (bytes.back() == '\r' ||
-            bytes.back() == '\n' ||
-            bytes.back() == ' ' ||
-            bytes.back() == '\t')) {
-        bytes.pop_back();
+    while (!content.empty() &&
+           (content.back() == '\r' ||
+            content.back() == '\n' ||
+            content.back() == ' ' ||
+            content.back() == '\t')) {
+        content.pop_back();
     }
 
     value.clear();
-    value.reserve(bytes.size());
+    value.reserve(content.size());
 
-    for (unsigned char c : bytes) {
+    for (unsigned char c : content) {
         if (c > 0x7f) {
             return false;
         }

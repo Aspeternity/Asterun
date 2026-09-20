@@ -171,7 +171,7 @@ try {
     Write-Host "  FileVersion string: $fileVersion"
     Write-Host "  Process id: $($process.Id)"
     Write-Host "  Startup observation: $StartupSeconds seconds"
-    Write-Host "  Runtime migration: schema 2 -> 6 with frozen Hotkey Registry + default-on Pinyin + default-off result icons"
+    Write-Host "  Runtime migration: schema 2 -> 7 with frozen Hotkey Registry + default-on Pinyin + default-off result icons + Development update defaults"
 }
 finally {
     if ($null -ne $process) {
