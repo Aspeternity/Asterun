@@ -19,6 +19,12 @@ public:
         HWND owner,
         std::wstring_view commandId = {});
 
+    [[nodiscard]] static bool ShowNew(
+        App& app,
+        HINSTANCE instance,
+        HWND owner,
+        const Command& seed);
+
 private:
     ShortcutEditorDialog(
         App& app,
@@ -27,7 +33,8 @@ private:
     ~ShortcutEditorDialog();
 
     bool Create(
-        std::wstring_view commandId);
+        std::wstring_view commandId,
+        const Command* seed = nullptr);
     bool RunModal();
 
     static LRESULT CALLBACK WindowProc(
@@ -57,7 +64,8 @@ private:
 
     void LoadCommand(
         std::wstring_view commandId);
-    void BeginNew();
+    void BeginNew(
+        const Command* seed = nullptr);
     bool Save();
     void Test();
     void BrowseTargetFile();

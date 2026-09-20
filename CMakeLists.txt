@@ -91,6 +91,7 @@ add_library(altrun_core STATIC
     src/core/ClassicBehavior.cpp
     src/core/ClipboardAction.cpp
     src/core/CommandTemplate.cpp
+    src/core/ContextActions.cpp
     src/core/ShortcutEditorModel.cpp
     src/core/EverythingIpcProtocol.cpp
     src/core/ExplorerContextSelection.cpp
@@ -175,6 +176,7 @@ if(WIN32)
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
         src/platform/ProcessMemory.cpp
+        src/platform/ShellActions.cpp
         src/platform/WinClipboard.cpp
         src/platform/WindowsContext.cpp
         src/platform/WinUtil.cpp
@@ -429,6 +431,26 @@ if(BUILD_TESTING)
     add_test(
         NAME runtime_input_tests
         COMMAND runtime_input_tests
+    )
+
+    add_executable(
+        context_actions_tests
+        tests/ContextActionsTests.cpp
+    )
+    target_link_libraries(
+        context_actions_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        context_actions_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        context_actions_tests
+    )
+    add_test(
+        NAME context_actions_tests
+        COMMAND context_actions_tests
     )
 
     add_executable(

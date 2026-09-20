@@ -149,7 +149,36 @@ bool ShortcutEditorDialog::Show(
         instance,
         owner);
 
-    if (!dialog.Create(commandId)) {
+    if (!dialog.Create(
+            commandId,
+            nullptr)) {
+        MessageBoxW(
+            owner,
+            app.SettingsData().language ==
+                    Language::ZhCN
+                ? L"无法创建快捷项编辑窗口。"
+                : L"Could not create the shortcut editor.",
+            L"ALTRun Next",
+            MB_OK | MB_ICONERROR);
+        return false;
+    }
+
+    return dialog.RunModal();
+}
+
+bool ShortcutEditorDialog::ShowNew(
+    App& app,
+    HINSTANCE instance,
+    HWND owner,
+    const Command& seed) {
+    ShortcutEditorDialog dialog(
+        app,
+        instance,
+        owner);
+
+    if (!dialog.Create(
+            {},
+            &seed)) {
         MessageBoxW(
             owner,
             app.SettingsData().language ==
@@ -182,7 +211,8 @@ int ShortcutEditorDialog::Scale(
 }
 
 bool ShortcutEditorDialog::Create(
-    std::wstring_view commandId) {
+    std::wstring_view commandId,
+    const Command* seed) {
     INITCOMMONCONTROLSEX controls{
         sizeof(controls),
         ICC_STANDARD_CLASSES,
@@ -237,7 +267,7 @@ bool ShortcutEditorDialog::Create(
     ApplyLanguage();
 
     if (commandId.empty()) {
-        BeginNew();
+        BeginNew(seed);
     } else {
         LoadCommand(commandId);
     }
@@ -1520,48 +1550,100 @@ void ShortcutEditorDialog::LoadCommand(
     UpdateRuntimeTestVisibility();
 }
 
-void ShortcutEditorDialog::BeginNew() {
+void ShortcutEditorDialog::BeginNew(
+    const Command* seed) {
     commandId_.clear();
+
+    const Command empty;
+    const Command& initial =
+        seed ? *seed : empty;
 
     SetWindowTextW(
         keyword_,
         L"");
     SetWindowTextW(
         target_,
-        L"");
+        initial.target.c_str());
     SetWindowTextW(
         arguments_,
-        L"");
+        initial.arguments.c_str());
     SetWindowTextW(
         workdir_,
-        L"");
+        initial.workingDirectory.c_str());
     SetWindowTextW(
         icon_,
-        L"");
+        initial.icon.empty() ||
+                initial.icon == L"auto"
+            ? L""
+            : initial.icon.c_str());
     SetWindowTextW(
         testInput_,
         L"");
 
+    std::wstring initialName =
+        initial.title;
+
+    if (initialName.empty() &&
+        !initial.target.empty()) {
+        initialName =
+            SuggestShortcutTitle(
+                initial.target,
+                initial.type);
+    }
+
     SetNameText(
-        L"",
+        initialName,
         true);
+
+    const CommandType inferred =
+        InferShortcutCommandType(
+            initial.target);
 
     SendMessageW(
         type_,
         CB_SETCURSEL,
-        0,
+        !seed ||
+                inferred ==
+                    initial.type
+            ? 0
+            : ExplicitTypeIndex(
+                  initial.type),
         0);
+
+    int runtimeInputIndex = 0;
+
+    if (seed) {
+        switch (initial.runtimeInputMode) {
+        case RuntimeInputMode::Raw:
+            runtimeInputIndex = 1;
+            break;
+        case RuntimeInputMode::UrlEncoded:
+            runtimeInputIndex = 2;
+            break;
+        case RuntimeInputMode::None:
+        default:
+            break;
+        }
+    }
+
     SendMessageW(
         runtimeInput_,
         CB_SETCURSEL,
-        0,
+        runtimeInputIndex,
         0);
 
     SetChecked(
         admin_,
-        false);
+        seed &&
+            initial.runAsAdmin);
 
-    advancedExpanded_ = false;
+    advancedExpanded_ =
+        seed &&
+        (!initial.arguments.empty() ||
+         !initial.workingDirectory.empty() ||
+         (!initial.icon.empty() &&
+          initial.icon != L"auto") ||
+         initial.runAsAdmin);
 
     UpdateAdvancedVisibility();
     UpdateTypeState();

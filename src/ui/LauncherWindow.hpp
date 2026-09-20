@@ -145,6 +145,8 @@ private:
     void AddTrayIcon();
     void RemoveTrayIcon();
     void ShowTrayMenu(POINT point);
+    void ShowResultContextMenu(
+        POINT point);
 
     [[nodiscard]] bool IsModern() const;
     [[nodiscard]] RECT ClassicCloseRect() const;
@@ -188,6 +190,7 @@ private:
     std::uint64_t resultIconCacheTick_{0};
     bool trayIconAdded_{false};
     bool imeComposing_{false};
+    bool contextActionModalActive_{false};
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};
     UINT dpi_{96};

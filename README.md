@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.7 — Context Actions
+
+Alpha 7 adds context-sensitive right-click actions without copying the original ALTRun menus mechanically. Launcher result menus now follow the selected result: user shortcuts can run, edit, copy their target, reveal filesystem targets and delete; discovered applications/files/folders can be opened or run, added as a pre-filled user shortcut, revealed when they represent a filesystem target, and copied; Everything folders also expose current Explorer/Total Commander navigation when that activation context exists. URL/Smart Action results stay intentionally minimal.
+
+The Shortcut Manager gets its own object-focused menu. Right-clicking a shortcut offers Edit, Test, filesystem reveal when applicable, Copy target and Delete; right-clicking blank list space offers only New shortcut. Toolbar-level Path conversion and window-level Close are intentionally not duplicated into row menus. Mouse right-click and Windows keyboard context-menu invocation are both supported.
+
+Add as shortcut opens the existing Shortcut Editor with name/target/type pre-filled while leaving Keywords empty for the user to choose. Context-action availability and shortcut seeding live in a platform-independent core policy with regression tests; File Explorer reveal remains a Windows shell action. No persisted schema changes are made: settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 remain unchanged. Windows fixed FileVersion/ProductVersion is `0.7.0.70`.
+
 ## v0.7.0-alpha.6 Development build
 
 v0.7.0-alpha.6 completes the current Shortcut Manager workflow: the manager shows the full comma-separated keyword set, filters locally by keyword/name/target, and the editor checks conflicts across both primary keywords and aliases. Pause and pin are removed from the user-facing shortcut model; legacy values are normalized to active/non-pinned on load while the schema/TSV compatibility columns remain unchanged.

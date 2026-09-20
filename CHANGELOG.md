@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0-alpha.7
+
+- Added context-sensitive Launcher result menus instead of a single copied classic menu.
+- User shortcuts expose Run, Edit shortcut, filesystem reveal when applicable, Copy target and destructive Delete at the bottom.
+- Discovered Application/File/Folder results can be added as pre-filled user shortcuts; Everything folders also expose current Explorer/Total Commander navigation when activation context is available.
+- URL and Smart Action context menus remain minimal and action-specific.
+- Added Shortcut Manager row menus with Edit, Test, optional File Explorer reveal, Copy target and Delete; blank-list context offers New shortcut only.
+- Added Windows mouse right-click plus keyboard context-menu invocation support.
+- Added pre-filled Shortcut Editor creation while leaving the user-facing Keywords field empty.
+- Added platform-independent ContextActions policy and regression coverage for user/discovered/folder/web/packaged-result behavior and shortcut seeding.
+- Added a Windows ShellActions helper for resolving portable/PATH-backed filesystem targets and revealing them with File Explorer.
+- Kept settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.70.
+
 ## 0.7.0-alpha.6
 
 - Completed the Shortcut Manager workflow with a local filter across shortcut keywords, aliases, names and targets.

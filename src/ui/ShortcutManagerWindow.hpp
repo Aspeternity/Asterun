@@ -67,6 +67,10 @@ private:
     void DeleteSelected();
     void TestSelected();
     void ConvertPaths();
+    void ShowContextMenu(
+        POINT point);
+    void LocateSelected();
+    void CopySelectedTarget();
 
     [[nodiscard]] const wchar_t* T(
         const wchar_t* zh,

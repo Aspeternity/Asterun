@@ -4,9 +4,13 @@
 #include "ShortcutPathConverterDialog.hpp"
 #include "../app/App.hpp"
 #include "../core/Command.hpp"
+#include "../core/ContextActions.hpp"
 #include "../core/ShortcutEditorModel.hpp"
+#include "../platform/ShellActions.hpp"
+#include "../platform/WinClipboard.hpp"
 
 #include <commctrl.h>
+#include <windowsx.h>
 
 #include <algorithm>
 #include <array>
@@ -17,6 +21,15 @@ namespace {
 
 constexpr wchar_t kShortcutManagerClass[] =
     L"ALTRunNext.ShortcutManager";
+
+enum ShortcutContextMenuId : UINT {
+    kShortcutContextAdd = 52201,
+    kShortcutContextEdit = 52202,
+    kShortcutContextTest = 52203,
+    kShortcutContextLocate = 52204,
+    kShortcutContextCopy = 52205,
+    kShortcutContextDelete = 52206,
+};
 
 std::wstring TypeText(
     CommandType type,
@@ -790,6 +803,286 @@ void ShortcutManagerWindow::ConvertPaths() {
 }
 
 
+void ShortcutManagerWindow::LocateSelected() {
+    const Command* command =
+        SelectedCommand();
+
+    if (!command) {
+        return;
+    }
+
+    if (!win::RevealInExplorer(
+            command->target,
+            app_.BaseDirectory(),
+            command->type ==
+                CommandType::Folder)) {
+        MessageBoxW(
+            hwnd_,
+            T(L"无法在资源管理器中定位此目标。目标可能已移动、删除，或不是文件系统路径。",
+              L"Could not show this target in File Explorer. It may have moved, been deleted, or may not be a filesystem path."),
+            L"ALTRun Next",
+            MB_OK |
+                MB_ICONINFORMATION);
+    }
+}
+
+void ShortcutManagerWindow::CopySelectedTarget() {
+    const Command* command =
+        SelectedCommand();
+
+    if (!command ||
+        command->target.empty()) {
+        return;
+    }
+
+    if (!win::SetClipboardUnicodeText(
+            command->target)) {
+        MessageBoxW(
+            hwnd_,
+            T(L"无法复制目标到剪贴板。",
+              L"Could not copy the target to the clipboard."),
+            L"ALTRun Next",
+            MB_OK |
+                MB_ICONERROR);
+    }
+}
+
+void ShortcutManagerWindow::ShowContextMenu(
+    POINT point) {
+    if (!list_) {
+        return;
+    }
+
+    const bool keyboardInvocation =
+        point.x == -1 &&
+        point.y == -1;
+
+    int item =
+        ListView_GetNextItem(
+            list_,
+            -1,
+            LVNI_SELECTED);
+
+    if (!keyboardInvocation) {
+        POINT clientPoint = point;
+        ScreenToClient(
+            list_,
+            &clientPoint);
+
+        LVHITTESTINFO hit{};
+        hit.pt = clientPoint;
+
+        item =
+            ListView_HitTest(
+                list_,
+                &hit);
+
+        ListView_SetItemState(
+            list_,
+            -1,
+            0,
+            LVIS_SELECTED |
+                LVIS_FOCUSED);
+
+        if (item >= 0 &&
+            static_cast<std::size_t>(
+                item) <
+                visibleIds_.size()) {
+            ListView_SetItemState(
+                list_,
+                item,
+                LVIS_SELECTED |
+                    LVIS_FOCUSED,
+                LVIS_SELECTED |
+                    LVIS_FOCUSED);
+            ListView_EnsureVisible(
+                list_,
+                item,
+                FALSE);
+        }
+    } else if (item >= 0) {
+        RECT row{};
+
+        if (ListView_GetItemRect(
+                list_,
+                item,
+                &row,
+                LVIR_BOUNDS)) {
+            point.x =
+                row.left +
+                (row.right - row.left) / 2;
+            point.y =
+                row.top +
+                (row.bottom - row.top) / 2;
+            ClientToScreen(
+                list_,
+                &point);
+        }
+    }
+
+    const bool hasSelection =
+        item >= 0 &&
+        static_cast<std::size_t>(
+            item) <
+            visibleIds_.size();
+
+    EnableWindow(
+        edit_,
+        hasSelection ? TRUE : FALSE);
+    EnableWindow(
+        delete_,
+        hasSelection ? TRUE : FALSE);
+    EnableWindow(
+        test_,
+        hasSelection ? TRUE : FALSE);
+
+    if (keyboardInvocation &&
+        point.x == -1 &&
+        point.y == -1) {
+        RECT listRect{};
+        GetWindowRect(
+            list_,
+            &listRect);
+        point.x =
+            listRect.left +
+            Scale(16);
+        point.y =
+            listRect.top +
+            Scale(16);
+    }
+
+    HMENU menu =
+        CreatePopupMenu();
+
+    if (!menu) {
+        return;
+    }
+
+    if (!hasSelection) {
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kShortcutContextAdd,
+            T(L"新建快捷项...",
+              L"New shortcut..."));
+
+        SetMenuDefaultItem(
+            menu,
+            kShortcutContextAdd,
+            FALSE);
+    } else {
+        const Command* command =
+            SelectedCommand();
+
+        if (!command) {
+            DestroyMenu(menu);
+            return;
+        }
+
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kShortcutContextEdit,
+            T(L"编辑快捷项...",
+              L"Edit shortcut..."));
+        SetMenuDefaultItem(
+            menu,
+            kShortcutContextEdit,
+            FALSE);
+
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kShortcutContextTest,
+            T(L"测试",
+              L"Test"));
+
+        const bool canLocate =
+            CanRevealTargetInExplorer(
+                command->target);
+
+        if (canLocate ||
+            !command->target.empty()) {
+            AppendMenuW(
+                menu,
+                MF_SEPARATOR,
+                0,
+                nullptr);
+
+            if (canLocate) {
+                AppendMenuW(
+                    menu,
+                    MF_STRING,
+                    kShortcutContextLocate,
+                    T(L"在资源管理器中定位",
+                      L"Show in File Explorer"));
+            }
+
+            if (!command->target.empty()) {
+                AppendMenuW(
+                    menu,
+                    MF_STRING,
+                    kShortcutContextCopy,
+                    T(L"复制目标",
+                      L"Copy target"));
+            }
+        }
+
+        AppendMenuW(
+            menu,
+            MF_SEPARATOR,
+            0,
+            nullptr);
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kShortcutContextDelete,
+            T(L"删除快捷项",
+              L"Delete shortcut"));
+    }
+
+    SetForegroundWindow(hwnd_);
+
+    const UINT command =
+        TrackPopupMenuEx(
+            menu,
+            TPM_RIGHTBUTTON |
+                TPM_LEFTALIGN |
+                TPM_TOPALIGN |
+                TPM_RETURNCMD |
+                TPM_NONOTIFY,
+            point.x,
+            point.y,
+            hwnd_,
+            nullptr);
+
+    DestroyMenu(menu);
+
+    switch (command) {
+    case kShortcutContextAdd:
+        AddShortcut();
+        return;
+    case kShortcutContextEdit:
+        EditSelected();
+        return;
+    case kShortcutContextTest:
+        TestSelected();
+        return;
+    case kShortcutContextLocate:
+        LocateSelected();
+        return;
+    case kShortcutContextCopy:
+        CopySelectedTarget();
+        return;
+    case kShortcutContextDelete:
+        DeleteSelected();
+        return;
+    default:
+        return;
+    }
+}
+
+
 LRESULT CALLBACK
 ShortcutManagerWindow::WindowProc(
     HWND hwnd,
@@ -848,6 +1141,18 @@ LRESULT ShortcutManagerWindow::HandleMessage(
     case WM_SIZE:
         Layout();
         return 0;
+
+    case WM_CONTEXTMENU:
+        if (reinterpret_cast<HWND>(
+                wParam) == list_) {
+            POINT point{
+                GET_X_LPARAM(lParam),
+                GET_Y_LPARAM(lParam),
+            };
+            ShowContextMenu(point);
+            return 0;
+        }
+        break;
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {

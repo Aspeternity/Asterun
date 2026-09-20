@@ -2,10 +2,13 @@
 
 #include "../app/App.hpp"
 #include "../core/ClassicBehavior.hpp"
+#include "../core/ContextActions.hpp"
 #include "../core/HotkeyRegistry.hpp"
 #include "../core/ResultMerger.hpp"
 #include "../platform/Hotkey.hpp"
+#include "../platform/ShellActions.hpp"
 #include "../platform/WinUtil.hpp"
+#include "ShortcutEditorDialog.hpp"
 
 #include <windowsx.h>
 #include <commctrl.h>
@@ -33,6 +36,16 @@ constexpr wchar_t kWindowTitle[] = L"ALTRun Next";
 constexpr DWORD kDwmWindowCornerPreference = 33;
 constexpr int kDwmDoNotRound = 1;
 constexpr int kDwmRound = 2;
+
+enum ResultContextMenuId : UINT {
+    kResultContextPrimary = 41001,
+    kResultContextNavigate = 41002,
+    kResultContextAddShortcut = 41003,
+    kResultContextEditShortcut = 41004,
+    kResultContextLocate = 41005,
+    kResultContextCopy = 41006,
+    kResultContextDeleteShortcut = 41007,
+};
 
 COLORREF MixColor(COLORREF a, COLORREF b, int numerator, int denominator) {
     const int r = GetRValue(a) + (GetRValue(b) - GetRValue(a)) * numerator / denominator;
@@ -1962,6 +1975,419 @@ void LauncherWindow::ApplyGeneralSettings() {
     }
 }
 
+void LauncherWindow::ShowResultContextMenu(
+    POINT point) {
+    if (!list_ ||
+        results_.empty()) {
+        return;
+    }
+
+    const bool keyboardInvocation =
+        point.x == -1 &&
+        point.y == -1;
+
+    int selected =
+        static_cast<int>(
+            SendMessageW(
+                list_,
+                LB_GETCURSEL,
+                0,
+                0));
+
+    if (!keyboardInvocation) {
+        POINT clientPoint = point;
+        ScreenToClient(
+            list_,
+            &clientPoint);
+
+        const LRESULT hit =
+            SendMessageW(
+                list_,
+                LB_ITEMFROMPOINT,
+                0,
+                MAKELPARAM(
+                    clientPoint.x,
+                    clientPoint.y));
+
+        if (HIWORD(
+                static_cast<DWORD_PTR>(
+                    hit)) != 0) {
+            return;
+        }
+
+        selected =
+            static_cast<int>(
+                LOWORD(
+                    static_cast<DWORD_PTR>(
+                        hit)));
+
+        if (selected < 0 ||
+            static_cast<std::size_t>(
+                selected) >=
+                results_.size()) {
+            return;
+        }
+
+        SendMessageW(
+            list_,
+            LB_SETCURSEL,
+            selected,
+            0);
+        UpdatePreview();
+    } else {
+        if (selected == LB_ERR ||
+            selected < 0 ||
+            static_cast<std::size_t>(
+                selected) >=
+                results_.size()) {
+            return;
+        }
+
+        RECT row{};
+        if (SendMessageW(
+                list_,
+                LB_GETITEMRECT,
+                selected,
+                reinterpret_cast<LPARAM>(
+                    &row)) != LB_ERR) {
+            point.x =
+                row.left +
+                (row.right - row.left) / 2;
+            point.y =
+                row.top +
+                (row.bottom - row.top) / 2;
+            ClientToScreen(
+                list_,
+                &point);
+        } else {
+            GetCursorPos(&point);
+        }
+    }
+
+    const LauncherResult result =
+        results_[
+            static_cast<std::size_t>(
+                selected)];
+
+    const auto& context =
+        app_.LastActivationContext();
+
+    const auto actions =
+        EvaluateLauncherContextActions(
+            result,
+            context.HasExplorer() ||
+                context.HasTotalCommander());
+
+    HMENU menu =
+        CreatePopupMenu();
+
+    if (!menu) {
+        return;
+    }
+
+    const bool zh =
+        app_.SettingsData().language ==
+        Language::ZhCN;
+
+    const auto appendSeparator =
+        [&]() {
+            const int count =
+                GetMenuItemCount(menu);
+
+            if (count <= 0) {
+                return;
+            }
+
+            MENUITEMINFOW info{};
+            info.cbSize = sizeof(info);
+            info.fMask = MIIM_FTYPE;
+
+            if (GetMenuItemInfoW(
+                    menu,
+                    static_cast<UINT>(
+                        count - 1),
+                    TRUE,
+                    &info) &&
+                (info.fType &
+                 MFT_SEPARATOR) != 0) {
+                return;
+            }
+
+            AppendMenuW(
+                menu,
+                MF_SEPARATOR,
+                0,
+                nullptr);
+        };
+
+    if (actions.primary) {
+        const wchar_t* label =
+            (result.kind ==
+                 ResultKind::File ||
+             result.kind ==
+                 ResultKind::Folder ||
+             result.action.kind ==
+                 LauncherActionKind::
+                     OpenUrl)
+                ? (zh ? L"打开" : L"Open")
+                : (result.kind ==
+                       ResultKind::Action
+                       ? (zh
+                              ? L"执行"
+                              : L"Execute")
+                       : (zh
+                              ? L"运行"
+                              : L"Run"));
+
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kResultContextPrimary,
+            label);
+
+        SetMenuDefaultItem(
+            menu,
+            kResultContextPrimary,
+            FALSE);
+    }
+
+    if (actions
+            .navigateCurrentFileManager) {
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kResultContextNavigate,
+            zh
+                ? L"在当前文件管理器中打开"
+                : L"Open in current file manager");
+    }
+
+    if (actions.editShortcut ||
+        actions.addAsShortcut) {
+        appendSeparator();
+
+        if (actions.editShortcut) {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                kResultContextEditShortcut,
+                zh
+                    ? L"编辑快捷项..."
+                    : L"Edit shortcut...");
+        }
+
+        if (actions.addAsShortcut) {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                kResultContextAddShortcut,
+                zh
+                    ? L"添加为快捷项..."
+                    : L"Add as shortcut...");
+        }
+    }
+
+    if (actions.locateInExplorer ||
+        actions.copyTarget) {
+        appendSeparator();
+
+        if (actions.locateInExplorer) {
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                kResultContextLocate,
+                zh
+                    ? L"在资源管理器中定位"
+                    : L"Show in File Explorer");
+        }
+
+        if (actions.copyTarget) {
+            const wchar_t* copyLabel =
+                result.action.kind ==
+                        LauncherActionKind::
+                            OpenUrl
+                    ? (zh
+                           ? L"复制链接"
+                           : L"Copy link")
+                    : (actions
+                               .locateInExplorer
+                           ? (zh
+                                  ? L"复制路径"
+                                  : L"Copy path")
+                           : (zh
+                                  ? L"复制目标"
+                                  : L"Copy target"));
+
+            AppendMenuW(
+                menu,
+                MF_STRING,
+                kResultContextCopy,
+                copyLabel);
+        }
+    }
+
+    if (actions.deleteShortcut) {
+        appendSeparator();
+
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kResultContextDeleteShortcut,
+            zh
+                ? L"删除快捷项"
+                : L"Delete shortcut");
+    }
+
+    SetForegroundWindow(hwnd_);
+
+    const UINT command =
+        TrackPopupMenuEx(
+            menu,
+            TPM_RIGHTBUTTON |
+                TPM_LEFTALIGN |
+                TPM_TOPALIGN |
+                TPM_RETURNCMD |
+                TPM_NONOTIFY,
+            point.x,
+            point.y,
+            hwnd_,
+            nullptr);
+
+    DestroyMenu(menu);
+
+    const auto execute =
+        [&](LauncherExecutionIntent intent) {
+            if (app_.ExecuteResult(
+                    result,
+                    intent) &&
+                app_.SettingsData()
+                    .hideAfterLaunch) {
+                Hide();
+            }
+        };
+
+    switch (command) {
+    case kResultContextPrimary:
+        execute(
+            LauncherExecutionIntent::
+                Default);
+        return;
+
+    case kResultContextNavigate:
+        execute(
+            LauncherExecutionIntent::
+                NavigateCurrentFileManager);
+        return;
+
+    case kResultContextAddShortcut: {
+        const Command seed =
+            ShortcutSeedFromLauncherResult(
+                result);
+
+        contextActionModalActive_ = true;
+        const bool changed =
+            ShortcutEditorDialog::ShowNew(
+                app_,
+                instance_,
+                hwnd_,
+                seed);
+        contextActionModalActive_ = false;
+
+        if (changed) {
+            RefreshResults();
+        }
+        return;
+    }
+
+    case kResultContextEditShortcut:
+        contextActionModalActive_ = true;
+        {
+            const bool changed =
+                ShortcutEditorDialog::Show(
+                    app_,
+                    instance_,
+                    hwnd_,
+                    result.id);
+            contextActionModalActive_ = false;
+
+            if (changed) {
+                RefreshResults();
+            }
+        }
+        return;
+
+    case kResultContextLocate:
+        if (!win::RevealInExplorer(
+                result.target,
+                app_.BaseDirectory(),
+                result.kind ==
+                    ResultKind::Folder)) {
+            MessageBoxW(
+                hwnd_,
+                zh
+                    ? L"无法在资源管理器中定位此目标。目标可能已移动、删除，或不是文件系统路径。"
+                    : L"Could not show this target in File Explorer. It may have moved, been deleted, or may not be a filesystem path.",
+                L"ALTRun Next",
+                MB_OK |
+                    MB_ICONINFORMATION);
+        }
+        return;
+
+    case kResultContextCopy:
+        app_.ExecuteResult(
+            result,
+            LauncherExecutionIntent::
+                CopySelectedText);
+        return;
+
+    case kResultContextDeleteShortcut: {
+        std::wstring display =
+            result.subtitle.empty()
+                ? result.title
+                : result.subtitle;
+
+        std::wstring message =
+            zh
+                ? L"确定删除快捷项“"
+                : L"Delete shortcut \"";
+        message += display;
+        message +=
+            zh
+                ? L"”吗？\n\n此操作会立即写入 commands.json。"
+                : L"\"?\n\nThe change will be written to commands.json immediately.";
+
+        contextActionModalActive_ = true;
+        const int answer =
+            MessageBoxW(
+                hwnd_,
+                message.c_str(),
+                zh
+                    ? L"删除快捷项"
+                    : L"Delete shortcut",
+                MB_YESNO |
+                    MB_ICONWARNING);
+        contextActionModalActive_ = false;
+
+        if (answer == IDYES &&
+            !app_.DeleteUserCommand(
+                result.id)) {
+            MessageBoxW(
+                hwnd_,
+                zh
+                    ? L"删除失败。"
+                    : L"Delete failed.",
+                L"ALTRun Next",
+                MB_OK |
+                    MB_ICONERROR);
+        }
+        return;
+    }
+
+    default:
+        return;
+    }
+}
+
 void LauncherWindow::ShowTrayMenu(POINT point) {
     HMENU menu = CreatePopupMenu();
 
@@ -2281,6 +2707,29 @@ LRESULT LauncherWindow::HandleMessage(
             break;
         }
         break;
+
+    case WM_CONTEXTMENU: {
+        const HWND target =
+            reinterpret_cast<HWND>(
+                wParam);
+
+        const bool keyboardInvocation =
+            GET_X_LPARAM(lParam) == -1 &&
+            GET_Y_LPARAM(lParam) == -1;
+
+        if (target == list_ ||
+            (target == edit_ &&
+             keyboardInvocation)) {
+            POINT point{
+                GET_X_LPARAM(lParam),
+                GET_Y_LPARAM(lParam),
+            };
+            ShowResultContextMenu(
+                point);
+            return 0;
+        }
+        break;
+    }
 
     case WM_PAINT: {
         PAINTSTRUCT paint{};
@@ -2644,7 +3093,8 @@ LRESULT LauncherWindow::HandleMessage(
     case WM_ACTIVATE:
         if (LOWORD(wParam) == WA_INACTIVE &&
             IsWindowVisible(hwnd_) &&
-            app_.SettingsData().hideOnFocusLost) {
+            app_.SettingsData().hideOnFocusLost &&
+            !contextActionModalActive_) {
             Hide();
         }
         break;
