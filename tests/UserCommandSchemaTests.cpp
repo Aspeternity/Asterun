@@ -213,7 +213,7 @@ int main() {
         std::string::npos);
     assert(
         exported.find(
-            "runtimeInputMode\\ticon") !=
+            "runtimeInputMode\ticon") !=
         std::string::npos);
     assert(
         exported.find(
