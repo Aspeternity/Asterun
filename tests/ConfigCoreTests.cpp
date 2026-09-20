@@ -710,7 +710,7 @@ int main() {
     assert(migratedHotkeyJson.value);
     assert(
         migratedHotkeyJson.schemaVersion ==
-        4);
+        config::kSettingsSchemaVersion);
     assert(
         (*migratedHotkeyJson.value)
             .contains("hotkeys"));
@@ -725,7 +725,7 @@ int main() {
 
     // The schema-3 compatibility mirror is deliberately retained so an
     // alpha.5 downgrade can read the user's primary/auxiliary values while
-    // still treating the schema-4 document as read-only.
+    // still treating the newer migrated document as read-only.
     assert(
         (*migratedHotkeyJson.value)
             ["hotkey"]
@@ -734,7 +734,7 @@ int main() {
         "k");
 
     const std::string
-        schema4BeforeDowngrade =
+        newerSchemaBeforeDowngrade =
             ReadText(
                 v3HotkeySettings);
 
@@ -749,11 +749,11 @@ int main() {
             UnsupportedSchema);
     assert(
         alpha5DowngradeRead.schemaVersion ==
-        4);
+        config::kSettingsSchemaVersion);
     assert(
         ReadText(
             v3HotkeySettings) ==
-        schema4BeforeDowngrade);
+        newerSchemaBeforeDowngrade);
 
     // A schema-3 global binding may legitimately use a chord that alpha.6
     // introduces as a new launcher-local default. The established user global
