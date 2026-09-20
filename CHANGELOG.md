@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Promoted the validated v0.6.0-rc.1 contract to Stable with no user-facing runtime behavior changes.
+- Shipped centralized customizable Hotkeys, Smart Actions, Explorer/Open-Save/Total Commander context navigation, {folder}/{query} templates, Web/URL and clipboard/text actions, optional Everything filesystem search and runtime Diagnostics.
+- Kept upgrade/downgrade hardening and release gates from RC.1: clean install, schema 3 -> 4 migration, schema 4 compatibility, downgrade read-only protection, packaged schema 2 -> 4 runtime migration, Windows 10 baseline and desktop/runtime smoke.
+- Kept settings schemaVersion 4, commands/usage schemaVersion 1, provider-cache schemaVersion 2, frozen provider defaults/IDs, five Hotkey Registry IDs, Everything Query2/WM_COPYDATA contract, Smart Actions semantics, Diagnostics routing and Classic 420/16/10 geometry.
+- Updated Windows fixed FileVersion/ProductVersion to 0.6.0.300.
+- Published v0.6.0 as the new Stable download line, replacing v0.5.0 in the README download section.
+
 ## 0.6.0-rc.1
 
 - Entered v0.6 release freeze; no new user-facing feature, provider, Hotkey action or persisted schema is introduced.

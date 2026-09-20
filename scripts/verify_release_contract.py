@@ -36,6 +36,215 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 4,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"{name}={actual}, expected v0.6 stable value {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.6 stable must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 4:
+        fail("v0.6 stable settings must remain schemaVersion 4")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 stable changed frozen provider defaults")
+
+    expected_bindings = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_bindings:
+        fail("v0.6 stable changed frozen Hotkey Registry action IDs")
+
+    hotkey_registry = read("src/core/HotkeyRegistry.hpp")
+    for action_id in expected_bindings:
+        if action_id not in hotkey_registry:
+            fail(f"v0.6 stable Hotkey Registry source lost action ID: {action_id}")
+
+    provider_ids = read("src/core/ProviderIds.hpp")
+    for provider_id in (
+        "windows.startmenu",
+        "windows.packaged",
+        "windows.apppaths",
+        "windows.path",
+        "everything.filesystem",
+        "builtin.web",
+        "builtin.clipboard",
+    ):
+        if provider_id not in provider_ids:
+            fail(f"v0.6 stable provider/action ID missing: {provider_id}")
+
+    everything_protocol = read("src/core/EverythingIpcProtocol.hpp")
+    for token in (
+        "kCopyDataQuery2W = 18",
+        "Query2WireRequest",
+        "ParseList2",
+    ):
+        if token not in everything_protocol:
+            fail(f"v0.6 stable changed frozen Everything Query2 contract: {token}")
+
+    policy = read("src/core/LauncherActionPolicy.hpp") + read("src/core/LauncherActionPolicy.cpp")
+    for token in (
+        "ActionEvaluation",
+        "ActionUnavailableReason",
+        "EvaluateLauncherAction",
+        "ResultNotFolder",
+        "NoSupportedFileManager",
+        "NoCopyableTarget",
+        "InvalidActionTarget",
+    ):
+        if token not in policy:
+            fail(f"v0.6 stable Smart Actions contract missing: {token}")
+
+    settings_header = read("src/ui/SettingsWindow.hpp")
+    settings_ui = settings_header + read("src/ui/SettingsWindow.cpp")
+    page_enum_start = settings_header.find("enum class Page")
+    page_enum_end = settings_header.find("};", page_enum_start)
+    if (
+        page_enum_start < 0
+        or page_enum_end < 0
+        or "Diagnostics," not in settings_header[page_enum_start:page_enum_end]
+        or "Actions," in settings_header[page_enum_start:page_enum_end]
+    ):
+        fail("v0.6 stable Diagnostics page enum contract changed")
+
+    for token in (
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+        "navDiagnostics_",
+        "CreateDiagnosticsPage",
+        "diagnosticsControls_",
+        'L"诊断"',
+        'L"Diagnostics"',
+    ):
+        if token not in settings_ui:
+            fail(f"v0.6 stable Diagnostics UI contract missing: {token}")
+
+    draw_start = settings_ui.find("void SettingsWindow::DrawNavigationButton")
+    draw_end = settings_ui.find("void SettingsWindow::DrawGeneralToggle", draw_start)
+    if draw_start < 0 or draw_end < 0 or "kIdNavDiagnostics" not in settings_ui[draw_start:draw_end]:
+        fail("v0.6 stable Diagnostics nav ID is missing from DrawNavigationButton")
+
+    dispatch_start = settings_ui.find("case WM_DRAWITEM")
+    dispatch_end = settings_ui.find("case WM_VSCROLL", dispatch_start)
+    if dispatch_start < 0 or dispatch_end < 0 or "kIdNavDiagnostics" not in settings_ui[dispatch_start:dispatch_end]:
+        fail("v0.6 stable Diagnostics nav ID is missing from WM_DRAWITEM dispatch")
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(
+            rf"\b{re.escape(name)}\s*\{{(\d+)\}}",
+            launcher_header,
+        )
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during v0.6 stable: {name}")
+
+    upgrade_tests = read("tests/UpgradeMatrixTests.cpp")
+    for token in (
+        "AssertCleanInstall",
+        "v0.5.0-schema3.json",
+        "v0.6.0-alpha.5-schema3-conflict.json",
+        "v0.6.0-alpha.6.1-schema4.json",
+        "v0.6.0-beta.1-schema4.json",
+        "v0.6.0-beta.2-schema4.json",
+        "AssertDowngradeReadOnly",
+    ):
+        if token not in upgrade_tests:
+            fail(f"v0.6 stable upgrade matrix gate missing: {token}")
+
+    fixture_expectations = {
+        "tests/fixtures/upgrade/v0.5.0-schema3.json": 3,
+        "tests/fixtures/upgrade/v0.6.0-alpha.5-schema3-conflict.json": 3,
+        "tests/fixtures/upgrade/v0.6.0-alpha.6.1-schema4.json": 4,
+        "tests/fixtures/upgrade/v0.6.0-beta.1-schema4.json": 4,
+        "tests/fixtures/upgrade/v0.6.0-beta.2-schema4.json": 4,
+    }
+    for path, expected_schema in fixture_expectations.items():
+        fixture = json.loads(read(path))
+        if fixture.get("schemaVersion") != expected_schema:
+            fail(f"{path} has wrong upgrade-matrix schemaVersion")
+
+    cmake = read("CMakeLists.txt")
+    workflow = read(".github/workflows/build.yml")
+    for token in (
+        "upgrade_matrix_tests",
+        "tests/fixtures/upgrade",
+    ):
+        if token not in cmake:
+            fail(f"v0.6 stable CMake upgrade gate missing: {token}")
+    if workflow.count("upgrade_matrix_tests") < 4:
+        fail("v0.6 stable Windows smoke/compat workflow does not gate upgrade_matrix_tests")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "schemaVersion -ne 4",
+        "launcher.activate",
+        "result.navigateCurrentFileManager",
+        "everything.filesystem",
+        "schema 2 -> 4",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.6 stable packaged runtime migration gate missing: {token}")
+
+    package_contract = read("scripts/verify_package.ps1")
+    if "V0.6_RC_VALIDATION.md" not in package_contract:
+        fail("v0.6 stable package contract does not require V0.6_RC_VALIDATION.md")
+    if "V0.6_RC_VALIDATION.md" not in workflow:
+        fail("v0.6 stable workflow does not package V0.6_RC_VALIDATION.md")
+
+    readme = read("README.md")
+    for token in (
+        "### Stable v0.6.0",
+        "/releases/tag/v0.6.0",
+        "/releases/download/v0.6.0/ALTRunNext-x64.zip",
+        "/releases/download/v0.6.0/ALTRunNext-ARM64.zip",
+    ):
+        if token not in readme:
+            fail(f"v0.6 stable README publication contract missing: {token}")
+
+    workflow = read(".github/workflows/build.yml")
+    for token in (
+        'TAG="v$VERSION"',
+        'if [[ "$VERSION" == *-* ]]; then',
+        "EXTRA_ARGS+=(--prerelease)",
+        'gh release create "$TAG"',
+    ):
+        if token not in workflow:
+            fail(f"v0.6 stable publication workflow contract missing: {token}")
+
+    print(
+        "v0.6.0 stable release contract verified:",
+        "| settings=4 commands=1 usage=1 provider-cache=2",
+        "| frozen providers/Hotkey IDs/Everything/Smart Actions/Diagnostics",
+        "| Classic 420/16/10",
+        "| clean install + historical upgrade matrix + downgrade readonly",
+        "| packaged schema2->4 runtime migration + package contract",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.6.0-rc.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 4,

@@ -4,14 +4,14 @@ ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, 
 
 ## Downloads
 
-### Stable v0.5.0
+### Stable v0.6.0
 
-The current stable release is published at the immutable `v0.5.0` tag:
+The current stable release is published at the immutable `v0.6.0` tag:
 
-- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.5.0
-- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.5.0/ALTRunNext-x64.zip
-- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.5.0/ALTRunNext-ARM64.zip
-- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.5.0/SHA256SUMS.txt
+- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.6.0
+- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.6.0/ALTRunNext-x64.zip
+- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.6.0/ALTRunNext-ARM64.zip
+- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.6.0/SHA256SUMS.txt
 
 ### Rolling development build
 
@@ -22,6 +22,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.6.0 — Stable
+
+v0.6.0 promotes the fully validated v0.6.0-rc.1 contract to Stable without changing launcher, provider, Smart Action, Hotkey Registry, Everything, Diagnostics, migration or desktop runtime behavior.
+
+The v0.6 line delivers centralized customizable Hotkeys; Smart Actions for Explorer, Windows Open/Save dialogs and Total Commander; reusable {folder}, {query}, URL, Web and clipboard/text actions; optional Everything Query2/WM_COPYDATA filesystem search with application-search fallback; runtime Diagnostics; and hardened upgrade/downgrade protection.
+
+Stable keeps the RC release gates intact: clean-install defaults, v0.5.0/alpha.5 schema 3 -> 4 migration, alpha.6.1/beta.1/beta.2 schema 4 -> 4 compatibility, downgrade read-only protection, Windows 10 API baseline, Windows desktop/runtime smoke, packaged x64 schema 2 -> 4 migration, x64/ARM64 package contracts and immutable asset checksums.
+
+The persisted contract remains settings schemaVersion 4, commands/usage schemaVersion 1 and provider-cache schemaVersion 2. Provider IDs/defaults, the five Hotkey Registry action IDs, Everything IPC contract, Smart Actions evaluation, Diagnostics owner-draw routing and Classic geometry 420/16/10 remain frozen from RC.1. Windows fixed FileVersion/ProductVersion is `0.6.0.300`.
 
 ## v0.6.0-rc.1 — Release Freeze & Upgrade Gate
 
