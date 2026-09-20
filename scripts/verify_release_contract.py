@@ -743,7 +743,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             'T(L"不接受额外输入",',
             'T(L"原样传递",',
             'T(L"URL 编码（UTF-8）",',
-            'L"{input}"',
+            "{input}",
             "CanAcceptRuntimeInput",
         ):
             if token not in editor:
