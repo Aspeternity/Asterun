@@ -6,7 +6,6 @@
 
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace altrun {
 
@@ -45,21 +44,29 @@ private:
     void CreateControls();
     void ApplyLanguage();
     void Layout();
-    void UpdateTypeControls();
+    void ResizeForAdvanced();
+    void UpdateAdvancedVisibility();
+    void ToggleAdvanced();
+    void UpdateTypeState();
+    void MaybeAutoFillName();
+    void SetNameText(
+        std::wstring_view text,
+        bool automatic);
+
     void LoadCommand(
         std::wstring_view commandId);
     void BeginNew();
     bool Save();
     void Test();
-    void BrowseTarget();
+    void BrowseTargetFile();
+    void BrowseTargetFolder();
     void BrowseWorkingDirectory();
 
     [[nodiscard]] Command
     CollectCommand() const;
 
-    [[nodiscard]] std::vector<std::wstring>
-    ParseAliases(
-        std::wstring_view text) const;
+    [[nodiscard]] CommandType
+    SelectedType() const;
 
     [[nodiscard]] std::wstring
     ControlText(
@@ -77,25 +84,25 @@ private:
     HWND owner_{};
     HWND hwnd_{};
 
-    HWND shortcutGroup_{};
-    HWND executionGroup_{};
-    HWND nameLabel_{};
-    HWND name_{};
     HWND keywordLabel_{};
     HWND keyword_{};
-    HWND aliasesLabel_{};
-    HWND aliases_{};
-    HWND typeLabel_{};
-    HWND type_{};
+    HWND keywordHint_{};
+    HWND nameLabel_{};
+    HWND name_{};
     HWND targetLabel_{};
     HWND target_{};
-    HWND browseTarget_{};
+    HWND browseFile_{};
+    HWND browseFolder_{};
+    HWND typeLabel_{};
+    HWND type_{};
+    HWND typeHint_{};
+    HWND advancedToggle_{};
     HWND argumentsLabel_{};
     HWND arguments_{};
     HWND workdirLabel_{};
     HWND workdir_{};
     HWND browseWorkdir_{};
-    HWND enabled_{};
+    HWND paused_{};
     HWND admin_{};
     HWND pinned_{};
     HWND test_{};
@@ -106,6 +113,9 @@ private:
     UINT dpi_{96};
     bool changed_{false};
     bool closed_{false};
+    bool advancedExpanded_{false};
+    bool nameAuto_{true};
+    bool suppressNameChange_{false};
     std::wstring commandId_;
 };
 

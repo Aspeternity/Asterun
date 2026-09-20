@@ -36,8 +36,8 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3"):
-    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3") else 4
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1"):
+    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1") else 4
     expected_schemas = {
         "kSettingsSchemaVersion": expected_settings_schema,
         "kCommandsSchemaVersion": 1,
@@ -261,7 +261,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3"):
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -371,7 +371,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3"):
+    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1"):
         pinyin_cpp = read("src/core/PinyinSearch.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
 
@@ -417,7 +417,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3"):
+    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1"):
         command_store_h = read("src/core/CommandStore.hpp")
         command_store_cpp = read("src/core/CommandStore.cpp")
         command_merge_h = read("src/core/CommandMerge.hpp")
@@ -570,6 +570,82 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "std::array<const wchar_t*, 4>" not in editor_cpp:
             fail("v0.7 alpha.3 type selector must expose exactly four command types")
 
+    if version == "0.7.0-alpha.3.1":
+        editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+        editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+        editor_model_h = read("src/core/ShortcutEditorModel.hpp")
+        editor_model_cpp = read("src/core/ShortcutEditorModel.cpp")
+        editor_model_test = read("tests/ShortcutEditorModelTests.cpp")
+        app_cpp = read("src/app/App.cpp")
+        cmake = read("CMakeLists.txt")
+
+        for token in (
+            'T(L"快捷词 *",',
+            "ParseShortcutKeywords",
+            "FormatShortcutKeywords",
+            "BrowseTargetFile",
+            "BrowseTargetFolder",
+            "advancedToggle_",
+            "advancedExpanded_",
+            'T(L"固定参数",',
+            'T(L"工作目录（留空自动使用目标所在目录）",',
+            'T(L"暂停此快捷项",',
+            "command.enabled =\n        !IsChecked(paused_);",
+            "std::array<const wchar_t*, 5>",
+            'T(L"自动识别",',
+            "InferShortcutCommandType",
+            "SuggestShortcutTitle",
+        ):
+            if token not in editor_h and token not in editor_cpp:
+                fail(f"v0.7 alpha.3.1 shortcut-editor workflow missing: {token}")
+
+        for forbidden in (
+            "aliases_",
+            'T(L"主快捷词 *",',
+            'T(L"别名（逗号分隔）",',
+        ):
+            if forbidden in editor_h or forbidden in editor_cpp:
+                fail(f"v0.7 alpha.3.1 still exposes internal keyword structure: {forbidden}")
+
+        for token in (
+            "struct ShortcutKeywordSet",
+            "ParseShortcutKeywords",
+            "FormatShortcutKeywords",
+            "InferShortcutCommandType",
+            "SuggestShortcutTitle",
+            "DefaultShortcutWorkingDirectory",
+        ):
+            if token not in editor_model_h or token not in editor_model_cpp:
+                fail(f"v0.7 alpha.3.1 editor model missing: {token}")
+
+        for token in (
+            'L"v2rayN, vpn，proxy; VPN"',
+            "CommandType::Url",
+            "CommandType::Folder",
+            "CommandType::CommandLine",
+            'L"C:\\\\Tools\\\\v2rayN\\\\v2rayN.exe"',
+            "DefaultShortcutWorkingDirectory",
+        ):
+            if token not in editor_model_test:
+                fail(f"v0.7 alpha.3.1 editor model regression missing: {token}")
+
+        for token in (
+            '#include "../core/ShortcutEditorModel.hpp"',
+            "DefaultShortcutWorkingDirectory(",
+            "resolved.source ==",
+            "CommandSource::User",
+        ):
+            if token not in app_cpp:
+                fail(f"v0.7 alpha.3.1 automatic working-directory runtime missing: {token}")
+
+        for token in (
+            "src/core/ShortcutEditorModel.cpp",
+            "shortcut_editor_model_tests",
+            "tests/ShortcutEditorModelTests.cpp",
+        ):
+            if token not in cmake:
+                fail(f"v0.7 alpha.3.1 editor-model CI wiring missing: {token}")
+
     print(
         "v0.7.0 alpha.2/alpha.3 contract verified:",
         f"| commands=1 settings={expected_settings_schema} provider-cache=2",
@@ -581,6 +657,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         "| alpha.2.5 Provider storage dedup + Pinyin search control",
         "| alpha.2.6 Pinyin Settings owner-draw routing",
         "| alpha.3 compact grouped Shortcut Editor + four command types",
+        "| alpha.3.1 shortcut workflow model + progressive advanced options",
     )
     raise SystemExit(0)
 

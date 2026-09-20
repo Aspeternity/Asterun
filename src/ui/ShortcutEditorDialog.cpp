@@ -1,6 +1,7 @@
 #include "ShortcutEditorDialog.hpp"
 
 #include "../app/App.hpp"
+#include "../core/ShortcutEditorModel.hpp"
 
 #include <commctrl.h>
 #include <commdlg.h>
@@ -12,34 +13,35 @@
 #include <filesystem>
 
 namespace altrun {
-
 namespace {
 
 constexpr wchar_t kShortcutEditorClass[] =
     L"ALTRunNext.ShortcutEditor";
 
-constexpr int kEditorWidthLogical = 620;
-constexpr int kEditorHeightLogical = 480;
-constexpr int kTypeDropdownHeightLogical = 150;
+constexpr int kEditorWidthLogical = 660;
+constexpr int kCollapsedHeightLogical = 430;
+constexpr int kExpandedHeightLogical = 590;
+constexpr int kTypeDropdownHeightLogical = 170;
 
 constexpr UINT kIdName = 53101;
 constexpr UINT kIdKeyword = 53102;
-constexpr UINT kIdAliases = 53103;
 constexpr UINT kIdType = 53104;
 constexpr UINT kIdTarget = 53105;
-constexpr UINT kIdBrowseTarget = 53106;
+constexpr UINT kIdBrowseFile = 53106;
 constexpr UINT kIdArguments = 53107;
 constexpr UINT kIdWorkdir = 53108;
 constexpr UINT kIdBrowseWorkdir = 53109;
-constexpr UINT kIdEnabled = 53110;
+constexpr UINT kIdPaused = 53110;
 constexpr UINT kIdAdmin = 53111;
 constexpr UINT kIdPinned = 53112;
 constexpr UINT kIdTest = 53113;
 constexpr UINT kIdSave = 53114;
 constexpr UINT kIdCancel = 53115;
+constexpr UINT kIdBrowseFolder = 53116;
+constexpr UINT kIdAdvancedToggle = 53117;
 
-std::wstring TrimWide(
-    std::wstring_view value) {
+[[nodiscard]] std::wstring
+TrimWide(std::wstring_view value) {
     std::size_t first = 0;
     std::size_t last = value.size();
 
@@ -47,6 +49,7 @@ std::wstring TrimWide(
            std::iswspace(value[first])) {
         ++first;
     }
+
     while (last > first &&
            std::iswspace(value[last - 1])) {
         --last;
@@ -56,48 +59,55 @@ std::wstring TrimWide(
         value.substr(first, last - first));
 }
 
-std::wstring LowerWide(
-    std::wstring_view value) {
-    std::wstring out(value);
+[[nodiscard]] std::wstring
+LowerWide(std::wstring_view value) {
+    std::wstring result(value);
+
     std::transform(
-        out.begin(),
-        out.end(),
-        out.begin(),
+        result.begin(),
+        result.end(),
+        result.begin(),
         [](wchar_t c) {
             return static_cast<wchar_t>(
                 std::towlower(c));
         });
-    return out;
+
+    return result;
 }
 
-int TypeIndex(CommandType type) {
+[[nodiscard]] int
+ExplicitTypeIndex(CommandType type) {
     switch (type) {
-    case CommandType::Url:
-        return 1;
-    case CommandType::Folder:
-        return 2;
-    case CommandType::CommandLine:
-        return 3;
     case CommandType::Application:
-    default:
-        return 0;
+        return 1;
+    case CommandType::Url:
+        return 2;
+    case CommandType::Folder:
+        return 3;
+    case CommandType::CommandLine:
+        return 4;
     }
+
+    return 1;
 }
 
-CommandType TypeFromIndex(int index) {
+[[nodiscard]] CommandType
+ExplicitTypeFromIndex(int index) {
     switch (index) {
-    case 1:
-        return CommandType::Url;
     case 2:
-        return CommandType::Folder;
+        return CommandType::Url;
     case 3:
+        return CommandType::Folder;
+    case 4:
         return CommandType::CommandLine;
+    case 1:
     default:
         return CommandType::Application;
     }
 }
 
-bool IsChecked(HWND control) {
+[[nodiscard]] bool
+IsChecked(HWND control) {
     return SendMessageW(
         control,
         BM_GETCHECK,
@@ -111,7 +121,9 @@ void SetChecked(
     SendMessageW(
         control,
         BM_SETCHECK,
-        checked ? BST_CHECKED : BST_UNCHECKED,
+        checked
+            ? BST_CHECKED
+            : BST_UNCHECKED,
         0);
 }
 
@@ -219,7 +231,7 @@ bool ShortcutEditorDialog::Create(
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         kEditorWidthLogical,
-        kEditorHeightLogical,
+        kCollapsedHeightLogical,
         owner_,
         nullptr,
         instance_,
@@ -231,17 +243,6 @@ bool ShortcutEditorDialog::Create(
 
     dpi_ = GetDpiForWindow(hwnd_);
 
-    SetWindowPos(
-        hwnd_,
-        nullptr,
-        0,
-        0,
-        Scale(kEditorWidthLogical),
-        Scale(kEditorHeightLogical),
-        SWP_NOMOVE |
-            SWP_NOZORDER |
-            SWP_NOACTIVATE);
-
     CreateControls();
     ApplyLanguage();
 
@@ -251,6 +252,8 @@ bool ShortcutEditorDialog::Create(
         LoadCommand(commandId);
     }
 
+    UpdateAdvancedVisibility();
+    ResizeForAdvanced();
     Layout();
 
     RECT ownerRect{};
@@ -340,12 +343,11 @@ bool ShortcutEditorDialog::RunModal() {
 
 void ShortcutEditorDialog::CreateControls() {
     const auto makeStatic =
-        [&](HWND& target,
-            const wchar_t* text) {
-            target = CreateWindowExW(
+        [&](HWND& control) {
+            control = CreateWindowExW(
                 0,
                 L"STATIC",
-                text,
+                L"",
                 WS_CHILD |
                     WS_VISIBLE |
                     SS_LEFT,
@@ -359,29 +361,10 @@ void ShortcutEditorDialog::CreateControls() {
                 nullptr);
         };
 
-    const auto makeGroup =
-        [&](HWND& target) {
-            target = CreateWindowExW(
-                0,
-                L"BUTTON",
-                L"",
-                WS_CHILD |
-                    WS_VISIBLE |
-                    BS_GROUPBOX,
-                0,
-                0,
-                0,
-                0,
-                hwnd_,
-                nullptr,
-                instance_,
-                nullptr);
-        };
-
     const auto makeEdit =
-        [&](HWND& target,
+        [&](HWND& control,
             UINT id) {
-            target = CreateWindowExW(
+            control = CreateWindowExW(
                 WS_EX_CLIENTEDGE,
                 L"EDIT",
                 L"",
@@ -402,15 +385,14 @@ void ShortcutEditorDialog::CreateControls() {
         };
 
     const auto makeButton =
-        [&](HWND& target,
-            const wchar_t* text,
+        [&](HWND& control,
             UINT id,
             DWORD style =
                 BS_PUSHBUTTON) {
-            target = CreateWindowExW(
+            control = CreateWindowExW(
                 0,
                 L"BUTTON",
-                text,
+                L"",
                 WS_CHILD |
                     WS_VISIBLE |
                     WS_TABSTOP |
@@ -427,19 +409,23 @@ void ShortcutEditorDialog::CreateControls() {
                 nullptr);
         };
 
-    makeGroup(shortcutGroup_);
-    makeGroup(executionGroup_);
-
-    makeStatic(keywordLabel_, L"");
+    makeStatic(keywordLabel_);
     makeEdit(keyword_, kIdKeyword);
+    makeStatic(keywordHint_);
 
-    makeStatic(nameLabel_, L"");
+    makeStatic(nameLabel_);
     makeEdit(name_, kIdName);
 
-    makeStatic(aliasesLabel_, L"");
-    makeEdit(aliases_, kIdAliases);
+    makeStatic(targetLabel_);
+    makeEdit(target_, kIdTarget);
+    makeButton(
+        browseFile_,
+        kIdBrowseFile);
+    makeButton(
+        browseFolder_,
+        kIdBrowseFolder);
 
-    makeStatic(typeLabel_, L"");
+    makeStatic(typeLabel_);
     type_ = CreateWindowExW(
         0,
         L"COMBOBOX",
@@ -459,52 +445,47 @@ void ShortcutEditorDialog::CreateControls() {
                 kIdType)),
         instance_,
         nullptr);
+    makeStatic(typeHint_);
 
-    makeStatic(targetLabel_, L"");
-    makeEdit(target_, kIdTarget);
     makeButton(
-        browseTarget_,
-        L"...",
-        kIdBrowseTarget);
+        advancedToggle_,
+        kIdAdvancedToggle);
 
-    makeStatic(argumentsLabel_, L"");
-    makeEdit(arguments_, kIdArguments);
+    makeStatic(argumentsLabel_);
+    makeEdit(
+        arguments_,
+        kIdArguments);
 
-    makeStatic(workdirLabel_, L"");
-    makeEdit(workdir_, kIdWorkdir);
+    makeStatic(workdirLabel_);
+    makeEdit(
+        workdir_,
+        kIdWorkdir);
     makeButton(
         browseWorkdir_,
-        L"...",
         kIdBrowseWorkdir);
 
     makeButton(
-        enabled_,
-        L"",
-        kIdEnabled,
+        paused_,
+        kIdPaused,
         BS_AUTOCHECKBOX);
     makeButton(
         admin_,
-        L"",
         kIdAdmin,
         BS_AUTOCHECKBOX);
     makeButton(
         pinned_,
-        L"",
         kIdPinned,
         BS_AUTOCHECKBOX);
 
     makeButton(
         test_,
-        L"",
         kIdTest);
     makeButton(
         save_,
-        L"",
         kIdSave,
         BS_DEFPUSHBUTTON);
     makeButton(
         cancel_,
-        L"",
         kIdCancel);
 
     font_ = CreateFontW(
@@ -530,31 +511,34 @@ void ShortcutEditorDialog::CreateControls() {
             ? L"Microsoft YaHei UI"
             : L"Segoe UI");
 
-    for (HWND control :
-         std::array<HWND, 23>{
-             shortcutGroup_,
-             executionGroup_,
-             nameLabel_,
-             name_,
-             keywordLabel_,
-             keyword_,
-             aliasesLabel_,
-             aliases_,
-             typeLabel_,
-             type_,
-             targetLabel_,
-             target_,
-             browseTarget_,
-             argumentsLabel_,
-             arguments_,
-             workdirLabel_,
-             workdir_,
-             browseWorkdir_,
-             enabled_,
-             admin_,
-             pinned_,
-             test_,
-             save_}) {
+    const HWND allControls[] = {
+        keywordLabel_,
+        keyword_,
+        keywordHint_,
+        nameLabel_,
+        name_,
+        targetLabel_,
+        target_,
+        browseFile_,
+        browseFolder_,
+        typeLabel_,
+        type_,
+        typeHint_,
+        advancedToggle_,
+        argumentsLabel_,
+        arguments_,
+        workdirLabel_,
+        workdir_,
+        browseWorkdir_,
+        paused_,
+        admin_,
+        pinned_,
+        test_,
+        save_,
+        cancel_,
+    };
+
+    for (HWND control : allControls) {
         SendMessageW(
             control,
             WM_SETFONT,
@@ -562,13 +546,6 @@ void ShortcutEditorDialog::CreateControls() {
                 font_),
             TRUE);
     }
-
-    SendMessageW(
-        cancel_,
-        WM_SETFONT,
-        reinterpret_cast<WPARAM>(
-            font_),
-        TRUE);
 }
 
 void ShortcutEditorDialog::ApplyLanguage() {
@@ -581,56 +558,33 @@ void ShortcutEditorDialog::ApplyLanguage() {
                 L"Edit shortcut"));
 
     SetWindowTextW(
-        shortcutGroup_,
-        T(L"快捷项", L"Shortcut"));
+        keywordLabel_,
+        T(L"快捷词 *",
+          L"Keywords *"));
     SetWindowTextW(
-        executionGroup_,
-        T(L"启动选项", L"Launch options"));
-
+        keywordHint_,
+        T(L"多个快捷词用逗号分隔，第一个优先级最高。",
+          L"Separate multiple keywords with commas; the first has priority."));
     SetWindowTextW(
         nameLabel_,
-        T(L"名称 *", L"Name *"));
-    SetWindowTextW(
-        keywordLabel_,
-        T(L"主快捷词 *",
-          L"Primary keyword *"));
-    SetWindowTextW(
-        aliasesLabel_,
-        T(L"别名（逗号分隔）",
-          L"Aliases (comma separated)"));
-    SetWindowTextW(
-        typeLabel_,
-        T(L"类型", L"Type"));
+        T(L"名称",
+          L"Name"));
     SetWindowTextW(
         targetLabel_,
-        T(L"目标 *", L"Target *"));
+        T(L"目标 *",
+          L"Target *"));
     SetWindowTextW(
-        argumentsLabel_,
-        T(L"参数", L"Arguments"));
+        browseFile_,
+        T(L"文件...",
+          L"File..."));
     SetWindowTextW(
-        workdirLabel_,
-        T(L"工作目录",
-          L"Working directory"));
-
+        browseFolder_,
+        T(L"文件夹...",
+          L"Folder..."));
     SetWindowTextW(
-        enabled_,
-        T(L"启用", L"Enabled"));
-    SetWindowTextW(
-        admin_,
-        T(L"以管理员身份运行",
-          L"Run as administrator"));
-    SetWindowTextW(
-        pinned_,
-        T(L"置顶", L"Pinned"));
-    SetWindowTextW(
-        test_,
-        T(L"测试", L"Test"));
-    SetWindowTextW(
-        save_,
-        T(L"保存", L"Save"));
-    SetWindowTextW(
-        cancel_,
-        T(L"取消", L"Cancel"));
+        typeLabel_,
+        T(L"目标类型",
+          L"Target type"));
 
     const int selected =
         std::max(
@@ -649,12 +603,17 @@ void ShortcutEditorDialog::ApplyLanguage() {
         0);
 
     for (const auto* text :
-         std::array<const wchar_t*, 4>{
+         std::array<const wchar_t*, 5>{
+             T(L"自动识别",
+               L"Auto detect"),
              T(L"应用程序",
                L"Application"),
-             T(L"网址", L"URL"),
-             T(L"文件夹", L"Folder"),
-             T(L"命令行", L"Command line")}) {
+             T(L"网址",
+               L"URL"),
+             T(L"文件夹",
+               L"Folder"),
+             T(L"命令行",
+               L"Command line")}) {
         SendMessageW(
             type_,
             CB_ADDSTRING,
@@ -668,87 +627,490 @@ void ShortcutEditorDialog::ApplyLanguage() {
         CB_SETCURSEL,
         selected,
         0);
-
     SendMessageW(
         type_,
         CB_SETMINVISIBLE,
-        4,
+        5,
         0);
 
-    UpdateTypeControls();
+    SetWindowTextW(
+        argumentsLabel_,
+        T(L"固定参数",
+          L"Fixed arguments"));
+    SetWindowTextW(
+        workdirLabel_,
+        T(L"工作目录（留空自动使用目标所在目录）",
+          L"Working directory (blank = target directory)"));
+    SetWindowTextW(
+        paused_,
+        T(L"暂停此快捷项",
+          L"Pause this shortcut"));
+    SetWindowTextW(
+        admin_,
+        T(L"以管理员身份运行",
+          L"Run as administrator"));
+    SetWindowTextW(
+        pinned_,
+        T(L"置顶",
+          L"Pinned"));
+    SetWindowTextW(
+        test_,
+        T(L"测试",
+          L"Test"));
+    SetWindowTextW(
+        save_,
+        T(L"保存",
+          L"Save"));
+    SetWindowTextW(
+        cancel_,
+        T(L"取消",
+          L"Cancel"));
+
+    UpdateAdvancedVisibility();
+    UpdateTypeState();
 }
 
 void ShortcutEditorDialog::Layout() {
+    if (!hwnd_) {
+        return;
+    }
+
     RECT client{};
     GetClientRect(hwnd_, &client);
 
-    const int margin = Scale(18);
-    const int groupInset = Scale(14);
-    const int labelWidth = Scale(112);
-    const int browseWidth = Scale(42);
+    const int margin = Scale(22);
+    const int labelHeight = Scale(20);
+    const int fieldHeight = Scale(30);
+    const int smallHeight = Scale(18);
     const int gap = Scale(8);
-    const int rowStep = Scale(34);
-    const int fieldHeight = Scale(28);
-    const int groupWidth = client.right - margin * 2;
+    const int fileButtonWidth = Scale(62);
+    const int folderButtonWidth = Scale(78);
+    const int contentWidth =
+        client.right - margin * 2;
 
-    const int shortcutTop = Scale(14);
-    const int shortcutHeight = Scale(218);
+    int y = Scale(18);
 
-    MoveWindow(shortcutGroup_, margin, shortcutTop, groupWidth, shortcutHeight, TRUE);
+    MoveWindow(
+        keywordLabel_,
+        margin,
+        y,
+        contentWidth,
+        labelHeight,
+        TRUE);
+    y += Scale(22);
 
-    const int labelX = margin + groupInset;
-    const int fieldX = labelX + labelWidth;
-    const int fieldWidth = client.right - margin - groupInset - fieldX;
-    int y = shortcutTop + Scale(28);
+    MoveWindow(
+        keyword_,
+        margin,
+        y,
+        contentWidth,
+        fieldHeight,
+        TRUE);
+    y += Scale(34);
 
-    const auto placeField = [&](HWND label, HWND field, HWND browse = nullptr) {
-        MoveWindow(label, labelX, y + Scale(4), labelWidth - gap, Scale(22), TRUE);
-        const int width = browse ? fieldWidth - browseWidth - gap : fieldWidth;
-        const int controlHeight = field == type_
-            ? Scale(kTypeDropdownHeightLogical)
-            : fieldHeight;
-        MoveWindow(field, fieldX, y, width, controlHeight, TRUE);
-        if (browse) {
-            MoveWindow(browse, fieldX + width + gap, y, browseWidth, fieldHeight, TRUE);
-        }
-        y += rowStep;
-    };
+    MoveWindow(
+        keywordHint_,
+        margin,
+        y,
+        contentWidth,
+        smallHeight,
+        TRUE);
+    y += Scale(30);
 
-    placeField(keywordLabel_, keyword_);
-    placeField(nameLabel_, name_);
-    placeField(aliasesLabel_, aliases_);
-    placeField(typeLabel_, type_);
-    placeField(targetLabel_, target_, browseTarget_);
+    MoveWindow(
+        nameLabel_,
+        margin,
+        y,
+        contentWidth,
+        labelHeight,
+        TRUE);
+    y += Scale(22);
 
-    const int executionTop = shortcutTop + shortcutHeight + Scale(10);
-    const int executionHeight = Scale(122);
-    MoveWindow(executionGroup_, margin, executionTop, groupWidth, executionHeight, TRUE);
+    MoveWindow(
+        name_,
+        margin,
+        y,
+        contentWidth,
+        fieldHeight,
+        TRUE);
+    y += Scale(44);
 
-    y = executionTop + Scale(28);
-    placeField(argumentsLabel_, arguments_);
-    placeField(workdirLabel_, workdir_, browseWorkdir_);
+    MoveWindow(
+        targetLabel_,
+        margin,
+        y,
+        contentWidth,
+        labelHeight,
+        TRUE);
+    y += Scale(22);
 
-    const int optionX = margin + groupInset;
-    const int optionWidth = (groupWidth - groupInset * 2 - gap * 2) / 3;
-    MoveWindow(enabled_, optionX, y, optionWidth, Scale(26), TRUE);
-    MoveWindow(admin_, optionX + optionWidth + gap, y, optionWidth, Scale(26), TRUE);
-    MoveWindow(pinned_, optionX + (optionWidth + gap) * 2, y, optionWidth, Scale(26), TRUE);
+    const int targetWidth =
+        contentWidth -
+        fileButtonWidth -
+        folderButtonWidth -
+        gap * 2;
 
-    const int buttonWidth = Scale(92);
-    const int buttonHeight = Scale(32);
-    const int buttonY = client.bottom - margin - buttonHeight;
-    MoveWindow(test_, margin, buttonY, buttonWidth, buttonHeight, TRUE);
-    MoveWindow(cancel_, client.right - margin - buttonWidth, buttonY, buttonWidth, buttonHeight, TRUE);
-    MoveWindow(save_, client.right - margin - buttonWidth * 2 - gap, buttonY, buttonWidth, buttonHeight, TRUE);
+    MoveWindow(
+        target_,
+        margin,
+        y,
+        targetWidth,
+        fieldHeight,
+        TRUE);
+    MoveWindow(
+        browseFile_,
+        margin +
+            targetWidth +
+            gap,
+        y,
+        fileButtonWidth,
+        fieldHeight,
+        TRUE);
+    MoveWindow(
+        browseFolder_,
+        margin +
+            targetWidth +
+            gap +
+            fileButtonWidth +
+            gap,
+        y,
+        folderButtonWidth,
+        fieldHeight,
+        TRUE);
+    y += Scale(44);
+
+    const int typeLabelWidth =
+        Scale(82);
+    const int typeWidth =
+        Scale(180);
+
+    MoveWindow(
+        typeLabel_,
+        margin,
+        y + Scale(4),
+        typeLabelWidth,
+        labelHeight,
+        TRUE);
+    MoveWindow(
+        type_,
+        margin + typeLabelWidth,
+        y,
+        typeWidth,
+        Scale(
+            kTypeDropdownHeightLogical),
+        TRUE);
+    MoveWindow(
+        typeHint_,
+        margin +
+            typeLabelWidth +
+            typeWidth +
+            gap,
+        y + Scale(4),
+        contentWidth -
+            typeLabelWidth -
+            typeWidth -
+            gap,
+        labelHeight,
+        TRUE);
+    y += Scale(42);
+
+    MoveWindow(
+        advancedToggle_,
+        margin,
+        y,
+        Scale(132),
+        Scale(28),
+        TRUE);
+    y += Scale(40);
+
+    if (advancedExpanded_) {
+        MoveWindow(
+            argumentsLabel_,
+            margin,
+            y,
+            contentWidth,
+            labelHeight,
+            TRUE);
+        y += Scale(22);
+
+        MoveWindow(
+            arguments_,
+            margin,
+            y,
+            contentWidth,
+            fieldHeight,
+            TRUE);
+        y += Scale(44);
+
+        MoveWindow(
+            workdirLabel_,
+            margin,
+            y,
+            contentWidth,
+            labelHeight,
+            TRUE);
+        y += Scale(22);
+
+        const int workdirButtonWidth =
+            Scale(42);
+        MoveWindow(
+            workdir_,
+            margin,
+            y,
+            contentWidth -
+                workdirButtonWidth -
+                gap,
+            fieldHeight,
+            TRUE);
+        MoveWindow(
+            browseWorkdir_,
+            client.right -
+                margin -
+                workdirButtonWidth,
+            y,
+            workdirButtonWidth,
+            fieldHeight,
+            TRUE);
+        y += Scale(44);
+
+        const int optionWidth =
+            (contentWidth -
+             gap * 2) / 3;
+
+        MoveWindow(
+            paused_,
+            margin,
+            y,
+            optionWidth,
+            Scale(28),
+            TRUE);
+        MoveWindow(
+            admin_,
+            margin +
+                optionWidth +
+                gap,
+            y,
+            optionWidth,
+            Scale(28),
+            TRUE);
+        MoveWindow(
+            pinned_,
+            margin +
+                (optionWidth + gap) * 2,
+            y,
+            optionWidth,
+            Scale(28),
+            TRUE);
+    }
+
+    const int buttonWidth =
+        Scale(92);
+    const int buttonHeight =
+        Scale(32);
+    const int buttonY =
+        client.bottom -
+        margin -
+        buttonHeight;
+
+    MoveWindow(
+        test_,
+        margin,
+        buttonY,
+        buttonWidth,
+        buttonHeight,
+        TRUE);
+    MoveWindow(
+        cancel_,
+        client.right -
+            margin -
+            buttonWidth,
+        buttonY,
+        buttonWidth,
+        buttonHeight,
+        TRUE);
+    MoveWindow(
+        save_,
+        client.right -
+            margin -
+            buttonWidth * 2 -
+            gap,
+        buttonY,
+        buttonWidth,
+        buttonHeight,
+        TRUE);
 }
 
-void ShortcutEditorDialog::UpdateTypeControls() {
-    const auto type = TypeFromIndex(
-        static_cast<int>(SendMessageW(type_, CB_GETCURSEL, 0, 0)));
+void ShortcutEditorDialog::ResizeForAdvanced() {
+    if (!hwnd_) {
+        return;
+    }
 
-    EnableWindow(
-        browseTarget_,
-        type == CommandType::Url ? FALSE : TRUE);
+    SetWindowPos(
+        hwnd_,
+        nullptr,
+        0,
+        0,
+        Scale(kEditorWidthLogical),
+        Scale(
+            advancedExpanded_
+                ? kExpandedHeightLogical
+                : kCollapsedHeightLogical),
+        SWP_NOMOVE |
+            SWP_NOZORDER |
+            SWP_NOACTIVATE);
+}
+
+void ShortcutEditorDialog::UpdateAdvancedVisibility() {
+    const int command =
+        advancedExpanded_
+            ? SW_SHOW
+            : SW_HIDE;
+
+    for (HWND control : {
+             argumentsLabel_,
+             arguments_,
+             workdirLabel_,
+             workdir_,
+             browseWorkdir_,
+             paused_,
+             admin_,
+             pinned_}) {
+        ShowWindow(
+            control,
+            command);
+    }
+
+    SetWindowTextW(
+        advancedToggle_,
+        advancedExpanded_
+            ? T(L"▾ 高级选项",
+                L"▾ Advanced")
+            : T(L"▸ 高级选项",
+                L"▸ Advanced"));
+}
+
+void ShortcutEditorDialog::ToggleAdvanced() {
+    advancedExpanded_ =
+        !advancedExpanded_;
+
+    UpdateAdvancedVisibility();
+    ResizeForAdvanced();
+    Layout();
+}
+
+CommandType ShortcutEditorDialog::SelectedType()
+    const {
+    const int selected =
+        static_cast<int>(
+            SendMessageW(
+                type_,
+                CB_GETCURSEL,
+                0,
+                0));
+
+    if (selected <= 0) {
+        return InferShortcutCommandType(
+            ControlText(target_));
+    }
+
+    return ExplicitTypeFromIndex(
+        selected);
+}
+
+void ShortcutEditorDialog::UpdateTypeState() {
+    if (!typeHint_) {
+        return;
+    }
+
+    const int selected =
+        static_cast<int>(
+            SendMessageW(
+                type_,
+                CB_GETCURSEL,
+                0,
+                0));
+
+    const CommandType type =
+        selected <= 0
+            ? InferShortcutCommandType(
+                  ControlText(target_))
+            : ExplicitTypeFromIndex(
+                  selected);
+
+    const wchar_t* typeName = nullptr;
+
+    switch (type) {
+    case CommandType::Url:
+        typeName =
+            T(L"网址", L"URL");
+        break;
+    case CommandType::Folder:
+        typeName =
+            T(L"文件夹", L"Folder");
+        break;
+    case CommandType::CommandLine:
+        typeName =
+            T(L"命令行", L"Command line");
+        break;
+    case CommandType::Application:
+    default:
+        typeName =
+            T(L"应用程序", L"Application");
+        break;
+    }
+
+    std::wstring text =
+        selected <= 0
+            ? T(L"识别为：",
+                L"Detected: ")
+            : T(L"手动指定：",
+                L"Override: ");
+    text += typeName;
+
+    SetWindowTextW(
+        typeHint_,
+        text.c_str());
+}
+
+void ShortcutEditorDialog::SetNameText(
+    std::wstring_view text,
+    bool automatic) {
+    suppressNameChange_ = true;
+
+    const std::wstring value(text);
+    SetWindowTextW(
+        name_,
+        value.c_str());
+
+    suppressNameChange_ = false;
+    nameAuto_ = automatic;
+}
+
+void ShortcutEditorDialog::MaybeAutoFillName() {
+    const std::wstring current =
+        TrimWide(
+            ControlText(name_));
+
+    if (!nameAuto_ &&
+        !current.empty()) {
+        return;
+    }
+
+    const auto keywords =
+        ParseShortcutKeywords(
+            ControlText(keyword_));
+
+    const std::wstring suggested =
+        SuggestShortcutTitle(
+            ControlText(target_),
+            SelectedType(),
+            keywords.primary);
+
+    if (!suggested.empty()) {
+        SetNameText(
+            suggested,
+            true);
+    }
 }
 
 void ShortcutEditorDialog::LoadCommand(
@@ -770,33 +1132,14 @@ void ShortcutEditorDialog::LoadCommand(
 
     commandId_ = it->id;
 
-    SetWindowTextW(
-        name_,
-        it->title.c_str());
+    const std::wstring keywordText =
+        FormatShortcutKeywords(
+            it->keyword,
+            it->aliases);
+
     SetWindowTextW(
         keyword_,
-        it->keyword.c_str());
-
-    std::wstring aliasText;
-    for (std::size_t index = 0;
-         index < it->aliases.size();
-         ++index) {
-        if (index > 0) {
-            aliasText += L", ";
-        }
-        aliasText += it->aliases[index];
-    }
-
-    SetWindowTextW(
-        aliases_,
-        aliasText.c_str());
-
-    SendMessageW(
-        type_,
-        CB_SETCURSEL,
-        TypeIndex(it->type),
-        0);
-
+        keywordText.c_str());
     SetWindowTextW(
         target_,
         it->target.c_str());
@@ -807,9 +1150,32 @@ void ShortcutEditorDialog::LoadCommand(
         workdir_,
         it->workingDirectory.c_str());
 
+    const CommandType inferred =
+        InferShortcutCommandType(
+            it->target);
+
+    SendMessageW(
+        type_,
+        CB_SETCURSEL,
+        inferred == it->type
+            ? 0
+            : ExplicitTypeIndex(
+                  it->type),
+        0);
+
+    const std::wstring suggested =
+        SuggestShortcutTitle(
+            it->target,
+            it->type,
+            it->keyword);
+
+    SetNameText(
+        it->title,
+        it->title == suggested);
+
     SetChecked(
-        enabled_,
-        it->enabled);
+        paused_,
+        !it->enabled);
     SetChecked(
         admin_,
         it->runAsAdmin);
@@ -817,18 +1183,36 @@ void ShortcutEditorDialog::LoadCommand(
         pinned_,
         it->pinned);
 
-    ApplyLanguage();
+    advancedExpanded_ =
+        !it->arguments.empty() ||
+        !it->workingDirectory.empty() ||
+        !it->enabled ||
+        it->runAsAdmin ||
+        it->pinned;
+
+    UpdateAdvancedVisibility();
+    UpdateTypeState();
 }
 
 void ShortcutEditorDialog::BeginNew() {
     commandId_.clear();
 
-    SetWindowTextW(name_, L"");
-    SetWindowTextW(keyword_, L"");
-    SetWindowTextW(aliases_, L"");
-    SetWindowTextW(target_, L"");
-    SetWindowTextW(arguments_, L"");
-    SetWindowTextW(workdir_, L"");
+    SetWindowTextW(
+        keyword_,
+        L"");
+    SetWindowTextW(
+        target_,
+        L"");
+    SetWindowTextW(
+        arguments_,
+        L"");
+    SetWindowTextW(
+        workdir_,
+        L"");
+
+    SetNameText(
+        L"",
+        true);
 
     SendMessageW(
         type_,
@@ -836,17 +1220,27 @@ void ShortcutEditorDialog::BeginNew() {
         0,
         0);
 
-    SetChecked(enabled_, true);
-    SetChecked(admin_, false);
-    SetChecked(pinned_, false);
+    SetChecked(
+        paused_,
+        false);
+    SetChecked(
+        admin_,
+        false);
+    SetChecked(
+        pinned_,
+        false);
 
-    ApplyLanguage();
+    advancedExpanded_ = false;
+
+    UpdateAdvancedVisibility();
+    UpdateTypeState();
 }
 
 std::wstring ShortcutEditorDialog::ControlText(
     HWND control) const {
     const int length =
-        GetWindowTextLengthW(control);
+        GetWindowTextLengthW(
+            control);
 
     std::wstring value(
         static_cast<std::size_t>(
@@ -865,72 +1259,20 @@ std::wstring ShortcutEditorDialog::ControlText(
     return value;
 }
 
-std::vector<std::wstring>
-ShortcutEditorDialog::ParseAliases(
-    std::wstring_view text) const {
-    std::vector<std::wstring> aliases;
-    std::wstring current;
-
-    const auto flush = [&]() {
-        const auto value =
-            TrimWide(current);
-        current.clear();
-
-        if (value.empty()) {
-            return;
-        }
-
-        const auto duplicate =
-            std::find_if(
-                aliases.begin(),
-                aliases.end(),
-                [&](const auto& existing) {
-                    return LowerWide(existing) ==
-                        LowerWide(value);
-                });
-
-        if (duplicate ==
-            aliases.end()) {
-            aliases.push_back(value);
-        }
-    };
-
-    for (const wchar_t c : text) {
-        if (c == L',' ||
-            c == L';' ||
-            c == L'，' ||
-            c == L'；') {
-            flush();
-        } else {
-            current.push_back(c);
-        }
-    }
-
-    flush();
-    return aliases;
-}
-
 Command ShortcutEditorDialog::CollectCommand()
     const {
     Command command;
 
-    command.title =
-        TrimWide(
-            ControlText(name_));
-    command.keyword =
-        TrimWide(
+    const auto keywords =
+        ParseShortcutKeywords(
             ControlText(keyword_));
+
+    command.keyword =
+        keywords.primary;
     command.aliases =
-        ParseAliases(
-            ControlText(aliases_));
+        keywords.aliases;
     command.type =
-        TypeFromIndex(
-            static_cast<int>(
-                SendMessageW(
-                    type_,
-                    CB_GETCURSEL,
-                    0,
-                    0)));
+        SelectedType();
     command.target =
         TrimWide(
             ControlText(target_));
@@ -940,9 +1282,27 @@ Command ShortcutEditorDialog::CollectCommand()
     command.workingDirectory =
         TrimWide(
             ControlText(workdir_));
+
+    command.title =
+        TrimWide(
+            ControlText(name_));
+
+    if (command.title.empty()) {
+        command.title =
+            SuggestShortcutTitle(
+                command.target,
+                command.type,
+                command.keyword);
+    }
+
+    if (command.title.empty()) {
+        command.title =
+            command.keyword;
+    }
+
     command.icon = L"auto";
     command.enabled =
-        IsChecked(enabled_);
+        !IsChecked(paused_);
     command.runAsAdmin =
         IsChecked(admin_);
     command.pinned =
@@ -958,13 +1318,12 @@ bool ShortcutEditorDialog::Save() {
     Command command =
         CollectCommand();
 
-    if (command.title.empty() ||
-        command.keyword.empty() ||
+    if (command.keyword.empty() ||
         command.target.empty()) {
         MessageBoxW(
             hwnd_,
-            T(L"名称、主快捷词和目标为必填项。",
-              L"Name, primary keyword and target are required."),
+            T(L"快捷词和目标为必填项。",
+              L"Keywords and target are required."),
             T(L"无法保存快捷项",
               L"Cannot save shortcut"),
             MB_OK |
@@ -973,7 +1332,8 @@ bool ShortcutEditorDialog::Save() {
     }
 
     const std::wstring keyword =
-        LowerWide(command.keyword);
+        LowerWide(
+            command.keyword);
 
     const bool duplicate =
         std::any_of(
@@ -992,8 +1352,8 @@ bool ShortcutEditorDialog::Save() {
         const int answer =
             MessageBoxW(
                 hwnd_,
-                T(L"这个主快捷词已被另一个快捷项使用。\n\n仍然保存吗？",
-                  L"This primary keyword is already used by another shortcut.\n\nSave anyway?"),
+                T(L"第一个快捷词已被另一个快捷项使用。\n\n仍然保存吗？",
+                  L"The first keyword is already used by another shortcut.\n\nSave anyway?"),
                 T(L"快捷词冲突",
                   L"Keyword conflict"),
                 MB_YESNO |
@@ -1050,7 +1410,8 @@ void ShortcutEditorDialog::Test() {
             hwnd_,
             T(L"请先填写目标。",
               L"Enter a target first."),
-            T(L"测试运行", L"Test"),
+            T(L"测试运行",
+              L"Test"),
             MB_OK |
                 MB_ICONWARNING);
         return;
@@ -1059,51 +1420,10 @@ void ShortcutEditorDialog::Test() {
     app_.TestCommand(command);
 }
 
-void ShortcutEditorDialog::BrowseTarget() {
-    const auto selectedType =
-        TypeFromIndex(
-            static_cast<int>(
-                SendMessageW(
-                    type_,
-                    CB_GETCURSEL,
-                    0,
-                    0)));
+void ShortcutEditorDialog::BrowseTargetFile() {
+    std::array<wchar_t, 32768>
+        file{};
 
-    if (selectedType ==
-        CommandType::Folder) {
-        BROWSEINFOW browse{};
-        browse.hwndOwner = hwnd_;
-        browse.lpszTitle =
-            T(L"选择目标文件夹",
-              L"Choose target folder");
-        browse.ulFlags =
-            BIF_RETURNONLYFSDIRS |
-            BIF_NEWDIALOGSTYLE |
-            BIF_EDITBOX;
-
-        PIDLIST_ABSOLUTE item =
-            SHBrowseForFolderW(&browse);
-
-        if (!item) {
-            return;
-        }
-
-        std::array<wchar_t, 32768>
-            path{};
-
-        if (SHGetPathFromIDListW(
-                item,
-                path.data())) {
-            SetWindowTextW(
-                target_,
-                path.data());
-        }
-
-        CoTaskMemFree(item);
-        return;
-    }
-
-    std::array<wchar_t, 32768> file{};
     const auto current =
         ControlText(target_);
 
@@ -1117,19 +1437,21 @@ void ShortcutEditorDialog::BrowseTarget() {
     }
 
     const wchar_t filter[] =
-        L"Programs and shortcuts\0*.exe;*.lnk;*.bat;*.cmd;*.com;*.url\0"
+        L"Programs and shortcuts\0*.exe;*.lnk;*.bat;*.cmd;*.com;*.ps1;*.url\0"
         L"All files\0*.*\0\0";
 
     OPENFILENAMEW open{};
     open.lStructSize =
         sizeof(open);
-    open.hwndOwner = hwnd_;
+    open.hwndOwner =
+        hwnd_;
     open.lpstrFile =
         file.data();
     open.nMaxFile =
         static_cast<DWORD>(
             file.size());
-    open.lpstrFilter = filter;
+    open.lpstrFilter =
+        filter;
     open.nFilterIndex = 1;
     open.Flags =
         OFN_FILEMUSTEXIST |
@@ -1137,42 +1459,73 @@ void ShortcutEditorDialog::BrowseTarget() {
         OFN_EXPLORER |
         OFN_NOCHANGEDIR;
 
-    if (!GetOpenFileNameW(&open)) {
+    if (!GetOpenFileNameW(
+            &open)) {
         return;
     }
 
-    const std::filesystem::path path(
-        file.data());
-
     SetWindowTextW(
         target_,
-        path.wstring().c_str());
+        file.data());
 
-    if (TrimWide(
-            ControlText(name_))
-            .empty()) {
-        SetWindowTextW(
-            name_,
-            path.stem()
-                .wstring()
-                .c_str());
+    SendMessageW(
+        type_,
+        CB_SETCURSEL,
+        0,
+        0);
+
+    UpdateTypeState();
+    MaybeAutoFillName();
+}
+
+void ShortcutEditorDialog::BrowseTargetFolder() {
+    BROWSEINFOW browse{};
+    browse.hwndOwner =
+        hwnd_;
+    browse.lpszTitle =
+        T(L"选择目标文件夹",
+          L"Choose target folder");
+    browse.ulFlags =
+        BIF_RETURNONLYFSDIRS |
+        BIF_NEWDIALOGSTYLE |
+        BIF_EDITBOX;
+
+    PIDLIST_ABSOLUTE item =
+        SHBrowseForFolderW(
+            &browse);
+
+    if (!item) {
+        return;
     }
 
-    if (TrimWide(
-            ControlText(workdir_))
-            .empty()) {
+    std::array<wchar_t, 32768>
+        path{};
+
+    if (SHGetPathFromIDListW(
+            item,
+            path.data())) {
         SetWindowTextW(
-            workdir_,
-            path.parent_path()
-                .wstring()
-                .c_str());
+            target_,
+            path.data());
+
+        SendMessageW(
+            type_,
+            CB_SETCURSEL,
+            0,
+            0);
+
+        UpdateTypeState();
+        MaybeAutoFillName();
     }
+
+    CoTaskMemFree(item);
 }
 
 void ShortcutEditorDialog::
 BrowseWorkingDirectory() {
     BROWSEINFOW browse{};
-    browse.hwndOwner = hwnd_;
+    browse.hwndOwner =
+        hwnd_;
     browse.lpszTitle =
         T(L"选择工作目录",
           L"Choose working directory");
@@ -1182,7 +1535,8 @@ BrowseWorkingDirectory() {
         BIF_EDITBOX;
 
     PIDLIST_ABSOLUTE item =
-        SHBrowseForFolderW(&browse);
+        SHBrowseForFolderW(
+            &browse);
 
     if (!item) {
         return;
@@ -1263,17 +1617,58 @@ LRESULT ShortcutEditorDialog::HandleMessage(
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
-        case kIdType:
+        case kIdKeyword:
             if (HIWORD(wParam) ==
-                CBN_SELCHANGE) {
-                UpdateTypeControls();
+                EN_KILLFOCUS) {
+                MaybeAutoFillName();
             }
             return 0;
 
-        case kIdBrowseTarget:
+        case kIdName:
+            if (HIWORD(wParam) ==
+                    EN_CHANGE &&
+                !suppressNameChange_) {
+                nameAuto_ = false;
+            }
+            return 0;
+
+        case kIdTarget:
+            if (HIWORD(wParam) ==
+                EN_CHANGE) {
+                UpdateTypeState();
+            } else if (
+                HIWORD(wParam) ==
+                EN_KILLFOCUS) {
+                MaybeAutoFillName();
+            }
+            return 0;
+
+        case kIdType:
+            if (HIWORD(wParam) ==
+                CBN_SELCHANGE) {
+                UpdateTypeState();
+                MaybeAutoFillName();
+            }
+            return 0;
+
+        case kIdBrowseFile:
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
-                BrowseTarget();
+                BrowseTargetFile();
+            }
+            return 0;
+
+        case kIdBrowseFolder:
+            if (HIWORD(wParam) ==
+                BN_CLICKED) {
+                BrowseTargetFolder();
+            }
+            return 0;
+
+        case kIdAdvancedToggle:
+            if (HIWORD(wParam) ==
+                BN_CLICKED) {
+                ToggleAdvanced();
             }
             return 0;
 

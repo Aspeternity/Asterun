@@ -3,6 +3,7 @@
 #include "../core/EverythingProvider.hpp"
 #include "../core/ClipboardAction.hpp"
 #include "../core/CommandTemplate.hpp"
+#include "../core/ShortcutEditorModel.hpp"
 #include "../core/HotkeyRegistry.hpp"
 #include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
@@ -2482,11 +2483,20 @@ bool App::LaunchCommand(
         win::ExpandEnvironment(
             resolved.arguments);
 
-    const std::wstring cwd =
+    std::wstring cwd =
         win::ResolvePortablePath(
             resolved.workingDirectory,
             baseDirectory_,
             true);
+
+    if (cwd.empty() &&
+        resolved.source ==
+            CommandSource::User) {
+        cwd =
+            DefaultShortcutWorkingDirectory(
+                resolved.type,
+                target);
+    }
 
     SHELLEXECUTEINFOW info{};
     info.cbSize = sizeof(info);

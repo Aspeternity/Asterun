@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.3.1 — Shortcut Editor Workflow Rework
+
+Alpha 3.1 replaces the alpha.3 form-shaped editor with a task-oriented shortcut workflow. The visible shortcut field now accepts the primary keyword and aliases together (for example `v2rayN, vpn, proxy`); the first unique item remains the persisted primary keyword and the remaining items remain aliases, so commands.json schemaVersion 1 is unchanged.
+
+Name is now optional and auto-suggested from the selected target while remaining editable. Target selection has explicit **File...** and **Folder...** actions. Command type defaults to **Auto detect** and reports the detected runtime type, while Application / URL / Folder / Command line remain available as manual overrides for unusual targets. Existing commands reopen in Auto mode when their stored type agrees with detection, otherwise their explicit type is preserved.
+
+Rare launch fields move behind a progressive **Advanced** section: fixed arguments, working directory, administrator launch, pinned state and **Pause this shortcut**. A blank working directory now means "use the target's directory" for user Application / Command line shortcuts when the resolved target is an absolute filesystem path; URL/Folder commands and non-filesystem targets keep the previous empty-directory behavior.
+
+The parsing, type inference, title suggestion and default-working-directory rules live in a dedicated `ShortcutEditorModel` with regression tests rather than being embedded only in Win32 UI code. Dynamic runtime input/parameter encoding is intentionally not exposed yet; that execution model remains the next feature step.
+
+No persisted schema changes: settings stays schemaVersion 5, commands/usage stay schemaVersion 1 and provider-cache stays schemaVersion 2. Windows fixed FileVersion/ProductVersion is `0.7.0.31`.
+
 ## v0.7.0-alpha.3 — Shortcut Editor Usability & Command Type Completion
 
 Alpha 3 begins the feature-completion phase and deliberately leaves global visual polish and further memory tuning for final product cleanup. The standalone New/Edit Shortcut dialog is reorganized into two compact sections inspired by the original AltRun workflow: **Shortcut** for keyword/name/alias/type/target and **Launch options** for arguments, working directory and execution flags.

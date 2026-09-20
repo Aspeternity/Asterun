@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0-alpha.3.1
+
+- Reworked New/Edit Shortcut around user tasks instead of exposing the internal Command structure directly.
+- Merged primary keyword + aliases into one comma-separated Keywords field while preserving the existing persisted primary/alias model.
+- Made Name optional with automatic target-based suggestion and manual override.
+- Added separate File and Folder target pickers.
+- Added Auto detect as the default command-type mode while retaining explicit Application, URL, Folder and Command line overrides.
+- Moved fixed arguments, working directory, administrator, pinned and pause controls behind a collapsible Advanced section.
+- Reframed enabled state as the user-facing Pause this shortcut option without changing the stored enabled boolean.
+- Added automatic target-directory working directory for user Application/Command line shortcuts when the advanced working-directory field is blank.
+- Added ShortcutEditorModel + regression tests for keyword parsing, type inference, title suggestion and automatic working-directory rules.
+- Kept every persisted schema unchanged; dynamic runtime input/parameter encoding remains deferred to the next feature version.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.31.
+
 ## 0.7.0-alpha.3
 
 - Reorganized New/Edit Shortcut into compact Shortcut and Launch options groups instead of the previous oversized flat form.

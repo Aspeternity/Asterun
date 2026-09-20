@@ -91,6 +91,7 @@ add_library(altrun_core STATIC
     src/core/ClassicBehavior.cpp
     src/core/ClipboardAction.cpp
     src/core/CommandTemplate.cpp
+    src/core/ShortcutEditorModel.cpp
     src/core/EverythingIpcProtocol.cpp
     src/core/ExplorerContextSelection.cpp
     src/core/HotkeyRegistry.cpp
@@ -366,6 +367,26 @@ if(BUILD_TESTING)
     add_test(
         NAME command_template_tests
         COMMAND command_template_tests
+    )
+
+    add_executable(
+        shortcut_editor_model_tests
+        tests/ShortcutEditorModelTests.cpp
+    )
+    target_link_libraries(
+        shortcut_editor_model_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        shortcut_editor_model_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        shortcut_editor_model_tests
+    )
+    add_test(
+        NAME shortcut_editor_model_tests
+        COMMAND shortcut_editor_model_tests
     )
 
     add_executable(
