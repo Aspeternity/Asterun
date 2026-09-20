@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-alpha.8.4
+
+- Fixed Everything Service startup error 2 when a persistent stopped service still points to an old/moved ALTRun Next managed Everything executable.
+- Query the real Windows service ImagePath before starting a stopped Everything Service.
+- Classify a missing service executable as stale and keep local Recheck non-elevating.
+- Added one-shot elevated ALTRun Next maintenance mode to retarget the existing Everything service to the current managed `Everything.exe -svc`, restore automatic start and start the service with one UAC confirmation.
+- Healthy running services and stopped services with a valid executable continue to be reused; healthy external/user-installed Everything services are not rewritten.
+- Added service ImagePath parser regression coverage for quoted/unquoted paths and paths containing spaces.
+- Kept settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.84.
+
 ## 0.7.0-alpha.8.3
 
 - Added ownership-safe Managed Everything shutdown on real ALTRun Next process exit.

@@ -102,6 +102,8 @@ v0.7.0-alpha.8.2 completes managed first-run indexing. The official portable cli
 
 v0.7.0-alpha.8.3 closes the managed-client lifecycle. Actual ALTRun Next process exit and disabling the Everything source stop only the managed client executable. The Windows Everything Service remains installed/running. Before invoking `-exit`, ALTRun Next verifies that the default Everything IPC window's process image path exactly matches the managed executable under `data/tools/Everything`; an external Everything instance is never closed by this path. Hiding the launcher to tray is not process exit and therefore does not stop the managed client.
 
+v0.7.0-alpha.8.4 handles the fact that the Windows service outlives a portable folder location. Before starting a stopped service, ALTRun Next reads its SCM ImagePath and resolves the service executable. If that executable no longer exists, Recheck reports a stale service without elevation. The explicit Get-and-start path can then launch an elevated one-shot ALTRun Next maintenance mode which changes the existing service ImagePath to the current managed `Everything.exe -svc`, sets automatic start and starts it. A healthy running service is never retargeted, and a healthy stopped external service is started without changing its path.
+
 ## RC1 freeze
 
 v0.5.0-rc.1 makes no protocol or endpoint-selection change relative to beta.2. This document is shipped inside both portable RC packages so a real-world validation run can identify the intended 1.4/1.5/named-instance behavior without relying on repository access. Any post-RC transport change requires a concrete release-blocking compatibility defect and corresponding regression coverage.

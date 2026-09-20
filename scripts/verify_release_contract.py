@@ -36,9 +36,9 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
-    expected_settings_schema = 6 if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3") else (5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5") else 4)
-    expected_commands_schema = 2 if version in ("0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3") else 1
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
+    expected_settings_schema = 6 if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4") else (5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5") else 4)
+    expected_commands_schema = 2 if version in ("0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4") else 1
     expected_schemas = {
         "kSettingsSchemaVersion": expected_settings_schema,
         "kCommandsSchemaVersion": expected_commands_schema,
@@ -202,7 +202,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if not found or int(found.group(1)) != expected:
             fail(f"Classic geometry changed during v0.7 alpha.2: {name}")
 
-    if version in ("0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+    if version in ("0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
         editor = read("src/ui/ShortcutEditorDialog.cpp") + read("src/ui/ShortcutEditorDialog.hpp")
         manager = read("src/ui/ShortcutManagerWindow.cpp") + read("src/ui/ShortcutManagerWindow.hpp")
         model = read("src/core/ShortcutEditorModel.cpp") + read("src/core/ShortcutEditorModel.hpp")
@@ -264,7 +264,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in schema_test:
                 fail(f"v0.7 alpha.6 legacy flag regression coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+    if version in ("0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
         context_policy = read("src/core/ContextActions.cpp") + read("src/core/ContextActions.hpp")
         context_test = read("tests/ContextActionsTests.cpp")
         launcher = read("src/ui/LauncherWindow.cpp") + read("src/ui/LauncherWindow.hpp")
@@ -346,7 +346,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in context_test:
                 fail(f"v0.7 alpha.7 context-action regression coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+    if version in ("0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
         bootstrap_policy = read("src/core/EverythingBootstrapPolicy.cpp") + read("src/core/EverythingBootstrapPolicy.hpp")
         bootstrap_test = read("tests/EverythingBootstrapPolicyTests.cpp")
         bootstrapper = read("src/platform/EverythingBootstrapper.cpp") + read("src/platform/EverythingBootstrapper.hpp")
@@ -458,7 +458,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in cmake:
                 fail(f"v0.7 alpha.8 build/test wiring missing: {token}")
 
-        if version in ("0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+        if version in ("0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
             for token in (
                 "EverythingArchiveNames",
                 "ManagedEverythingArchiveNames",
@@ -489,7 +489,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if "ExtractZipWithShell(\n            downloadArchive" in bootstrapper:
                 fail("v0.7 alpha.8.1 must never pass the .download path to Windows Shell extraction")
 
-        if version in ("0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+        if version in ("0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
             for token in (
                 "ApplyManagedEverythingIniPolicy",
                 '"app_data", "0"',
@@ -545,7 +545,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
                 if token not in settings_ui:
                     fail(f"v0.7 alpha.8.2 Everything service UX missing: {token}")
 
-        if version == "0.7.0-alpha.8.3":
+        if version in ("0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
             lifecycle_test = read("tests/EverythingLifecycleTests.cpp")
 
             for token in (
@@ -609,6 +609,58 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
                 if token not in settings_ui and token not in read("README.md"):
                     fail(f"v0.7 alpha.8.3 lifecycle UX/documentation missing: {token}")
 
+        if version == "0.7.0-alpha.8.4":
+            main_cpp = read("src/main.cpp")
+
+            for token in (
+                "ExtractEverythingServiceExecutable",
+                "QueryServiceConfigW",
+                "SERVICE_QUERY_CONFIG",
+                "serviceExecutableExists",
+                "servicePathStale",
+                "ERROR_FILE_NOT_FOUND",
+                "RunElevatedServiceRepairHelper",
+                "--repair-managed-everything-service",
+                "RepairManagedEverythingServicePath",
+                "ChangeServiceConfigW",
+                "SERVICE_AUTO_START",
+                "StartServiceW",
+                "RepairingService",
+                "ServiceRepairRequired",
+                "ServiceRepairFailed",
+            ):
+                if token not in bootstrapper:
+                    fail(f"v0.7 alpha.8.4 stale service path repair missing: {token}")
+
+            for token in (
+                "--repair-managed-everything-service",
+                "RepairManagedEverythingServicePath",
+                "ExecutableDirectory()",
+            ):
+                if token not in main_cpp:
+                    fail(f"v0.7 alpha.8.4 elevated maintenance entrypoint missing: {token}")
+
+            for token in (
+                "ExtractEverythingServiceExecutable",
+                'LR"("D:\\ALTRun Test\\data\\tools\\Everything\\Everything.exe" -svc)"',
+                "D:\\Portable Apps\\Everything.exe -svc",
+                "EVERYTHING.EXE -svc",
+            ):
+                if token not in bootstrap_test:
+                    fail(f"v0.7 alpha.8.4 service ImagePath parser coverage missing: {token}")
+
+            for token in (
+                "检测到失效的 Everything Service 路径",
+                "修复失效的 Everything Service 路径",
+                "ServiceRepairRequired",
+                "ServiceRepairFailed",
+            ):
+                if token not in settings_ui:
+                    fail(f"v0.7 alpha.8.4 stale service repair UX missing: {token}")
+
+            if 'servicePathStale\n                ? L"-start-service"' in bootstrapper:
+                fail("v0.7 alpha.8.4 must not blindly start a stale service path")
+
     if version == "0.7.0-alpha.2.1":
         grouped_converter = read("src/ui/ShortcutPathConverterDialog.cpp")
         grouped_header = read("src/ui/ShortcutPathConverterDialog.hpp")
@@ -669,7 +721,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -779,7 +831,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
         pinyin_cpp = read("src/core/PinyinSearch.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
 
@@ -825,7 +877,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
         command_store_h = read("src/core/CommandStore.hpp")
         command_store_cpp = read("src/core/CommandStore.cpp")
         command_merge_h = read("src/core/CommandMerge.hpp")
@@ -893,7 +945,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             "MigratedFromSchemaVersion() ==",
             'at("pinyinSearch")',
         ]
-        if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+        if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
             expected_pinyin_upgrade_tokens.append(
                 "config::kSettingsSchemaVersion"
             )
@@ -921,7 +973,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
                 fail(f"v0.7 alpha.2.5 Pinyin toggle regression coverage missing: {token}")
 
         expected_runtime_schema = (
-            6 if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3") else 5
+            6 if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4") else 5
         )
         for token in (
             f"$migratedSettings.schemaVersion -ne {expected_runtime_schema}",
@@ -1067,7 +1119,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in cmake:
                 fail(f"v0.7 alpha.3.1 editor-model CI wiring missing: {token}")
 
-    if version in ("0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+    if version in ("0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
         command_h = read("src/core/Command.hpp")
         runtime_h = read("src/core/RuntimeInput.hpp")
         runtime_cpp = read("src/core/RuntimeInput.cpp")
@@ -1192,7 +1244,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
 
         expected_tsv_marker = (
             "commands TSV v3"
-            if version in ("0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3")
+            if version in ("0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4")
             else "commands TSV v2"
         )
         for token in (
@@ -1214,7 +1266,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in cmake:
                 fail(f"v0.7 alpha.4 CI wiring missing: {token}")
 
-    if version in ("0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3"):
+    if version in ("0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4"):
         editor_h = read("src/ui/ShortcutEditorDialog.hpp")
         editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
         launcher_h = read("src/ui/LauncherWindow.hpp")
@@ -1233,7 +1285,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         commands_tsv = read("config/commands.example.tsv")
 
         expected_alpha5_settings_schema = (
-            6 if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3") else 5
+            6 if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4") else 5
         )
         if cpp_int("src/core/ConfigIO.hpp", "kSettingsSchemaVersion") != expected_alpha5_settings_schema:
             fail("v0.7 alpha.5 line has unexpected settings schemaVersion")

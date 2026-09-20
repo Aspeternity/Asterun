@@ -157,7 +157,8 @@ In progress:
 - alpha.8.1 fixes the real-Windows verified archive handoff by promoting .zip.download to .zip only after SHA-256 succeeds
 - alpha.8.2 completes the managed runtime path with Everything Service-backed NTFS indexing and a headless/no-tray managed client
 - alpha.8.3 closes managed-client lifecycle: app exit/source disable stops only ALTRun Next's owned Everything client while retaining the Windows service
-- settings schemaVersion 6, commands schemaVersion 2 and TSV v3 remain compatibility baselines through alpha.8.3
+- alpha.8.4 repairs stale persistent Everything Service paths after the portable ALTRun Next folder is moved/re-extracted
+- settings schemaVersion 6, commands schemaVersion 2 and TSV v3 remain compatibility baselines through alpha.8.4
 
 Planned next:
 

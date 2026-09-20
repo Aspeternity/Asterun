@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.8.4 — Everything Service Path Repair
+
+Alpha 8.4 hardens Managed Everything for ALTRun Next's portable/movable deployment model. A Windows service persists independently from the portable application folder, so an existing stopped Everything Service can still point to an old managed `Everything.exe` after ALTRun Next is moved, re-extracted or an old test directory is removed. Starting that stale service returns Win32 `ERROR_FILE_NOT_FOUND (2)`.
+
+ALTRun Next now reads the installed Everything Service `ImagePath` with `QueryServiceConfigW` before starting a stopped service. A healthy running service is reused without modification, and a stopped service whose executable still exists is started normally. A stopped service whose executable no longer exists is classified as stale instead of blindly calling `-start-service`.
+
+Local **Recheck** remains non-elevating and reports that the stale service path needs repair. The explicit **Get and start Everything** flow launches a one-shot elevated ALTRun Next maintenance mode, updates only the existing Everything service binary path to the current managed `Everything.exe -svc`, restores automatic start, starts the service, then returns to the normal bootstrap flow. This repair uses one UAC confirmation and does not delete/recreate the service. External healthy Everything services are still left untouched.
+
+Core regression coverage validates quoted, unquoted, spaced and case-varied service command lines. No persisted schema changes are made. Windows fixed FileVersion/ProductVersion is `0.7.0.84`.
+
 ## v0.7.0-alpha.8.3 — Managed Everything Lifecycle
 
 Alpha 8.3 closes the managed-runtime lifecycle. When ALTRun Next actually exits, or when **Everything files & folders** is disabled in Search Sources, ALTRun Next now stops only the portable Everything client under its own `data/tools/Everything` directory. The Windows **Everything** service is intentionally left running so NTFS indexing remains warm and the next ALTRun Next launch can start the client without another UAC prompt.

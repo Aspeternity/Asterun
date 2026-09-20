@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstddef>
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
@@ -618,6 +619,108 @@ RunElevatedEverythingCommand(
     return true;
 }
 
+[[nodiscard]] bool
+RunElevatedServiceRepairHelper(
+    std::uint32_t& nativeError) {
+    std::array<wchar_t, 32768>
+        executableBuffer{};
+
+    const DWORD length =
+        GetModuleFileNameW(
+            nullptr,
+            executableBuffer.data(),
+            static_cast<DWORD>(
+                executableBuffer.size()));
+
+    if (length == 0 ||
+        static_cast<std::size_t>(
+            length) >=
+            executableBuffer.size()) {
+        nativeError =
+            length == 0
+                ? static_cast<std::uint32_t>(
+                      GetLastError())
+                : ERROR_INSUFFICIENT_BUFFER;
+        return false;
+    }
+
+    std::filesystem::path executable(
+        std::wstring(
+            executableBuffer.data(),
+            length));
+    std::wstring directory =
+        executable.parent_path()
+            .wstring();
+    std::wstring arguments =
+        L"--repair-managed-everything-service";
+
+    SHELLEXECUTEINFOW info{};
+    info.cbSize = sizeof(info);
+    info.fMask =
+        SEE_MASK_NOCLOSEPROCESS |
+        SEE_MASK_NOASYNC |
+        SEE_MASK_FLAG_NO_UI;
+    info.lpVerb = L"runas";
+    info.lpFile = executable.c_str();
+    info.lpParameters =
+        arguments.c_str();
+    info.lpDirectory =
+        directory.empty()
+            ? nullptr
+            : directory.c_str();
+    info.nShow = SW_HIDE;
+
+    if (!ShellExecuteExW(&info)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    if (!info.hProcess) {
+        nativeError =
+            ERROR_INVALID_HANDLE;
+        return false;
+    }
+
+    const DWORD waitResult =
+        WaitForSingleObject(
+            info.hProcess,
+            30000);
+
+    if (waitResult != WAIT_OBJECT_0) {
+        nativeError =
+            waitResult == WAIT_TIMEOUT
+                ? ERROR_TIMEOUT
+                : static_cast<std::uint32_t>(
+                      GetLastError());
+        CloseHandle(info.hProcess);
+        return false;
+    }
+
+    DWORD exitCode = 0;
+
+    if (!GetExitCodeProcess(
+            info.hProcess,
+            &exitCode)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        CloseHandle(info.hProcess);
+        return false;
+    }
+
+    CloseHandle(info.hProcess);
+
+    if (exitCode != 0) {
+        nativeError = exitCode;
+        return false;
+    }
+
+    nativeError = 0;
+    return true;
+}
+
 struct NamedIpcSearch {
     std::uint32_t count{0};
 };
@@ -780,6 +883,135 @@ ProbeEverythingService(
     }
 
     return ServiceProbe::Stopped;
+}
+
+[[nodiscard]] bool
+QueryEverythingServiceExecutable(
+    std::filesystem::path& executable,
+    bool& executableExists,
+    std::uint32_t& nativeError) {
+    ServiceHandle manager;
+    manager.value =
+        OpenSCManagerW(
+            nullptr,
+            nullptr,
+            SC_MANAGER_CONNECT);
+
+    if (!manager.value) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    ServiceHandle service;
+    service.value =
+        OpenServiceW(
+            manager.value,
+            L"Everything",
+            SERVICE_QUERY_CONFIG);
+
+    if (!service.value) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    DWORD required = 0;
+
+    QueryServiceConfigW(
+        service.value,
+        nullptr,
+        0,
+        &required);
+
+    if (required == 0 ||
+        GetLastError() !=
+            ERROR_INSUFFICIENT_BUFFER) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    std::vector<std::max_align_t>
+        buffer(
+            (required +
+             sizeof(std::max_align_t) - 1) /
+            sizeof(std::max_align_t));
+
+    auto* config =
+        reinterpret_cast<
+            QUERY_SERVICE_CONFIGW*>(
+                buffer.data());
+
+    if (!QueryServiceConfigW(
+            service.value,
+            config,
+            required,
+            &required)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    if (!config->lpBinaryPathName) {
+        nativeError =
+            ERROR_INVALID_DATA;
+        return false;
+    }
+
+    auto parsed =
+        ExtractEverythingServiceExecutable(
+            config->lpBinaryPathName);
+
+    if (parsed.empty()) {
+        nativeError =
+            ERROR_INVALID_DATA;
+        return false;
+    }
+
+    const DWORD expandedSize =
+        ExpandEnvironmentStringsW(
+            parsed.c_str(),
+            nullptr,
+            0);
+
+    if (expandedSize == 0) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    std::vector<wchar_t>
+        expanded(expandedSize);
+
+    const DWORD written =
+        ExpandEnvironmentStringsW(
+            parsed.c_str(),
+            expanded.data(),
+            expandedSize);
+
+    if (written == 0 ||
+        written > expandedSize) {
+        nativeError =
+            written == 0
+                ? static_cast<std::uint32_t>(
+                      GetLastError())
+                : ERROR_INSUFFICIENT_BUFFER;
+        return false;
+    }
+
+    executable =
+        std::filesystem::path(
+            expanded.data());
+    executableExists =
+        FileExists(executable);
+    nativeError = 0;
+    return true;
 }
 
 [[nodiscard]] bool
@@ -1060,11 +1292,13 @@ ConfigureManagedEverything(
 enum class ManagedRuntimeResult {
     Ready,
     NeedsService,
+    NeedsServiceRepair,
     Cancelled,
     StopFailed,
     ConfigFailed,
     ServiceElevationCancelled,
     ServiceInstallFailed,
+    ServiceRepairFailed,
     ServiceUnavailable,
     LaunchFailed,
     IpcUnavailable,
@@ -1136,6 +1370,30 @@ StartManagedEverything(
             ServiceProbe::Running;
     }
 
+    bool servicePathStale = false;
+
+    if (serviceStatus ==
+        ServiceProbe::Stopped) {
+        std::filesystem::path
+            serviceExecutable;
+        bool serviceExecutableExists =
+            false;
+
+        if (!QueryEverythingServiceExecutable(
+                serviceExecutable,
+                serviceExecutableExists,
+                nativeError)) {
+            return {
+                ManagedRuntimeResult::
+                    ServiceUnavailable,
+                nativeError,
+            };
+        }
+
+        servicePathStale =
+            !serviceExecutableExists;
+    }
+
     const bool managedRunning =
         ManagedDefaultIpcRunning(
             executable);
@@ -1151,9 +1409,14 @@ StartManagedEverything(
             ServiceProbe::Running &&
         !allowElevation) {
         return {
-            ManagedRuntimeResult::
-                NeedsService,
-            ERROR_SERVICE_NOT_ACTIVE,
+            servicePathStale
+                ? ManagedRuntimeResult::
+                      NeedsServiceRepair
+                : ManagedRuntimeResult::
+                      NeedsService,
+            servicePathStale
+                ? ERROR_FILE_NOT_FOUND
+                : ERROR_SERVICE_NOT_ACTIVE,
         };
     }
 
@@ -1205,31 +1468,52 @@ StartManagedEverything(
 
     if (serviceStatus !=
         ServiceProbe::Running) {
-        Report(
-            snapshot,
-            EverythingBootstrapStage::
-                InstallingService,
-            progress);
+        if (servicePathStale) {
+            Report(
+                snapshot,
+                EverythingBootstrapStage::
+                    RepairingService,
+                progress);
 
-        const std::wstring_view command =
-            serviceStatus ==
-                    ServiceProbe::Missing
-                ? L"-install-service"
-                : L"-start-service";
+            if (!RunElevatedServiceRepairHelper(
+                    nativeError)) {
+                return {
+                    nativeError ==
+                            ERROR_CANCELLED
+                        ? ManagedRuntimeResult::
+                              ServiceElevationCancelled
+                        : ManagedRuntimeResult::
+                              ServiceRepairFailed,
+                    nativeError,
+                };
+            }
+        } else {
+            Report(
+                snapshot,
+                EverythingBootstrapStage::
+                    InstallingService,
+                progress);
 
-        if (!RunElevatedEverythingCommand(
-                executable,
-                command,
-                nativeError)) {
-            return {
-                nativeError ==
-                        ERROR_CANCELLED
-                    ? ManagedRuntimeResult::
-                          ServiceElevationCancelled
-                    : ManagedRuntimeResult::
-                          ServiceInstallFailed,
-                nativeError,
-            };
+            const std::wstring_view command =
+                serviceStatus ==
+                        ServiceProbe::Missing
+                    ? L"-install-service"
+                    : L"-start-service";
+
+            if (!RunElevatedEverythingCommand(
+                    executable,
+                    command,
+                    nativeError)) {
+                return {
+                    nativeError ==
+                            ERROR_CANCELLED
+                        ? ManagedRuntimeResult::
+                              ServiceElevationCancelled
+                        : ManagedRuntimeResult::
+                              ServiceInstallFailed,
+                    nativeError,
+                };
+            }
         }
 
         Report(
@@ -2156,6 +2440,124 @@ bool EverythingIpcEndpointAvailable() {
     return AnyUsableIpcEndpoint();
 }
 
+EverythingServiceRepairResult
+RepairManagedEverythingServicePath(
+    const std::filesystem::path& dataDirectory) {
+    const auto executable =
+        ManagedEverythingExecutable(
+            dataDirectory);
+
+    if (!FileExists(executable)) {
+        return {
+            false,
+            ERROR_FILE_NOT_FOUND,
+        };
+    }
+
+    ServiceHandle manager;
+    manager.value =
+        OpenSCManagerW(
+            nullptr,
+            nullptr,
+            SC_MANAGER_CONNECT);
+
+    if (!manager.value) {
+        return {
+            false,
+            static_cast<std::uint32_t>(
+                GetLastError()),
+        };
+    }
+
+    ServiceHandle service;
+    service.value =
+        OpenServiceW(
+            manager.value,
+            L"Everything",
+            SERVICE_QUERY_STATUS |
+                SERVICE_CHANGE_CONFIG |
+                SERVICE_START);
+
+    if (!service.value) {
+        return {
+            false,
+            static_cast<std::uint32_t>(
+                GetLastError()),
+        };
+    }
+
+    SERVICE_STATUS_PROCESS status{};
+    DWORD bytesNeeded = 0;
+
+    if (!QueryServiceStatusEx(
+            service.value,
+            SC_STATUS_PROCESS_INFO,
+            reinterpret_cast<LPBYTE>(
+                &status),
+            sizeof(status),
+            &bytesNeeded)) {
+        return {
+            false,
+            static_cast<std::uint32_t>(
+                GetLastError()),
+        };
+    }
+
+    if (status.dwCurrentState ==
+        SERVICE_RUNNING) {
+        return {
+            true,
+            0,
+        };
+    }
+
+    const std::wstring binaryPath =
+        L"\"" +
+        executable.wstring() +
+        L"\" -svc";
+
+    if (!ChangeServiceConfigW(
+            service.value,
+            SERVICE_NO_CHANGE,
+            SERVICE_AUTO_START,
+            SERVICE_NO_CHANGE,
+            binaryPath.c_str(),
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr)) {
+        return {
+            false,
+            static_cast<std::uint32_t>(
+                GetLastError()),
+        };
+    }
+
+    if (!StartServiceW(
+            service.value,
+            0,
+            nullptr)) {
+        const auto error =
+            static_cast<std::uint32_t>(
+                GetLastError());
+
+        if (error !=
+            ERROR_SERVICE_ALREADY_RUNNING) {
+            return {
+                false,
+                error,
+            };
+        }
+    }
+
+    return {
+        true,
+        0,
+    };
+}
+
 ManagedEverythingStopResult
 StopManagedEverything(
     const std::filesystem::path& dataDirectory,
@@ -2275,6 +2677,14 @@ RunEverythingBootstrap(
                     progress);
 
             case ManagedRuntimeResult::
+                NeedsServiceRepair:
+                return NeedsInstall(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ServiceRepairRequired,
+                    progress);
+
+            case ManagedRuntimeResult::
                 Cancelled:
                 return Fail(
                     snapshot,
@@ -2316,6 +2726,15 @@ RunEverythingBootstrap(
                     snapshot,
                     EverythingBootstrapFailure::
                         ServiceInstallFailed,
+                    outcome.nativeError,
+                    progress);
+
+            case ManagedRuntimeResult::
+                ServiceRepairFailed:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ServiceRepairFailed,
                     outcome.nativeError,
                     progress);
 

@@ -3096,6 +3096,12 @@ void SettingsWindow::RefreshProviderStatus() {
                     L"Installing / starting Everything Service (confirm UAC)");
                 break;
             case win::EverythingBootstrapStage::
+                RepairingService:
+                text += T(
+                    L"修复失效的 Everything Service 路径（请确认 UAC）",
+                    L"Repairing the stale Everything Service path (confirm UAC)");
+                break;
+            case win::EverythingBootstrapStage::
                 WaitingForService:
                 text += T(
                     L"等待 Everything Service 就绪",
@@ -3124,6 +3130,20 @@ void SettingsWindow::RefreshProviderStatus() {
             showRecheck = true;
 
             if (bootstrap.stage ==
+                    win::EverythingBootstrapStage::
+                        NeedsInstall &&
+                bootstrap.failure ==
+                    win::EverythingBootstrapFailure::
+                        ServiceRepairRequired) {
+                text += T(
+                    L"检测到失效的 Everything Service 路径",
+                    L"A stale Everything Service path was detected");
+                text += L"\r\n    ↳ ";
+                text += T(
+                    L"服务仍指向已不存在的旧 Everything.exe。点击“获取并启动 Everything”后，ALTRun Next 会在一次 UAC 授权中把服务路径修复到当前托管版本。",
+                    L"The service still points to an old Everything.exe that no longer exists. Choose Get and start Everything to repair the service path to the current managed copy with one UAC confirmation.");
+            } else if (
+                bootstrap.stage ==
                     win::EverythingBootstrapStage::
                         NeedsInstall &&
                 bootstrap.failure ==
@@ -3225,6 +3245,12 @@ void SettingsWindow::RefreshProviderStatus() {
                     text += T(
                         L"Everything Service 安装 / 启动失败",
                         L"Everything Service installation / startup failed");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    ServiceRepairFailed:
+                    text += T(
+                        L"失效的 Everything Service 路径修复失败",
+                        L"Could not repair the stale Everything Service path");
                     break;
                 case win::EverythingBootstrapFailure::
                     ServiceUnavailable:

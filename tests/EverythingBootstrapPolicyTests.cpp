@@ -176,6 +176,27 @@ int main() {
             std::string::npos);
     }
 
+    {
+        assert(
+            ExtractEverythingServiceExecutable(
+                LR"("D:\ALTRun Test\data\tools\Everything\Everything.exe" -svc)") ==
+            L"D:\\ALTRun Test\\data\\tools\\Everything\\Everything.exe");
+
+        assert(
+            ExtractEverythingServiceExecutable(
+                L"D:\\Portable Apps\\Everything.exe -svc") ==
+            L"D:\\Portable Apps\\Everything.exe");
+
+        assert(
+            ExtractEverythingServiceExecutable(
+                L"  C:\\Everything\\EVERYTHING.EXE -svc") ==
+            L"C:\\Everything\\EVERYTHING.EXE");
+
+        assert(
+            ExtractEverythingServiceExecutable(
+                L"") .empty());
+    }
+
     std::cout
         << "Everything bootstrap policy tests passed\n";
     return 0;

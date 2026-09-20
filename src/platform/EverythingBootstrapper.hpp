@@ -18,6 +18,7 @@ enum class EverythingBootstrapStage {
     ConfiguringManaged,
     StoppingManaged,
     InstallingService,
+    RepairingService,
     WaitingForService,
     StartingManaged,
     WaitingForIpc,
@@ -53,8 +54,10 @@ enum class EverythingBootstrapFailure {
     ManagedStopFailed,
     ManagedConfigFailed,
     ServiceRequired,
+    ServiceRepairRequired,
     ServiceElevationCancelled,
     ServiceInstallFailed,
+    ServiceRepairFailed,
     ServiceUnavailable,
     ManagedLaunchFailed,
 };
@@ -70,6 +73,11 @@ struct ManagedEverythingStopResult {
     ManagedEverythingStopStatus status{
         ManagedEverythingStopStatus::
             NotInstalled};
+    std::uint32_t nativeError{0};
+};
+
+struct EverythingServiceRepairResult {
+    bool success{false};
     std::uint32_t nativeError{0};
 };
 
@@ -110,5 +118,9 @@ EverythingIpcEndpointAvailable();
 StopManagedEverything(
     const std::filesystem::path& dataDirectory,
     std::stop_token stopToken = {});
+
+[[nodiscard]] EverythingServiceRepairResult
+RepairManagedEverythingServicePath(
+    const std::filesystem::path& dataDirectory);
 
 } // namespace altrun::win

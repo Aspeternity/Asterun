@@ -365,4 +365,73 @@ ApplyManagedEverythingIniPolicy(
 }
 
 
+
+std::wstring
+ExtractEverythingServiceExecutable(
+    std::wstring_view binaryPath) {
+    while (!binaryPath.empty() &&
+           (binaryPath.front() == L' ' ||
+            binaryPath.front() == L'\t' ||
+            binaryPath.front() == L'\r' ||
+            binaryPath.front() == L'\n')) {
+        binaryPath.remove_prefix(1);
+    }
+
+    if (binaryPath.empty()) {
+        return {};
+    }
+
+    if (binaryPath.front() == L'"') {
+        binaryPath.remove_prefix(1);
+
+        const auto closing =
+            binaryPath.find(L'"');
+
+        if (closing ==
+            std::wstring_view::npos) {
+            return {};
+        }
+
+        return std::wstring(
+            binaryPath.substr(
+                0,
+                closing));
+    }
+
+    std::wstring lowered(binaryPath);
+    std::transform(
+        lowered.begin(),
+        lowered.end(),
+        lowered.begin(),
+        [](wchar_t c) {
+            if (c >= L'A' &&
+                c <= L'Z') {
+                return static_cast<wchar_t>(
+                    c - L'A' + L'a');
+            }
+
+            return c;
+        });
+
+    const auto exe =
+        lowered.rfind(L".exe");
+
+    if (exe ==
+        std::wstring::npos) {
+        const auto separator =
+            binaryPath.find_first_of(
+                L" \t");
+
+        return std::wstring(
+            binaryPath.substr(
+                0,
+                separator));
+    }
+
+    return std::wstring(
+        binaryPath.substr(
+            0,
+            exe + 4));
+}
+
 } // namespace altrun

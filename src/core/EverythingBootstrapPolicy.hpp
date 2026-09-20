@@ -44,4 +44,8 @@ FindSha256ForFile(
 ApplyManagedEverythingIniPolicy(
     std::string_view existing);
 
+[[nodiscard]] std::wstring
+ExtractEverythingServiceExecutable(
+    std::wstring_view binaryPath);
+
 } // namespace altrun
