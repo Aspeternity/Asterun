@@ -192,10 +192,10 @@ ReadTrimmedText(
         return false;
     }
 
-    std::string content(
-        std::istreambuf_iterator<char>(
-            input),
-        std::istreambuf_iterator<char>());
+    std::string content{
+        std::istreambuf_iterator<char>{
+            input},
+        std::istreambuf_iterator<char>{}};
 
     while (!content.empty() &&
            (content.back() == '\r' ||
