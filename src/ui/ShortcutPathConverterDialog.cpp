@@ -618,11 +618,16 @@ void ShortcutPathConverterDialog::Scan() {
     ListView_DeleteAllItems(list_);
     rows_.clear();
 
+    std::size_t convertibleShortcutCount = 0;
+
     const auto addPreview =
         [&](const Command& command,
             Field field,
             std::wstring_view value,
-            bool bareRelativeIsPath) {
+            bool bareRelativeIsPath,
+            const std::wstring& groupTitle,
+            bool& firstPreviewForCommand,
+            bool& commandHasPreview) {
             if (value.empty()) {
                 return;
             }
@@ -648,13 +653,14 @@ void ShortcutPathConverterDialog::Scan() {
                 return;
             }
 
+            if (!commandHasPreview) {
+                commandHasPreview = true;
+                ++convertibleShortcutCount;
+            }
+
             Row row;
             row.commandId =
                 command.id;
-            row.shortcut =
-                command.keyword.empty()
-                    ? command.title
-                    : command.keyword;
             row.field = field;
             row.current =
                 std::wstring(value);
@@ -669,16 +675,20 @@ void ShortcutPathConverterDialog::Scan() {
                 static_cast<int>(
                     rows_.size());
 
-            rows_.push_back(row);
+            rows_.push_back(
+                std::move(row));
+
+            std::wstring shortcutText =
+                firstPreviewForCommand
+                    ? groupTitle
+                    : L"";
 
             LVITEMW item{};
             item.mask = LVIF_TEXT;
             item.iItem = itemIndex;
             item.iSubItem = 0;
             item.pszText =
-                rows_.back()
-                    .shortcut
-                    .data();
+                shortcutText.data();
 
             ListView_InsertItem(
                 list_,
@@ -716,7 +726,7 @@ void ShortcutPathConverterDialog::Scan() {
                 itemIndex,
                 4,
                 const_cast<wchar_t*>(
-                    row.exists
+                    rows_.back().exists
                         ? T(L"可访问",
                             L"Accessible")
                         : T(L"路径不存在",
@@ -725,11 +735,35 @@ void ShortcutPathConverterDialog::Scan() {
             ListView_SetCheckState(
                 list_,
                 itemIndex,
-                row.exists ? TRUE : FALSE);
+                rows_.back().exists
+                    ? TRUE
+                    : FALSE);
+
+            firstPreviewForCommand = false;
         };
 
     for (const auto& command :
          app_.UserCommands()) {
+        std::wstring groupTitle =
+            command.keyword.empty()
+                ? command.title
+                : command.keyword;
+
+        if (!command.title.empty() &&
+            !command.keyword.empty() &&
+            command.title !=
+                command.keyword) {
+            groupTitle += L"  —  ";
+            groupTitle += command.title;
+        }
+
+        if (groupTitle.empty()) {
+            groupTitle = command.id;
+        }
+
+        bool firstPreviewForCommand = true;
+        bool commandHasPreview = false;
+
         if (command.type !=
             CommandType::Url) {
             addPreview(
@@ -737,14 +771,20 @@ void ShortcutPathConverterDialog::Scan() {
                 Field::Target,
                 command.target,
                 command.type ==
-                    CommandType::Folder);
+                    CommandType::Folder,
+                groupTitle,
+                firstPreviewForCommand,
+                commandHasPreview);
         }
 
         addPreview(
             command,
             Field::WorkingDirectory,
             command.workingDirectory,
-            true);
+            true,
+            groupTitle,
+            firstPreviewForCommand,
+            commandHasPreview);
     }
 
     std::wstring note =
@@ -753,11 +793,19 @@ void ShortcutPathConverterDialog::Scan() {
 
     note +=
         std::to_wstring(
+            convertibleShortcutCount);
+
+    note +=
+        T(L" 个快捷项，共 ",
+          L" shortcuts with ");
+
+    note +=
+        std::to_wstring(
             rows_.size());
 
     note +=
-        T(L" 项可预览转换。不存在的目标默认不勾选。",
-          L" convertible fields. Missing targets are unchecked by default.");
+        T(L" 个可转换字段。不存在的路径默认不勾选。",
+          L" convertible fields. Missing paths are unchecked by default.");
 
     SetWindowTextW(
         note_,

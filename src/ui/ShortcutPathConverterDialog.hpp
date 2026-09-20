@@ -29,7 +29,6 @@ private:
 
     struct Row {
         std::wstring commandId;
-        std::wstring shortcut;
         Field field{Field::Target};
         std::wstring current;
         std::wstring converted;

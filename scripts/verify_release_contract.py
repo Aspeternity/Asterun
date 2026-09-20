@@ -36,7 +36,7 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version == "0.7.0-alpha.2":
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1"):
     expected_schemas = {
         "kSettingsSchemaVersion": 4,
         "kCommandsSchemaVersion": 1,
@@ -196,6 +196,29 @@ if version == "0.7.0-alpha.2":
         found = re.search(rf"\b{re.escape(name)}\s*\{{(\d+)\}}", launcher_header)
         if not found or int(found.group(1)) != expected:
             fail(f"Classic geometry changed during v0.7 alpha.2: {name}")
+
+    if version == "0.7.0-alpha.2.1":
+        grouped_converter = read("src/ui/ShortcutPathConverterDialog.cpp")
+        grouped_header = read("src/ui/ShortcutPathConverterDialog.hpp")
+        for token in (
+            "convertibleShortcutCount",
+            "firstPreviewForCommand",
+            "commandHasPreview",
+            "groupTitle",
+            'firstPreviewForCommand\n                    ? groupTitle\n                    : L""',
+        ):
+            if token not in grouped_converter:
+                fail(f"v0.7 alpha.2.1 grouped path preview missing: {token}")
+
+        if "std::wstring shortcut;" in grouped_header:
+            fail("v0.7 alpha.2.1 still stores redundant per-row shortcut text")
+        for forbidden in (
+            "ListView_EnableGroupView",
+            "ListView_InsertGroup",
+            "LVIF_GROUPID",
+        ):
+            if forbidden in grouped_converter:
+                fail(f"v0.7 alpha.2.1 unexpectedly requires Common Controls v6 grouping: {forbidden}")
 
     print(
         "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",

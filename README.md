@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.2.1 — Grouped Path Conversion Preview
+
+Alpha 2.1 is a focused UX patch for the path conversion dialog. Conversion behavior, path resolution and persisted schemas are unchanged from alpha.2.
+
+Preview rows are now visually grouped by shortcut without requiring a global Common Controls v6 migration. The first convertible field row shows the shortcut label (for example `test — KOOK`); additional fields from the same shortcut are placed directly below it with the Shortcut cell left blank. This removes the confusing repeated shortcut name while preserving the current Win32 control stack and Windows 10 compatibility.
+
+Target and Working Directory remain independently checkable, so either field or both can be applied. The footer now reports both the number of shortcuts with convertible paths and the number of convertible fields.
+
+Windows fixed FileVersion/ProductVersion is `0.7.0.21`.
+
 ## v0.7.0-alpha.2 — Shortcut Manager Usability & Path Portability
 
 Alpha 2 removes the manual Move Up / Move Down controls from Shortcut Manager. The persisted `sortOrder` field remains for compatibility and deterministic tie-breaking, but it is no longer presented as a primary user action because launcher ranking is driven by matching, usage and pinning rather than manual list position.

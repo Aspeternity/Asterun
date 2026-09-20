@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0-alpha.2.1
+
+- Grouped path-conversion preview rows by shortcut without changing the global Common Controls version.
+- Show the shortcut label only on the first convertible field row; subsequent Target/Working Directory rows in the same shortcut group leave the Shortcut cell blank.
+- Kept Target and Working Directory independently selectable.
+- Updated the footer to report convertible shortcut count and convertible field count.
+- Kept alpha.2 path-conversion semantics and all persisted schemas unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.21.
+
 ## 0.7.0-alpha.2
 
 - Removed Shortcut Manager Move Up / Move Down UI while preserving the internal sortOrder compatibility field.
