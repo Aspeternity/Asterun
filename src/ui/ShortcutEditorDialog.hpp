@@ -48,6 +48,7 @@ private:
     void UpdateAdvancedVisibility();
     void ToggleAdvanced();
     void UpdateTypeState();
+    void UpdateRuntimeInputHint();
     void MaybeAutoFillName();
     void SetNameText(
         std::wstring_view text,
@@ -67,6 +68,9 @@ private:
 
     [[nodiscard]] CommandType
     SelectedType() const;
+
+    [[nodiscard]] RuntimeInputMode
+    SelectedRuntimeInputMode() const;
 
     [[nodiscard]] std::wstring
     ControlText(
@@ -96,6 +100,9 @@ private:
     HWND typeLabel_{};
     HWND type_{};
     HWND typeHint_{};
+    HWND runtimeInputLabel_{};
+    HWND runtimeInput_{};
+    HWND runtimeInputHint_{};
     HWND advancedToggle_{};
     HWND argumentsLabel_{};
     HWND arguments_{};

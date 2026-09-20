@@ -99,6 +99,7 @@ add_library(altrun_core STATIC
     src/core/LauncherResult.cpp
     src/core/ResultMerger.cpp
     src/core/ResultRanking.cpp
+    src/core/RuntimeInput.cpp
     src/core/PinyinSearch.cpp
     src/core/SearchEngine.cpp
     src/core/SettingsLayout.cpp
@@ -390,6 +391,26 @@ if(BUILD_TESTING)
     )
 
     add_executable(
+        runtime_input_tests
+        tests/RuntimeInputTests.cpp
+    )
+    target_link_libraries(
+        runtime_input_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        runtime_input_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        runtime_input_tests
+    )
+    add_test(
+        NAME runtime_input_tests
+        COMMAND runtime_input_tests
+    )
+
+    add_executable(
         launcher_action_policy_tests
         tests/LauncherActionPolicyTests.cpp
     )
@@ -434,6 +455,26 @@ if(BUILD_TESTING)
     target_include_directories(config_core_tests PRIVATE src)
     altrun_enable_test_assertions(config_core_tests)
     add_test(NAME config_core_tests COMMAND config_core_tests)
+
+    add_executable(
+        user_command_schema_tests
+        tests/UserCommandSchemaTests.cpp
+    )
+    target_link_libraries(
+        user_command_schema_tests
+        PRIVATE altrun_config
+    )
+    target_include_directories(
+        user_command_schema_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        user_command_schema_tests
+    )
+    add_test(
+        NAME user_command_schema_tests
+        COMMAND user_command_schema_tests
+    )
 
     add_executable(
         user_command_path_update_tests

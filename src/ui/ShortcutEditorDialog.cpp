@@ -2,6 +2,7 @@
 
 #include "../app/App.hpp"
 #include "../core/ShortcutEditorModel.hpp"
+#include "../core/RuntimeInput.hpp"
 
 #include <commctrl.h>
 #include <commdlg.h>
@@ -19,9 +20,10 @@ constexpr wchar_t kShortcutEditorClass[] =
     L"ALTRunNext.ShortcutEditor";
 
 constexpr int kEditorWidthLogical = 660;
-constexpr int kCollapsedHeightLogical = 430;
-constexpr int kExpandedHeightLogical = 590;
+constexpr int kCollapsedHeightLogical = 470;
+constexpr int kExpandedHeightLogical = 630;
 constexpr int kTypeDropdownHeightLogical = 170;
+constexpr int kRuntimeInputDropdownHeightLogical = 120;
 
 constexpr UINT kIdName = 53101;
 constexpr UINT kIdKeyword = 53102;
@@ -39,6 +41,7 @@ constexpr UINT kIdSave = 53114;
 constexpr UINT kIdCancel = 53115;
 constexpr UINT kIdBrowseFolder = 53116;
 constexpr UINT kIdAdvancedToggle = 53117;
+constexpr UINT kIdRuntimeInput = 53118;
 
 [[nodiscard]] std::wstring
 TrimWide(std::wstring_view value) {
@@ -447,6 +450,28 @@ void ShortcutEditorDialog::CreateControls() {
         nullptr);
     makeStatic(typeHint_);
 
+    makeStatic(runtimeInputLabel_);
+    runtimeInput_ = CreateWindowExW(
+        0,
+        L"COMBOBOX",
+        L"",
+        WS_CHILD |
+            WS_VISIBLE |
+            WS_TABSTOP |
+            CBS_DROPDOWNLIST |
+            WS_VSCROLL,
+        0,
+        0,
+        0,
+        0,
+        hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(
+                kIdRuntimeInput)),
+        instance_,
+        nullptr);
+    makeStatic(runtimeInputHint_);
+
     makeButton(
         advancedToggle_,
         kIdAdvancedToggle);
@@ -524,6 +549,9 @@ void ShortcutEditorDialog::CreateControls() {
         typeLabel_,
         type_,
         typeHint_,
+        runtimeInputLabel_,
+        runtimeInput_,
+        runtimeInputHint_,
         advancedToggle_,
         argumentsLabel_,
         arguments_,
@@ -634,6 +662,54 @@ void ShortcutEditorDialog::ApplyLanguage() {
         0);
 
     SetWindowTextW(
+        runtimeInputLabel_,
+        T(L"运行时输入",
+          L"Runtime input"));
+
+    const int runtimeSelected =
+        std::max(
+            0,
+            static_cast<int>(
+                SendMessageW(
+                    runtimeInput_,
+                    CB_GETCURSEL,
+                    0,
+                    0)));
+
+    SendMessageW(
+        runtimeInput_,
+        CB_RESETCONTENT,
+        0,
+        0);
+
+    for (const auto* text :
+         std::array<const wchar_t*, 3>{
+             T(L"不接受额外输入",
+               L"No extra input"),
+             T(L"原样传递",
+               L"Pass through"),
+             T(L"URL 编码（UTF-8）",
+               L"URL encode (UTF-8)")}) {
+        SendMessageW(
+            runtimeInput_,
+            CB_ADDSTRING,
+            0,
+            reinterpret_cast<LPARAM>(
+                text));
+    }
+
+    SendMessageW(
+        runtimeInput_,
+        CB_SETCURSEL,
+        runtimeSelected,
+        0);
+    SendMessageW(
+        runtimeInput_,
+        CB_SETMINVISIBLE,
+        3,
+        0);
+
+    SetWindowTextW(
         argumentsLabel_,
         T(L"固定参数",
           L"Fixed arguments"));
@@ -668,6 +744,7 @@ void ShortcutEditorDialog::ApplyLanguage() {
 
     UpdateAdvancedVisibility();
     UpdateTypeState();
+    UpdateRuntimeInputHint();
 }
 
 void ShortcutEditorDialog::Layout() {
@@ -813,6 +890,41 @@ void ShortcutEditorDialog::Layout() {
         labelHeight,
         TRUE);
     y += Scale(42);
+
+    const int runtimeLabelWidth =
+        Scale(82);
+    const int runtimeWidth =
+        Scale(200);
+
+    MoveWindow(
+        runtimeInputLabel_,
+        margin,
+        y + Scale(4),
+        runtimeLabelWidth,
+        labelHeight,
+        TRUE);
+    MoveWindow(
+        runtimeInput_,
+        margin + runtimeLabelWidth,
+        y,
+        runtimeWidth,
+        Scale(
+            kRuntimeInputDropdownHeightLogical),
+        TRUE);
+    MoveWindow(
+        runtimeInputHint_,
+        margin +
+            runtimeLabelWidth +
+            runtimeWidth +
+            gap,
+        y + Scale(4),
+        contentWidth -
+            runtimeLabelWidth -
+            runtimeWidth -
+            gap,
+        Scale(34),
+        TRUE);
+    y += Scale(48);
 
     MoveWindow(
         advancedToggle_,
@@ -998,6 +1110,28 @@ void ShortcutEditorDialog::ToggleAdvanced() {
     Layout();
 }
 
+RuntimeInputMode
+ShortcutEditorDialog::SelectedRuntimeInputMode()
+    const {
+    const int selected =
+        static_cast<int>(
+            SendMessageW(
+                runtimeInput_,
+                CB_GETCURSEL,
+                0,
+                0));
+
+    switch (selected) {
+    case 1:
+        return RuntimeInputMode::Raw;
+    case 2:
+        return RuntimeInputMode::UrlEncoded;
+    case 0:
+    default:
+        return RuntimeInputMode::None;
+    }
+}
+
 CommandType ShortcutEditorDialog::SelectedType()
     const {
     const int selected =
@@ -1070,6 +1204,77 @@ void ShortcutEditorDialog::UpdateTypeState() {
     SetWindowTextW(
         typeHint_,
         text.c_str());
+
+    UpdateRuntimeInputHint();
+}
+
+void ShortcutEditorDialog::UpdateRuntimeInputHint() {
+    if (!runtimeInputHint_) {
+        return;
+    }
+
+    const RuntimeInputMode mode =
+        SelectedRuntimeInputMode();
+
+    if (mode ==
+        RuntimeInputMode::None) {
+        SetWindowTextW(
+            runtimeInputHint_,
+            T(L"只输入快捷词时直接启动。",
+              L"Launch directly from the keyword."));
+        return;
+    }
+
+    Command preview;
+    preview.type =
+        SelectedType();
+    preview.runtimeInputMode =
+        mode;
+    preview.target =
+        TrimWide(
+            ControlText(target_));
+    preview.arguments =
+        TrimWide(
+            ControlText(arguments_));
+    preview.workingDirectory =
+        TrimWide(
+            ControlText(workdir_));
+
+    if (!CanAcceptRuntimeInput(
+            preview)) {
+        SetWindowTextW(
+            runtimeInputHint_,
+            T(L"请加入 {input} 指定插入位置。",
+              L"Add {input} to choose the insertion point."));
+        return;
+    }
+
+    if (mode ==
+        RuntimeInputMode::UrlEncoded) {
+        SetWindowTextW(
+            runtimeInputHint_,
+            T(L"UTF-8 URL 编码后替换 {input}。",
+              L"UTF-8 URL encoded, then replaces {input}."));
+        return;
+    }
+
+    if (!HasRuntimeInputPlaceholder(
+            preview) &&
+        (preview.type ==
+             CommandType::Application ||
+         preview.type ==
+             CommandType::CommandLine)) {
+        SetWindowTextW(
+            runtimeInputHint_,
+            T(L"自动追加到固定参数；也可用 {input} 指定位置。",
+              L"Appended to fixed arguments, or place with {input}."));
+        return;
+    }
+
+    SetWindowTextW(
+        runtimeInputHint_,
+        T(L"原样替换 {input}。",
+          L"Replaces {input} unchanged."));
 }
 
 void ShortcutEditorDialog::SetNameText(
@@ -1150,6 +1355,26 @@ void ShortcutEditorDialog::LoadCommand(
         workdir_,
         it->workingDirectory.c_str());
 
+    int runtimeInputIndex = 0;
+    switch (it->runtimeInputMode) {
+    case RuntimeInputMode::Raw:
+        runtimeInputIndex = 1;
+        break;
+    case RuntimeInputMode::UrlEncoded:
+        runtimeInputIndex = 2;
+        break;
+    case RuntimeInputMode::None:
+    default:
+        runtimeInputIndex = 0;
+        break;
+    }
+
+    SendMessageW(
+        runtimeInput_,
+        CB_SETCURSEL,
+        runtimeInputIndex,
+        0);
+
     const CommandType inferred =
         InferShortcutCommandType(
             it->target);
@@ -1219,6 +1444,11 @@ void ShortcutEditorDialog::BeginNew() {
         CB_SETCURSEL,
         0,
         0);
+    SendMessageW(
+        runtimeInput_,
+        CB_SETCURSEL,
+        0,
+        0);
 
     SetChecked(
         paused_,
@@ -1282,6 +1512,8 @@ Command ShortcutEditorDialog::CollectCommand()
     command.workingDirectory =
         TrimWide(
             ControlText(workdir_));
+    command.runtimeInputMode =
+        SelectedRuntimeInputMode();
 
     command.title =
         TrimWide(
@@ -1326,6 +1558,21 @@ bool ShortcutEditorDialog::Save() {
               L"Keywords and target are required."),
             T(L"无法保存快捷项",
               L"Cannot save shortcut"),
+            MB_OK |
+                MB_ICONWARNING);
+        return false;
+    }
+
+    if (command.runtimeInputMode !=
+            RuntimeInputMode::None &&
+        !CanAcceptRuntimeInput(
+            command)) {
+        MessageBoxW(
+            hwnd_,
+            T(L"当前目标类型无法自动放置运行时输入。\n\n请在目标、固定参数或工作目录中加入 {input}。",
+              L"This target type has no automatic location for runtime input.\n\nAdd {input} to the target, fixed arguments or working directory."),
+            T(L"运行时输入配置不完整",
+              L"Runtime input needs a placeholder"),
             MB_OK |
                 MB_ICONWARNING);
         return false;
@@ -1651,6 +1898,13 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             }
             return 0;
 
+        case kIdRuntimeInput:
+            if (HIWORD(wParam) ==
+                CBN_SELCHANGE) {
+                UpdateRuntimeInputHint();
+            }
+            return 0;
+
         case kIdBrowseFile:
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
@@ -1662,6 +1916,14 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseTargetFolder();
+            }
+            return 0;
+
+        case kIdArguments:
+        case kIdWorkdir:
+            if (HIWORD(wParam) ==
+                EN_CHANGE) {
+                UpdateRuntimeInputHint();
             }
             return 0;
 

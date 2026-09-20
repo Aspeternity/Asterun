@@ -8,6 +8,7 @@
 #include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
 #include "../core/ResultMerger.hpp"
+#include "../core/RuntimeInput.hpp"
 #include "../core/WebAction.hpp"
 #include "../platform/Hotkey.hpp"
 #include "../platform/WinClipboard.hpp"
@@ -482,11 +483,37 @@ std::vector<LauncherResult> App::Search(
             std::move(result));
     }
 
+    auto inputActions =
+        BuildRuntimeInputActionResults(
+            searchableCommands,
+            query,
+            limit);
+
     auto webActions =
         BuildWebActionResults(
             searchableCommands,
             query,
             limit);
+
+    // Runtime/Web actions receive the context-resolved working set, so remap
+    // their working-set index back to the persisted CommandStore index.
+    for (auto& action : inputActions) {
+        if (action.action.commandIndex ==
+            static_cast<std::size_t>(-1)) {
+            continue;
+        }
+
+        if (action.action.commandIndex >=
+            sourceIndices.size()) {
+            action.action.commandIndex =
+                static_cast<std::size_t>(-1);
+            continue;
+        }
+
+        action.action.commandIndex =
+            sourceIndices[
+                action.action.commandIndex];
+    }
 
     // WebAction receives the context-resolved working set, so remap its
     // working-set index back to the persisted CommandStore index before the
@@ -517,37 +544,55 @@ std::vector<LauncherResult> App::Search(
                 TextId::
                     CopyTextAction));
 
-    if (webActions.empty() &&
+    if (inputActions.empty() &&
+        webActions.empty() &&
         clipboardActions.empty()) {
         return results;
     }
 
-    for (const auto& action : webActions) {
-        if (action.action.commandIndex ==
-            static_cast<std::size_t>(-1)) {
-            continue;
-        }
+    const auto removeBaseCommand =
+        [&](const LauncherResult& action) {
+            if (action.action.commandIndex ==
+                static_cast<std::size_t>(-1)) {
+                return;
+            }
 
-        results.erase(
-            std::remove_if(
-                results.begin(),
-                results.end(),
-                [&](const LauncherResult& result) {
-                    return result.action.kind ==
-                            LauncherActionKind::
-                                ExecuteCommand &&
-                        result.action.commandIndex ==
-                            action.action.commandIndex;
-                }),
-            results.end());
+            results.erase(
+                std::remove_if(
+                    results.begin(),
+                    results.end(),
+                    [&](const LauncherResult& result) {
+                        return result.action.kind ==
+                                LauncherActionKind::
+                                    ExecuteCommand &&
+                            result.action.commandIndex ==
+                                action.action.commandIndex;
+                    }),
+                results.end());
+        };
+
+    for (const auto& action :
+         inputActions) {
+        removeBaseCommand(action);
+    }
+
+    for (const auto& action : webActions) {
+        removeBaseCommand(action);
     }
 
     std::vector<LauncherResult>
         runtimeActions;
 
     runtimeActions.reserve(
+        inputActions.size() +
         webActions.size() +
         clipboardActions.size());
+
+    for (auto& action :
+         inputActions) {
+        runtimeActions.push_back(
+            std::move(action));
+    }
 
     for (auto& action : webActions) {
         runtimeActions.push_back(
@@ -2264,10 +2309,13 @@ void App::OpenProjectPage() {
         SW_SHOWNORMAL);
 }
 
-bool App::ExecuteCommand(std::size_t index) {
+bool App::ExecuteCommand(
+    std::size_t index,
+    std::wstring_view runtimeInput) {
     return LaunchCommand(
         commandStore_.Commands().at(index),
-        true);
+        true,
+        runtimeInput);
 }
 
 bool App::ExecuteResult(
@@ -2294,7 +2342,8 @@ bool App::ExecuteResult(
         }
 
         return ExecuteCommand(
-            action.commandIndex);
+            action.commandIndex,
+            action.payload);
     }
 
     const std::wstring& target =
@@ -2437,7 +2486,8 @@ void App::ClearActivationContext() {
 
 bool App::LaunchCommand(
     const Command& command,
-    bool recordUsage) {
+    bool recordUsage,
+    std::wstring_view runtimeInput) {
 
     Command resolved = command;
 
@@ -2465,6 +2515,14 @@ bool App::LaunchCommand(
             ResolveFolderTemplate(
                 command,
                 folder);
+    }
+
+    if (resolved.runtimeInputMode !=
+        RuntimeInputMode::None) {
+        resolved =
+            ResolveRuntimeInput(
+                resolved,
+                runtimeInput);
     }
 
     const bool bareTargetIsPath =

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0-alpha.4
+
+- Added first-class dynamic Runtime input for user shortcuts with None, Pass through and UTF-8 URL-encoded modes.
+- Added the canonical `{input}` placeholder across target, fixed arguments and working directory; retained legacy `{query}` as a compatibility alias.
+- Added exact case-insensitive keyword/alias + argument-tail matching so runtime arguments are not treated as fuzzy-search terms.
+- Application and Command line shortcuts can auto-append runtime input after fixed arguments when no placeholder is present; URL and Folder shortcuts require explicit placement.
+- Routed runtime input through LauncherAction payload into the normal command launch path, after `{folder}` substitution and before portable-path/environment resolution.
+- Added Runtime input controls, contextual guidance and invalid-template validation to the Shortcut Editor.
+- Advanced commands.json to schemaVersion 2 with persisted `runtimeInputMode`, atomic schema-1 migration and downgrade read-only protection.
+- Automatically migrates legacy schema-1 URL `{query}` shortcuts to UTF-8 URL-encoded runtime input.
+- Advanced shortcut TSV export/examples to v2 with an appended runtimeInputMode column while retaining older TSV import compatibility.
+- Added RuntimeInput, commands-schema migration and legacy-WebAction ownership regression tests.
+- Kept settings schemaVersion 5, usage schemaVersion 1 and provider-cache schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.40.
+
 ## 0.7.0-alpha.3.1
 
 - Reworked New/Edit Shortcut around user tasks instead of exposing the internal Command structure directly.

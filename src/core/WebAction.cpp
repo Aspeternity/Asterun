@@ -211,6 +211,8 @@ BuildWebActionResults(
 
         if (!command.enabled ||
             command.source != CommandSource::User ||
+            command.runtimeInputMode !=
+                RuntimeInputMode::None ||
             command.type != CommandType::Url ||
             command.target.find(kQueryPlaceholder) == std::wstring::npos ||
             !MatchesAlias(command, token)) {

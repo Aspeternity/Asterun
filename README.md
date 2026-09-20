@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.4 — Dynamic Shortcut Input
+
+Alpha 4 turns runtime text after an exact shortcut keyword/alias into a first-class command input instead of forcing the whole launcher query through fuzzy search. The Shortcut Editor now exposes **Runtime input** with three modes: **No extra input**, **Pass through**, and **URL encode (UTF-8)**. New templates use `{input}` in target, fixed arguments or working directory.
+
+For Application and Command line shortcuts, Pass through / URL-encoded input may omit `{input}`; the resolved text is then appended after fixed arguments. URL and Folder shortcuts require an explicit `{input}` placement so ALTRun Next never guesses where text belongs. For example, `ping 8.8.8.8` can launch `ping.exe 8.8.8.8`, while `g 心脏 MRI` with `https://www.google.com/search?q={input}` produces a UTF-8 percent-encoded search URL.
+
+The execution payload is carried by the existing LauncherResult action model and resolved only at launch time, after `{folder}` context substitution and before portable-path/environment expansion. The runtime-input matcher uses an exact, case-insensitive first token against the primary keyword or aliases, so the user's argument text is not reinterpreted as fuzzy-search tokens.
+
+`commands.json` advances from schemaVersion 1 to **schemaVersion 2** to persist `runtimeInputMode` (`none`, `raw`, or `url-encoded`). Schema-1 commands migrate atomically. Existing URL shortcuts that use the legacy `{query}` template are promoted automatically to UTF-8 URL-encoded runtime input; `{query}` remains accepted as a compatibility alias, while new UI/examples use `{input}`. An older schema-1 binary sees the migrated schema-2 file as newer and keeps it read-only.
+
+Shortcut TSV interchange advances to v2 by appending the optional `runtimeInputMode` column; existing v1/legacy rows remain importable. Settings stays schemaVersion 5, usage stays schemaVersion 1 and provider-cache stays schemaVersion 2. Windows fixed FileVersion/ProductVersion is `0.7.0.40`.
+
 ## v0.7.0-alpha.3.1 — Shortcut Editor Workflow Rework
 
 Alpha 3.1 replaces the alpha.3 form-shaped editor with a task-oriented shortcut workflow. The visible shortcut field now accepts the primary keyword and aliases together (for example `v2rayN, vpn, proxy`); the first unique item remains the persisted primary keyword and the remaining items remain aliases, so commands.json schemaVersion 1 is unchanged.

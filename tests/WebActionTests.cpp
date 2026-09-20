@@ -80,6 +80,27 @@ int main() {
     }
 
     {
+        auto explicitRuntime =
+            SearchCommand(
+                L"g",
+                {},
+                L"https://www.google.com/search?q={query}");
+        explicitRuntime.runtimeInputMode =
+            RuntimeInputMode::UrlEncoded;
+
+        const std::vector<Command> commands{
+            explicitRuntime,
+        };
+
+        // Schema-2 runtime-input shortcuts are owned by RuntimeInput,
+        // not the legacy {query} WebAction compatibility path.
+        assert(BuildWebActionResults(
+            commands,
+            L"g ALTRun Next",
+            10).empty());
+    }
+
+    {
         const std::vector<Command> commands{
             SearchCommand(
                 L"gh",

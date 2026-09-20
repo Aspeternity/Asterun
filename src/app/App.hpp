@@ -186,7 +186,8 @@ public:
     void OpenProjectPage();
 
     bool ExecuteCommand(
-        std::size_t index);
+        std::size_t index,
+        std::wstring_view runtimeInput = {});
 
     bool ExecuteResult(
         const LauncherResult& result,
@@ -231,7 +232,8 @@ private:
 
     bool LaunchCommand(
         const Command& command,
-        bool recordUsage);
+        bool recordUsage,
+        std::wstring_view runtimeInput = {});
     bool ApplyStartupRegistration(
         bool enabled) const;
     bool RebindGlobalHotkey(

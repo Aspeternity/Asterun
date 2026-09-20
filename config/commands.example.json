@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "commands": [
     {
       "id": "9d94d7fc-bde3-4aa7-9b23-7a5f28bd9b3d",
@@ -17,7 +17,8 @@
       "runAsAdmin": false,
       "pinned": false,
       "sortOrder": 0,
-      "legacyIds": []
+      "legacyIds": [],
+      "runtimeInputMode": "none"
     },
     {
       "id": "34d9abef-8ab1-4a41-a268-cb293cfd39ad",
@@ -27,7 +28,7 @@
         "google"
       ],
       "type": "url",
-      "target": "https://www.google.com/search?q={query}",
+      "target": "https://www.google.com/search?q={input}",
       "arguments": "",
       "workingDirectory": "",
       "icon": "auto",
@@ -35,7 +36,8 @@
       "runAsAdmin": false,
       "pinned": false,
       "sortOrder": 10,
-      "legacyIds": []
+      "legacyIds": [],
+      "runtimeInputMode": "url-encoded"
     }
   ]
 }

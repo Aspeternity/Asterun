@@ -106,6 +106,43 @@ CommandType ParseType(std::string value) {
     return CommandType::Application;
 }
 
+const char* RuntimeInputModeName(
+    RuntimeInputMode mode) {
+    switch (mode) {
+    case RuntimeInputMode::Raw:
+        return "raw";
+    case RuntimeInputMode::UrlEncoded:
+        return "url-encoded";
+    case RuntimeInputMode::None:
+    default:
+        return "none";
+    }
+}
+
+RuntimeInputMode ParseRuntimeInputMode(
+    std::string value) {
+    std::transform(
+        value.begin(),
+        value.end(),
+        value.begin(),
+        [](unsigned char c) {
+            return static_cast<char>(
+                std::tolower(c));
+        });
+
+    if (value == "raw") {
+        return RuntimeInputMode::Raw;
+    }
+
+    if (value == "url-encoded" ||
+        value == "urlencoded" ||
+        value == "url") {
+        return RuntimeInputMode::UrlEncoded;
+    }
+
+    return RuntimeInputMode::None;
+}
+
 Command MakeDefault(
     std::wstring keyword,
     std::wstring title,
@@ -250,7 +287,12 @@ bool UserCommandStore::LoadJson() {
             return false;
         }
 
-        bool repaired = false;
+        bool repaired =
+            load.schemaVersion <
+            config::kCommandsSchemaVersion;
+        const bool migratingSchema1 =
+            load.schemaVersion > 0 &&
+            load.schemaVersion < 2;
         int fallbackOrder = 0;
 
         for (const auto& item : root["commands"]) {
@@ -271,6 +313,26 @@ bool UserCommandStore::LoadJson() {
                 ParseType(item.value("type", std::string("application")));
             command.target =
                 text::FromUtf8(item.value("target", std::string{}));
+            command.runtimeInputMode =
+                ParseRuntimeInputMode(
+                    item.value(
+                        "runtimeInputMode",
+                        std::string("none")));
+
+            // v0.6/v0.7 schema-1 web aliases used {query} implicitly.
+            // Promote them into the explicit schema-2 runtime-input model.
+            if (migratingSchema1 &&
+                command.runtimeInputMode ==
+                    RuntimeInputMode::None &&
+                command.type ==
+                    CommandType::Url &&
+                command.target.find(
+                    L"{query}") !=
+                    std::wstring::npos) {
+                command.runtimeInputMode =
+                    RuntimeInputMode::UrlEncoded;
+            }
+
             command.arguments =
                 text::FromUtf8(item.value("arguments", std::string{}));
             command.workingDirectory =
@@ -710,6 +772,13 @@ bool UserCommandStore::ImportTsv(
             command.enabled = ParseBoolWide(fields[7], true);
             command.runAsAdmin = ParseBoolWide(fields[8], false);
             command.pinned = ParseBoolWide(fields[9], false);
+            if (fields.size() >= 12) {
+                command.runtimeInputMode =
+                    ParseRuntimeInputMode(
+                        text::ToUtf8(
+                            TrimWide(
+                                fields[11])));
+            }
 
             try {
                 command.sortOrder = std::stoi(TrimWide(fields[10]));
@@ -798,8 +867,8 @@ bool UserCommandStore::ExportTsv(
 
     output.write("\xEF\xBB\xBF", 3);
     output <<
-        "# ALTRun Next commands TSV v1\n"
-        "# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\n";
+        "# ALTRun Next commands TSV v2\n"
+        "# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\truntimeInputMode\n";
 
     std::vector<const Command*> ordered;
     ordered.reserve(commands_.size());
@@ -837,7 +906,10 @@ bool UserCommandStore::ExportTsv(
             << (command->enabled ? L"1" : L"0") << L'\t'
             << (command->runAsAdmin ? L"1" : L"0") << L'\t'
             << (command->pinned ? L"1" : L"0") << L'\t'
-            << command->sortOrder
+            << command->sortOrder << L'\t'
+            << text::FromUtf8(
+                   RuntimeInputModeName(
+                       command->runtimeInputMode))
             << L'\n';
 
         const std::string utf8 = text::ToUtf8(line.str());
@@ -876,6 +948,7 @@ bool UserCommandStore::Save() const {
             {"target", text::ToUtf8(command.target)},
             {"arguments", text::ToUtf8(command.arguments)},
             {"workingDirectory", text::ToUtf8(command.workingDirectory)},
+            {"runtimeInputMode", RuntimeInputModeName(command.runtimeInputMode)},
             {"icon", text::ToUtf8(command.icon)},
             {"enabled", command.enabled},
             {"runAsAdmin", command.runAsAdmin},

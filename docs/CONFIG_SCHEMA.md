@@ -11,11 +11,11 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.3.1:
+Each document carries its own schema version. As of v0.7.0-alpha.4:
 
 ```text
 settings.json       schemaVersion 5
-commands.json       schemaVersion 1
+commands.json       schemaVersion 2
 usage.json          schemaVersion 1
 provider-cache.json schemaVersion 2
 ```
@@ -41,6 +41,8 @@ v0.7.0-alpha.2.5 upgrades **settings.json to schemaVersion 5** to persist the ne
 v0.7.0-alpha.3 does **not** change any persisted schema. The Shortcut Editor usability/type-selector work is UI/runtime-only: settings remains schemaVersion 5, commands/usage remain schemaVersion 1 and provider-cache remains schemaVersion 2. The four command types were already represented by the existing `CommandType` field; alpha.3 fixes their editor presentation rather than changing stored command data.
 
 v0.7.0-alpha.3.1 also keeps every schema unchanged. The editor combines the stored primary `keyword` and `aliases` into one comma-separated UI field and splits them back into the same existing fields on save. Auto-detected command type is resolved into the existing `type` field; no "auto" value is persisted. The user-facing Pause checkbox is the inverse presentation of the existing `enabled` boolean. A blank `workingDirectory` remains blank in commands.json; at launch time user Application/Command-line shortcuts derive a working directory from an absolute resolved target path, so no new persistence field is required.
+
+v0.7.0-alpha.4 advances **commands.json to schemaVersion 2** for dynamic shortcut input. Each user command now persists `runtimeInputMode` as `none`, `raw` or `url-encoded`. Schema-1 documents migrate through the existing atomic write path. A schema-1 URL command whose target contains the legacy `{query}` token is promoted to `url-encoded`; other existing commands receive `none`. The stored target is not rewritten, so `{query}` remains usable as a compatibility alias, while new shortcuts and examples use `{input}`. A schema-1 reader opening the migrated document sees schema 2 and enters existing read-only downgrade protection. settings.json remains schemaVersion 5, usage.json remains schemaVersion 1 and provider-cache.json remains schemaVersion 2.
 
 ## Migration
 
@@ -151,6 +153,7 @@ Each command supports:
 - `aliases`
 - `type`
 - target / arguments / working directory
+- runtime input mode (`none`, `raw`, `url-encoded`)
 - icon source
 - enabled state
 - administrator launch flag
@@ -161,6 +164,8 @@ Each command supports:
 Automatic provider commands are never written into `commands.json`.
 
 Starting with v0.6.0-alpha.4, user commands may use `{folder}` in `target`, `arguments` or `workingDirectory`. This is a runtime template, not a schema field. It resolves only from a real filesystem folder captured when ALTRun Next is invoked from File Explorer or Total Commander.
+
+Starting with v0.7.0-alpha.4, a command with runtime input enabled may use `{input}` in `target`, `arguments` or `workingDirectory`. `raw` replaces the token unchanged; `url-encoded` replaces it with UTF-8 percent-encoded text. Application and Command-line shortcuts without a placeholder append the resolved input to fixed arguments. URL and Folder shortcuts require a placeholder. The legacy `{query}` token remains accepted as an alias for `{input}` so older web-search shortcuts keep working.
 
 ## provider-cache.json
 
@@ -219,18 +224,19 @@ Usage statistics are keyed by stable command ID:
 This allows names, keywords and targets to change later without losing ranking history.
 
 
-## Shortcut TSV interchange — v1
+## Shortcut TSV interchange — v2
 
-v0.2.0-beta.1 adds a portable TSV import/export format for user shortcuts.
+v0.7.0-alpha.4 extends the portable TSV format by appending `runtimeInputMode`. Existing v1 rows with the original eleven columns remain importable and default to `none`.
 
 Columns:
 
 ```text
-keyword    name    aliases    type    target    arguments    workingDirectory    enabled    runAsAdmin    pinned    sortOrder
+keyword    name    aliases    type    target    arguments    workingDirectory    enabled    runAsAdmin    pinned    sortOrder    runtimeInputMode
 ```
 
 - aliases are comma-separated;
+- `runtimeInputMode` accepts `none`, `raw` or `url-encoded`;
 - booleans accept `1/0`, `true/false`, `yes/no` or `on/off`;
-- the older five-column `keyword / title / target / arguments / workingDirectory` TSV remains importable;
+- v1 eleven-column rows and the older five-column `keyword / title / target / arguments / workingDirectory` TSV remain importable;
 - legacy ALTRun Beta import also accepts simple `keyword=target` rows as a best-effort compatibility path;
 - imported commands receive fresh stable UUIDs and duplicates with the same keyword + target are skipped.

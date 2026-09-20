@@ -20,6 +20,12 @@ enum class CommandType {
     CommandLine,
 };
 
+enum class RuntimeInputMode {
+    None,
+    Raw,
+    UrlEncoded,
+};
+
 struct Command {
     std::wstring id;
     std::wstring keyword;
@@ -29,6 +35,8 @@ struct Command {
     std::wstring target;
     std::wstring arguments;
     std::wstring workingDirectory;
+    RuntimeInputMode runtimeInputMode{
+        RuntimeInputMode::None};
     std::wstring icon{L"auto"};
     bool enabled{true};
     bool runAsAdmin{false};

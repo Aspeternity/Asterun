@@ -36,11 +36,12 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1"):
-    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1") else 4
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4"):
+    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4") else 4
+    expected_commands_schema = 2 if version == "0.7.0-alpha.4" else 1
     expected_schemas = {
         "kSettingsSchemaVersion": expected_settings_schema,
-        "kCommandsSchemaVersion": 1,
+        "kCommandsSchemaVersion": expected_commands_schema,
         "kUsageSchemaVersion": 1,
     }
     for name, expected in expected_schemas.items():
@@ -261,7 +262,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1"):
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -371,7 +372,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1"):
+    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4"):
         pinyin_cpp = read("src/core/PinyinSearch.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
 
@@ -417,7 +418,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1"):
+    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4"):
         command_store_h = read("src/core/CommandStore.hpp")
         command_store_cpp = read("src/core/CommandStore.cpp")
         command_merge_h = read("src/core/CommandMerge.hpp")
@@ -647,9 +648,151 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in cmake:
                 fail(f"v0.7 alpha.3.1 editor-model CI wiring missing: {token}")
 
+    if version == "0.7.0-alpha.4":
+        command_h = read("src/core/Command.hpp")
+        runtime_h = read("src/core/RuntimeInput.hpp")
+        runtime_cpp = read("src/core/RuntimeInput.cpp")
+        runtime_test = read("tests/RuntimeInputTests.cpp")
+        schema_test = read("tests/UserCommandSchemaTests.cpp")
+        user_store = read("src/core/UserCommandStore.cpp")
+        editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+        editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+        app_h = read("src/app/App.hpp")
+        app_cpp = read("src/app/App.cpp")
+        web_cpp = read("src/core/WebAction.cpp")
+        web_test = read("tests/WebActionTests.cpp")
+        commands_example = json.loads(read("config/commands.example.json"))
+        commands_tsv = read("config/commands.example.tsv")
+        cmake = read("CMakeLists.txt")
+
+        for token in (
+            "enum class RuntimeInputMode",
+            "RuntimeInputMode::None",
+            "RuntimeInputMode runtimeInputMode",
+        ):
+            if token not in command_h:
+                fail(f"v0.7 alpha.4 Command runtime-input model missing: {token}")
+
+        if cpp_int("src/core/ConfigIO.hpp", "kCommandsSchemaVersion") != 2:
+            fail("v0.7 alpha.4 commands.json must advance to schemaVersion 2")
+
+        for token in (
+            '"runtimeInputMode"',
+            "RuntimeInputModeName",
+            "ParseRuntimeInputMode",
+            'L"{query}"',
+            "RuntimeInputMode::UrlEncoded",
+            '{"runtimeInputMode", RuntimeInputModeName(command.runtimeInputMode)}',
+        ):
+            if token not in user_store:
+                fail(f"v0.7 alpha.4 command persistence/migration missing: {token}")
+
+        runtime = runtime_h + runtime_cpp
+        for token in (
+            'L"{input}"',
+            'L"{query}"',
+            "HasRuntimeInputPlaceholder",
+            "CanAcceptRuntimeInput",
+            "EncodeRuntimeInput",
+            "ResolveRuntimeInput",
+            "BuildRuntimeInputActionResults",
+            "PercentEncodeUtf8",
+        ):
+            if token not in runtime:
+                fail(f"v0.7 alpha.4 runtime-input core missing: {token}")
+
+        for token in (
+            'L"心脏 MRI"',
+            'L"%E5%BF%83%E8%84%8F%20MRI"',
+            'L"g 8.8.8.8"',
+            "RuntimeInputMode::Raw",
+            "RuntimeInputMode::UrlEncoded",
+            "BuildRuntimeInputActionResults",
+        ):
+            if token not in runtime_test:
+                fail(f"v0.7 alpha.4 runtime-input regression coverage missing: {token}")
+
+        for token in (
+            "schemaVersion",
+            "RuntimeInputMode::UrlEncoded",
+            '"url-encoded"',
+            "UnsupportedSchema",
+            "downgrade.schemaVersion == 2",
+            "RuntimeInputMode::Raw",
+        ):
+            if token not in schema_test:
+                fail(f"v0.7 alpha.4 commands schema migration coverage missing: {token}")
+
+        app = app_h + app_cpp
+        for token in (
+            '#include "../core/RuntimeInput.hpp"',
+            "BuildRuntimeInputActionResults",
+            "action.payload",
+            "std::wstring_view runtimeInput",
+            "ResolveRuntimeInput",
+        ):
+            if token not in app:
+                fail(f"v0.7 alpha.4 App runtime-input integration missing: {token}")
+
+        editor = editor_h + editor_cpp
+        for token in (
+            "runtimeInput_",
+            "SelectedRuntimeInputMode",
+            "UpdateRuntimeInputHint",
+            'T(L"运行时输入",',
+            'T(L"不接受额外输入",',
+            'T(L"原样传递",',
+            'T(L"URL 编码（UTF-8）",',
+            'L"{input}"',
+            "CanAcceptRuntimeInput",
+        ):
+            if token not in editor:
+                fail(f"v0.7 alpha.4 Shortcut Editor runtime-input UI missing: {token}")
+
+        for token in (
+            "command.runtimeInputMode !=",
+            "RuntimeInputMode::None",
+        ):
+            if token not in web_cpp:
+                fail(f"v0.7 alpha.4 legacy WebAction ownership gate missing: {token}")
+
+        if "explicitRuntime.runtimeInputMode" not in web_test:
+            fail("v0.7 alpha.4 WebAction duplicate-ownership regression is missing")
+
+        if commands_example.get("schemaVersion") != 2:
+            fail("v0.7 alpha.4 commands.example.json must use schemaVersion 2")
+        example_commands = commands_example.get("commands", [])
+        if not example_commands or any("runtimeInputMode" not in item for item in example_commands):
+            fail("v0.7 alpha.4 example commands must declare runtimeInputMode")
+        if not any(
+            item.get("runtimeInputMode") == "url-encoded"
+            and "{input}" in item.get("target", "")
+            for item in example_commands
+        ):
+            fail("v0.7 alpha.4 example commands need an encoded {input} URL shortcut")
+
+        for token in (
+            "commands TSV v2",
+            "runtimeInputMode",
+            "{input}",
+            "url-encoded",
+        ):
+            if token not in commands_tsv:
+                fail(f"v0.7 alpha.4 TSV v2 example missing: {token}")
+
+        for token in (
+            "src/core/RuntimeInput.cpp",
+            "runtime_input_tests",
+            "tests/RuntimeInputTests.cpp",
+            "user_command_schema_tests",
+            "tests/UserCommandSchemaTests.cpp",
+        ):
+            if token not in cmake:
+                fail(f"v0.7 alpha.4 CI wiring missing: {token}")
+
     print(
-        "v0.7.0 alpha.2/alpha.3 contract verified:",
-        f"| commands=1 settings={expected_settings_schema} provider-cache=2",
+        "v0.7.0 alpha.2/alpha.4 contract verified:",
+        f"| commands={expected_commands_schema} settings={expected_settings_schema} provider-cache=2",
         "| Move Up/Down UI removed, sortOrder retained",
         "| path preview + atomic apply + relative runtime resolution",
         "| blank headers fixed at column creation",
@@ -659,6 +802,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         "| alpha.2.6 Pinyin Settings owner-draw routing",
         "| alpha.3 compact grouped Shortcut Editor + four command types",
         "| alpha.3.1 shortcut workflow model + progressive advanced options",
+        "| alpha.4 dynamic runtime input + commands schema 2",
     )
     raise SystemExit(0)
 
