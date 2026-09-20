@@ -49,17 +49,25 @@ int main() {
     }
 
     {
-        const std::vector<Command> commands{
+        auto search =
             SearchCommand(
                 L"g",
                 {L"google"},
-                L"https://www.google.com/search?q={query}"),
+                L"https://www.google.com/search?q={query}");
+        search.icon =
+            L"C:\\Icons\\google.ico";
+
+        const std::vector<Command> commands{
+            search,
         };
 
         const auto results = BuildWebActionResults(
             commands, L"g ALTRun Next", 10);
         assert(results.size() == 1);
         assert(results[0].action.commandIndex == 0);
+        assert(
+            results[0].iconSource ==
+            L"C:\\Icons\\google.ico");
         assert(
             results[0].target ==
             L"https://www.google.com/search?q=ALTRun%20Next");

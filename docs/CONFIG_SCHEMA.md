@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.4:
+Each document carries its own schema version. As of v0.7.0-alpha.5:
 
 ```text
 settings.json       schemaVersion 5
@@ -43,6 +43,8 @@ v0.7.0-alpha.3 does **not** change any persisted schema. The Shortcut Editor usa
 v0.7.0-alpha.3.1 also keeps every schema unchanged. The editor combines the stored primary `keyword` and `aliases` into one comma-separated UI field and splits them back into the same existing fields on save. Auto-detected command type is resolved into the existing `type` field; no "auto" value is persisted. The user-facing Pause checkbox is the inverse presentation of the existing `enabled` boolean. A blank `workingDirectory` remains blank in commands.json; at launch time user Application/Command-line shortcuts derive a working directory from an absolute resolved target path, so no new persistence field is required.
 
 v0.7.0-alpha.4 advances **commands.json to schemaVersion 2** for dynamic shortcut input. Each user command now persists `runtimeInputMode` as `none`, `raw` or `url-encoded`. Schema-1 documents migrate through the existing atomic write path. A schema-1 URL command whose target contains the legacy `{query}` token is promoted to `url-encoded`; other existing commands receive `none`. The stored target is not rewritten, so `{query}` remains usable as a compatibility alias, while new shortcuts and examples use `{input}`. A schema-1 reader opening the migrated document sees schema 2 and enters existing read-only downgrade protection. settings.json remains schemaVersion 5, usage.json remains schemaVersion 1 and provider-cache.json remains schemaVersion 2.
+
+v0.7.0-alpha.5 keeps all JSON schemas unchanged. The already-existing `icon` command field becomes user-editable and is rendered in Launcher results; blank editor input persists as `auto`, while a custom path stores the selected icon source. Dynamic **Test input** is editor-session state only and is never persisted. Custom icon paths are included in the atomic Path Conversion workflow. Shortcut TSV interchange advances independently to v3 by appending an optional `icon` column.
 
 ## Migration
 
@@ -224,19 +226,20 @@ Usage statistics are keyed by stable command ID:
 This allows names, keywords and targets to change later without losing ranking history.
 
 
-## Shortcut TSV interchange — v2
+## Shortcut TSV interchange — v3
 
-v0.7.0-alpha.4 extends the portable TSV format by appending `runtimeInputMode`. Existing v1 rows with the original eleven columns remain importable and default to `none`.
+v0.7.0-alpha.5 appends the optional `icon` column to the v2 runtime-input format. Existing v1/v2 rows remain importable; a missing or blank icon defaults to `auto`.
 
 Columns:
 
 ```text
-keyword    name    aliases    type    target    arguments    workingDirectory    enabled    runAsAdmin    pinned    sortOrder    runtimeInputMode
+keyword    name    aliases    type    target    arguments    workingDirectory    enabled    runAsAdmin    pinned    sortOrder    runtimeInputMode    icon
 ```
 
 - aliases are comma-separated;
 - `runtimeInputMode` accepts `none`, `raw` or `url-encoded`;
+- `icon` accepts `auto` or a path to an icon source such as `.ico`, `.exe`, `.dll` or `.lnk`;
 - booleans accept `1/0`, `true/false`, `yes/no` or `on/off`;
-- v1 eleven-column rows and the older five-column `keyword / title / target / arguments / workingDirectory` TSV remain importable;
+- v1 eleven-column rows, v2 twelve-column rows and the older five-column `keyword / title / target / arguments / workingDirectory` TSV remain importable;
 - legacy ALTRun Beta import also accepts simple `keyword=target` rows as a best-effort compatibility path;
 - imported commands receive fresh stable UUIDs and duplicates with the same keyword + target are skipped.

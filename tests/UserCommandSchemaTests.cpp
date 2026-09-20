@@ -168,6 +168,8 @@ int main() {
     raw.target = L"ping.exe";
     raw.runtimeInputMode =
         RuntimeInputMode::Raw;
+    raw.icon =
+        L"C:\\Icons\\ping.ico";
 
     std::wstring createdId;
     assert(
@@ -193,6 +195,64 @@ int main() {
     assert(
         it->runtimeInputMode ==
         RuntimeInputMode::Raw);
+    assert(
+        it->icon ==
+        L"C:\\Icons\\ping.ico");
+
+    const auto exportPath =
+        root / "commands-export.tsv";
+    assert(
+        reloaded.ExportTsv(
+            exportPath));
+
+    const std::string exported =
+        ReadText(exportPath);
+    assert(
+        exported.find(
+            "commands TSV v3") !=
+        std::string::npos);
+    assert(
+        exported.find(
+            "runtimeInputMode\\ticon") !=
+        std::string::npos);
+    assert(
+        exported.find(
+            "C:\\Icons\\ping.ico") !=
+        std::string::npos);
+
+    const auto importedPath =
+        root / "commands-imported.json";
+    UserCommandStore imported(
+        importedPath);
+    imported.Load();
+
+    std::size_t importedCount = 0;
+    std::size_t skippedCount = 0;
+    assert(
+        imported.ImportTsv(
+            exportPath,
+            false,
+            &importedCount,
+            &skippedCount));
+    assert(importedCount >= 1);
+
+    const auto importedIt =
+        std::find_if(
+            imported.Commands().begin(),
+            imported.Commands().end(),
+            [](const Command& command) {
+                return command.keyword ==
+                    L"ping";
+            });
+    assert(
+        importedIt !=
+        imported.Commands().end());
+    assert(
+        importedIt->runtimeInputMode ==
+        RuntimeInputMode::Raw);
+    assert(
+        importedIt->icon ==
+        L"C:\\Icons\\ping.ico");
 
     std::filesystem::remove_all(
         root,

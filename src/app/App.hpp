@@ -97,7 +97,8 @@ public:
     bool ApplyUserCommandPathUpdates(
         const std::vector<UserCommandPathUpdate>& updates);
     bool TestCommand(
-        const Command& command);
+        const Command& command,
+        std::wstring_view runtimeInput = {});
 
     bool ImportUserCommands(
         const std::filesystem::path& path,

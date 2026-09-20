@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.5 — Shortcut Completion
+
+Alpha 5 closes the remaining shortcut-editor gaps before feature freeze. The existing persisted `icon` field is now actually user-configurable from **Advanced options**. Leaving the field blank keeps `auto` behavior; users can choose an `.ico`, `.exe`, `.dll` or `.lnk` source, or reset to Auto without editing JSON.
+
+Launcher results now carry icon-source metadata. Auto icons are derived from the command target when Windows can resolve one, while an explicit user icon takes priority. The owner-drawn Classic and Modern result rows render those icons through the Windows shell/icon APIs. Icon handles are cached only for the current visible result set and destroyed on refresh/destruction, avoiding a long-lived search-history icon cache.
+
+Dynamic shortcuts can now be tested directly inside the Shortcut Editor. Selecting Pass through or URL encode reveals a non-persisted **Test input** field; the Test button sends that value through the same `App::TestCommand -> LaunchCommand -> ResolveRuntimeInput` path used by the real launcher. Invalid URL/Folder templates are rejected before test launch, and an empty Test input is called out instead of silently testing the wrong behavior.
+
+Custom icon paths participate in the existing Path Conversion workflow alongside Target and Working Directory, so portable/environment-variable conversion does not leave a newly configured icon path behind. Shortcut TSV interchange advances to **v3** by appending an optional `icon` column; v1/v2 rows remain importable. JSON schemas do not change: settings stays 5, commands stays 2, usage stays 1 and provider-cache stays 2. Windows fixed FileVersion/ProductVersion is `0.7.0.50`.
+
 ## v0.7.0-alpha.4 — Dynamic Shortcut Input
 
 Alpha 4 turns runtime text after an exact shortcut keyword/alias into a first-class command input instead of forcing the whole launcher query through fuzzy search. The Shortcut Editor now exposes **Runtime input** with three modes: **No extra input**, **Pass through**, and **URL encode (UTF-8)**. New templates use `{input}` in target, fixed arguments or working directory.

@@ -470,6 +470,11 @@ std::vector<LauncherResult> App::Search(
                 : command.keyword;
         result.subtitle = command.title;
         result.target = command.target;
+        result.iconSource =
+            command.icon.empty() ||
+            command.icon == L"auto"
+                ? command.target
+                : command.icon;
         result.detail =
             CommandDetail(command);
         result.score = match.score;
@@ -926,8 +931,13 @@ bool App::ApplyUserCommandPathUpdates(
     return true;
 }
 
-bool App::TestCommand(const Command& command) {
-    return LaunchCommand(command, false);
+bool App::TestCommand(
+    const Command& command,
+    std::wstring_view runtimeInput) {
+    return LaunchCommand(
+        command,
+        false,
+        runtimeInput);
 }
 
 bool App::ImportUserCommands(

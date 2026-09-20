@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0-alpha.5
+
+- Exposed the existing user-command icon field in the standalone Shortcut Editor with Choose and Auto/reset actions.
+- Added custom icon source support for `.ico`, `.exe`, `.dll` and `.lnk` files while keeping blank as target-derived Auto.
+- Propagated command icon metadata into normal, runtime-input and legacy web-search Launcher results.
+- Added Classic/Modern launcher icon rendering with shell/executable/icon-file resolution and current-result-set handle cleanup.
+- Added a context-sensitive Test input field for dynamic shortcuts and routed editor tests through the same runtime-input execution path as Launcher execution.
+- Added test-time validation for missing runtime placeholders and empty dynamic test input.
+- Extended Path Conversion to include custom icon paths in the same atomic Target/Working Directory batch.
+- Advanced shortcut TSV interchange to v3 with an appended `icon` column while retaining older v1/v2 import compatibility.
+- Added custom-icon JSON/TSV round-trip, runtime/web result icon propagation and atomic path-update regression coverage.
+- Kept settings schemaVersion 5, commands schemaVersion 2, usage schemaVersion 1 and provider-cache schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.50.
+
 ## 0.7.0-alpha.4
 
 - Added first-class dynamic Runtime input for user shortcuts with None, Pass through and UTF-8 URL-encoded modes.

@@ -21,7 +21,8 @@ constexpr wchar_t kShortcutEditorClass[] =
 
 constexpr int kEditorWidthLogical = 660;
 constexpr int kCollapsedHeightLogical = 470;
-constexpr int kExpandedHeightLogical = 630;
+constexpr int kExpandedHeightLogical = 700;
+constexpr int kRuntimeTestExtraHeightLogical = 44;
 constexpr int kTypeDropdownHeightLogical = 170;
 constexpr int kRuntimeInputDropdownHeightLogical = 120;
 
@@ -42,6 +43,10 @@ constexpr UINT kIdCancel = 53115;
 constexpr UINT kIdBrowseFolder = 53116;
 constexpr UINT kIdAdvancedToggle = 53117;
 constexpr UINT kIdRuntimeInput = 53118;
+constexpr UINT kIdIcon = 53119;
+constexpr UINT kIdBrowseIcon = 53120;
+constexpr UINT kIdResetIcon = 53121;
+constexpr UINT kIdTestInput = 53122;
 
 [[nodiscard]] std::wstring
 TrimWide(std::wstring_view value) {
@@ -256,7 +261,7 @@ bool ShortcutEditorDialog::Create(
     }
 
     UpdateAdvancedVisibility();
-    ResizeForAdvanced();
+    ResizeForContent();
     Layout();
 
     RECT ownerRect{};
@@ -472,6 +477,11 @@ void ShortcutEditorDialog::CreateControls() {
         nullptr);
     makeStatic(runtimeInputHint_);
 
+    makeStatic(testInputLabel_);
+    makeEdit(
+        testInput_,
+        kIdTestInput);
+
     makeButton(
         advancedToggle_,
         kIdAdvancedToggle);
@@ -488,6 +498,17 @@ void ShortcutEditorDialog::CreateControls() {
     makeButton(
         browseWorkdir_,
         kIdBrowseWorkdir);
+
+    makeStatic(iconLabel_);
+    makeEdit(
+        icon_,
+        kIdIcon);
+    makeButton(
+        browseIcon_,
+        kIdBrowseIcon);
+    makeButton(
+        resetIcon_,
+        kIdResetIcon);
 
     makeButton(
         paused_,
@@ -552,12 +573,18 @@ void ShortcutEditorDialog::CreateControls() {
         runtimeInputLabel_,
         runtimeInput_,
         runtimeInputHint_,
+        testInputLabel_,
+        testInput_,
         advancedToggle_,
         argumentsLabel_,
         arguments_,
         workdirLabel_,
         workdir_,
         browseWorkdir_,
+        iconLabel_,
+        icon_,
+        browseIcon_,
+        resetIcon_,
         paused_,
         admin_,
         pinned_,
@@ -710,6 +737,18 @@ void ShortcutEditorDialog::ApplyLanguage() {
         0);
 
     SetWindowTextW(
+        testInputLabel_,
+        T(L"测试输入",
+          L"Test input"));
+    SendMessageW(
+        testInput_,
+        EM_SETCUEBANNER,
+        TRUE,
+        reinterpret_cast<LPARAM>(
+            T(L"例如：8.8.8.8 / 心脏 MRI",
+              L"Example: 8.8.8.8 / search text")));
+
+    SetWindowTextW(
         argumentsLabel_,
         T(L"固定参数",
           L"Fixed arguments"));
@@ -717,6 +756,26 @@ void ShortcutEditorDialog::ApplyLanguage() {
         workdirLabel_,
         T(L"工作目录（留空自动使用目标所在目录）",
           L"Working directory (blank = target directory)"));
+    SetWindowTextW(
+        iconLabel_,
+        T(L"图标（留空 = 自动跟随目标）",
+          L"Icon (blank = follow target)"));
+    SendMessageW(
+        icon_,
+        EM_SETCUEBANNER,
+        TRUE,
+        reinterpret_cast<LPARAM>(
+            T(L"自动",
+              L"Auto")));
+    SetWindowTextW(
+        browseIcon_,
+        T(L"选择...",
+          L"Choose..."));
+    SetWindowTextW(
+        resetIcon_,
+        T(L"自动",
+          L"Auto"));
+
     SetWindowTextW(
         paused_,
         T(L"暂停此快捷项",
@@ -745,6 +804,7 @@ void ShortcutEditorDialog::ApplyLanguage() {
     UpdateAdvancedVisibility();
     UpdateTypeState();
     UpdateRuntimeInputHint();
+    UpdateRuntimeTestVisibility();
 }
 
 void ShortcutEditorDialog::Layout() {
@@ -926,6 +986,30 @@ void ShortcutEditorDialog::Layout() {
         TRUE);
     y += Scale(48);
 
+    if (SelectedRuntimeInputMode() !=
+        RuntimeInputMode::None) {
+        const int testLabelWidth =
+            Scale(82);
+
+        MoveWindow(
+            testInputLabel_,
+            margin,
+            y + Scale(4),
+            testLabelWidth,
+            labelHeight,
+            TRUE);
+        MoveWindow(
+            testInput_,
+            margin + testLabelWidth,
+            y,
+            contentWidth -
+                testLabelWidth,
+            fieldHeight,
+            TRUE);
+        y += Scale(
+            kRuntimeTestExtraHeightLogical);
+    }
+
     MoveWindow(
         advancedToggle_,
         margin,
@@ -981,6 +1065,54 @@ void ShortcutEditorDialog::Layout() {
                 workdirButtonWidth,
             y,
             workdirButtonWidth,
+            fieldHeight,
+            TRUE);
+        y += Scale(44);
+
+        MoveWindow(
+            iconLabel_,
+            margin,
+            y,
+            contentWidth,
+            labelHeight,
+            TRUE);
+        y += Scale(22);
+
+        const int iconButtonWidth =
+            Scale(66);
+        const int autoButtonWidth =
+            Scale(54);
+        const int iconEditWidth =
+            contentWidth -
+            iconButtonWidth -
+            autoButtonWidth -
+            gap * 2;
+
+        MoveWindow(
+            icon_,
+            margin,
+            y,
+            iconEditWidth,
+            fieldHeight,
+            TRUE);
+        MoveWindow(
+            browseIcon_,
+            margin +
+                iconEditWidth +
+                gap,
+            y,
+            iconButtonWidth,
+            fieldHeight,
+            TRUE);
+        MoveWindow(
+            resetIcon_,
+            margin +
+                iconEditWidth +
+                gap +
+                iconButtonWidth +
+                gap,
+            y,
+            autoButtonWidth,
             fieldHeight,
             TRUE);
         y += Scale(44);
@@ -1052,7 +1184,7 @@ void ShortcutEditorDialog::Layout() {
         TRUE);
 }
 
-void ShortcutEditorDialog::ResizeForAdvanced() {
+void ShortcutEditorDialog::ResizeForContent() {
     if (!hwnd_) {
         return;
     }
@@ -1064,9 +1196,13 @@ void ShortcutEditorDialog::ResizeForAdvanced() {
         0,
         Scale(kEditorWidthLogical),
         Scale(
-            advancedExpanded_
+            (advancedExpanded_
                 ? kExpandedHeightLogical
-                : kCollapsedHeightLogical),
+                : kCollapsedHeightLogical) +
+            (SelectedRuntimeInputMode() !=
+                    RuntimeInputMode::None
+                ? kRuntimeTestExtraHeightLogical
+                : 0)),
         SWP_NOMOVE |
             SWP_NOZORDER |
             SWP_NOACTIVATE);
@@ -1084,6 +1220,10 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
              workdirLabel_,
              workdir_,
              browseWorkdir_,
+             iconLabel_,
+             icon_,
+             browseIcon_,
+             resetIcon_,
              paused_,
              admin_,
              pinned_}) {
@@ -1101,12 +1241,28 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
                 L"▸ Advanced"));
 }
 
+void ShortcutEditorDialog::UpdateRuntimeTestVisibility() {
+    const bool visible =
+        SelectedRuntimeInputMode() !=
+        RuntimeInputMode::None;
+
+    ShowWindow(
+        testInputLabel_,
+        visible ? SW_SHOW : SW_HIDE);
+    ShowWindow(
+        testInput_,
+        visible ? SW_SHOW : SW_HIDE);
+
+    ResizeForContent();
+    Layout();
+}
+
 void ShortcutEditorDialog::ToggleAdvanced() {
     advancedExpanded_ =
         !advancedExpanded_;
 
     UpdateAdvancedVisibility();
-    ResizeForAdvanced();
+    ResizeForContent();
     Layout();
 }
 
@@ -1354,6 +1510,15 @@ void ShortcutEditorDialog::LoadCommand(
     SetWindowTextW(
         workdir_,
         it->workingDirectory.c_str());
+    SetWindowTextW(
+        icon_,
+        (it->icon.empty() ||
+         it->icon == L"auto")
+            ? L""
+            : it->icon.c_str());
+    SetWindowTextW(
+        testInput_,
+        L"");
 
     int runtimeInputIndex = 0;
     switch (it->runtimeInputMode) {
@@ -1411,12 +1576,15 @@ void ShortcutEditorDialog::LoadCommand(
     advancedExpanded_ =
         !it->arguments.empty() ||
         !it->workingDirectory.empty() ||
+        (!it->icon.empty() &&
+         it->icon != L"auto") ||
         !it->enabled ||
         it->runAsAdmin ||
         it->pinned;
 
     UpdateAdvancedVisibility();
     UpdateTypeState();
+    UpdateRuntimeTestVisibility();
 }
 
 void ShortcutEditorDialog::BeginNew() {
@@ -1433,6 +1601,12 @@ void ShortcutEditorDialog::BeginNew() {
         L"");
     SetWindowTextW(
         workdir_,
+        L"");
+    SetWindowTextW(
+        icon_,
+        L"");
+    SetWindowTextW(
+        testInput_,
         L"");
 
     SetNameText(
@@ -1464,6 +1638,7 @@ void ShortcutEditorDialog::BeginNew() {
 
     UpdateAdvancedVisibility();
     UpdateTypeState();
+    UpdateRuntimeTestVisibility();
 }
 
 std::wstring ShortcutEditorDialog::ControlText(
@@ -1532,7 +1707,13 @@ Command ShortcutEditorDialog::CollectCommand()
             command.keyword;
     }
 
-    command.icon = L"auto";
+    const std::wstring icon =
+        TrimWide(
+            ControlText(icon_));
+    command.icon =
+        icon.empty()
+            ? L"auto"
+            : icon;
     command.enabled =
         !IsChecked(paused_);
     command.runAsAdmin =
@@ -1664,7 +1845,43 @@ void ShortcutEditorDialog::Test() {
         return;
     }
 
-    app_.TestCommand(command);
+    if (command.runtimeInputMode !=
+            RuntimeInputMode::None &&
+        !CanAcceptRuntimeInput(
+            command)) {
+        MessageBoxW(
+            hwnd_,
+            T(L"当前运行时输入配置不完整，请先加入 {input} 或改用应用程序/命令行自动追加。",
+              L"Runtime input is incomplete. Add {input}, or use Application/Command line auto-append."),
+            T(L"测试运行",
+              L"Test"),
+            MB_OK |
+                MB_ICONWARNING);
+        return;
+    }
+
+    const std::wstring runtimeInput =
+        TrimWide(
+            ControlText(testInput_));
+
+    if (command.runtimeInputMode !=
+            RuntimeInputMode::None &&
+        runtimeInput.empty()) {
+        MessageBoxW(
+            hwnd_,
+            T(L"请先填写“测试输入”，这样可以直接验证动态参数。",
+              L"Enter Test input first to verify the dynamic argument."),
+            T(L"测试运行",
+              L"Test"),
+            MB_OK |
+                MB_ICONWARNING);
+        SetFocus(testInput_);
+        return;
+    }
+
+    app_.TestCommand(
+        command,
+        runtimeInput);
 }
 
 void ShortcutEditorDialog::BrowseTargetFile() {
@@ -1803,6 +2020,63 @@ BrowseWorkingDirectory() {
     CoTaskMemFree(item);
 }
 
+void ShortcutEditorDialog::BrowseIcon() {
+    std::array<wchar_t, 32768>
+        file{};
+
+    const std::wstring current =
+        TrimWide(
+            ControlText(icon_));
+
+    if (!current.empty() &&
+        current.size() <
+            file.size()) {
+        std::copy(
+            current.begin(),
+            current.end(),
+            file.begin());
+    }
+
+    const wchar_t filter[] =
+        L"Icon sources\0*.ico;*.exe;*.dll;*.lnk\0"
+        L"All files\0*.*\0\0";
+
+    OPENFILENAMEW open{};
+    open.lStructSize =
+        sizeof(open);
+    open.hwndOwner =
+        hwnd_;
+    open.lpstrFile =
+        file.data();
+    open.nMaxFile =
+        static_cast<DWORD>(
+            file.size());
+    open.lpstrFilter =
+        filter;
+    open.nFilterIndex = 1;
+    open.Flags =
+        OFN_FILEMUSTEXIST |
+        OFN_PATHMUSTEXIST |
+        OFN_EXPLORER |
+        OFN_NOCHANGEDIR;
+
+    if (!GetOpenFileNameW(
+            &open)) {
+        return;
+    }
+
+    SetWindowTextW(
+        icon_,
+        file.data());
+}
+
+void ShortcutEditorDialog::ResetIcon() {
+    SetWindowTextW(
+        icon_,
+        L"");
+    SetFocus(icon_);
+}
+
 LRESULT CALLBACK
 ShortcutEditorDialog::WindowProc(
     HWND hwnd,
@@ -1902,6 +2176,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 CBN_SELCHANGE) {
                 UpdateRuntimeInputHint();
+                UpdateRuntimeTestVisibility();
             }
             return 0;
 
@@ -1924,6 +2199,23 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 EN_CHANGE) {
                 UpdateRuntimeInputHint();
+            }
+            return 0;
+
+        case kIdIcon:
+            return 0;
+
+        case kIdBrowseIcon:
+            if (HIWORD(wParam) ==
+                BN_CLICKED) {
+                BrowseIcon();
+            }
+            return 0;
+
+        case kIdResetIcon:
+            if (HIWORD(wParam) ==
+                BN_CLICKED) {
+                ResetIcon();
             }
             return 0;
 

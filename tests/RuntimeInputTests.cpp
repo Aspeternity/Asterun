@@ -166,6 +166,9 @@ int main() {
                 L"ping.exe"),
         };
 
+        commands[0].icon =
+            L"C:\\Icons\\ping.ico";
+
         const auto results =
             BuildRuntimeInputActionResults(
                 commands,
@@ -173,6 +176,9 @@ int main() {
                 10);
 
         assert(results.size() == 1);
+        assert(
+            results[0].iconSource ==
+            L"C:\\Icons\\ping.ico");
         assert(
             results[0].action.kind ==
             LauncherActionKind::

@@ -436,6 +436,11 @@ BuildRuntimeInputActionResults(
             std::wstring(input);
         result.target =
             command.target;
+        result.iconSource =
+            command.icon.empty() ||
+            command.icon == L"auto"
+                ? command.target
+                : command.icon;
         result.detail =
             command.target;
         result.score = 1320;

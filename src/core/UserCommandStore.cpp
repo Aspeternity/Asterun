@@ -452,6 +452,7 @@ bool UserCommandStore::Create(
     command.target = TrimWide(command.target);
     command.arguments = TrimWide(command.arguments);
     command.workingDirectory = TrimWide(command.workingDirectory);
+    command.icon = TrimWide(command.icon);
 
     if (command.keyword.empty() || command.target.empty()) {
         return false;
@@ -521,6 +522,7 @@ bool UserCommandStore::Update(
     command.target = TrimWide(command.target);
     command.arguments = TrimWide(command.arguments);
     command.workingDirectory = TrimWide(command.workingDirectory);
+    command.icon = TrimWide(command.icon);
 
     if (command.keyword.empty() || command.target.empty()) {
         return false;
@@ -691,6 +693,16 @@ bool UserCommandStore::ApplyPathUpdates(
                 TrimWide(
                     *update.workingDirectory);
         }
+
+        if (update.icon) {
+            const std::wstring value =
+                TrimWide(*update.icon);
+
+            it->icon =
+                value.empty()
+                    ? L"auto"
+                    : value;
+        }
     }
 
     if (!Save()) {
@@ -778,6 +790,14 @@ bool UserCommandStore::ImportTsv(
                         text::ToUtf8(
                             TrimWide(
                                 fields[11])));
+            }
+            if (fields.size() >= 13) {
+                const std::wstring icon =
+                    TrimWide(fields[12]);
+                command.icon =
+                    icon.empty()
+                        ? L"auto"
+                        : icon;
             }
 
             try {
@@ -867,8 +887,8 @@ bool UserCommandStore::ExportTsv(
 
     output.write("\xEF\xBB\xBF", 3);
     output <<
-        "# ALTRun Next commands TSV v2\n"
-        "# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\truntimeInputMode\n";
+        "# ALTRun Next commands TSV v3\n"
+        "# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\truntimeInputMode\ticon\n";
 
     std::vector<const Command*> ordered;
     ordered.reserve(commands_.size());
@@ -910,6 +930,11 @@ bool UserCommandStore::ExportTsv(
             << text::FromUtf8(
                    RuntimeInputModeName(
                        command->runtimeInputMode))
+            << L'\t'
+            << SanitizeTsv(
+                   command->icon.empty()
+                       ? L"auto"
+                       : command->icon)
             << L'\n';
 
         const std::string utf8 = text::ToUtf8(line.str());

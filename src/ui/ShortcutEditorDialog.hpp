@@ -44,8 +44,9 @@ private:
     void CreateControls();
     void ApplyLanguage();
     void Layout();
-    void ResizeForAdvanced();
+    void ResizeForContent();
     void UpdateAdvancedVisibility();
+    void UpdateRuntimeTestVisibility();
     void ToggleAdvanced();
     void UpdateTypeState();
     void UpdateRuntimeInputHint();
@@ -62,6 +63,8 @@ private:
     void BrowseTargetFile();
     void BrowseTargetFolder();
     void BrowseWorkingDirectory();
+    void BrowseIcon();
+    void ResetIcon();
 
     [[nodiscard]] Command
     CollectCommand() const;
@@ -103,12 +106,18 @@ private:
     HWND runtimeInputLabel_{};
     HWND runtimeInput_{};
     HWND runtimeInputHint_{};
+    HWND testInputLabel_{};
+    HWND testInput_{};
     HWND advancedToggle_{};
     HWND argumentsLabel_{};
     HWND arguments_{};
     HWND workdirLabel_{};
     HWND workdir_{};
     HWND browseWorkdir_{};
+    HWND iconLabel_{};
+    HWND icon_{};
+    HWND browseIcon_{};
+    HWND resetIcon_{};
     HWND paused_{};
     HWND admin_{};
     HWND pinned_{};

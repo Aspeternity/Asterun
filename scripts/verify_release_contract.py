@@ -36,9 +36,9 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4"):
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
     expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4") else 4
-    expected_commands_schema = 2 if version == "0.7.0-alpha.4" else 1
+    expected_commands_schema = 2 if version in ("0.7.0-alpha.4", "0.7.0-alpha.5") else 1
     expected_schemas = {
         "kSettingsSchemaVersion": expected_settings_schema,
         "kCommandsSchemaVersion": expected_commands_schema,
@@ -262,7 +262,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4"):
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -372,7 +372,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4"):
+    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
         pinyin_cpp = read("src/core/PinyinSearch.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
 
@@ -418,7 +418,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4"):
+    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
         command_store_h = read("src/core/CommandStore.hpp")
         command_store_cpp = read("src/core/CommandStore.cpp")
         command_merge_h = read("src/core/CommandMerge.hpp")
@@ -648,7 +648,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in cmake:
                 fail(f"v0.7 alpha.3.1 editor-model CI wiring missing: {token}")
 
-    if version == "0.7.0-alpha.4":
+    if version in ("0.7.0-alpha.4", "0.7.0-alpha.5"):
         command_h = read("src/core/Command.hpp")
         runtime_h = read("src/core/RuntimeInput.hpp")
         runtime_cpp = read("src/core/RuntimeInput.cpp")
@@ -771,8 +771,13 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         ):
             fail("v0.7 alpha.4 example commands need an encoded {input} URL shortcut")
 
+        expected_tsv_marker = (
+            "commands TSV v3"
+            if version == "0.7.0-alpha.5"
+            else "commands TSV v2"
+        )
         for token in (
-            "commands TSV v2",
+            expected_tsv_marker,
             "runtimeInputMode",
             "{input}",
             "url-encoded",
@@ -790,8 +795,141 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in cmake:
                 fail(f"v0.7 alpha.4 CI wiring missing: {token}")
 
+    if version == "0.7.0-alpha.5":
+        editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+        editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+        launcher_h = read("src/ui/LauncherWindow.hpp")
+        launcher_cpp = read("src/ui/LauncherWindow.cpp")
+        launcher_result = read("src/core/LauncherResult.hpp")
+        app_h = read("src/app/App.hpp")
+        app_cpp = read("src/app/App.cpp")
+        user_store_h = read("src/core/UserCommandStore.hpp")
+        user_store_cpp = read("src/core/UserCommandStore.cpp")
+        path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+        path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+        schema_test = read("tests/UserCommandSchemaTests.cpp")
+        path_test = read("tests/UserCommandPathUpdateTests.cpp")
+        runtime_test = read("tests/RuntimeInputTests.cpp")
+        web_test = read("tests/WebActionTests.cpp")
+        commands_tsv = read("config/commands.example.tsv")
+
+        # Alpha.5 is a completion release: no persisted schema bump.
+        if cpp_int("src/core/ConfigIO.hpp", "kSettingsSchemaVersion") != 5:
+            fail("v0.7 alpha.5 must keep settings schemaVersion 5")
+        if cpp_int("src/core/ConfigIO.hpp", "kCommandsSchemaVersion") != 2:
+            fail("v0.7 alpha.5 must keep commands schemaVersion 2")
+        if cpp_int("src/core/ConfigIO.hpp", "kUsageSchemaVersion") != 1:
+            fail("v0.7 alpha.5 must keep usage schemaVersion 1")
+        if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+            fail("v0.7 alpha.5 must keep provider-cache schemaVersion 2")
+
+        editor = editor_h + editor_cpp
+        for token in (
+            "testInput_",
+            "UpdateRuntimeTestVisibility",
+            'T(L"测试输入",',
+            "BrowseIcon",
+            "ResetIcon",
+            "icon_",
+            'T(L"图标（留空 = 自动跟随目标）",',
+            'L"Icon sources',
+            "app_.TestCommand(\n        command,\n        runtimeInput)",
+        "command.icon",
+        'L"auto"',
+        "kIdBrowseIcon",
+            "kIdResetIcon",
+        ):
+            if token not in editor:
+                fail(f"v0.7 alpha.5 Shortcut Editor completion missing: {token}")
+
+        app = app_h + app_cpp
+        for token in (
+            "bool TestCommand(",
+            "std::wstring_view runtimeInput = {}",
+            "return LaunchCommand(\n        command,\n        false,\n        runtimeInput);",
+            "result.iconSource",
+            "command.icon == L\"auto\"",
+        ):
+            if token not in app:
+                fail(f"v0.7 alpha.5 App shortcut completion missing: {token}")
+
+        for token in (
+            "std::wstring iconSource",
+            "explicit icon file/executable/shortcut path",
+        ):
+            if token not in launcher_result:
+                fail(f"v0.7 alpha.5 LauncherResult icon metadata missing: {token}")
+
+        launcher = launcher_h + launcher_cpp
+        for token in (
+            "resultIconCache_",
+            "ResultIcon",
+            "ClearResultIconCache",
+            "ResolvePortablePath",
+            "SearchPathW",
+            "LoadImageW",
+            "SHGetFileInfoW",
+            "ExtractIconExW",
+            "DrawIconEx",
+            "DestroyIcon",
+        ):
+            if token not in launcher:
+                fail(f"v0.7 alpha.5 launcher icon rendering missing: {token}")
+
+        store = user_store_h + user_store_cpp
+        for token in (
+            "std::optional<std::wstring> icon",
+            "command.icon = TrimWide(command.icon)",
+            "fields.size() >= 13",
+            "commands TSV v3",
+            "runtimeInputMode\\ticon",
+            "update.icon",
+        ):
+            if token not in store:
+                fail(f"v0.7 alpha.5 icon persistence/interchange missing: {token}")
+
+        converter = path_h + path_cpp
+        for token in (
+            "Field::Icon",
+            'T(L"    自定义图标",',
+            "command.icon != L\"auto\"",
+            "it->icon",
+        ):
+            if token not in converter:
+                fail(f"v0.7 alpha.5 custom-icon path conversion missing: {token}")
+
+        for token in (
+            'L"C:\\\\Icons\\\\ping.ico"',
+            "commands TSV v3",
+            "runtimeInputMode\\ticon",
+            "importedIt->icon",
+        ):
+            if token not in schema_test:
+                fail(f"v0.7 alpha.5 custom-icon round-trip coverage missing: {token}")
+
+        for token in (
+            "first.icon",
+            "firstAfter->icon",
+            "changed.ico",
+        ):
+            if token not in path_test:
+                fail(f"v0.7 alpha.5 custom-icon path rollback coverage missing: {token}")
+
+        if "results[0].iconSource" not in runtime_test:
+            fail("v0.7 alpha.5 runtime-input results must preserve custom icons")
+        if "results[0].iconSource" not in web_test:
+            fail("v0.7 alpha.5 legacy web results must preserve custom icons")
+
+        for token in (
+            "commands TSV v3",
+            "runtimeInputMode<TAB>icon",
+            "auto",
+        ):
+            if token not in commands_tsv:
+                fail(f"v0.7 alpha.5 TSV v3 example missing: {token}")
+
     print(
-        "v0.7.0 alpha.2/alpha.4 contract verified:",
+        "v0.7.0 alpha.2/alpha.5 contract verified:",
         f"| commands={expected_commands_schema} settings={expected_settings_schema} provider-cache=2",
         "| Move Up/Down UI removed, sortOrder retained",
         "| path preview + atomic apply + relative runtime resolution",
@@ -803,6 +941,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         "| alpha.3 compact grouped Shortcut Editor + four command types",
         "| alpha.3.1 shortcut workflow model + progressive advanced options",
         "| alpha.4 dynamic runtime input + commands schema 2",
+        "| alpha.5 custom icons + dynamic test input + TSV v3",
     )
     raise SystemExit(0)
 

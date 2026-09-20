@@ -684,12 +684,25 @@ void ShortcutPathConverterDialog::InsertPreviewRow(
     const int itemIndex =
         ListView_GetItemCount(list_);
 
-    std::wstring fieldText =
-        rows_.back().field ==
-                Field::Target
-            ? T(L"    目标", L"    Target")
-            : T(L"    工作目录",
-                L"    Working directory");
+    std::wstring fieldText;
+
+    switch (rows_.back().field) {
+    case Field::Target:
+        fieldText =
+            T(L"    目标",
+              L"    Target");
+        break;
+    case Field::WorkingDirectory:
+        fieldText =
+            T(L"    工作目录",
+              L"    Working directory");
+        break;
+    case Field::Icon:
+        fieldText =
+            T(L"    自定义图标",
+              L"    Custom icon");
+        break;
+    }
 
     LVITEMW item{};
     item.mask =
@@ -1006,6 +1019,21 @@ void ShortcutPathConverterDialog::Scan() {
                     *workingDirectory));
         }
 
+        if (!command.icon.empty() &&
+            command.icon != L"auto") {
+            auto icon =
+                makePreview(
+                    command,
+                    Field::Icon,
+                    command.icon,
+                    true);
+
+            if (icon) {
+                commandRows.push_back(
+                    std::move(*icon));
+            }
+        }
+
         if (commandRows.empty()) {
             continue;
         }
@@ -1038,8 +1066,8 @@ void ShortcutPathConverterDialog::Scan() {
     }
 
     std::wstring note =
-        T(L"仅处理目标和工作目录；Arguments、URL、UNC 与裸命令保持不变。找到 ",
-          L"Only Target and Working Directory are handled; Arguments, URL, UNC and bare commands stay unchanged. Found ");
+        T(L"处理目标、工作目录和自定义图标；Arguments、URL、UNC 与裸命令保持不变。找到 ",
+          L"Target, Working Directory and custom icon paths are handled; Arguments, URL, UNC and bare commands stay unchanged. Found ");
 
     note +=
         std::to_wstring(
@@ -1112,13 +1140,19 @@ void ShortcutPathConverterDialog::ApplySelected() {
                     updates.end());
         }
 
-        if (row.field ==
-            Field::Target) {
+        switch (row.field) {
+        case Field::Target:
             it->target =
                 row.converted;
-        } else {
+            break;
+        case Field::WorkingDirectory:
             it->workingDirectory =
                 row.converted;
+            break;
+        case Field::Icon:
+            it->icon =
+                row.converted;
+            break;
         }
     }
 

@@ -5,6 +5,7 @@
 #include "../core/HotkeyRegistry.hpp"
 #include "../core/ResultMerger.hpp"
 #include "../platform/Hotkey.hpp"
+#include "../platform/WinUtil.hpp"
 
 #include <windowsx.h>
 #include <commctrl.h>
@@ -14,6 +15,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cwctype>
+#include <filesystem>
 #include <iterator>
 #include <string>
 #include <utility>
@@ -71,6 +74,7 @@ LauncherWindow::LauncherWindow(App& app, HINSTANCE instance)
 
 LauncherWindow::~LauncherWindow() {
     RemoveTrayIcon();
+    ClearResultIconCache();
 
     if (normalFont_) DeleteObject(normalFont_);
     if (boldFont_) DeleteObject(boldFont_);
@@ -1069,6 +1073,140 @@ void LauncherWindow::ApplyDynamicResults(
         false;
 }
 
+void LauncherWindow::ClearResultIconCache() {
+    for (const auto& [source, icon] :
+         resultIconCache_) {
+        (void)source;
+        if (icon) {
+            DestroyIcon(icon);
+        }
+    }
+
+    resultIconCache_.clear();
+}
+
+HICON LauncherWindow::ResultIcon(
+    const LauncherResult& result) {
+    if (result.iconSource.empty()) {
+        return nullptr;
+    }
+
+    const auto cached =
+        resultIconCache_.find(
+            result.iconSource);
+
+    if (cached !=
+        resultIconCache_.end()) {
+        return cached->second;
+    }
+
+    std::wstring source =
+        win::ResolvePortablePath(
+            result.iconSource,
+            app_.BaseDirectory(),
+            false);
+
+    if (source.empty()) {
+        source =
+            result.iconSource;
+    }
+
+    std::filesystem::path sourcePath(
+        source);
+
+    if (!sourcePath.has_parent_path()) {
+        std::array<wchar_t, 32768>
+            found{};
+
+        const DWORD length =
+            SearchPathW(
+                nullptr,
+                source.c_str(),
+                nullptr,
+                static_cast<DWORD>(
+                    found.size()),
+                found.data(),
+                nullptr);
+
+        if (length > 0 &&
+            length < found.size()) {
+            source.assign(
+                found.data(),
+                length);
+            sourcePath =
+                std::filesystem::path(
+                    source);
+        }
+    }
+
+    HICON icon = nullptr;
+
+    const std::filesystem::path& path =
+        sourcePath;
+    std::wstring extension =
+        path.extension().wstring();
+
+    std::transform(
+        extension.begin(),
+        extension.end(),
+        extension.begin(),
+        [](wchar_t ch) {
+            return static_cast<wchar_t>(
+                std::towlower(ch));
+        });
+
+    const int desired =
+        DpiScale(
+            IsModern() ? 20 : 14);
+
+    if (extension == L".ico") {
+        icon =
+            static_cast<HICON>(
+                LoadImageW(
+                    nullptr,
+                    source.c_str(),
+                    IMAGE_ICON,
+                    desired,
+                    desired,
+                    LR_LOADFROMFILE));
+    }
+
+    if (!icon) {
+        SHFILEINFOW info{};
+
+        if (SHGetFileInfoW(
+                source.c_str(),
+                0,
+                &info,
+                sizeof(info),
+                SHGFI_ICON |
+                    SHGFI_SMALLICON) !=
+            0) {
+            icon = info.hIcon;
+        }
+    }
+
+    if (!icon &&
+        (extension == L".exe" ||
+         extension == L".dll")) {
+        HICON small{};
+        if (ExtractIconExW(
+                source.c_str(),
+                0,
+                nullptr,
+                &small,
+                1) > 0) {
+            icon = small;
+        }
+    }
+
+    resultIconCache_.emplace(
+        result.iconSource,
+        icon);
+
+    return icon;
+}
+
 void LauncherWindow::RebuildVisibleResults(
     bool allowImmediateExecution) {
     std::wstring selectedId;
@@ -1102,6 +1240,8 @@ void LauncherWindow::RebuildVisibleResults(
             staticResults_,
             dynamicResults_,
             maxResults_);
+
+    ClearResultIconCache();
 
     SendMessageW(
         list_,
@@ -1801,13 +1941,55 @@ LRESULT LauncherWindow::HandleMessage(
             PrimaryResultText(result);
 
         if (IsModern()) {
+            constexpr int iconColumnLogical = 28;
+
+            RECT iconRect = item->rcItem;
+            iconRect.left += DpiScale(8);
+            iconRect.right =
+                iconRect.left +
+                DpiScale(iconColumnLogical);
+
+            if (HICON icon =
+                    ResultIcon(result)) {
+                const int iconSize =
+                    DpiScale(20);
+                const int iconX =
+                    iconRect.left +
+                    (DpiScale(
+                         iconColumnLogical) -
+                     iconSize) / 2;
+                const int iconY =
+                    item->rcItem.top +
+                    ((item->rcItem.bottom -
+                      item->rcItem.top -
+                      iconSize) / 2);
+
+                DrawIconEx(
+                    item->hDC,
+                    iconX,
+                    iconY,
+                    icon,
+                    iconSize,
+                    iconSize,
+                    0,
+                    nullptr,
+                    DI_NORMAL);
+            }
+
             RECT keywordRect = item->rcItem;
-            keywordRect.left += DpiScale(12);
-            keywordRect.right = keywordRect.left + DpiScale(165);
+            keywordRect.left =
+                iconRect.right +
+                DpiScale(4);
+            keywordRect.right =
+                keywordRect.left +
+                DpiScale(145);
 
             RECT titleRect = item->rcItem;
-            titleRect.left = keywordRect.right + DpiScale(10);
-            titleRect.right -= DpiScale(12);
+            titleRect.left =
+                keywordRect.right +
+                DpiScale(10);
+            titleRect.right -=
+                DpiScale(12);
 
             const auto oldFont = SelectObject(item->hDC, boldFont_);
             SetTextColor(
@@ -1855,14 +2037,60 @@ LRESULT LauncherWindow::HandleMessage(
         }
 
         constexpr int hotkeyColumnLogical = 23;
+        constexpr int iconColumnLogical = 18;
         constexpr int shortcutColumnLogical = 230;
 
         RECT numberRect = item->rcItem;
-        numberRect.right = item->rcItem.left + DpiScale(hotkeyColumnLogical);
+        numberRect.right =
+            item->rcItem.left +
+            DpiScale(
+                hotkeyColumnLogical);
+
+        RECT iconRect = item->rcItem;
+        iconRect.left =
+            numberRect.right +
+            DpiScale(1);
+        iconRect.right =
+            iconRect.left +
+            DpiScale(
+                iconColumnLogical);
+
+        if (HICON icon =
+                ResultIcon(result)) {
+            const int iconSize =
+                DpiScale(14);
+            const int iconX =
+                iconRect.left +
+                (DpiScale(
+                     iconColumnLogical) -
+                 iconSize) / 2;
+            const int iconY =
+                item->rcItem.top +
+                ((item->rcItem.bottom -
+                  item->rcItem.top -
+                  iconSize) / 2);
+
+            DrawIconEx(
+                item->hDC,
+                iconX,
+                iconY,
+                icon,
+                iconSize,
+                iconSize,
+                0,
+                nullptr,
+                DI_NORMAL);
+        }
 
         RECT keywordRect = item->rcItem;
-        keywordRect.left = numberRect.right + DpiScale(3);
-        keywordRect.right = item->rcItem.left + DpiScale(shortcutColumnLogical) - DpiScale(4);
+        keywordRect.left =
+            iconRect.right +
+            DpiScale(2);
+        keywordRect.right =
+            item->rcItem.left +
+            DpiScale(
+                shortcutColumnLogical) -
+            DpiScale(4);
 
         RECT titleRect = item->rcItem;
         titleRect.left = item->rcItem.left + DpiScale(shortcutColumnLogical) + DpiScale(8);
@@ -1924,6 +2152,8 @@ LRESULT LauncherWindow::HandleMessage(
     case WM_DPICHANGED: {
         dpi_ = HIWORD(wParam);
         const auto* suggested = reinterpret_cast<RECT*>(lParam);
+
+        ClearResultIconCache();
 
         SetWindowPos(
             hwnd_,

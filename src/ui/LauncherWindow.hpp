@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace altrun {
@@ -77,6 +78,9 @@ private:
     void PaintClassicClose(HDC dc, const RECT& rect);
     void UpdateHint();
     void UpdatePreview();
+    [[nodiscard]] HICON ResultIcon(
+        const LauncherResult& result);
+    void ClearResultIconCache();
     void RebuildVisibleResults(
         bool allowImmediateExecution);
     void ExecuteSelection(
@@ -116,6 +120,8 @@ private:
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
+    std::unordered_map<std::wstring, HICON>
+        resultIconCache_;
     bool trayIconAdded_{false};
     bool imeComposing_{false};
     bool dynamicQueryPending_{false};

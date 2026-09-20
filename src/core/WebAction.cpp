@@ -230,6 +230,11 @@ BuildWebActionResults(
         result.title = command.title.empty() ? command.keyword : command.title;
         result.subtitle = tail.empty() ? L"Open web search" : std::wstring(tail);
         result.target = std::move(resolved);
+        result.iconSource =
+            command.icon.empty() ||
+            command.icon == L"auto"
+                ? command.target
+                : command.icon;
         result.detail = result.target;
         result.score = 1180;
         result.action.kind = LauncherActionKind::OpenUrl;
