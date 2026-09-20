@@ -757,8 +757,8 @@ int main() {
         "{\n"
         "  \"schemaVersion\": 3,\n"
         "  \"hotkey\": {\n"
-        "    \"modifiers\": [],\n"
-        "    \"key\": \"f2\",\n"
+        "    \"modifiers\": [\"ctrl\"],\n"
+        "    \"key\": \"enter\",\n"
         "    \"auxiliary\": {\n"
         "      \"enabled\": false,\n"
         "      \"modifiers\": [],\n"
@@ -776,20 +776,20 @@ int main() {
             migratedConflict.Data()
                 .hotkeyBindings,
             hotkey_actions::kActivate);
-    const auto conflictOpenSettings =
+    const auto conflictNavigate =
         EffectiveHotkeyBinding(
             migratedConflict.Data()
                 .hotkeyBindings,
             hotkey_actions::
-                kOpenSettings);
+                kNavigateCurrentFileManager);
 
     assert(conflictPrimary.enabled);
-    assert(conflictPrimary.key == "f2");
+    assert(conflictPrimary.key == "enter");
     assert(
-        conflictPrimary.modifiers
-            .empty());
+        conflictPrimary.modifiers ==
+        std::vector<std::string>{"ctrl"});
     assert(
-        !conflictOpenSettings.enabled);
+        !conflictNavigate.enabled);
 
     const auto conflictJson =
         config::LoadJsonWithBackup(
@@ -801,7 +801,7 @@ int main() {
         !(*conflictJson.value)
              ["hotkeys"]
              ["bindings"]
-             ["launcher.openSettings"]
+             ["result.navigateCurrentFileManager"]
              ["enabled"]
              .get<bool>());
 
