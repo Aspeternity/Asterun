@@ -104,8 +104,12 @@ try {
         Get-Content $settingsPath -Raw |
         ConvertFrom-Json
 
-    if ($migratedSettings.schemaVersion -ne 4) {
-        throw "Packaged runtime did not migrate schema-2 settings to schema 4."
+    if ($migratedSettings.schemaVersion -ne 5) {
+        throw "Packaged runtime did not migrate schema-2 settings to schema 5."
+    }
+
+    if ($migratedSettings.behavior.pinyinSearch -ne $true) {
+        throw "Packaged runtime migration must default Pinyin search to enabled."
     }
 
     $expectedHotkeyActions = @(
@@ -138,7 +142,7 @@ try {
     Write-Host "  FileVersion string: $fileVersion"
     Write-Host "  Process id: $($process.Id)"
     Write-Host "  Startup observation: $StartupSeconds seconds"
-    Write-Host "  Runtime migration: schema 2 -> 4 with frozen Hotkey Registry"
+    Write-Host "  Runtime migration: schema 2 -> 5 with frozen Hotkey Registry + default-on Pinyin search"
 }
 finally {
     if ($null -ne $process) {

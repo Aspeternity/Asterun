@@ -431,6 +431,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         upgrade_test = read("tests/UpgradeMatrixTests.cpp")
         merge_test = read("tests/CommandMergeTests.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
+        runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
 
         if "providerCommands_" in command_store_h or "providerCommands_" in command_store_cpp:
             fail("v0.7 alpha.2.5 must not retain a raw Provider Command vector")
@@ -501,6 +502,14 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         ):
             if token not in search_test:
                 fail(f"v0.7 alpha.2.5 Pinyin toggle regression coverage missing: {token}")
+
+        for token in (
+            "$migratedSettings.schemaVersion -ne 5",
+            "$migratedSettings.behavior.pinyinSearch -ne $true",
+            "schema 2 -> 5",
+        ):
+            if token not in runtime_smoke:
+                fail(f"v0.7 alpha.2.5 packaged runtime migration gate missing: {token}")
 
     print(
         "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",
