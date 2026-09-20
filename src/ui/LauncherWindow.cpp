@@ -1395,64 +1395,78 @@ void LauncherWindow::ApplyGeneralSettings() {
 
 void LauncherWindow::ShowTrayMenu(POINT point) {
     HMENU menu = CreatePopupMenu();
-    HMENU appearanceMenu = CreatePopupMenu();
-    HMENU languageMenu = CreatePopupMenu();
 
-    const auto& settings = app_.SettingsData();
+    const bool zh =
+        app_.SettingsData().language ==
+        Language::ZhCN;
 
-    AppendMenuW(menu, MF_STRING, kMenuShow, app_.Text(TextId::TrayShow).data());
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        kMenuShow,
+        zh
+            ? L"显示主界面"
+            : L"Show launcher");
+
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        kMenuShortcuts,
+        zh
+            ? L"快捷项管理..."
+            : L"Shortcut Manager...");
+
+    AppendMenuW(
+        menu,
+        MF_SEPARATOR,
+        0,
+        nullptr);
+
     AppendMenuW(
         menu,
         MF_STRING,
         kMenuSettings,
-        app_.SettingsData().language == Language::ZhCN ? L"设置\tF2" : L"Settings\tF2");
-    AppendMenuW(menu, MF_STRING, kMenuReload, app_.Text(TextId::TrayReload).data());
-    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-
-    AppendMenuW(
-        appearanceMenu,
-        MF_STRING | (settings.uiStyle == UiStyle::Classic ? MF_CHECKED : MF_UNCHECKED),
-        kMenuThemeClassic,
-        app_.Text(TextId::TrayClassic).data());
-
-    AppendMenuW(
-        appearanceMenu,
-        MF_STRING | (settings.uiStyle == UiStyle::ModernCompact ? MF_CHECKED : MF_UNCHECKED),
-        kMenuThemeModern,
-        app_.Text(TextId::TrayModern).data());
+        zh
+            ? L"设置...\tF2"
+            : L"Settings...\tF2");
 
     AppendMenuW(
         menu,
-        MF_POPUP,
-        reinterpret_cast<UINT_PTR>(appearanceMenu),
-        app_.Text(TextId::TrayAppearance).data());
-
-    AppendMenuW(
-        languageMenu,
-        MF_STRING | (settings.language == Language::ZhCN ? MF_CHECKED : MF_UNCHECKED),
-        kMenuLangZh,
-        app_.Text(TextId::TrayChinese).data());
-
-    AppendMenuW(
-        languageMenu,
-        MF_STRING | (settings.language == Language::EnUS ? MF_CHECKED : MF_UNCHECKED),
-        kMenuLangEn,
-        app_.Text(TextId::TrayEnglish).data());
+        MF_STRING,
+        kMenuReload,
+        zh
+            ? L"重新加载"
+            : L"Reload");
 
     AppendMenuW(
         menu,
-        MF_POPUP,
-        reinterpret_cast<UINT_PTR>(languageMenu),
-        app_.Text(TextId::TrayLanguage).data());
+        MF_SEPARATOR,
+        0,
+        nullptr);
 
-    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, kMenuExit, app_.Text(TextId::TrayExit).data());
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        kMenuAbout,
+        zh
+            ? L"关于..."
+            : L"About...");
+
+    AppendMenuW(
+        menu,
+        MF_STRING,
+        kMenuExit,
+        zh
+            ? L"退出"
+            : L"Exit");
 
     SetForegroundWindow(hwnd_);
 
     TrackPopupMenu(
         menu,
-        TPM_RIGHTBUTTON | TPM_BOTTOMALIGN | TPM_LEFTALIGN,
+        TPM_RIGHTBUTTON |
+            TPM_BOTTOMALIGN |
+            TPM_LEFTALIGN,
         point.x,
         point.y,
         0,
@@ -1679,21 +1693,17 @@ LRESULT LauncherWindow::HandleMessage(
         case kMenuReload:
             app_.ReloadCommands();
             return 0;
+        case kMenuShortcuts:
+            Hide();
+            app_.ShowShortcutManager();
+            return 0;
         case kMenuSettings:
             Hide();
             app_.ShowSettings();
             return 0;
-        case kMenuThemeClassic:
-            app_.SetUiStyle(UiStyle::Classic);
-            return 0;
-        case kMenuThemeModern:
-            app_.SetUiStyle(UiStyle::ModernCompact);
-            return 0;
-        case kMenuLangZh:
-            app_.SetLanguage(Language::ZhCN);
-            return 0;
-        case kMenuLangEn:
-            app_.SetLanguage(Language::EnUS);
+        case kMenuAbout:
+            Hide();
+            app_.ShowAbout();
             return 0;
         case kMenuExit:
             DestroyWindow(hwnd_);

@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.1 — Shortcut Management Architecture
+
+v0.7 starts by promoting user shortcuts into a first-class workflow instead of treating them as a Settings page. The persisted command contract is unchanged: existing `commands.json` schemaVersion 1 data is reused directly with no migration.
+
+A new standalone **Shortcut Manager / 快捷项管理** window provides add, edit, delete, test and ordering actions over user shortcuts. A reusable **Shortcut Editor / 快捷项编辑** dialog owns single-shortcut editing and is intentionally separated from the manager so the same editor can be invoked by Launcher result context actions in the next alpha.
+
+The system-tray menu now exposes the product's primary structure directly: Show Launcher, Shortcut Manager, Settings, Reload, About and Exit. Appearance and language remain available in Settings rather than being duplicated in the tray.
+
+Settings no longer creates or exposes the legacy Shortcuts page. It now opens on General and its sidebar order is General, Hotkeys, Appearance, Search sources, Data, Diagnostics, About, placing Diagnostics immediately above About as part of the support/status area.
+
+No v0.6 persisted contract is changed in alpha.1: settings schemaVersion 4, commands/usage schemaVersion 1, provider-cache schemaVersion 2, provider IDs/defaults, Hotkey Registry action IDs, Everything IPC, Smart Actions and Classic geometry remain compatible. Windows fixed FileVersion/ProductVersion is `0.7.0.1`.
+
 ## v0.6.0 — Stable
 
 v0.6.0 promotes the fully validated v0.6.0-rc.1 contract to Stable without changing launcher, provider, Smart Action, Hotkey Registry, Everything, Diagnostics, migration or desktop runtime behavior.

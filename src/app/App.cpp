@@ -13,6 +13,7 @@
 #include "../platform/WinUtil.hpp"
 #include "../ui/LauncherWindow.hpp"
 #include "../ui/SettingsWindow.hpp"
+#include "../ui/ShortcutManagerWindow.hpp"
 
 #include <shellapi.h>
 
@@ -363,6 +364,10 @@ void App::ReloadCommands() {
 
     if (window_) {
         window_->RefreshResults();
+    }
+
+    if (shortcutManagerWindow_) {
+        shortcutManagerWindow_->Refresh();
     }
 }
 
@@ -770,6 +775,14 @@ bool App::CreateUserCommand(
     }
 
     if (window_) window_->RefreshResults();
+    if (shortcutManagerWindow_) {
+        if (createdId) {
+            shortcutManagerWindow_->Refresh(
+                *createdId);
+        } else {
+            shortcutManagerWindow_->Refresh();
+        }
+    }
     return true;
 }
 
@@ -784,6 +797,9 @@ bool App::UpdateUserCommand(
     }
 
     if (window_) window_->RefreshResults();
+    if (shortcutManagerWindow_) {
+        shortcutManagerWindow_->Refresh(id);
+    }
     return true;
 }
 
@@ -795,6 +811,9 @@ bool App::DeleteUserCommand(
     }
 
     if (window_) window_->RefreshResults();
+    if (shortcutManagerWindow_) {
+        shortcutManagerWindow_->Refresh();
+    }
     return true;
 }
 
@@ -809,6 +828,9 @@ bool App::MoveUserCommand(
     }
 
     if (window_) window_->RefreshResults();
+    if (shortcutManagerWindow_) {
+        shortcutManagerWindow_->Refresh(id);
+    }
     return true;
 }
 
@@ -834,8 +856,8 @@ bool App::ImportUserCommands(
         window_->RefreshResults();
     }
 
-    if (settingsWindow_) {
-        settingsWindow_->RefreshCommands();
+    if (shortcutManagerWindow_) {
+        shortcutManagerWindow_->Refresh();
     }
 
     return true;
@@ -1404,6 +1426,9 @@ void App::SetLanguage(Language language) {
     settingsStore_.SetLanguage(language);
     if (window_) window_->ApplyLanguage();
     if (settingsWindow_) settingsWindow_->ApplyLanguage();
+    if (shortcutManagerWindow_) {
+        shortcutManagerWindow_->ApplyLanguage();
+    }
 }
 
 bool App::SetStartWithWindows(bool enabled) {
@@ -2125,6 +2150,37 @@ void App::ShowSettings() {
     }
 
     settingsWindow_->Show();
+}
+
+void App::ShowAbout() {
+    if (!settingsWindow_) {
+        settingsWindow_ = std::make_unique<SettingsWindow>(*this, instance_);
+        if (!settingsWindow_->Create()) {
+            settingsWindow_.reset();
+            MessageBoxW(
+                nullptr,
+                L"Unable to create Settings window.",
+                L"ALTRun Next",
+                MB_ICONERROR | MB_OK);
+            return;
+        }
+    }
+
+    settingsWindow_->ShowAbout();
+}
+
+void App::ShowShortcutManager(
+    std::wstring_view preferredId) {
+    if (!shortcutManagerWindow_) {
+        shortcutManagerWindow_ =
+            std::make_unique<
+                ShortcutManagerWindow>(
+                    *this,
+                    instance_);
+    }
+
+    shortcutManagerWindow_->Show(
+        preferredId);
 }
 
 void App::OpenDataFolder() {

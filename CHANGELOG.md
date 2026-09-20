@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-alpha.1
+
+- Promoted shortcuts from a Settings subsection into a standalone Shortcut Manager workflow.
+- Added a dedicated Shortcut Manager window with add, edit, delete, test, move-up and move-down operations.
+- Added a reusable Shortcut Editor dialog for creating/editing one user shortcut without depending on SettingsWindow.
+- Added a system-tray Shortcut Manager entry and simplified the tray around launcher, shortcut management, settings, reload, about and exit.
+- Removed the visible Shortcuts navigation/page from Settings and made General the default Settings page.
+- Reordered Settings navigation to General, Hotkeys, Appearance, Search sources, Data, Diagnostics, About, placing Diagnostics immediately above About.
+- Kept commands.json at schemaVersion 1; existing v0.6 shortcuts require no migration.
+- Kept settings schemaVersion 4, commands/usage schemaVersion 1, provider-cache schemaVersion 2 and all v0.6 provider/Hotkey/Everything/Smart Actions contracts unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.1.
+
 ## 0.6.0
 
 - Promoted the validated v0.6.0-rc.1 contract to Stable with no user-facing runtime behavior changes.

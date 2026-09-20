@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.6.0 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.7.0 LANGUAGES CXX)
 
 file(
     STRINGS
@@ -176,6 +176,8 @@ if(WIN32)
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
         src/ui/SettingsWindow.cpp
+        src/ui/ShortcutEditorDialog.cpp
+        src/ui/ShortcutManagerWindow.cpp
         src/resources.rc
         src/app.manifest
     )

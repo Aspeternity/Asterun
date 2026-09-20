@@ -36,6 +36,152 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.7.0-alpha.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 4,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"{name}={actual}, expected v0.7 alpha.1 value {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.7 alpha.1 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 4:
+        fail("v0.7 alpha.1 settings must remain schemaVersion 4")
+    if settings.get("providers") != expected_providers:
+        fail("v0.7 alpha.1 changed frozen provider defaults")
+
+    expected_bindings = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_bindings:
+        fail("v0.7 alpha.1 changed frozen Hotkey Registry action IDs")
+
+    manager = read("src/ui/ShortcutManagerWindow.cpp") + read("src/ui/ShortcutManagerWindow.hpp")
+    editor = read("src/ui/ShortcutEditorDialog.cpp") + read("src/ui/ShortcutEditorDialog.hpp")
+    for token in (
+        "ShortcutManagerWindow",
+        "AddShortcut",
+        "EditSelected",
+        "DeleteSelected",
+        "TestSelected",
+        "MoveSelected",
+        "ShortcutEditorDialog::Show",
+    ):
+        if token not in manager and token not in editor:
+            fail(f"v0.7 alpha.1 shortcut-management architecture missing: {token}")
+
+    for token in (
+        "CreateUserCommand",
+        "UpdateUserCommand",
+        "TestCommand",
+        "Primary keyword",
+        "Working directory",
+    ):
+        if token not in editor:
+            fail(f"v0.7 alpha.1 reusable shortcut editor missing: {token}")
+
+    app = read("src/app/App.cpp") + read("src/app/App.hpp")
+    for token in (
+        "ShowShortcutManager",
+        "shortcutManagerWindow_",
+        "ShortcutManagerWindow",
+    ):
+        if token not in app:
+            fail(f"v0.7 alpha.1 App shortcut-manager integration missing: {token}")
+
+    launcher = read("src/ui/LauncherWindow.cpp") + read("src/ui/LauncherWindow.hpp")
+    for token in (
+        "kMenuShortcuts",
+        "Shortcut Manager...",
+        "快捷项管理...",
+        "app_.ShowShortcutManager()",
+        "kMenuAbout",
+    ):
+        if token not in launcher:
+            fail(f"v0.7 alpha.1 tray shortcut-manager contract missing: {token}")
+    for forbidden in (
+        "kMenuThemeClassic",
+        "kMenuThemeModern",
+        "kMenuLangZh",
+        "kMenuLangEn",
+    ):
+        if forbidden in launcher:
+            fail(f"v0.7 alpha.1 tray still duplicates Settings control: {forbidden}")
+
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    create_start = settings_cpp.find("void SettingsWindow::CreateControls()")
+    create_end = settings_cpp.find("void SettingsWindow::CreateCommandPage()", create_start)
+    create_block = settings_cpp[create_start:create_end]
+    if "navCommands_ =" in create_block or "CreateCommandPage();" in create_block:
+        fail("v0.7 alpha.1 Settings still creates the legacy Shortcuts page/navigation")
+    if "Page page_{Page::General};" not in settings_h:
+        fail("v0.7 alpha.1 Settings must open on General")
+
+    expected_nav = """std::array<HWND, 7> nav{
+        navGeneral_,
+        navHotkeys_,
+        navAppearance_,
+        navProviders_,
+        navData_,
+        navDiagnostics_,
+        navAbout_,
+    };"""
+    if expected_nav not in settings_cpp:
+        fail("v0.7 alpha.1 Settings navigation order changed")
+
+    draw_start = settings_cpp.find("case WM_DRAWITEM")
+    draw_end = settings_cpp.find("case WM_VSCROLL", draw_start)
+    if "kIdNavCommands" in settings_cpp[draw_start:draw_end]:
+        fail("v0.7 alpha.1 hidden Shortcuts nav remains in owner-draw dispatch")
+
+    cmake = read("CMakeLists.txt")
+    for token in (
+        "src/ui/ShortcutEditorDialog.cpp",
+        "src/ui/ShortcutManagerWindow.cpp",
+    ):
+        if token not in cmake:
+            fail(f"v0.7 alpha.1 CMake UI source missing: {token}")
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(rf"\b{re.escape(name)}\s*\{{(\d+)\}}", launcher_header)
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during v0.7 alpha.1: {name}")
+
+    print(
+        "v0.7.0-alpha.1 Shortcut Management Architecture verified:",
+        "| commands schema=1, settings=4, provider-cache=2",
+        "| standalone Manager + reusable Editor",
+        "| tray entry + Settings Shortcuts removal",
+        "| Settings order: General/Hotkeys/Appearance/Sources/Data/Diagnostics/About",
+        "| frozen v0.6 provider/Hotkey/Classic contracts",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.6.0":
     expected_schemas = {
         "kSettingsSchemaVersion": 4,

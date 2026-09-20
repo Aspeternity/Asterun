@@ -234,8 +234,7 @@ bool SettingsWindow::Create() {
     ApplyFonts();
     ApplyLanguage();
     RefreshFromSettings();
-    RefreshCommands();
-    ShowPage(Page::Commands);
+    ShowPage(Page::General);
     Layout();
     ShowWindow(hwnd_, SW_HIDE);
 
@@ -342,11 +341,6 @@ std::wstring SettingsWindow::ControlText(
 }
 
 void SettingsWindow::CreateControls() {
-    navCommands_ =
-        CreateButton(
-            L"",
-            kIdNavCommands,
-            BS_OWNERDRAW);
     navGeneral_ =
         CreateButton(
             L"",
@@ -388,13 +382,12 @@ void SettingsWindow::CreateControls() {
         L"",
         SS_LEFT | SS_NOPREFIX);
 
-    CreateCommandPage();
     CreateGeneralPage();
     CreateHotkeyPage();
-    CreateDiagnosticsPage();
     CreateAppearancePage();
     CreateProviderPage();
     CreateDataPage();
+    CreateDiagnosticsPage();
     CreateAboutPage();
 }
 
@@ -1702,8 +1695,8 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.6 Beta 正在收口 Smart Actions、诊断与桌面兼容性。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.6 Beta focuses on Smart Actions diagnostics and desktop compatibility."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.7 将快捷项提升为独立核心管理功能。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.7 promotes shortcuts into a first-class management workflow."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -3016,17 +3009,11 @@ void SettingsWindow::UpdateNavLabels() {
     };
 
     SetWindowTextW(
-        navCommands_,
-        label(Page::Commands, L"快捷项", L"Shortcuts").c_str());
-    SetWindowTextW(
         navGeneral_,
         label(Page::General, L"常规", L"General").c_str());
     SetWindowTextW(
         navHotkeys_,
         label(Page::Hotkeys, L"快捷键", L"Hotkeys").c_str());
-    SetWindowTextW(
-        navDiagnostics_,
-        label(Page::Diagnostics, L"诊断", L"Diagnostics").c_str());
     SetWindowTextW(
         navAppearance_,
         label(Page::Appearance, L"外观", L"Appearance").c_str());
@@ -3036,6 +3023,9 @@ void SettingsWindow::UpdateNavLabels() {
     SetWindowTextW(
         navData_,
         label(Page::Data, L"数据", L"Data").c_str());
+    SetWindowTextW(
+        navDiagnostics_,
+        label(Page::Diagnostics, L"诊断", L"Diagnostics").c_str());
     SetWindowTextW(
         navAbout_,
         label(Page::About, L"关于", L"About").c_str());
@@ -4924,14 +4914,13 @@ void SettingsWindow::Layout() {
     const int navHeight = Scale(42);
     const int navGap = Scale(8);
 
-    std::array<HWND, 8> nav{
-        navCommands_,
+    std::array<HWND, 7> nav{
         navGeneral_,
         navHotkeys_,
-        navDiagnostics_,
         navAppearance_,
         navProviders_,
         navData_,
+        navDiagnostics_,
         navAbout_,
     };
 
@@ -6536,6 +6525,12 @@ void SettingsWindow::CenterOnCurrentMonitor() {
         SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
+void SettingsWindow::ShowAbout() {
+    if (!hwnd_) return;
+    ShowPage(Page::About);
+    Show();
+}
+
 void SettingsWindow::Show() {
     if (!hwnd_) return;
 
@@ -6543,7 +6538,6 @@ void SettingsWindow::Show() {
     // working hotkey merely because the Settings window was opened.
     app_.RepairGlobalHotkey(false);
     RefreshFromSettings();
-    RefreshCommandList(editingCommandId_);
 
     if (page_ == Page::Providers) {
         SetTimer(
@@ -7026,8 +7020,7 @@ LRESULT SettingsWindow::HandleMessage(
                 lParam);
 
         if (item &&
-            (item->CtlID == kIdNavCommands ||
-             item->CtlID == kIdNavGeneral ||
+            (item->CtlID == kIdNavGeneral ||
              item->CtlID == kIdNavHotkeys ||
              item->CtlID == kIdNavDiagnostics ||
              item->CtlID == kIdNavAppearance ||

@@ -1,0 +1,109 @@
+#pragma once
+
+#include "../core/Command.hpp"
+
+#include <windows.h>
+
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace altrun {
+
+class App;
+
+class ShortcutEditorDialog {
+public:
+    [[nodiscard]] static bool Show(
+        App& app,
+        HINSTANCE instance,
+        HWND owner,
+        std::wstring_view commandId = {});
+
+private:
+    ShortcutEditorDialog(
+        App& app,
+        HINSTANCE instance,
+        HWND owner);
+    ~ShortcutEditorDialog();
+
+    bool Create(
+        std::wstring_view commandId);
+    bool RunModal();
+
+    static LRESULT CALLBACK WindowProc(
+        HWND hwnd,
+        UINT message,
+        WPARAM wParam,
+        LPARAM lParam);
+
+    LRESULT HandleMessage(
+        UINT message,
+        WPARAM wParam,
+        LPARAM lParam);
+
+    void CreateControls();
+    void ApplyLanguage();
+    void Layout();
+    void LoadCommand(
+        std::wstring_view commandId);
+    void BeginNew();
+    bool Save();
+    void Test();
+    void BrowseTarget();
+    void BrowseWorkingDirectory();
+
+    [[nodiscard]] Command
+    CollectCommand() const;
+
+    [[nodiscard]] std::vector<std::wstring>
+    ParseAliases(
+        std::wstring_view text) const;
+
+    [[nodiscard]] std::wstring
+    ControlText(
+        HWND control) const;
+
+    [[nodiscard]] const wchar_t* T(
+        const wchar_t* zh,
+        const wchar_t* en) const;
+
+    [[nodiscard]] int Scale(
+        int value) const;
+
+    App& app_;
+    HINSTANCE instance_{};
+    HWND owner_{};
+    HWND hwnd_{};
+
+    HWND nameLabel_{};
+    HWND name_{};
+    HWND keywordLabel_{};
+    HWND keyword_{};
+    HWND aliasesLabel_{};
+    HWND aliases_{};
+    HWND typeLabel_{};
+    HWND type_{};
+    HWND targetLabel_{};
+    HWND target_{};
+    HWND browseTarget_{};
+    HWND argumentsLabel_{};
+    HWND arguments_{};
+    HWND workdirLabel_{};
+    HWND workdir_{};
+    HWND browseWorkdir_{};
+    HWND enabled_{};
+    HWND admin_{};
+    HWND pinned_{};
+    HWND test_{};
+    HWND save_{};
+    HWND cancel_{};
+
+    HFONT font_{};
+    UINT dpi_{96};
+    bool changed_{false};
+    bool closed_{false};
+    std::wstring commandId_;
+};
+
+} // namespace altrun

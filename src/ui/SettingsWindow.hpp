@@ -22,6 +22,7 @@ public:
 
     bool Create();
     void Show();
+    void ShowAbout();
     void ApplyLanguage();
     void RefreshFromSettings();
     void RefreshCommands();
@@ -504,7 +505,7 @@ private:
     HBRUSH cardBrush_{};
 
     UINT dpi_{96};
-    Page page_{Page::Commands};
+    Page page_{Page::General};
     bool syncing_{false};
     bool editingNew_{false};
     bool editorDirty_{false};

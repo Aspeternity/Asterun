@@ -54,10 +54,8 @@ private:
     static constexpr UINT kMenuShow = 40001;
     static constexpr UINT kMenuReload = 40002;
     static constexpr UINT kMenuSettings = 40003;
-    static constexpr UINT kMenuThemeClassic = 40010;
-    static constexpr UINT kMenuThemeModern = 40011;
-    static constexpr UINT kMenuLangZh = 40020;
-    static constexpr UINT kMenuLangEn = 40021;
+    static constexpr UINT kMenuShortcuts = 40004;
+    static constexpr UINT kMenuAbout = 40005;
     static constexpr UINT kMenuExit = 40030;
 
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);

@@ -28,6 +28,7 @@ namespace altrun {
 class EverythingProvider;
 class LauncherWindow;
 class SettingsWindow;
+class ShortcutManagerWindow;
 
 class App {
 public:
@@ -159,6 +160,9 @@ public:
         std::string popupMonitor);
 
     void ShowSettings();
+    void ShowAbout();
+    void ShowShortcutManager(
+        std::wstring_view preferredId = {});
     void OpenDataFolder();
     void OpenProjectPage();
 
@@ -241,6 +245,8 @@ private:
         window_;
     std::unique_ptr<SettingsWindow>
         settingsWindow_;
+    std::unique_ptr<ShortcutManagerWindow>
+        shortcutManagerWindow_;
     win::WindowsContextSnapshot
         activationContext_;
     win::WindowsContextSnapshot
