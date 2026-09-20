@@ -37,7 +37,7 @@ base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
 if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
-    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4") else 4
+    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5") else 4
     expected_commands_schema = 2 if version in ("0.7.0-alpha.4", "0.7.0-alpha.5") else 1
     expected_schemas = {
         "kSettingsSchemaVersion": expected_settings_schema,
