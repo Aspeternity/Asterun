@@ -1795,7 +1795,7 @@ void SettingsWindow::ApplyLanguage() {
           L"Recheck"));
     SetWindowTextW(
         providerNote_,
-        T(L"Everything 通过本机 IPC 实时查询。ALTRun Next 不预捆绑 Everything：优先复用本机已有标准版；自己管理的便携版使用 Everything Service 完成 NTFS 索引，并在后台运行且隐藏托盘图标。正常退出 ALTRun Next 时只关闭托管客户端并保留 Service；关闭此搜索源时，如果 Service 属于 ALTRun Next，会同时停止并禁用其开机自启，重新启用时恢复。外部 Everything 不会被停止或改配置。",
+        T(L"Everything 通过本机 IPC 实时查询。ALTRun Next 不预捆绑 Everything：优先复用本机已有标准版；自己管理的便携版使用 Everything Service 完成 NTFS 索引，并在后台运行且隐藏托盘图标。正常退出 ALTRun Next 时只关闭托管客户端，Everything Service 保留运行；关闭此搜索源时，如果 Service 属于 ALTRun Next，会同时停止并禁用其开机自启，重新启用时恢复。外部 Everything 不会被停止或改配置。",
           L"Everything is queried live over local IPC. ALTRun Next does not bundle Everything: existing standard copies are preferred; its managed portable copy uses the Everything Service for NTFS indexing and runs in the background with the tray icon hidden. Normal ALTRun Next exit stops only the managed client and keeps the service warm. Disabling this source also stops an ALTRun-owned service and disables its boot startup; re-enabling restores it. External Everything installations are never stopped or reconfigured."));
 
     SetWindowTextW(
