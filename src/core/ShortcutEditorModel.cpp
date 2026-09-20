@@ -41,6 +41,55 @@ LowerWide(std::wstring_view value) {
 }
 
 [[nodiscard]] bool
+ContainsInsensitive(
+    std::wstring_view field,
+    std::wstring_view needle) {
+    if (needle.empty()) {
+        return true;
+    }
+
+    return LowerWide(field).find(
+               LowerWide(needle)) !=
+        std::wstring::npos;
+}
+
+[[nodiscard]] std::vector<std::wstring>
+ShortcutTokens(const Command& command) {
+    std::vector<std::wstring> tokens;
+
+    const auto add =
+        [&](std::wstring_view raw) {
+            const std::wstring token =
+                TrimWide(raw);
+            if (token.empty()) {
+                return;
+            }
+
+            const std::wstring key =
+                LowerWide(token);
+            const bool duplicate =
+                std::any_of(
+                    tokens.begin(),
+                    tokens.end(),
+                    [&](const std::wstring& value) {
+                        return LowerWide(value) ==
+                            key;
+                    });
+
+            if (!duplicate) {
+                tokens.push_back(token);
+            }
+        };
+
+    add(command.keyword);
+    for (const auto& alias : command.aliases) {
+        add(alias);
+    }
+
+    return tokens;
+}
+
+[[nodiscard]] bool
 IsKeywordSeparator(wchar_t c) {
     return c == L',' ||
         c == L';' ||
@@ -215,6 +264,74 @@ FormatShortcutKeywords(
     }
 
     return result;
+}
+
+std::optional<ShortcutKeywordConflict>
+FindShortcutKeywordConflict(
+    const Command& candidate,
+    const std::vector<Command>& existingCommands,
+    std::wstring_view ignoredId) {
+    const auto candidateTokens =
+        ShortcutTokens(candidate);
+
+    for (const auto& token : candidateTokens) {
+        const std::wstring key =
+            LowerWide(token);
+
+        for (const auto& existing :
+             existingCommands) {
+            if (!ignoredId.empty() &&
+                existing.id == ignoredId) {
+                continue;
+            }
+
+            for (const auto& existingToken :
+                 ShortcutTokens(existing)) {
+                if (LowerWide(existingToken) !=
+                    key) {
+                    continue;
+                }
+
+                ShortcutKeywordConflict conflict;
+                conflict.token = token;
+                conflict.existingId =
+                    existing.id;
+                conflict.existingTitle =
+                    existing.title.empty()
+                        ? existing.keyword
+                        : existing.title;
+                return conflict;
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
+bool ShortcutMatchesFilter(
+    const Command& command,
+    std::wstring_view filterText) {
+    const std::wstring filter =
+        TrimWide(filterText);
+
+    if (filter.empty()) {
+        return true;
+    }
+
+    if (ContainsInsensitive(command.keyword, filter) ||
+        ContainsInsensitive(command.title, filter) ||
+        ContainsInsensitive(command.target, filter)) {
+        return true;
+    }
+
+    return std::any_of(
+        command.aliases.begin(),
+        command.aliases.end(),
+        [&](const std::wstring& alias) {
+            return ContainsInsensitive(
+                alias,
+                filter);
+        });
 }
 
 CommandType

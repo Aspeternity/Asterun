@@ -140,7 +140,27 @@ Planned next:
 - Calculator may return later as an optional smart action
 - Managed / Portable Everything remains a separate candidate after the core v0.6.0 Smart Actions line
 
-## v0.7.x - Distribution & extensibility
+## v0.7.x - Shortcut & launcher workflow
+
+In progress:
+
+- Standalone Shortcut Manager and task-oriented Shortcut Editor
+- Unified comma-separated shortcut keywords while keeping the persisted primary/alias compatibility model internal
+- Portable path conversion for Target, Working Directory and custom Icon
+- Dynamic runtime input with {input}, raw and UTF-8 URL-encoded modes
+- Custom shortcut icons with optional asynchronous Launcher result icon rendering
+- Shortcut Manager local filtering and full keyword/alias conflict detection
+- Legacy pause/pin values normalized out of the active user-facing shortcut workflow
+- settings schemaVersion 6, commands schemaVersion 2 and TSV v3 remain compatibility baselines through alpha.6
+
+Planned next:
+
+- v0.7.0-beta.1 feature freeze and shortcut-workflow hardening
+- Upgrade/import/export regression matrix for commands schema 1 -> 2 and TSV v1/v2/v3
+- Real Windows desktop validation for Runtime Input, Path Conversion, custom icons, filtering, DPI and compatibility behavior
+- Final UI/visual/performance consolidation remains deferred until the functional surface is stable
+
+## v0.8.x - Distribution & extensibility
 
 Planned:
 

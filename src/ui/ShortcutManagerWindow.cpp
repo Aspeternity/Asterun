@@ -4,6 +4,7 @@
 #include "ShortcutPathConverterDialog.hpp"
 #include "../app/App.hpp"
 #include "../core/Command.hpp"
+#include "../core/ShortcutEditorModel.hpp"
 
 #include <commctrl.h>
 
@@ -33,6 +34,22 @@ std::wstring TypeText(
             ? L"应用程序"
             : L"Application";
     }
+}
+
+[[nodiscard]] std::wstring
+WindowText(HWND control) {
+    const int length =
+        GetWindowTextLengthW(control);
+    std::wstring value(
+        static_cast<std::size_t>(length + 1),
+        L'\0');
+    GetWindowTextW(
+        control,
+        value.data(),
+        length + 1);
+    value.resize(
+        static_cast<std::size_t>(length));
+    return value;
 }
 
 } // namespace
@@ -181,6 +198,25 @@ void ShortcutManagerWindow::CreateControls() {
         kIdPathConversion);
     makeButton(close_, kIdClose);
 
+    filter_ = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        L"EDIT",
+        L"",
+        WS_CHILD |
+            WS_VISIBLE |
+            WS_TABSTOP |
+            ES_AUTOHSCROLL,
+        0,
+        0,
+        0,
+        0,
+        hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(
+                kIdFilter)),
+        instance_,
+        nullptr);
+
     list_ = CreateWindowExW(
         WS_EX_CLIENTEDGE,
         WC_LISTVIEWW,
@@ -232,13 +268,14 @@ void ShortcutManagerWindow::CreateControls() {
             : L"Segoe UI");
 
     for (HWND control :
-         std::array<HWND, 7>{
+         std::array<HWND, 8>{
              add_,
              edit_,
              delete_,
              test_,
              pathConversion_,
              close_,
+             filter_,
              list_}) {
         SendMessageW(
             control,
@@ -271,8 +308,8 @@ void ShortcutManagerWindow::CreateControls() {
 
     addColumn(
         0,
-        150,
-        T(L"快捷词", L"Keyword"));
+        230,
+        T(L"快捷词", L"Keywords"));
     addColumn(
         1,
         190,
@@ -283,7 +320,7 @@ void ShortcutManagerWindow::CreateControls() {
         T(L"类型", L"Type"));
     addColumn(
         3,
-        430,
+        350,
         T(L"目标 / 命令行",
           L"Target / command"));
 }
@@ -317,9 +354,17 @@ void ShortcutManagerWindow::ApplyLanguage() {
         close_,
         T(L"关闭", L"Close"));
 
+    SendMessageW(
+        filter_,
+        EM_SETCUEBANNER,
+        TRUE,
+        reinterpret_cast<LPARAM>(
+            T(L"筛选快捷项：快捷词、名称或目标",
+              L"Filter shortcuts: keyword, name or target")));
+
     const std::array<const wchar_t*, 4>
         labels{
-            T(L"快捷词", L"Keyword"),
+            T(L"快捷词", L"Keywords"),
             T(L"名称", L"Name"),
             T(L"类型", L"Type"),
             T(L"目标 / 命令行",
@@ -384,6 +429,11 @@ void ShortcutManagerWindow::Refresh(
     ListView_DeleteAllItems(list_);
     visibleIds_.clear();
 
+    const std::wstring filterText =
+        filter_
+            ? WindowText(filter_)
+            : std::wstring{};
+
     std::vector<const Command*>
         commands;
     commands.reserve(
@@ -391,7 +441,11 @@ void ShortcutManagerWindow::Refresh(
 
     for (const auto& command :
          app_.UserCommands()) {
-        commands.push_back(&command);
+        if (ShortcutMatchesFilter(
+                command,
+                filterText)) {
+            commands.push_back(&command);
+        }
     }
 
     std::stable_sort(
@@ -421,16 +475,9 @@ void ShortcutManagerWindow::Refresh(
             *commands[index];
 
         std::wstring keyword =
-            command.enabled
-                ? command.keyword
-                : L"(" +
-                    command.keyword +
-                    L")";
-
-        if (command.pinned) {
-            keyword =
-                L"★ " + keyword;
-        }
+            FormatShortcutKeywords(
+                command.keyword,
+                command.aliases);
 
         LVITEMW item{};
         item.mask = LVIF_TEXT;
@@ -560,12 +607,33 @@ void ShortcutManagerWindow::Layout() {
         buttonHeight,
         TRUE);
 
+    const int filterY =
+        margin +
+        buttonHeight +
+        Scale(12);
+    const int filterHeight =
+        Scale(30);
+    const int listY =
+        filterY +
+        filterHeight +
+        Scale(10);
+
+    MoveWindow(
+        filter_,
+        margin,
+        filterY,
+        std::max<int>(
+            1,
+            static_cast<int>(
+                client.right) -
+                margin * 2),
+        filterHeight,
+        TRUE);
+
     MoveWindow(
         list_,
         margin,
-        margin +
-            buttonHeight +
-            Scale(12),
+        listY,
         std::max<int>(
             1,
             static_cast<int>(
@@ -575,9 +643,8 @@ void ShortcutManagerWindow::Layout() {
             1,
             static_cast<int>(
                 client.bottom) -
-                margin * 2 -
-                buttonHeight -
-                Scale(12)),
+                listY -
+                margin),
         TRUE);
 }
 
@@ -798,6 +865,12 @@ LRESULT ShortcutManagerWindow::HandleMessage(
             return 0;
         case kIdPathConversion:
             ConvertPaths();
+            return 0;
+        case kIdFilter:
+            if (HIWORD(wParam) ==
+                EN_CHANGE) {
+                Refresh();
+            }
             return 0;
         case kIdClose:
             ShowWindow(hwnd_, SW_HIDE);

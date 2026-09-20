@@ -34,9 +34,7 @@ constexpr UINT kIdBrowseFile = 53106;
 constexpr UINT kIdArguments = 53107;
 constexpr UINT kIdWorkdir = 53108;
 constexpr UINT kIdBrowseWorkdir = 53109;
-constexpr UINT kIdPaused = 53110;
 constexpr UINT kIdAdmin = 53111;
-constexpr UINT kIdPinned = 53112;
 constexpr UINT kIdTest = 53113;
 constexpr UINT kIdSave = 53114;
 constexpr UINT kIdCancel = 53115;
@@ -65,22 +63,6 @@ TrimWide(std::wstring_view value) {
 
     return std::wstring(
         value.substr(first, last - first));
-}
-
-[[nodiscard]] std::wstring
-LowerWide(std::wstring_view value) {
-    std::wstring result(value);
-
-    std::transform(
-        result.begin(),
-        result.end(),
-        result.begin(),
-        [](wchar_t c) {
-            return static_cast<wchar_t>(
-                std::towlower(c));
-        });
-
-    return result;
 }
 
 [[nodiscard]] int
@@ -511,16 +493,8 @@ void ShortcutEditorDialog::CreateControls() {
         kIdResetIcon);
 
     makeButton(
-        paused_,
-        kIdPaused,
-        BS_AUTOCHECKBOX);
-    makeButton(
         admin_,
         kIdAdmin,
-        BS_AUTOCHECKBOX);
-    makeButton(
-        pinned_,
-        kIdPinned,
         BS_AUTOCHECKBOX);
 
     makeButton(
@@ -585,9 +559,7 @@ void ShortcutEditorDialog::CreateControls() {
         icon_,
         browseIcon_,
         resetIcon_,
-        paused_,
         admin_,
-        pinned_,
         test_,
         save_,
         cancel_,
@@ -777,17 +749,9 @@ void ShortcutEditorDialog::ApplyLanguage() {
           L"Auto"));
 
     SetWindowTextW(
-        paused_,
-        T(L"暂停此快捷项",
-          L"Pause this shortcut"));
-    SetWindowTextW(
         admin_,
         T(L"以管理员身份运行",
           L"Run as administrator"));
-    SetWindowTextW(
-        pinned_,
-        T(L"置顶",
-          L"Pinned"));
     SetWindowTextW(
         test_,
         T(L"测试",
@@ -1117,32 +1081,11 @@ void ShortcutEditorDialog::Layout() {
             TRUE);
         y += Scale(44);
 
-        const int optionWidth =
-            (contentWidth -
-             gap * 2) / 3;
-
-        MoveWindow(
-            paused_,
-            margin,
-            y,
-            optionWidth,
-            Scale(28),
-            TRUE);
         MoveWindow(
             admin_,
-            margin +
-                optionWidth +
-                gap,
+            margin,
             y,
-            optionWidth,
-            Scale(28),
-            TRUE);
-        MoveWindow(
-            pinned_,
-            margin +
-                (optionWidth + gap) * 2,
-            y,
-            optionWidth,
+            contentWidth,
             Scale(28),
             TRUE);
     }
@@ -1224,9 +1167,7 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
              icon_,
              browseIcon_,
              resetIcon_,
-             paused_,
-             admin_,
-             pinned_}) {
+             admin_}) {
         ShowWindow(
             control,
             command);
@@ -1564,23 +1505,15 @@ void ShortcutEditorDialog::LoadCommand(
         it->title == suggested);
 
     SetChecked(
-        paused_,
-        !it->enabled);
-    SetChecked(
         admin_,
         it->runAsAdmin);
-    SetChecked(
-        pinned_,
-        it->pinned);
 
     advancedExpanded_ =
         !it->arguments.empty() ||
         !it->workingDirectory.empty() ||
         (!it->icon.empty() &&
          it->icon != L"auto") ||
-        !it->enabled ||
-        it->runAsAdmin ||
-        it->pinned;
+        it->runAsAdmin;
 
     UpdateAdvancedVisibility();
     UpdateTypeState();
@@ -1625,13 +1558,7 @@ void ShortcutEditorDialog::BeginNew() {
         0);
 
     SetChecked(
-        paused_,
-        false);
-    SetChecked(
         admin_,
-        false);
-    SetChecked(
-        pinned_,
         false);
 
     advancedExpanded_ = false;
@@ -1714,12 +1641,10 @@ Command ShortcutEditorDialog::CollectCommand()
         icon.empty()
             ? L"auto"
             : icon;
-    command.enabled =
-        !IsChecked(paused_);
+    command.enabled = true;
     command.runAsAdmin =
         IsChecked(admin_);
-    command.pinned =
-        IsChecked(pinned_);
+    command.pinned = false;
     command.source =
         CommandSource::User;
     command.basePriority = 120;
@@ -1759,29 +1684,29 @@ bool ShortcutEditorDialog::Save() {
         return false;
     }
 
-    const std::wstring keyword =
-        LowerWide(
-            command.keyword);
+    const auto conflict =
+        FindShortcutKeywordConflict(
+            command,
+            app_.UserCommands(),
+            commandId_);
 
-    const bool duplicate =
-        std::any_of(
-            app_.UserCommands().begin(),
-            app_.UserCommands().end(),
-            [&](const Command& existing) {
-                return
-                    existing.id !=
-                        commandId_ &&
-                    LowerWide(
-                        existing.keyword) ==
-                        keyword;
-            });
+    if (conflict) {
+        std::wstring message =
+            T(L"快捷词“",
+              L"Keyword \"");
+        message += conflict->token;
+        message +=
+            T(L"”已被快捷项“",
+              L"\" is already used by shortcut \"");
+        message += conflict->existingTitle;
+        message +=
+            T(L"”使用。\n\n仍然保存吗？",
+              L"\".\n\nSave anyway?");
 
-    if (duplicate) {
         const int answer =
             MessageBoxW(
                 hwnd_,
-                T(L"第一个快捷词已被另一个快捷项使用。\n\n仍然保存吗？",
-                  L"The first keyword is already used by another shortcut.\n\nSave anyway?"),
+                message.c_str(),
                 T(L"快捷词冲突",
                   L"Keyword conflict"),
                 MB_YESNO |

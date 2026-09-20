@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-alpha.6
+
+- Completed the Shortcut Manager workflow with a local filter across shortcut keywords, aliases, names and targets.
+- Show the complete comma-separated shortcut keyword set in the manager instead of exposing only the persisted primary keyword.
+- Replaced primary-keyword-only conflict warnings with case-insensitive conflict detection across every keyword and alias, including the exact conflicting token and shortcut name.
+- Removed Pause shortcut and Pinned from the Shortcut Editor because temporary disable/manual ordering are not part of the product workflow.
+- Normalized legacy user-command enabled/pinned values to active/non-pinned during load, create, update and TSV import while retaining the schemaVersion 2 and TSV v3 compatibility fields.
+- Added regression coverage for alias conflicts, manager filtering and legacy pause/pin normalization.
+- Updated the roadmap to reflect the actual v0.7 Shortcut / Launcher workflow line and moved distribution/extensibility work to a later phase.
+- Kept settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.60.
+
 ## 0.7.0-alpha.5.2
 
 - Moved result-icon file/PATH/Shell resolution completely off the Launcher UI/WM_DRAWITEM thread.

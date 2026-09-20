@@ -339,9 +339,19 @@ bool UserCommandStore::LoadJson() {
                 text::FromUtf8(item.value("workingDirectory", std::string{}));
             command.icon =
                 text::FromUtf8(item.value("icon", std::string("auto")));
-            command.enabled = item.value("enabled", true);
-            command.runAsAdmin = item.value("runAsAdmin", false);
-            command.pinned = item.value("pinned", false);
+            const bool legacyEnabled =
+                item.value("enabled", true);
+            const bool legacyPinned =
+                item.value("pinned", false);
+            command.enabled = true;
+            command.runAsAdmin =
+                item.value("runAsAdmin", false);
+            command.pinned = false;
+
+            if (!legacyEnabled ||
+                legacyPinned) {
+                repaired = true;
+            }
             command.sortOrder = item.value("sortOrder", fallbackOrder++);
             command.source = CommandSource::User;
             command.basePriority = 120;
@@ -453,6 +463,8 @@ bool UserCommandStore::Create(
     command.arguments = TrimWide(command.arguments);
     command.workingDirectory = TrimWide(command.workingDirectory);
     command.icon = TrimWide(command.icon);
+    command.enabled = true;
+    command.pinned = false;
 
     if (command.keyword.empty() || command.target.empty()) {
         return false;
@@ -523,6 +535,8 @@ bool UserCommandStore::Update(
     command.arguments = TrimWide(command.arguments);
     command.workingDirectory = TrimWide(command.workingDirectory);
     command.icon = TrimWide(command.icon);
+    command.enabled = true;
+    command.pinned = false;
 
     if (command.keyword.empty() || command.target.empty()) {
         return false;
@@ -829,6 +843,9 @@ bool UserCommandStore::ImportTsv(
             ++skippedCount;
             continue;
         }
+
+        command.enabled = true;
+        command.pinned = false;
 
         if (command.keyword.empty() || command.target.empty()) {
             ++skippedCount;

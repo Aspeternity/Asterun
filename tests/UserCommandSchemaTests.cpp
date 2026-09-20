@@ -254,6 +254,70 @@ int main() {
         importedIt->icon ==
         L"C:\\Icons\\ping.ico");
 
+    const auto legacyFlagsPath =
+        root / "commands-legacy-flags.json";
+    nlohmann::json legacyFlags = {
+        {"schemaVersion", 2},
+        {"commands",
+         nlohmann::json::array({
+             {
+                 {"id", "legacy-flags"},
+                 {"name", "Legacy Flags"},
+                 {"keyword", "legacy"},
+                 {"aliases",
+                  nlohmann::json::array(
+                      {"old"})},
+                 {"type", "application"},
+                 {"target", "legacy.exe"},
+                 {"arguments", ""},
+                 {"workingDirectory", ""},
+                 {"runtimeInputMode", "none"},
+                 {"icon", "auto"},
+                 {"enabled", false},
+                 {"runAsAdmin", false},
+                 {"pinned", true},
+                 {"sortOrder", 0},
+                 {"legacyIds",
+                  nlohmann::json::array()},
+             },
+         })},
+    };
+    WriteText(
+        legacyFlagsPath,
+        legacyFlags.dump(2));
+
+    UserCommandStore legacyFlagsStore(
+        legacyFlagsPath);
+    legacyFlagsStore.Load();
+
+    assert(legacyFlagsStore.Commands().size() == 1);
+    assert(legacyFlagsStore.Commands()[0].enabled);
+    assert(!legacyFlagsStore.Commands()[0].pinned);
+
+    const auto normalizedFlags =
+        nlohmann::json::parse(
+            ReadText(legacyFlagsPath));
+    assert(
+        normalizedFlags.at("commands")
+            .at(0)
+            .at("enabled")
+            .get<bool>());
+    assert(
+        !normalizedFlags.at("commands")
+             .at(0)
+             .at("pinned")
+             .get<bool>());
+
+    Command legacyCreate;
+    legacyCreate.keyword = L"legacy-create";
+    legacyCreate.title = L"Legacy Create";
+    legacyCreate.target = L"legacy-create.exe";
+    legacyCreate.enabled = false;
+    legacyCreate.pinned = true;
+    assert(legacyFlagsStore.Create(legacyCreate));
+    assert(legacyFlagsStore.Commands().back().enabled);
+    assert(!legacyFlagsStore.Commands().back().pinned);
+
     std::filesystem::remove_all(
         root,
         ec);

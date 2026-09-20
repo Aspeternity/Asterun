@@ -23,6 +23,50 @@ int main() {
             L"v2rayN, vpn, proxy");
     }
 
+    {
+        Command chrome;
+        chrome.id = L"chrome-id";
+        chrome.keyword = L"chrome";
+        chrome.aliases = {L"browser", L"web"};
+        chrome.title = L"Google Chrome";
+        chrome.target = L"C:\\Apps\\Chrome\\chrome.exe";
+
+        Command edge;
+        edge.id = L"edge-id";
+        edge.keyword = L"edge";
+        edge.aliases = {L"BROWSER"};
+        edge.title = L"Microsoft Edge";
+        edge.target = L"C:\\Apps\\Edge\\msedge.exe";
+
+        const std::vector<Command> existing{
+            chrome,
+        };
+
+        const auto conflict =
+            FindShortcutKeywordConflict(
+                edge,
+                existing);
+
+        assert(conflict.has_value());
+        assert(conflict->token == L"BROWSER");
+        assert(conflict->existingId == L"chrome-id");
+        assert(conflict->existingTitle == L"Google Chrome");
+
+        assert(
+            !FindShortcutKeywordConflict(
+                 chrome,
+                 existing,
+                 L"chrome-id")
+                 .has_value());
+
+        assert(ShortcutMatchesFilter(chrome, L"browser"));
+        assert(ShortcutMatchesFilter(chrome, L"CHROME"));
+        assert(ShortcutMatchesFilter(chrome, L"google"));
+        assert(ShortcutMatchesFilter(chrome, L"Apps\\Chrome"));
+        assert(!ShortcutMatchesFilter(chrome, L"firefox"));
+        assert(ShortcutMatchesFilter(chrome, L""));
+    }
+
     assert(
         InferShortcutCommandType(
             L"https://www.google.com/search?q=test") ==

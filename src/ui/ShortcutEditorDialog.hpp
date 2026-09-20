@@ -118,9 +118,7 @@ private:
     HWND icon_{};
     HWND browseIcon_{};
     HWND resetIcon_{};
-    HWND paused_{};
     HWND admin_{};
-    HWND pinned_{};
     HWND test_{};
     HWND save_{};
     HWND cancel_{};

@@ -37,6 +37,8 @@ private:
     static constexpr UINT
         kIdPathConversion = 52105;
     static constexpr UINT
+        kIdFilter = 52106;
+    static constexpr UINT
         kIdClose = 52107;
     static constexpr UINT
         kIdList = 52120;
@@ -82,6 +84,7 @@ private:
     HWND test_{};
     HWND pathConversion_{};
     HWND close_{};
+    HWND filter_{};
     HWND list_{};
     HFONT font_{};
     UINT dpi_{96};

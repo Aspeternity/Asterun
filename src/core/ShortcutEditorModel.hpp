@@ -2,6 +2,7 @@
 
 #include "Command.hpp"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,6 +14,12 @@ struct ShortcutKeywordSet {
     std::vector<std::wstring> aliases;
 };
 
+struct ShortcutKeywordConflict {
+    std::wstring token;
+    std::wstring existingId;
+    std::wstring existingTitle;
+};
+
 [[nodiscard]] ShortcutKeywordSet
 ParseShortcutKeywords(
     std::wstring_view text);
@@ -21,6 +28,17 @@ ParseShortcutKeywords(
 FormatShortcutKeywords(
     std::wstring_view primary,
     const std::vector<std::wstring>& aliases);
+
+[[nodiscard]] std::optional<ShortcutKeywordConflict>
+FindShortcutKeywordConflict(
+    const Command& candidate,
+    const std::vector<Command>& existingCommands,
+    std::wstring_view ignoredId = {});
+
+[[nodiscard]] bool
+ShortcutMatchesFilter(
+    const Command& command,
+    std::wstring_view filterText);
 
 [[nodiscard]] CommandType
 InferShortcutCommandType(

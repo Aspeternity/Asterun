@@ -23,6 +23,10 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.6 Development build
+
+v0.7.0-alpha.6 completes the current Shortcut Manager workflow: the manager shows the full comma-separated keyword set, filters locally by keyword/name/target, and the editor checks conflicts across both primary keywords and aliases. Pause and pin are removed from the user-facing shortcut model; legacy values are normalized to active/non-pinned on load while the schema/TSV compatibility columns remain unchanged.
+
 ## v0.7.0-alpha.5.2 — Async Result Icon Pipeline
 
 Alpha 5.2 removes Windows Shell/file icon resolution from the Launcher paint path. With result icons enabled, `WM_DRAWITEM` now performs only a bounded cache lookup; a miss queues work to one lazy background icon worker and immediately continues drawing text. Completed icons return through a private `WM_APP` message and only the matching visible result rows are invalidated.
