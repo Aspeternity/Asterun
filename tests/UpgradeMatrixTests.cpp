@@ -155,6 +155,18 @@ void AssertCommonFields(
              ? Language::EnUS
              : Language::ZhCN));
 
+    if (appearance.contains(
+            "showResultIcons")) {
+        assert(
+            settings.showResultIcons ==
+            appearance.at(
+                "showResultIcons")
+                .get<bool>());
+    } else {
+        assert(
+            !settings.showResultIcons);
+    }
+
     for (auto it =
              root.at("providers").begin();
          it != root.at("providers").end();
@@ -176,13 +188,15 @@ void AssertDowngradeReadOnly(
     const auto downgrade =
         config::LoadJsonWithBackup(
             settingsPath,
-            4);
+            5);
 
     assert(
         downgrade.status ==
         config::JsonLoadStatus::
             UnsupportedSchema);
-    assert(downgrade.schemaVersion == 5);
+    assert(
+        downgrade.schemaVersion ==
+        config::kSettingsSchemaVersion);
     assert(ReadText(settingsPath) == before);
 }
 
@@ -280,11 +294,15 @@ void AssertSchema3Migration(
     assert(
         migrated.at("schemaVersion")
             .get<int>() ==
-        5);
+        config::kSettingsSchemaVersion);
     assert(
         migrated.at("behavior")
             .at("pinyinSearch")
             .get<bool>());
+    assert(
+        !migrated.at("appearance")
+             .at("showResultIcons")
+             .get<bool>());
     assert(
         migrated.at("hotkeys")
             .at("bindings")
@@ -357,11 +375,96 @@ void AssertSchema4Migration(
     assert(
         migrated.at("schemaVersion")
             .get<int>() ==
-        5);
+        config::kSettingsSchemaVersion);
     assert(
         migrated.at("behavior")
             .at("pinyinSearch")
             .get<bool>());
+    assert(
+        !migrated.at("appearance")
+             .at("showResultIcons")
+             .get<bool>());
+
+    AssertDowngradeReadOnly(path);
+}
+
+void AssertSchema5Migration(
+    const std::filesystem::path& workRoot) {
+    const auto path =
+        workRoot /
+        "schema5-to-schema6" /
+        "settings.json";
+
+    std::filesystem::create_directories(
+        path.parent_path());
+
+    nlohmann::json source = {
+        {"schemaVersion", 5},
+        {"appearance", {
+            {"launcher", "modern-compact"},
+            {"language", "en-US"}
+        }},
+        {"behavior", {
+            {"pinyinSearch", true},
+            {"wildcardMatching", false},
+            {"numericQuickLaunch", false},
+            {"numericQuickLaunchOrder",
+             "one-to-zero"},
+            {"executeSingleResultImmediately",
+             false}
+        }},
+        {"general", {
+            {"startWithWindows", false},
+            {"showOnStartup", false},
+            {"hideAfterLaunch", true},
+            {"clearQueryOnShow", true},
+            {"hideOnFocusLost", true},
+            {"showTrayIcon", true},
+            {"popupMonitor", "cursor"}
+        }},
+        {"providers", {
+            {"windows.startmenu", true},
+            {"windows.packaged", true},
+            {"windows.apppaths", true},
+            {"windows.path", true},
+            {"everything.filesystem", false}
+        }}
+    };
+
+    {
+        std::ofstream output(
+            path,
+            std::ios::binary |
+                std::ios::trunc);
+        assert(output);
+        output << source.dump(2);
+    }
+
+    SettingsStore store(path);
+    store.Load();
+
+    assert(
+        store.WasMigratedFromOlderSchema());
+    assert(
+        store.MigratedFromSchemaVersion() ==
+        5);
+    assert(
+        !store.IsReadOnlyDueToNewerSchema());
+    assert(
+        !store.Data().showResultIcons);
+
+    const auto migrated =
+        nlohmann::json::parse(
+            ReadText(path));
+
+    assert(
+        migrated.at("schemaVersion")
+            .get<int>() ==
+        config::kSettingsSchemaVersion);
+    assert(
+        !migrated.at("appearance")
+             .at("showResultIcons")
+             .get<bool>());
 
     AssertDowngradeReadOnly(path);
 }
@@ -391,11 +494,17 @@ void AssertCleanInstall(
     assert(
         root.at("schemaVersion")
             .get<int>() ==
-        5);
+        config::kSettingsSchemaVersion);
     assert(
         root.at("behavior")
             .at("pinyinSearch")
             .get<bool>());
+    assert(
+        !root.at("appearance")
+             .at("showResultIcons")
+             .get<bool>());
+    assert(
+        !store.Data().showResultIcons);
 
     const auto& bindings =
         root.at("hotkeys")
@@ -494,6 +603,7 @@ int main(
         workRoot);
 
     AssertCleanInstall(workRoot);
+    AssertSchema5Migration(workRoot);
 
     AssertSchema3Migration(
         fixtureRoot,
@@ -523,9 +633,8 @@ int main(
 
     std::cout
         << "Upgrade matrix tests passed: clean install, "
-           "v0.5.0/alpha.5 schema 3 -> 5, "
-           "alpha.6.1/beta.1/beta.2 schema 4 -> 5, "
-           "downgrade read-only\n";
+           "schema 3/4/5 -> 6 with default-off result icons, "
+           "schema-5 downgrade read-only\n";
 
     return 0;
 }

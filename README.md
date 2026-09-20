@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.5.1 — Optional Result Icons
+
+Alpha 5.1 makes Launcher result icons an explicit **Appearance** preference instead of forcing their shell-resolution cost on every user. **Show search result icons** defaults to **off**, preserving the lightweight text-first behavior by default while keeping every shortcut's custom icon metadata intact.
+
+When the preference is off, the Launcher does not call its icon resolver at all: no portable icon-path resolution, PATH lookup, `LoadImageW`, `SHGetFileInfoW`, `ExtractIconExW`, icon cache population or `DrawIconEx` occurs. Classic and Modern layouts also reclaim the icon column so disabled icons do not leave an empty gutter. Turning the preference on immediately redraws visible results and uses the existing current-result-set icon cache; turning it off immediately destroys that cache.
+
+`settings.json` advances from schemaVersion 5 to **schemaVersion 6** to persist `appearance.showResultIcons`. Schema-5 and older settings migrate atomically with the new preference set to `false`; a schema-5 binary opening the migrated file sees a newer schema and remains read-only. Custom per-command icons, commands.json schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 are unchanged. Asynchronous icon loading remains intentionally deferred to the final performance-polish phase. Windows fixed FileVersion/ProductVersion is `0.7.0.51`.
+
 ## v0.7.0-alpha.5 — Shortcut Completion
 
 Alpha 5 closes the remaining shortcut-editor gaps before feature freeze. The existing persisted `icon` field is now actually user-configurable from **Advanced options**. Leaving the field blank keeps `auto` behavior; users can choose an `.ico`, `.exe`, `.dll` or `.lnk` source, or reset to Auto without editing JSON.

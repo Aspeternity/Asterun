@@ -979,6 +979,15 @@ void SettingsWindow::CreateAppearancePage() {
         instance_,
         nullptr);
 
+    showResultIcons_ =
+        CreateCheckbox(
+            L"",
+            kIdShowResultIcons);
+
+    resultIconsNote_ = CreateStatic(
+        L"",
+        SS_LEFT | SS_NOPREFIX);
+
     appearanceNote_ = CreateStatic(
         L"",
         SS_LEFT | SS_NOPREFIX);
@@ -988,6 +997,8 @@ void SettingsWindow::CreateAppearancePage() {
         uiStyle_,
         languageLabel_,
         language_,
+        showResultIcons_,
+        resultIconsNote_,
         appearanceNote_,
     };
 }
@@ -1270,6 +1281,8 @@ void SettingsWindow::ApplyFonts() {
         uiStyle_,
         languageLabel_,
         language_,
+        showResultIcons_,
+        resultIconsNote_,
         appearanceNote_,
         providerStartMenu_,
         providerPackaged_,
@@ -1660,9 +1673,19 @@ void SettingsWindow::ApplyLanguage() {
         reinterpret_cast<LPARAM>(L"English"));
 
     SetWindowTextW(
+        showResultIcons_,
+        T(L"显示搜索结果图标",
+          L"Show search result icons"));
+
+    SetWindowTextW(
+        resultIconsNote_,
+        T(L"关闭时不会解析或缓存 Windows Shell 图标，可减少连续搜索时的前端开销。",
+          L"When disabled, Windows Shell icons are not resolved or cached, reducing front-end work while typing."));
+
+    SetWindowTextW(
         appearanceNote_,
-        T(L"外观和语言更改会立即应用，并写入 data/settings.json。",
-          L"Appearance and language changes apply immediately and are saved to data/settings.json."));
+        T(L"外观、语言和结果图标设置会立即应用，并写入 data/settings.json。",
+          L"Appearance, language and result-icon changes apply immediately and are saved to data/settings.json."));
 
     SetWindowTextW(
         diagnosticsMemoryTitle_,
@@ -1829,6 +1852,14 @@ void SettingsWindow::RefreshFromSettings() {
         language_,
         CB_SETCURSEL,
         settings.language == Language::EnUS ? 1 : 0,
+        0);
+
+    SendMessageW(
+        showResultIcons_,
+        BM_SETCHECK,
+        settings.showResultIcons
+            ? BST_CHECKED
+            : BST_UNCHECKED,
         0);
 
     SendMessageW(
@@ -3256,8 +3287,8 @@ void SettingsWindow::UpdatePageHeader() {
             T(L"外观", L"Appearance"));
         SetWindowTextW(
             pageDescription_,
-            T(L"选择启动器样式和界面语言。",
-              L"Choose the launcher style and interface language."));
+            T(L"选择启动器样式、界面语言以及是否显示搜索结果图标。",
+              L"Choose launcher style, interface language and whether result icons are shown."));
         break;
 
     case Page::Providers:
@@ -4815,12 +4846,34 @@ void SettingsWindow::ApplyAppearanceControls() {
             ? Language::EnUS
             : Language::ZhCN;
 
+    const bool showResultIcons =
+        SendMessageW(
+            showResultIcons_,
+            BM_GETCHECK,
+            0,
+            0) == BST_CHECKED;
+
     if (style != app_.SettingsData().uiStyle) {
         app_.SetUiStyle(style);
     }
 
     if (language != app_.SettingsData().language) {
         app_.SetLanguage(language);
+    }
+
+    if (showResultIcons !=
+        app_.SettingsData()
+            .showResultIcons) {
+        if (!app_.SetShowResultIcons(
+                showResultIcons)) {
+            MessageBoxW(
+                hwnd_,
+                T(L"无法保存搜索结果图标设置。",
+                  L"Unable to save the result-icon setting."),
+                L"ALTRun Next",
+                MB_OK | MB_ICONERROR);
+            RefreshFromSettings();
+        }
     }
 }
 
@@ -5966,8 +6019,20 @@ void SettingsWindow::Layout() {
             Scale(320), Scale(220), TRUE);
 
         MoveWindow(
+            showResultIcons_,
+            x, y + Scale(198),
+            controlWidth, Scale(30), TRUE);
+
+        MoveWindow(
+            resultIconsNote_,
+            x + Scale(22),
+            y + Scale(232),
+            controlWidth - Scale(22),
+            Scale(42), TRUE);
+
+        MoveWindow(
             appearanceNote_,
-            x, y + Scale(204),
+            x, y + Scale(292),
             controlWidth, Scale(52), TRUE);
     }
 
@@ -7217,6 +7282,12 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
+        case kIdShowResultIcons:
+            if (notify == BN_CLICKED) {
+                ApplyAppearanceControls();
+            }
+            return 0;
+
         case kIdOpenDataFolder:
             if (notify == BN_CLICKED) {
                 app_.OpenDataFolder();
@@ -7597,6 +7668,7 @@ LRESULT SettingsWindow::HandleMessage(
             control == dataStatus_ ||
             control == generalNote_ ||
             control == popupMonitorDescription_ ||
+            control == resultIconsNote_ ||
             control == appearanceNote_ ||
             control == providerStatus_ ||
             control == providerNote_ ||

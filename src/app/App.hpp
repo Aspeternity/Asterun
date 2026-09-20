@@ -121,6 +121,7 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
+    bool SetShowResultIcons(bool enabled);
     bool SetStartWithWindows(bool enabled);
     bool SetShowOnStartup(bool enabled);
     bool SetHotkeySettings(

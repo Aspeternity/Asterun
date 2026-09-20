@@ -36,9 +36,9 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
-    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5") else 4
-    expected_commands_schema = 2 if version in ("0.7.0-alpha.4", "0.7.0-alpha.5") else 1
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1"):
+    expected_settings_schema = 6 if version == "0.7.0-alpha.5.1" else (5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5") else 4)
+    expected_commands_schema = 2 if version in ("0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1") else 1
     expected_schemas = {
         "kSettingsSchemaVersion": expected_settings_schema,
         "kCommandsSchemaVersion": expected_commands_schema,
@@ -262,7 +262,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -372,7 +372,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
+    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1"):
         pinyin_cpp = read("src/core/PinyinSearch.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
 
@@ -418,7 +418,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5"):
+    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1"):
         command_store_h = read("src/core/CommandStore.hpp")
         command_store_cpp = read("src/core/CommandStore.cpp")
         command_merge_h = read("src/core/CommandMerge.hpp")
@@ -648,7 +648,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in cmake:
                 fail(f"v0.7 alpha.3.1 editor-model CI wiring missing: {token}")
 
-    if version in ("0.7.0-alpha.4", "0.7.0-alpha.5"):
+    if version in ("0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1"):
         command_h = read("src/core/Command.hpp")
         runtime_h = read("src/core/RuntimeInput.hpp")
         runtime_cpp = read("src/core/RuntimeInput.cpp")
@@ -773,7 +773,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
 
         expected_tsv_marker = (
             "commands TSV v3"
-            if version == "0.7.0-alpha.5"
+            if version in ("0.7.0-alpha.5", "0.7.0-alpha.5.1")
             else "commands TSV v2"
         )
         for token in (
@@ -795,7 +795,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in cmake:
                 fail(f"v0.7 alpha.4 CI wiring missing: {token}")
 
-    if version == "0.7.0-alpha.5":
+    if version in ("0.7.0-alpha.5", "0.7.0-alpha.5.1"):
         editor_h = read("src/ui/ShortcutEditorDialog.hpp")
         editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
         launcher_h = read("src/ui/LauncherWindow.hpp")
@@ -813,9 +813,11 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         web_test = read("tests/WebActionTests.cpp")
         commands_tsv = read("config/commands.example.tsv")
 
-        # Alpha.5 is a completion release: no persisted schema bump.
-        if cpp_int("src/core/ConfigIO.hpp", "kSettingsSchemaVersion") != 5:
-            fail("v0.7 alpha.5 must keep settings schemaVersion 5")
+        expected_alpha5_settings_schema = (
+            6 if version == "0.7.0-alpha.5.1" else 5
+        )
+        if cpp_int("src/core/ConfigIO.hpp", "kSettingsSchemaVersion") != expected_alpha5_settings_schema:
+            fail("v0.7 alpha.5 line has unexpected settings schemaVersion")
         if cpp_int("src/core/ConfigIO.hpp", "kCommandsSchemaVersion") != 2:
             fail("v0.7 alpha.5 must keep commands schemaVersion 2")
         if cpp_int("src/core/ConfigIO.hpp", "kUsageSchemaVersion") != 1:
@@ -928,8 +930,124 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in commands_tsv:
                 fail(f"v0.7 alpha.5 TSV v3 example missing: {token}")
 
+    if version == "0.7.0-alpha.5.1":
+        settings_h = read("src/core/Settings.hpp")
+        settings_cpp = read("src/core/Settings.cpp")
+        settings_ui_h = read("src/ui/SettingsWindow.hpp")
+        settings_ui_cpp = read("src/ui/SettingsWindow.cpp")
+        launcher_h = read("src/ui/LauncherWindow.hpp")
+        launcher_cpp = read("src/ui/LauncherWindow.cpp")
+        app_h = read("src/app/App.hpp")
+        app_cpp = read("src/app/App.cpp")
+        config_test = read("tests/ConfigCoreTests.cpp")
+        upgrade_test = read("tests/UpgradeMatrixTests.cpp")
+        runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+
+        if settings.get("appearance", {}).get("showResultIcons") is not False:
+            fail("v0.7 alpha.5.1 result icons must default to disabled")
+
+        settings_source = settings_h + settings_cpp
+        for token in (
+            "bool showResultIcons{false}",
+            "SetShowResultIcons",
+            '"showResultIcons"',
+        ):
+            if token not in settings_source:
+                fail(f"v0.7 alpha.5.1 settings persistence missing: {token}")
+
+        settings_ui = settings_ui_h + settings_ui_cpp
+        for token in (
+            "kIdShowResultIcons",
+            "showResultIcons_",
+            "resultIconsNote_",
+            'T(L"显示搜索结果图标",',
+            "app_.SetShowResultIcons",
+            "settings.showResultIcons",
+        ):
+            if token not in settings_ui:
+                fail(f"v0.7 alpha.5.1 Appearance UI missing: {token}")
+
+        app = app_h + app_cpp
+        for token in (
+            "SetShowResultIcons",
+            "ApplyResultIconPreference",
+        ):
+            if token not in app:
+                fail(f"v0.7 alpha.5.1 App icon preference integration missing: {token}")
+
+        launcher = launcher_h + launcher_cpp
+        for token in (
+            "ApplyResultIconPreference",
+            ".showResultIcons",
+            "DpiScale(165)",
+            "numberRect.right",
+        ):
+            if token not in launcher:
+                fail(f"v0.7 alpha.5.1 icon preference/layout missing: {token}")
+
+        result_icon_start = launcher_cpp.find(
+            "HICON LauncherWindow::ResultIcon"
+        )
+        result_icon_end = launcher_cpp.find(
+            "void LauncherWindow::RebuildVisibleResults",
+            result_icon_start,
+        )
+        if result_icon_start < 0 or result_icon_end < 0:
+            fail("v0.7 alpha.5.1 ResultIcon block is missing")
+        result_icon_block = launcher_cpp[
+            result_icon_start:result_icon_end
+        ]
+        preference_guard = result_icon_block.find(
+            ".showResultIcons"
+        )
+        shell_positions = [
+            result_icon_block.find(token)
+            for token in (
+                "ResolvePortablePath",
+                "SearchPathW",
+                "SHGetFileInfoW",
+                "LoadImageW",
+            )
+        ]
+        shell_positions = [
+            pos for pos in shell_positions if pos >= 0
+        ]
+        if (
+            preference_guard < 0
+            or not shell_positions
+            or preference_guard > min(shell_positions)
+        ):
+            fail(
+                "v0.7 alpha.5.1 must gate icons before shell/path resolution"
+            )
+
+        for token in (
+            "!featureSettings.Data().showResultIcons",
+            "SetShowResultIcons(true)",
+            ".showResultIcons",
+        ):
+            if token not in config_test:
+                fail(f"v0.7 alpha.5.1 settings test coverage missing: {token}")
+
+        for token in (
+            "AssertSchema5Migration",
+            "showResultIcons",
+            "MigratedFromSchemaVersion() ==",
+            "config::kSettingsSchemaVersion",
+        ):
+            if token not in upgrade_test:
+                fail(f"v0.7 alpha.5.1 upgrade/downgrade coverage missing: {token}")
+
+        for token in (
+            "$migratedSettings.schemaVersion -ne 6",
+            "$migratedSettings.appearance.showResultIcons -ne $false",
+            "schema 2 -> 6",
+        ):
+            if token not in runtime_smoke:
+                fail(f"v0.7 alpha.5.1 runtime migration gate missing: {token}")
+
     print(
-        "v0.7.0 alpha.2/alpha.5 contract verified:",
+        "v0.7.0 alpha.2/alpha.5.1 contract verified:",
         f"| commands={expected_commands_schema} settings={expected_settings_schema} provider-cache=2",
         "| Move Up/Down UI removed, sortOrder retained",
         "| path preview + atomic apply + relative runtime resolution",
@@ -942,6 +1060,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         "| alpha.3.1 shortcut workflow model + progressive advanced options",
         "| alpha.4 dynamic runtime input + commands schema 2",
         "| alpha.5 custom icons + dynamic test input + TSV v3",
+        "| alpha.5.1 optional result icons + settings schema 6",
     )
     raise SystemExit(0)
 

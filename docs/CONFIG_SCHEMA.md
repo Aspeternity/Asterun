@@ -11,10 +11,10 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.5:
+Each document carries its own schema version. As of v0.7.0-alpha.5.1:
 
 ```text
-settings.json       schemaVersion 5
+settings.json       schemaVersion 6
 commands.json       schemaVersion 2
 usage.json          schemaVersion 1
 provider-cache.json schemaVersion 2
@@ -45,6 +45,8 @@ v0.7.0-alpha.3.1 also keeps every schema unchanged. The editor combines the stor
 v0.7.0-alpha.4 advances **commands.json to schemaVersion 2** for dynamic shortcut input. Each user command now persists `runtimeInputMode` as `none`, `raw` or `url-encoded`. Schema-1 documents migrate through the existing atomic write path. A schema-1 URL command whose target contains the legacy `{query}` token is promoted to `url-encoded`; other existing commands receive `none`. The stored target is not rewritten, so `{query}` remains usable as a compatibility alias, while new shortcuts and examples use `{input}`. A schema-1 reader opening the migrated document sees schema 2 and enters existing read-only downgrade protection. settings.json remains schemaVersion 5, usage.json remains schemaVersion 1 and provider-cache.json remains schemaVersion 2.
 
 v0.7.0-alpha.5 keeps all JSON schemas unchanged. The already-existing `icon` command field becomes user-editable and is rendered in Launcher results; blank editor input persists as `auto`, while a custom path stores the selected icon source. Dynamic **Test input** is editor-session state only and is never persisted. Custom icon paths are included in the atomic Path Conversion workflow. Shortcut TSV interchange advances independently to v3 by appending an optional `icon` column.
+
+v0.7.0-alpha.5.1 advances **settings.json to schemaVersion 6** for the Appearance preference `showResultIcons`. The default is `false`: schema-5 and older documents therefore migrate to a text-first Launcher unless the user explicitly enables result icons afterward. Disabling the preference also bypasses icon resolution/cache/rendering at runtime; it does not delete or rewrite any per-command `icon` value. A schema-5 binary opening the migrated schema-6 settings file enters the existing read-only downgrade-protection path. commands.json remains schemaVersion 2, usage.json remains schemaVersion 1 and provider-cache.json remains schemaVersion 2.
 
 ## Migration
 
@@ -84,7 +86,7 @@ Schema 2 contains:
 - `general` — startup, launcher behavior, tray visibility and monitor placement, including optional show-on-startup;
 - `hotkey` — primary global hotkey plus an optional auxiliary hotkey;
 - `behavior` — opt-in wildcard matching, Classic numeric quick launch/order and single-result immediate execution;
-- `appearance` — launcher skin and interface language;
+- `appearance` — launcher skin, interface language and the default-off `showResultIcons` result-icon preference;
 - `providers` — stable provider IDs mapped to enabled / disabled state.
 
 New schema-2 behavior defaults preserve v0.4.0 behavior: auxiliary hotkey disabled, wildcard matching disabled, numeric quick launch disabled, numeric order `one-to-zero` (1–9,0), single-result immediate execution disabled and show-on-startup disabled. The auxiliary binding defaults to bare `Pause` when enabled and intentionally permits an empty modifier list.

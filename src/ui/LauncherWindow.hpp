@@ -29,6 +29,7 @@ public:
     void ApplyAppearance();
     void ApplyLanguage();
     void ApplyGeneralSettings();
+    void ApplyResultIconPreference();
     void Toggle();
 
     [[nodiscard]] bool

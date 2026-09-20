@@ -385,6 +385,17 @@ void LauncherWindow::ApplyAppearance() {
     }
 }
 
+void LauncherWindow::ApplyResultIconPreference() {
+    ClearResultIconCache();
+
+    if (list_) {
+        InvalidateRect(
+            list_,
+            nullptr,
+            TRUE);
+    }
+}
+
 void LauncherWindow::ApplyLanguage() {
     if (!edit_) return;
 
@@ -1087,7 +1098,9 @@ void LauncherWindow::ClearResultIconCache() {
 
 HICON LauncherWindow::ResultIcon(
     const LauncherResult& result) {
-    if (result.iconSource.empty()) {
+    if (!app_.SettingsData()
+             .showResultIcons ||
+        result.iconSource.empty()) {
         return nullptr;
     }
 
@@ -1941,48 +1954,66 @@ LRESULT LauncherWindow::HandleMessage(
             PrimaryResultText(result);
 
         if (IsModern()) {
-            constexpr int iconColumnLogical = 28;
+            const bool showIcons =
+                app_.SettingsData()
+                    .showResultIcons;
 
-            RECT iconRect = item->rcItem;
-            iconRect.left += DpiScale(8);
-            iconRect.right =
-                iconRect.left +
-                DpiScale(iconColumnLogical);
+            RECT keywordRect =
+                item->rcItem;
 
-            if (HICON icon =
-                    ResultIcon(result)) {
-                const int iconSize =
-                    DpiScale(20);
-                const int iconX =
+            if (showIcons) {
+                constexpr int
+                    iconColumnLogical = 28;
+
+                RECT iconRect =
+                    item->rcItem;
+                iconRect.left +=
+                    DpiScale(8);
+                iconRect.right =
                     iconRect.left +
-                    (DpiScale(
-                         iconColumnLogical) -
-                     iconSize) / 2;
-                const int iconY =
-                    item->rcItem.top +
-                    ((item->rcItem.bottom -
-                      item->rcItem.top -
-                      iconSize) / 2);
+                    DpiScale(
+                        iconColumnLogical);
 
-                DrawIconEx(
-                    item->hDC,
-                    iconX,
-                    iconY,
-                    icon,
-                    iconSize,
-                    iconSize,
-                    0,
-                    nullptr,
-                    DI_NORMAL);
+                if (HICON icon =
+                        ResultIcon(result)) {
+                    const int iconSize =
+                        DpiScale(20);
+                    const int iconX =
+                        iconRect.left +
+                        (DpiScale(
+                             iconColumnLogical) -
+                         iconSize) / 2;
+                    const int iconY =
+                        item->rcItem.top +
+                        ((item->rcItem.bottom -
+                          item->rcItem.top -
+                          iconSize) / 2);
+
+                    DrawIconEx(
+                        item->hDC,
+                        iconX,
+                        iconY,
+                        icon,
+                        iconSize,
+                        iconSize,
+                        0,
+                        nullptr,
+                        DI_NORMAL);
+                }
+
+                keywordRect.left =
+                    iconRect.right +
+                    DpiScale(4);
+                keywordRect.right =
+                    keywordRect.left +
+                    DpiScale(145);
+            } else {
+                keywordRect.left +=
+                    DpiScale(12);
+                keywordRect.right =
+                    keywordRect.left +
+                    DpiScale(165);
             }
-
-            RECT keywordRect = item->rcItem;
-            keywordRect.left =
-                iconRect.right +
-                DpiScale(4);
-            keywordRect.right =
-                keywordRect.left +
-                DpiScale(145);
 
             RECT titleRect = item->rcItem;
             titleRect.left =
@@ -2037,7 +2068,6 @@ LRESULT LauncherWindow::HandleMessage(
         }
 
         constexpr int hotkeyColumnLogical = 23;
-        constexpr int iconColumnLogical = 18;
         constexpr int shortcutColumnLogical = 230;
 
         RECT numberRect = item->rcItem;
@@ -2046,46 +2076,63 @@ LRESULT LauncherWindow::HandleMessage(
             DpiScale(
                 hotkeyColumnLogical);
 
-        RECT iconRect = item->rcItem;
-        iconRect.left =
-            numberRect.right +
-            DpiScale(1);
-        iconRect.right =
-            iconRect.left +
-            DpiScale(
-                iconColumnLogical);
+        const bool showIcons =
+            app_.SettingsData()
+                .showResultIcons;
 
-        if (HICON icon =
-                ResultIcon(result)) {
-            const int iconSize =
-                DpiScale(14);
-            const int iconX =
+        RECT keywordRect =
+            item->rcItem;
+
+        if (showIcons) {
+            constexpr int
+                iconColumnLogical = 18;
+
+            RECT iconRect =
+                item->rcItem;
+            iconRect.left =
+                numberRect.right +
+                DpiScale(1);
+            iconRect.right =
                 iconRect.left +
-                (DpiScale(
-                     iconColumnLogical) -
-                 iconSize) / 2;
-            const int iconY =
-                item->rcItem.top +
-                ((item->rcItem.bottom -
-                  item->rcItem.top -
-                  iconSize) / 2);
+                DpiScale(
+                    iconColumnLogical);
 
-            DrawIconEx(
-                item->hDC,
-                iconX,
-                iconY,
-                icon,
-                iconSize,
-                iconSize,
-                0,
-                nullptr,
-                DI_NORMAL);
+            if (HICON icon =
+                    ResultIcon(result)) {
+                const int iconSize =
+                    DpiScale(14);
+                const int iconX =
+                    iconRect.left +
+                    (DpiScale(
+                         iconColumnLogical) -
+                     iconSize) / 2;
+                const int iconY =
+                    item->rcItem.top +
+                    ((item->rcItem.bottom -
+                      item->rcItem.top -
+                      iconSize) / 2);
+
+                DrawIconEx(
+                    item->hDC,
+                    iconX,
+                    iconY,
+                    icon,
+                    iconSize,
+                    iconSize,
+                    0,
+                    nullptr,
+                    DI_NORMAL);
+            }
+
+            keywordRect.left =
+                iconRect.right +
+                DpiScale(2);
+        } else {
+            keywordRect.left =
+                numberRect.right +
+                DpiScale(3);
         }
 
-        RECT keywordRect = item->rcItem;
-        keywordRect.left =
-            iconRect.right +
-            DpiScale(2);
         keywordRect.right =
             item->rcItem.left +
             DpiScale(

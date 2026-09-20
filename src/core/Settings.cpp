@@ -286,6 +286,11 @@ bool SettingsStore::LoadJson() {
                  language == "en-us")
                     ? Language::EnUS
                     : Language::ZhCN;
+
+            settings_.showResultIcons =
+                appearance.value(
+                    "showResultIcons",
+                    settings_.showResultIcons);
         }
 
         if (root.contains("general") &&
@@ -793,7 +798,9 @@ bool SettingsStore::Save() const {
                  settings_.uiStyle)},
             {"language",
              LanguageName(
-                 settings_.language)}
+                 settings_.language)},
+            {"showResultIcons",
+             settings_.showResultIcons}
         }},
         {"providers",
          std::move(providersJson)}
@@ -836,6 +843,26 @@ void SettingsStore::SetLanguage(
     if (!Save()) {
         settings_ = previous;
     }
+}
+
+bool SettingsStore::SetShowResultIcons(
+    bool enabled) {
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.showResultIcons =
+        enabled;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
 }
 
 bool SettingsStore::SetStartWithWindows(

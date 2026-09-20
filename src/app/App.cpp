@@ -1533,6 +1533,26 @@ void App::SetLanguage(Language language) {
     }
 }
 
+bool App::SetShowResultIcons(
+    bool enabled) {
+    if (!settingsStore_.SetShowResultIcons(
+            enabled)) {
+        return false;
+    }
+
+    if (window_) {
+        window_->
+            ApplyResultIconPreference();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
 bool App::SetStartWithWindows(bool enabled) {
     const bool previous =
         settingsStore_.Data().startWithWindows;

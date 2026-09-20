@@ -130,6 +130,8 @@ private:
         kIdUiStyle = 51201;
     static constexpr UINT
         kIdLanguage = 51202;
+    static constexpr UINT
+        kIdShowResultIcons = 51203;
 
     static constexpr UINT
         kIdOpenDataFolder = 51301;
@@ -470,6 +472,8 @@ private:
     HWND uiStyle_{};
     HWND languageLabel_{};
     HWND language_{};
+    HWND showResultIcons_{};
+    HWND resultIconsNote_{};
     HWND appearanceNote_{};
 
     HWND providerSectionTitle_{};

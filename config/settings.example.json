@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "general": {
     "startWithWindows": false,
     "showOnStartup": false,
@@ -10,7 +10,9 @@
     "popupMonitor": "cursor"
   },
   "hotkey": {
-    "modifiers": ["alt"],
+    "modifiers": [
+      "alt"
+    ],
     "key": "space",
     "auxiliary": {
       "enabled": false,
@@ -22,7 +24,9 @@
     "bindings": {
       "launcher.activate": {
         "enabled": true,
-        "modifiers": ["alt"],
+        "modifiers": [
+          "alt"
+        ],
         "key": "space"
       },
       "launcher.activateSecondary": {
@@ -37,12 +41,17 @@
       },
       "result.navigateCurrentFileManager": {
         "enabled": true,
-        "modifiers": ["ctrl"],
+        "modifiers": [
+          "ctrl"
+        ],
         "key": "enter"
       },
       "result.copySelectedTarget": {
         "enabled": true,
-        "modifiers": ["ctrl", "shift"],
+        "modifiers": [
+          "ctrl",
+          "shift"
+        ],
         "key": "c"
       }
     }
@@ -56,7 +65,8 @@
   },
   "appearance": {
     "launcher": "classic",
-    "language": "zh-CN"
+    "language": "zh-CN",
+    "showResultIcons": false
   },
   "providers": {
     "windows.startmenu": true,

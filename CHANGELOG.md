@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0-alpha.5.1
+
+- Added Appearance -> Show search result icons as a persisted, default-off preference.
+- Moved result-icon presentation from mandatory behavior to an opt-in visual feature while retaining all per-shortcut custom icon metadata.
+- Gated icon handling before portable-path resolution, PATH lookup and Windows Shell/icon APIs so the disabled path performs no icon resolution or caching.
+- Restored the pre-icon text geometry in both Classic and Modern result rows when icons are disabled instead of leaving an empty icon gutter.
+- Added immediate runtime switching: disabling icons clears/destroys the current icon cache and redraws the list; enabling redraws and resolves icons only as rows are painted.
+- Advanced settings.json from schemaVersion 5 to 6 with `appearance.showResultIcons=false` as the migration/default value and schema-5 downgrade read-only protection.
+- Added settings persistence, schema-5 -> 6 upgrade, downgrade, clean-install and packaged-runtime migration coverage.
+- Kept commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Deferred asynchronous icon loading to the final performance-polish phase.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.51.
+
 ## 0.7.0-alpha.5
 
 - Exposed the existing user-command icon field in the standalone Shortcut Editor with Choose and Auto/reset actions.

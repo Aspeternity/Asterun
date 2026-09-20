@@ -22,6 +22,7 @@ enum class Language {
 struct Settings {
     UiStyle uiStyle{UiStyle::Classic};
     Language language{Language::ZhCN};
+    bool showResultIcons{false};
 
     bool startWithWindows{false};
     bool showOnStartup{false};
@@ -66,6 +67,7 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
+    bool SetShowResultIcons(bool enabled);
     bool SetStartWithWindows(bool enabled);
     bool SetShowOnStartup(bool enabled);
     bool SetHotkey(

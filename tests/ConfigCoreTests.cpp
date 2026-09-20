@@ -288,6 +288,7 @@ int main() {
     assert(!featureSettings.Data().auxiliaryHotkeyEnabled);
     assert(featureSettings.Data().auxiliaryHotkeyKey == "pause");
     assert(featureSettings.Data().pinyinSearch);
+    assert(!featureSettings.Data().showResultIcons);
     assert(!featureSettings.Data().wildcardMatching);
     assert(!featureSettings.Data().numericQuickLaunch);
     assert(
@@ -302,6 +303,9 @@ int main() {
 
     assert(featureSettings.SetShowOnStartup(true));
     assert(featureSettings.Data().showOnStartup);
+
+    assert(featureSettings.SetShowResultIcons(true));
+    assert(featureSettings.Data().showResultIcons);
 
     assert(featureSettings.SetHotkey(
         {"ctrl", "shift"},
@@ -415,6 +419,9 @@ int main() {
     assert(
         providerSettingsReloaded.Data()
             .showOnStartup);
+    assert(
+        providerSettingsReloaded.Data()
+            .showResultIcons);
     assert(
         providerSettingsReloaded.Data()
             .auxiliaryHotkeyEnabled);
