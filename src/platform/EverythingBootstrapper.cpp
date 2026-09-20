@@ -811,6 +811,111 @@ RunElevatedServiceRepairHelper(
     return true;
 }
 
+[[nodiscard]] bool
+RunElevatedServicePolicyHelper(
+    bool enabled,
+    std::uint32_t& nativeError) {
+    std::array<wchar_t, 32768>
+        executableBuffer{};
+
+    const DWORD length =
+        GetModuleFileNameW(
+            nullptr,
+            executableBuffer.data(),
+            static_cast<DWORD>(
+                executableBuffer.size()));
+
+    if (length == 0 ||
+        static_cast<std::size_t>(
+            length) >=
+            executableBuffer.size()) {
+        nativeError =
+            length == 0
+                ? static_cast<std::uint32_t>(
+                      GetLastError())
+                : ERROR_INSUFFICIENT_BUFFER;
+        return false;
+    }
+
+    std::filesystem::path executable(
+        std::wstring(
+            executableBuffer.data(),
+            length));
+    const std::wstring directory =
+        executable.parent_path()
+            .wstring();
+    const std::wstring arguments =
+        enabled
+            ? L"--set-managed-everything-service enabled"
+            : L"--set-managed-everything-service disabled";
+
+    SHELLEXECUTEINFOW info{};
+    info.cbSize = sizeof(info);
+    info.fMask =
+        SEE_MASK_NOCLOSEPROCESS |
+        SEE_MASK_NOASYNC |
+        SEE_MASK_FLAG_NO_UI;
+    info.lpVerb = L"runas";
+    info.lpFile = executable.c_str();
+    info.lpParameters =
+        arguments.c_str();
+    info.lpDirectory =
+        directory.empty()
+            ? nullptr
+            : directory.c_str();
+    info.nShow = SW_HIDE;
+
+    if (!ShellExecuteExW(&info)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    if (!info.hProcess) {
+        nativeError =
+            ERROR_INVALID_HANDLE;
+        return false;
+    }
+
+    const DWORD waitResult =
+        WaitForSingleObject(
+            info.hProcess,
+            30000);
+
+    if (waitResult != WAIT_OBJECT_0) {
+        nativeError =
+            waitResult == WAIT_TIMEOUT
+                ? ERROR_TIMEOUT
+                : static_cast<std::uint32_t>(
+                      GetLastError());
+        CloseHandle(info.hProcess);
+        return false;
+    }
+
+    DWORD exitCode = 0;
+
+    if (!GetExitCodeProcess(
+            info.hProcess,
+            &exitCode)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        CloseHandle(info.hProcess);
+        return false;
+    }
+
+    CloseHandle(info.hProcess);
+
+    if (exitCode != 0) {
+        nativeError = exitCode;
+        return false;
+    }
+
+    nativeError = 0;
+    return true;
+}
+
 struct NamedIpcSearch {
     std::uint32_t count{0};
 };
@@ -1100,6 +1205,83 @@ QueryEverythingServiceExecutable(
             expanded.data());
     executableExists =
         FileExists(executable);
+    nativeError = 0;
+    return true;
+}
+
+[[nodiscard]] bool
+QueryEverythingServiceStartType(
+    std::uint32_t& startType,
+    std::uint32_t& nativeError) {
+    ServiceHandle manager;
+    manager.value =
+        OpenSCManagerW(
+            nullptr,
+            nullptr,
+            SC_MANAGER_CONNECT);
+
+    if (!manager.value) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    ServiceHandle service;
+    service.value =
+        OpenServiceW(
+            manager.value,
+            L"Everything",
+            SERVICE_QUERY_CONFIG);
+
+    if (!service.value) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    DWORD required = 0;
+
+    QueryServiceConfigW(
+        service.value,
+        nullptr,
+        0,
+        &required);
+
+    if (required == 0 ||
+        GetLastError() !=
+            ERROR_INSUFFICIENT_BUFFER) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    std::vector<std::max_align_t>
+        buffer(
+            (required +
+             sizeof(std::max_align_t) - 1) /
+            sizeof(std::max_align_t));
+
+    auto* config =
+        reinterpret_cast<
+            QUERY_SERVICE_CONFIGW*>(
+                buffer.data());
+
+    if (!QueryServiceConfigW(
+            service.value,
+            config,
+            required,
+            &required)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    startType =
+        config->dwStartType;
     nativeError = 0;
     return true;
 }
@@ -2624,6 +2806,417 @@ ManagedEverythingExecutable(
 
 bool EverythingIpcEndpointAvailable() {
     return AnyUsableIpcEndpoint();
+}
+
+bool
+IsManagedEverythingServiceExecutable(
+    const std::filesystem::path& dataDirectory,
+    const std::filesystem::path& executable) {
+    if (executable.empty()) {
+        return false;
+    }
+
+    return LowerPath(executable) ==
+            LowerPath(
+                ManagedEverythingExecutable(
+                    dataDirectory)) ||
+        DetachedAlpha91ServiceExecutable(
+            executable);
+}
+
+ManagedEverythingServicePolicyResult
+SetManagedEverythingServiceEnabled(
+    const std::filesystem::path& dataDirectory,
+    bool enabled) {
+    std::uint32_t nativeError = 0;
+    const auto serviceStatus =
+        ProbeEverythingService(
+            nativeError);
+
+    if (serviceStatus ==
+        ServiceProbe::Missing) {
+        return {
+            ManagedEverythingServicePolicyStatus::
+                NotInstalled,
+            0,
+        };
+    }
+
+    if (serviceStatus ==
+        ServiceProbe::Error) {
+        return {
+            ManagedEverythingServicePolicyStatus::
+                Failed,
+            nativeError,
+        };
+    }
+
+    std::filesystem::path
+        serviceExecutable;
+    bool serviceExecutableExists =
+        false;
+
+    if (!QueryEverythingServiceExecutable(
+            serviceExecutable,
+            serviceExecutableExists,
+            nativeError)) {
+        return {
+            ManagedEverythingServicePolicyStatus::
+                Failed,
+            nativeError,
+        };
+    }
+
+    if (!IsManagedEverythingServiceExecutable(
+            dataDirectory,
+            serviceExecutable)) {
+        return {
+            ManagedEverythingServicePolicyStatus::
+                External,
+            0,
+        };
+    }
+
+    std::uint32_t startType = 0;
+
+    if (!QueryEverythingServiceStartType(
+            startType,
+            nativeError)) {
+        return {
+            ManagedEverythingServicePolicyStatus::
+                Failed,
+            nativeError,
+        };
+    }
+
+    const bool running =
+        serviceStatus ==
+            ServiceProbe::Running ||
+        serviceStatus ==
+            ServiceProbe::Starting;
+    const bool desired =
+        enabled
+            ? (running &&
+               startType ==
+                   SERVICE_AUTO_START)
+            : (!running &&
+               startType ==
+                   SERVICE_DISABLED);
+
+    if (desired) {
+        return {
+            ManagedEverythingServicePolicyStatus::
+                AlreadyConfigured,
+            0,
+        };
+    }
+
+    if (!RunElevatedServicePolicyHelper(
+            enabled,
+            nativeError)) {
+        return {
+            nativeError ==
+                    ERROR_CANCELLED
+                ? ManagedEverythingServicePolicyStatus::
+                      ElevationCancelled
+                : ManagedEverythingServicePolicyStatus::
+                      Failed,
+            nativeError,
+        };
+    }
+
+    return {
+        ManagedEverythingServicePolicyStatus::
+            Applied,
+        0,
+    };
+}
+
+EverythingServiceRepairResult
+ApplyManagedEverythingServiceEnabledPolicy(
+    const std::filesystem::path& dataDirectory,
+    bool enabled) {
+    const auto managedExecutable =
+        ManagedEverythingExecutable(
+            dataDirectory);
+
+    if (enabled &&
+        !FileExists(
+            managedExecutable)) {
+        return {
+            false,
+            ERROR_FILE_NOT_FOUND,
+        };
+    }
+
+    ServiceHandle manager;
+    manager.value =
+        OpenSCManagerW(
+            nullptr,
+            nullptr,
+            SC_MANAGER_CONNECT);
+
+    if (!manager.value) {
+        return {
+            false,
+            static_cast<std::uint32_t>(
+                GetLastError()),
+        };
+    }
+
+    ServiceHandle service;
+    service.value =
+        OpenServiceW(
+            manager.value,
+            L"Everything",
+            SERVICE_QUERY_STATUS |
+                SERVICE_QUERY_CONFIG |
+                SERVICE_CHANGE_CONFIG |
+                SERVICE_START |
+                SERVICE_STOP);
+
+    if (!service.value) {
+        const auto error =
+            static_cast<std::uint32_t>(
+                GetLastError());
+
+        if (error ==
+            ERROR_SERVICE_DOES_NOT_EXIST) {
+            return {
+                true,
+                0,
+            };
+        }
+
+        return {
+            false,
+            error,
+        };
+    }
+
+    std::filesystem::path
+        serviceExecutable;
+    bool serviceExecutableExists =
+        false;
+    std::uint32_t queryError = 0;
+
+    if (!QueryEverythingServiceExecutable(
+            serviceExecutable,
+            serviceExecutableExists,
+            queryError)) {
+        return {
+            false,
+            queryError,
+        };
+    }
+
+    if (!IsManagedEverythingServiceExecutable(
+            dataDirectory,
+            serviceExecutable)) {
+        return {
+            false,
+            ERROR_ACCESS_DENIED,
+        };
+    }
+
+    const bool detachedAlpha91 =
+        DetachedAlpha91ServiceExecutable(
+            serviceExecutable);
+
+    if (enabled &&
+        detachedAlpha91) {
+        return RepairManagedEverythingServicePath(
+            dataDirectory);
+    }
+
+    std::uint32_t originalStartType = 0;
+
+    if (!QueryEverythingServiceStartType(
+            originalStartType,
+            queryError)) {
+        return {
+            false,
+            queryError,
+        };
+    }
+
+    SERVICE_STATUS_PROCESS status{};
+    DWORD bytesNeeded = 0;
+
+    if (!QueryServiceStatusEx(
+            service.value,
+            SC_STATUS_PROCESS_INFO,
+            reinterpret_cast<LPBYTE>(
+                &status),
+            sizeof(status),
+            &bytesNeeded)) {
+        return {
+            false,
+            static_cast<std::uint32_t>(
+                GetLastError()),
+        };
+    }
+
+    if (status.dwCurrentState ==
+        SERVICE_START_PENDING) {
+        std::uint32_t waitError = 0;
+
+        if (!WaitForEverythingService(
+                {},
+                waitError)) {
+            return {
+                false,
+                waitError,
+            };
+        }
+
+        status.dwCurrentState =
+            SERVICE_RUNNING;
+    }
+
+    if (status.dwCurrentState ==
+        SERVICE_STOP_PENDING) {
+        std::uint32_t waitError = 0;
+
+        if (!WaitForEverythingServiceStopped(
+                {},
+                waitError)) {
+            return {
+                false,
+                waitError,
+            };
+        }
+
+        status.dwCurrentState =
+            SERVICE_STOPPED;
+    }
+
+    const std::wstring portableBinaryPath =
+        L"\"" +
+        managedExecutable.wstring() +
+        L"\" -svc";
+
+    if (!ChangeServiceConfigW(
+            service.value,
+            SERVICE_NO_CHANGE,
+            enabled
+                ? SERVICE_AUTO_START
+                : SERVICE_DISABLED,
+            SERVICE_NO_CHANGE,
+            detachedAlpha91
+                ? portableBinaryPath.c_str()
+                : nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr)) {
+        return {
+            false,
+            static_cast<std::uint32_t>(
+                GetLastError()),
+        };
+    }
+
+    const auto rollbackStartType =
+        [&]() {
+            (void)ChangeServiceConfigW(
+                service.value,
+                SERVICE_NO_CHANGE,
+                originalStartType,
+                SERVICE_NO_CHANGE,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr);
+        };
+
+    if (!enabled &&
+        status.dwCurrentState !=
+            SERVICE_STOPPED) {
+        SERVICE_STATUS stopStatus{};
+
+        if (!ControlService(
+                service.value,
+                SERVICE_CONTROL_STOP,
+                &stopStatus)) {
+            const auto error =
+                static_cast<std::uint32_t>(
+                    GetLastError());
+
+            if (error !=
+                ERROR_SERVICE_NOT_ACTIVE) {
+                rollbackStartType();
+                return {
+                    false,
+                    error,
+                };
+            }
+        }
+
+        std::uint32_t waitError = 0;
+
+        if (!WaitForEverythingServiceStopped(
+                {},
+                waitError)) {
+            rollbackStartType();
+            return {
+                false,
+                waitError,
+            };
+        }
+
+        status.dwCurrentState =
+            SERVICE_STOPPED;
+    }
+
+    if (enabled &&
+        status.dwCurrentState !=
+            SERVICE_RUNNING) {
+        if (!StartServiceW(
+                service.value,
+                0,
+                nullptr)) {
+            const auto error =
+                static_cast<std::uint32_t>(
+                    GetLastError());
+
+            if (error !=
+                ERROR_SERVICE_ALREADY_RUNNING) {
+                rollbackStartType();
+                return {
+                    false,
+                    error,
+                };
+            }
+        }
+
+        std::uint32_t waitError = 0;
+
+        if (!WaitForEverythingService(
+                {},
+                waitError)) {
+            rollbackStartType();
+            return {
+                false,
+                waitError,
+            };
+        }
+    }
+
+    if (!enabled &&
+        detachedAlpha91) {
+        CleanupDetachedAlpha91ServiceHost();
+    }
+
+    return {
+        true,
+        0,
+    };
 }
 
 EverythingServiceRepairResult

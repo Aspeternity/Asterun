@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0-alpha.9.4
+
+- Made the Everything provider checkbox manage the full lifecycle only for ALTRun-owned Managed Everything.
+- Disabling the provider now closes the managed client, stops the owned Everything Windows Service and changes its startup type to `SERVICE_DISABLED`, preventing it from returning on the next Windows boot.
+- Re-enabling an owned managed installation restores `SERVICE_AUTO_START`, starts the service, then starts the managed client.
+- Kept normal ALTRun Next exit unchanged: only the managed client exits; an enabled managed service remains warm.
+- Added strict service ImagePath ownership checks so external/user-installed Everything services are never stopped or reconfigured.
+- Added an elevated `--set-managed-everything-service enabled|disabled` maintenance entrypoint and transactional provider-toggle handling; cancelling UAC keeps the prior provider setting.
+- The alpha.9.1 detached service host is still recognized as ALTRun-owned and can be retargeted back to the portable managed path during service-policy transitions.
+- Updated Search Sources explanatory text to distinguish normal application exit from explicitly disabling the Everything provider.
+- Added lifecycle regression coverage for exact managed-service executable ownership.
+- Kept settings schemaVersion 7, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.94.
+
 ## 0.7.0-alpha.9.3
 
 - Removed the temporary `ALTRunNext.Updater.exe` compatibility copy from x64/ARM64 packages.

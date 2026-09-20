@@ -63,6 +63,17 @@ int main() {
     const auto managed =
         ManagedEverythingExecutable(root);
 
+    assert(
+        IsManagedEverythingServiceExecutable(
+            root,
+            managed));
+    assert(
+        !IsManagedEverythingServiceExecutable(
+            root,
+            root /
+                L"external" /
+                L"Everything.exe"));
+
     std::filesystem::create_directories(
         managed.parent_path());
 

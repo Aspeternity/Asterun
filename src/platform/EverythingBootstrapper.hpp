@@ -81,6 +81,22 @@ struct EverythingServiceRepairResult {
     std::uint32_t nativeError{0};
 };
 
+enum class ManagedEverythingServicePolicyStatus {
+    NotInstalled,
+    External,
+    AlreadyConfigured,
+    Applied,
+    ElevationCancelled,
+    Failed,
+};
+
+struct ManagedEverythingServicePolicyResult {
+    ManagedEverythingServicePolicyStatus status{
+        ManagedEverythingServicePolicyStatus::
+            NotInstalled};
+    std::uint32_t nativeError{0};
+};
+
 struct EverythingBootstrapSnapshot {
     EverythingBootstrapStage stage{
         EverythingBootstrapStage::Idle};
@@ -118,6 +134,21 @@ EverythingIpcEndpointAvailable();
 StopManagedEverything(
     const std::filesystem::path& dataDirectory,
     std::stop_token stopToken = {});
+
+[[nodiscard]] bool
+IsManagedEverythingServiceExecutable(
+    const std::filesystem::path& dataDirectory,
+    const std::filesystem::path& executable);
+
+[[nodiscard]] ManagedEverythingServicePolicyResult
+SetManagedEverythingServiceEnabled(
+    const std::filesystem::path& dataDirectory,
+    bool enabled);
+
+[[nodiscard]] EverythingServiceRepairResult
+ApplyManagedEverythingServiceEnabledPolicy(
+    const std::filesystem::path& dataDirectory,
+    bool enabled);
 
 [[nodiscard]] EverythingServiceRepairResult
 RepairManagedEverythingServicePath(

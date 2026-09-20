@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.9.4 — Managed Everything Provider Lifecycle
+
+Alpha 9.4 makes the Everything provider checkbox control the full runtime state of an ALTRun Next-owned Everything installation. Normal application exit keeps the existing alpha.9.2 design: ALTRun Next closes only its managed Everything client and leaves the owned `SERVICE_AUTO_START` service warm for the next launcher session. Explicitly disabling **Everything files & folders** is different: the managed client is closed, the owned Everything service is stopped, and its startup type is changed to `SERVICE_DISABLED`, so it does not come back at the next Windows boot while the provider remains disabled.
+
+Re-enabling the provider detects an ALTRun-owned installed service, restores `SERVICE_AUTO_START`, starts the service, and then starts the managed client. Service policy changes are explicit privileged operations, so Windows may request UAC when toggling an owned managed installation. Cancelling or failing the privileged transition leaves the persisted provider setting unchanged and restores the previous client state when necessary.
+
+Ownership remains the hard safety boundary. The service ImagePath must resolve to the exact current `data/tools/Everything/.../Everything.exe` managed path or the known historical alpha.9.1 detached host before ALTRun Next may stop or reconfigure it. External/user-installed Everything services are never stopped, disabled, started, or reconfigured; disabling the provider only makes ALTRun Next stop using them. No persisted schema changes are made. Windows fixed FileVersion/ProductVersion is `0.7.0.94`.
+
 ## v0.7.0-alpha.9.3 — Clean Generic Update/Uninstall Helpers
 
 Alpha 9.3 removes the temporary legacy updater-name bridge from the portable package. Development testing is intentionally manual across the alpha.9/alpha.9.1 -> alpha.9.2.x boundary, so there is no reason to carry `ALTRunNext.Updater.exe` forward. The canonical package contract is now simply `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; future releases inherit those generic helper names.

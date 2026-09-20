@@ -5139,13 +5139,21 @@ void SettingsWindow::ToggleProviderSetting(
     const bool enabled =
         !ToggleChecked(id);
 
+    const bool everythingProvider =
+        providerId ==
+        providers::
+            kEverythingFilesystem;
+
     if (!app_.SetProviderEnabled(
             std::move(providerId),
             enabled)) {
         MessageBoxW(
             hwnd_,
-            T(L"无法保存搜索来源设置。",
-              L"Unable to save search-source settings."),
+            everythingProvider
+                ? T(L"无法更改 Everything 搜索源状态。\n\n如果使用的是 ALTRun Next 托管版，请确认 Windows 管理员权限请求；取消 UAC 后开关会恢复原状态。",
+                    L"Unable to change the Everything search-source state.\n\nIf ALTRun Next manages this Everything copy, approve the Windows administrator request. Cancelling UAC restores the previous setting.")
+                : T(L"无法保存搜索来源设置。",
+                    L"Unable to save search-source settings."),
             L"ALTRun Next",
             MB_OK | MB_ICONERROR);
 

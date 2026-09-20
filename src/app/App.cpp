@@ -1561,8 +1561,9 @@ void App::StopManagedEverythingLifecycle() {
 
     // Best effort and ownership-safe: this API refuses to issue -exit unless
     // the active default Everything IPC window belongs to our exact managed
-    // executable path. The Everything Windows service is deliberately left
-    // running so the next ALTRun Next launch needs no elevation.
+    // executable path. Normal application exit leaves the service policy
+    // unchanged; disabling the Everything provider separately stops and
+    // disables an ALTRun-owned service through SetProviderEnabled().
     (void)win::StopManagedEverything(
         dataDirectory_);
 
@@ -2453,16 +2454,88 @@ bool App::SetProviderEnabled(
     const std::string providerId =
         id;
 
-    if (!settingsStore_
-             .SetProviderEnabled(
-                 std::move(id),
-                 enabled)) {
-        return false;
-    }
-
     if (providerId ==
         providers::
             kEverythingFilesystem) {
+        const bool wasEnabled =
+            providers::IsEnabled(
+                settingsStore_.Data()
+                    .providerEnabled,
+                providers::
+                    kEverythingFilesystem,
+                false);
+
+        if (wasEnabled == enabled) {
+            return true;
+        }
+
+        win::ManagedEverythingServicePolicyResult
+            servicePolicy;
+
+        if (enabled) {
+            servicePolicy =
+                win::SetManagedEverythingServiceEnabled(
+                    dataDirectory_,
+                    true);
+        } else {
+            StopManagedEverythingLifecycle();
+
+            servicePolicy =
+                win::SetManagedEverythingServiceEnabled(
+                    dataDirectory_,
+                    false);
+        }
+
+        const bool servicePolicyFailed =
+            servicePolicy.status ==
+                win::ManagedEverythingServicePolicyStatus::
+                    ElevationCancelled ||
+            servicePolicy.status ==
+                win::ManagedEverythingServicePolicyStatus::
+                    Failed;
+
+        if (servicePolicyFailed) {
+            if (wasEnabled) {
+                if (!everythingProvider_) {
+                    everythingProvider_ =
+                        std::make_unique<
+                            EverythingProvider>();
+                }
+
+                StartEverythingBootstrap(
+                    false);
+            }
+
+            return false;
+        }
+
+        if (!settingsStore_
+                 .SetProviderEnabled(
+                     std::move(id),
+                     enabled)) {
+            if (servicePolicy.status ==
+                win::ManagedEverythingServicePolicyStatus::
+                    Applied) {
+                (void)win::
+                    SetManagedEverythingServiceEnabled(
+                        dataDirectory_,
+                        wasEnabled);
+            }
+
+            if (wasEnabled) {
+                if (!everythingProvider_) {
+                    everythingProvider_ =
+                        std::make_unique<
+                            EverythingProvider>();
+                }
+
+                StartEverythingBootstrap(
+                    false);
+            }
+
+            return false;
+        }
+
         if (enabled) {
             if (!everythingProvider_) {
                 everythingProvider_ =
@@ -2470,9 +2543,8 @@ bool App::SetProviderEnabled(
                         EverythingProvider>();
             }
 
-            StartEverythingBootstrap(false);
-        } else {
-            StopManagedEverythingLifecycle();
+            StartEverythingBootstrap(
+                false);
         }
 
         if (window_) {
@@ -2485,6 +2557,13 @@ bool App::SetProviderEnabled(
         }
 
         return true;
+    }
+
+    if (!settingsStore_
+             .SetProviderEnabled(
+                 std::move(id),
+                 enabled)) {
+        return false;
     }
 
     commandStore_

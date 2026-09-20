@@ -12,6 +12,10 @@ namespace {
 struct StartupArguments {
     bool repairManagedEverything{
         false};
+    bool setManagedEverythingService{
+        false};
+    bool managedEverythingServiceEnabled{
+        false};
     std::wstring updateHealthEvent;
     bool valid{true};
 };
@@ -40,6 +44,35 @@ StartupArguments ParseArguments() {
             L"--repair-managed-everything-service") {
         result.repairManagedEverything =
             true;
+        LocalFree(argv);
+        return result;
+    }
+
+    if (argc == 3 &&
+        std::wstring_view(argv[1]) ==
+            L"--set-managed-everything-service") {
+        const std::wstring_view value(
+            argv[2]);
+
+        if (value == L"enabled") {
+            result.setManagedEverythingService =
+                true;
+            result.managedEverythingServiceEnabled =
+                true;
+            LocalFree(argv);
+            return result;
+        }
+
+        if (value == L"disabled") {
+            result.setManagedEverythingService =
+                true;
+            result.managedEverythingServiceEnabled =
+                false;
+            LocalFree(argv);
+            return result;
+        }
+
+        result.valid = false;
         LocalFree(argv);
         return result;
     }
@@ -82,6 +115,27 @@ int WINAPI wWinMain(
                     altrun::win::
                         ExecutableDirectory() /
                     "data");
+
+        if (result.success) {
+            return 0;
+        }
+
+        return static_cast<int>(
+            result.nativeError != 0
+                ? result.nativeError
+                : ERROR_GEN_FAILURE);
+    }
+
+    if (arguments
+            .setManagedEverythingService) {
+        const auto result =
+            altrun::win::
+                ApplyManagedEverythingServiceEnabledPolicy(
+                    altrun::win::
+                        ExecutableDirectory() /
+                    "data",
+                    arguments
+                        .managedEverythingServiceEnabled);
 
         if (result.success) {
             return 0;
