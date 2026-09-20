@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-alpha.8.3
+
+- Added ownership-safe Managed Everything shutdown on real ALTRun Next process exit.
+- Disabling the Everything search source now cancels/joins any bootstrap worker, invalidates stale completion messages, stops query work, and exits the managed Everything client.
+- The Windows Everything Service is deliberately left running across ALTRun Next exit/disable so future startup does not require repeated elevation.
+- Added exact executable-path ownership verification before issuing Everything's `-exit`; external/user-installed Everything instances are never closed by the managed lifecycle.
+- Added `ManagedEverythingStopStatus` / `StopManagedEverything` runtime API and Windows regression coverage for missing/not-running/external-ownership cases.
+- Updated Search Sources help text to document managed-client shutdown versus persistent service behavior.
+- Kept settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.83.
+
 ## 0.7.0-alpha.8.2
 
 - Fixed freshly managed Everything reporting IPC-ready while NTFS indexing was blocked by the first-run access-denied dialog.

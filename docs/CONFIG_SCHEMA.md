@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.8.2:
+Each document carries its own schema version. As of v0.7.0-alpha.8.3:
 
 ```text
 settings.json       schemaVersion 6
@@ -59,6 +59,8 @@ v0.7.0-alpha.8 keeps every persisted schema unchanged. Managed Everything Bootst
 v0.7.0-alpha.8.1 also keeps every persisted schema unchanged. It only fixes runtime staging of a verified Everything archive from the temporary `.zip.download` filename to the Shell-recognized `.zip` filename before extraction.
 
 v0.7.0-alpha.8.2 also keeps every persisted schema unchanged. Managed Everything's own `Everything.ini` and Windows service are third-party runtime state under `data/tools/Everything` / Windows SCM, not ALTRun Next configuration schema fields. ALTRun Next still persists only the existing `everything.filesystem` provider boolean.
+
+v0.7.0-alpha.8.3 also keeps every persisted schema unchanged. Managed-client process ownership and shutdown are session/runtime lifecycle state only. Exiting ALTRun Next or disabling `everything.filesystem` may stop the ALTRun Next-managed Everything client, but does not persist a new preference and does not stop/delete the Windows Everything Service.
 
 ## Migration
 

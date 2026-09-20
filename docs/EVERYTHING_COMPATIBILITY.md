@@ -100,6 +100,8 @@ v0.7.0-alpha.8.1 hardens the archive handoff: network bytes remain in a `.zip.do
 
 v0.7.0-alpha.8.2 completes managed first-run indexing. The official portable client is configured to remain a standard-user background process with `show_tray_icon=0` and IPC enabled. ALTRun Next requires the Windows Everything Service for its managed copy so NTFS USN Journal indexing works without keeping the client elevated. Service installation/start is performed only from the explicit Get-and-start flow and may show a Windows UAC prompt; Recheck remains local/non-elevating. Existing external Everything copies are never reconfigured by this managed policy.
 
+v0.7.0-alpha.8.3 closes the managed-client lifecycle. Actual ALTRun Next process exit and disabling the Everything source stop only the managed client executable. The Windows Everything Service remains installed/running. Before invoking `-exit`, ALTRun Next verifies that the default Everything IPC window's process image path exactly matches the managed executable under `data/tools/Everything`; an external Everything instance is never closed by this path. Hiding the launcher to tray is not process exit and therefore does not stop the managed client.
+
 ## RC1 freeze
 
 v0.5.0-rc.1 makes no protocol or endpoint-selection change relative to beta.2. This document is shipped inside both portable RC packages so a real-world validation run can identify the intended 1.4/1.5/named-instance behavior without relying on repository access. Any post-RC transport change requires a concrete release-blocking compatibility defect and corresponding regression coverage.

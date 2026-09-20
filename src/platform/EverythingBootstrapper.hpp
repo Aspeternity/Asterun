@@ -59,6 +59,20 @@ enum class EverythingBootstrapFailure {
     ManagedLaunchFailed,
 };
 
+enum class ManagedEverythingStopStatus {
+    NotInstalled,
+    NotRunning,
+    Stopped,
+    Failed,
+};
+
+struct ManagedEverythingStopResult {
+    ManagedEverythingStopStatus status{
+        ManagedEverythingStopStatus::
+            NotInstalled};
+    std::uint32_t nativeError{0};
+};
+
 struct EverythingBootstrapSnapshot {
     EverythingBootstrapStage stage{
         EverythingBootstrapStage::Idle};
@@ -91,5 +105,10 @@ ManagedEverythingExecutable(
 
 [[nodiscard]] bool
 EverythingIpcEndpointAvailable();
+
+[[nodiscard]] ManagedEverythingStopResult
+StopManagedEverything(
+    const std::filesystem::path& dataDirectory,
+    std::stop_token stopToken = {});
 
 } // namespace altrun::win

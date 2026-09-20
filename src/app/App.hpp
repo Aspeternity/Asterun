@@ -270,6 +270,7 @@ private:
     void HandleDynamicQueryCompleted();
     void HandleEverythingBootstrapCompleted(
         std::uint64_t generation);
+    void StopManagedEverythingLifecycle();
     void CaptureActivationContext();
 
     HINSTANCE instance_{};

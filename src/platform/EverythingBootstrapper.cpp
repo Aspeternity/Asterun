@@ -2156,6 +2156,68 @@ bool EverythingIpcEndpointAvailable() {
     return AnyUsableIpcEndpoint();
 }
 
+ManagedEverythingStopResult
+StopManagedEverything(
+    const std::filesystem::path& dataDirectory,
+    std::stop_token stopToken) {
+    const auto executable =
+        ManagedEverythingExecutable(
+            dataDirectory);
+
+    if (!FileExists(executable)) {
+        return {
+            ManagedEverythingStopStatus::
+                NotInstalled,
+            0,
+        };
+    }
+
+    // Ownership is the safety boundary: never issue Everything's global
+    // -exit command unless the active default IPC window belongs to the
+    // exact executable under ALTRun Next's managed tools directory.
+    if (!ManagedDefaultIpcRunning(
+            executable)) {
+        return {
+            ManagedEverythingStopStatus::
+                NotRunning,
+            0,
+        };
+    }
+
+    std::uint32_t nativeError = 0;
+
+    if (!LaunchEverythingCommand(
+            executable,
+            L"-exit",
+            true,
+            nativeError)) {
+        return {
+            ManagedEverythingStopStatus::
+                Failed,
+            nativeError,
+        };
+    }
+
+    if (!WaitForManagedDefaultIpcToExit(
+            executable,
+            stopToken)) {
+        return {
+            ManagedEverythingStopStatus::
+                Failed,
+            static_cast<std::uint32_t>(
+                stopToken.stop_requested()
+                    ? ERROR_CANCELLED
+                    : ERROR_TIMEOUT),
+        };
+    }
+
+    return {
+        ManagedEverythingStopStatus::
+            Stopped,
+        0,
+    };
+}
+
 EverythingBootstrapSnapshot
 RunEverythingBootstrap(
     const std::filesystem::path& dataDirectory,

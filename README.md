@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.8.3 — Managed Everything Lifecycle
+
+Alpha 8.3 closes the managed-runtime lifecycle. When ALTRun Next actually exits, or when **Everything files & folders** is disabled in Search Sources, ALTRun Next now stops only the portable Everything client under its own `data/tools/Everything` directory. The Windows **Everything** service is intentionally left running so NTFS indexing remains warm and the next ALTRun Next launch can start the client without another UAC prompt.
+
+Shutdown is ownership-safe. Before issuing Everything's `-exit` command, ALTRun Next verifies that the active default Everything IPC window is owned by the exact managed executable path. A separately installed/user-run Everything instance is therefore never closed, even when a managed executable also exists on disk. Bootstrap generations are invalidated and joined before provider disable so a late completion message cannot resurrect the provider or managed client after shutdown.
+
+A Windows runtime regression test freezes both no-install/no-running behavior and the external-ownership safety boundary. No service stop/delete operation is part of the lifecycle path. No persisted schema changes are made. Windows fixed FileVersion/ProductVersion is `0.7.0.83`.
+
 ## v0.7.0-alpha.8.2 — Managed Index Service & Headless Runtime
 
 Alpha 8.2 fixes the second real-Windows bootstrap gap found during desktop validation. A freshly extracted portable Everything can expose IPC before it has permission to index NTFS volumes; Everything then shows its access-denied setup dialog and the launcher sees an apparently healthy IPC endpoint backed by an empty database.

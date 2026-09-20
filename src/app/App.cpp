@@ -128,16 +128,7 @@ App::App(HINSTANCE instance)
           baseDirectory_ / "dict") {}
 
 App::~App() {
-    if (everythingBootstrapThread_
-            .joinable()) {
-        everythingBootstrapThread_
-            .request_stop();
-        everythingBootstrapThread_
-            .join();
-    }
-
-    // Stop the dynamic IPC worker before UI/state members begin destruction.
-    everythingProvider_.reset();
+    StopManagedEverythingLifecycle();
 
     if (providerDebounceTimer_ != 0) {
         KillTimer(
@@ -1512,6 +1503,43 @@ void App::HandleDynamicQueryCompleted() {
     }
 }
 
+void App::StopManagedEverythingLifecycle() {
+    // Invalidate any already-posted bootstrap completion before waiting for
+    // the worker. A late UI message from the old generation must never
+    // recreate the provider or restart the managed client after disable.
+    ++everythingBootstrapGeneration_;
+
+    if (everythingBootstrapThread_
+            .joinable()) {
+        everythingBootstrapThread_
+            .request_stop();
+        everythingBootstrapThread_
+            .join();
+    }
+
+    // Stop query work before shutting down the managed IPC owner.
+    everythingProvider_.reset();
+
+    {
+        std::scoped_lock lock(
+            dynamicQueryMutex_);
+        dynamicQueryPending_.reset();
+    }
+
+    // Best effort and ownership-safe: this API refuses to issue -exit unless
+    // the active default Everything IPC window belongs to our exact managed
+    // executable path. The Everything Windows service is deliberately left
+    // running so the next ALTRun Next launch needs no elevation.
+    (void)win::StopManagedEverything(
+        dataDirectory_);
+
+    {
+        std::scoped_lock lock(
+            everythingBootstrapMutex_);
+        everythingBootstrapStatus_ = {};
+    }
+}
+
 void App::HandleEverythingBootstrapCompleted(
     std::uint64_t generation) {
     if (generation !=
@@ -2305,19 +2333,7 @@ bool App::SetProviderEnabled(
 
             StartEverythingBootstrap(false);
         } else {
-            if (everythingBootstrapThread_
-                    .joinable()) {
-                everythingBootstrapThread_
-                    .request_stop();
-            }
-
-            everythingProvider_.reset();
-
-            {
-                std::scoped_lock lock(
-                    dynamicQueryMutex_);
-                dynamicQueryPending_.reset();
-            }
+            StopManagedEverythingLifecycle();
         }
 
         if (window_) {
