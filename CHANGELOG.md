@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-alpha.9.2.1
+
+- Removed the temporary `ALTRunNext.Updater.exe` compatibility copy from x64/ARM64 packages.
+- Standardized the portable helper contract on `Update.exe` and `Uninstall.exe` only.
+- Removed first-start legacy-updater cleanup because the obsolete filename is no longer shipped.
+- Updated package allowlists, runtime smoke tests, CI/release packaging and release contracts to reject the legacy helper from current packages.
+- Development upgrade from alpha.9/alpha.9.1 is intentionally manual; no legacy updater-name compatibility is retained.
+- Kept the alpha.9.2 portable Managed Everything, auto-start service and native uninstaller design unchanged.
+- Kept settings schemaVersion 7, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.921.
+
 ## 0.7.0-alpha.9.2
 
 - Restored Managed Everything to ALTRun Next's portable `data/tools/Everything` tree; no new permanent Program Files host is used.

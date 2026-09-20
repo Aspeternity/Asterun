@@ -23,6 +23,12 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.9.2.1 — Clean Generic Update/Uninstall Helpers
+
+Alpha 9.2.1 removes the temporary legacy updater-name bridge from the portable package. Development testing is intentionally manual across the alpha.9/alpha.9.1 -> alpha.9.2.x boundary, so there is no reason to carry `ALTRunNext.Updater.exe` forward. The canonical package contract is now simply `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; future releases inherit those generic helper names.
+
+The alpha.9.2 portable Managed Everything and native-uninstaller architecture is otherwise unchanged: Managed Everything remains entirely under `data/tools/Everything`, the owned Windows Service remains `SERVICE_AUTO_START` and stays warm across normal ALTRun Next exit, the client exits with ALTRun Next, and `Uninstall.exe` performs the destructive service/application cleanup from a temporary elevated copy. No persisted schema changes are made. Windows fixed FileVersion/ProductVersion is `0.7.0.921`.
+
 ## v0.7.0-alpha.9.2 — Portable Managed Everything & Native Uninstaller
 
 Alpha 9.2 restores the portable ownership boundary after real-world lifecycle review. Managed Everything is again fully contained under ALTRun Next's own `data/tools/Everything` tree. The Everything Windows Service remains `SERVICE_AUTO_START` and continues running when ALTRun Next exits, so Windows can keep the index warm and the next launcher start does not require another administrator confirmation. The session client still exits with ALTRun Next; normal exit is deliberately different from uninstall.

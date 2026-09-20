@@ -116,8 +116,6 @@ jobs:
           Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
           Copy-Item build/Release/Update.exe dist/Update.exe
           Copy-Item build/Release/Uninstall.exe dist/Uninstall.exe
-          # One-release bridge for alpha.9/alpha.9.1 updater staging.
-          Copy-Item build/Release/Update.exe dist/ALTRunNext.Updater.exe
           Copy-Item -Recurse build/Release/dict dist/dict
           Copy-Item -Recurse build/Release/third_party dist/third_party
           Copy-Item config/*.example.* dist/

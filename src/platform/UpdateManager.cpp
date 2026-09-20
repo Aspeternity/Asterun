@@ -1534,9 +1534,6 @@ bool LaunchPreparedUpdate(
         return false;
     }
 
-    // ALTRunNext.Updater.exe is retained only as a one-release package
-    // compatibility bridge for alpha.9/alpha.9.1 staging. Runtime launching
-    // from alpha.9.2 onward uses the generic Update.exe name.
     const auto updater =
         baseDirectory /
         L"Update.exe";
