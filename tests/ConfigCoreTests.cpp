@@ -159,8 +159,8 @@ int main() {
     assert(updated != commandsReloaded.Commands().end());
     assert(updated->title == L"Telegram Desktop");
     assert(updated->arguments == L"--test");
-    assert(!updated->enabled);
-    assert(updated->pinned);
+    assert(updated->enabled);
+    assert(!updated->pinned);
 
     assert(commandsReloaded.Move(createdId, -1));
 
@@ -174,7 +174,8 @@ int main() {
         });
     assert(persisted != crudReloaded.Commands().end());
     assert(persisted->title == L"Telegram Desktop");
-    assert(!persisted->enabled);
+    assert(persisted->enabled);
+    assert(!persisted->pinned);
 
     assert(crudReloaded.Remove(createdId));
     assert(crudReloaded.Commands().size() == 2);
