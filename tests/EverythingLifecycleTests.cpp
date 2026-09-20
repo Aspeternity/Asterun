@@ -62,6 +62,20 @@ int main() {
 
     const auto managed =
         ManagedEverythingExecutable(root);
+    const auto serviceHost =
+        ManagedEverythingServiceExecutable();
+
+    assert(!serviceHost.empty());
+    assert(
+        serviceHost.filename() ==
+        L"Everything.exe");
+    assert(
+        serviceHost.lexically_normal() !=
+        managed.lexically_normal());
+    assert(
+        serviceHost.wstring().find(
+            root.wstring()) ==
+        std::wstring::npos);
 
     std::filesystem::create_directories(
         managed.parent_path());

@@ -227,6 +227,82 @@ LowerPath(
     return value;
 }
 
+[[nodiscard]] bool
+PathStartsWithDirectory(
+    const std::filesystem::path& path,
+    const std::filesystem::path& directory) {
+    if (path.empty() ||
+        directory.empty()) {
+        return false;
+    }
+
+    const std::wstring value =
+        LowerPath(path);
+    std::wstring prefix =
+        LowerPath(directory);
+
+    if (value == prefix) {
+        return true;
+    }
+
+    if (!prefix.empty() &&
+        prefix.back() != L'\\') {
+        prefix.push_back(L'\\');
+    }
+
+    return value.starts_with(prefix);
+}
+
+[[nodiscard]] bool
+LegacyManagedServiceExecutable(
+    const std::filesystem::path& executable) {
+    if (LowerPath(executable.filename()) !=
+        L"everything.exe") {
+        return false;
+    }
+
+    const auto versionDirectory =
+        executable.parent_path();
+    const auto everythingDirectory =
+        versionDirectory.parent_path();
+    const auto toolsDirectory =
+        everythingDirectory.parent_path();
+    const auto dataDirectory =
+        toolsDirectory.parent_path();
+
+    if (LowerPath(
+            everythingDirectory.filename()) !=
+            L"everything" ||
+        LowerPath(
+            toolsDirectory.filename()) !=
+            L"tools" ||
+        LowerPath(
+            dataDirectory.filename()) !=
+            L"data") {
+        return false;
+    }
+
+    return FileExists(
+        dataDirectory.parent_path() /
+        L"ALTRunNext.exe");
+}
+
+[[nodiscard]] bool
+ManagedServiceHostExecutable(
+    const std::filesystem::path& executable) {
+    const auto currentHost =
+        ManagedEverythingServiceExecutable();
+
+    if (currentHost.empty()) {
+        return false;
+    }
+
+    return PathStartsWithDirectory(
+        executable,
+        currentHost.parent_path()
+            .parent_path());
+}
+
 struct ExistingCandidate {
     EverythingBootstrapSource source{
         EverythingBootstrapSource::None};
@@ -1053,6 +1129,86 @@ WaitForEverythingService(
 }
 
 [[nodiscard]] bool
+WaitForEverythingServiceStopped(
+    std::stop_token stopToken,
+    std::uint32_t& nativeError) {
+    ServiceHandle manager;
+    manager.value =
+        OpenSCManagerW(
+            nullptr,
+            nullptr,
+            SC_MANAGER_CONNECT);
+
+    if (!manager.value) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    ServiceHandle service;
+    service.value =
+        OpenServiceW(
+            manager.value,
+            L"Everything",
+            SERVICE_QUERY_STATUS);
+
+    if (!service.value) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+
+        if (nativeError ==
+            ERROR_SERVICE_DOES_NOT_EXIST) {
+            nativeError = 0;
+            return true;
+        }
+
+        return false;
+    }
+
+    const auto deadline =
+        std::chrono::steady_clock::now() +
+        std::chrono::seconds(15);
+
+    while (!stopToken.stop_requested() &&
+           std::chrono::steady_clock::now() <
+               deadline) {
+        SERVICE_STATUS_PROCESS status{};
+        DWORD bytesNeeded = 0;
+
+        if (!QueryServiceStatusEx(
+                service.value,
+                SC_STATUS_PROCESS_INFO,
+                reinterpret_cast<LPBYTE>(
+                    &status),
+                sizeof(status),
+                &bytesNeeded)) {
+            nativeError =
+                static_cast<std::uint32_t>(
+                    GetLastError());
+            return false;
+        }
+
+        if (status.dwCurrentState ==
+            SERVICE_STOPPED) {
+            nativeError = 0;
+            return true;
+        }
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                150));
+    }
+
+    nativeError =
+        stopToken.stop_requested()
+            ? ERROR_CANCELLED
+            : ERROR_SERVICE_REQUEST_TIMEOUT;
+    return false;
+}
+
+[[nodiscard]] bool
 WindowOwnedByExecutable(
     HWND hwnd,
     const std::filesystem::path& executable) {
@@ -1371,9 +1527,11 @@ StartManagedEverything(
     }
 
     bool servicePathStale = false;
+    bool servicePathNeedsMigration =
+        false;
 
-    if (serviceStatus ==
-        ServiceProbe::Stopped) {
+    if (serviceStatus !=
+        ServiceProbe::Missing) {
         std::filesystem::path
             serviceExecutable;
         bool serviceExecutableExists =
@@ -1392,7 +1550,29 @@ StartManagedEverything(
 
         servicePathStale =
             !serviceExecutableExists;
+
+        if (serviceExecutableExists) {
+            const auto stableHost =
+                ManagedEverythingServiceExecutable();
+            const bool altrunManagedService =
+                LegacyManagedServiceExecutable(
+                    serviceExecutable) ||
+                ManagedServiceHostExecutable(
+                    serviceExecutable);
+
+            servicePathNeedsMigration =
+                altrunManagedService &&
+                (stableHost.empty() ||
+                 LowerPath(
+                     serviceExecutable) !=
+                     LowerPath(
+                         stableHost));
+        }
     }
+
+    const bool servicePathNeedsRepair =
+        servicePathStale ||
+        servicePathNeedsMigration;
 
     const bool managedRunning =
         ManagedDefaultIpcRunning(
@@ -1401,15 +1581,17 @@ StartManagedEverything(
     if (managedRunning &&
         serviceStatus ==
             ServiceProbe::Running &&
-        !configNeedsUpdate) {
+        !configNeedsUpdate &&
+        !servicePathNeedsRepair) {
         return {};
     }
 
-    if (serviceStatus !=
-            ServiceProbe::Running &&
+    if ((serviceStatus !=
+             ServiceProbe::Running ||
+         servicePathNeedsRepair) &&
         !allowElevation) {
         return {
-            servicePathStale
+            servicePathNeedsRepair
                 ? ManagedRuntimeResult::
                       NeedsServiceRepair
                 : ManagedRuntimeResult::
@@ -1417,7 +1599,9 @@ StartManagedEverything(
             static_cast<std::uint32_t>(
                 servicePathStale
                     ? ERROR_FILE_NOT_FOUND
-                    : ERROR_SERVICE_NOT_ACTIVE),
+                    : (servicePathNeedsMigration
+                           ? ERROR_SUCCESS
+                           : ERROR_SERVICE_NOT_ACTIVE)),
         };
     }
 
@@ -1467,56 +1651,64 @@ StartManagedEverything(
         };
     }
 
-    if (serviceStatus !=
-        ServiceProbe::Running) {
-        if (servicePathStale) {
-            Report(
-                snapshot,
-                EverythingBootstrapStage::
-                    RepairingService,
-                progress);
+    if (serviceStatus ==
+            ServiceProbe::Missing ||
+        servicePathNeedsRepair) {
+        const bool repairingExisting =
+            serviceStatus !=
+            ServiceProbe::Missing;
 
-            if (!RunElevatedServiceRepairHelper(
-                    nativeError)) {
-                return {
-                    nativeError ==
-                            ERROR_CANCELLED
-                        ? ManagedRuntimeResult::
-                              ServiceElevationCancelled
-                        : ManagedRuntimeResult::
-                              ServiceRepairFailed,
-                    nativeError,
-                };
-            }
-        } else {
-            Report(
-                snapshot,
-                EverythingBootstrapStage::
-                    InstallingService,
-                progress);
+        Report(
+            snapshot,
+            repairingExisting
+                ? EverythingBootstrapStage::
+                      RepairingService
+                : EverythingBootstrapStage::
+                      InstallingService,
+            progress);
 
-            const std::wstring_view command =
-                serviceStatus ==
-                        ServiceProbe::Missing
-                    ? L"-install-service"
-                    : L"-start-service";
-
-            if (!RunElevatedEverythingCommand(
-                    executable,
-                    command,
-                    nativeError)) {
-                return {
-                    nativeError ==
-                            ERROR_CANCELLED
-                        ? ManagedRuntimeResult::
-                              ServiceElevationCancelled
-                        : ManagedRuntimeResult::
-                              ServiceInstallFailed,
-                    nativeError,
-                };
-            }
+        if (!RunElevatedServiceRepairHelper(
+                nativeError)) {
+            return {
+                nativeError ==
+                        ERROR_CANCELLED
+                    ? ManagedRuntimeResult::
+                          ServiceElevationCancelled
+                    : (repairingExisting
+                           ? ManagedRuntimeResult::
+                                 ServiceRepairFailed
+                           : ManagedRuntimeResult::
+                                 ServiceInstallFailed),
+                nativeError,
+            };
         }
+    } else if (serviceStatus !=
+               ServiceProbe::Running) {
+        Report(
+            snapshot,
+            EverythingBootstrapStage::
+                InstallingService,
+            progress);
 
+        if (!RunElevatedEverythingCommand(
+                executable,
+                L"-start-service",
+                nativeError)) {
+            return {
+                nativeError ==
+                        ERROR_CANCELLED
+                    ? ManagedRuntimeResult::
+                          ServiceElevationCancelled
+                    : ManagedRuntimeResult::
+                          ServiceInstallFailed,
+                nativeError,
+            };
+        }
+    }
+
+    if (serviceStatus !=
+            ServiceProbe::Running ||
+        servicePathNeedsRepair) {
         Report(
             snapshot,
             EverythingBootstrapStage::
@@ -2437,6 +2629,25 @@ ManagedEverythingExecutable(
         L"Everything.exe";
 }
 
+std::filesystem::path
+ManagedEverythingServiceExecutable() {
+    const std::wstring programFiles =
+        EnvironmentVariable(
+            L"ProgramFiles");
+
+    if (programFiles.empty()) {
+        return {};
+    }
+
+    return std::filesystem::path(
+               programFiles) /
+        L"Aspeternity" /
+        L"ALTRunNext" /
+        L"EverythingService" /
+        VersionDirectoryName() /
+        L"Everything.exe";
+}
+
 bool EverythingIpcEndpointAvailable() {
     return AnyUsableIpcEndpoint();
 }
@@ -2444,14 +2655,24 @@ bool EverythingIpcEndpointAvailable() {
 EverythingServiceRepairResult
 RepairManagedEverythingServicePath(
     const std::filesystem::path& dataDirectory) {
-    const auto executable =
+    const auto sourceExecutable =
         ManagedEverythingExecutable(
             dataDirectory);
+    const auto serviceExecutable =
+        ManagedEverythingServiceExecutable();
 
-    if (!FileExists(executable)) {
+    if (!FileExists(
+            sourceExecutable)) {
         return {
             false,
             ERROR_FILE_NOT_FOUND,
+        };
+    }
+
+    if (serviceExecutable.empty()) {
+        return {
+            false,
+            ERROR_PATH_NOT_FOUND,
         };
     }
 
@@ -2476,27 +2697,187 @@ RepairManagedEverythingServicePath(
             manager.value,
             L"Everything",
             SERVICE_QUERY_STATUS |
+                SERVICE_QUERY_CONFIG |
                 SERVICE_CHANGE_CONFIG |
-                SERVICE_START);
+                SERVICE_START |
+                SERVICE_STOP);
 
-    if (!service.value) {
-        return {
-            false,
+    const bool serviceExists =
+        service.value != nullptr;
+
+    if (!serviceExists) {
+        const auto error =
             static_cast<std::uint32_t>(
-                GetLastError()),
-        };
+                GetLastError());
+
+        if (error !=
+            ERROR_SERVICE_DOES_NOT_EXIST) {
+            return {
+                false,
+                error,
+            };
+        }
     }
 
     SERVICE_STATUS_PROCESS status{};
     DWORD bytesNeeded = 0;
+    std::filesystem::path
+        previousExecutable;
+    bool previousExecutableExists =
+        false;
 
-    if (!QueryServiceStatusEx(
-            service.value,
-            SC_STATUS_PROCESS_INFO,
-            reinterpret_cast<LPBYTE>(
-                &status),
-            sizeof(status),
-            &bytesNeeded)) {
+    if (serviceExists) {
+        if (!QueryServiceStatusEx(
+                service.value,
+                SC_STATUS_PROCESS_INFO,
+                reinterpret_cast<LPBYTE>(
+                    &status),
+                sizeof(status),
+                &bytesNeeded)) {
+            return {
+                false,
+                static_cast<std::uint32_t>(
+                    GetLastError()),
+            };
+        }
+
+        std::uint32_t queryError = 0;
+
+        if (!QueryEverythingServiceExecutable(
+                previousExecutable,
+                previousExecutableExists,
+                queryError)) {
+            return {
+                false,
+                queryError,
+            };
+        }
+
+        const bool alreadyStable =
+            LowerPath(
+                previousExecutable) ==
+            LowerPath(
+                serviceExecutable);
+
+        if (previousExecutableExists &&
+            !alreadyStable &&
+            !LegacyManagedServiceExecutable(
+                previousExecutable) &&
+            !ManagedServiceHostExecutable(
+                previousExecutable)) {
+            return {
+                false,
+                ERROR_ACCESS_DENIED,
+            };
+        }
+
+        if (alreadyStable &&
+            previousExecutableExists) {
+            if (status.dwCurrentState ==
+                SERVICE_RUNNING) {
+                return {
+                    true,
+                    0,
+                };
+            }
+
+            if (status.dwCurrentState ==
+                SERVICE_START_PENDING) {
+                std::uint32_t waitError =
+                    0;
+
+                if (WaitForEverythingService(
+                        {},
+                        waitError)) {
+                    return {
+                        true,
+                        0,
+                    };
+                }
+
+                return {
+                    false,
+                    waitError,
+                };
+            }
+
+            if (status.dwCurrentState ==
+                SERVICE_STOP_PENDING) {
+                std::uint32_t waitError =
+                    0;
+
+                if (!WaitForEverythingServiceStopped(
+                        {},
+                        waitError)) {
+                    return {
+                        false,
+                        waitError,
+                    };
+                }
+            }
+
+            if (!StartServiceW(
+                    service.value,
+                    0,
+                    nullptr)) {
+                const auto error =
+                    static_cast<std::uint32_t>(
+                        GetLastError());
+
+                if (error !=
+                    ERROR_SERVICE_ALREADY_RUNNING) {
+                    return {
+                        false,
+                        error,
+                    };
+                }
+            }
+
+            std::uint32_t waitError = 0;
+
+            if (!WaitForEverythingService(
+                    {},
+                    waitError)) {
+                return {
+                    false,
+                    waitError,
+                };
+            }
+
+            return {
+                true,
+                0,
+            };
+        }
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(
+        serviceExecutable.parent_path(),
+        ec);
+
+    if (ec) {
+        return {
+            false,
+            static_cast<std::uint32_t>(
+                ec.value()),
+        };
+    }
+
+    auto stagedExecutable =
+        serviceExecutable;
+    stagedExecutable +=
+        L".altrun.tmp";
+
+    ec.clear();
+    std::filesystem::remove(
+        stagedExecutable,
+        ec);
+
+    if (!CopyFileW(
+            sourceExecutable.c_str(),
+            stagedExecutable.c_str(),
+            FALSE)) {
         return {
             false,
             static_cast<std::uint32_t>(
@@ -2504,17 +2885,125 @@ RepairManagedEverythingServicePath(
         };
     }
 
-    if (status.dwCurrentState ==
-        SERVICE_RUNNING) {
+    if (!MoveFileExW(
+            stagedExecutable.c_str(),
+            serviceExecutable.c_str(),
+            MOVEFILE_REPLACE_EXISTING |
+                MOVEFILE_WRITE_THROUGH)) {
+        const auto error =
+            static_cast<std::uint32_t>(
+                GetLastError());
+
+        ec.clear();
+        std::filesystem::remove(
+            stagedExecutable,
+            ec);
+
+        return {
+            false,
+            error,
+        };
+    }
+
+    if (!serviceExists) {
+        std::uint32_t installError = 0;
+
+        if (!LaunchEverythingCommand(
+                serviceExecutable,
+                L"-install-service",
+                true,
+                installError)) {
+            return {
+                false,
+                installError,
+            };
+        }
+
+        if (!WaitForEverythingService(
+                {},
+                installError)) {
+            return {
+                false,
+                installError,
+            };
+        }
+
         return {
             true,
             0,
         };
     }
 
+    if (status.dwCurrentState ==
+        SERVICE_START_PENDING) {
+        std::uint32_t waitError = 0;
+
+        if (!WaitForEverythingService(
+                {},
+                waitError)) {
+            return {
+                false,
+                waitError,
+            };
+        }
+
+        status.dwCurrentState =
+            SERVICE_RUNNING;
+    }
+
+    if (status.dwCurrentState ==
+        SERVICE_STOP_PENDING) {
+        std::uint32_t waitError = 0;
+
+        if (!WaitForEverythingServiceStopped(
+                {},
+                waitError)) {
+            return {
+                false,
+                waitError,
+            };
+        }
+
+        status.dwCurrentState =
+            SERVICE_STOPPED;
+    }
+
+    if (status.dwCurrentState !=
+        SERVICE_STOPPED) {
+        SERVICE_STATUS stopStatus{};
+
+        if (!ControlService(
+                service.value,
+                SERVICE_CONTROL_STOP,
+                &stopStatus)) {
+            const auto error =
+                static_cast<std::uint32_t>(
+                    GetLastError());
+
+            if (error !=
+                ERROR_SERVICE_NOT_ACTIVE) {
+                return {
+                    false,
+                    error,
+                };
+            }
+        }
+
+        std::uint32_t waitError = 0;
+
+        if (!WaitForEverythingServiceStopped(
+                {},
+                waitError)) {
+            return {
+                false,
+                waitError,
+            };
+        }
+    }
+
     const std::wstring binaryPath =
         L"\"" +
-        executable.wstring() +
+        serviceExecutable.wstring() +
         L"\" -svc";
 
     if (!ChangeServiceConfigW(
@@ -2551,6 +3040,17 @@ RepairManagedEverythingServicePath(
                 error,
             };
         }
+    }
+
+    std::uint32_t waitError = 0;
+
+    if (!WaitForEverythingService(
+            {},
+            waitError)) {
+        return {
+            false,
+            waitError,
+        };
     }
 
     return {

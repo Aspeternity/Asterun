@@ -111,6 +111,9 @@ RunEverythingBootstrap(
 ManagedEverythingExecutable(
     const std::filesystem::path& dataDirectory);
 
+[[nodiscard]] std::filesystem::path
+ManagedEverythingServiceExecutable();
+
 [[nodiscard]] bool
 EverythingIpcEndpointAvailable();
 

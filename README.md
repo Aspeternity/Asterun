@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.9.1 — Managed Service Detachment & Updater Validation Target
+
+Alpha 9.1 fixes a portable-lifecycle conflict discovered during real Windows validation. Alpha 8.3 correctly stopped the ALTRun Next-managed Everything client on application exit, but deliberately kept the Windows Everything Service warm. Because the legacy service `ImagePath` also pointed into `data/tools/Everything` inside that portable ALTRun Next folder, the service process could keep an old release directory locked even after ALTRun Next and its client had exited.
+
+ALTRun Next now separates the two lifetimes. The standard-user managed Everything client remains under portable `data/tools/Everything`, while an ALTRun-owned Windows service is hosted from the system-protected `%ProgramFiles%\Aspeternity\ALTRunNext\EverythingService\<Everything-version-arch>\Everything.exe`. An existing legacy ALTRun-managed service is detected even while running and is migrated with one explicit UAC confirmation from **Get and start Everything**. The maintenance helper stops the old service, copies the already managed Everything binary into the protected host directory, retargets the service, restarts it and waits for readiness. After migration the service may remain warm without pinning any portable ALTRun Next folder, so old release directories can be moved or deleted normally.
+
+The ownership boundary remains strict: a healthy external/user-installed Everything service is never retargeted. A stale service path can still be repaired only through the explicit elevated flow, while local Recheck stays non-elevating. No persisted schema changes are made: settings remains schemaVersion 7, commands 2, usage 1, provider-cache 2 and Shortcut TSV v3. This build also intentionally serves as the first real updater target for validating the alpha.9 native updater end to end. Windows fixed FileVersion/ProductVersion is `0.7.0.91`.
+
 ## v0.7.0-alpha.9 — Native Update & Safe Apply
 
 Alpha 9 adds ALTRun Next's native self-update path so development and later stable builds no longer require manually visiting GitHub, downloading a ZIP and replacing files. **Settings → About** now exposes Stable / Development update channels, a default-on low-noise automatic check throttled to at most once per 24 hours, manual **Check for updates**, and explicit **Download and install**. Prerelease builds default to Development; stable builds default to Stable.

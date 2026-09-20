@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0-alpha.9.1
+
+- Fixed old portable ALTRun Next folders remaining locked after exit because the persistent Everything Windows Service was still executing `Everything.exe -svc` from that folder.
+- Separated the managed client and service lifetimes: the client stays in portable `data/tools/Everything`, while the ALTRun-owned service host is copied to the protected `%ProgramFiles%\Aspeternity\ALTRunNext\EverythingService\<version-arch>` location.
+- Detect a live legacy ALTRun-managed service ImagePath and require an explicit one-time migration instead of treating a running service as automatically healthy.
+- The elevated maintenance flow can install the service from the protected host, or stop/retarget/restart an existing legacy/stale managed service and wait for both stop/start completion.
+- Healthy external/user-installed Everything services remain ownership-protected and are never retargeted.
+- Local Recheck remains non-elevating; migration/repair still occurs only after the user explicitly chooses Get and start Everything and confirms UAC.
+- Added Windows lifecycle regression coverage proving the persistent service host is outside the portable ALTRun Next data tree.
+- Kept settings schemaVersion 7, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- This build is also the intended real-world native updater target for alpha.9 -> alpha.9.1 validation.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.91.
+
 ## 0.7.0-alpha.9
 
 - Added native Stable / Development update channels to Settings → About.
