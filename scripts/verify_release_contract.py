@@ -158,7 +158,7 @@ if version in ("0.6.0-alpha.6", "0.6.0-alpha.6.1"):
         "MigratedFromSchemaVersion",
         "schema4BeforeDowngrade",
         "alpha5DowngradeRead",
-        "conflictOpenSettings",
+        "conflictNavigate",
     ):
         if token not in config_tests:
             fail(f"alpha.6 schema-3 -> 4 migration coverage missing: {token}")
