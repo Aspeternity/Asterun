@@ -15,6 +15,10 @@ enum class EverythingBootstrapStage {
     DownloadingPackage,
     VerifyingPackage,
     ExtractingPackage,
+    ConfiguringManaged,
+    StoppingManaged,
+    InstallingService,
+    WaitingForService,
     StartingManaged,
     WaitingForIpc,
     Ready,
@@ -46,6 +50,12 @@ enum class EverythingBootstrapFailure {
     PackageStagingFailed,
     ExtractionFailed,
     ManagedExecutableMissing,
+    ManagedStopFailed,
+    ManagedConfigFailed,
+    ServiceRequired,
+    ServiceElevationCancelled,
+    ServiceInstallFailed,
+    ServiceUnavailable,
     ManagedLaunchFailed,
 };
 

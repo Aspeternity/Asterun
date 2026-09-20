@@ -40,4 +40,8 @@ FindSha256ForFile(
     std::string_view manifest,
     std::string_view fileName);
 
+[[nodiscard]] std::string
+ApplyManagedEverythingIniPolicy(
+    std::string_view existing);
+
 } // namespace altrun

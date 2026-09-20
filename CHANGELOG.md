@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-alpha.8.2
+
+- Fixed freshly managed Everything reporting IPC-ready while NTFS indexing was blocked by the first-run access-denied dialog.
+- Added managed-runtime configuration for local data, standard-user operation, background mode, hidden tray icon, disabled update checks and IPC enabled.
+- Added Windows Everything-service detection with start-pending handling before managed IPC is considered healthy.
+- Explicit Get-and-start now installs/starts the official Everything Service with one UAC prompt only when required; local Recheck never elevates.
+- Added safe managed-instance ownership detection and graceful `-exit` restart when a managed alpha.8.x process must be reconfigured.
+- Existing unrelated Everything installations keep their own settings and service behavior.
+- Added managed-INI regression coverage and release-contract checks for service/UAC/headless behavior.
+- Kept settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.82.
+
 ## 0.7.0-alpha.8.1
 
 - Fixed Managed Everything extraction failing with native error 2147500037 / 0x80004005 on real Windows systems.

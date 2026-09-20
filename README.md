@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.8.2 — Managed Index Service & Headless Runtime
+
+Alpha 8.2 fixes the second real-Windows bootstrap gap found during desktop validation. A freshly extracted portable Everything can expose IPC before it has permission to index NTFS volumes; Everything then shows its access-denied setup dialog and the launcher sees an apparently healthy IPC endpoint backed by an empty database.
+
+ALTRun Next now treats its own managed Everything copy as a complete runtime dependency rather than merely an executable. The managed copy is configured with `app_data=0`, `run_as_admin=0`, `run_in_background=1`, `show_tray_icon=0`, update checks disabled and IPC enabled. Existing unrelated Everything installations are not rewritten.
+
+For the managed copy, ALTRun Next checks the Windows **Everything** service before declaring the dependency ready. If the service is already running, no elevation is requested. If it is missing/stopped, the explicit **Get and start Everything** flow asks Windows for elevation once and invokes the official executable's `-install-service` / `-start-service` command, waits for the service, launches the client with `-startup -first-instance`, then waits for IPC. Local-only Recheck never triggers UAC. A previously running managed alpha.8.x client is stopped and restarted only when managed configuration/service repair is actually required.
+
+This also makes the managed dependency headless by default: no search window and no Everything tray icon. No persisted ALTRun Next schema changes are made. Windows fixed FileVersion/ProductVersion is `0.7.0.82`.
+
 ## v0.7.0-alpha.8.1 — Verified ZIP Staging Fix
 
 Alpha 8.1 fixes the real-Windows extraction failure discovered during Managed Everything Bootstrap validation. Alpha 8 correctly downloaded and SHA-256 verified the official archive, but passed the temporary `.zip.download` path directly to the Windows Shell ZIP namespace. Shell ZIP discovery is extension-sensitive and returned `0x80004005 (E_FAIL)` for that non-`.zip` path.

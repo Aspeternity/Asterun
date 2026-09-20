@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.8.1:
+Each document carries its own schema version. As of v0.7.0-alpha.8.2:
 
 ```text
 settings.json       schemaVersion 6
@@ -57,6 +57,8 @@ v0.7.0-alpha.7 keeps every persisted schema unchanged. Launcher and Shortcut Man
 v0.7.0-alpha.8 keeps every persisted schema unchanged. Managed Everything Bootstrap stores downloaded third-party runtime files under `data/tools/Everything`, but bootstrap progress, source detection, package hashes and IPC state are not configuration fields. The existing `everything.filesystem` provider boolean remains the only persisted Everything preference.
 
 v0.7.0-alpha.8.1 also keeps every persisted schema unchanged. It only fixes runtime staging of a verified Everything archive from the temporary `.zip.download` filename to the Shell-recognized `.zip` filename before extraction.
+
+v0.7.0-alpha.8.2 also keeps every persisted schema unchanged. Managed Everything's own `Everything.ini` and Windows service are third-party runtime state under `data/tools/Everything` / Windows SCM, not ALTRun Next configuration schema fields. ALTRun Next still persists only the existing `everything.filesystem` provider boolean.
 
 ## Migration
 

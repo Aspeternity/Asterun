@@ -1,8 +1,10 @@
 #include "EverythingBootstrapPolicy.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <string>
+#include <vector>
 
 namespace altrun {
 namespace {
@@ -174,5 +176,193 @@ FindSha256ForFile(
 
     return std::nullopt;
 }
+
+std::string
+ApplyManagedEverythingIniPolicy(
+    std::string_view existing) {
+    struct RequiredValue {
+        std::string_view key;
+        std::string_view value;
+    };
+
+    constexpr std::array<
+        RequiredValue,
+        6>
+        required{{
+            {"app_data", "0"},
+            {"run_as_admin", "0"},
+            {"run_in_background", "1"},
+            {"show_tray_icon", "0"},
+            {"check_for_updates_on_startup", "0"},
+            {"ipc", "1"},
+        }};
+
+    auto lowerTrim =
+        [](std::string_view value) {
+            value = TrimAscii(value);
+            return LowerAscii(value);
+        };
+
+    std::vector<std::string> lines;
+    std::size_t offset = 0;
+
+    while (offset <= existing.size()) {
+        const auto newline =
+            existing.find('\n', offset);
+        std::string_view line =
+            newline ==
+                    std::string_view::npos
+                ? existing.substr(offset)
+                : existing.substr(
+                      offset,
+                      newline - offset);
+
+        if (!line.empty() &&
+            line.back() == '\r') {
+            line.remove_suffix(1);
+        }
+
+        lines.emplace_back(line);
+
+        if (newline ==
+            std::string_view::npos) {
+            break;
+        }
+
+        offset = newline + 1;
+    }
+
+    if (existing.empty()) {
+        lines.clear();
+    } else if (
+        !lines.empty() &&
+        lines.back().empty() &&
+        existing.back() == '\n') {
+        lines.pop_back();
+    }
+
+    bool sectionFound = false;
+    bool inEverything = false;
+    std::array<bool, required.size()>
+        seen{};
+
+    std::vector<std::string> output;
+    output.reserve(
+        lines.size() +
+        required.size() + 2);
+
+    const auto appendMissing =
+        [&]() {
+            for (std::size_t i = 0;
+                 i < required.size();
+                 ++i) {
+                if (!seen[i]) {
+                    output.push_back(
+                        std::string(
+                            required[i].key) +
+                        "=" +
+                        std::string(
+                            required[i].value));
+                    seen[i] = true;
+                }
+            }
+        };
+
+    for (const auto& original : lines) {
+        std::string_view line =
+            TrimAscii(original);
+
+        if (line.size() >= 2 &&
+            line.front() == '[' &&
+            line.back() == ']') {
+            if (inEverything) {
+                appendMissing();
+            }
+
+            const auto sectionName =
+                lowerTrim(
+                    line.substr(
+                        1,
+                        line.size() - 2));
+
+            inEverything =
+                sectionName ==
+                "everything";
+
+            if (inEverything) {
+                sectionFound = true;
+                seen.fill(false);
+            }
+
+            output.push_back(original);
+            continue;
+        }
+
+        bool replaced = false;
+
+        if (inEverything) {
+            const auto equals =
+                line.find('=');
+
+            if (equals !=
+                std::string_view::npos) {
+                const auto key =
+                    lowerTrim(
+                        line.substr(
+                            0,
+                            equals));
+
+                for (std::size_t i = 0;
+                     i < required.size();
+                     ++i) {
+                    if (key ==
+                        required[i].key) {
+                        if (!seen[i]) {
+                            output.push_back(
+                                std::string(
+                                    required[i].key) +
+                                "=" +
+                                std::string(
+                                    required[i].value));
+                            seen[i] = true;
+                        }
+                        replaced = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!replaced) {
+            output.push_back(original);
+        }
+    }
+
+    if (inEverything) {
+        appendMissing();
+    }
+
+    if (!sectionFound) {
+        if (!output.empty() &&
+            !output.back().empty()) {
+            output.emplace_back();
+        }
+
+        output.emplace_back(
+            "[Everything]");
+        seen.fill(false);
+        appendMissing();
+    }
+
+    std::string result;
+
+    for (const auto& line : output) {
+        result += line;
+        result += "\r\n";
+    }
+
+    return result;
+}
+
 
 } // namespace altrun

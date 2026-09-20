@@ -113,6 +113,69 @@ int main() {
         !IsSha256Hex(
             "0123456789abcdef"));
 
+    {
+        const std::string existing =
+            "[Everything]\r\n"
+            "run_as_admin=1\r\n"
+            "show_tray_icon=1\r\n"
+            "language=0\r\n"
+            "[Other]\r\n"
+            "value=keep\r\n";
+
+        const auto configured =
+            ApplyManagedEverythingIniPolicy(
+                existing);
+
+        for (const auto* token : {
+                 "app_data=0\r\n",
+                 "run_as_admin=0\r\n",
+                 "run_in_background=1\r\n",
+                 "show_tray_icon=0\r\n",
+                 "check_for_updates_on_startup=0\r\n",
+                 "ipc=1\r\n",
+                 "language=0\r\n",
+                 "[Other]\r\n",
+                 "value=keep\r\n",
+             }) {
+            assert(
+                configured.find(token) !=
+                std::string::npos);
+        }
+
+        assert(
+            configured.find(
+                "run_as_admin=1") ==
+            std::string::npos);
+        assert(
+            configured.find(
+                "show_tray_icon=1") ==
+            std::string::npos);
+        assert(
+            configured.find(
+                "show_tray_icon=0") ==
+            configured.rfind(
+                "show_tray_icon=0"));
+    }
+
+    {
+        const auto configured =
+            ApplyManagedEverythingIniPolicy(
+                "");
+
+        assert(
+            configured.find(
+                "[Everything]\r\n") ==
+            0);
+        assert(
+            configured.find(
+                "show_tray_icon=0\r\n") !=
+            std::string::npos);
+        assert(
+            configured.find(
+                "run_as_admin=0\r\n") !=
+            std::string::npos);
+    }
+
     std::cout
         << "Everything bootstrap policy tests passed\n";
     return 0;

@@ -1742,8 +1742,8 @@ void SettingsWindow::ApplyLanguage() {
           L"Recheck"));
     SetWindowTextW(
         providerNote_,
-        T(L"Everything 通过本机 IPC 实时查询。ALTRun Next 不预捆绑 Everything：会优先复用并后台启动本机已有标准版；缺失时仅在你确认后从 voidtools 官方获取标准便携版、校验 SHA-256 并启动。Lite 版没有 IPC。",
-          L"Everything is queried live over local IPC. ALTRun Next does not bundle Everything: it first reuses and starts an existing standard copy; only after your confirmation can it fetch the standard portable build from official voidtools, verify SHA-256, and start it. Lite has no IPC."));
+        T(L"Everything 通过本机 IPC 实时查询。ALTRun Next 不预捆绑 Everything：优先复用本机已有标准版；自己管理的便携版会使用 Everything Service 完成 NTFS 索引，并在后台运行且隐藏托盘图标。首次安装服务会出现一次 Windows UAC。",
+          L"Everything is queried live over local IPC. ALTRun Next does not bundle Everything: existing standard copies are preferred; its managed portable copy uses the Everything Service for NTFS indexing and runs in the background with the tray icon hidden. Installing the service requires one Windows UAC confirmation."));
 
     SetWindowTextW(
         dataOpenLabel_,
@@ -3078,6 +3078,30 @@ void SettingsWindow::RefreshProviderStatus() {
                     L"Extracting portable build");
                 break;
             case win::EverythingBootstrapStage::
+                ConfiguringManaged:
+                text += T(
+                    L"配置后台运行并隐藏托盘图标",
+                    L"Configuring background mode and hidden tray icon");
+                break;
+            case win::EverythingBootstrapStage::
+                StoppingManaged:
+                text += T(
+                    L"正在重启托管 Everything 以应用配置",
+                    L"Restarting managed Everything to apply configuration");
+                break;
+            case win::EverythingBootstrapStage::
+                InstallingService:
+                text += T(
+                    L"安装 / 启动 Everything Service（请确认 UAC）",
+                    L"Installing / starting Everything Service (confirm UAC)");
+                break;
+            case win::EverythingBootstrapStage::
+                WaitingForService:
+                text += T(
+                    L"等待 Everything Service 就绪",
+                    L"Waiting for Everything Service");
+                break;
+            case win::EverythingBootstrapStage::
                 StartingManaged:
                 text += T(
                     L"启动托管实例",
@@ -3100,6 +3124,20 @@ void SettingsWindow::RefreshProviderStatus() {
             showRecheck = true;
 
             if (bootstrap.stage ==
+                    win::EverythingBootstrapStage::
+                        NeedsInstall &&
+                bootstrap.failure ==
+                    win::EverythingBootstrapFailure::
+                        ServiceRequired) {
+                text += T(
+                    L"托管 Everything 已就绪，但缺少 NTFS 索引服务",
+                    L"Managed Everything is present, but the NTFS indexing service is missing");
+                text += L"\r\n    ↳ ";
+                text += T(
+                    L"点击“获取并启动 Everything”安装 Everything Service；Windows 只会在首次安装服务时请求 UAC。托管版将继续以普通用户后台运行且不显示托盘图标。",
+                    L"Choose Get and start Everything to install the Everything Service. Windows asks for UAC only when the service is first installed. The managed client will continue as a standard-user background process with no tray icon.");
+            } else if (
+                bootstrap.stage ==
                     win::EverythingBootstrapStage::
                         NeedsInstall &&
                 bootstrap.failure ==
@@ -3163,6 +3201,36 @@ void SettingsWindow::RefreshProviderStatus() {
                     text += T(
                         L"解压失败",
                         L"Extraction failed");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    ManagedStopFailed:
+                    text += T(
+                        L"无法关闭旧的托管 Everything 实例",
+                        L"Could not stop the previous managed Everything instance");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    ManagedConfigFailed:
+                    text += T(
+                        L"无法写入托管 Everything 配置",
+                        L"Could not write the managed Everything configuration");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    ServiceElevationCancelled:
+                    text += T(
+                        L"已取消 UAC，Everything Service 未安装",
+                        L"UAC was cancelled; the Everything Service was not installed");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    ServiceInstallFailed:
+                    text += T(
+                        L"Everything Service 安装 / 启动失败",
+                        L"Everything Service installation / startup failed");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    ServiceUnavailable:
+                    text += T(
+                        L"Everything Service 未能进入运行状态",
+                        L"Everything Service did not reach the running state");
                     break;
                 case win::EverythingBootstrapFailure::
                     ManagedLaunchFailed:
@@ -3249,8 +3317,8 @@ void SettingsWindow::AcquireEverything() {
     const int answer =
         MessageBoxW(
             hwnd_,
-            T(L"ALTRun Next 会先尝试复用并后台启动本机已有的 Everything。\n\n如果仍不可用，将从 voidtools 官方下载 Everything 1.4.1.1032 标准便携版（不是 Lite），获取官方 SHA-256 清单完成校验后解压到 ALTRun Next 数据目录并启动托管实例。\n\n继续吗？",
-              L"ALTRun Next will first try to reuse and start an existing Everything copy in the background.\n\nIf none is usable, it will download the official Everything 1.4.1.1032 standard portable build (not Lite) from voidtools, fetch the official SHA-256 manifest, verify the package, extract it under the ALTRun Next data directory, and start a managed instance.\n\nContinue?"),
+            T(L"ALTRun Next 会先尝试复用本机已有的 Everything。\n\n如果需要自己的托管便携版，会从 voidtools 官方获取 Everything 1.4.1.1032 标准版（不是 Lite）并校验 SHA-256。托管版会安装 / 启动 Everything Service 来完成 NTFS 索引，以普通用户后台运行，并隐藏 Everything 托盘图标。\n\n首次安装服务时 Windows 会弹出一次 UAC，请确认后继续。\n\n继续吗？",
+              L"ALTRun Next will first try to reuse an existing Everything copy.\n\nIf its managed portable copy is needed, it will fetch the official Everything 1.4.1.1032 standard build (not Lite) from voidtools and verify SHA-256. The managed copy installs / starts the Everything Service for NTFS indexing, runs in the background as a standard user, and hides the Everything tray icon.\n\nWindows will show one UAC prompt when the service is first installed.\n\nContinue?"),
             T(L"获取并启动 Everything",
               L"Get and start Everything"),
             MB_YESNO |

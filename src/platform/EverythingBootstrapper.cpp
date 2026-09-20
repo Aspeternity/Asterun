@@ -21,6 +21,7 @@
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -62,6 +63,21 @@ struct RegistryKey {
     RegistryKey(const RegistryKey&) = delete;
     RegistryKey& operator=(
         const RegistryKey&) = delete;
+};
+
+struct ServiceHandle {
+    SC_HANDLE value{nullptr};
+
+    ~ServiceHandle() {
+        if (value) {
+            CloseServiceHandle(value);
+        }
+    }
+
+    ServiceHandle() = default;
+    ServiceHandle(const ServiceHandle&) = delete;
+    ServiceHandle& operator=(
+        const ServiceHandle&) = delete;
 };
 
 struct ComApartment {
@@ -421,13 +437,20 @@ FindExistingCandidates(
 }
 
 [[nodiscard]] bool
-LaunchEverything(
+LaunchEverythingCommand(
     const std::filesystem::path& executable,
+    std::wstring_view arguments,
+    bool wait,
     std::uint32_t& nativeError) {
     std::wstring command =
         L"\"" +
         executable.wstring() +
-        L"\" -startup -first-instance";
+        L"\"";
+
+    if (!arguments.empty()) {
+        command += L" ";
+        command += arguments;
+    }
 
     std::vector<wchar_t> mutableCommand(
         command.begin(),
@@ -448,7 +471,8 @@ LaunchEverything(
             nullptr,
             nullptr,
             FALSE,
-            CREATE_UNICODE_ENVIRONMENT,
+            CREATE_UNICODE_ENVIRONMENT |
+                CREATE_NO_WINDOW,
             nullptr,
             directory.empty()
                 ? nullptr
@@ -462,7 +486,134 @@ LaunchEverything(
     }
 
     CloseHandle(process.hThread);
+
+    if (wait) {
+        const DWORD waitResult =
+            WaitForSingleObject(
+                process.hProcess,
+                15000);
+
+        if (waitResult != WAIT_OBJECT_0) {
+            nativeError =
+                waitResult == WAIT_TIMEOUT
+                    ? ERROR_TIMEOUT
+                    : static_cast<std::uint32_t>(
+                          GetLastError());
+            CloseHandle(process.hProcess);
+            return false;
+        }
+
+        DWORD exitCode = 0;
+
+        if (!GetExitCodeProcess(
+                process.hProcess,
+                &exitCode)) {
+            nativeError =
+                static_cast<std::uint32_t>(
+                    GetLastError());
+            CloseHandle(process.hProcess);
+            return false;
+        }
+
+        if (exitCode != 0) {
+            nativeError = exitCode;
+            CloseHandle(process.hProcess);
+            return false;
+        }
+    }
+
     CloseHandle(process.hProcess);
+    nativeError = 0;
+    return true;
+}
+
+[[nodiscard]] bool
+LaunchEverything(
+    const std::filesystem::path& executable,
+    std::uint32_t& nativeError) {
+    return LaunchEverythingCommand(
+        executable,
+        L"-startup -first-instance",
+        false,
+        nativeError);
+}
+
+[[nodiscard]] bool
+RunElevatedEverythingCommand(
+    const std::filesystem::path& executable,
+    std::wstring_view arguments,
+    std::uint32_t& nativeError) {
+    std::wstring args(arguments);
+    std::wstring directory =
+        executable.parent_path()
+            .wstring();
+
+    SHELLEXECUTEINFOW info{};
+    info.cbSize = sizeof(info);
+    info.fMask =
+        SEE_MASK_NOCLOSEPROCESS |
+        SEE_MASK_NOASYNC |
+        SEE_MASK_FLAG_NO_UI;
+    info.hwnd = nullptr;
+    info.lpVerb = L"runas";
+    info.lpFile = executable.c_str();
+    info.lpParameters =
+        args.empty()
+            ? nullptr
+            : args.c_str();
+    info.lpDirectory =
+        directory.empty()
+            ? nullptr
+            : directory.c_str();
+    info.nShow = SW_HIDE;
+
+    if (!ShellExecuteExW(&info)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    if (!info.hProcess) {
+        nativeError =
+            ERROR_INVALID_HANDLE;
+        return false;
+    }
+
+    const DWORD waitResult =
+        WaitForSingleObject(
+            info.hProcess,
+            30000);
+
+    if (waitResult != WAIT_OBJECT_0) {
+        nativeError =
+            waitResult == WAIT_TIMEOUT
+                ? ERROR_TIMEOUT
+                : static_cast<std::uint32_t>(
+                      GetLastError());
+        CloseHandle(info.hProcess);
+        return false;
+    }
+
+    DWORD exitCode = 0;
+
+    if (!GetExitCodeProcess(
+            info.hProcess,
+            &exitCode)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        CloseHandle(info.hProcess);
+        return false;
+    }
+
+    CloseHandle(info.hProcess);
+
+    if (exitCode != 0) {
+        nativeError = exitCode;
+        return false;
+    }
+
     nativeError = 0;
     return true;
 }
@@ -552,6 +703,600 @@ WaitForIpc(
     }
 
     return false;
+}
+
+enum class ServiceProbe {
+    Missing,
+    Stopped,
+    Starting,
+    Running,
+    Error,
+};
+
+[[nodiscard]] ServiceProbe
+ProbeEverythingService(
+    std::uint32_t& nativeError) {
+    ServiceHandle manager;
+    manager.value =
+        OpenSCManagerW(
+            nullptr,
+            nullptr,
+            SC_MANAGER_CONNECT);
+
+    if (!manager.value) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return ServiceProbe::Error;
+    }
+
+    ServiceHandle service;
+    service.value =
+        OpenServiceW(
+            manager.value,
+            L"Everything",
+            SERVICE_QUERY_STATUS);
+
+    if (!service.value) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+
+        if (nativeError ==
+            ERROR_SERVICE_DOES_NOT_EXIST) {
+            nativeError = 0;
+            return ServiceProbe::Missing;
+        }
+
+        return ServiceProbe::Error;
+    }
+
+    SERVICE_STATUS_PROCESS status{};
+    DWORD bytesNeeded = 0;
+
+    if (!QueryServiceStatusEx(
+            service.value,
+            SC_STATUS_PROCESS_INFO,
+            reinterpret_cast<LPBYTE>(
+                &status),
+            sizeof(status),
+            &bytesNeeded)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return ServiceProbe::Error;
+    }
+
+    nativeError = 0;
+
+    if (status.dwCurrentState ==
+        SERVICE_RUNNING) {
+        return ServiceProbe::Running;
+    }
+
+    if (status.dwCurrentState ==
+        SERVICE_START_PENDING) {
+        return ServiceProbe::Starting;
+    }
+
+    return ServiceProbe::Stopped;
+}
+
+[[nodiscard]] bool
+WaitForEverythingService(
+    std::stop_token stopToken,
+    std::uint32_t& nativeError) {
+    const auto deadline =
+        std::chrono::steady_clock::now() +
+        std::chrono::seconds(15);
+
+    while (!stopToken.stop_requested() &&
+           std::chrono::steady_clock::now() <
+               deadline) {
+        const auto status =
+            ProbeEverythingService(
+                nativeError);
+
+        if (status ==
+            ServiceProbe::Running) {
+            nativeError = 0;
+            return true;
+        }
+
+        if (status ==
+            ServiceProbe::Error) {
+            return false;
+        }
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                150));
+    }
+
+    nativeError =
+        stopToken.stop_requested()
+            ? ERROR_CANCELLED
+            : ERROR_SERVICE_REQUEST_TIMEOUT;
+    return false;
+}
+
+[[nodiscard]] bool
+WindowOwnedByExecutable(
+    HWND hwnd,
+    const std::filesystem::path& executable) {
+    if (!hwnd) {
+        return false;
+    }
+
+    DWORD processId = 0;
+    GetWindowThreadProcessId(
+        hwnd,
+        &processId);
+
+    if (processId == 0) {
+        return false;
+    }
+
+    HANDLE process =
+        OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION,
+            FALSE,
+            processId);
+
+    if (!process) {
+        return false;
+    }
+
+    std::array<wchar_t, 32768>
+        buffer{};
+    DWORD size =
+        static_cast<DWORD>(
+            buffer.size());
+
+    const BOOL ok =
+        QueryFullProcessImageNameW(
+            process,
+            0,
+            buffer.data(),
+            &size);
+
+    CloseHandle(process);
+
+    if (!ok ||
+        size == 0) {
+        return false;
+    }
+
+    return LowerPath(
+               std::filesystem::path(
+                   std::wstring(
+                       buffer.data(),
+                       size))) ==
+        LowerPath(executable);
+}
+
+[[nodiscard]] bool
+ManagedDefaultIpcRunning(
+    const std::filesystem::path& executable) {
+    return WindowOwnedByExecutable(
+        FindWindowW(
+            kEverythingWindowClass,
+            nullptr),
+        executable);
+}
+
+[[nodiscard]] bool
+WaitForManagedDefaultIpcToExit(
+    const std::filesystem::path& executable,
+    std::stop_token stopToken) {
+    const auto deadline =
+        std::chrono::steady_clock::now() +
+        std::chrono::seconds(8);
+
+    while (!stopToken.stop_requested() &&
+           std::chrono::steady_clock::now() <
+               deadline) {
+        if (!ManagedDefaultIpcRunning(
+                executable)) {
+            return true;
+        }
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                100));
+    }
+
+    return false;
+}
+
+[[nodiscard]] bool
+ReadManagedIni(
+    const std::filesystem::path& iniPath,
+    std::string& content,
+    std::uint32_t& nativeError) {
+    std::error_code ec;
+
+    if (!std::filesystem::exists(
+            iniPath,
+            ec)) {
+        if (ec) {
+            nativeError =
+                static_cast<std::uint32_t>(
+                    ec.value());
+            return false;
+        }
+
+        content.clear();
+        nativeError = 0;
+        return true;
+    }
+
+    std::ifstream input(
+        iniPath,
+        std::ios::binary);
+
+    if (!input) {
+        nativeError =
+            ERROR_OPEN_FAILED;
+        return false;
+    }
+
+    content.assign(
+        std::istreambuf_iterator<char>(
+            input),
+        std::istreambuf_iterator<char>());
+
+    if (!input.good() &&
+        !input.eof()) {
+        nativeError =
+            ERROR_READ_FAULT;
+        return false;
+    }
+
+    nativeError = 0;
+    return true;
+}
+
+[[nodiscard]] bool
+ManagedIniNeedsUpdate(
+    const std::filesystem::path& executable,
+    bool& needsUpdate,
+    std::uint32_t& nativeError) {
+    const auto iniPath =
+        executable.parent_path() /
+        L"Everything.ini";
+
+    std::string existing;
+
+    if (!ReadManagedIni(
+            iniPath,
+            existing,
+            nativeError)) {
+        return false;
+    }
+
+    needsUpdate =
+        ApplyManagedEverythingIniPolicy(
+            existing) != existing;
+    nativeError = 0;
+    return true;
+}
+
+[[nodiscard]] bool
+ConfigureManagedEverything(
+    const std::filesystem::path& executable,
+    std::uint32_t& nativeError) {
+    const auto iniPath =
+        executable.parent_path() /
+        L"Everything.ini";
+    const auto tempPath =
+        executable.parent_path() /
+        L"Everything.ini.altrun.tmp";
+
+    std::string existing;
+
+    if (!ReadManagedIni(
+            iniPath,
+            existing,
+            nativeError)) {
+        return false;
+    }
+
+    const std::string configured =
+        ApplyManagedEverythingIniPolicy(
+            existing);
+
+    if (configured == existing) {
+        nativeError = 0;
+        return true;
+    }
+
+    {
+        std::ofstream output(
+            tempPath,
+            std::ios::binary |
+                std::ios::trunc);
+
+        if (!output) {
+            nativeError =
+                ERROR_OPEN_FAILED;
+            return false;
+        }
+
+        output.write(
+            configured.data(),
+            static_cast<
+                std::streamsize>(
+                configured.size()));
+        output.flush();
+
+        if (!output) {
+            nativeError =
+                ERROR_WRITE_FAULT;
+            return false;
+        }
+    }
+
+    if (!MoveFileExW(
+            tempPath.c_str(),
+            iniPath.c_str(),
+            MOVEFILE_REPLACE_EXISTING |
+                MOVEFILE_WRITE_THROUGH)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+
+        std::error_code cleanup;
+        std::filesystem::remove(
+            tempPath,
+            cleanup);
+        return false;
+    }
+
+    nativeError = 0;
+    return true;
+}
+
+enum class ManagedRuntimeResult {
+    Ready,
+    NeedsService,
+    Cancelled,
+    StopFailed,
+    ConfigFailed,
+    ServiceElevationCancelled,
+    ServiceInstallFailed,
+    ServiceUnavailable,
+    LaunchFailed,
+    IpcUnavailable,
+};
+
+struct ManagedRuntimeOutcome {
+    ManagedRuntimeResult result{
+        ManagedRuntimeResult::Ready};
+    std::uint32_t nativeError{0};
+};
+
+[[nodiscard]] ManagedRuntimeOutcome
+StartManagedEverything(
+    const std::filesystem::path& executable,
+    bool allowElevation,
+    EverythingBootstrapSnapshot& snapshot,
+    const EverythingBootstrapProgress&
+        progress,
+    std::stop_token stopToken) {
+    bool configNeedsUpdate = false;
+    std::uint32_t nativeError = 0;
+
+    if (!ManagedIniNeedsUpdate(
+            executable,
+            configNeedsUpdate,
+            nativeError)) {
+        return {
+            ManagedRuntimeResult::
+                ConfigFailed,
+            nativeError,
+        };
+    }
+
+    auto serviceStatus =
+        ProbeEverythingService(
+            nativeError);
+
+    if (serviceStatus ==
+        ServiceProbe::Error) {
+        return {
+            ManagedRuntimeResult::
+                ServiceUnavailable,
+            nativeError,
+        };
+    }
+
+    if (serviceStatus ==
+        ServiceProbe::Starting) {
+        Report(
+            snapshot,
+            EverythingBootstrapStage::
+                WaitingForService,
+            progress);
+
+        if (!WaitForEverythingService(
+                stopToken,
+                nativeError)) {
+            return {
+                stopToken.stop_requested()
+                    ? ManagedRuntimeResult::
+                          Cancelled
+                    : ManagedRuntimeResult::
+                          ServiceUnavailable,
+                nativeError,
+            };
+        }
+
+        serviceStatus =
+            ServiceProbe::Running;
+    }
+
+    const bool managedRunning =
+        ManagedDefaultIpcRunning(
+            executable);
+
+    if (managedRunning &&
+        serviceStatus ==
+            ServiceProbe::Running &&
+        !configNeedsUpdate) {
+        return {};
+    }
+
+    if (serviceStatus !=
+            ServiceProbe::Running &&
+        !allowElevation) {
+        return {
+            ManagedRuntimeResult::
+                NeedsService,
+            ERROR_SERVICE_NOT_ACTIVE,
+        };
+    }
+
+    if (managedRunning) {
+        Report(
+            snapshot,
+            EverythingBootstrapStage::
+                StoppingManaged,
+            progress);
+
+        if (!LaunchEverythingCommand(
+                executable,
+                L"-exit",
+                true,
+                nativeError) ||
+            !WaitForManagedDefaultIpcToExit(
+                executable,
+                stopToken)) {
+            return {
+                stopToken.stop_requested()
+                    ? ManagedRuntimeResult::
+                          Cancelled
+                    : ManagedRuntimeResult::
+                          StopFailed,
+                stopToken.stop_requested()
+                    ? ERROR_CANCELLED
+                    : (nativeError != 0
+                           ? nativeError
+                           : ERROR_TIMEOUT),
+            };
+        }
+    }
+
+    Report(
+        snapshot,
+        EverythingBootstrapStage::
+            ConfiguringManaged,
+        progress);
+
+    if (!ConfigureManagedEverything(
+            executable,
+            nativeError)) {
+        return {
+            ManagedRuntimeResult::
+                ConfigFailed,
+            nativeError,
+        };
+    }
+
+    if (serviceStatus !=
+        ServiceProbe::Running) {
+        Report(
+            snapshot,
+            EverythingBootstrapStage::
+                InstallingService,
+            progress);
+
+        const std::wstring_view command =
+            serviceStatus ==
+                    ServiceProbe::Missing
+                ? L"-install-service"
+                : L"-start-service";
+
+        if (!RunElevatedEverythingCommand(
+                executable,
+                command,
+                nativeError)) {
+            return {
+                nativeError ==
+                        ERROR_CANCELLED
+                    ? ManagedRuntimeResult::
+                          ServiceElevationCancelled
+                    : ManagedRuntimeResult::
+                          ServiceInstallFailed,
+                nativeError,
+            };
+        }
+
+        Report(
+            snapshot,
+            EverythingBootstrapStage::
+                WaitingForService,
+            progress);
+
+        if (!WaitForEverythingService(
+                stopToken,
+                nativeError)) {
+            return {
+                stopToken.stop_requested()
+                    ? ManagedRuntimeResult::
+                          Cancelled
+                    : ManagedRuntimeResult::
+                          ServiceUnavailable,
+                nativeError,
+            };
+        }
+    }
+
+    if (stopToken.stop_requested()) {
+        return {
+            ManagedRuntimeResult::
+                Cancelled,
+            ERROR_CANCELLED,
+        };
+    }
+
+    Report(
+        snapshot,
+        EverythingBootstrapStage::
+            StartingManaged,
+        progress);
+
+    if (!LaunchEverything(
+            executable,
+            nativeError)) {
+        return {
+            ManagedRuntimeResult::
+                LaunchFailed,
+            nativeError,
+        };
+    }
+
+    Report(
+        snapshot,
+        EverythingBootstrapStage::
+            WaitingForIpc,
+        progress);
+
+    if (!WaitForIpc(
+            stopToken)) {
+        return {
+            stopToken.stop_requested()
+                ? ManagedRuntimeResult::
+                      Cancelled
+                : ManagedRuntimeResult::
+                      IpcUnavailable,
+            stopToken.stop_requested()
+                ? ERROR_CANCELLED
+                : ERROR_TIMEOUT,
+        };
+    }
+
+    return {};
 }
 
 [[nodiscard]] bool
@@ -1419,6 +2164,134 @@ RunEverythingBootstrap(
     EverythingBootstrapSnapshot snapshot;
     snapshot.running = true;
 
+    const auto managedExecutable =
+        ManagedEverythingExecutable(
+            dataDirectory);
+
+    const auto finishManaged =
+        [&](const std::filesystem::path&
+                executable,
+            bool allowElevation)
+            -> EverythingBootstrapSnapshot {
+            snapshot.source =
+                EverythingBootstrapSource::
+                    Managed;
+            snapshot.executablePath =
+                executable;
+
+            const auto outcome =
+                StartManagedEverything(
+                    executable,
+                    allowElevation,
+                    snapshot,
+                    progress,
+                    stopToken);
+
+            switch (outcome.result) {
+            case ManagedRuntimeResult::Ready:
+                snapshot.stage =
+                    EverythingBootstrapStage::
+                        Ready;
+                snapshot.failure =
+                    EverythingBootstrapFailure::
+                        None;
+                snapshot.running = false;
+                snapshot.nativeError = 0;
+
+                if (progress) {
+                    progress(snapshot);
+                }
+                return snapshot;
+
+            case ManagedRuntimeResult::
+                NeedsService:
+                return NeedsInstall(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ServiceRequired,
+                    progress);
+
+            case ManagedRuntimeResult::
+                Cancelled:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        Cancelled,
+                    outcome.nativeError,
+                    progress);
+
+            case ManagedRuntimeResult::
+                StopFailed:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ManagedStopFailed,
+                    outcome.nativeError,
+                    progress);
+
+            case ManagedRuntimeResult::
+                ConfigFailed:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ManagedConfigFailed,
+                    outcome.nativeError,
+                    progress);
+
+            case ManagedRuntimeResult::
+                ServiceElevationCancelled:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ServiceElevationCancelled,
+                    outcome.nativeError,
+                    progress);
+
+            case ManagedRuntimeResult::
+                ServiceInstallFailed:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ServiceInstallFailed,
+                    outcome.nativeError,
+                    progress);
+
+            case ManagedRuntimeResult::
+                ServiceUnavailable:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ServiceUnavailable,
+                    outcome.nativeError,
+                    progress);
+
+            case ManagedRuntimeResult::
+                LaunchFailed:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ManagedLaunchFailed,
+                    outcome.nativeError,
+                    progress);
+
+            case ManagedRuntimeResult::
+                IpcUnavailable:
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        IpcUnavailable,
+                    outcome.nativeError,
+                    progress);
+            }
+
+            return Fail(
+                snapshot,
+                EverythingBootstrapFailure::
+                    ServiceUnavailable,
+                ERROR_INVALID_DATA,
+                progress);
+        };
+
     Report(
         snapshot,
         EverythingBootstrapStage::
@@ -1426,6 +2299,15 @@ RunEverythingBootstrap(
         progress);
 
     if (AnyUsableIpcEndpoint()) {
+        if (FileExists(
+                managedExecutable) &&
+            ManagedDefaultIpcRunning(
+                managedExecutable)) {
+            return finishManaged(
+                managedExecutable,
+                allowDownload);
+        }
+
         snapshot.stage =
             EverythingBootstrapStage::
                 Ready;
@@ -1453,6 +2335,14 @@ RunEverythingBootstrap(
             candidate.source;
         snapshot.executablePath =
             candidate.path;
+
+        if (candidate.source ==
+            EverythingBootstrapSource::
+                Managed) {
+            return finishManaged(
+                candidate.path,
+                allowDownload);
+        }
 
         Report(
             snapshot,
@@ -1525,9 +2415,7 @@ RunEverythingBootstrap(
             CurrentArchitecture());
 
     const auto managedDirectory =
-        ManagedEverythingExecutable(
-            dataDirectory)
-            .parent_path();
+        managedExecutable.parent_path();
 
     const auto toolsRoot =
         managedDirectory
@@ -1744,10 +2632,6 @@ RunEverythingBootstrap(
         verifiedArchive,
         ec);
 
-    const auto managedExecutable =
-        ManagedEverythingExecutable(
-            dataDirectory);
-
     if (!FileExists(
             managedExecutable)) {
         return Fail(
@@ -1762,56 +2646,9 @@ RunEverythingBootstrap(
     snapshot.executablePath =
         managedExecutable;
 
-    Report(
-        snapshot,
-        EverythingBootstrapStage::
-            StartingManaged,
-        progress);
-
-    if (!LaunchEverything(
-            managedExecutable,
-            nativeError)) {
-        return Fail(
-            snapshot,
-            EverythingBootstrapFailure::
-                ManagedLaunchFailed,
-            nativeError,
-            progress);
-    }
-
-    Report(
-        snapshot,
-        EverythingBootstrapStage::
-            WaitingForIpc,
-        progress);
-
-    if (!WaitForIpc(
-            stopToken)) {
-        return Fail(
-            snapshot,
-            stopToken.stop_requested()
-                ? EverythingBootstrapFailure::
-                    Cancelled
-                : EverythingBootstrapFailure::
-                    IpcUnavailable,
-            stopToken.stop_requested()
-                ? ERROR_CANCELLED
-                : ERROR_TIMEOUT,
-            progress);
-    }
-
-    snapshot.stage =
-        EverythingBootstrapStage::Ready;
-    snapshot.failure =
-        EverythingBootstrapFailure::None;
-    snapshot.running = false;
-    snapshot.nativeError = 0;
-
-    if (progress) {
-        progress(snapshot);
-    }
-
-    return snapshot;
+    return finishManaged(
+        managedExecutable,
+        true);
 }
 
 } // namespace altrun::win
