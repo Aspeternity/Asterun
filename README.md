@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.2.2 — True Grouped Path Preview
+
+Alpha 2.2 replaces the alpha.2.1 compact presentation with an actual hierarchical path-preview structure while preserving the existing Common Controls version and all alpha.2 conversion semantics.
+
+Each shortcut now receives its own full-width header row, drawn across the entire ListView using system colors and a semibold system font (for example `test — Test`). Header rows have no checkbox, cannot be selected or applied, and visually separate one shortcut from the next. The convertible Target and Working Directory rows are indented beneath the header and remain independently checkable.
+
+The redundant Shortcut data column is removed. The data grid now contains only Field, Current path, Converted and Status. Applying selected conversions walks only real data rows; structural header rows can never enter the atomic commands.json update batch.
+
+No Common Controls v6 manifest is introduced, so this focused UX change does not alter the visual style of Settings, Shortcut Manager or other Win32 controls. Windows fixed FileVersion/ProductVersion is `0.7.0.22`.
+
 ## v0.7.0-alpha.2.1 — Grouped Path Conversion Preview
 
 Alpha 2.1 is a focused UX patch for the path conversion dialog. Conversion behavior, path resolution and persisted schemas are unchanged from alpha.2.

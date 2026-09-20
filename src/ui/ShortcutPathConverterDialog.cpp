@@ -26,6 +26,9 @@ constexpr UINT kIdList = 54104;
 constexpr UINT kIdApply = 54105;
 constexpr UINT kIdClose = 54106;
 
+constexpr LPARAM kGroupHeaderItemParam =
+    static_cast<LPARAM>(-1);
+
 } // namespace
 
 ShortcutPathConverterDialog::
@@ -47,6 +50,11 @@ ShortcutPathConverterDialog::
     if (font_) {
         DeleteObject(font_);
         font_ = nullptr;
+    }
+
+    if (groupFont_) {
+        DeleteObject(groupFont_);
+        groupFont_ = nullptr;
     }
 }
 
@@ -345,6 +353,12 @@ void ShortcutPathConverterDialog::CreateControls() {
         kIdClose,
         BS_PUSHBUTTON);
 
+    const wchar_t* fontFace =
+        app_.SettingsData().language ==
+                Language::ZhCN
+            ? L"Microsoft YaHei UI"
+            : L"Segoe UI";
+
     font_ = CreateFontW(
         -MulDiv(
             10,
@@ -363,10 +377,27 @@ void ShortcutPathConverterDialog::CreateControls() {
         CLEARTYPE_QUALITY,
         DEFAULT_PITCH |
             FF_DONTCARE,
-        app_.SettingsData().language ==
-                Language::ZhCN
-            ? L"Microsoft YaHei UI"
-            : L"Segoe UI");
+        fontFace);
+
+    groupFont_ = CreateFontW(
+        -MulDiv(
+            10,
+            static_cast<int>(dpi_),
+            72),
+        0,
+        0,
+        0,
+        FW_SEMIBOLD,
+        FALSE,
+        FALSE,
+        FALSE,
+        DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY,
+        DEFAULT_PITCH |
+            FF_DONTCARE,
+        fontFace);
 
     for (HWND control :
          std::array<HWND, 7>{
@@ -391,17 +422,15 @@ void ShortcutPathConverterDialog::CreateControls() {
         BST_CHECKED,
         0);
 
-    const std::array<int, 5> widths{
-        145,
-        135,
-        285,
-        285,
-        120,
+    const std::array<int, 4> widths{
+        155,
+        350,
+        350,
+        130,
     };
 
-    const std::array<const wchar_t*, 5>
+    const std::array<const wchar_t*, 4>
         initialLabels{
-            T(L"快捷项", L"Shortcut"),
             T(L"字段", L"Field"),
             T(L"当前路径", L"Current path"),
             T(L"转换后", L"Converted"),
@@ -466,9 +495,8 @@ void ShortcutPathConverterDialog::ApplyLanguage() {
         close_,
         T(L"关闭", L"Close"));
 
-    const std::array<const wchar_t*, 5>
+    const std::array<const wchar_t*, 4>
         labels{
-            T(L"快捷项", L"Shortcut"),
             T(L"字段", L"Field"),
             T(L"当前路径", L"Current path"),
             T(L"转换后", L"Converted"),
@@ -610,6 +638,286 @@ void ShortcutPathConverterDialog::Layout() {
         TRUE);
 }
 
+void ShortcutPathConverterDialog::InsertGroupHeader(
+    std::wstring_view title) {
+    const int itemIndex =
+        ListView_GetItemCount(list_);
+
+    std::wstring text(title);
+
+    LVITEMW item{};
+    item.mask =
+        LVIF_TEXT |
+        LVIF_PARAM |
+        LVIF_STATE;
+    item.iItem = itemIndex;
+    item.iSubItem = 0;
+    item.pszText = text.data();
+    item.lParam = kGroupHeaderItemParam;
+    item.stateMask =
+        LVIS_STATEIMAGEMASK;
+    item.state = 0;
+
+    const int inserted =
+        ListView_InsertItem(
+            list_,
+            &item);
+
+    if (inserted >= 0) {
+        ListView_SetItemState(
+            list_,
+            inserted,
+            0,
+            LVIS_STATEIMAGEMASK |
+                LVIS_SELECTED);
+    }
+}
+
+void ShortcutPathConverterDialog::InsertPreviewRow(
+    Row row) {
+    const std::size_t rowIndex =
+        rows_.size();
+
+    rows_.push_back(
+        std::move(row));
+
+    const int itemIndex =
+        ListView_GetItemCount(list_);
+
+    std::wstring fieldText =
+        rows_.back().field ==
+                Field::Target
+            ? T(L"    目标", L"    Target")
+            : T(L"    工作目录",
+                L"    Working directory");
+
+    LVITEMW item{};
+    item.mask =
+        LVIF_TEXT |
+        LVIF_PARAM;
+    item.iItem = itemIndex;
+    item.iSubItem = 0;
+    item.pszText = fieldText.data();
+    item.lParam =
+        static_cast<LPARAM>(
+            rowIndex + 1);
+
+    const int inserted =
+        ListView_InsertItem(
+            list_,
+            &item);
+
+    if (inserted < 0) {
+        rows_.pop_back();
+        return;
+    }
+
+    ListView_SetItemText(
+        list_,
+        inserted,
+        1,
+        rows_.back()
+            .current
+            .data());
+
+    ListView_SetItemText(
+        list_,
+        inserted,
+        2,
+        rows_.back()
+            .converted
+            .data());
+
+    ListView_SetItemText(
+        list_,
+        inserted,
+        3,
+        const_cast<wchar_t*>(
+            rows_.back().exists
+                ? T(L"可访问",
+                    L"Accessible")
+                : T(L"路径不存在",
+                    L"Missing")));
+
+    ListView_SetCheckState(
+        list_,
+        inserted,
+        rows_.back().exists
+            ? TRUE
+            : FALSE);
+}
+
+bool ShortcutPathConverterDialog::IsGroupHeaderItem(
+    int itemIndex) const {
+    if (!list_ || itemIndex < 0) {
+        return false;
+    }
+
+    LVITEMW item{};
+    item.mask = LVIF_PARAM;
+    item.iItem = itemIndex;
+
+    if (!ListView_GetItem(
+            list_,
+            &item)) {
+        return false;
+    }
+
+    return item.lParam ==
+        kGroupHeaderItemParam;
+}
+
+std::optional<std::size_t>
+ShortcutPathConverterDialog::RowIndexForListItem(
+    int itemIndex) const {
+    if (!list_ || itemIndex < 0) {
+        return std::nullopt;
+    }
+
+    LVITEMW item{};
+    item.mask = LVIF_PARAM;
+    item.iItem = itemIndex;
+
+    if (!ListView_GetItem(
+            list_,
+            &item) ||
+        item.lParam <= 0) {
+        return std::nullopt;
+    }
+
+    const auto rowIndex =
+        static_cast<std::size_t>(
+            item.lParam - 1);
+
+    if (rowIndex >= rows_.size()) {
+        return std::nullopt;
+    }
+
+    return rowIndex;
+}
+
+LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
+    NMLVCUSTOMDRAW* draw) {
+    if (!draw) {
+        return CDRF_DODEFAULT;
+    }
+
+    switch (draw->nmcd.dwDrawStage) {
+    case CDDS_PREPAINT:
+        return CDRF_NOTIFYITEMDRAW;
+
+    case CDDS_ITEMPREPAINT: {
+        const int itemIndex =
+            static_cast<int>(
+                draw->nmcd.dwItemSpec);
+
+        if (!IsGroupHeaderItem(
+                itemIndex)) {
+            return CDRF_DODEFAULT;
+        }
+
+        RECT rect{};
+        if (!ListView_GetItemRect(
+                list_,
+                itemIndex,
+                &rect,
+                LVIR_BOUNDS)) {
+            return CDRF_DODEFAULT;
+        }
+
+        RECT client{};
+        GetClientRect(
+            list_,
+            &client);
+        rect.left = client.left;
+        rect.right = client.right;
+
+        FillRect(
+            draw->nmcd.hdc,
+            &rect,
+            GetSysColorBrush(
+                COLOR_3DFACE));
+
+        std::array<wchar_t, 512>
+            title{};
+
+        ListView_GetItemText(
+            list_,
+            itemIndex,
+            0,
+            title.data(),
+            static_cast<int>(
+                title.size()));
+
+        RECT textRect = rect;
+        textRect.left += Scale(12);
+        textRect.right -= Scale(8);
+
+        SetBkMode(
+            draw->nmcd.hdc,
+            TRANSPARENT);
+        SetTextColor(
+            draw->nmcd.hdc,
+            GetSysColor(
+                COLOR_BTNTEXT));
+
+        HGDIOBJ previousFont =
+            SelectObject(
+                draw->nmcd.hdc,
+                groupFont_
+                    ? groupFont_
+                    : font_);
+
+        DrawTextW(
+            draw->nmcd.hdc,
+            title.data(),
+            -1,
+            &textRect,
+            DT_LEFT |
+                DT_VCENTER |
+                DT_SINGLELINE |
+                DT_END_ELLIPSIS);
+
+        SelectObject(
+            draw->nmcd.hdc,
+            previousFont);
+
+        HPEN separator =
+            CreatePen(
+                PS_SOLID,
+                1,
+                GetSysColor(
+                    COLOR_3DSHADOW));
+
+        HGDIOBJ previousPen =
+            SelectObject(
+                draw->nmcd.hdc,
+                separator);
+
+        MoveToEx(
+            draw->nmcd.hdc,
+            rect.left,
+            rect.bottom - 1,
+            nullptr);
+
+        LineTo(
+            draw->nmcd.hdc,
+            rect.right,
+            rect.bottom - 1);
+
+        SelectObject(
+            draw->nmcd.hdc,
+            previousPen);
+        DeleteObject(separator);
+
+        return CDRF_SKIPDEFAULT;
+    }
+
+    default:
+        return CDRF_DODEFAULT;
+    }
+}
+
 void ShortcutPathConverterDialog::Scan() {
     if (!list_) {
         return;
@@ -620,16 +928,14 @@ void ShortcutPathConverterDialog::Scan() {
 
     std::size_t convertibleShortcutCount = 0;
 
-    const auto addPreview =
+    const auto makePreview =
         [&](const Command& command,
             Field field,
             std::wstring_view value,
-            bool bareRelativeIsPath,
-            const std::wstring& groupTitle,
-            bool& firstPreviewForCommand,
-            bool& commandHasPreview) {
+            bool bareRelativeIsPath)
+            -> std::optional<Row> {
             if (value.empty()) {
-                return;
+                return std::nullopt;
             }
 
             std::optional<win::PortablePathPreview>
@@ -650,17 +956,11 @@ void ShortcutPathConverterDialog::Scan() {
             }
 
             if (!preview) {
-                return;
-            }
-
-            if (!commandHasPreview) {
-                commandHasPreview = true;
-                ++convertibleShortcutCount;
+                return std::nullopt;
             }
 
             Row row;
-            row.commandId =
-                command.id;
+            row.commandId = command.id;
             row.field = field;
             row.current =
                 std::wstring(value);
@@ -670,80 +970,48 @@ void ShortcutPathConverterDialog::Scan() {
                 preview->resolved;
             row.exists =
                 preview->exists;
-
-            const int itemIndex =
-                static_cast<int>(
-                    rows_.size());
-
-            rows_.push_back(
-                std::move(row));
-
-            std::wstring shortcutText =
-                firstPreviewForCommand
-                    ? groupTitle
-                    : L"";
-
-            LVITEMW item{};
-            item.mask = LVIF_TEXT;
-            item.iItem = itemIndex;
-            item.iSubItem = 0;
-            item.pszText =
-                shortcutText.data();
-
-            ListView_InsertItem(
-                list_,
-                &item);
-
-            ListView_SetItemText(
-                list_,
-                itemIndex,
-                1,
-                const_cast<wchar_t*>(
-                    field == Field::Target
-                        ? T(L"目标",
-                            L"Target")
-                        : T(L"工作目录",
-                            L"Working directory")));
-
-            ListView_SetItemText(
-                list_,
-                itemIndex,
-                2,
-                rows_.back()
-                    .current
-                    .data());
-
-            ListView_SetItemText(
-                list_,
-                itemIndex,
-                3,
-                rows_.back()
-                    .converted
-                    .data());
-
-            ListView_SetItemText(
-                list_,
-                itemIndex,
-                4,
-                const_cast<wchar_t*>(
-                    rows_.back().exists
-                        ? T(L"可访问",
-                            L"Accessible")
-                        : T(L"路径不存在",
-                            L"Missing")));
-
-            ListView_SetCheckState(
-                list_,
-                itemIndex,
-                rows_.back().exists
-                    ? TRUE
-                    : FALSE);
-
-            firstPreviewForCommand = false;
+            return row;
         };
 
     for (const auto& command :
          app_.UserCommands()) {
+        std::vector<Row> commandRows;
+
+        if (command.type !=
+            CommandType::Url) {
+            auto target =
+                makePreview(
+                    command,
+                    Field::Target,
+                    command.target,
+                    command.type ==
+                        CommandType::Folder);
+
+            if (target) {
+                commandRows.push_back(
+                    std::move(*target));
+            }
+        }
+
+        auto workingDirectory =
+            makePreview(
+                command,
+                Field::WorkingDirectory,
+                command.workingDirectory,
+                true);
+
+        if (workingDirectory) {
+            commandRows.push_back(
+                std::move(
+                    *workingDirectory));
+        }
+
+        if (commandRows.empty()) {
+            continue;
+        }
+
+        ++convertibleShortcutCount;
+
         std::wstring groupTitle =
             command.keyword.empty()
                 ? command.title
@@ -761,30 +1029,12 @@ void ShortcutPathConverterDialog::Scan() {
             groupTitle = command.id;
         }
 
-        bool firstPreviewForCommand = true;
-        bool commandHasPreview = false;
+        InsertGroupHeader(groupTitle);
 
-        if (command.type !=
-            CommandType::Url) {
-            addPreview(
-                command,
-                Field::Target,
-                command.target,
-                command.type ==
-                    CommandType::Folder,
-                groupTitle,
-                firstPreviewForCommand,
-                commandHasPreview);
+        for (auto& row : commandRows) {
+            InsertPreviewRow(
+                std::move(row));
         }
-
-        addPreview(
-            command,
-            Field::WorkingDirectory,
-            command.workingDirectory,
-            true,
-            groupTitle,
-            firstPreviewForCommand,
-            commandHasPreview);
     }
 
     std::wstring note =
@@ -822,22 +1072,25 @@ void ShortcutPathConverterDialog::ApplySelected() {
     std::vector<UserCommandPathUpdate>
         updates;
 
-    for (int index = 0;
-         index <
-            static_cast<int>(
-                rows_.size());
-         ++index) {
-        if (!ListView_GetCheckState(
+    const int itemCount =
+        ListView_GetItemCount(list_);
+
+    for (int itemIndex = 0;
+         itemIndex < itemCount;
+         ++itemIndex) {
+        const auto rowIndex =
+            RowIndexForListItem(
+                itemIndex);
+
+        if (!rowIndex ||
+            !ListView_GetCheckState(
                 list_,
-                index)) {
+                itemIndex)) {
             continue;
         }
 
         const Row& row =
-            rows_[
-                static_cast<
-                    std::size_t>(
-                        index)];
+            rows_[*rowIndex];
 
         auto it =
             std::find_if(
@@ -966,6 +1219,50 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
     case WM_SIZE:
         Layout();
         return 0;
+
+    case WM_NOTIFY: {
+        const auto* header =
+            reinterpret_cast<NMHDR*>(
+                lParam);
+
+        if (!header ||
+            header->idFrom !=
+                kIdList) {
+            break;
+        }
+
+        if (header->code ==
+            NM_CUSTOMDRAW) {
+            return HandleListCustomDraw(
+                reinterpret_cast<
+                    NMLVCUSTOMDRAW*>(
+                        lParam));
+        }
+
+        if (header->code ==
+            LVN_ITEMCHANGING) {
+            const auto* change =
+                reinterpret_cast<
+                    NMLISTVIEW*>(
+                        lParam);
+
+            if (IsGroupHeaderItem(
+                    change->iItem)) {
+                const UINT changedState =
+                    change->uNewState ^
+                    change->uOldState;
+
+                if ((changedState &
+                     (LVIS_SELECTED |
+                      LVIS_STATEIMAGEMASK)) !=
+                    0) {
+                    return TRUE;
+                }
+            }
+        }
+
+        return 0;
+    }
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0-alpha.2.2
+
+- Replaced the alpha.2.1 repeated-row presentation with true structural shortcut header rows.
+- Added full-width custom-drawn shortcut headers using system colors and a semibold system font.
+- Removed the redundant Shortcut data column; data rows now show Field, Current path, Converted and Status.
+- Indented Target and Working Directory rows beneath each shortcut header while keeping their checkboxes independent.
+- Prevented structural header rows from selection, checkbox state changes and path-application batches.
+- Kept the current Common Controls version and all alpha.2 conversion/persistence semantics unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.22.
+
 ## 0.7.0-alpha.2.1
 
 - Grouped path-conversion preview rows by shortcut without changing the global Common Controls version.

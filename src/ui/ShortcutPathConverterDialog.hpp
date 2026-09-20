@@ -1,7 +1,9 @@
 #pragma once
 
 #include <windows.h>
+#include <commctrl.h>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -62,6 +64,19 @@ private:
     void Scan();
     void ApplySelected();
 
+    void InsertGroupHeader(
+        std::wstring_view title);
+    void InsertPreviewRow(
+        Row row);
+    [[nodiscard]] bool
+    IsGroupHeaderItem(
+        int itemIndex) const;
+    [[nodiscard]] std::optional<std::size_t>
+    RowIndexForListItem(
+        int itemIndex) const;
+    LRESULT HandleListCustomDraw(
+        NMLVCUSTOMDRAW* draw);
+
     [[nodiscard]] const wchar_t* T(
         const wchar_t* zh,
         const wchar_t* en) const;
@@ -83,6 +98,7 @@ private:
     HWND close_{};
 
     HFONT font_{};
+    HFONT groupFont_{};
     UINT dpi_{96};
     Mode mode_{Mode::Portable};
     bool changed_{false};

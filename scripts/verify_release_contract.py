@@ -36,7 +36,7 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1"):
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2"):
     expected_schemas = {
         "kSettingsSchemaVersion": 4,
         "kCommandsSchemaVersion": 1,
@@ -219,6 +219,43 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1"):
         ):
             if forbidden in grouped_converter:
                 fail(f"v0.7 alpha.2.1 unexpectedly requires Common Controls v6 grouping: {forbidden}")
+
+    if version == "0.7.0-alpha.2.2":
+        grouped_converter = read("src/ui/ShortcutPathConverterDialog.cpp")
+        grouped_header = read("src/ui/ShortcutPathConverterDialog.hpp")
+
+        for token in (
+            "kGroupHeaderItemParam",
+            "InsertGroupHeader",
+            "InsertPreviewRow",
+            "IsGroupHeaderItem",
+            "RowIndexForListItem",
+            "HandleListCustomDraw",
+            "NM_CUSTOMDRAW",
+            "LVN_ITEMCHANGING",
+            "CDRF_SKIPDEFAULT",
+            "FW_SEMIBOLD",
+            "GetSysColorBrush",
+            "ListView_GetItemCount",
+            "std::array<int, 4> widths",
+        ):
+            if token not in grouped_converter and token not in grouped_header:
+                fail(f"v0.7 alpha.2.2 true grouping contract missing: {token}")
+
+        if 'T(L"快捷项", L"Shortcut")' in grouped_converter:
+            fail("v0.7 alpha.2.2 still exposes a redundant Shortcut data column")
+
+        for forbidden in (
+            "ListView_EnableGroupView",
+            "ListView_InsertGroup",
+            "LVIF_GROUPID",
+        ):
+            if forbidden in grouped_converter:
+                fail(f"v0.7 alpha.2.2 unexpectedly depends on Common Controls v6 group view: {forbidden}")
+
+        manifest = read("src/app.manifest")
+        if "Microsoft.Windows.Common-Controls" in manifest:
+            fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
     print(
         "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",
