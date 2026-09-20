@@ -607,6 +607,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if forbidden in editor_h or forbidden in editor_cpp:
                 fail(f"v0.7 alpha.3.1 still exposes internal keyword structure: {forbidden}")
 
+        editor_model = editor_model_h + editor_model_cpp
         for token in (
             "struct ShortcutKeywordSet",
             "ParseShortcutKeywords",
@@ -615,7 +616,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             "SuggestShortcutTitle",
             "DefaultShortcutWorkingDirectory",
         ):
-            if token not in editor_model_h or token not in editor_model_cpp:
+            if token not in editor_model:
                 fail(f"v0.7 alpha.3.1 editor model missing: {token}")
 
         for token in (
