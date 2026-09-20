@@ -13,7 +13,9 @@ using namespace altrun::win;
 
 namespace {
 
-HWND gTotalCommanderPath{};
+HWND gTotalCommanderLeftPath{};
+HWND gTotalCommanderRightPath{};
+int gTotalCommanderActivePanel{1};
 std::vector<unsigned char>
     gTotalCommanderCopyData;
 
@@ -37,12 +39,17 @@ TotalCommanderWindowProc(
     LPARAM lParam) {
     if (message == WM_USER + 50) {
         if (wParam == 1000) {
-            return 1;
+            return gTotalCommanderActivePanel;
         }
 
         if (wParam == 9) {
             return reinterpret_cast<LRESULT>(
-                gTotalCommanderPath);
+                gTotalCommanderLeftPath);
+        }
+
+        if (wParam == 10) {
+            return reinterpret_cast<LRESULT>(
+                gTotalCommanderRightPath);
         }
 
         return 0;
@@ -271,7 +278,7 @@ int main() {
 
     assert(tcWindow != nullptr);
 
-    gTotalCommanderPath =
+    gTotalCommanderLeftPath =
         CreateWindowExW(
             0,
             L"STATIC",
@@ -287,7 +294,26 @@ int main() {
             nullptr);
 
     assert(
-        gTotalCommanderPath !=
+        gTotalCommanderLeftPath !=
+        nullptr);
+
+    gTotalCommanderRightPath =
+        CreateWindowExW(
+            0,
+            L"STATIC",
+            L"\\\\server\\share\\Folder With Spaces\\中文\\*.*",
+            WS_CHILD,
+            0,
+            30,
+            320,
+            20,
+            tcWindow,
+            nullptr,
+            instance,
+            nullptr);
+
+    assert(
+        gTotalCommanderRightPath !=
         nullptr);
 
     const auto tcContext =
@@ -321,8 +347,42 @@ int main() {
             gTotalCommanderCopyData) ==
         target);
 
+    gTotalCommanderActivePanel = 2;
+
+    const auto tcRightContext =
+        CaptureWindowsContext(
+            tcWindow);
+
+    assert(
+        tcRightContext
+            .HasTotalCommander());
+    assert(
+        tcRightContext
+            .totalCommanderActivePanel ==
+        2);
+    assert(
+        tcRightContext
+            .CurrentFilesystemFolder() ==
+        L"\\\\server\\share\\Folder With Spaces\\中文");
+
+    const std::wstring uncTarget =
+        L"\\\\server\\share\\第二层 Folder";
+
+    gTotalCommanderCopyData.clear();
+
+    assert(
+        NavigateTotalCommanderToFolder(
+            tcRightContext,
+            uncTarget));
+    assert(
+        DecodeTotalCommanderPath(
+            gTotalCommanderCopyData) ==
+        uncTarget);
+
     DestroyWindow(tcWindow);
-    gTotalCommanderPath = nullptr;
+    gTotalCommanderLeftPath = nullptr;
+    gTotalCommanderRightPath = nullptr;
+    gTotalCommanderActivePanel = 1;
     UnregisterClassW(
         tcClass,
         instance);

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0-beta.1
+
+- Entered v0.6 feature freeze: no new provider, Smart Action family or persisted behavior toggle is introduced in beta.1.
+- Added the ActionEvaluation contract so contextual Smart Actions expose availability plus a concrete unavailable reason while preserving existing execution/fallback semantics.
+- Added a dedicated Actions / 操作 Settings page for Smart Actions capability and runtime diagnostics.
+- Surface the last captured Windows activation context, Explorer/Total Commander folder context, TC active panel, file-dialog state, {folder} availability and current-file-manager navigation availability.
+- Surface Everything IPC availability/fallback state on the Actions diagnostics page without changing the external optional Everything contract.
+- Keep the most recent activation snapshot in process memory for diagnostics after the launcher hides; it is not persisted.
+- Clarified Hotkey runtime status as Windows-global registration vs launcher-local readiness.
+- Expanded Launcher Action Policy regression coverage for file-dialog navigation, unsupported file-manager contexts, non-folder navigation intents, empty copy targets and invalid action targets.
+- Expanded Windows runtime smoke coverage to Total Commander right-panel selection plus UNC, spaces and Unicode paths.
+- Kept settings schemaVersion 4, commands/usage schemaVersion 1, provider-cache schemaVersion 2, frozen provider defaults, Hotkey Registry IDs and Classic geometry 420/16/10 unchanged.
+- Updated Windows fixed version to 0.6.0.100.
+
 ## 0.6.0-alpha.6.1
 
 - Hardened schema-3 -> 4 Hotkey Registry migration when an existing user global activation chord collides with a newly introduced launcher-local default.

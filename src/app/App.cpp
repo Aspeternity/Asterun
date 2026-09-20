@@ -2158,8 +2158,8 @@ bool App::ExecuteCommand(std::size_t index) {
 bool App::ExecuteResult(
     const LauncherResult& result,
     LauncherExecutionIntent intent) {
-    const LauncherAction action =
-        ResolveLauncherAction(
+    const ActionEvaluation evaluation =
+        EvaluateLauncherAction(
             result,
             intent,
             activationContext_
@@ -2168,6 +2168,8 @@ bool App::ExecuteResult(
                 .HasFileDialog(),
             activationContext_
                 .HasTotalCommander());
+    const LauncherAction& action =
+        evaluation.action;
 
     if (action.kind ==
         LauncherActionKind::ExecuteCommand) {
@@ -2310,6 +2312,8 @@ void App::CaptureActivationContext() {
     activationContext_ =
         win::CaptureWindowsContext(
             GetForegroundWindow());
+    lastActivationContext_ =
+        activationContext_;
 }
 
 void App::ClearActivationContext() {

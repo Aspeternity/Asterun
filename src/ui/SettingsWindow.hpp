@@ -34,6 +34,7 @@ private:
         Commands,
         General,
         Hotkeys,
+        Actions,
         Appearance,
         Providers,
         Data,
@@ -57,6 +58,8 @@ private:
         kIdNavProviders = 51005;
     static constexpr UINT
         kIdNavHotkeys = 51006;
+    static constexpr UINT
+        kIdNavActions = 51007;
 
     static constexpr UINT
         kIdStartWithWindows = 51100;
@@ -205,6 +208,8 @@ private:
 
     static constexpr UINT_PTR
         kProviderStatusTimerId = 0x51690;
+    static constexpr UINT_PTR
+        kActionStatusTimerId = 0x51790;
 
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
@@ -221,6 +226,7 @@ private:
     void CreateCommandPage();
     void CreateGeneralPage();
     void CreateHotkeyPage();
+    void CreateActionsPage();
     void CreateAppearancePage();
     void CreateProviderPage();
     void CreateDataPage();
@@ -235,6 +241,7 @@ private:
     void RefreshCommandList(
         std::wstring_view preferredId = {});
     void RefreshProviderStatus();
+    void RefreshActionDiagnostics();
     void OpenEverythingDownloadPage();
     void RefreshDataCompatibilityStatus();
     void LoadCommandEditor(
@@ -354,6 +361,7 @@ private:
     HWND navCommands_{};
     HWND navGeneral_{};
     HWND navHotkeys_{};
+    HWND navActions_{};
     HWND navAppearance_{};
     HWND navProviders_{};
     HWND navData_{};
@@ -436,6 +444,14 @@ private:
     HWND hotkeyPageStatus_{};
     HWND hotkeyPageNote_{};
 
+    HWND actionsWindowsTitle_{};
+    HWND actionsWindowsStatus_{};
+    HWND actionsClipboardTitle_{};
+    HWND actionsClipboardStatus_{};
+    HWND actionsWebTitle_{};
+    HWND actionsWebStatus_{};
+    HWND actionsNote_{};
+
     HWND popupSectionTitle_{};
     HWND popupMonitorLabel_{};
     HWND popupMonitorDescription_{};
@@ -507,6 +523,8 @@ private:
         generalControls_;
     std::vector<HWND>
         hotkeyControls_;
+    std::vector<HWND>
+        actionControls_;
     std::vector<HWND>
         legacyHotkeyControls_;
     std::vector<HWND>

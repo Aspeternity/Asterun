@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-beta.1 — Smart Actions UX & Diagnostics
+
+Beta 1 starts the v0.6 feature freeze. It does not add a new provider, action family or persisted preference. Instead it makes the Smart Actions already introduced during alpha easier to inspect and safer to stabilize before RC.
+
+Settings now includes a dedicated Actions / 操作 page. The page reports the last captured Windows activation context (Explorer, Open/Save dialog, Total Commander or none), source folder / active TC panel when available, {folder} availability, current-file-manager navigation availability with a concrete reason when unavailable, and Everything IPC/fallback state. The activation snapshot is process-memory only and is not written to settings, usage history or provider-cache.
+
+Launcher action resolution now exposes an ActionEvaluation contract alongside the existing resolved action. It records whether the requested contextual action is available and why it is unavailable (ResultNotFolder, NoSupportedFileManager, NoCopyableTarget, or InvalidActionTarget). Execution still preserves the published alpha fallback behavior: diagnostics can explain that contextual navigation is unavailable without changing what Enter/Ctrl+Enter already does.
+
+Hotkey diagnostics now distinguish Windows-global registration from launcher-local readiness using explicit runtime-status wording. Desktop validation is also hardened: the fake Total Commander runtime smoke now covers both panels plus UNC, spaces and Unicode paths in context capture and WM_COPYDATA navigation.
+
+No persisted contract changes in beta.1: settings.json remains schemaVersion 4, commands.json / usage.json remain schemaVersion 1, provider-cache.json remains schemaVersion 2, provider IDs/defaults and the five Hotkey Registry action IDs stay frozen, Everything remains an external optional Query2/WM_COPYDATA engine, and Classic geometry remains 420/16/10. Windows fixed FileVersion/ProductVersion is 0.6.0.100.
+
 ## v0.6.0-alpha.6.1 — Hotkey Migration Collision Hardening
 
 Alpha 6.1 hardens schema-3 → 4 migration for users who had already customized a global activation chord to a key that alpha.6 introduces as a launcher-local default, such as `F2`, `Ctrl+Enter` or `Ctrl+Shift+C`.

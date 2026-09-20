@@ -172,6 +172,11 @@ public:
 
     void ClearActivationContext();
 
+    [[nodiscard]] const win::WindowsContextSnapshot&
+    LastActivationContext() const noexcept {
+        return lastActivationContext_;
+    }
+
     [[nodiscard]] const std::filesystem::path&
     DataDirectory() const noexcept {
         return dataDirectory_;
@@ -238,6 +243,8 @@ private:
         settingsWindow_;
     win::WindowsContextSnapshot
         activationContext_;
+    win::WindowsContextSnapshot
+        lastActivationContext_;
 
     std::jthread
         providerRefreshThread_;

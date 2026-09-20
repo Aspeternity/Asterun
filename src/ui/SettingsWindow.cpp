@@ -2,6 +2,7 @@
 
 #include "../app/App.hpp"
 #include "../core/HotkeyRegistry.hpp"
+#include "../core/LauncherActionPolicy.hpp"
 #include "../platform/Hotkey.hpp"
 #include "Version.hpp"
 
@@ -356,6 +357,11 @@ void SettingsWindow::CreateControls() {
             L"",
             kIdNavHotkeys,
             BS_OWNERDRAW);
+    navActions_ =
+        CreateButton(
+            L"",
+            kIdNavActions,
+            BS_OWNERDRAW);
     navAppearance_ =
         CreateButton(
             L"",
@@ -385,6 +391,7 @@ void SettingsWindow::CreateControls() {
     CreateCommandPage();
     CreateGeneralPage();
     CreateHotkeyPage();
+    CreateActionsPage();
     CreateAppearancePage();
     CreateProviderPage();
     CreateDataPage();
@@ -871,6 +878,30 @@ void SettingsWindow::CreateHotkeyPage() {
     };
 }
 
+void SettingsWindow::CreateActionsPage() {
+    actionsWindowsTitle_ = CreateStatic(L"");
+    actionsWindowsStatus_ =
+        CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
+    actionsClipboardTitle_ = CreateStatic(L"");
+    actionsClipboardStatus_ =
+        CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
+    actionsWebTitle_ = CreateStatic(L"");
+    actionsWebStatus_ =
+        CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
+    actionsNote_ =
+        CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
+
+    actionControls_ = {
+        actionsWindowsTitle_,
+        actionsWindowsStatus_,
+        actionsClipboardTitle_,
+        actionsClipboardStatus_,
+        actionsWebTitle_,
+        actionsWebStatus_,
+        actionsNote_,
+    };
+}
+
 void SettingsWindow::CreateAppearancePage() {
     uiStyleLabel_ = CreateStatic(L"");
 
@@ -1116,6 +1147,7 @@ void SettingsWindow::ApplyFonts() {
         navCommands_,
         navGeneral_,
         navHotkeys_,
+        navActions_,
         navAppearance_,
         navProviders_,
         navData_,
@@ -1178,6 +1210,10 @@ void SettingsWindow::ApplyFonts() {
         hotkeyResetAll_,
         hotkeyPageStatus_,
         hotkeyPageNote_,
+        actionsWindowsStatus_,
+        actionsClipboardStatus_,
+        actionsWebStatus_,
+        actionsNote_,
         popupMonitorLabel_,
         popupMonitorDescription_,
         popupMonitor_,
@@ -1225,12 +1261,15 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
-    for (HWND control : std::array<HWND, 10>{
+    for (HWND control : std::array<HWND, 13>{
              commandEditorTitle_,
              generalBehaviorTitle_,
              searchBehaviorTitle_,
              hotkeySectionTitle_,
              hotkeyEditorTitle_,
+             actionsWindowsTitle_,
+             actionsClipboardTitle_,
+             actionsWebTitle_,
              popupSectionTitle_,
              providerSectionTitle_,
              dataOpenLabel_,
@@ -1572,6 +1611,23 @@ void SettingsWindow::ApplyLanguage() {
           L"Appearance and language changes apply immediately and are saved to data/settings.json."));
 
     SetWindowTextW(
+        actionsWindowsTitle_,
+        T(L"Windows 导航与上下文",
+          L"Windows navigation & context"));
+    SetWindowTextW(
+        actionsClipboardTitle_,
+        T(L"剪贴板与文本",
+          L"Clipboard & text"));
+    SetWindowTextW(
+        actionsWebTitle_,
+        T(L"网页与 URL",
+          L"Web & URL"));
+    SetWindowTextW(
+        actionsNote_,
+        T(L"此页只显示 Smart Actions 的运行状态，不新增行为开关。上下文来自最近一次全局呼出快照，只保存在当前进程内，不写入配置或历史记录。",
+          L"This page reports Smart Actions runtime state without adding behavior toggles. Context comes from the last global activation snapshot, stays in memory only, and is not written to settings or history."));
+
+    SetWindowTextW(
         providerSectionTitle_,
         T(L"搜索来源", L"Search sources"));
     SetWindowTextW(
@@ -1646,8 +1702,8 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.4.1 正在补齐经典 ALTRun 设置与交互能力。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.4.1 adds classic ALTRun settings and interaction parity."));
+        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.6 Beta 正在收口 Smart Actions、诊断与桌面兼容性。",
+          L"A lightweight, keyboard-first Windows launcher.\nv0.6 Beta focuses on Smart Actions diagnostics and desktop compatibility."));
 
     SetWindowTextW(
         dataPathLabel_,
@@ -1729,6 +1785,7 @@ void SettingsWindow::RefreshFromSettings() {
 
     RefreshHotkeyControls();
     RefreshHotkeyPage();
+    RefreshActionDiagnostics();
 
     for (HWND control : std::array<HWND, 14>{
              startWithWindows_,
@@ -2052,20 +2109,20 @@ void SettingsWindow::LoadHotkeyEditor(
               L"Capturing: press a key combination; Esc cancels.");
     } else if (!binding.enabled) {
         status =
-            T(L"已禁用",
-              L"Disabled");
+            T(L"运行状态：已禁用",
+              L"Runtime status: Disabled");
     } else if (
         action->scope ==
         HotkeyScope::Global) {
         if (app_.IsHotkeyActionRegistered(
                 actionId)) {
             status =
-                T(L"● 已向 Windows 注册",
-                  L"● Registered with Windows");
+                T(L"运行状态：● 已向 Windows 注册",
+                  L"Runtime status: ● Registered with Windows");
         } else {
             status =
-                T(L"⚠ Windows 注册失败，旧绑定仍保持有效。错误码：",
-                  L"⚠ Windows registration failed; the previous binding remains active. Error: ");
+                T(L"运行状态：⚠ Windows 注册失败，旧绑定仍保持有效。错误码：",
+                  L"Runtime status: ⚠ Windows registration failed; the previous binding remains active. Error: ");
             status +=
                 std::to_wstring(
                     app_.HotkeyActionLastError(
@@ -2073,8 +2130,8 @@ void SettingsWindow::LoadHotkeyEditor(
         }
     } else {
         status =
-            T(L"● 可用（仅启动器内）",
-              L"● Available (launcher only)");
+            T(L"运行状态：● 就绪（仅启动器内）",
+              L"Runtime status: ● Ready (launcher only)");
     }
 
     SetWindowTextW(
@@ -2354,6 +2411,203 @@ void SettingsWindow::ResetAllHotkeys() {
     capturingHotkeyActionId_
         .clear();
     RefreshHotkeyPage();
+}
+
+void SettingsWindow::RefreshActionDiagnostics() {
+    if (!actionsWindowsStatus_) return;
+
+    const auto& context =
+        app_.LastActivationContext();
+
+    const auto reasonText =
+        [&](ActionUnavailableReason reason)
+            -> const wchar_t* {
+        switch (reason) {
+        case ActionUnavailableReason::None:
+            return T(L"可用", L"Available");
+        case ActionUnavailableReason::ResultNotFolder:
+            return T(L"当前结果不是文件夹",
+                     L"The selected result is not a folder");
+        case ActionUnavailableReason::NoSupportedFileManager:
+            return T(L"最近一次呼出未捕获 Explorer 或 Total Commander",
+                     L"The last activation did not capture Explorer or Total Commander");
+        case ActionUnavailableReason::NoCopyableTarget:
+            return T(L"当前结果没有可复制的目标",
+                     L"The selected result has no copyable target");
+        case ActionUnavailableReason::InvalidActionTarget:
+            return T(L"动作目标无效或为空",
+                     L"The action target is invalid or empty");
+        }
+        return T(L"不可用", L"Unavailable");
+    };
+
+    std::wstring windows =
+        T(L"最近一次呼出上下文：",
+          L"Last activation context: ");
+
+    switch (context.kind) {
+    case win::WindowsContextKind::Explorer:
+        windows += L"Explorer";
+        break;
+    case win::WindowsContextKind::FileDialog:
+        windows +=
+            T(L"文件打开 / 保存对话框",
+              L"Open / Save dialog");
+        break;
+    case win::WindowsContextKind::TotalCommander:
+        windows += L"Total Commander";
+        break;
+    case win::WindowsContextKind::None:
+        windows += T(L"无", L"None");
+        break;
+    }
+
+    if (context.HasExplorer() &&
+        !context.explorerFolder.empty()) {
+        windows += L"\r\n";
+        windows += T(L"来源目录：", L"Source folder: ");
+        windows += context.explorerFolder;
+    }
+
+    if (context.HasTotalCommander()) {
+        windows += L"\r\n";
+        windows += T(L"活动面板：", L"Active panel: ");
+        windows +=
+            context.totalCommanderActivePanel == 1
+                ? T(L"左", L"Left")
+                : T(L"右", L"Right");
+
+        if (!context.totalCommanderFolder.empty()) {
+            windows += L"  ·  ";
+            windows += context.totalCommanderFolder;
+        }
+    }
+
+    if (context.HasFileDialog()) {
+        windows += L"\r\n";
+        windows += T(L"对话框进程 ID：",
+                     L"Dialog process ID: ");
+        windows +=
+            std::to_wstring(
+                context.fileDialogProcessId);
+    }
+
+    LauncherResult folderProbe;
+    folderProbe.kind = ResultKind::Folder;
+    folderProbe.target =
+        L"C:\\ALTRunNext\\Diagnostics";
+    folderProbe.action.kind =
+        LauncherActionKind::OpenFolder;
+    folderProbe.action.payload =
+        folderProbe.target;
+
+    const auto navigate =
+        EvaluateLauncherAction(
+            folderProbe,
+            LauncherExecutionIntent::
+                NavigateCurrentFileManager,
+            context.HasExplorer(),
+            context.HasFileDialog(),
+            context.HasTotalCommander());
+
+    windows += L"\r\n";
+    windows += T(L"导航当前文件管理器：",
+                 L"Navigate current file manager: ");
+    windows += navigate.available
+        ? T(L"可用", L"Available")
+        : T(L"不可用", L"Unavailable");
+
+    if (!navigate.available) {
+        windows += L"  ·  ";
+        windows += reasonText(navigate.reason);
+    }
+
+    windows += L"\r\n";
+    windows += T(L"文件对话框 Folder Enter：",
+                 L"File-dialog Folder Enter: ");
+    windows += context.HasFileDialog()
+        ? T(L"将导航当前对话框",
+            L"Navigates the captured dialog")
+        : T(L"当前未激活",
+            L"Not active");
+
+    const auto folderContext =
+        context.CurrentFilesystemFolder();
+    windows += L"\r\n{folder}: ";
+    if (folderContext.empty()) {
+        windows += T(L"不可用", L"Unavailable");
+    } else {
+        windows += T(L"可用  ·  ", L"Available  ·  ");
+        windows += folderContext;
+    }
+
+    const bool everythingEnabled =
+        providers::IsEnabled(
+            app_.SettingsData().providerEnabled,
+            providers::kEverythingFilesystem,
+            false);
+
+    windows += L"\r\nEverything IPC: ";
+    if (!everythingEnabled) {
+        windows += T(L"已禁用", L"Disabled");
+    } else {
+        const auto everything =
+            app_.EverythingStatus();
+        if (everything.availability ==
+            EverythingAvailability::Available) {
+            windows += T(L"可用", L"Available");
+        } else if (
+            everything.availability ==
+            EverythingAvailability::Unknown) {
+            windows += T(L"正在检测", L"Detecting");
+        } else {
+            windows +=
+                T(L"不可用  ·  应用搜索回退仍有效",
+                  L"Unavailable  ·  application-search fallback remains active");
+        }
+    }
+
+    SetWindowTextW(
+        actionsWindowsStatus_,
+        windows.c_str());
+
+    LauncherResult copyProbe;
+    copyProbe.kind = ResultKind::File;
+    copyProbe.target =
+        L"C:\\ALTRunNext\\Diagnostics.txt";
+    copyProbe.action.kind =
+        LauncherActionKind::OpenFile;
+    copyProbe.action.payload =
+        copyProbe.target;
+
+    const auto copy =
+        EvaluateLauncherAction(
+            copyProbe,
+            LauncherExecutionIntent::
+                CopySelectedText,
+            false,
+            false,
+            false);
+
+    std::wstring clipboard =
+        T(L"复制选中结果：",
+          L"Copy selected result: ");
+    clipboard += copy.available
+        ? T(L"就绪", L"Ready")
+        : reasonText(copy.reason);
+    clipboard += L"\r\n";
+    clipboard +=
+        T(L"Copy / clip / 复制 文本动作：就绪  ·  Unicode CF_UNICODETEXT  ·  不读取或持久化剪贴板历史",
+          L"Copy / clip text action: Ready  ·  Unicode CF_UNICODETEXT  ·  clipboard history is neither read nor persisted");
+
+    SetWindowTextW(
+        actionsClipboardStatus_,
+        clipboard.c_str());
+
+    SetWindowTextW(
+        actionsWebStatus_,
+        T(L"直接 HTTP / HTTPS / www URL：就绪\r\n{query} URL 模板：就绪  ·  builtin.web 仅运行时存在，不写入 provider-cache",
+          L"Direct HTTP / HTTPS / www URLs: Ready\r\n{query} URL templates: Ready  ·  builtin.web is runtime-only and is not written to provider-cache"));
 }
 
 void SettingsWindow::RefreshProviderStatus() {
@@ -2771,6 +3025,9 @@ void SettingsWindow::UpdateNavLabels() {
         navHotkeys_,
         label(Page::Hotkeys, L"快捷键", L"Hotkeys").c_str());
     SetWindowTextW(
+        navActions_,
+        label(Page::Actions, L"操作", L"Actions").c_str());
+    SetWindowTextW(
         navAppearance_,
         label(Page::Appearance, L"外观", L"Appearance").c_str());
     SetWindowTextW(
@@ -2814,6 +3071,16 @@ void SettingsWindow::UpdatePageHeader() {
             pageDescription_,
             T(L"集中管理全局呼出和启动器内部动作热键；新增动作会统一注册到这里。",
               L"Manage global activation and launcher action bindings in one place; future hotkey actions register here."));
+        break;
+
+    case Page::Actions:
+        SetWindowTextW(
+            pageTitle_,
+            T(L"操作", L"Actions"));
+        SetWindowTextW(
+            pageDescription_,
+            T(L"查看 Smart Actions 能力、最近一次 Windows 呼出上下文以及动作不可用的具体原因。",
+              L"Inspect Smart Actions capabilities, the last captured Windows activation context, and concrete reasons when an action is unavailable."));
         break;
 
     case Page::Appearance:
@@ -2884,6 +3151,13 @@ void SettingsWindow::ShowPage(Page page) {
             kProviderStatusTimerId);
     }
 
+    if (page_ == Page::Actions &&
+        page != Page::Actions) {
+        KillTimer(
+            hwnd_,
+            kActionStatusTimerId);
+    }
+
     if (page_ == Page::Commands &&
         page != Page::Commands &&
         !ConfirmDiscardChanges()) {
@@ -2908,6 +3182,7 @@ void SettingsWindow::ShowPage(Page page) {
     setVisible(commandControls_, page == Page::Commands);
     setVisible(generalControls_, page == Page::General);
     setVisible(hotkeyControls_, page == Page::Hotkeys);
+    setVisible(actionControls_, page == Page::Actions);
     setVisible(legacyHotkeyControls_, false);
     setVisible(appearanceControls_, page == Page::Appearance);
     setVisible(providerControls_, page == Page::Providers);
@@ -2919,6 +3194,14 @@ void SettingsWindow::ShowPage(Page page) {
     } else if (
         page == Page::Hotkeys) {
         RefreshHotkeyPage();
+    } else if (
+        page == Page::Actions) {
+        SetTimer(
+            hwnd_,
+            kActionStatusTimerId,
+            1000,
+            nullptr);
+        RefreshActionDiagnostics();
     } else if (
         page == Page::Providers) {
         SetTimer(
@@ -4641,10 +4924,11 @@ void SettingsWindow::Layout() {
     const int navHeight = Scale(42);
     const int navGap = Scale(8);
 
-    std::array<HWND, 7> nav{
+    std::array<HWND, 8> nav{
         navCommands_,
         navGeneral_,
         navHotkeys_,
+        navActions_,
         navAppearance_,
         navProviders_,
         navData_,
@@ -5414,6 +5698,45 @@ void SettingsWindow::Layout() {
             TRUE);
     }
 
+    if (page_ == Page::Actions) {
+        const int x = contentLeft;
+        const int width =
+            std::min(contentWidth, Scale(720));
+        const int y = Scale(138);
+
+        MoveWindow(
+            actionsWindowsTitle_,
+            x, y,
+            width, Scale(28), TRUE);
+        MoveWindow(
+            actionsWindowsStatus_,
+            x, y + Scale(36),
+            width, Scale(190), TRUE);
+
+        MoveWindow(
+            actionsClipboardTitle_,
+            x, y + Scale(240),
+            width, Scale(28), TRUE);
+        MoveWindow(
+            actionsClipboardStatus_,
+            x, y + Scale(276),
+            width, Scale(82), TRUE);
+
+        MoveWindow(
+            actionsWebTitle_,
+            x, y + Scale(378),
+            width, Scale(28), TRUE);
+        MoveWindow(
+            actionsWebStatus_,
+            x, y + Scale(414),
+            width, Scale(82), TRUE);
+
+        MoveWindow(
+            actionsNote_,
+            x, y + Scale(520),
+            width, Scale(64), TRUE);
+    }
+
     if (page_ == Page::Appearance) {
         const int x = contentLeft;
         const int y = Scale(150);
@@ -5704,6 +6027,10 @@ void SettingsWindow::DrawNavigationButton(
     case kIdNavHotkeys:
         selected =
             page_ == Page::Hotkeys;
+        break;
+    case kIdNavActions:
+        selected =
+            page_ == Page::Actions;
         break;
     case kIdNavAppearance:
         selected =
@@ -6225,6 +6552,13 @@ void SettingsWindow::Show() {
             1000,
             nullptr);
         RefreshProviderStatus();
+    } else if (page_ == Page::Actions) {
+        SetTimer(
+            hwnd_,
+            kActionStatusTimerId,
+            1000,
+            nullptr);
+        RefreshActionDiagnostics();
     }
 
     if (!IsWindowVisible(hwnd_)) {
@@ -6295,6 +6629,12 @@ LRESULT SettingsWindow::HandleMessage(
             RefreshProviderStatus();
             return 0;
         }
+        if (wParam ==
+            kActionStatusTimerId &&
+            page_ == Page::Actions) {
+            RefreshActionDiagnostics();
+            return 0;
+        }
         break;
 
     case WM_KEYDOWN:
@@ -6328,6 +6668,12 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdNavHotkeys:
             if (notify == BN_CLICKED) {
                 ShowPage(Page::Hotkeys);
+            }
+            return 0;
+
+        case kIdNavActions:
+            if (notify == BN_CLICKED) {
+                ShowPage(Page::Actions);
             }
             return 0;
 

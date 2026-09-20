@@ -36,6 +36,116 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0-beta.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 4,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"{name}={actual}, expected v0.6 beta.1 value {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.6 beta.1 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 4:
+        fail("v0.6 beta.1 settings must remain schemaVersion 4")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 beta.1 changed frozen provider defaults")
+
+    expected_bindings = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_bindings:
+        fail("v0.6 beta.1 changed frozen Hotkey Registry action IDs")
+
+    policy = read("src/core/LauncherActionPolicy.hpp") + read("src/core/LauncherActionPolicy.cpp")
+    for token in (
+        "ActionEvaluation",
+        "ActionUnavailableReason",
+        "EvaluateLauncherAction",
+        "ResultNotFolder",
+        "NoSupportedFileManager",
+        "NoCopyableTarget",
+        "InvalidActionTarget",
+    ):
+        if token not in policy:
+            fail(f"beta.1 ActionEvaluation contract missing: {token}")
+
+    app = read("src/app/App.cpp") + read("src/app/App.hpp")
+    for token in ("EvaluateLauncherAction", "lastActivationContext_", "LastActivationContext"):
+        if token not in app:
+            fail(f"beta.1 App diagnostics integration missing: {token}")
+
+    settings_ui = read("src/ui/SettingsWindow.hpp") + read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "Page::Actions",
+        "kIdNavActions",
+        "CreateActionsPage",
+        "RefreshActionDiagnostics",
+        "Last activation context:",
+        "Runtime status:",
+    ):
+        if token not in settings_ui:
+            fail(f"beta.1 Actions/diagnostics UI missing: {token}")
+
+    policy_tests = read("tests/LauncherActionPolicyTests.cpp")
+    for token in (
+        "EvaluateLauncherAction",
+        "NoSupportedFileManager",
+        "ResultNotFolder",
+        "NoCopyableTarget",
+        "NavigateFileDialog",
+    ):
+        if token not in policy_tests:
+            fail(f"beta.1 action evaluation regression missing: {token}")
+
+    windows_tests = read("tests/WindowsContextRuntimeTests.cpp")
+    for token in ("gTotalCommanderRightPath", "gTotalCommanderActivePanel = 2", "Folder With Spaces", "uncTarget"):
+        if token not in windows_tests:
+            fail(f"beta.1 Windows context hardening missing: {token}")
+
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    for token in (
+        "settings-v0.6-alpha5-hotkeys.json",
+        "settings-v0.6-alpha5-hotkey-conflict.json",
+        "schema4BeforeDowngrade",
+        "conflictNavigate",
+    ):
+        if token not in config_tests:
+            fail(f"beta.1 migration/downgrade coverage missing: {token}")
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {"widthLogical_": 420, "rowHeightLogical_": 16, "maxResults_": 10}.items():
+        found = re.search(rf"\b{re.escape(name)}\s*\{{(\d+)\}}", launcher_header)
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during v0.6 beta.1: {name}")
+
+    print(
+        "v0.6.0-beta.1 Smart Actions UX/diagnostics contract verified:",
+        "| settings=4 commands=1 usage=1 provider-cache=2",
+        "| frozen Hotkey IDs/providers/Classic geometry",
+        "| ActionEvaluation | Actions Settings diagnostics",
+        "| TC right-panel UNC/Unicode runtime coverage",
+    )
+    raise SystemExit(0)
+
+
 if version in ("0.6.0-alpha.6", "0.6.0-alpha.6.1"):
     expected_schemas = {
         "kSettingsSchemaVersion": 4,
