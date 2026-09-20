@@ -8,6 +8,7 @@
 #include "../core/SearchEngine.hpp"
 #include "../core/Settings.hpp"
 #include "../core/UsageStore.hpp"
+#include "../platform/EverythingBootstrapper.hpp"
 #include "../platform/ProcessMemory.hpp"
 #include "../platform/WindowsContext.hpp"
 
@@ -76,6 +77,13 @@ public:
     [[nodiscard]]
     EverythingIpcStatusSnapshot
     EverythingStatus() const;
+
+    [[nodiscard]]
+    win::EverythingBootstrapSnapshot
+    EverythingBootstrapStatus() const;
+
+    bool StartEverythingBootstrap(
+        bool allowDownload);
 
     [[nodiscard]] RuntimeDiagnosticsSnapshot
     RuntimeDiagnostics() const noexcept;
@@ -232,6 +240,10 @@ private:
         kDynamicQueryMessage =
             WM_APP + 0x173;
 
+    static constexpr UINT
+        kEverythingBootstrapMessage =
+            WM_APP + 0x174;
+
     bool LaunchCommand(
         const Command& command,
         bool recordUsage,
@@ -256,6 +268,8 @@ private:
     void HandleProviderChangedSignal();
     void FlushDetectedProviderChanges();
     void HandleDynamicQueryCompleted();
+    void HandleEverythingBootstrapCompleted(
+        std::uint64_t generation);
     void CaptureActivationContext();
 
     HINSTANCE instance_{};
@@ -284,6 +298,8 @@ private:
         providerRefreshThread_;
     std::jthread
         providerMonitorThread_;
+    std::jthread
+        everythingBootstrapThread_;
     std::atomic_bool
         providerRefreshRunning_{false};
 
@@ -305,6 +321,13 @@ private:
     std::mutex dynamicQueryMutex_;
     std::optional<DynamicQueryResponse>
         dynamicQueryPending_;
+
+    mutable std::mutex
+        everythingBootstrapMutex_;
+    win::EverythingBootstrapSnapshot
+        everythingBootstrapStatus_;
+    std::uint64_t
+        everythingBootstrapGeneration_{0};
 
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};

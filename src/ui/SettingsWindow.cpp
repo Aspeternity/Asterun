@@ -1734,16 +1734,16 @@ void SettingsWindow::ApplyLanguage() {
           L"Everything files & folders"));
     SetWindowTextW(
         providerGetEverything_,
-        T(L"获取 Everything",
-          L"Get Everything"));
+        T(L"获取并启动 Everything",
+          L"Get and start Everything"));
     SetWindowTextW(
         providerRecheckEverything_,
         T(L"重新检测",
           L"Recheck"));
     SetWindowTextW(
         providerNote_,
-        T(L"Windows 应用来源使用后台缓存；Everything 通过本机 IPC 实时查询。默认实例优先；仅检测到一个命名实例时才会自动选择。多实例歧义或 IPC 不可用时自动回退为仅应用搜索。",
-          L"Windows application sources use the background cache. Everything is queried live over local IPC. The unnamed instance is preferred; a named instance is auto-selected only when it is unique. Ambiguous or unavailable IPC falls back to application-only search."));
+        T(L"Everything 通过本机 IPC 实时查询。ALTRun Next 不预捆绑 Everything：会优先复用并后台启动本机已有标准版；缺失时仅在你确认后从 voidtools 官方获取标准便携版、校验 SHA-256 并启动。Lite 版没有 IPC。",
+          L"Everything is queried live over local IPC. ALTRun Next does not bundle Everything: it first reuses and starts an existing standard copy; only after your confirmation can it fetch the standard portable build from official voidtools, verify SHA-256, and start it. Lite has no IPC."));
 
     SetWindowTextW(
         dataOpenLabel_,
@@ -2927,70 +2927,17 @@ void SettingsWindow::RefreshProviderStatus() {
     } else {
         const auto ipc =
             app_.EverythingStatus();
+        const auto bootstrap =
+            app_.EverythingBootstrapStatus();
 
-        const bool endpointMissing =
-            ipc.availability ==
-                EverythingAvailability::
-                    Unavailable &&
-            !ipc.ambiguousNamedInstances &&
-            ipc.ipcWindowClass.empty();
-
-        showGetEverything =
-            endpointMissing;
-        showRecheck =
-            ipc.availability !=
-                EverythingAvailability::
-                    Available;
-
-        if (endpointMissing) {
+        if (ipc.availability ==
+            EverythingAvailability::
+                Available) {
             text += T(
-                L"未检测到 Everything",
-                L"Everything not detected");
-            text += L"  ·  ";
-            text += T(
-                L"已回退到应用搜索",
-                L"Application-search fallback active");
+                L"IPC 可用",
+                L"IPC available");
 
-            text += L"\r\n    ↳ ";
-            text += T(
-                L"请安装并运行标准版 Everything；ALTRun Next 不内置或自动启动 Everything，Lite 版没有 IPC。",
-                L"Install and run standard Everything. ALTRun Next does not bundle or auto-start Everything; Everything Lite has no IPC.");
-        } else {
-            if (ipc.availability ==
-                EverythingAvailability::
-                    Available) {
-                text += T(
-                    L"IPC 可用",
-                    L"IPC available");
-            } else if (
-                ipc.availability ==
-                EverythingAvailability::
-                    Unavailable) {
-                text += T(
-                    L"IPC 不可用",
-                    L"IPC unavailable");
-                text += L"  ·  ";
-                text += T(
-                    L"已回退到应用搜索",
-                    L"Application-search fallback active");
-            } else {
-                text += T(
-                    L"正在检测 IPC",
-                    L"Detecting IPC");
-            }
-
-            if (ipc.ambiguousNamedInstances) {
-                text += L"\r\n    ↳ ";
-                text += T(
-                    L"检测到多个 Everything 命名实例（",
-                    L"Multiple named Everything instances detected (");
-                text += std::to_wstring(
-                    ipc.matchingWindowCount);
-                text += T(
-                    L"），已禁用自动选择",
-                    L"); automatic selection disabled");
-            } else if (
-                !ipc.ipcWindowClass.empty()) {
+            if (!ipc.ipcWindowClass.empty()) {
                 text += L"\r\n    ↳ ";
                 text += T(
                     L"IPC 端点：",
@@ -2999,9 +2946,16 @@ void SettingsWindow::RefreshProviderStatus() {
 
                 if (ipc.namedInstanceFallback) {
                     text += T(
-                        L"  ·  已自动选择唯一命名实例",
-                        L"  ·  unique named instance auto-selected");
+                        L"  ·  命名实例",
+                        L"  ·  named instance");
                 }
+            }
+
+            if (bootstrap.downloaded) {
+                text += L"\r\n    ↳ ";
+                text += T(
+                    L"已由 ALTRun Next 获取并启动官方标准便携版",
+                    L"Official standard portable build was fetched and started by ALTRun Next");
             }
 
             if (ipc.hasQuery) {
@@ -3065,21 +3019,196 @@ void SettingsWindow::RefreshProviderStatus() {
                          500) /
                             1000));
                 text += L" ms";
+            } else {
+                text += T(
+                    L"  ·  等待首次查询",
+                    L"  ·  Waiting for first query");
+            }
+        } else if (bootstrap.running) {
+            text += T(
+                L"正在准备 Everything",
+                L"Preparing Everything");
+            text += L"  ·  ";
 
-                if (ipc.lastNativeError != 0) {
+            switch (bootstrap.stage) {
+            case win::EverythingBootstrapStage::
+                Discovering:
+                text += T(
+                    L"检测本机已有版本",
+                    L"Looking for an existing copy");
+                break;
+            case win::EverythingBootstrapStage::
+                StartingExisting:
+                text += T(
+                    L"正在启动已有版本",
+                    L"Starting existing copy");
+                break;
+            case win::EverythingBootstrapStage::
+                DownloadingManifest:
+                text += T(
+                    L"获取官方 SHA-256 清单",
+                    L"Fetching official SHA-256 manifest");
+                break;
+            case win::EverythingBootstrapStage::
+                DownloadingPackage:
+                text += T(
+                    L"下载官方标准便携版",
+                    L"Downloading official standard portable build");
+                if (bootstrap.downloadedBytes > 0) {
+                    text += L"  ·  ";
+                    text += FormatBytes(
+                        bootstrap.downloadedBytes);
+                    if (bootstrap.totalBytes > 0) {
+                        text += L" / ";
+                        text += FormatBytes(
+                            bootstrap.totalBytes);
+                    }
+                }
+                break;
+            case win::EverythingBootstrapStage::
+                VerifyingPackage:
+                text += T(
+                    L"校验 SHA-256",
+                    L"Verifying SHA-256");
+                break;
+            case win::EverythingBootstrapStage::
+                ExtractingPackage:
+                text += T(
+                    L"解压便携版",
+                    L"Extracting portable build");
+                break;
+            case win::EverythingBootstrapStage::
+                StartingManaged:
+                text += T(
+                    L"启动托管实例",
+                    L"Starting managed instance");
+                break;
+            case win::EverythingBootstrapStage::
+                WaitingForIpc:
+                text += T(
+                    L"等待 IPC 就绪",
+                    L"Waiting for IPC");
+                break;
+            default:
+                text += T(
+                    L"处理中",
+                    L"Working");
+                break;
+            }
+        } else {
+            showGetEverything = true;
+            showRecheck = true;
+
+            if (bootstrap.stage ==
+                    win::EverythingBootstrapStage::
+                        NeedsInstall &&
+                bootstrap.failure ==
+                    win::EverythingBootstrapFailure::
+                        IpcUnavailable) {
+                text += T(
+                    L"检测到 Everything，但 IPC 不可用",
+                    L"Everything was found, but IPC is unavailable");
+                text += L"  ·  ";
+                text += T(
+                    L"可能是 Lite 版或当前实例配置不兼容",
+                    L"It may be Lite or an incompatible instance configuration");
+            } else if (
+                bootstrap.stage ==
+                win::EverythingBootstrapStage::
+                    Failed) {
+                text += T(
+                    L"自动准备失败",
+                    L"Automatic preparation failed");
+
+                text += L"  ·  ";
+                switch (bootstrap.failure) {
+                case win::EverythingBootstrapFailure::
+                    ManifestDownloadFailed:
+                    text += T(
+                        L"无法获取官方校验清单",
+                        L"Could not fetch the official checksum manifest");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    PackageChecksumMissing:
+                    text += T(
+                        L"官方清单中缺少当前安装包校验值",
+                        L"The official manifest does not contain this package");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    PackageDownloadFailed:
+                    text += T(
+                        L"下载安装包失败",
+                        L"Package download failed");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    PackageHashFailed:
+                    text += T(
+                        L"无法计算安装包 SHA-256",
+                        L"Could not calculate package SHA-256");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    PackageHashMismatch:
+                    text += T(
+                        L"SHA-256 校验不一致，安装包已拒绝",
+                        L"SHA-256 mismatch; the package was rejected");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    ExtractionFailed:
+                    text += T(
+                        L"解压失败",
+                        L"Extraction failed");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    ManagedLaunchFailed:
+                case win::EverythingBootstrapFailure::
+                    ExistingLaunchFailed:
+                    text += T(
+                        L"启动 Everything 失败",
+                        L"Could not start Everything");
+                    break;
+                case win::EverythingBootstrapFailure::
+                    IpcUnavailable:
+                    text += T(
+                        L"启动后 IPC 仍不可用",
+                        L"IPC remained unavailable after startup");
+                    break;
+                default:
+                    text += T(
+                        L"请重新检测或再次获取",
+                        L"Recheck or try fetching again");
+                    break;
+                }
+
+                if (bootstrap.nativeError != 0) {
                     text += T(
                         L"  ·  系统错误 ",
                         L"  ·  native error ");
                     text += std::to_wstring(
-                        ipc.lastNativeError);
+                        bootstrap.nativeError);
                 }
-            } else if (
-                ipc.availability ==
-                EverythingAvailability::
-                    Available) {
+            } else if (ipc.ambiguousNamedInstances) {
                 text += T(
-                    L"  ·  等待首次查询",
-                    L"  ·  Waiting for first query");
+                    L"检测到多个 Everything 命名实例，无法安全自动选择",
+                    L"Multiple named Everything instances were found; automatic selection is ambiguous");
+            } else {
+                text += T(
+                    L"未检测到可用的 Everything IPC",
+                    L"No usable Everything IPC was detected");
+            }
+
+            text += L"\r\n    ↳ ";
+            text += T(
+                L"可重新检测已有标准版，或由 ALTRun Next 获取并启动官方标准便携版；应用搜索回退仍有效。",
+                L"Recheck an existing standard copy, or let ALTRun Next fetch and start the official standard portable build. Application-search fallback remains active.");
+
+            if (!bootstrap.executablePath.empty()) {
+                text += L"\r\n    ↳ ";
+                text += T(
+                    L"检测到：",
+                    L"Detected: ");
+                text +=
+                    bootstrap.executablePath
+                        .wstring();
             }
         }
     }
@@ -3105,32 +3234,39 @@ void SettingsWindow::RefreshProviderStatus() {
         text.c_str());
 }
 
-void SettingsWindow::OpenEverythingDownloadPage() {
-    const wchar_t* url =
-        app_.SettingsData().language ==
-                Language::ZhCN
-            ? L"https://www.voidtools.com/zh-cn/downloads/"
-            : L"https://www.voidtools.com/downloads/";
+void SettingsWindow::AcquireEverything() {
+    if (app_.EverythingBootstrapStatus()
+            .running) {
+        return;
+    }
 
-    const auto result =
-        reinterpret_cast<INT_PTR>(
-            ShellExecuteW(
-                hwnd_,
-                L"open",
-                url,
-                nullptr,
-                nullptr,
-                SW_SHOWNORMAL));
-
-    if (result <= 32) {
+    const int answer =
         MessageBoxW(
             hwnd_,
-            T(L"无法打开 Everything 官方下载页面。请手动访问 voidtools.com 下载标准版 Everything。",
-              L"Could not open the official Everything download page. Visit voidtools.com manually and download standard Everything."),
-            T(L"获取 Everything",
-              L"Get Everything"),
-            MB_OK | MB_ICONWARNING);
+            T(L"ALTRun Next 会先尝试复用并后台启动本机已有的 Everything。\n\n如果仍不可用，将从 voidtools 官方下载 Everything 1.4.1.1032 标准便携版（不是 Lite），获取官方 SHA-256 清单完成校验后解压到 ALTRun Next 数据目录并启动托管实例。\n\n继续吗？",
+              L"ALTRun Next will first try to reuse and start an existing Everything copy in the background.\n\nIf none is usable, it will download the official Everything 1.4.1.1032 standard portable build (not Lite) from voidtools, fetch the official SHA-256 manifest, verify the package, extract it under the ALTRun Next data directory, and start a managed instance.\n\nContinue?"),
+            T(L"获取并启动 Everything",
+              L"Get and start Everything"),
+            MB_YESNO |
+                MB_ICONINFORMATION |
+                MB_DEFBUTTON2);
+
+    if (answer != IDYES) {
+        return;
     }
+
+    if (!app_.StartEverythingBootstrap(
+            true)) {
+        RefreshProviderStatus();
+        return;
+    }
+
+    RefreshProviderStatus();
+}
+
+void SettingsWindow::RecheckEverything() {
+    app_.StartEverythingBootstrap(false);
+    RefreshProviderStatus();
 }
 
 void SettingsWindow::RefreshDataCompatibilityStatus() {
@@ -6095,23 +6231,23 @@ void SettingsWindow::Layout() {
             providerCard.bottom +
                 Scale(22),
             controlWidth,
-            Scale(108),
+            Scale(126),
             TRUE);
 
         MoveWindow(
             providerGetEverything_,
             x,
             providerCard.bottom +
-                Scale(140),
-            Scale(146),
+                Scale(156),
+            Scale(202),
             Scale(34),
             TRUE);
 
         MoveWindow(
             providerRecheckEverything_,
-            x + Scale(158),
+            x + Scale(214),
             providerCard.bottom +
-                Scale(140),
+                Scale(156),
             Scale(120),
             Scale(34),
             TRUE);
@@ -6120,9 +6256,9 @@ void SettingsWindow::Layout() {
             providerNote_,
             x,
             providerCard.bottom +
-                Scale(188),
+                Scale(202),
             controlWidth,
-            Scale(48),
+            Scale(66),
             TRUE);
     }
 
@@ -7211,13 +7347,13 @@ LRESULT SettingsWindow::HandleMessage(
 
         case kIdProviderGetEverything:
             if (notify == BN_CLICKED) {
-                OpenEverythingDownloadPage();
+                AcquireEverything();
             }
             return 0;
 
         case kIdProviderRecheckEverything:
             if (notify == BN_CLICKED) {
-                RefreshProviderStatus();
+                RecheckEverything();
             }
             return 0;
 

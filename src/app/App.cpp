@@ -128,6 +128,14 @@ App::App(HINSTANCE instance)
           baseDirectory_ / "dict") {}
 
 App::~App() {
+    if (everythingBootstrapThread_
+            .joinable()) {
+        everythingBootstrapThread_
+            .request_stop();
+        everythingBootstrapThread_
+            .join();
+    }
+
     // Stop the dynamic IPC worker before UI/state members begin destruction.
     everythingProvider_.reset();
 
@@ -279,6 +287,15 @@ int App::Run() {
             MB_ICONWARNING | MB_OK);
     }
 
+    if (providers::IsEnabled(
+            settingsStore_.Data()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false)) {
+        StartEverythingBootstrap(false);
+    }
+
     if (settingsStore_.Data().showOnStartup) {
         window_->Show();
     }
@@ -295,6 +312,15 @@ int App::Run() {
                 kDynamicQueryMessage &&
             msg.hwnd == nullptr) {
             HandleDynamicQueryCompleted();
+            continue;
+        }
+
+        if (msg.message ==
+                kEverythingBootstrapMessage &&
+            msg.hwnd == nullptr) {
+            HandleEverythingBootstrapCompleted(
+                static_cast<std::uint64_t>(
+                    msg.wParam));
             continue;
         }
 
@@ -675,6 +701,111 @@ App::EverythingStatus() const {
     return everythingProvider_
         ? everythingProvider_->Status()
         : EverythingIpcStatusSnapshot{};
+}
+
+win::EverythingBootstrapSnapshot
+App::EverythingBootstrapStatus() const {
+    std::scoped_lock lock(
+        everythingBootstrapMutex_);
+
+    return everythingBootstrapStatus_;
+}
+
+bool App::StartEverythingBootstrap(
+    bool allowDownload) {
+    if (!providers::IsEnabled(
+            settingsStore_.Data()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false)) {
+        return false;
+    }
+
+    {
+        std::scoped_lock lock(
+            everythingBootstrapMutex_);
+
+        if (everythingBootstrapStatus_
+                .running) {
+            return false;
+        }
+    }
+
+    if (everythingBootstrapThread_
+            .joinable()) {
+        everythingBootstrapThread_
+            .join();
+    }
+
+    {
+        std::scoped_lock lock(
+            everythingBootstrapMutex_);
+
+        everythingBootstrapStatus_ = {};
+        everythingBootstrapStatus_.stage =
+            win::EverythingBootstrapStage::
+                Discovering;
+        everythingBootstrapStatus_.running =
+            true;
+    }
+
+    const auto dataDirectory =
+        dataDirectory_;
+    const DWORD targetThread =
+        uiThreadId_;
+    const std::uint64_t generation =
+        ++everythingBootstrapGeneration_;
+
+    everythingBootstrapThread_ =
+        std::jthread(
+            [this,
+             dataDirectory,
+             allowDownload,
+             targetThread,
+             generation](
+                std::stop_token stopToken) {
+                const auto progress =
+                    [this](
+                        const win::
+                            EverythingBootstrapSnapshot&
+                                snapshot) {
+                        std::scoped_lock lock(
+                            everythingBootstrapMutex_);
+                        everythingBootstrapStatus_ =
+                            snapshot;
+                    };
+
+                const auto result =
+                    win::RunEverythingBootstrap(
+                        dataDirectory,
+                        allowDownload,
+                        progress,
+                        stopToken);
+
+                {
+                    std::scoped_lock lock(
+                        everythingBootstrapMutex_);
+                    everythingBootstrapStatus_ =
+                        result;
+                }
+
+                if (targetThread != 0) {
+                    PostThreadMessageW(
+                        targetThread,
+                        kEverythingBootstrapMessage,
+                        static_cast<WPARAM>(
+                            generation),
+                        0);
+                }
+            });
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            OnDynamicProviderStatusChanged();
+    }
+
+    return true;
 }
 
 RuntimeDiagnosticsSnapshot
@@ -1378,6 +1509,54 @@ void App::HandleDynamicQueryCompleted() {
     if (settingsWindow_) {
         settingsWindow_->
             OnDynamicProviderStatusChanged();
+    }
+}
+
+void App::HandleEverythingBootstrapCompleted(
+    std::uint64_t generation) {
+    if (generation !=
+        everythingBootstrapGeneration_) {
+        return;
+    }
+
+    if (everythingBootstrapThread_
+            .joinable()) {
+        everythingBootstrapThread_
+            .join();
+    }
+
+    const bool everythingEnabled =
+        providers::IsEnabled(
+            settingsStore_.Data()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false);
+
+    const auto bootstrap =
+        EverythingBootstrapStatus();
+
+    if (everythingEnabled &&
+        !everythingProvider_) {
+        everythingProvider_ =
+            std::make_unique<
+                EverythingProvider>();
+    }
+
+    if (window_) {
+        window_->RefreshResults();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            OnDynamicProviderStatusChanged();
+    }
+
+    if (everythingEnabled &&
+        bootstrap.failure ==
+            win::EverythingBootstrapFailure::
+                Cancelled) {
+        StartEverythingBootstrap(false);
     }
 }
 
@@ -2123,12 +2302,22 @@ bool App::SetProviderEnabled(
                     std::make_unique<
                         EverythingProvider>();
             }
+
+            StartEverythingBootstrap(false);
         } else {
+            if (everythingBootstrapThread_
+                    .joinable()) {
+                everythingBootstrapThread_
+                    .request_stop();
+            }
+
             everythingProvider_.reset();
 
-            std::scoped_lock lock(
-                dynamicQueryMutex_);
-            dynamicQueryPending_.reset();
+            {
+                std::scoped_lock lock(
+                    dynamicQueryMutex_);
+                dynamicQueryPending_.reset();
+            }
         }
 
         if (window_) {

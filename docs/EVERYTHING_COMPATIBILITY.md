@@ -80,6 +80,22 @@ The launcher normally asks Everything for only a small candidate pool. `Everythi
 Everything results remain query-time only and are never persisted to `provider-cache.json` or `usage.json`.
 
 
+## v0.7 Managed bootstrap
+
+v0.7.0-alpha.8 adds dependency onboarding without changing the Query2 transport contract above.
+
+When `everything.filesystem` is enabled, ALTRun Next uses a local-first bootstrap order:
+
+1. Use a currently available Everything IPC endpoint immediately.
+2. Look for an ALTRun Next-managed copy, registered App Paths, normal Program Files locations and PATH.
+3. Start an existing copy with `-startup -first-instance` and wait for IPC.
+4. If no usable IPC is available, stop and report that installation is needed. This local recheck path never downloads anything.
+5. Only after the user explicitly chooses **Get and start Everything**, fetch the official stable standard portable package from voidtools, fetch the matching official SHA-256 manifest, verify the archive, extract it under `data/tools/Everything`, start it in the background and wait for IPC.
+
+The managed package is architecture-matched to the ALTRun Next binary (x64 or ARM64). Lite packages are never selected because Lite does not expose the IPC contract used by ALTRun Next. Network transfer uses native WinHTTP and package hashing uses Windows BCrypt; PowerShell and external download helpers are not part of the runtime path.
+
+Bootstrap state is runtime-only. Paths, download progress, errors and IPC readiness are not persisted into settings or provider-cache. The only persistent choice remains the existing `everything.filesystem` provider boolean.
+
 ## RC1 freeze
 
 v0.5.0-rc.1 makes no protocol or endpoint-selection change relative to beta.2. This document is shipped inside both portable RC packages so a real-world validation run can identify the intended 1.4/1.5/named-instance behavior without relying on repository access. Any post-RC transport change requires a concrete release-blocking compatibility defect and corresponding regression coverage.

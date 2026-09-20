@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.5.2:
+Each document carries its own schema version. As of v0.7.0-alpha.8:
 
 ```text
 settings.json       schemaVersion 6
@@ -49,6 +49,12 @@ v0.7.0-alpha.5 keeps all JSON schemas unchanged. The already-existing `icon` com
 v0.7.0-alpha.5.1 advances **settings.json to schemaVersion 6** for the Appearance preference `showResultIcons`. The default is `false`: schema-5 and older documents therefore migrate to a text-first Launcher unless the user explicitly enables result icons afterward. Disabling the preference also bypasses icon resolution/cache/rendering at runtime; it does not delete or rewrite any per-command `icon` value. A schema-5 binary opening the migrated schema-6 settings file enters the existing read-only downgrade-protection path. commands.json remains schemaVersion 2, usage.json remains schemaVersion 1 and provider-cache.json remains schemaVersion 2.
 
 v0.7.0-alpha.5.2 keeps every persisted schema unchanged. Result-icon loading is now an asynchronous runtime concern only: the default-off preference still controls whether any work is queued, while enabled icon requests are generation-stamped and cached in a bounded source+pixel-size LRU. No worker/cache state is serialized.
+
+v0.7.0-alpha.6 keeps every persisted schema unchanged while completing Shortcut Manager filtering/conflict behavior and removing Pause/Pin from the active product workflow. Legacy `enabled` / `pinned` compatibility fields remain in commands schemaVersion 2 and TSV v3 but are normalized to active/non-pinned rather than creating a new migration.
+
+v0.7.0-alpha.7 keeps every persisted schema unchanged. Launcher and Shortcut Manager context actions, File Explorer reveal behavior and Add-as-shortcut prefill are runtime/UI behavior only.
+
+v0.7.0-alpha.8 keeps every persisted schema unchanged. Managed Everything Bootstrap stores downloaded third-party runtime files under `data/tools/Everything`, but bootstrap progress, source detection, package hashes and IPC state are not configuration fields. The existing `everything.filesystem` provider boolean remains the only persisted Everything preference.
 
 ## Migration
 

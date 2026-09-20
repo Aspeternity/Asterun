@@ -93,6 +93,7 @@ add_library(altrun_core STATIC
     src/core/CommandTemplate.cpp
     src/core/ContextActions.cpp
     src/core/ShortcutEditorModel.cpp
+    src/core/EverythingBootstrapPolicy.cpp
     src/core/EverythingIpcProtocol.cpp
     src/core/ExplorerContextSelection.cpp
     src/core/HotkeyRegistry.cpp
@@ -173,6 +174,7 @@ if(WIN32)
         src/core/PathProvider.cpp
         src/core/ProviderRegistry.cpp
         src/core/StartMenuProvider.cpp
+        src/platform/EverythingBootstrapper.cpp
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
         src/platform/ProcessMemory.cpp
@@ -210,6 +212,8 @@ if(WIN32)
         dwmapi
         uxtheme
         uuid
+        winhttp
+        bcrypt
     )
     target_compile_definitions(
         ALTRunNext PRIVATE
@@ -252,6 +256,26 @@ if(BUILD_TESTING)
     altrun_enable_test_assertions(search_engine_tests)
     altrun_copy_pinyin_runtime(search_engine_tests)
     add_test(NAME search_engine_tests COMMAND search_engine_tests)
+
+    add_executable(
+        everything_bootstrap_policy_tests
+        tests/EverythingBootstrapPolicyTests.cpp
+    )
+    target_link_libraries(
+        everything_bootstrap_policy_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        everything_bootstrap_policy_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        everything_bootstrap_policy_tests
+    )
+    add_test(
+        NAME everything_bootstrap_policy_tests
+        COMMAND everything_bootstrap_policy_tests
+    )
 
     add_executable(
         everything_ipc_protocol_tests

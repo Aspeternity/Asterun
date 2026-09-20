@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.8 — Managed Everything Bootstrap
+
+Alpha 8 replaces the old Everything download-page handoff with an opt-in managed bootstrap flow. When the Everything source is enabled, ALTRun Next first probes the existing IPC endpoint and can automatically reuse/start an already-present Everything copy found in its managed tools directory, App Paths, Program Files or PATH. This discovery/start path never downloads anything.
+
+If no usable IPC is available, **Get and start Everything** asks for explicit confirmation before network access. After confirmation, ALTRun Next fetches the current stable Everything 1.4.1.1032 standard portable ZIP for the running ALTRun Next architecture from official voidtools, fetches the official SHA-256 manifest, verifies the downloaded archive with Windows BCrypt, extracts it under `data/tools/Everything`, starts it in the background with `-startup -first-instance`, and waits for IPC readiness. Lite packages are never selected.
+
+The bootstrap runs on a dedicated worker thread. Settings shows discovery, download progress, verification, extraction, startup and IPC-wait state without blocking the launcher UI; application-only search remains available whenever Everything is unavailable. Recheck performs only local discovery/start and never downloads. WinHTTP and the Windows Shell ZIP namespace are used directly—no PowerShell or external downloader is invoked.
+
+No persisted schema changes are made: settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 remain unchanged. Windows fixed FileVersion/ProductVersion is `0.7.0.80`.
+
 ## v0.7.0-alpha.7 — Context Actions
 
 Alpha 7 adds context-sensitive right-click actions without copying the original ALTRun menus mechanically. Launcher result menus now follow the selected result: user shortcuts can run, edit, copy their target, reveal filesystem targets and delete; discovered applications/files/folders can be opened or run, added as a pre-filled user shortcut, revealed when they represent a filesystem target, and copied; Everything folders also expose current Explorer/Total Commander navigation when that activation context exists. URL/Smart Action results stay intentionally minimal.

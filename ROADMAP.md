@@ -153,11 +153,11 @@ In progress:
 - Legacy pause/pin values normalized out of the active user-facing shortcut workflow
 - Context-sensitive Launcher result actions plus Shortcut Manager row/blank-space context menus
 - Add-as-shortcut workflow with pre-filled Shortcut Editor data for discovered results
-- settings schemaVersion 6, commands schemaVersion 2 and TSV v3 remain compatibility baselines through alpha.7
+- Managed Everything Bootstrap: local-first reuse/start plus user-confirmed official portable download, SHA-256 verification and IPC readiness
+- settings schemaVersion 6, commands schemaVersion 2 and TSV v3 remain compatibility baselines through alpha.8
 
 Planned next:
 
-- v0.7.0-alpha.8 Managed Everything Bootstrap
 - v0.7.0-beta.1 feature freeze and shortcut-workflow hardening
 - Upgrade/import/export regression matrix for commands schema 1 -> 2 and TSV v1/v2/v3
 - Real Windows desktop validation for Runtime Input, Path Conversion, custom icons, filtering, DPI and compatibility behavior

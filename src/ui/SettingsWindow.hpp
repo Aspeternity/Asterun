@@ -247,7 +247,8 @@ private:
         std::wstring_view preferredId = {});
     void RefreshProviderStatus();
     void RefreshActionDiagnostics();
-    void OpenEverythingDownloadPage();
+    void AcquireEverything();
+    void RecheckEverything();
     void RefreshDataCompatibilityStatus();
     void LoadCommandEditor(
         std::wstring_view id);

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0-alpha.8
+
+- Replaced the Everything download-page handoff with Managed Everything Bootstrap.
+- Added local-first discovery of a managed copy, App Paths registrations, Program Files installs and PATH before any download is considered.
+- Automatically starts an existing Everything copy in the background when the Everything source is enabled, without network access.
+- Added explicit user confirmation before fetching a missing copy; no silent first-time download occurs.
+- Fetches the official stable Everything 1.4.1.1032 standard portable ZIP for x64/ARM64 from voidtools and never selects Lite packages.
+- Fetches the official SHA-256 manifest, calculates the package SHA-256 with Windows BCrypt and rejects mismatched or unlisted archives.
+- Downloads through native WinHTTP to a temporary .download file and extracts with the Windows Shell ZIP namespace under data/tools/Everything.
+- Starts the managed portable copy with -startup -first-instance and waits for an Everything IPC endpoint before reporting Ready.
+- Runs discovery/download/verification/extraction/startup on a dedicated worker thread and surfaces progress/failure state in Search Sources.
+- Recheck remains local-only and never downloads; application-search fallback remains available while Everything is unavailable.
+- Added portable package/checksum parsing regression coverage and kept the existing Everything IPC compatibility behavior.
+- Kept settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.80.
+
 ## 0.7.0-alpha.7
 
 - Added context-sensitive Launcher result menus instead of a single copied classic menu.
