@@ -12,6 +12,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 
 namespace altrun {
 
@@ -567,6 +568,68 @@ bool UserCommandStore::Move(
     std::swap(
         commands_[static_cast<std::size_t>(index)],
         commands_[static_cast<std::size_t>(targetIndex)]);
+
+    if (!Save()) {
+        commands_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+
+bool UserCommandStore::ApplyPathUpdates(
+    const std::vector<UserCommandPathUpdate>& updates) {
+    if (readOnlyDueToNewerSchema_ ||
+        updates.empty()) {
+        return false;
+    }
+
+    const auto previous = commands_;
+    std::unordered_set<std::wstring>
+        seen;
+
+    for (const auto& update :
+         updates) {
+        if (update.id.empty() ||
+            !seen.insert(
+                update.id).second) {
+            commands_ = previous;
+            return false;
+        }
+
+        const auto it =
+            std::find_if(
+                commands_.begin(),
+                commands_.end(),
+                [&](const Command& command) {
+                    return command.id ==
+                        update.id;
+                });
+
+        if (it == commands_.end()) {
+            commands_ = previous;
+            return false;
+        }
+
+        if (update.target) {
+            const std::wstring value =
+                TrimWide(*update.target);
+
+            if (value.empty()) {
+                commands_ = previous;
+                return false;
+            }
+
+            it->target = value;
+        }
+
+        if (update.workingDirectory) {
+            it->workingDirectory =
+                TrimWide(
+                    *update.workingDirectory);
+        }
+    }
 
     if (!Save()) {
         commands_ = previous;

@@ -178,6 +178,7 @@ if(WIN32)
         src/ui/SettingsWindow.cpp
         src/ui/ShortcutEditorDialog.cpp
         src/ui/ShortcutManagerWindow.cpp
+        src/ui/ShortcutPathConverterDialog.cpp
         src/resources.rc
         src/app.manifest
     )
@@ -412,6 +413,26 @@ if(BUILD_TESTING)
     add_test(NAME config_core_tests COMMAND config_core_tests)
 
     add_executable(
+        user_command_path_update_tests
+        tests/UserCommandPathUpdateTests.cpp
+    )
+    target_link_libraries(
+        user_command_path_update_tests
+        PRIVATE altrun_config
+    )
+    target_include_directories(
+        user_command_path_update_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        user_command_path_update_tests
+    )
+    add_test(
+        NAME user_command_path_update_tests
+        COMMAND user_command_path_update_tests
+    )
+
+    add_executable(
         upgrade_matrix_tests
         tests/UpgradeMatrixTests.cpp
     )
@@ -529,6 +550,48 @@ if(BUILD_TESTING)
         add_test(
             NAME windows_provider_smoke_tests
             COMMAND windows_provider_smoke_tests
+        )
+
+        add_executable(
+            path_portability_tests
+            tests/PathPortabilityTests.cpp
+            src/platform/WinUtil.cpp
+        )
+
+        target_include_directories(
+            path_portability_tests
+            PRIVATE src
+        )
+
+        target_compile_definitions(
+            path_portability_tests
+            PRIVATE
+                UNICODE
+                _UNICODE
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0A00
+                WINVER=0x0A00
+        )
+
+        if(MSVC)
+            target_compile_options(
+                path_portability_tests
+                PRIVATE
+                    /W4
+                    /permissive-
+                    /utf-8
+                    /EHsc
+            )
+        endif()
+
+        altrun_enable_test_assertions(
+            path_portability_tests
+        )
+
+        add_test(
+            NAME path_portability_tests
+            COMMAND path_portability_tests
         )
 
         add_executable(

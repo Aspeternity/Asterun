@@ -370,6 +370,18 @@ bool CommandStore::MoveUserCommand(
     return true;
 }
 
+
+bool CommandStore::ApplyUserCommandPathUpdates(
+    const std::vector<UserCommandPathUpdate>& updates) {
+    if (!userCommandStore_.ApplyPathUpdates(
+            updates)) {
+        return false;
+    }
+
+    RebuildMergedCommands();
+    return true;
+}
+
 bool CommandStore::ImportUserCommands(
     const std::filesystem::path& path,
     bool legacyMode,

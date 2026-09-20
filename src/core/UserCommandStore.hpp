@@ -3,12 +3,19 @@
 #include "Command.hpp"
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace altrun {
+
+struct UserCommandPathUpdate {
+    std::wstring id;
+    std::optional<std::wstring> target;
+    std::optional<std::wstring> workingDirectory;
+};
 
 class UserCommandStore {
 public:
@@ -23,6 +30,8 @@ public:
     bool Update(std::wstring_view id, Command command);
     bool Remove(std::wstring_view id);
     bool Move(std::wstring_view id, int direction);
+    bool ApplyPathUpdates(
+        const std::vector<UserCommandPathUpdate>& updates);
     bool ImportTsv(
         const std::filesystem::path& path,
         bool legacyMode,

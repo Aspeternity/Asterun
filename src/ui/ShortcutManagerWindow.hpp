@@ -35,9 +35,7 @@ private:
     static constexpr UINT
         kIdTest = 52104;
     static constexpr UINT
-        kIdMoveUp = 52105;
-    static constexpr UINT
-        kIdMoveDown = 52106;
+        kIdPathConversion = 52105;
     static constexpr UINT
         kIdClose = 52107;
     static constexpr UINT
@@ -66,8 +64,7 @@ private:
     void EditSelected();
     void DeleteSelected();
     void TestSelected();
-    void MoveSelected(
-        int direction);
+    void ConvertPaths();
 
     [[nodiscard]] const wchar_t* T(
         const wchar_t* zh,
@@ -83,8 +80,7 @@ private:
     HWND edit_{};
     HWND delete_{};
     HWND test_{};
-    HWND moveUp_{};
-    HWND moveDown_{};
+    HWND pathConversion_{};
     HWND close_{};
     HWND list_{};
     HFONT font_{};

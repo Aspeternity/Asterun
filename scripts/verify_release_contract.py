@@ -36,6 +36,178 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.7.0-alpha.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 4,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"{name}={actual}, expected v0.7 alpha.2 value {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.7 alpha.2 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 4:
+        fail("v0.7 alpha.2 settings must remain schemaVersion 4")
+    if settings.get("providers") != expected_providers:
+        fail("v0.7 alpha.2 changed frozen provider defaults")
+
+    expected_bindings = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_bindings:
+        fail("v0.7 alpha.2 changed frozen Hotkey Registry action IDs")
+
+    manager = read("src/ui/ShortcutManagerWindow.cpp") + read("src/ui/ShortcutManagerWindow.hpp")
+    for token in (
+        "kIdPathConversion",
+        "pathConversion_",
+        "ConvertPaths",
+        "ShortcutPathConverterDialog::Show",
+        'T(L"路径转换...", L"Path conversion...")',
+        "LVCF_TEXT",
+    ):
+        if token not in manager:
+            fail(f"v0.7 alpha.2 Shortcut Manager usability contract missing: {token}")
+
+    for forbidden in (
+        "kIdMoveUp",
+        "kIdMoveDown",
+        "moveUp_",
+        "moveDown_",
+        "MoveSelected(",
+        'T(L"上移", L"Move up")',
+        'T(L"下移", L"Move down")',
+    ):
+        if forbidden in manager:
+            fail(f"v0.7 alpha.2 Shortcut Manager still exposes manual ordering: {forbidden}")
+
+    converter = read("src/ui/ShortcutPathConverterDialog.cpp") + read("src/ui/ShortcutPathConverterDialog.hpp")
+    for token in (
+        "Mode::Portable",
+        "Mode::Absolute",
+        "MakePortablePath",
+        "ExpandPortablePath",
+        "ApplyUserCommandPathUpdates",
+        "LVS_EX_CHECKBOXES",
+        "Arguments、URL、UNC",
+    ):
+        if token not in converter:
+            fail(f"v0.7 alpha.2 path conversion UI contract missing: {token}")
+
+    winutil = read("src/platform/WinUtil.cpp") + read("src/platform/WinUtil.hpp")
+    for token in (
+        "ResolvePortablePath",
+        "MakePortablePath",
+        "ExpandPortablePath",
+        "IsUncPath",
+        "bareRelativeIsPath",
+        "LOCALAPPDATA",
+        "USERPROFILE",
+        "WINDIR",
+        "ProgramFiles",
+    ):
+        if token not in winutil:
+            fail(f"v0.7 alpha.2 portable path runtime contract missing: {token}")
+
+    app = read("src/app/App.cpp") + read("src/app/App.hpp")
+    for token in (
+        "ApplyUserCommandPathUpdates",
+        "ResolvePortablePath",
+        "baseDirectory_",
+        "resolved.arguments",
+    ):
+        if token not in app:
+            fail(f"v0.7 alpha.2 App path integration missing: {token}")
+
+    store = read("src/core/UserCommandStore.cpp") + read("src/core/UserCommandStore.hpp")
+    for token in (
+        "UserCommandPathUpdate",
+        "ApplyPathUpdates",
+        "const auto previous = commands_",
+        "if (!Save())",
+    ):
+        if token not in store:
+            fail(f"v0.7 alpha.2 atomic path update contract missing: {token}")
+
+    if "sortOrder" not in read("src/core/Command.hpp"):
+        fail("v0.7 alpha.2 removed sortOrder compatibility field")
+
+    cmake = read("CMakeLists.txt")
+    for token in (
+        "src/ui/ShortcutPathConverterDialog.cpp",
+        "path_portability_tests",
+        "user_command_path_update_tests",
+    ):
+        if token not in cmake:
+            fail(f"v0.7 alpha.2 CMake contract missing: {token}")
+
+    workflow = read(".github/workflows/build.yml")
+    for token in (
+        "path_portability_tests",
+        "user_command_path_update_tests",
+    ):
+        if workflow.count(token) < 4:
+            fail(f"v0.7 alpha.2 Windows CI gate missing: {token}")
+
+    path_tests = read("tests/PathPortabilityTests.cpp")
+    for token in (
+        "notepad.exe",
+        "..\\Tools\\Demo\\demo.exe",
+        "IsUncPath",
+        "%WINDIR%",
+        "MakePortablePath",
+        "ExpandPortablePath",
+    ):
+        if token not in path_tests:
+            fail(f"v0.7 alpha.2 path portability test coverage missing: {token}")
+
+    batch_tests = read("tests/UserCommandPathUpdateTests.cpp")
+    for token in (
+        "ApplyPathUpdates",
+        "missing-command-id",
+        "ReadAll(jsonPath) == beforeFailure",
+    ):
+        if token not in batch_tests:
+            fail(f"v0.7 alpha.2 atomic path update test coverage missing: {token}")
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {
+        "widthLogical_": 420,
+        "rowHeightLogical_": 16,
+        "maxResults_": 10,
+    }.items():
+        found = re.search(rf"\b{re.escape(name)}\s*\{{(\d+)\}}", launcher_header)
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during v0.7 alpha.2: {name}")
+
+    print(
+        "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",
+        "| commands=1 settings=4 provider-cache=2",
+        "| Move Up/Down UI removed, sortOrder retained",
+        "| path preview + atomic apply + relative runtime resolution",
+        "| blank headers fixed at column creation",
+        "| Windows portability + atomic update CI gates",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.7.0-alpha.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 4,

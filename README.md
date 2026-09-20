@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.2 — Shortcut Manager Usability & Path Portability
+
+Alpha 2 removes the manual Move Up / Move Down controls from Shortcut Manager. The persisted `sortOrder` field remains for compatibility and deterministic tie-breaking, but it is no longer presented as a primary user action because launcher ranking is driven by matching, usage and pinning rather than manual list position.
+
+Shortcut Manager now exposes **Path conversion... / 路径转换...**. The conversion dialog scans user shortcut Target and Working Directory fields, previews every safe conversion, verifies whether the resolved path currently exists, checks accessible rows by default, and applies selected conversions in one atomic `commands.json` save. Arguments are deliberately untouched, and URL, UNC and bare shell commands are left unchanged.
+
+Two conversion modes are provided: **Portable** converts absolute paths into a nearby ALTRun Next-relative path or a known Windows environment-variable path; **Expand** resolves relative/environment-variable paths into the current machine's absolute path. Relative Target paths that contain path structure, and all relative Working Directory paths, are resolved against the directory containing `ALTRunNext.exe`. Bare targets such as `notepad.exe` or `cmd.exe` keep normal Windows/Shell lookup behavior.
+
+The Shortcut Manager list columns now receive their labels when they are created, fixing the blank header regression seen in alpha.1. The visible columns are Keyword, Name, Type and Target / command.
+
+No persisted schema changes in alpha.2: settings schemaVersion 4, commands/usage schemaVersion 1 and provider-cache schemaVersion 2 remain unchanged. Windows fixed FileVersion/ProductVersion is `0.7.0.2`.
+
 ## v0.7.0-alpha.1 — Shortcut Management Architecture
 
 v0.7 starts by promoting user shortcuts into a first-class workflow instead of treating them as a Settings page. The persisted command contract is unchanged: existing `commands.json` schemaVersion 1 data is reused directly with no migration.

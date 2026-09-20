@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0-alpha.2
+
+- Removed Shortcut Manager Move Up / Move Down UI while preserving the internal sortOrder compatibility field.
+- Added Path conversion preview/apply workflow for shortcut Target and Working Directory fields.
+- Added portable conversion to nearby ALTRun Next-relative paths and known Windows environment-variable paths.
+- Added reverse expansion from relative/environment-variable paths to current-machine absolute paths.
+- Defined runtime resolution of structured relative Target paths and relative Working Directory paths against the ALTRunNext.exe directory while preserving bare shell-command lookup.
+- Left Arguments, URL and UNC targets unchanged by path conversion.
+- Added atomic multi-shortcut path updates with rollback on validation/save failure.
+- Fixed blank Shortcut Manager list headers by assigning header text at column creation.
+- Added Windows path portability tests and cross-platform atomic path-update tests to CI.
+- Kept commands.json schemaVersion 1 and all v0.6 persisted/provider/Hotkey/Everything/Smart Actions contracts unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.2.
+
 ## 0.7.0-alpha.1
 
 - Promoted shortcuts from a Settings subsection into a standalone Shortcut Manager workflow.

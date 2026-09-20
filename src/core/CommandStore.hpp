@@ -78,6 +78,8 @@ public:
     bool MoveUserCommand(
         std::wstring_view id,
         int direction);
+    bool ApplyUserCommandPathUpdates(
+        const std::vector<UserCommandPathUpdate>& updates);
     bool ImportUserCommands(
         const std::filesystem::path& path,
         bool legacyMode,

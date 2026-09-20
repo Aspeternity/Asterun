@@ -1,6 +1,7 @@
 #include "ShortcutManagerWindow.hpp"
 
 #include "ShortcutEditorDialog.hpp"
+#include "ShortcutPathConverterDialog.hpp"
 #include "../app/App.hpp"
 #include "../core/Command.hpp"
 
@@ -175,8 +176,9 @@ void ShortcutManagerWindow::CreateControls() {
     makeButton(edit_, kIdEdit);
     makeButton(delete_, kIdDelete);
     makeButton(test_, kIdTest);
-    makeButton(moveUp_, kIdMoveUp);
-    makeButton(moveDown_, kIdMoveDown);
+    makeButton(
+        pathConversion_,
+        kIdPathConversion);
     makeButton(close_, kIdClose);
 
     list_ = CreateWindowExW(
@@ -230,13 +232,12 @@ void ShortcutManagerWindow::CreateControls() {
             : L"Segoe UI");
 
     for (HWND control :
-         std::array<HWND, 8>{
+         std::array<HWND, 7>{
              add_,
              edit_,
              delete_,
              test_,
-             moveUp_,
-             moveDown_,
+             pathConversion_,
              close_,
              list_}) {
         SendMessageW(
@@ -249,13 +250,18 @@ void ShortcutManagerWindow::CreateControls() {
 
     const auto addColumn =
         [&](int index,
-            int width) {
+            int width,
+            const wchar_t* text) {
             LVCOLUMNW column{};
             column.mask =
                 LVCF_WIDTH |
-                LVCF_SUBITEM;
+                LVCF_SUBITEM |
+                LVCF_TEXT;
             column.cx = Scale(width);
             column.iSubItem = index;
+            column.pszText =
+                const_cast<wchar_t*>(
+                    text);
 
             ListView_InsertColumn(
                 list_,
@@ -263,10 +269,23 @@ void ShortcutManagerWindow::CreateControls() {
                 &column);
         };
 
-    addColumn(0, 150);
-    addColumn(1, 190);
-    addColumn(2, 110);
-    addColumn(3, 430);
+    addColumn(
+        0,
+        150,
+        T(L"快捷词", L"Keyword"));
+    addColumn(
+        1,
+        190,
+        T(L"名称", L"Name"));
+    addColumn(
+        2,
+        110,
+        T(L"类型", L"Type"));
+    addColumn(
+        3,
+        430,
+        T(L"目标 / 命令行",
+          L"Target / command"));
 }
 
 void ShortcutManagerWindow::ApplyLanguage() {
@@ -292,11 +311,8 @@ void ShortcutManagerWindow::ApplyLanguage() {
         test_,
         T(L"测试", L"Test"));
     SetWindowTextW(
-        moveUp_,
-        T(L"上移", L"Move up"));
-    SetWindowTextW(
-        moveDown_,
-        T(L"下移", L"Move down"));
+        pathConversion_,
+        T(L"路径转换...", L"Path conversion..."));
     SetWindowTextW(
         close_,
         T(L"关闭", L"Close"));
@@ -499,8 +515,6 @@ void ShortcutManagerWindow::Refresh(
     EnableWindow(edit_, hasSelection);
     EnableWindow(delete_, hasSelection);
     EnableWindow(test_, hasSelection);
-    EnableWindow(moveUp_, hasSelection);
-    EnableWindow(moveDown_, hasSelection);
 }
 
 void ShortcutManagerWindow::Layout() {
@@ -518,13 +532,12 @@ void ShortcutManagerWindow::Layout() {
     int x = margin;
 
     for (HWND button :
-         std::array<HWND, 6>{
+         std::array<HWND, 5>{
              add_,
              edit_,
              delete_,
              test_,
-             moveUp_,
-             moveDown_}) {
+             pathConversion_}) {
         MoveWindow(
             button,
             x,
@@ -700,21 +713,15 @@ void ShortcutManagerWindow::TestSelected() {
     }
 }
 
-void ShortcutManagerWindow::MoveSelected(
-    int direction) {
-    const std::wstring id =
-        SelectedId();
-
-    if (id.empty()) {
-        return;
-    }
-
-    if (app_.MoveUserCommand(
-            id,
-            direction)) {
-        Refresh(id);
+void ShortcutManagerWindow::ConvertPaths() {
+    if (ShortcutPathConverterDialog::Show(
+            app_,
+            instance_,
+            hwnd_)) {
+        Refresh();
     }
 }
+
 
 LRESULT CALLBACK
 ShortcutManagerWindow::WindowProc(
@@ -789,11 +796,8 @@ LRESULT ShortcutManagerWindow::HandleMessage(
         case kIdTest:
             TestSelected();
             return 0;
-        case kIdMoveUp:
-            MoveSelected(-1);
-            return 0;
-        case kIdMoveDown:
-            MoveSelected(1);
+        case kIdPathConversion:
+            ConvertPaths();
             return 0;
         case kIdClose:
             ShowWindow(hwnd_, SW_HIDE);
@@ -853,12 +857,6 @@ LRESULT ShortcutManagerWindow::HandleMessage(
                     selected);
                 EnableWindow(
                     test_,
-                    selected);
-                EnableWindow(
-                    moveUp_,
-                    selected);
-                EnableWindow(
-                    moveDown_,
                     selected);
             }
         }

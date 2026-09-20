@@ -834,6 +834,26 @@ bool App::MoveUserCommand(
     return true;
 }
 
+
+bool App::ApplyUserCommandPathUpdates(
+    const std::vector<UserCommandPathUpdate>& updates) {
+    if (!commandStore_
+             .ApplyUserCommandPathUpdates(
+                 updates)) {
+        return false;
+    }
+
+    if (window_) {
+        window_->RefreshResults();
+    }
+
+    if (shortcutManagerWindow_) {
+        shortcutManagerWindow_->Refresh();
+    }
+
+    return true;
+}
+
 bool App::TestCommand(const Command& command) {
     return LaunchCommand(command, false);
 }
@@ -2408,15 +2428,27 @@ bool App::LaunchCommand(
                 folder);
     }
 
+    const bool bareTargetIsPath =
+        resolved.type ==
+        CommandType::Folder;
+
     const std::wstring target =
-        win::ExpandEnvironment(
-            resolved.target);
+        win::ResolvePortablePath(
+            resolved.target,
+            baseDirectory_,
+            bareTargetIsPath);
+
+    // Arguments deliberately remain environment-expanded only. v0.7
+    // path portability does not rewrite or reinterpret argument tokens.
     const std::wstring args =
         win::ExpandEnvironment(
             resolved.arguments);
+
     const std::wstring cwd =
-        win::ExpandEnvironment(
-            resolved.workingDirectory);
+        win::ResolvePortablePath(
+            resolved.workingDirectory,
+            baseDirectory_,
+            true);
 
     SHELLEXECUTEINFOW info{};
     info.cbSize = sizeof(info);

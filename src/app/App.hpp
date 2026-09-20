@@ -78,6 +78,8 @@ public:
     bool MoveUserCommand(
         std::wstring_view id,
         int direction);
+    bool ApplyUserCommandPathUpdates(
+        const std::vector<UserCommandPathUpdate>& updates);
     bool TestCommand(
         const Command& command);
 
@@ -184,6 +186,11 @@ public:
     [[nodiscard]] const std::filesystem::path&
     DataDirectory() const noexcept {
         return dataDirectory_;
+    }
+
+    [[nodiscard]] const std::filesystem::path&
+    BaseDirectory() const noexcept {
+        return baseDirectory_;
     }
 
 private:
