@@ -1290,9 +1290,10 @@ StartManagedEverything(
                       Cancelled
                 : ManagedRuntimeResult::
                       IpcUnavailable,
-            stopToken.stop_requested()
-                ? ERROR_CANCELLED
-                : ERROR_TIMEOUT,
+            static_cast<std::uint32_t>(
+                stopToken.stop_requested()
+                    ? ERROR_CANCELLED
+                    : ERROR_TIMEOUT),
         };
     }
 
