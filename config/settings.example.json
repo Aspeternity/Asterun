@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "general": {
     "startWithWindows": false,
     "showOnStartup": false,
@@ -48,6 +48,7 @@
     }
   },
   "behavior": {
+    "pinyinSearch": true,
     "wildcardMatching": false,
     "numericQuickLaunch": false,
     "numericQuickLaunchOrder": "one-to-zero",

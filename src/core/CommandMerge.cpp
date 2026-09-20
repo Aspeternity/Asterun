@@ -246,9 +246,9 @@ CommandMergeStats::Suppressed(
 }
 
 CommandMergeResult
-MergeCommands(
+MergeCommandViews(
     const std::vector<Command>& userCommands,
-    const std::vector<Command>& providerCommands) {
+    const std::vector<const Command*>& providerCommands) {
 
     CommandMergeResult result;
 
@@ -278,12 +278,13 @@ MergeCommands(
     candidates.reserve(
         providerCommands.size());
 
-    for (const auto& command :
+    for (const Command* command :
          providerCommands) {
-        if (command.enabled &&
-            !IsUser(command.source)) {
+        if (command != nullptr &&
+            command->enabled &&
+            !IsUser(command->source)) {
             candidates.push_back(
-                &command);
+                command);
         }
     }
 
@@ -327,6 +328,28 @@ MergeCommands(
     }
 
     return result;
+}
+
+CommandMergeResult
+MergeCommands(
+    const std::vector<Command>& userCommands,
+    const std::vector<Command>& providerCommands) {
+
+    std::vector<const Command*>
+        providerViews;
+
+    providerViews.reserve(
+        providerCommands.size());
+
+    for (const auto& command :
+         providerCommands) {
+        providerViews.push_back(
+            &command);
+    }
+
+    return MergeCommandViews(
+        userCommands,
+        providerViews);
 }
 
 } // namespace altrun

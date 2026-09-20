@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.2.5 — Provider Storage Deduplication & Pinyin Search Control
+
+Alpha 2.5 removes the long-lived raw Provider command copy. Provider cache data is now loaded only for a synchronous merge, exposed to the merge algorithm through temporary `const Command*` views, and released immediately after the final searchable `commands_` vector is built. The raw Provider command count remains available as a scalar Diagnostics metric, while accepted/suppressed source statistics retain their previous semantics.
+
+User shortcut edits still rebuild Provider de-duplication correctly: the current Provider enable map is retained, the generated provider cache is re-read transiently, and no Provider pointer survives the merge call. This preserves stable command indexes, user-command override behavior, Provider refresh behavior, usage mapping and result lifetime while eliminating the second resident Provider `Command` vector.
+
+The General → Search behavior card now includes **Enable Pinyin search / 启用拼音搜索**, enabled by default. When disabled, ASCII queries do not enter the Pinyin path. If cpp-pinyin was already loaded, disabling the setting releases the converter and Pinyin cache immediately; re-enabling keeps first-use lazy initialization.
+
+Because the new Pinyin preference is persisted, settings.json advances from schemaVersion 4 to **schemaVersion 5**. Existing schema-4 files migrate with `behavior.pinyinSearch: true`; an alpha.2.4/schema-4 downgrade sees the newer schema and remains read-only. Commands/usage stay schemaVersion 1 and provider-cache stays schemaVersion 2. Windows fixed FileVersion/ProductVersion is `0.7.0.25`.
+
 ## v0.7.0-alpha.2.4 — Lazy Pinyin Initialization
 
 Alpha 2.4 converts cpp-pinyin from eager startup initialization to first-use initialization. At process startup ALTRun Next now keeps only the dictionary path and a lightweight dictionary-presence state; the `Pinyin::Pinyin` converter is not constructed until an ASCII pinyin-capable search actually reaches a field containing supported Hanzi.

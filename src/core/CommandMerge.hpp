@@ -32,6 +32,11 @@ struct CommandMergeResult {
 };
 
 [[nodiscard]] CommandMergeResult
+MergeCommandViews(
+    const std::vector<Command>& userCommands,
+    const std::vector<const Command*>& providerCommands);
+
+[[nodiscard]] CommandMergeResult
 MergeCommands(
     const std::vector<Command>& userCommands,
     const std::vector<Command>& providerCommands);

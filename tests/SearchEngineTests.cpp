@@ -83,12 +83,45 @@ int main(int argc, char** argv) {
 
     UsageMap usage;
 
+    SearchEngine pinyinDisabledEngine(
+        executableDirectory / "dict");
+
+    auto disabledPinyin =
+        pinyinDisabledEngine.Search(
+            commands,
+            usage,
+            L"weixin",
+            10,
+            false,
+            false);
+
+    assert(disabledPinyin.empty());
+    assert(!pinyinDisabledEngine.PinyinLoaded());
+    assert(
+        pinyinDisabledEngine
+            .PinyinCacheEntryCount() == 0);
+
     auto weixin = engine.Search(commands, usage, L"weixin", 10);
     assert(!weixin.empty());
     assert(weixin.front().commandIndex == 3);
     assert(engine.PinyinLoaded());
     assert(engine.PinyinAvailable());
     assert(engine.PinyinCacheEntryCount() > 0);
+
+    engine.ReleasePinyinResources();
+    assert(!engine.PinyinLoaded());
+    assert(engine.PinyinAvailable());
+    assert(engine.PinyinCacheEntryCount() == 0);
+
+    auto weixinReload =
+        engine.Search(
+            commands,
+            usage,
+            L"weixin",
+            10);
+    assert(!weixinReload.empty());
+    assert(weixinReload.front().commandIndex == 3);
+    assert(engine.PinyinLoaded());
 
     auto exact = engine.Search(commands, usage, L"chrome", 10);
     assert(!exact.empty());

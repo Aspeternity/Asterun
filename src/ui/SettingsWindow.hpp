@@ -123,6 +123,8 @@ private:
         kIdExecuteSingleResult = 51132;
     static constexpr UINT
         kIdNumericQuickLaunchOrder = 51133;
+    static constexpr UINT
+        kIdPinyinSearch = 51134;
 
     static constexpr UINT
         kIdUiStyle = 51201;
@@ -409,6 +411,7 @@ private:
     HWND hideOnFocusLost_{};
     HWND showTrayIcon_{};
     HWND searchBehaviorTitle_{};
+    HWND pinyinSearch_{};
     HWND wildcardMatching_{};
     HWND numericQuickLaunch_{};
     HWND executeSingleResult_{};

@@ -31,6 +31,7 @@ public:
     [[nodiscard]] bool Loaded() const noexcept;
     [[nodiscard]] bool Available() const noexcept;
     [[nodiscard]] std::size_t CacheEntryCount() const noexcept;
+    void Unload() noexcept;
 
     [[nodiscard]] const PinyinForms* FormsFor(
         std::wstring_view text) const;

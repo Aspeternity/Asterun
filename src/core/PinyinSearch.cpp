@@ -450,6 +450,29 @@ PinyinSearch::CacheEntryCount() const noexcept {
     return impl_->cache.size();
 }
 
+void PinyinSearch::Unload() noexcept {
+    if (!impl_) {
+        return;
+    }
+
+    std::scoped_lock lock(
+        impl_->mutex);
+
+    impl_->cache.clear();
+    impl_->converter.reset();
+
+    const auto state =
+        impl_->state.load(
+            std::memory_order_relaxed);
+
+    if (state !=
+        Impl::State::Missing) {
+        impl_->state.store(
+            Impl::State::Unloaded,
+            std::memory_order_release);
+    }
+}
+
 const PinyinForms* PinyinSearch::FormsFor(
     std::wstring_view text) const {
 

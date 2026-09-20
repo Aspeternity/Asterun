@@ -148,7 +148,7 @@ int main() {
             scale(
                 settings_layout::
                     kToggleRowLogical) *
-                4);
+                5);
         assert(
             wide.behavior.right <=
             wideWidth -

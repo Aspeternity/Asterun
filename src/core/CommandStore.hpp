@@ -95,7 +95,7 @@ public:
 
     [[nodiscard]] std::size_t
     ProviderCommandCount() const noexcept {
-        return providerCommands_.size();
+        return providerCommandCount_;
     }
 
     [[nodiscard]] const std::vector<Command>&
@@ -155,8 +155,11 @@ private:
         providerCache_;
     ProviderRegistry
         providerRegistry_;
-    std::vector<Command>
-        providerCommands_;
+    ProviderEnableMap
+        providerEnabled_{
+            providers::DefaultEnabled()};
+    std::size_t
+        providerCommandCount_{0};
     std::vector<Command>
         commands_;
     CommandMergeStats

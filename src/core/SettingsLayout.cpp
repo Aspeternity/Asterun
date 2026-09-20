@@ -111,7 +111,7 @@ GeneralLayoutMetrics BuildGeneralLayout(
 
     const int searchBottom =
         searchTop +
-        searchRowHeight * 4;
+        searchRowHeight * 5;
 
     const int cardsBottom =
         std::max(

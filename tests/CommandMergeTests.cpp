@@ -234,6 +234,42 @@ int main() {
             L"path:enabled"));
     }
 
+    {
+        const std::vector<Command> providers{
+            Make(
+                L"start:view",
+                L"View App",
+                L"view",
+                L"C:\\View.exe",
+                CommandSource::StartMenu),
+            Make(
+                L"path:view",
+                L"View App",
+                L"view",
+                L"C:\\View.exe",
+                CommandSource::Path),
+        };
+
+        const std::vector<const Command*>
+            views{
+                &providers[0],
+                nullptr,
+                &providers[1],
+            };
+
+        const auto merged =
+            MergeCommandViews(
+                {},
+                views);
+
+        assert(merged.commands.size() == 1);
+        assert(HasId(
+            merged.commands,
+            L"start:view"));
+        assert(
+            merged.stats.suppressedPath == 1);
+    }
+
     std::cout
         << "Command merge regression tests passed\n";
 

@@ -287,6 +287,7 @@ int main() {
     assert(!featureSettings.Data().showOnStartup);
     assert(!featureSettings.Data().auxiliaryHotkeyEnabled);
     assert(featureSettings.Data().auxiliaryHotkeyKey == "pause");
+    assert(featureSettings.Data().pinyinSearch);
     assert(!featureSettings.Data().wildcardMatching);
     assert(!featureSettings.Data().numericQuickLaunch);
     assert(
@@ -328,7 +329,9 @@ int main() {
         true,
         true,
         "zero-to-nine",
-        true));
+        true,
+        false));
+    assert(!featureSettings.Data().pinyinSearch);
     assert(featureSettings.Data().wildcardMatching);
     assert(featureSettings.Data().numericQuickLaunch);
     assert(
@@ -343,7 +346,9 @@ int main() {
         false,
         false,
         "zero-to-nine",
-        false));
+        false,
+        true));
+    assert(featureSettings.Data().pinyinSearch);
     assert(
         !featureSettings.Data()
              .wildcardMatching);
@@ -362,7 +367,8 @@ int main() {
         false,
         false,
         "unexpected-order",
-        false));
+        false,
+        true));
     assert(
         featureSettings.Data()
             .numericQuickLaunchOrder ==
@@ -373,7 +379,8 @@ int main() {
         true,
         true,
         "zero-to-nine",
-        true));
+        true,
+        false));
 
     assert(providers::IsEnabled(
         featureSettings.Data().providerEnabled,
@@ -419,6 +426,9 @@ int main() {
         providerSettingsReloaded.Data()
             .auxiliaryHotkeyKey ==
         "pause");
+    assert(
+        !providerSettingsReloaded.Data()
+             .pinyinSearch);
     assert(
         providerSettingsReloaded.Data()
             .wildcardMatching);
@@ -1304,6 +1314,7 @@ int main() {
         featureSettings.Data()
             .auxiliaryHotkeyKey ==
         "pause");
+    assert(featureSettings.Data().pinyinSearch);
     assert(
         !featureSettings.Data()
              .wildcardMatching);

@@ -7,7 +7,7 @@
 
 namespace altrun::config {
 
-inline constexpr int kSettingsSchemaVersion = 4;
+inline constexpr int kSettingsSchemaVersion = 5;
 inline constexpr int kCommandsSchemaVersion = 1;
 inline constexpr int kUsageSchemaVersion = 1;
 

@@ -143,7 +143,8 @@ public:
         bool wildcardMatching,
         bool numericQuickLaunch,
         std::string numericQuickLaunchOrder,
-        bool executeSingleResultImmediately);
+        bool executeSingleResultImmediately,
+        bool pinyinSearch);
     bool SetProviderEnabled(
         std::string id,
         bool enabled);

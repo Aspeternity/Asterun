@@ -430,7 +430,9 @@ std::vector<LauncherResult> App::Search(
             query,
             limit,
             settingsStore_.Data()
-                .wildcardMatching);
+                .wildcardMatching,
+            settingsStore_.Data()
+                .pinyinSearch);
 
     std::vector<LauncherResult> results;
     results.reserve(matches.size());
@@ -1986,7 +1988,12 @@ bool App::SetClassicBehavior(
     bool wildcardMatching,
     bool numericQuickLaunch,
     std::string numericQuickLaunchOrder,
-    bool executeSingleResultImmediately) {
+    bool executeSingleResultImmediately,
+    bool pinyinSearch) {
+
+    const bool wasPinyinEnabled =
+        settingsStore_.Data()
+            .pinyinSearch;
 
     if (!settingsStore_
              .SetClassicBehavior(
@@ -1994,8 +2001,15 @@ bool App::SetClassicBehavior(
                  numericQuickLaunch,
                  std::move(
                      numericQuickLaunchOrder),
-                 executeSingleResultImmediately)) {
+                 executeSingleResultImmediately,
+                 pinyinSearch)) {
         return false;
+    }
+
+    if (wasPinyinEnabled &&
+        !pinyinSearch) {
+        searchEngine_
+            .ReleasePinyinResources();
     }
 
     if (window_) {

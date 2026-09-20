@@ -71,37 +71,7 @@ void CommandStore::Reload(
 void CommandStore::ReloadProviderCache(
     const ProviderEnableMap& enabled) {
 
-    providerCommands_.clear();
-
-    const ProviderCacheData cache =
-        providerCache_.Load();
-
-    for (const auto& descriptor :
-         providerRegistry_
-             .Descriptors()) {
-
-        if (!providers::IsEnabled(
-                enabled,
-                descriptor.id,
-                descriptor
-                    .defaultEnabled)) {
-            continue;
-        }
-
-        const auto it =
-            cache.find(
-                descriptor.id);
-
-        if (it == cache.end()) {
-            continue;
-        }
-
-        providerCommands_.insert(
-            providerCommands_.end(),
-            it->second.commands.begin(),
-            it->second.commands.end());
-    }
-
+    providerEnabled_ = enabled;
     RebuildMergedCommands();
 }
 
@@ -408,11 +378,76 @@ bool CommandStore::ExportUserCommands(
 }
 
 void CommandStore::RebuildMergedCommands() {
+    // Provider cache Commands are intentionally transient. Only the final
+    // accepted merged Commands remain resident after this synchronous merge.
+    const ProviderCacheData cache =
+        providerCache_.Load();
+
+    std::size_t rawProviderCount = 0;
+
+    for (const auto& descriptor :
+         providerRegistry_
+             .Descriptors()) {
+
+        if (!providers::IsEnabled(
+                providerEnabled_,
+                descriptor.id,
+                descriptor
+                    .defaultEnabled)) {
+            continue;
+        }
+
+        const auto it =
+            cache.find(
+                descriptor.id);
+
+        if (it != cache.end()) {
+            rawProviderCount +=
+                it->second.commands.size();
+        }
+    }
+
+    std::vector<const Command*>
+        providerViews;
+
+    providerViews.reserve(
+        rawProviderCount);
+
+    for (const auto& descriptor :
+         providerRegistry_
+             .Descriptors()) {
+
+        if (!providers::IsEnabled(
+                providerEnabled_,
+                descriptor.id,
+                descriptor
+                    .defaultEnabled)) {
+            continue;
+        }
+
+        const auto it =
+            cache.find(
+                descriptor.id);
+
+        if (it == cache.end()) {
+            continue;
+        }
+
+        for (const auto& command :
+             it->second.commands) {
+            providerViews.push_back(
+                &command);
+        }
+    }
+
+    providerCommandCount_ =
+        providerViews.size();
+
     CommandMergeResult merged =
-        MergeCommands(
+        MergeCommandViews(
             userCommandStore_
                 .Commands(),
-            providerCommands_);
+            providerViews);
 
     commands_ =
         std::move(

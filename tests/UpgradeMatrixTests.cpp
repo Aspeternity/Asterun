@@ -115,6 +115,14 @@ void AssertCommonFields(
 
     const auto& behavior =
         root.at("behavior");
+    if (behavior.contains("pinyinSearch")) {
+        assert(
+            settings.pinyinSearch ==
+            behavior.at("pinyinSearch").get<bool>());
+    } else {
+        assert(settings.pinyinSearch);
+    }
+
     assert(
         settings.wildcardMatching ==
         behavior.at("wildcardMatching").get<bool>());
@@ -168,13 +176,13 @@ void AssertDowngradeReadOnly(
     const auto downgrade =
         config::LoadJsonWithBackup(
             settingsPath,
-            3);
+            4);
 
     assert(
         downgrade.status ==
         config::JsonLoadStatus::
             UnsupportedSchema);
-    assert(downgrade.schemaVersion == 4);
+    assert(downgrade.schemaVersion == 5);
     assert(ReadText(settingsPath) == before);
 }
 
@@ -272,7 +280,11 @@ void AssertSchema3Migration(
     assert(
         migrated.at("schemaVersion")
             .get<int>() ==
-        4);
+        5);
+    assert(
+        migrated.at("behavior")
+            .at("pinyinSearch")
+            .get<bool>());
     assert(
         migrated.at("hotkeys")
             .at("bindings")
@@ -294,7 +306,7 @@ void AssertSchema3Migration(
     AssertDowngradeReadOnly(path);
 }
 
-void AssertSchema4Compatibility(
+void AssertSchema4Migration(
     const std::filesystem::path& fixtureRoot,
     std::string_view fixtureName,
     const std::filesystem::path& workRoot) {
@@ -307,26 +319,24 @@ void AssertSchema4Compatibility(
         fixtureName,
         path);
 
-    const std::string before =
-        ReadText(path);
     const auto source =
-        nlohmann::json::parse(before);
+        nlohmann::json::parse(
+            ReadText(path));
 
     SettingsStore store(path);
     store.Load();
 
+    assert(store.WasMigratedFromOlderSchema());
     assert(
-        !store.WasMigratedFromOlderSchema());
+        store.MigratedFromSchemaVersion() ==
+        4);
     assert(
         !store.IsReadOnlyDueToNewerSchema());
-
-    // Schema 4 -> 4 must be a true compatibility load. Merely opening the
-    // file must not normalize, reorder or otherwise rewrite user settings.
-    assert(ReadText(path) == before);
 
     AssertCommonFields(
         store.Data(),
         source);
+    assert(store.Data().pinyinSearch);
 
     const auto& bindings =
         source.at("hotkeys")
@@ -339,6 +349,19 @@ void AssertSchema4Compatibility(
             bindings,
             action.id);
     }
+
+    const auto migrated =
+        nlohmann::json::parse(
+            ReadText(path));
+
+    assert(
+        migrated.at("schemaVersion")
+            .get<int>() ==
+        5);
+    assert(
+        migrated.at("behavior")
+            .at("pinyinSearch")
+            .get<bool>());
 
     AssertDowngradeReadOnly(path);
 }
@@ -368,7 +391,11 @@ void AssertCleanInstall(
     assert(
         root.at("schemaVersion")
             .get<int>() ==
-        4);
+        5);
+    assert(
+        root.at("behavior")
+            .at("pinyinSearch")
+            .get<bool>());
 
     const auto& bindings =
         root.at("hotkeys")
@@ -485,7 +512,7 @@ int main(
              "v0.6.0-alpha.6.1-schema4.json",
              "v0.6.0-beta.1-schema4.json",
              "v0.6.0-beta.2-schema4.json"}) {
-        AssertSchema4Compatibility(
+        AssertSchema4Migration(
             fixtureRoot,
             fixture,
             workRoot);
@@ -496,8 +523,8 @@ int main(
 
     std::cout
         << "Upgrade matrix tests passed: clean install, "
-           "v0.5.0/alpha.5 schema 3 -> 4, "
-           "alpha.6.1/beta.1/beta.2 schema 4 -> 4, "
+           "v0.5.0/alpha.5 schema 3 -> 5, "
+           "alpha.6.1/beta.1/beta.2 schema 4 -> 5, "
            "downgrade read-only\n";
 
     return 0;

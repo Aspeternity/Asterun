@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-alpha.2.5
+
+- Removed the long-lived raw Provider `providerCommands_` vector; Provider cache Commands now exist only during merge and the final searchable `commands_` vector remains resident.
+- Added temporary `const Command*` Provider merge views so rebuilding the merged index does not create another full Provider copy.
+- Preserved raw Provider count diagnostics as a scalar and kept Provider accepted/suppressed statistics, refresh behavior, command indexes and user override semantics unchanged.
+- Added a default-on Pinyin search toggle to General -> Search behavior.
+- Disabled Pinyin search now bypasses Hanzi-to-pinyin matching; turning it off also releases a loaded converter and Pinyin cache, while re-enabling stays lazy.
+- Advanced settings.json from schemaVersion 4 to 5 for the persisted `behavior.pinyinSearch` preference with schema-4 -> 5 migration and schema-4 downgrade read-only protection.
+- Added merge-view, Pinyin-disabled/unload/reload, settings persistence/migration and five-row Search behavior layout regression coverage.
+- Kept commands/usage schemaVersion 1 and provider-cache schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.25.
+
 ## 0.7.0-alpha.2.4
 
 - Changed cpp-pinyin initialization from application-start eager construction to first-use construction inside the Pinyin search path.

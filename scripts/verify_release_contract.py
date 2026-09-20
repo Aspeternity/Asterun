@@ -36,9 +36,10 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4"):
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5"):
+    expected_settings_schema = 5 if version == "0.7.0-alpha.2.5" else 4
     expected_schemas = {
-        "kSettingsSchemaVersion": 4,
+        "kSettingsSchemaVersion": expected_settings_schema,
         "kCommandsSchemaVersion": 1,
         "kUsageSchemaVersion": 1,
     }
@@ -58,8 +59,11 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         "windows.path": True,
         "everything.filesystem": False,
     }
-    if settings.get("schemaVersion") != 4:
-        fail("v0.7 alpha.2 settings must remain schemaVersion 4")
+    if settings.get("schemaVersion") != expected_settings_schema:
+        fail(
+            f"v0.7 alpha.2 settings schema mismatch: "
+            f"{settings.get('schemaVersion')} != {expected_settings_schema}"
+        )
     if settings.get("providers") != expected_providers:
         fail("v0.7 alpha.2 changed frozen provider defaults")
 
@@ -257,7 +261,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4"):
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -367,7 +371,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
-    if version == "0.7.0-alpha.2.4":
+    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5"):
         pinyin_cpp = read("src/core/PinyinSearch.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
 
@@ -413,14 +417,100 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
 
+    if version == "0.7.0-alpha.2.5":
+        command_store_h = read("src/core/CommandStore.hpp")
+        command_store_cpp = read("src/core/CommandStore.cpp")
+        command_merge_h = read("src/core/CommandMerge.hpp")
+        command_merge_cpp = read("src/core/CommandMerge.cpp")
+        settings_h = read("src/core/Settings.hpp")
+        settings_cpp = read("src/core/Settings.cpp")
+        search_h = read("src/core/SearchEngine.hpp")
+        search_cpp = read("src/core/SearchEngine.cpp")
+        settings_ui_h = read("src/ui/SettingsWindow.hpp")
+        settings_ui_cpp = read("src/ui/SettingsWindow.cpp")
+        upgrade_test = read("tests/UpgradeMatrixTests.cpp")
+        merge_test = read("tests/CommandMergeTests.cpp")
+        search_test = read("tests/SearchEngineTests.cpp")
+
+        if "providerCommands_" in command_store_h or "providerCommands_" in command_store_cpp:
+            fail("v0.7 alpha.2.5 must not retain a raw Provider Command vector")
+
+        for token in (
+            "providerEnabled_",
+            "providerCommandCount_",
+            "ProviderCacheData cache",
+            "std::vector<const Command*>",
+            "MergeCommandViews",
+        ):
+            if token not in command_store_h and token not in command_store_cpp:
+                fail(f"v0.7 alpha.2.5 Provider storage dedup missing: {token}")
+
+        for token in (
+            "MergeCommandViews",
+            "std::vector<const Command*>",
+        ):
+            if token not in command_merge_h and token not in command_merge_cpp:
+                fail(f"v0.7 alpha.2.5 merge-view contract missing: {token}")
+
+        behavior = settings.get("behavior", {})
+        if behavior.get("pinyinSearch") is not True:
+            fail("v0.7 alpha.2.5 Pinyin search must default to enabled")
+
+        for token in (
+            "bool pinyinSearch{true};",
+            '"pinyinSearch"',
+        ):
+            if token not in settings_h and token not in settings_cpp:
+                fail(f"v0.7 alpha.2.5 persisted Pinyin setting missing: {token}")
+
+        for token in (
+            "bool allowPinyin = true",
+            "allowPinyin &&",
+            "ReleasePinyinResources",
+        ):
+            if token not in search_h and token not in search_cpp:
+                fail(f"v0.7 alpha.2.5 Pinyin runtime control missing: {token}")
+
+        for token in (
+            "kIdPinyinSearch",
+            "pinyinSearch_",
+            'T(L"启用拼音搜索",',
+        ):
+            if token not in settings_ui_h and token not in settings_ui_cpp:
+                fail(f"v0.7 alpha.2.5 Pinyin Settings UI missing: {token}")
+
+        for token in (
+            "AssertSchema4Migration",
+            "MigratedFromSchemaVersion() ==",
+            'at("pinyinSearch")',
+            "downgrade.schemaVersion == 5",
+        ):
+            if token not in upgrade_test:
+                fail(f"v0.7 alpha.2.5 schema-5 migration coverage missing: {token}")
+
+        for token in (
+            "MergeCommandViews",
+            "nullptr",
+        ):
+            if token not in merge_test:
+                fail(f"v0.7 alpha.2.5 merge-view regression coverage missing: {token}")
+
+        for token in (
+            "pinyinDisabledEngine",
+            "ReleasePinyinResources",
+        ):
+            if token not in search_test:
+                fail(f"v0.7 alpha.2.5 Pinyin toggle regression coverage missing: {token}")
+
     print(
         "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",
-        "| commands=1 settings=4 provider-cache=2",
+        f"| commands=1 settings={expected_settings_schema} provider-cache=2",
         "| Move Up/Down UI removed, sortOrder retained",
         "| path preview + atomic apply + relative runtime resolution",
         "| blank headers fixed at column creation",
         "| Windows portability + atomic update CI gates",
         "| alpha.2.4 lazy Pinyin first-use initialization",
+        "| alpha.2.5 Provider storage dedup + Pinyin search control",
     )
     raise SystemExit(0)
 

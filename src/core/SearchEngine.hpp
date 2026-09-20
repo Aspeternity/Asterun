@@ -35,7 +35,8 @@ public:
         const UsageMap& usage,
         std::wstring_view query,
         std::size_t limit = 12,
-        bool allowWildcards = false) const;
+        bool allowWildcards = false,
+        bool allowPinyin = true) const;
 
     [[nodiscard]] bool PinyinLoaded() const noexcept {
         return pinyin_.Loaded();
@@ -47,6 +48,10 @@ public:
 
     [[nodiscard]] std::size_t PinyinCacheEntryCount() const noexcept {
         return pinyin_.CacheEntryCount();
+    }
+
+    void ReleasePinyinResources() noexcept {
+        pinyin_.Unload();
     }
 
 private:
@@ -91,7 +96,8 @@ private:
 
     [[nodiscard]] int CommandTextScore(
         const Command& command,
-        std::wstring_view normalizedQuery) const;
+        std::wstring_view normalizedQuery,
+        bool allowPinyin) const;
 
     [[nodiscard]] static int CommandWildcardScore(
         const Command& command,

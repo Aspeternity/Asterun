@@ -573,6 +573,10 @@ void SettingsWindow::CreateGeneralPage() {
     searchBehaviorTitle_ =
         CreateStatic(L"");
 
+    pinyinSearch_ =
+        CreateCheckboxRow(
+            L"",
+            kIdPinyinSearch);
     wildcardMatching_ =
         CreateCheckboxRow(
             L"",
@@ -786,6 +790,7 @@ void SettingsWindow::CreateGeneralPage() {
         hideOnFocusLost_,
         showTrayIcon_,
         searchBehaviorTitle_,
+        pinyinSearch_,
         wildcardMatching_,
         numericQuickLaunch_,
         executeSingleResult_,
@@ -1511,6 +1516,10 @@ void SettingsWindow::ApplyLanguage() {
         T(L"搜索行为",
           L"Search behavior"));
     SetWindowTextW(
+        pinyinSearch_,
+        T(L"启用拼音搜索",
+          L"Enable Pinyin search"));
+    SetWindowTextW(
         wildcardMatching_,
         T(L"允许 * / ? 通配符",
           L"Enable * / ? wildcards"));
@@ -1841,13 +1850,14 @@ void SettingsWindow::RefreshFromSettings() {
     RefreshHotkeyPage();
     RefreshActionDiagnostics();
 
-    for (HWND control : std::array<HWND, 14>{
+    for (HWND control : std::array<HWND, 15>{
              startWithWindows_,
              showOnStartup_,
              hideAfterLaunch_,
              clearQueryOnShow_,
              hideOnFocusLost_,
              showTrayIcon_,
+             pinyinSearch_,
              wildcardMatching_,
              numericQuickLaunch_,
              executeSingleResult_,
@@ -4388,6 +4398,8 @@ void SettingsWindow::ApplyClassicBehaviorControl(
     const auto settings =
         app_.SettingsData();
 
+    bool pinyinSearch =
+        settings.pinyinSearch;
     bool wildcardMatching =
         settings.wildcardMatching;
     bool numericQuickLaunch =
@@ -4397,6 +4409,10 @@ void SettingsWindow::ApplyClassicBehaviorControl(
             .executeSingleResultImmediately;
 
     switch (id) {
+    case kIdPinyinSearch:
+        pinyinSearch =
+            !pinyinSearch;
+        break;
     case kIdWildcardMatching:
         wildcardMatching =
             !wildcardMatching;
@@ -4433,7 +4449,8 @@ void SettingsWindow::ApplyClassicBehaviorControl(
             wildcardMatching,
             numericQuickLaunch,
             order,
-            executeSingleResult)) {
+            executeSingleResult,
+            pinyinSearch)) {
 
         MessageBoxW(
             hwnd_,
@@ -4834,6 +4851,8 @@ bool SettingsWindow::ToggleChecked(
         return settings.hideOnFocusLost;
     case kIdShowTrayIcon:
         return settings.showTrayIcon;
+    case kIdPinyinSearch:
+        return settings.pinyinSearch;
     case kIdWildcardMatching:
         return settings.wildcardMatching;
     case kIdNumericQuickLaunch:
@@ -5450,7 +5469,8 @@ void SettingsWindow::Layout() {
             metrics.search.left -
             Scale(2);
 
-        std::array<HWND, 3> searchRows{
+        std::array<HWND, 4> searchRows{
+            pinyinSearch_,
             wildcardMatching_,
             numericQuickLaunch_,
             executeSingleResult_,
@@ -5477,7 +5497,7 @@ void SettingsWindow::Layout() {
             Scale(
                 settings_layout::
                     kToggleRowLogical *
-                    3);
+                    4);
 
         MoveWindow(
             numericQuickLaunchOrderLabel_,
@@ -7026,6 +7046,7 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
+        case kIdPinyinSearch:
         case kIdWildcardMatching:
         case kIdNumericQuickLaunch:
         case kIdExecuteSingleResult:

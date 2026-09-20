@@ -563,7 +563,8 @@ int SearchEngine::PinyinMatchScore(
 
 int SearchEngine::CommandTextScore(
     const Command& command,
-    std::wstring_view normalizedQuery) const {
+    std::wstring_view normalizedQuery,
+    bool allowPinyin) const {
 
     if (normalizedQuery.empty()) {
         return 0;
@@ -620,7 +621,8 @@ int SearchEngine::CommandTextScore(
 
     int pinyinScore = 0;
 
-    if (pinyin_.Available() &&
+    if (allowPinyin &&
+        pinyin_.Available() &&
         IsPinyinQuery(normalizedQuery)) {
 
         const int keywordPinyin =
@@ -731,7 +733,8 @@ std::vector<SearchResult> SearchEngine::Search(
     const UsageMap& usage,
     std::wstring_view query,
     std::size_t limit,
-    bool allowWildcards) const {
+    bool allowWildcards,
+    bool allowPinyin) const {
 
     std::vector<SearchResult> results;
 
@@ -787,7 +790,8 @@ std::vector<SearchResult> SearchEngine::Search(
                           normalizedQuery)
                     : CommandTextScore(
                           command,
-                          normalizedQuery);
+                          normalizedQuery,
+                          allowPinyin);
 
             if (!wildcardQuery &&
                 queryTokens.size() > 1) {
@@ -802,7 +806,8 @@ std::vector<SearchResult> SearchEngine::Search(
                     const int tokenScore =
                         CommandTextScore(
                             command,
-                            token);
+                            token,
+                            allowPinyin);
 
                     if (tokenScore <= 0) {
                         allTokensMatched = false;

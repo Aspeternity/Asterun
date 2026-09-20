@@ -519,6 +519,12 @@ bool SettingsStore::LoadJson() {
             const auto& behavior =
                 root["behavior"];
 
+            settings_.pinyinSearch =
+                behavior.value(
+                    "pinyinSearch",
+                    settings_
+                        .pinyinSearch);
+
             settings_.wildcardMatching =
                 behavior.value(
                     "wildcardMatching",
@@ -768,6 +774,8 @@ bool SettingsStore::Save() const {
                  hotkeyBindingsJson)}
         }},
         {"behavior", {
+            {"pinyinSearch",
+             settings_.pinyinSearch},
             {"wildcardMatching",
              settings_.wildcardMatching},
             {"numericQuickLaunch",
@@ -953,7 +961,8 @@ bool SettingsStore::SetClassicBehavior(
     bool wildcardMatching,
     bool numericQuickLaunch,
     std::string numericQuickLaunchOrder,
-    bool executeSingleResultImmediately) {
+    bool executeSingleResultImmediately,
+    bool pinyinSearch) {
 
     const Settings previous =
         settings_;
@@ -977,6 +986,8 @@ bool SettingsStore::SetClassicBehavior(
     settings_
         .executeSingleResultImmediately =
             executeSingleResultImmediately;
+    settings_.pinyinSearch =
+        pinyinSearch;
 
     if (!Save()) {
         settings_ = previous;
