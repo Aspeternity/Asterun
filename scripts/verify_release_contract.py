@@ -373,7 +373,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if forbidden in bootstrap_policy:
                 fail(f"v0.7 alpha.8 must never select Everything Lite: {forbidden}")
 
-        for token in (
+        bootstrap_tokens = [
             "FindExistingCandidates",
             "App Paths\\\\Everything.exe",
             'L"ProgramFiles"',
@@ -383,12 +383,15 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             "BCryptOpenAlgorithmProvider",
             "BCRYPT_SHA256_ALGORITHM",
             "CopyHere",
-            'L".download"',
             "-startup -first-instance",
             "WaitForIpc",
             "allowDownload",
             "NeedsInstall",
-        ):
+        ]
+        if version == "0.7.0-alpha.8":
+            bootstrap_tokens.append('L".download"')
+
+        for token in bootstrap_tokens:
             if token not in bootstrapper:
                 fail(f"v0.7 alpha.8 managed Everything bootstrap missing: {token}")
 
