@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0-alpha.9.2.1
+## 0.7.0-alpha.9.3
 
 - Removed the temporary `ALTRunNext.Updater.exe` compatibility copy from x64/ARM64 packages.
 - Standardized the portable helper contract on `Update.exe` and `Uninstall.exe` only.
@@ -9,7 +9,7 @@
 - Development upgrade from alpha.9/alpha.9.1 is intentionally manual; no legacy updater-name compatibility is retained.
 - Kept the alpha.9.2 portable Managed Everything, auto-start service and native uninstaller design unchanged.
 - Kept settings schemaVersion 7, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
-- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.921.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.93.
 
 ## 0.7.0-alpha.9.2
 

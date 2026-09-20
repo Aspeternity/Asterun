@@ -81,7 +81,7 @@ The updater treats the portable `data/` directory as user/runtime state, not app
 The current system provides HTTPS transport plus SHA-256 package integrity tied to the CI-generated release manifest. This detects corruption, truncation and a package that does not match the published manifest. It does **not** protect against compromise of the GitHub repository/release credentials that could replace both package and manifest. A future signed-release pipeline should add signature verification before apply.
 
 
-## Helper names from alpha.9.2.1
+## Helper names from alpha.9.3
 
 The portable package uses only `Update.exe` and `Uninstall.exe`. The old `ALTRunNext.Updater.exe` filename is not shipped. During the current development cycle, upgrades from alpha.9/alpha.9.1 to alpha.9.2.x are performed manually, so no legacy helper-name compatibility layer is required.
 
