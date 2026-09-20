@@ -1414,9 +1414,10 @@ StartManagedEverything(
                       NeedsServiceRepair
                 : ManagedRuntimeResult::
                       NeedsService,
-            servicePathStale
-                ? ERROR_FILE_NOT_FOUND
-                : ERROR_SERVICE_NOT_ACTIVE,
+            static_cast<std::uint32_t>(
+                servicePathStale
+                    ? ERROR_FILE_NOT_FOUND
+                    : ERROR_SERVICE_NOT_ACTIVE),
         };
     }
 
