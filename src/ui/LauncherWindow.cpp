@@ -1189,14 +1189,14 @@ HICON LauncherWindow::ResultIcon(
     if (!icon &&
         (extension == L".exe" ||
          extension == L".dll")) {
-        HICON small{};
+        HICON smallIcon{};
         if (ExtractIconExW(
                 source.c_str(),
                 0,
                 nullptr,
-                &small,
+                &smallIcon,
                 1) > 0) {
-            icon = small;
+            icon = smallIcon;
         }
     }
 
