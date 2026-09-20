@@ -154,7 +154,8 @@ In progress:
 - Context-sensitive Launcher result actions plus Shortcut Manager row/blank-space context menus
 - Add-as-shortcut workflow with pre-filled Shortcut Editor data for discovered results
 - Managed Everything Bootstrap: local-first reuse/start plus user-confirmed official portable download, SHA-256 verification and IPC readiness
-- settings schemaVersion 6, commands schemaVersion 2 and TSV v3 remain compatibility baselines through alpha.8
+- alpha.8.1 fixes the real-Windows verified archive handoff by promoting .zip.download to .zip only after SHA-256 succeeds
+- settings schemaVersion 6, commands schemaVersion 2 and TSV v3 remain compatibility baselines through alpha.8.1
 
 Planned next:
 

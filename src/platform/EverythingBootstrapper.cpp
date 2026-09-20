@@ -1591,10 +1591,28 @@ RunEverythingBootstrap(
             progress);
     }
 
-    const auto archive =
+    const auto archiveNames =
+        ManagedEverythingArchiveNames(
+            spec);
+    const auto downloadArchive =
         toolsRoot /
-        (spec.fileName +
-         L".download");
+        archiveNames.downloadFileName;
+    const auto verifiedArchive =
+        toolsRoot /
+        archiveNames.verifiedZipFileName;
+
+    // Keep partial/unverified bytes under a non-ZIP extension so they
+    // can never be opened accidentally. Windows Shell's ZIP namespace,
+    // however, recognizes archives by extension, so only the verified
+    // package is promoted to the real .zip name before extraction.
+    ec.clear();
+    std::filesystem::remove(
+        downloadArchive,
+        ec);
+    ec.clear();
+    std::filesystem::remove(
+        verifiedArchive,
+        ec);
 
     snapshot.source =
         EverythingBootstrapSource::
@@ -1605,13 +1623,14 @@ RunEverythingBootstrap(
 
     if (!DownloadFile(
             spec.downloadUrl,
-            archive,
+            downloadArchive,
             snapshot,
             progress,
             nativeError,
             stopToken)) {
+        ec.clear();
         std::filesystem::remove(
-            archive,
+            downloadArchive,
             ec);
 
         return Fail(
@@ -1633,12 +1652,13 @@ RunEverythingBootstrap(
 
     const auto actualHash =
         Sha256File(
-            archive,
+            downloadArchive,
             nativeError);
 
     if (!actualHash) {
+        ec.clear();
         std::filesystem::remove(
-            archive,
+            downloadArchive,
             ec);
 
         return Fail(
@@ -1651,8 +1671,9 @@ RunEverythingBootstrap(
 
     if (*actualHash !=
         *expectedHash) {
+        ec.clear();
         std::filesystem::remove(
-            archive,
+            downloadArchive,
             ec);
 
         return Fail(
@@ -1663,6 +1684,34 @@ RunEverythingBootstrap(
             progress);
     }
 
+    ec.clear();
+    std::filesystem::rename(
+        downloadArchive,
+        verifiedArchive,
+        ec);
+
+    if (ec) {
+        const auto stageError =
+            static_cast<std::uint32_t>(
+                ec.value());
+
+        std::error_code cleanupError;
+        std::filesystem::remove(
+            downloadArchive,
+            cleanupError);
+        cleanupError.clear();
+        std::filesystem::remove(
+            verifiedArchive,
+            cleanupError);
+
+        return Fail(
+            snapshot,
+            EverythingBootstrapFailure::
+                PackageStagingFailed,
+            stageError,
+            progress);
+    }
+
     Report(
         snapshot,
         EverythingBootstrapStage::
@@ -1670,12 +1719,13 @@ RunEverythingBootstrap(
         progress);
 
     if (!ExtractZipWithShell(
-            archive,
+            verifiedArchive,
             managedDirectory,
             nativeError,
             stopToken)) {
+        ec.clear();
         std::filesystem::remove(
-            archive,
+            verifiedArchive,
             ec);
 
         return Fail(
@@ -1689,8 +1739,9 @@ RunEverythingBootstrap(
             progress);
     }
 
+    ec.clear();
     std::filesystem::remove(
-        archive,
+        verifiedArchive,
         ec);
 
     const auto managedExecutable =

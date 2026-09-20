@@ -18,9 +18,18 @@ struct EverythingPackageSpec {
     std::wstring checksumManifestUrl;
 };
 
+struct EverythingArchiveNames {
+    std::wstring downloadFileName;
+    std::wstring verifiedZipFileName;
+};
+
 [[nodiscard]] EverythingPackageSpec
 ManagedEverythingPackage(
     EverythingPackageArchitecture architecture);
+
+[[nodiscard]] EverythingArchiveNames
+ManagedEverythingArchiveNames(
+    const EverythingPackageSpec& package);
 
 [[nodiscard]] bool
 IsSha256Hex(

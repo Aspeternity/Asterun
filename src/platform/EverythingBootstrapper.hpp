@@ -43,6 +43,7 @@ enum class EverythingBootstrapFailure {
     PackageDownloadFailed,
     PackageHashFailed,
     PackageHashMismatch,
+    PackageStagingFailed,
     ExtractionFailed,
     ManagedExecutableMissing,
     ManagedLaunchFailed,

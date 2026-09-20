@@ -27,6 +27,27 @@ int main() {
         assert(
             x64.fileName.find(L"Lite") ==
             std::wstring::npos);
+
+        const auto names =
+            ManagedEverythingArchiveNames(
+                x64);
+
+        assert(
+            names.downloadFileName ==
+            L"Everything-1.4.1.1032.x64.zip.download");
+        assert(
+            names.downloadFileName.ends_with(
+                L".download"));
+        assert(
+            names.verifiedZipFileName ==
+            L"Everything-1.4.1.1032.x64.zip");
+        assert(
+            names.verifiedZipFileName.ends_with(
+                L".zip"));
+        assert(
+            !names.verifiedZipFileName
+                 .ends_with(
+                     L".download"));
     }
 
     {

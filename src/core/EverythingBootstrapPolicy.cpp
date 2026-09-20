@@ -80,6 +80,18 @@ ManagedEverythingPackage(
     return spec;
 }
 
+EverythingArchiveNames
+ManagedEverythingArchiveNames(
+    const EverythingPackageSpec& package) {
+    EverythingArchiveNames names;
+    names.downloadFileName =
+        package.fileName +
+        L".download";
+    names.verifiedZipFileName =
+        package.fileName;
+    return names;
+}
+
 bool IsSha256Hex(
     std::string_view value) {
     if (value.size() != 64) {

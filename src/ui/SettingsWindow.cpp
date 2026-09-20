@@ -3153,6 +3153,12 @@ void SettingsWindow::RefreshProviderStatus() {
                         L"SHA-256 mismatch; the package was rejected");
                     break;
                 case win::EverythingBootstrapFailure::
+                    PackageStagingFailed:
+                    text += T(
+                        L"已校验安装包转入 ZIP 解压阶段失败",
+                        L"Could not stage the verified package as a ZIP for extraction");
+                    break;
+                case win::EverythingBootstrapFailure::
                     ExtractionFailed:
                     text += T(
                         L"解压失败",

@@ -23,6 +23,12 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.8.1 — Verified ZIP Staging Fix
+
+Alpha 8.1 fixes the real-Windows extraction failure discovered during Managed Everything Bootstrap validation. Alpha 8 correctly downloaded and SHA-256 verified the official archive, but passed the temporary `.zip.download` path directly to the Windows Shell ZIP namespace. Shell ZIP discovery is extension-sensitive and returned `0x80004005 (E_FAIL)` for that non-`.zip` path.
+
+The bootstrap now keeps unverified bytes under `.zip.download`, verifies SHA-256 first, atomically promotes the verified file to its real `.zip` name, and only then invokes Windows Shell extraction. Both temporary artifacts are cleaned on success/failure. A regression policy test now freezes the distinction between the unverified download name and the verified ZIP name. No persisted schema changes are made. Windows fixed FileVersion/ProductVersion is `0.7.0.81`.
+
 ## v0.7.0-alpha.8 — Managed Everything Bootstrap
 
 Alpha 8 replaces the old Everything download-page handoff with an opt-in managed bootstrap flow. When the Everything source is enabled, ALTRun Next first probes the existing IPC endpoint and can automatically reuse/start an already-present Everything copy found in its managed tools directory, App Paths, Program Files or PATH. This discovery/start path never downloads anything.

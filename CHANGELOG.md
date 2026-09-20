@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0-alpha.8.1
+
+- Fixed Managed Everything extraction failing with native error 2147500037 / 0x80004005 on real Windows systems.
+- Root cause: the verified archive still had the temporary `.zip.download` extension when passed to the Windows Shell ZIP namespace.
+- Keep downloaded/unverified bytes under `.zip.download`, SHA-256 verify them first, then atomically rename the verified package to its real `.zip` filename before extraction.
+- Clean both staging names across download/hash/staging/extraction failure paths.
+- Added a dedicated `PackageStagingFailed` diagnostic and a regression policy test that requires the Shell-facing archive name to end in `.zip`.
+- Kept settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.81.
+
 ## 0.7.0-alpha.8
 
 - Replaced the Everything download-page handoff with Managed Everything Bootstrap.
