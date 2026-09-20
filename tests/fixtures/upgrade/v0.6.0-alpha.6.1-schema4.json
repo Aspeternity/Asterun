@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 4,
+  "general": {
+    "startWithWindows": true,
+    "showOnStartup": false,
+    "hideAfterLaunch": false,
+    "clearQueryOnShow": true,
+    "hideOnFocusLost": false,
+    "showTrayIcon": true,
+    "popupMonitor": "cursor"
+  },
+  "hotkey": {
+    "modifiers": [
+      "ctrl",
+      "shift"
+    ],
+    "key": "k",
+    "auxiliary": {
+      "enabled": false,
+      "modifiers": [],
+      "key": "pause"
+    }
+  },
+  "hotkeys": {
+    "bindings": {
+      "launcher.activate": {
+        "enabled": true,
+        "modifiers": [
+          "ctrl",
+          "shift"
+        ],
+        "key": "k"
+      },
+      "launcher.activateSecondary": {
+        "enabled": false,
+        "modifiers": [],
+        "key": "pause"
+      },
+      "launcher.openSettings": {
+        "enabled": true,
+        "modifiers": [],
+        "key": "f3"
+      },
+      "result.navigateCurrentFileManager": {
+        "enabled": true,
+        "modifiers": [
+          "alt"
+        ],
+        "key": "enter"
+      },
+      "result.copySelectedTarget": {
+        "enabled": true,
+        "modifiers": [
+          "ctrl",
+          "shift"
+        ],
+        "key": "x"
+      }
+    }
+  },
+  "behavior": {
+    "wildcardMatching": true,
+    "numericQuickLaunch": false,
+    "numericQuickLaunchOrder": "one-to-zero",
+    "executeSingleResultImmediately": false
+  },
+  "appearance": {
+    "launcher": "modern-compact",
+    "language": "en-US"
+  },
+  "providers": {
+    "windows.startmenu": false,
+    "windows.packaged": true,
+    "windows.apppaths": false,
+    "windows.path": true,
+    "everything.filesystem": true
+  }
+}

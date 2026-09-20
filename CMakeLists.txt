@@ -410,6 +410,27 @@ if(BUILD_TESTING)
     add_test(NAME config_core_tests COMMAND config_core_tests)
 
     add_executable(
+        upgrade_matrix_tests
+        tests/UpgradeMatrixTests.cpp
+    )
+    target_link_libraries(
+        upgrade_matrix_tests
+        PRIVATE altrun_config
+    )
+    target_include_directories(
+        upgrade_matrix_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        upgrade_matrix_tests
+    )
+    add_test(
+        NAME upgrade_matrix_tests
+        COMMAND upgrade_matrix_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/upgrade"
+    )
+
+    add_executable(
         desktop_validation_tests
         tests/DesktopValidationTests.cpp
     )

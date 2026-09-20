@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0-rc.1
+
+- Entered v0.6 release freeze; no new user-facing feature, provider, Hotkey action or persisted schema is introduced.
+- Added `upgrade_matrix_tests` as a release gate for clean install defaults, v0.5.0/alpha.5 schema 3 -> 4 migration, alpha.6.1/beta.1/beta.2 schema 4 -> 4 compatibility and downgrade read-only protection.
+- Added representative historical upgrade fixtures with custom providers, behavior, appearance and Hotkey Registry bindings.
+- Added explicit regression coverage for the schema-3 Ctrl+Enter migration collision in the versioned upgrade matrix.
+- Hardened packaged x64 runtime smoke to require successful schema 2 -> 4 migration, all five frozen Hotkey Registry action IDs and Everything opt-in preservation.
+- Added `V0.6_RC_VALIDATION.md` to release packages and made it part of the package allowlist.
+- RC release-contract now freezes settings/commands/usage/provider-cache schemas, provider IDs/defaults, Hotkey IDs, Everything Query2 contract, Smart Actions evaluation, Diagnostics owner-draw routing and Classic 420/16/10 geometry.
+- Updated Windows fixed version to 0.6.0.200.
+
 ## 0.6.0-beta.2
 
 - Renamed the Settings Smart Actions runtime page from Actions / 操作 to Diagnostics / 诊断 so the label matches the page's actual purpose.

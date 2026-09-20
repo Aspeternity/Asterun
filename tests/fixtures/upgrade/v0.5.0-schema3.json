@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 3,
+  "general": {
+    "startWithWindows": true,
+    "showOnStartup": true,
+    "hideAfterLaunch": false,
+    "clearQueryOnShow": false,
+    "hideOnFocusLost": false,
+    "showTrayIcon": false,
+    "popupMonitor": "primary"
+  },
+  "hotkey": {
+    "modifiers": ["ctrl", "shift"],
+    "key": "k",
+    "auxiliary": {
+      "enabled": true,
+      "modifiers": [],
+      "key": "pause"
+    }
+  },
+  "behavior": {
+    "wildcardMatching": true,
+    "numericQuickLaunch": true,
+    "numericQuickLaunchOrder": "zero-to-nine",
+    "executeSingleResultImmediately": true
+  },
+  "appearance": {
+    "launcher": "modern-compact",
+    "language": "en-US"
+  },
+  "providers": {
+    "windows.startmenu": false,
+    "windows.packaged": true,
+    "windows.apppaths": false,
+    "windows.path": true,
+    "everything.filesystem": true
+  }
+}

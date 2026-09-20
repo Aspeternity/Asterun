@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-rc.1 — Release Freeze & Upgrade Gate
+
+RC 1 freezes the v0.6 user-facing contract. No new provider, Smart Action family, Hotkey Registry action, settings preference or schema is introduced. This candidate converts the upgrade, downgrade, clean-install and packaging scenarios validated during beta into automated release gates.
+
+A dedicated `upgrade_matrix_tests` target now covers clean settings creation; representative v0.5.0 and v0.6.0-alpha.5 schema-3 upgrades to schema 4; v0.6.0-alpha.6.1, beta.1 and beta.2 schema-4 compatibility loads without rewrite; preservation of custom providers, behavior, appearance and Hotkey Registry bindings; schema-3 hotkey collision handling; and schema-4 downgrade read-only protection.
+
+The packaged x64 runtime smoke now verifies that a legacy schema-2 portable profile actually migrates to schema 4 at runtime, contains all five frozen Hotkey Registry action IDs, and keeps Everything disabled unless the legacy profile opted in. Release ZIPs now include `V0.6_RC_VALIDATION.md`, and the package allowlist requires it.
+
+Frozen contracts remain: settings schemaVersion 4; commands/usage schemaVersion 1; provider-cache schemaVersion 2; external optional Everything Query2/WM_COPYDATA integration; Diagnostics page/owner-draw routing; Smart Actions evaluation semantics; provider IDs/defaults; five Hotkey Registry action IDs; and Classic geometry 420/16/10. Windows fixed FileVersion/ProductVersion is `0.6.0.200`.
+
 ## v0.6.0-beta.2 — Diagnostics UX & Real-world Fixes
 
 Beta 2 starts with a real-world Settings navigation fix reported during beta.1 validation. The Smart Actions runtime page is now named **Diagnostics / 诊断**, matching its actual purpose: inspecting Windows activation context, Everything IPC, {folder} availability, clipboard/web readiness and concrete unavailable reasons rather than configuring actions.

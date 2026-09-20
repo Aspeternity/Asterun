@@ -95,6 +95,41 @@ try {
         throw "Startup writeability probe left temporary files behind."
     }
 
+    $settingsPath = Join-Path $data "settings.json"
+    if (-not (Test-Path $settingsPath)) {
+        throw "Portable runtime smoke did not preserve/create settings.json."
+    }
+
+    $migratedSettings =
+        Get-Content $settingsPath -Raw |
+        ConvertFrom-Json
+
+    if ($migratedSettings.schemaVersion -ne 4) {
+        throw "Packaged runtime did not migrate schema-2 settings to schema 4."
+    }
+
+    $expectedHotkeyActions = @(
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget"
+    )
+
+    $actualHotkeyActions = @(
+        $migratedSettings.hotkeys.bindings.PSObject.Properties.Name
+    )
+
+    foreach ($actionId in $expectedHotkeyActions) {
+        if ($actionId -notin $actualHotkeyActions) {
+            throw "Packaged runtime migration is missing Hotkey Registry action '$actionId'."
+        }
+    }
+
+    if ($migratedSettings.providers.'everything.filesystem' -ne $false) {
+        throw "Packaged runtime migration must keep Everything disabled when legacy settings did not opt in."
+    }
+
     $version = (Get-Content $versionPath -Raw).Trim()
     $fileVersion = (Get-Item $exe).VersionInfo.FileVersion
 
@@ -103,6 +138,7 @@ try {
     Write-Host "  FileVersion string: $fileVersion"
     Write-Host "  Process id: $($process.Id)"
     Write-Host "  Startup observation: $StartupSeconds seconds"
+    Write-Host "  Runtime migration: schema 2 -> 4 with frozen Hotkey Registry"
 }
 finally {
     if ($null -ne $process) {
