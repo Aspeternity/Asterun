@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-beta.1
+
+- Entered v0.7 feature freeze: no new user-facing feature or persisted schema is added in Beta 1.
+- Froze settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3 as the v0.7 compatibility baseline.
+- Froze current Provider IDs, Hotkey Registry action IDs, Classic launcher geometry and the portable helper names `ALTRunNext.exe`, `Update.exe`, `Uninstall.exe`.
+- Added `shortcut_compatibility_tests` covering TSV v1, TSV v2, TSV v3, legacy five-column import, Unicode/portable paths, legacy enabled/pinned normalization and v3 export/import round-trip.
+- Extended UpdatePolicy regression coverage for `alpha.9.4 -> beta.1 -> beta.2 -> rc.1 -> stable` and downgrade rejection.
+- Added packaged `V0.7_BETA_VALIDATION.md` for real Windows update, shortcut workflow, Runtime Input, Path Conversion, icons, Context Actions, Everything ownership/lifecycle, Uninstall, DPI and performance sign-off.
+- Preserved alpha.9.4 Managed Everything behavior without redesign: normal app exit keeps an enabled owned service warm; provider disable stops/disables only an owned service; external Everything remains untouched.
+- Kept final visual redesign and non-blocking performance polish deferred until the functional surface is proven stable.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.100.
+
 ## 0.7.0-alpha.9.4
 
 - Made the Everything provider checkbox manage the full lifecycle only for ALTRun-owned Managed Everything.

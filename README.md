@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-beta.1 — Feature Freeze & Workflow Hardening
+
+Beta 1 freezes the v0.7 shortcut and launcher workflow surface after the alpha.9.4 Managed Everything lifecycle passed real Windows validation. No new user-facing feature or persisted data model is introduced. The compatibility baseline is now settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3.
+
+The frozen public identifiers include the existing Windows/Everything Provider IDs and Hotkey Registry action IDs. The portable executable contract is `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; the obsolete `ALTRunNext.Updater.exe` name remains prohibited. Managed Everything remains portable under `data/tools/Everything`; normal application exit keeps an enabled owned service warm, while explicitly disabling the Everything provider stops/disables only the owned service. External Everything ownership remains protected.
+
+Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
+
+The package now includes `V0.7_BETA_VALIDATION.md`, the manual real-Windows sign-off matrix for native alpha.9.4 -> beta.1 update, Shortcut Manager/Editor, Runtime Input, Path Conversion, asynchronous icons, Context Actions, Managed/External Everything ownership, native uninstall, DPI and performance. Windows fixed FileVersion/ProductVersion is `0.7.0.100`.
+
 ## v0.7.0-alpha.9.4 — Managed Everything Provider Lifecycle
 
 Alpha 9.4 makes the Everything provider checkbox control the full runtime state of an ALTRun Next-owned Everything installation. Normal application exit keeps the existing alpha.9.2 design: ALTRun Next closes only its managed Everything client and leaves the owned `SERVICE_AUTO_START` service warm for the next launcher session. Explicitly disabling **Everything files & folders** is different: the managed client is closed, the owned Everything service is stopped, and its startup type is changed to `SERVICE_DISABLED`, so it does not come back at the next Windows boot while the provider remains disabled.

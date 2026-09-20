@@ -159,13 +159,15 @@ In progress:
 - alpha.8.3 closes managed-client lifecycle: app exit/source disable stops only ALTRun Next's owned Everything client while retaining the Windows service
 - alpha.8.4 repairs stale persistent Everything Service paths after the portable ALTRun Next folder is moved/re-extracted
 - alpha.9 adds native Stable / Development update channels, SHA-256 verified staged download and transactional helper-based apply/rollback
-- settings schemaVersion 7, commands schemaVersion 2 and TSV v3 are the compatibility baselines entering beta
+- alpha.9.2 adds portable native `Update.exe` / `Uninstall.exe` lifecycle ownership
+- alpha.9.4 freezes the Managed Everything provider lifecycle after real Windows validation
+- beta.1 freezes settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and TSV v3
+- beta.1 adds the commands schema 1 -> 2 / TSV v1-v2-v3 compatibility matrix, prerelease update-order gates and packaged v0.7 Beta desktop-validation checklist
 
 Planned next:
 
-- v0.7.0-beta.1 feature freeze and shortcut-workflow hardening
-- Upgrade/import/export regression matrix for commands schema 1 -> 2 and TSV v1/v2/v3
-- Real Windows desktop validation for Runtime Input, Path Conversion, custom icons, filtering, DPI and compatibility behavior
+- v0.7.0-beta.2 focused fixes from real Windows Beta 1 validation
+- Real Windows desktop validation for Runtime Input, Path Conversion, custom icons, filtering, DPI, updater/uninstaller and compatibility behavior
 - Final UI/visual/performance consolidation remains deferred until the functional surface is stable
 
 ## v0.8.x - Distribution & extensibility

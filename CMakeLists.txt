@@ -670,6 +670,26 @@ if(BUILD_TESTING)
     )
 
     add_executable(
+        shortcut_compatibility_tests
+        tests/ShortcutCompatibilityTests.cpp
+    )
+    target_link_libraries(
+        shortcut_compatibility_tests
+        PRIVATE altrun_config
+    )
+    target_include_directories(
+        shortcut_compatibility_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        shortcut_compatibility_tests
+    )
+    add_test(
+        NAME shortcut_compatibility_tests
+        COMMAND shortcut_compatibility_tests
+    )
+
+    add_executable(
         user_command_path_update_tests
         tests/UserCommandPathUpdateTests.cpp
     )
