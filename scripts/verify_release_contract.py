@@ -36,6 +36,82 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.6.0-beta.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 4,
+        "kCommandsSchemaVersion": 1,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"{name}={actual}, expected v0.6 beta.2 value {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.6 beta.2 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("schemaVersion") != 4:
+        fail("v0.6 beta.2 settings must remain schemaVersion 4")
+    if settings.get("providers") != expected_providers:
+        fail("v0.6 beta.2 changed frozen provider defaults")
+
+    expected_bindings = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_bindings:
+        fail("v0.6 beta.2 changed frozen Hotkey Registry action IDs")
+
+    settings_ui = read("src/ui/SettingsWindow.hpp") + read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+        "navDiagnostics_",
+        "CreateDiagnosticsPage",
+        "diagnosticsControls_",
+        'L"诊断"',
+        'L"Diagnostics"',
+    ):
+        if token not in settings_ui:
+            fail(f"beta.2 Diagnostics UI contract missing: {token}")
+
+    draw_start = settings_ui.find("void SettingsWindow::DrawNavigationButton")
+    draw_end = settings_ui.find("void SettingsWindow::DrawGeneralToggle", draw_start)
+    if draw_start < 0 or draw_end < 0 or "kIdNavDiagnostics" not in settings_ui[draw_start:draw_end]:
+        fail("beta.2 Diagnostics nav ID is missing from DrawNavigationButton")
+
+    dispatch_start = settings_ui.find("case WM_DRAWITEM")
+    dispatch_end = settings_ui.find("case WM_VSCROLL", dispatch_start)
+    if dispatch_start < 0 or dispatch_end < 0 or "kIdNavDiagnostics" not in settings_ui[dispatch_start:dispatch_end]:
+        fail("beta.2 Diagnostics nav ID is missing from WM_DRAWITEM dispatch")
+
+    launcher_header = read("src/ui/LauncherWindow.hpp")
+    for name, expected in {"widthLogical_": 420, "rowHeightLogical_": 16, "maxResults_": 10}.items():
+        found = re.search(rf"\b{re.escape(name)}\s*\{{(\d+)\}}", launcher_header)
+        if not found or int(found.group(1)) != expected:
+            fail(f"Classic geometry changed during v0.6 beta.2: {name}")
+
+    print(
+        "v0.6.0-beta.2 Diagnostics UX contract verified:",
+        "| settings=4 provider-cache=2",
+        "| frozen providers/Hotkey IDs/Classic geometry",
+        "| Diagnostics owner-draw + WM_DRAWITEM dispatch",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.6.0-beta.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 4,

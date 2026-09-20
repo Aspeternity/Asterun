@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0-beta.2
+
+- Renamed the Settings Smart Actions runtime page from Actions / 操作 to Diagnostics / 诊断 so the label matches the page's actual purpose.
+- Fixed the blank selected sidebar item by adding the Diagnostics owner-draw control ID to the WM_DRAWITEM navigation dispatch path.
+- Renamed the page/router identifiers from Actions to Diagnostics to keep internal UI terminology aligned with the visible product language.
+- Added release-contract checks that require the Diagnostics ID in both DrawNavigationButton and WM_DRAWITEM dispatch, preventing this blank-label regression.
+- Kept v0.6 feature-freeze contracts unchanged: settings schemaVersion 4, provider-cache schemaVersion 2, frozen provider defaults, Hotkey Registry IDs and Smart Actions execution behavior.
+- Updated Windows fixed version to 0.6.0.101.
+
 ## 0.6.0-beta.1
 
 - Entered v0.6 feature freeze: no new provider, Smart Action family or persisted behavior toggle is introduced in beta.1.

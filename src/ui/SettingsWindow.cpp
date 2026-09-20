@@ -357,10 +357,10 @@ void SettingsWindow::CreateControls() {
             L"",
             kIdNavHotkeys,
             BS_OWNERDRAW);
-    navActions_ =
+    navDiagnostics_ =
         CreateButton(
             L"",
-            kIdNavActions,
+            kIdNavDiagnostics,
             BS_OWNERDRAW);
     navAppearance_ =
         CreateButton(
@@ -391,7 +391,7 @@ void SettingsWindow::CreateControls() {
     CreateCommandPage();
     CreateGeneralPage();
     CreateHotkeyPage();
-    CreateActionsPage();
+    CreateDiagnosticsPage();
     CreateAppearancePage();
     CreateProviderPage();
     CreateDataPage();
@@ -878,7 +878,7 @@ void SettingsWindow::CreateHotkeyPage() {
     };
 }
 
-void SettingsWindow::CreateActionsPage() {
+void SettingsWindow::CreateDiagnosticsPage() {
     actionsWindowsTitle_ = CreateStatic(L"");
     actionsWindowsStatus_ =
         CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
@@ -891,7 +891,7 @@ void SettingsWindow::CreateActionsPage() {
     actionsNote_ =
         CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
 
-    actionControls_ = {
+    diagnosticsControls_ = {
         actionsWindowsTitle_,
         actionsWindowsStatus_,
         actionsClipboardTitle_,
@@ -1147,7 +1147,7 @@ void SettingsWindow::ApplyFonts() {
         navCommands_,
         navGeneral_,
         navHotkeys_,
-        navActions_,
+        navDiagnostics_,
         navAppearance_,
         navProviders_,
         navData_,
@@ -1624,8 +1624,8 @@ void SettingsWindow::ApplyLanguage() {
           L"Web & URL"));
     SetWindowTextW(
         actionsNote_,
-        T(L"此页只显示 Smart Actions 的运行状态，不新增行为开关。上下文来自最近一次全局呼出快照，只保存在当前进程内，不写入配置或历史记录。",
-          L"This page reports Smart Actions runtime state without adding behavior toggles. Context comes from the last global activation snapshot, stays in memory only, and is not written to settings or history."));
+        T(L"此页用于运行状态与故障诊断，不提供行为开关。上下文来自最近一次全局呼出快照，只保存在当前进程内，不写入配置或历史记录。",
+          L"This page is for runtime status and diagnostics, not behavior toggles. Context comes from the last global activation snapshot, stays in memory only, and is not written to settings or history."));
 
     SetWindowTextW(
         providerSectionTitle_,
@@ -3025,8 +3025,8 @@ void SettingsWindow::UpdateNavLabels() {
         navHotkeys_,
         label(Page::Hotkeys, L"快捷键", L"Hotkeys").c_str());
     SetWindowTextW(
-        navActions_,
-        label(Page::Actions, L"操作", L"Actions").c_str());
+        navDiagnostics_,
+        label(Page::Diagnostics, L"诊断", L"Diagnostics").c_str());
     SetWindowTextW(
         navAppearance_,
         label(Page::Appearance, L"外观", L"Appearance").c_str());
@@ -3073,14 +3073,14 @@ void SettingsWindow::UpdatePageHeader() {
               L"Manage global activation and launcher action bindings in one place; future hotkey actions register here."));
         break;
 
-    case Page::Actions:
+    case Page::Diagnostics:
         SetWindowTextW(
             pageTitle_,
-            T(L"操作", L"Actions"));
+            T(L"诊断", L"Diagnostics"));
         SetWindowTextW(
             pageDescription_,
-            T(L"查看 Smart Actions 能力、最近一次 Windows 呼出上下文以及动作不可用的具体原因。",
-              L"Inspect Smart Actions capabilities, the last captured Windows activation context, and concrete reasons when an action is unavailable."));
+            T(L"查看 Smart Actions、Windows 呼出上下文与相关运行状态，定位动作不可用的具体原因。",
+              L"Inspect Smart Actions, Windows activation context and related runtime state, including concrete reasons when an action is unavailable."));
         break;
 
     case Page::Appearance:
@@ -3151,11 +3151,11 @@ void SettingsWindow::ShowPage(Page page) {
             kProviderStatusTimerId);
     }
 
-    if (page_ == Page::Actions &&
-        page != Page::Actions) {
+    if (page_ == Page::Diagnostics &&
+        page != Page::Diagnostics) {
         KillTimer(
             hwnd_,
-            kActionStatusTimerId);
+            kDiagnosticsStatusTimerId);
     }
 
     if (page_ == Page::Commands &&
@@ -3182,7 +3182,7 @@ void SettingsWindow::ShowPage(Page page) {
     setVisible(commandControls_, page == Page::Commands);
     setVisible(generalControls_, page == Page::General);
     setVisible(hotkeyControls_, page == Page::Hotkeys);
-    setVisible(actionControls_, page == Page::Actions);
+    setVisible(diagnosticsControls_, page == Page::Diagnostics);
     setVisible(legacyHotkeyControls_, false);
     setVisible(appearanceControls_, page == Page::Appearance);
     setVisible(providerControls_, page == Page::Providers);
@@ -3195,10 +3195,10 @@ void SettingsWindow::ShowPage(Page page) {
         page == Page::Hotkeys) {
         RefreshHotkeyPage();
     } else if (
-        page == Page::Actions) {
+        page == Page::Diagnostics) {
         SetTimer(
             hwnd_,
-            kActionStatusTimerId,
+            kDiagnosticsStatusTimerId,
             1000,
             nullptr);
         RefreshActionDiagnostics();
@@ -4928,7 +4928,7 @@ void SettingsWindow::Layout() {
         navCommands_,
         navGeneral_,
         navHotkeys_,
-        navActions_,
+        navDiagnostics_,
         navAppearance_,
         navProviders_,
         navData_,
@@ -5698,7 +5698,7 @@ void SettingsWindow::Layout() {
             TRUE);
     }
 
-    if (page_ == Page::Actions) {
+    if (page_ == Page::Diagnostics) {
         const int x = contentLeft;
         const int width =
             std::min(contentWidth, Scale(720));
@@ -6028,9 +6028,9 @@ void SettingsWindow::DrawNavigationButton(
         selected =
             page_ == Page::Hotkeys;
         break;
-    case kIdNavActions:
+    case kIdNavDiagnostics:
         selected =
-            page_ == Page::Actions;
+            page_ == Page::Diagnostics;
         break;
     case kIdNavAppearance:
         selected =
@@ -6552,10 +6552,10 @@ void SettingsWindow::Show() {
             1000,
             nullptr);
         RefreshProviderStatus();
-    } else if (page_ == Page::Actions) {
+    } else if (page_ == Page::Diagnostics) {
         SetTimer(
             hwnd_,
-            kActionStatusTimerId,
+            kDiagnosticsStatusTimerId,
             1000,
             nullptr);
         RefreshActionDiagnostics();
@@ -6630,8 +6630,8 @@ LRESULT SettingsWindow::HandleMessage(
             return 0;
         }
         if (wParam ==
-            kActionStatusTimerId &&
-            page_ == Page::Actions) {
+            kDiagnosticsStatusTimerId &&
+            page_ == Page::Diagnostics) {
             RefreshActionDiagnostics();
             return 0;
         }
@@ -6671,9 +6671,9 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdNavActions:
+        case kIdNavDiagnostics:
             if (notify == BN_CLICKED) {
-                ShowPage(Page::Actions);
+                ShowPage(Page::Diagnostics);
             }
             return 0;
 
@@ -7029,6 +7029,7 @@ LRESULT SettingsWindow::HandleMessage(
             (item->CtlID == kIdNavCommands ||
              item->CtlID == kIdNavGeneral ||
              item->CtlID == kIdNavHotkeys ||
+             item->CtlID == kIdNavDiagnostics ||
              item->CtlID == kIdNavAppearance ||
              item->CtlID == kIdNavProviders ||
              item->CtlID == kIdNavData ||

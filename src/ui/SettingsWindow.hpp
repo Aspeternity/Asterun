@@ -59,7 +59,7 @@ private:
     static constexpr UINT
         kIdNavHotkeys = 51006;
     static constexpr UINT
-        kIdNavActions = 51007;
+        kIdNavDiagnostics = 51007;
 
     static constexpr UINT
         kIdStartWithWindows = 51100;
@@ -209,7 +209,7 @@ private:
     static constexpr UINT_PTR
         kProviderStatusTimerId = 0x51690;
     static constexpr UINT_PTR
-        kActionStatusTimerId = 0x51790;
+        kDiagnosticsStatusTimerId = 0x51790;
 
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
@@ -226,7 +226,7 @@ private:
     void CreateCommandPage();
     void CreateGeneralPage();
     void CreateHotkeyPage();
-    void CreateActionsPage();
+    void CreateDiagnosticsPage();
     void CreateAppearancePage();
     void CreateProviderPage();
     void CreateDataPage();
@@ -361,7 +361,7 @@ private:
     HWND navCommands_{};
     HWND navGeneral_{};
     HWND navHotkeys_{};
-    HWND navActions_{};
+    HWND navDiagnostics_{};
     HWND navAppearance_{};
     HWND navProviders_{};
     HWND navData_{};
@@ -524,7 +524,7 @@ private:
     std::vector<HWND>
         hotkeyControls_;
     std::vector<HWND>
-        actionControls_;
+        diagnosticsControls_;
     std::vector<HWND>
         legacyHotkeyControls_;
     std::vector<HWND>

@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.6.0-beta.2 — Diagnostics UX & Real-world Fixes
+
+Beta 2 starts with a real-world Settings navigation fix reported during beta.1 validation. The Smart Actions runtime page is now named **Diagnostics / 诊断**, matching its actual purpose: inspecting Windows activation context, Everything IPC, {folder} availability, clipboard/web readiness and concrete unavailable reasons rather than configuring actions.
+
+The blank selected item in the Settings sidebar is fixed. The Diagnostics navigation button was created, labelled and routed correctly in beta.1, but its owner-draw control ID was accidentally omitted from the WM_DRAWITEM dispatch list. Beta 2 adds the Diagnostics ID to that dispatch path and freezes the requirement in the release-contract verifier.
+
+This is a UI/diagnostics correction only. Settings remains schemaVersion 4, provider-cache remains schemaVersion 2, provider defaults and the five Hotkey Registry action IDs remain frozen, and Smart Actions execution semantics are unchanged. Windows fixed FileVersion/ProductVersion is 0.6.0.101.
+
 ## v0.6.0-beta.1 — Smart Actions UX & Diagnostics
 
 Beta 1 starts the v0.6 feature freeze. It does not add a new provider, action family or persisted preference. Instead it makes the Smart Actions already introduced during alpha easier to inspect and safer to stabilize before RC.
