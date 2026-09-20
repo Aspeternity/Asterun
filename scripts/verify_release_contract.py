@@ -36,7 +36,7 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3"):
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4"):
     expected_schemas = {
         "kSettingsSchemaVersion": 4,
         "kCommandsSchemaVersion": 1,
@@ -257,7 +257,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version == "0.7.0-alpha.2.3":
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -367,6 +367,52 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
+    if version == "0.7.0-alpha.2.4":
+        pinyin_cpp = read("src/core/PinyinSearch.cpp")
+        search_test = read("tests/SearchEngineTests.cpp")
+
+        for token in (
+            "enum class State",
+            "State::Unloaded",
+            "EnsureLoaded() const noexcept",
+            "std::atomic<State>",
+            "std::scoped_lock lock",
+            "ContainsSupportedHanzi(text)",
+        ):
+            if token not in pinyin_cpp:
+                fail(f"v0.7 alpha.2.4 lazy Pinyin contract missing: {token}")
+
+        impl_ctor = pinyin_cpp.find("explicit Impl(")
+        ensure_loaded = pinyin_cpp.find("EnsureLoaded() const noexcept")
+        eager_make = pinyin_cpp.find(
+            "std::make_unique<Pinyin::Pinyin>",
+            impl_ctor,
+            ensure_loaded,
+        )
+        lazy_make = pinyin_cpp.find(
+            "std::make_unique<Pinyin::Pinyin>",
+            ensure_loaded,
+        )
+        if impl_ctor < 0 or ensure_loaded < 0:
+            fail("v0.7 alpha.2.4 Pinyin lazy-init boundaries were not found")
+        if eager_make >= 0:
+            fail("v0.7 alpha.2.4 must not construct Pinyin::Pinyin in Impl constructor")
+        if lazy_make < 0:
+            fail("v0.7 alpha.2.4 must construct Pinyin::Pinyin in EnsureLoaded")
+
+        for token in (
+            "assert(!engine.PinyinLoaded());",
+            "assert(engine.PinyinAvailable());",
+            "assert(engine.PinyinCacheEntryCount() == 0);",
+            'L"weixin"',
+            "assert(engine.PinyinLoaded());",
+            "assert(engine.PinyinCacheEntryCount() > 0);",
+            "assert(!fallback.PinyinLoaded());",
+            "assert(!fallback.PinyinAvailable());",
+        ):
+            if token not in search_test:
+                fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
+
     print(
         "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",
         "| commands=1 settings=4 provider-cache=2",
@@ -374,6 +420,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         "| path preview + atomic apply + relative runtime resolution",
         "| blank headers fixed at column creation",
         "| Windows portability + atomic update CI gates",
+        "| alpha.2.4 lazy Pinyin first-use initialization",
     )
     raise SystemExit(0)
 

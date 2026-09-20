@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.2.4 — Lazy Pinyin Initialization
+
+Alpha 2.4 converts cpp-pinyin from eager startup initialization to first-use initialization. At process startup ALTRun Next now keeps only the dictionary path and a lightweight dictionary-presence state; the `Pinyin::Pinyin` converter is not constructed until an ASCII pinyin-capable search actually reaches a field containing supported Hanzi.
+
+This keeps pinyin discovery behavior intact, including `weixin → 微信`, initials and hybrid pinyin matching. The existing cache semantics and search scoring/ranking are unchanged. Diagnostics now report **Pinyin: Not loaded / 未加载** with Cache 0 on a fresh start, then switch to **Loaded / Ready / 已加载 / 可用** after the first search that needs Hanzi-to-pinyin conversion.
+
+The lazy state is guarded for concurrent Diagnostics/search access. `PinyinAvailable()` remains side-effect-free: before first use it reports whether the required dictionary is present, and after a load attempt it reflects whether the converter initialized successfully.
+
+This release deliberately does not change Provider command storage, cache limits, persisted schemas, Everything IPC or Smart Actions so the memory A/B remains attributable to Pinyin initialization alone. Windows fixed FileVersion/ProductVersion is `0.7.0.24`.
+
 ## v0.7.0-alpha.2.3 — Memory Diagnostics & Baseline
 
 Alpha 2.3 adds runtime observability before any memory-optimization work. It deliberately does not trim the process working set or change search/provider storage architecture.

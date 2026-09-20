@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0-alpha.2.4
+
+- Changed cpp-pinyin initialization from application-start eager construction to first-use construction inside the Pinyin search path.
+- Fresh startup now reports Pinyin not loaded with an empty cache while retaining a side-effect-free dictionary availability check.
+- Preserved ASCII pinyin lookup of Chinese commands, including `weixin -> 微信`, initials and hybrid pinyin matching.
+- Added synchronization around lazy converter state and cache diagnostics so search and Diagnostics reads cannot race initialization/cache mutation.
+- Added regression coverage for unloaded startup, first pinyin search loading, non-empty post-search cache, and missing-dictionary fallback.
+- Kept Provider storage, Pinyin cache policy, search scoring/ranking and all persisted schemas unchanged for a clean memory A/B.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.24.
+
 ## 0.7.0-alpha.2.3
 
 - Added live Diagnostics-page process memory counters: Working Set, Peak Working Set and Private Bytes.

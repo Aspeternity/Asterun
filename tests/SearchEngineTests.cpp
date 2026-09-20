@@ -77,9 +77,18 @@ int main(int argc, char** argv) {
     SearchEngine engine(
         executableDirectory / "dict");
 
+    assert(!engine.PinyinLoaded());
     assert(engine.PinyinAvailable());
+    assert(engine.PinyinCacheEntryCount() == 0);
 
     UsageMap usage;
+
+    auto weixin = engine.Search(commands, usage, L"weixin", 10);
+    assert(!weixin.empty());
+    assert(weixin.front().commandIndex == 3);
+    assert(engine.PinyinLoaded());
+    assert(engine.PinyinAvailable());
+    assert(engine.PinyinCacheEntryCount() > 0);
 
     auto exact = engine.Search(commands, usage, L"chrome", 10);
     assert(!exact.empty());
@@ -100,10 +109,6 @@ int main(int argc, char** argv) {
     auto chinese = engine.Search(commands, usage, L"微信", 10);
     assert(!chinese.empty());
     assert(chinese.front().commandIndex == 3);
-
-    auto weixin = engine.Search(commands, usage, L"weixin", 10);
-    assert(!weixin.empty());
-    assert(weixin.front().commandIndex == 3);
 
     auto wx = engine.Search(commands, usage, L"wx", 10);
     assert(!wx.empty());
@@ -223,7 +228,10 @@ int main(int argc, char** argv) {
 
     // A missing dictionary must never break the original search path.
     SearchEngine fallback;
+    assert(!fallback.PinyinLoaded());
+    assert(!fallback.PinyinAvailable());
     auto fallbackExact = fallback.Search(commands, usage, L"chrome", 10);
+    assert(!fallback.PinyinLoaded());
     assert(!fallback.PinyinAvailable());
     assert(!fallbackExact.empty());
     assert(fallbackExact.front().commandIndex == 0);

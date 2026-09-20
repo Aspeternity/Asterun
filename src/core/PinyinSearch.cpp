@@ -4,8 +4,10 @@
 #include <cpp-pinyin/Pinyin.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cstdint>
+#include <mutex>
 #include <unordered_map>
 #include <utility>
 
@@ -294,6 +296,13 @@ PinyinForms BuildForms(
 } // namespace
 
 struct PinyinSearch::Impl {
+    enum class State : std::uint8_t {
+        Missing,
+        Unloaded,
+        Ready,
+        Failed,
+    };
+
     explicit Impl(
         std::filesystem::path directory)
         : dictionaryDirectory(
@@ -305,32 +314,90 @@ struct PinyinSearch::Impl {
             "mandarin" /
             "word.txt";
 
-        if (dictionaryDirectory.empty() ||
-            !std::filesystem::exists(
+        const bool dictionaryPresent =
+            !dictionaryDirectory.empty() &&
+            std::filesystem::exists(
                 requiredDictionary,
-                ec)) {
-            return;
+                ec) &&
+            !ec;
+
+        state.store(
+            dictionaryPresent
+                ? State::Unloaded
+                : State::Missing,
+            std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] bool
+    EnsureLoaded() const noexcept {
+
+        const State observed =
+            state.load(
+                std::memory_order_acquire);
+
+        if (observed == State::Ready) {
+            return true;
+        }
+
+        if (observed != State::Unloaded) {
+            return false;
+        }
+
+        std::scoped_lock lock(mutex);
+
+        const State current =
+            state.load(
+                std::memory_order_relaxed);
+
+        if (current == State::Ready) {
+            return true;
+        }
+
+        if (current != State::Unloaded) {
+            return false;
         }
 
         try {
             Pinyin::setDictionaryPath(
                 dictionaryDirectory);
 
-            converter =
+            auto candidate =
                 std::make_unique<Pinyin::Pinyin>();
 
-            available =
-                converter &&
-                converter->initialized();
+            if (!candidate ||
+                !candidate->initialized()) {
+                state.store(
+                    State::Failed,
+                    std::memory_order_release);
+                return false;
+            }
+
+            converter =
+                std::move(candidate);
+
+            state.store(
+                State::Ready,
+                std::memory_order_release);
+
+            return true;
         } catch (...) {
             converter.reset();
-            available = false;
+
+            state.store(
+                State::Failed,
+                std::memory_order_release);
+
+            return false;
         }
     }
 
     std::filesystem::path dictionaryDirectory;
-    std::unique_ptr<Pinyin::Pinyin> converter;
-    bool available{false};
+
+    mutable std::mutex mutex;
+    mutable std::unique_ptr<Pinyin::Pinyin>
+        converter;
+    mutable std::atomic<State> state{
+        State::Missing};
 
     mutable std::unordered_map<
         std::wstring,
@@ -353,26 +420,56 @@ PinyinSearch& PinyinSearch::operator=(
 
 bool PinyinSearch::Loaded() const noexcept {
     return impl_ &&
-        impl_->converter != nullptr;
+        impl_->state.load(
+            std::memory_order_acquire) ==
+            Impl::State::Ready;
 }
 
 bool PinyinSearch::Available() const noexcept {
-    return impl_ && impl_->available;
+    if (!impl_) {
+        return false;
+    }
+
+    const auto state =
+        impl_->state.load(
+            std::memory_order_acquire);
+
+    return state == Impl::State::Unloaded ||
+           state == Impl::State::Ready;
 }
 
 std::size_t
 PinyinSearch::CacheEntryCount() const noexcept {
-    return impl_
-        ? impl_->cache.size()
-        : 0;
+    if (!impl_) {
+        return 0;
+    }
+
+    std::scoped_lock lock(
+        impl_->mutex);
+
+    return impl_->cache.size();
 }
 
 const PinyinForms* PinyinSearch::FormsFor(
     std::wstring_view text) const {
 
-    if (!Available() ||
+    if (!impl_ ||
         text.empty() ||
         !ContainsSupportedHanzi(text)) {
+        return nullptr;
+    }
+
+    if (!impl_->EnsureLoaded()) {
+        return nullptr;
+    }
+
+    std::scoped_lock lock(
+        impl_->mutex);
+
+    if (!impl_->converter ||
+        impl_->state.load(
+            std::memory_order_relaxed) !=
+            Impl::State::Ready) {
         return nullptr;
     }
 
