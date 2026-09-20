@@ -351,7 +351,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         bootstrap_test = read("tests/EverythingBootstrapPolicyTests.cpp")
         bootstrapper = read("src/platform/EverythingBootstrapper.cpp") + read("src/platform/EverythingBootstrapper.hpp")
         app = read("src/app/App.cpp") + read("src/app/App.hpp")
-        settings = read("src/ui/SettingsWindow.cpp") + read("src/ui/SettingsWindow.hpp")
+        settings_ui = read("src/ui/SettingsWindow.cpp") + read("src/ui/SettingsWindow.hpp")
         cmake = read("CMakeLists.txt")
 
         for token in (
@@ -425,14 +425,14 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             "WaitingForIpc",
             "SHA-256",
         ):
-            if token not in settings:
+            if token not in settings_ui:
                 fail(f"v0.7 alpha.8 Everything onboarding UX missing: {token}")
 
         for forbidden in (
             "OpenEverythingDownloadPage",
             "ALTRun Next 不内置或自动启动 Everything",
         ):
-            if forbidden in settings:
+            if forbidden in settings_ui:
                 fail(f"v0.7 alpha.8 obsolete Everything handoff remains: {forbidden}")
 
         for token in (
