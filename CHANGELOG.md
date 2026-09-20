@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-alpha.2.3
+
+- Added live Diagnostics-page process memory counters: Working Set, Peak Working Set and Private Bytes.
+- Added runtime search/storage baseline counters for user commands, raw Provider commands and merged searchable commands.
+- Added Pinyin converter loaded/ready state and cache-entry count diagnostics.
+- Added Provider refresh and Provider monitor runtime-state diagnostics.
+- Added a reusable Windows ProcessMemory platform layer plus process_memory_tests on Windows smoke/compatibility CI.
+- Kept memory diagnostics passive: no EmptyWorkingSet, SetProcessWorkingSetSize or other active working-set trimming.
+- Kept Pinyin initialization, Provider storage, search behavior and all persisted schemas unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.23.
+
 ## 0.7.0-alpha.2.2
 
 - Replaced the alpha.2.1 repeated-row presentation with true structural shortcut header rows.

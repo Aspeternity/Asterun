@@ -37,8 +37,16 @@ public:
         std::size_t limit = 12,
         bool allowWildcards = false) const;
 
+    [[nodiscard]] bool PinyinLoaded() const noexcept {
+        return pinyin_.Loaded();
+    }
+
     [[nodiscard]] bool PinyinAvailable() const noexcept {
         return pinyin_.Available();
+    }
+
+    [[nodiscard]] std::size_t PinyinCacheEntryCount() const noexcept {
+        return pinyin_.CacheEntryCount();
     }
 
 private:

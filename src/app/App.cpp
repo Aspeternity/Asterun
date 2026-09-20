@@ -624,6 +624,30 @@ App::EverythingStatus() const {
         : EverythingIpcStatusSnapshot{};
 }
 
+RuntimeDiagnosticsSnapshot
+App::RuntimeDiagnostics() const noexcept {
+    RuntimeDiagnosticsSnapshot snapshot;
+    snapshot.processMemory =
+        win::QueryCurrentProcessMemory();
+    snapshot.userCommandCount =
+        commandStore_.UserCommands().size();
+    snapshot.providerCommandCount =
+        commandStore_.ProviderCommandCount();
+    snapshot.mergedCommandCount =
+        commandStore_.Commands().size();
+    snapshot.pinyinLoaded =
+        searchEngine_.PinyinLoaded();
+    snapshot.pinyinAvailable =
+        searchEngine_.PinyinAvailable();
+    snapshot.pinyinCacheEntryCount =
+        searchEngine_.PinyinCacheEntryCount();
+    snapshot.providerRefreshRunning =
+        providerRefreshRunning_.load();
+    snapshot.providerMonitorRunning =
+        providerMonitorThread_.joinable();
+    return snapshot;
+}
+
 std::wstring
 App::DataCompatibilityWarning() const {
 

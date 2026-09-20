@@ -17,7 +17,9 @@
 #include <ctime>
 #include <cwctype>
 #include <filesystem>
+#include <iomanip>
 #include <iterator>
+#include <sstream>
 #include <string>
 
 namespace altrun {
@@ -64,6 +66,34 @@ bool ContainsInsensitive(
 
     if (needle.empty()) return true;
     return LowerWide(value).find(LowerWide(needle)) != std::wstring::npos;
+}
+
+std::wstring FormatBytes(
+    std::uint64_t bytes) {
+    constexpr double kKiB = 1024.0;
+    constexpr double kMiB =
+        1024.0 * 1024.0;
+
+    std::wostringstream out;
+    out << std::fixed;
+
+    if (bytes >=
+        static_cast<std::uint64_t>(
+            kMiB)) {
+        out << std::setprecision(1)
+            << (static_cast<double>(
+                    bytes) /
+                kMiB)
+            << L" MB";
+    } else {
+        out << std::setprecision(0)
+            << (static_cast<double>(
+                    bytes) /
+                kKiB)
+            << L" KB";
+    }
+
+    return out.str();
 }
 
 std::wstring FormatLocalTime(
@@ -872,6 +902,20 @@ void SettingsWindow::CreateHotkeyPage() {
 }
 
 void SettingsWindow::CreateDiagnosticsPage() {
+    diagnosticsMemoryTitle_ =
+        CreateStatic(L"");
+    diagnosticsMemoryStatus_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+
+    diagnosticsSearchTitle_ =
+        CreateStatic(L"");
+    diagnosticsSearchStatus_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+
     actionsWindowsTitle_ = CreateStatic(L"");
     actionsWindowsStatus_ =
         CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
@@ -885,6 +929,10 @@ void SettingsWindow::CreateDiagnosticsPage() {
         CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
 
     diagnosticsControls_ = {
+        diagnosticsMemoryTitle_,
+        diagnosticsMemoryStatus_,
+        diagnosticsSearchTitle_,
+        diagnosticsSearchStatus_,
         actionsWindowsTitle_,
         actionsWindowsStatus_,
         actionsClipboardTitle_,
@@ -1203,6 +1251,8 @@ void SettingsWindow::ApplyFonts() {
         hotkeyResetAll_,
         hotkeyPageStatus_,
         hotkeyPageNote_,
+        diagnosticsMemoryStatus_,
+        diagnosticsSearchStatus_,
         actionsWindowsStatus_,
         actionsClipboardStatus_,
         actionsWebStatus_,
@@ -1254,12 +1304,14 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
-    for (HWND control : std::array<HWND, 13>{
+    for (HWND control : std::array<HWND, 15>{
              commandEditorTitle_,
              generalBehaviorTitle_,
              searchBehaviorTitle_,
              hotkeySectionTitle_,
              hotkeyEditorTitle_,
+             diagnosticsMemoryTitle_,
+             diagnosticsSearchTitle_,
              actionsWindowsTitle_,
              actionsClipboardTitle_,
              actionsWebTitle_,
@@ -1604,6 +1656,15 @@ void SettingsWindow::ApplyLanguage() {
           L"Appearance and language changes apply immediately and are saved to data/settings.json."));
 
     SetWindowTextW(
+        diagnosticsMemoryTitle_,
+        T(L"进程内存",
+          L"Process memory"));
+    SetWindowTextW(
+        diagnosticsSearchTitle_,
+        T(L"搜索数据与后台",
+          L"Search data & background"));
+
+    SetWindowTextW(
         actionsWindowsTitle_,
         T(L"Windows 导航与上下文",
           L"Windows navigation & context"));
@@ -1617,8 +1678,8 @@ void SettingsWindow::ApplyLanguage() {
           L"Web & URL"));
     SetWindowTextW(
         actionsNote_,
-        T(L"此页用于运行状态与故障诊断，不提供行为开关。上下文来自最近一次全局呼出快照，只保存在当前进程内，不写入配置或历史记录。",
-          L"This page is for runtime status and diagnostics, not behavior toggles. Context comes from the last global activation snapshot, stays in memory only, and is not written to settings or history."));
+        T(L"此页每秒刷新一次运行时快照，不提供行为开关，也不会主动裁剪工作集。Working Set / Private Bytes 与任务管理器“内存”列的统计口径可能不同。",
+          L"This page refreshes runtime snapshots once per second, provides no behavior toggles and never trims the working set. Working Set / Private Bytes can differ from Task Manager's Memory column."));
 
     SetWindowTextW(
         providerSectionTitle_,
@@ -2409,6 +2470,112 @@ void SettingsWindow::ResetAllHotkeys() {
 void SettingsWindow::RefreshActionDiagnostics() {
     if (!actionsWindowsStatus_) return;
 
+    const auto runtime =
+        app_.RuntimeDiagnostics();
+
+    std::wstring memoryText;
+    if (runtime.processMemory.available) {
+        memoryText +=
+            T(L"Working Set：",
+              L"Working Set: ");
+        memoryText +=
+            FormatBytes(
+                runtime.processMemory
+                    .workingSetBytes);
+
+        memoryText += L"\r\n";
+        memoryText +=
+            T(L"Peak Working Set：",
+              L"Peak Working Set: ");
+        memoryText +=
+            FormatBytes(
+                runtime.processMemory
+                    .peakWorkingSetBytes);
+
+        memoryText += L"\r\n";
+        memoryText +=
+            T(L"Private Bytes：",
+              L"Private Bytes: ");
+        memoryText +=
+            FormatBytes(
+                runtime.processMemory
+                    .privateBytes);
+    } else {
+        memoryText =
+            T(L"无法读取当前进程内存计数器。",
+              L"Unable to read process memory counters.");
+    }
+
+    SetWindowTextW(
+        diagnosticsMemoryStatus_,
+        memoryText.c_str());
+
+    std::wstring searchText =
+        T(L"用户快捷项：",
+          L"User commands: ");
+    searchText +=
+        std::to_wstring(
+            runtime.userCommandCount);
+
+    searchText +=
+        T(L"  ·  Provider 原始命令：",
+          L"  ·  Provider commands: ");
+    searchText +=
+        std::to_wstring(
+            runtime.providerCommandCount);
+
+    searchText += L"\r\n";
+    searchText +=
+        T(L"合并可搜索命令：",
+          L"Merged searchable commands: ");
+    searchText +=
+        std::to_wstring(
+            runtime.mergedCommandCount);
+
+    searchText += L"\r\n";
+    searchText += L"Pinyin: ";
+    if (!runtime.pinyinLoaded) {
+        searchText +=
+            T(L"未加载", L"Not loaded");
+    } else if (
+        runtime.pinyinAvailable) {
+        searchText +=
+            T(L"已加载 / 可用",
+              L"Loaded / Ready");
+    } else {
+        searchText +=
+            T(L"已加载 / 不可用",
+              L"Loaded / Unavailable");
+    }
+
+    searchText +=
+        T(L"  ·  Cache：",
+          L"  ·  Cache: ");
+    searchText +=
+        std::to_wstring(
+            runtime.pinyinCacheEntryCount);
+
+    searchText += L"\r\n";
+    searchText +=
+        T(L"Provider Refresh：",
+          L"Provider Refresh: ");
+    searchText +=
+        runtime.providerRefreshRunning
+        ? T(L"运行中", L"Running")
+        : T(L"空闲", L"Idle");
+
+    searchText +=
+        T(L"  ·  Monitor：",
+          L"  ·  Monitor: ");
+    searchText +=
+        runtime.providerMonitorRunning
+        ? T(L"运行中", L"Running")
+        : T(L"停止", L"Stopped");
+
+    SetWindowTextW(
+        diagnosticsSearchStatus_,
+        searchText.c_str());
+
     const auto& context =
         app_.LastActivationContext();
 
@@ -3069,8 +3236,8 @@ void SettingsWindow::UpdatePageHeader() {
             T(L"诊断", L"Diagnostics"));
         SetWindowTextW(
             pageDescription_,
-            T(L"查看 Smart Actions、Windows 呼出上下文与相关运行状态，定位动作不可用的具体原因。",
-              L"Inspect Smart Actions, Windows activation context and related runtime state, including concrete reasons when an action is unavailable."));
+            T(L"查看进程内存、搜索数据、后台任务、Smart Actions 与 Windows 呼出上下文，建立性能与故障诊断基线。",
+              L"Inspect process memory, search data, background work, Smart Actions and Windows activation context for performance and troubleshooting baselines."));
         break;
 
     case Page::Appearance:
@@ -5690,40 +5857,64 @@ void SettingsWindow::Layout() {
     if (page_ == Page::Diagnostics) {
         const int x = contentLeft;
         const int width =
-            std::min(contentWidth, Scale(720));
+            std::min(contentWidth, Scale(760));
         const int y = Scale(138);
+        const int gap = Scale(20);
+        const int columnWidth =
+            std::max(
+                1,
+                (width - gap) / 2);
+
+        MoveWindow(
+            diagnosticsMemoryTitle_,
+            x, y,
+            columnWidth, Scale(24), TRUE);
+        MoveWindow(
+            diagnosticsMemoryStatus_,
+            x, y + Scale(28),
+            columnWidth, Scale(78), TRUE);
+
+        MoveWindow(
+            diagnosticsSearchTitle_,
+            x + columnWidth + gap, y,
+            columnWidth, Scale(24), TRUE);
+        MoveWindow(
+            diagnosticsSearchStatus_,
+            x + columnWidth + gap,
+            y + Scale(28),
+            columnWidth, Scale(92), TRUE);
 
         MoveWindow(
             actionsWindowsTitle_,
-            x, y,
-            width, Scale(28), TRUE);
+            x, y + Scale(126),
+            width, Scale(24), TRUE);
         MoveWindow(
             actionsWindowsStatus_,
-            x, y + Scale(36),
-            width, Scale(190), TRUE);
+            x, y + Scale(154),
+            width, Scale(142), TRUE);
 
         MoveWindow(
             actionsClipboardTitle_,
-            x, y + Scale(240),
-            width, Scale(28), TRUE);
+            x, y + Scale(306),
+            width, Scale(24), TRUE);
         MoveWindow(
             actionsClipboardStatus_,
-            x, y + Scale(276),
-            width, Scale(82), TRUE);
+            x, y + Scale(334),
+            width, Scale(58), TRUE);
 
         MoveWindow(
             actionsWebTitle_,
-            x, y + Scale(378),
-            width, Scale(28), TRUE);
+            x, y + Scale(402),
+            width, Scale(24), TRUE);
         MoveWindow(
             actionsWebStatus_,
-            x, y + Scale(414),
-            width, Scale(82), TRUE);
+            x, y + Scale(430),
+            width, Scale(58), TRUE);
 
         MoveWindow(
             actionsNote_,
-            x, y + Scale(520),
-            width, Scale(64), TRUE);
+            x, y + Scale(500),
+            width, Scale(60), TRUE);
     }
 
     if (page_ == Page::Appearance) {

@@ -171,6 +171,7 @@ if(WIN32)
         src/core/StartMenuProvider.cpp
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
+        src/platform/ProcessMemory.cpp
         src/platform/WinClipboard.cpp
         src/platform/WindowsContext.cpp
         src/platform/WinUtil.cpp
@@ -195,6 +196,7 @@ if(WIN32)
         shell32
         ole32
         oleaut32
+        psapi
         comctl32
         comdlg32
         advapi32
@@ -550,6 +552,53 @@ if(BUILD_TESTING)
         add_test(
             NAME windows_provider_smoke_tests
             COMMAND windows_provider_smoke_tests
+        )
+
+        add_executable(
+            process_memory_tests
+            tests/ProcessMemoryTests.cpp
+            src/platform/ProcessMemory.cpp
+        )
+
+        target_include_directories(
+            process_memory_tests
+            PRIVATE src
+        )
+
+        target_link_libraries(
+            process_memory_tests
+            PRIVATE psapi
+        )
+
+        target_compile_definitions(
+            process_memory_tests
+            PRIVATE
+                UNICODE
+                _UNICODE
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0A00
+                WINVER=0x0A00
+        )
+
+        if(MSVC)
+            target_compile_options(
+                process_memory_tests
+                PRIVATE
+                    /W4
+                    /permissive-
+                    /utf-8
+                    /EHsc
+            )
+        endif()
+
+        altrun_enable_test_assertions(
+            process_memory_tests
+        )
+
+        add_test(
+            NAME process_memory_tests
+            COMMAND process_memory_tests
         )
 
         add_executable(

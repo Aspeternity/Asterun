@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -27,7 +28,9 @@ public:
     PinyinSearch(const PinyinSearch&) = delete;
     PinyinSearch& operator=(const PinyinSearch&) = delete;
 
+    [[nodiscard]] bool Loaded() const noexcept;
     [[nodiscard]] bool Available() const noexcept;
+    [[nodiscard]] std::size_t CacheEntryCount() const noexcept;
 
     [[nodiscard]] const PinyinForms* FormsFor(
         std::wstring_view text) const;

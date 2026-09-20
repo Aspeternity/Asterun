@@ -351,8 +351,20 @@ PinyinSearch::PinyinSearch(
 PinyinSearch& PinyinSearch::operator=(
     PinyinSearch&&) noexcept = default;
 
+bool PinyinSearch::Loaded() const noexcept {
+    return impl_ &&
+        impl_->converter != nullptr;
+}
+
 bool PinyinSearch::Available() const noexcept {
     return impl_ && impl_->available;
+}
+
+std::size_t
+PinyinSearch::CacheEntryCount() const noexcept {
+    return impl_
+        ? impl_->cache.size()
+        : 0;
 }
 
 const PinyinForms* PinyinSearch::FormsFor(

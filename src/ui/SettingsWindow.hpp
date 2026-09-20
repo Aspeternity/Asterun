@@ -445,6 +445,10 @@ private:
     HWND hotkeyPageStatus_{};
     HWND hotkeyPageNote_{};
 
+    HWND diagnosticsMemoryTitle_{};
+    HWND diagnosticsMemoryStatus_{};
+    HWND diagnosticsSearchTitle_{};
+    HWND diagnosticsSearchStatus_{};
     HWND actionsWindowsTitle_{};
     HWND actionsWindowsStatus_{};
     HWND actionsClipboardTitle_{};

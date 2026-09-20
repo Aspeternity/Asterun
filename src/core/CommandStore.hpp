@@ -93,6 +93,11 @@ public:
         return commands_;
     }
 
+    [[nodiscard]] std::size_t
+    ProviderCommandCount() const noexcept {
+        return providerCommands_.size();
+    }
+
     [[nodiscard]] const std::vector<Command>&
     UserCommands() const noexcept {
         return userCommandStore_

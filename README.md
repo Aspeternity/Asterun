@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.2.3 — Memory Diagnostics & Baseline
+
+Alpha 2.3 adds runtime observability before any memory-optimization work. It deliberately does not trim the process working set or change search/provider storage architecture.
+
+The Diagnostics page now refreshes once per second while visible and reports **Working Set**, **Peak Working Set** and **Private Bytes** using the Windows process-memory counters. It also exposes the search-data baseline: user shortcut count, raw loaded Provider command count, merged searchable command count, Pinyin converter loaded/ready state, Pinyin cache entry count, Provider refresh state and Provider monitor state.
+
+A dedicated Windows `ProcessMemory` platform layer and `process_memory_tests` runtime test keep the measurement API reusable for later before/after optimization work. The Diagnostics note explicitly warns that these counters use a different accounting model from Task Manager's Memory column and that ALTRun Next does not call `EmptyWorkingSet` or `SetProcessWorkingSetSize`.
+
+No persisted schema changes in alpha.2.3: settings schemaVersion 4, commands/usage schemaVersion 1 and provider-cache schemaVersion 2 remain unchanged. Search behavior, Pinyin behavior, Provider storage, Everything IPC and Smart Actions are unchanged. Windows fixed FileVersion/ProductVersion is `0.7.0.23`.
+
 ## v0.7.0-alpha.2.2 — True Grouped Path Preview
 
 Alpha 2.2 replaces the alpha.2.1 compact presentation with an actual hierarchical path-preview structure while preserving the existing Common Controls version and all alpha.2 conversion semantics.

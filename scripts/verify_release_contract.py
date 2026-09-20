@@ -36,7 +36,7 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2"):
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3"):
     expected_schemas = {
         "kSettingsSchemaVersion": 4,
         "kCommandsSchemaVersion": 1,
@@ -256,6 +256,116 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2"):
         manifest = read("src/app.manifest")
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
+
+    if version == "0.7.0-alpha.2.3":
+        app_h = read("src/app/App.hpp")
+        app_cpp = read("src/app/App.cpp")
+        settings_h = read("src/ui/SettingsWindow.hpp")
+        settings_cpp = read("src/ui/SettingsWindow.cpp")
+        process_h = read("src/platform/ProcessMemory.hpp")
+        process_cpp = read("src/platform/ProcessMemory.cpp")
+        pinyin_h = read("src/core/PinyinSearch.hpp")
+        pinyin_cpp = read("src/core/PinyinSearch.cpp")
+        search_h = read("src/core/SearchEngine.hpp")
+        command_store_h = read("src/core/CommandStore.hpp")
+        cmake = read("CMakeLists.txt")
+        workflow = read(".github/workflows/build.yml")
+        memory_test = read("tests/ProcessMemoryTests.cpp")
+
+        for token in (
+            "RuntimeDiagnosticsSnapshot",
+            "RuntimeDiagnostics() const noexcept",
+            "QueryCurrentProcessMemory",
+            "userCommandCount",
+            "providerCommandCount",
+            "mergedCommandCount",
+            "pinyinLoaded",
+            "pinyinCacheEntryCount",
+            "providerRefreshRunning",
+            "providerMonitorRunning",
+        ):
+            if token not in app_h and token not in app_cpp:
+                fail(f"v0.7 alpha.2.3 runtime diagnostics contract missing: {token}")
+
+        for token in (
+            "ProcessMemorySnapshot",
+            "workingSetBytes",
+            "peakWorkingSetBytes",
+            "privateBytes",
+            "GetProcessMemoryInfo",
+            "PROCESS_MEMORY_COUNTERS_EX",
+        ):
+            if token not in process_h and token not in process_cpp:
+                fail(f"v0.7 alpha.2.3 process-memory platform contract missing: {token}")
+
+        for token in (
+            "Loaded() const noexcept",
+            "CacheEntryCount() const noexcept",
+        ):
+            if token not in pinyin_h and token not in pinyin_cpp:
+                fail(f"v0.7 alpha.2.3 Pinyin diagnostics missing: {token}")
+
+        for token in (
+            "PinyinLoaded",
+            "PinyinCacheEntryCount",
+        ):
+            if token not in search_h:
+                fail(f"v0.7 alpha.2.3 SearchEngine diagnostics missing: {token}")
+
+        if "ProviderCommandCount() const noexcept" not in command_store_h:
+            fail("v0.7 alpha.2.3 raw Provider command count is not exposed")
+
+        for token in (
+            "diagnosticsMemoryTitle_",
+            "diagnosticsMemoryStatus_",
+            "diagnosticsSearchTitle_",
+            "diagnosticsSearchStatus_",
+        ):
+            if token not in settings_h:
+                fail(f"v0.7 alpha.2.3 Settings diagnostics control missing: {token}")
+
+        for token in (
+            'T(L"进程内存",',
+            'T(L"搜索数据与后台",',
+            "Working Set",
+            "Peak Working Set",
+            "Private Bytes",
+            "Provider 原始命令",
+            "Pinyin:",
+            "Provider Refresh",
+            "app_.RuntimeDiagnostics()",
+            "1000",
+        ):
+            if token not in settings_cpp:
+                fail(f"v0.7 alpha.2.3 Diagnostics UI contract missing: {token}")
+
+        for forbidden in (
+            "EmptyWorkingSet",
+            "SetProcessWorkingSetSize",
+            "SetProcessWorkingSetSizeEx",
+        ):
+            if forbidden in app_cpp or forbidden in settings_cpp or forbidden in process_cpp:
+                fail(f"v0.7 alpha.2.3 must remain observation-only: {forbidden}")
+
+        for token in (
+            "src/platform/ProcessMemory.cpp",
+            "process_memory_tests",
+            "psapi",
+        ):
+            if token not in cmake:
+                fail(f"v0.7 alpha.2.3 CMake memory diagnostics gate missing: {token}")
+
+        if workflow.count("process_memory_tests") < 4:
+            fail("v0.7 alpha.2.3 process_memory_tests must run in Windows smoke and compatibility gates")
+
+        for token in (
+            "QueryCurrentProcessMemory",
+            "snapshot.available",
+            "snapshot.workingSetBytes > 0",
+            "snapshot.privateBytes > 0",
+        ):
+            if token not in memory_test:
+                fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
     print(
         "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",
