@@ -384,7 +384,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             "BCRYPT_SHA256_ALGORITHM",
             "CopyHere",
             'L".download"',
-            'L"-startup -first-instance"',
+            "-startup -first-instance",
             "WaitForIpc",
             "allowDownload",
             "NeedsInstall",
