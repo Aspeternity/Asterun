@@ -553,13 +553,15 @@ void ShortcutManagerWindow::Layout() {
         margin +
             buttonHeight +
             Scale(12),
-        std::max(
+        std::max<int>(
             1,
-            client.right -
+            static_cast<int>(
+                client.right) -
                 margin * 2),
-        std::max(
+        std::max<int>(
             1,
-            client.bottom -
+            static_cast<int>(
+                client.bottom) -
                 margin * 2 -
                 buttonHeight -
                 Scale(12)),
