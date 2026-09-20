@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0-alpha.5.2
+
+- Moved result-icon file/PATH/Shell resolution completely off the Launcher UI/WM_DRAWITEM thread.
+- Added one lazy background icon worker with a protected job/completion queue and WM_APP completion notification.
+- Added search-generation + icon-epoch stamps so stale icon completions are destroyed instead of repainting or populating the current query.
+- Cancelled queued obsolete icon jobs as the search generation advances while allowing already-running work to finish safely in the background.
+- Replaced per-query icon-cache destruction with a 96-entry cross-query LRU cache keyed by icon source + requested pixel size.
+- Added negative-cache entries for failed icon resolutions so unresolved sources do not repeatedly hit Windows Shell APIs.
+- Invalidates only result rows that use a newly completed icon instead of repainting the whole Launcher.
+- Preserved the default-off zero-resolution path from alpha.5.1; the worker is created lazily only after an enabled icon cache miss.
+- Added platform-independent icon pipeline policy tests for cache-key sizing, stale generations, epochs, disabled mode and bounded cache capacity.
+- Kept settings schemaVersion 6, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.52.
+
 ## 0.7.0-alpha.5.1
 
 - Added Appearance -> Show search result icons as a persisted, default-off preference.

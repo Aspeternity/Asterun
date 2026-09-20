@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.5.2 — Async Result Icon Pipeline
+
+Alpha 5.2 removes Windows Shell/file icon resolution from the Launcher paint path. With result icons enabled, `WM_DRAWITEM` now performs only a bounded cache lookup; a miss queues work to one lazy background icon worker and immediately continues drawing text. Completed icons return through a private `WM_APP` message and only the matching visible result rows are invalidated.
+
+Icon requests carry both the current search generation and an icon epoch. Typing a newer query clears queued obsolete work, while an already-running old request is discarded when it completes instead of repainting or caching stale results. Appearance/DPI/preference changes advance the icon epoch for the same reason. Cache keys include the requested pixel size, so Classic/DPI-sized icons cannot be reused at the wrong size.
+
+The cache now survives normal query changes and uses a 96-entry LRU cap instead of being destroyed on every result rebuild. Repeated results therefore reuse resolved icons across searches without allowing unbounded HICON growth. Cache entries also remember failed resolutions, preventing repeated Shell calls for the same unresolved source/size.
+
+The default-off preference from alpha.5.1 remains the absolute fast path: no worker is started on a default install until a visible row actually requests an icon, and when icons are disabled the paint path does not queue, resolve, cache or draw them. The existing setting/schema layout is unchanged: settings schemaVersion 6, commands 2, usage 1 and provider-cache 2. Windows fixed FileVersion/ProductVersion is `0.7.0.52`.
+
 ## v0.7.0-alpha.5.1 — Optional Result Icons
 
 Alpha 5.1 makes Launcher result icons an explicit **Appearance** preference instead of forcing their shell-resolution cost on every user. **Show search result icons** defaults to **off**, preserving the lightweight text-first behavior by default while keeping every shortcut's custom icon metadata intact.

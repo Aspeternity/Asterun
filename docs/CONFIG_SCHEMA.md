@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.5.1:
+Each document carries its own schema version. As of v0.7.0-alpha.5.2:
 
 ```text
 settings.json       schemaVersion 6
@@ -47,6 +47,8 @@ v0.7.0-alpha.4 advances **commands.json to schemaVersion 2** for dynamic shortcu
 v0.7.0-alpha.5 keeps all JSON schemas unchanged. The already-existing `icon` command field becomes user-editable and is rendered in Launcher results; blank editor input persists as `auto`, while a custom path stores the selected icon source. Dynamic **Test input** is editor-session state only and is never persisted. Custom icon paths are included in the atomic Path Conversion workflow. Shortcut TSV interchange advances independently to v3 by appending an optional `icon` column.
 
 v0.7.0-alpha.5.1 advances **settings.json to schemaVersion 6** for the Appearance preference `showResultIcons`. The default is `false`: schema-5 and older documents therefore migrate to a text-first Launcher unless the user explicitly enables result icons afterward. Disabling the preference also bypasses icon resolution/cache/rendering at runtime; it does not delete or rewrite any per-command `icon` value. A schema-5 binary opening the migrated schema-6 settings file enters the existing read-only downgrade-protection path. commands.json remains schemaVersion 2, usage.json remains schemaVersion 1 and provider-cache.json remains schemaVersion 2.
+
+v0.7.0-alpha.5.2 keeps every persisted schema unchanged. Result-icon loading is now an asynchronous runtime concern only: the default-off preference still controls whether any work is queued, while enabled icon requests are generation-stamped and cached in a bounded source+pixel-size LRU. No worker/cache state is serialized.
 
 ## Migration
 

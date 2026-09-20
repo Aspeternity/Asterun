@@ -1,11 +1,18 @@
 #pragma once
 
 #include "../core/LauncherResult.hpp"
+#include "../core/ResultIconPipeline.hpp"
 
 #include <windows.h>
 
+#include <condition_variable>
 #include <cstddef>
+#include <deque>
+#include <filesystem>
+#include <mutex>
 #include <string>
+#include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -53,6 +60,7 @@ private:
     };
 
     static constexpr UINT kTrayMessage = WM_APP + 17;
+    static constexpr UINT kIconReadyMessage = WM_APP + 18;
     static constexpr UINT kMenuShow = 40001;
     static constexpr UINT kMenuReload = 40002;
     static constexpr UINT kMenuSettings = 40003;
@@ -79,9 +87,47 @@ private:
     void PaintClassicClose(HDC dc, const RECT& rect);
     void UpdateHint();
     void UpdatePreview();
+
+    struct ResultIconCacheEntry {
+        HICON icon{};
+        std::uint64_t lastUse{0};
+    };
+
+    struct ResultIconPending {
+        std::uint64_t searchGeneration{0};
+        std::uint64_t iconEpoch{0};
+    };
+
+    struct ResultIconJob {
+        ResultIconRequestStamp stamp;
+        HWND targetWindow{};
+        std::wstring cacheKey;
+        std::wstring source;
+        std::filesystem::path baseDirectory;
+    };
+
+    struct ResultIconCompletion {
+        ResultIconRequestStamp stamp;
+        std::wstring cacheKey;
+        HICON icon{};
+    };
+
     [[nodiscard]] HICON ResultIcon(
         const LauncherResult& result);
+    [[nodiscard]] int
+    ResultIconPixelSize() const;
+    void QueueResultIcon(
+        const LauncherResult& result,
+        std::wstring cacheKey,
+        int pixelSize);
+    void EnsureResultIconWorker();
+    void ResultIconWorkerLoop();
+    void HandleResultIconCompletions();
+    void CancelPendingResultIconRequests();
     void ClearResultIconCache();
+    void TrimResultIconCache();
+    void InvalidateResultRowsForIconKey(
+        std::wstring_view cacheKey);
     void RebuildVisibleResults(
         bool allowImmediateExecution);
     void ExecuteSelection(
@@ -121,8 +167,25 @@ private:
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
-    std::unordered_map<std::wstring, HICON>
+    std::unordered_map<
+        std::wstring,
+        ResultIconCacheEntry>
         resultIconCache_;
+    std::unordered_map<
+        std::wstring,
+        ResultIconPending>
+        pendingResultIcons_;
+    std::deque<ResultIconJob>
+        resultIconJobs_;
+    std::deque<ResultIconCompletion>
+        resultIconCompletions_;
+    std::mutex resultIconWorkerMutex_;
+    std::condition_variable
+        resultIconWorkerCv_;
+    std::thread resultIconWorker_;
+    bool resultIconWorkerStop_{false};
+    std::uint64_t resultIconEpoch_{0};
+    std::uint64_t resultIconCacheTick_{0};
     bool trayIconAdded_{false};
     bool imeComposing_{false};
     bool dynamicQueryPending_{false};
