@@ -643,7 +643,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             for token in (
                 "ExtractEverythingServiceExecutable",
                 'LR"("D:\\ALTRun Test\\data\\tools\\Everything\\Everything.exe" -svc)"',
-                "D:\\Portable Apps\\Everything.exe -svc",
+                "D:\\\\Portable Apps\\\\Everything.exe -svc",
                 "EVERYTHING.EXE -svc",
             ):
                 if token not in bootstrap_test:
