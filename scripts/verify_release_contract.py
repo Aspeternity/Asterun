@@ -481,14 +481,23 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in settings_ui_h and token not in settings_ui_cpp:
                 fail(f"v0.7 alpha.2.5 Pinyin Settings UI missing: {token}")
 
-        for token in (
+        expected_pinyin_upgrade_tokens = [
             "AssertSchema4Migration",
             "MigratedFromSchemaVersion() ==",
             'at("pinyinSearch")',
-            "downgrade.schemaVersion == 5",
-        ):
+        ]
+        if version == "0.7.0-alpha.5.1":
+            expected_pinyin_upgrade_tokens.append(
+                "config::kSettingsSchemaVersion"
+            )
+        else:
+            expected_pinyin_upgrade_tokens.append(
+                "downgrade.schemaVersion == 5"
+            )
+
+        for token in expected_pinyin_upgrade_tokens:
             if token not in upgrade_test:
-                fail(f"v0.7 alpha.2.5 schema-5 migration coverage missing: {token}")
+                fail(f"v0.7 alpha.2.5 migration coverage missing: {token}")
 
         for token in (
             "MergeCommandViews",
@@ -504,10 +513,12 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.5 Pinyin toggle regression coverage missing: {token}")
 
+        expected_runtime_schema =
+            6 if version == "0.7.0-alpha.5.1" else 5
         for token in (
-            "$migratedSettings.schemaVersion -ne 5",
+            f"$migratedSettings.schemaVersion -ne {expected_runtime_schema}",
             "$migratedSettings.behavior.pinyinSearch -ne $true",
-            "schema 2 -> 5",
+            f"schema 2 -> {expected_runtime_schema}",
         ):
             if token not in runtime_smoke:
                 fail(f"v0.7 alpha.2.5 packaged runtime migration gate missing: {token}")
