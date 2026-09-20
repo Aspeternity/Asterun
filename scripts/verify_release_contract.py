@@ -513,8 +513,9 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.5 Pinyin toggle regression coverage missing: {token}")
 
-        expected_runtime_schema =
+        expected_runtime_schema = (
             6 if version == "0.7.0-alpha.5.1" else 5
+        )
         for token in (
             f"$migratedSettings.schemaVersion -ne {expected_runtime_schema}",
             "$migratedSettings.behavior.pinyinSearch -ne $true",
