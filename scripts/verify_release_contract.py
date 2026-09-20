@@ -36,8 +36,8 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5"):
-    expected_settings_schema = 5 if version == "0.7.0-alpha.2.5" else 4
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6"):
+    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6") else 4
     expected_schemas = {
         "kSettingsSchemaVersion": expected_settings_schema,
         "kCommandsSchemaVersion": 1,
@@ -261,7 +261,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5"):
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -371,7 +371,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5"):
+    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6"):
         pinyin_cpp = read("src/core/PinyinSearch.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
 
@@ -417,7 +417,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
 
-    if version == "0.7.0-alpha.2.5":
+    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6"):
         command_store_h = read("src/core/CommandStore.hpp")
         command_store_cpp = read("src/core/CommandStore.cpp")
         command_merge_h = read("src/core/CommandMerge.hpp")
@@ -511,6 +511,44 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in runtime_smoke:
                 fail(f"v0.7 alpha.2.5 packaged runtime migration gate missing: {token}")
 
+    if version == "0.7.0-alpha.2.6":
+        settings_ui_cpp = read("src/ui/SettingsWindow.cpp")
+
+        draw_toggle_start = settings_ui_cpp.find(
+            "void SettingsWindow::DrawGeneralToggle"
+        )
+        draw_toggle_end = settings_ui_cpp.find(
+            "\nvoid SettingsWindow::",
+            draw_toggle_start + 1,
+        )
+        if draw_toggle_start < 0 or draw_toggle_end < 0:
+            fail("v0.7 alpha.2.6 DrawGeneralToggle boundaries were not found")
+
+        draw_toggle = settings_ui_cpp[
+            draw_toggle_start:draw_toggle_end
+        ]
+        for token in (
+            "case kIdPinyinSearch:",
+            'L"启用拼音搜索"',
+            "cpp-pinyin",
+        ):
+            if token not in draw_toggle:
+                fail(f"v0.7 alpha.2.6 Pinyin owner-draw content missing: {token}")
+
+        draw_item_start = settings_ui_cpp.find("case WM_DRAWITEM:")
+        draw_item_end = settings_ui_cpp.find(
+            "case WM_VSCROLL:",
+            draw_item_start + 1,
+        )
+        if draw_item_start < 0 or draw_item_end < 0:
+            fail("v0.7 alpha.2.6 WM_DRAWITEM boundaries were not found")
+
+        draw_item = settings_ui_cpp[
+            draw_item_start:draw_item_end
+        ]
+        if "item->CtlID == kIdPinyinSearch" not in draw_item:
+            fail("v0.7 alpha.2.6 Pinyin toggle is not routed through owner-draw")
+
     print(
         "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",
         f"| commands=1 settings={expected_settings_schema} provider-cache=2",
@@ -520,6 +558,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         "| Windows portability + atomic update CI gates",
         "| alpha.2.4 lazy Pinyin first-use initialization",
         "| alpha.2.5 Provider storage dedup + Pinyin search control",
+        "| alpha.2.6 Pinyin Settings owner-draw routing",
     )
     raise SystemExit(0)
 

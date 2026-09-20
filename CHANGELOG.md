@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0-alpha.2.6
+
+- Fixed the blank Pinyin search row in General -> Search behavior.
+- Routed `kIdPinyinSearch` through the Settings owner-draw path and added its title/description to `DrawGeneralToggle`.
+- Added a release-contract regression gate for both owner-draw routing and Pinyin-row content.
+- Kept Provider storage deduplication, Pinyin runtime behavior and settings schemaVersion 5 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.26.
+
 ## 0.7.0-alpha.2.5
 
 - Removed the long-lived raw Provider `providerCommands_` vector; Provider cache Commands now exist only during merge and the final searchable `commands_` vector remains resident.

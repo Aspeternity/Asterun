@@ -23,6 +23,12 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.2.6 — Pinyin Search Toggle Rendering Fix
+
+Alpha 2.6 fixes the blank first row in General → Search behavior introduced with the Pinyin search toggle. The control was created, localized, laid out and wired to the setting correctly, but its owner-draw ID was omitted from the WM_DRAWITEM routing list and from DrawGeneralToggle's content switch.
+
+The row now renders **Enable Pinyin search / 启用拼音搜索** with an explanatory description. Its runtime behavior is unchanged from alpha.2.5: disabling Pinyin bypasses Hanzi-to-pinyin matching and releases loaded cpp-pinyin resources/cache, while re-enabling remains lazy. Provider command-storage deduplication and settings schemaVersion 5 are unchanged. Windows fixed FileVersion/ProductVersion is `0.7.0.26`.
+
 ## v0.7.0-alpha.2.5 — Provider Storage Deduplication & Pinyin Search Control
 
 Alpha 2.5 removes the long-lived raw Provider command copy. Provider cache data is now loaded only for a synchronous merge, exposed to the merge algorithm through temporary `const Command*` views, and released immediately after the final searchable `commands_` vector is built. The raw Provider command count remains available as a scalar Diagnostics metric, while accepted/suppressed source statistics retain their previous semantics.

@@ -6504,6 +6504,15 @@ void SettingsWindow::DrawGeneralToggle(
             L"Keep the tray entry for Settings, reload and exit actions.");
         break;
 
+    case kIdPinyinSearch:
+        title = T(
+            L"启用拼音搜索",
+            L"Enable Pinyin search");
+        description = T(
+            L"使用全拼、首字母和混合拼音匹配中文；关闭后不会加载 cpp-pinyin，可减少不需要的内存占用。",
+            L"Match Chinese with full, initial and hybrid Pinyin; when disabled, cpp-pinyin stays unloaded to avoid unnecessary memory use.");
+        break;
+
     case kIdWildcardMatching:
         title = T(
             L"允许 * / ? 通配符",
@@ -7250,6 +7259,7 @@ LRESULT SettingsWindow::HandleMessage(
              item->CtlID == kIdClearQueryOnShow ||
              item->CtlID == kIdHideOnFocusLost ||
              item->CtlID == kIdShowTrayIcon ||
+             item->CtlID == kIdPinyinSearch ||
              item->CtlID == kIdWildcardMatching ||
              item->CtlID == kIdNumericQuickLaunch ||
              item->CtlID == kIdExecuteSingleResult ||
