@@ -10,6 +10,7 @@
 #include "../core/ResultMerger.hpp"
 #include "../core/RuntimeInput.hpp"
 #include "../core/WebAction.hpp"
+#include "Version.hpp"
 #include "../platform/Hotkey.hpp"
 #include "../platform/WinClipboard.hpp"
 #include "../platform/WinUtil.hpp"
@@ -113,7 +114,9 @@ bool ProbeDirectoryWritable(
 
 } // namespace
 
-App::App(HINSTANCE instance)
+App::App(
+    HINSTANCE instance,
+    std::wstring startupHealthEvent)
     : instance_(instance),
       baseDirectory_(win::ExecutableDirectory()),
       dataDirectory_(baseDirectory_ / "data"),
@@ -125,9 +128,19 @@ App::App(HINSTANCE instance)
           dataDirectory_ / "settings.json",
           baseDirectory_ / "settings.ini"),
       searchEngine_(
-          baseDirectory_ / "dict") {}
+          baseDirectory_ / "dict"),
+      startupHealthEvent_(
+          std::move(
+              startupHealthEvent)) {}
 
 App::~App() {
+    ++updateGeneration_;
+
+    if (updateThread_.joinable()) {
+        updateThread_.request_stop();
+        updateThread_.join();
+    }
+
     StopManagedEverythingLifecycle();
 
     if (providerDebounceTimer_ != 0) {
@@ -250,6 +263,12 @@ int App::Run() {
         return 1;
     }
 
+    // A post-update health signal means the new executable loaded its data
+    // and created the real desktop window successfully. Signal before any
+    // optional warning dialog can make the updater mistake user think-time
+    // for a failed startup.
+    SignalStartupHealthEvent();
+
     if (!RebindGlobalHotkey(
             settingsStore_.Data().hotkeyModifiers,
             settingsStore_.Data().hotkeyKey)) {
@@ -297,6 +316,11 @@ int App::Run() {
     StartProviderRefresh();
     StartProviderMonitor();
 
+    if (settingsStore_.Data()
+            .autoCheckUpdates) {
+        StartUpdateCheck(false);
+    }
+
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
         if (msg.message ==
@@ -310,6 +334,15 @@ int App::Run() {
                 kEverythingBootstrapMessage &&
             msg.hwnd == nullptr) {
             HandleEverythingBootstrapCompleted(
+                static_cast<std::uint64_t>(
+                    msg.wParam));
+            continue;
+        }
+
+        if (msg.message ==
+                kUpdateStatusMessage &&
+            msg.hwnd == nullptr) {
+            HandleUpdateStatusMessage(
                 static_cast<std::uint64_t>(
                     msg.wParam));
             continue;
@@ -1588,6 +1621,112 @@ void App::HandleEverythingBootstrapCompleted(
     }
 }
 
+void App::HandleUpdateStatusMessage(
+    std::uint64_t generation) {
+    if (generation !=
+        updateGeneration_) {
+        return;
+    }
+
+    const auto status =
+        UpdateStatus();
+
+    if (!status.running &&
+        updateThread_.joinable()) {
+        updateThread_.join();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            OnUpdateStatusChanged();
+    }
+
+    if (status.stage ==
+            win::UpdateStage::
+                ReadyToInstall &&
+        updateInstallWhenReady_) {
+        updateInstallWhenReady_ =
+            false;
+        BeginPreparedUpdate();
+    }
+}
+
+bool App::BeginPreparedUpdate() {
+    win::UpdateSnapshot snapshot;
+
+    {
+        std::scoped_lock lock(
+            updateMutex_);
+        snapshot = updateStatus_;
+        updateStatus_.stage =
+            win::UpdateStage::Applying;
+        updateStatus_.running = false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            OnUpdateStatusChanged();
+    }
+
+    std::uint32_t nativeError = 0;
+
+    if (!win::LaunchPreparedUpdate(
+            baseDirectory_,
+            dataDirectory_,
+            snapshot,
+            kVersion,
+            static_cast<std::uint32_t>(
+                GetCurrentProcessId()),
+            nativeError)) {
+        {
+            std::scoped_lock lock(
+                updateMutex_);
+            updateStatus_.stage =
+                win::UpdateStage::Failed;
+            updateStatus_.failure =
+                nativeError ==
+                        ERROR_FILE_NOT_FOUND
+                    ? win::UpdateFailure::
+                          UpdaterMissing
+                    : win::UpdateFailure::
+                          LaunchUpdaterFailed;
+            updateStatus_.nativeError =
+                nativeError;
+            updateStatus_.running = false;
+        }
+
+        if (settingsWindow_) {
+            settingsWindow_->
+                OnUpdateStatusChanged();
+        }
+
+        return false;
+    }
+
+    PostQuitMessage(0);
+    return true;
+}
+
+void App::SignalStartupHealthEvent() {
+    if (startupHealthEvent_.empty()) {
+        return;
+    }
+
+    HANDLE event =
+        OpenEventW(
+            EVENT_MODIFY_STATE,
+            FALSE,
+            startupHealthEvent_
+                .c_str());
+
+    if (event) {
+        SetEvent(event);
+        CloseHandle(event);
+    }
+
+    startupHealthEvent_.clear();
+}
+
 void App::FlushDetectedProviderChanges() {
     std::unordered_set<std::string>
         detected;
@@ -2374,6 +2513,302 @@ bool App::SetProviderEnabled(
     if (enabled) {
         StartProviderRefresh(
             {providerId});
+    }
+
+    return true;
+}
+
+bool App::SetUpdateSettings(
+    bool autoCheck,
+    UpdateChannel channel) {
+    const auto previous =
+        settingsStore_.Data();
+
+    if (previous.autoCheckUpdates ==
+            autoCheck &&
+        previous.updateChannel ==
+            channel) {
+        return true;
+    }
+
+    ++updateGeneration_;
+
+    if (updateThread_.joinable()) {
+        updateThread_.request_stop();
+        updateThread_.join();
+    }
+
+    if (!settingsStore_
+             .SetUpdateSettings(
+                 autoCheck,
+                 channel)) {
+        return false;
+    }
+
+    {
+        std::scoped_lock lock(
+            updateMutex_);
+        updateStatus_ = {};
+        updateManifest_.reset();
+        updateInstallWhenReady_ =
+            false;
+    }
+
+    if (autoCheck) {
+        StartUpdateCheck(true);
+    }
+
+    return true;
+}
+
+win::UpdateSnapshot
+App::UpdateStatus() const {
+    std::scoped_lock lock(
+        updateMutex_);
+    return updateStatus_;
+}
+
+bool App::StartUpdateCheck(
+    bool force) {
+    if (!force &&
+        !settingsStore_.Data()
+             .autoCheckUpdates) {
+        return false;
+    }
+
+    if (!force) {
+        const auto now =
+            std::chrono::system_clock::
+                to_time_t(
+                    std::chrono::
+                        system_clock::now());
+
+        if (!win::UpdateAutoCheckDue(
+                dataDirectory_,
+                static_cast<std::int64_t>(
+                    now))) {
+            return false;
+        }
+    }
+
+    {
+        std::scoped_lock lock(
+            updateMutex_);
+
+        if (updateStatus_.running) {
+            return false;
+        }
+    }
+
+    if (updateThread_.joinable()) {
+        updateThread_.join();
+    }
+
+    const auto channel =
+        settingsStore_.Data()
+            .updateChannel;
+    const DWORD targetThread =
+        uiThreadId_;
+    const std::uint64_t generation =
+        ++updateGeneration_;
+
+    {
+        std::scoped_lock lock(
+            updateMutex_);
+        updateStatus_ = {};
+        updateStatus_.stage =
+            win::UpdateStage::Checking;
+        updateStatus_.running = true;
+        updateStatus_.currentVersion =
+            std::string(kVersion);
+        updateManifest_.reset();
+        updateInstallWhenReady_ =
+            false;
+    }
+
+    updateThread_ =
+        std::jthread(
+            [this,
+             channel,
+             targetThread,
+             generation](
+                std::stop_token stopToken) {
+                const auto progress =
+                    [this,
+                     targetThread,
+                     generation](
+                        const win::
+                            UpdateSnapshot&
+                                snapshot) {
+                        {
+                            std::scoped_lock lock(
+                                updateMutex_);
+                            updateStatus_ =
+                                snapshot;
+                        }
+
+                        if (targetThread != 0) {
+                            PostThreadMessageW(
+                                targetThread,
+                                kUpdateStatusMessage,
+                                static_cast<WPARAM>(
+                                    generation),
+                                0);
+                        }
+                    };
+
+                const auto result =
+                    win::CheckForUpdate(
+                        dataDirectory_,
+                        kVersion,
+                        channel,
+                        progress,
+                        stopToken);
+
+                {
+                    std::scoped_lock lock(
+                        updateMutex_);
+                    updateStatus_ =
+                        result.snapshot;
+                    updateManifest_ =
+                        result.manifest;
+                }
+
+                if (targetThread != 0) {
+                    PostThreadMessageW(
+                        targetThread,
+                        kUpdateStatusMessage,
+                        static_cast<WPARAM>(
+                            generation),
+                        0);
+                }
+            });
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            OnUpdateStatusChanged();
+    }
+
+    return true;
+}
+
+bool App::StartUpdateDownloadAndInstall() {
+    UpdateManifest manifest;
+
+    {
+        std::scoped_lock lock(
+            updateMutex_);
+
+        if (updateStatus_.running ||
+            updateStatus_.stage !=
+                win::UpdateStage::
+                    Available ||
+            !updateManifest_) {
+            return false;
+        }
+
+        manifest = *updateManifest_;
+    }
+
+    if (updateThread_.joinable()) {
+        updateThread_.join();
+    }
+
+    const auto channel =
+        settingsStore_.Data()
+            .updateChannel;
+    const DWORD targetThread =
+        uiThreadId_;
+    const std::uint64_t generation =
+        ++updateGeneration_;
+
+    {
+        std::scoped_lock lock(
+            updateMutex_);
+        updateStatus_.running = true;
+        updateStatus_.stage =
+            win::UpdateStage::
+                Downloading;
+        updateStatus_.failure =
+            win::UpdateFailure::None;
+        updateStatus_.nativeError = 0;
+        updateStatus_.downloadedBytes =
+            0;
+        updateStatus_.totalBytes = 0;
+        updateInstallWhenReady_ =
+            true;
+    }
+
+    updateThread_ =
+        std::jthread(
+            [this,
+             channel,
+             manifest =
+                 std::move(manifest),
+             targetThread,
+             generation](
+                std::stop_token stopToken) {
+                const auto progress =
+                    [this,
+                     targetThread,
+                     generation](
+                        const win::
+                            UpdateSnapshot&
+                                snapshot) {
+                        {
+                            std::scoped_lock lock(
+                                updateMutex_);
+                            updateStatus_ =
+                                snapshot;
+                        }
+
+                        if (targetThread != 0) {
+                            PostThreadMessageW(
+                                targetThread,
+                                kUpdateStatusMessage,
+                                static_cast<WPARAM>(
+                                    generation),
+                                0);
+                        }
+                    };
+
+                const auto result =
+                    win::PrepareUpdate(
+                        dataDirectory_,
+                        channel,
+                        manifest,
+                        kVersion,
+                        progress,
+                        stopToken);
+
+                {
+                    std::scoped_lock lock(
+                        updateMutex_);
+                    updateStatus_ =
+                        result.snapshot;
+
+                    if (result.snapshot
+                            .stage !=
+                        win::UpdateStage::
+                            ReadyToInstall) {
+                        updateInstallWhenReady_ =
+                            false;
+                    }
+                }
+
+                if (targetThread != 0) {
+                    PostThreadMessageW(
+                        targetThread,
+                        kUpdateStatusMessage,
+                        static_cast<WPARAM>(
+                            generation),
+                        0);
+                }
+            });
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            OnUpdateStatusChanged();
     }
 
     return true;

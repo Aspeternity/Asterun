@@ -1,0 +1,81 @@
+# Native update system
+
+ALTRun Next v0.7.0-alpha.9 introduces a native portable updater. It is designed around four constraints: update checks stay low-noise, installation is always user-triggered, portable user data is never replaced, and a failed new build can roll back to the previous application files.
+
+## Channels
+
+- **Stable** reads `/releases/latest/download/update-manifest.json`, which follows GitHub's latest non-prerelease release.
+- **Development** reads `/releases/download/dev-latest/update-manifest.json`, the rolling release published only after the full main CI succeeds.
+
+Prerelease binaries default to Development. Stable binaries default to Stable. The persisted settings surface is:
+
+```json
+"update": {
+  "autoCheck": true,
+  "channel": "development"
+}
+```
+
+Automatic checks are throttled by `data/update/update-state.json` to at most once per 24 hours. Runtime status/progress is not persisted into settings.
+
+## Release manifest
+
+CI creates `update-manifest.json` after both architecture packages are built and SHA-256 checked:
+
+```json
+{
+  "schemaVersion": 1,
+  "version": "0.7.0-alpha.9",
+  "commit": "<40-character git sha>",
+  "prerelease": true,
+  "assets": {
+    "x64": {
+      "name": "ALTRunNext-x64.zip",
+      "sha256": "<sha256>"
+    },
+    "ARM64": {
+      "name": "ALTRunNext-ARM64.zip",
+      "sha256": "<sha256>"
+    }
+  }
+}
+```
+
+Asset names are restricted to a single safe filename. The client chooses the package matching its own architecture.
+
+## Download and staging
+
+The main process uses native WinHTTP over HTTPS. An update ZIP is first stored with a `.download` suffix, SHA-256 is computed with Windows BCrypt, and only a matching package is promoted to the real ZIP filename. Windows Shell ZIP extraction writes to:
+
+```text
+data/update/staging/<version>/
+```
+
+Before installation, the staged tree must contain a matching `VERSION`, `ALTRunNext.exe` and `ALTRunNext.Updater.exe`.
+
+## Apply / rollback
+
+`ALTRunNext.Updater.exe` is packaged beside the main executable. Before apply, the main process copies it to `%TEMP%`, launches that temporary copy and exits normally. This lets the helper replace both the main EXE and the packaged updater.
+
+The helper:
+
+1. waits for the old ALTRun Next PID to exit;
+2. validates the staged source again;
+3. backs up each existing application file that will be replaced under `data/update/backup/<old-version>`;
+4. copies the staged application files while explicitly skipping any staged `data/` subtree;
+5. restarts the new `ALTRunNext.exe` with a one-shot local health-event name;
+6. waits up to 30 seconds for normal startup to signal health;
+7. deletes backup/staging on success;
+8. on copy, launch or health failure, restores the backed-up files and relaunches the previous build.
+
+The normal ALTRun Next destructor still owns managed Everything shutdown during the update exit, so the updater does not duplicate or bypass the existing Everything lifecycle.
+
+If the installation directory is not writable, only the updater requests UAC. When running elevated, it attempts to create the restarted main process with the normal Explorer user's token so ALTRun Next does not remain elevated.
+
+## Data boundary
+
+The updater treats the portable `data/` directory as user/runtime state, not application payload. It is never overwritten by staged package contents. This preserves settings, shortcuts, usage, provider cache, Managed Everything, update state and future runtime data.
+
+## Security boundary
+
+The current system provides HTTPS transport plus SHA-256 package integrity tied to the CI-generated release manifest. This detects corruption, truncation and a package that does not match the published manifest. It does **not** protect against compromise of the GitHub repository/release credentials that could replace both package and manifest. A future signed-release pipeline should add signature verification before apply.

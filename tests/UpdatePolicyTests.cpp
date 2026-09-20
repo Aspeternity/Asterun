@@ -1,0 +1,154 @@
+#include "core/UpdateManifest.hpp"
+#include "core/UpdatePolicy.hpp"
+
+#include <cassert>
+#include <iostream>
+#include <string>
+
+using namespace altrun;
+
+int main() {
+    assert(
+        IsUpdateVersionNewer(
+            "0.7.0-alpha.8.4",
+            "0.7.0-alpha.9"));
+    assert(
+        IsUpdateVersionNewer(
+            "0.7.0-alpha.9",
+            "0.7.0-beta.1"));
+    assert(
+        IsUpdateVersionNewer(
+            "0.7.0-beta.2",
+            "0.7.0-rc.1"));
+    assert(
+        IsUpdateVersionNewer(
+            "0.7.0-rc.1",
+            "0.7.0"));
+    assert(
+        !IsUpdateVersionNewer(
+            "0.7.0",
+            "0.7.0-rc.99"));
+    assert(
+        !CompareVersions(
+            "bad",
+            "0.7.0"));
+
+    assert(
+        DefaultUpdateChannelForVersion(
+            "0.7.0-alpha.9") ==
+        UpdateChannel::Development);
+    assert(
+        DefaultUpdateChannelForVersion(
+            "0.7.0") ==
+        UpdateChannel::Stable);
+
+    assert(
+        UpdateManifestUrl(
+            UpdateChannel::
+                Development)
+            .find(L"dev-latest") !=
+        std::wstring::npos);
+    assert(
+        UpdateManifestUrl(
+            UpdateChannel::Stable)
+            .find(L"/latest/") !=
+        std::wstring::npos);
+
+    assert(
+        IsSafeUpdateAssetName(
+            "ALTRunNext-x64.zip"));
+    assert(
+        !IsSafeUpdateAssetName(
+            "../ALTRunNext.zip"));
+    assert(
+        !IsSafeUpdateAssetName(
+            "folder/file.zip"));
+
+    const std::string hash(
+        64,
+        'a');
+
+    const std::string json =
+        "{"
+        "\"schemaVersion\":1,"
+        "\"version\":\"0.7.0-beta.1\","
+        "\"commit\":\"0123456789abcdef0123456789abcdef01234567\","
+        "\"prerelease\":true,"
+        "\"assets\":{"
+        "\"x64\":{"
+        "\"name\":\"ALTRunNext-x64.zip\","
+        "\"sha256\":\"" +
+        hash +
+        "\"},"
+        "\"ARM64\":{"
+        "\"name\":\"ALTRunNext-ARM64.zip\","
+        "\"sha256\":\"" +
+        hash +
+        "\"}"
+        "}"
+        "}";
+
+    const auto manifest =
+        ParseUpdateManifest(json);
+
+    assert(manifest);
+    assert(
+        manifest->version ==
+        "0.7.0-beta.1");
+    assert(manifest->prerelease);
+    assert(
+        manifest->x64.name ==
+        "ALTRunNext-x64.zip");
+    assert(
+        manifest->arm64.sha256 ==
+        hash);
+
+    const auto invalid =
+        ParseUpdateManifest(
+            "{"
+            "\"schemaVersion\":1,"
+            "\"version\":\"0.7.0-beta.1\","
+            "\"commit\":\"0123456789abcdef0123456789abcdef01234567\","
+            "\"assets\":{"
+            "\"x64\":{"
+            "\"name\":\"../bad.zip\","
+            "\"sha256\":\"" +
+            hash +
+            "\"},"
+            "\"ARM64\":{"
+            "\"name\":\"ALTRunNext-ARM64.zip\","
+            "\"sha256\":\"" +
+            hash +
+            "\"}"
+            "}"
+            "}");
+
+    assert(!invalid);
+
+    const std::string badCommitJson =
+        "{"
+        "\"schemaVersion\":1,"
+        "\"version\":\"0.7.0-beta.1\","
+        "\"commit\":\"short\","
+        "\"assets\":{"
+        "\"x64\":{"
+        "\"name\":\"ALTRunNext-x64.zip\","
+        "\"sha256\":\"" +
+        hash +
+        "\"},"
+        "\"ARM64\":{"
+        "\"name\":\"ALTRunNext-ARM64.zip\","
+        "\"sha256\":\"" +
+        hash +
+        "\"}"
+        "}"
+        "}";
+
+    assert(
+        !ParseUpdateManifest(
+            badCommitJson));
+
+    std::cout
+        << "Update policy tests passed\n";
+    return 0;
+}

@@ -103,6 +103,7 @@ add_library(altrun_core STATIC
     src/core/ResultRanking.cpp
     src/core/ResultIconPipeline.cpp
     src/core/RuntimeInput.cpp
+    src/core/UpdatePolicy.cpp
     src/core/PinyinSearch.cpp
     src/core/SearchEngine.cpp
     src/core/SettingsLayout.cpp
@@ -118,11 +119,17 @@ add_library(altrun_config STATIC
     src/core/ProviderCache.cpp
     src/core/Settings.cpp
     src/core/TextCodec.cpp
+    src/core/UpdateManifest.cpp
     src/core/UsageStore.cpp
     src/core/UserCommandStore.cpp
 )
 
-target_include_directories(altrun_config PUBLIC src)
+target_include_directories(
+    altrun_config
+    PUBLIC
+        src
+        "${CMAKE_CURRENT_BINARY_DIR}/generated"
+)
 target_link_libraries(
     altrun_config
     PUBLIC
@@ -179,6 +186,7 @@ if(WIN32)
         src/platform/Hotkey.cpp
         src/platform/ProcessMemory.cpp
         src/platform/ShellActions.cpp
+        src/platform/UpdateManager.cpp
         src/platform/WinClipboard.cpp
         src/platform/WindowsContext.cpp
         src/platform/WinUtil.cpp
@@ -235,6 +243,54 @@ if(WIN32)
     )
 
     altrun_copy_pinyin_runtime(ALTRunNext)
+
+    add_executable(
+        ALTRunNextUpdater
+        WIN32
+        src/updater/UpdaterMain.cpp
+    )
+
+    target_compile_definitions(
+        ALTRunNextUpdater
+        PRIVATE
+            UNICODE
+            _UNICODE
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            _WIN32_WINNT=0x0A00
+            WINVER=0x0A00
+    )
+
+    target_link_libraries(
+        ALTRunNextUpdater
+        PRIVATE
+            advapi32
+            shell32
+            user32
+    )
+
+    if(MSVC)
+        target_compile_options(
+            ALTRunNextUpdater
+            PRIVATE
+                /W4
+                /permissive-
+                /utf-8
+                /EHsc
+        )
+        target_link_options(
+            ALTRunNextUpdater
+            PRIVATE
+                /SUBSYSTEM:WINDOWS
+        )
+    endif()
+
+    set_target_properties(
+        ALTRunNextUpdater
+        PROPERTIES
+            OUTPUT_NAME
+                "ALTRunNext.Updater"
+    )
 endif()
 
 include(CTest)
@@ -250,6 +306,28 @@ function(altrun_enable_test_assertions target)
 endfunction()
 
 if(BUILD_TESTING)
+    add_executable(
+        update_policy_tests
+        tests/UpdatePolicyTests.cpp
+    )
+    target_link_libraries(
+        update_policy_tests
+        PRIVATE altrun_config
+    )
+    target_include_directories(
+        update_policy_tests
+        PRIVATE
+            src
+            "${CMAKE_CURRENT_BINARY_DIR}/generated"
+    )
+    altrun_enable_test_assertions(
+        update_policy_tests
+    )
+    add_test(
+        NAME update_policy_tests
+        COMMAND update_policy_tests
+    )
+
     add_executable(search_engine_tests tests/SearchEngineTests.cpp)
     target_link_libraries(search_engine_tests PRIVATE altrun_core)
     target_include_directories(search_engine_tests PRIVATE src)

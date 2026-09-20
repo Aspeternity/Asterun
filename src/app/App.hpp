@@ -10,6 +10,7 @@
 #include "../core/UsageStore.hpp"
 #include "../platform/EverythingBootstrapper.hpp"
 #include "../platform/ProcessMemory.hpp"
+#include "../platform/UpdateManager.hpp"
 #include "../platform/WindowsContext.hpp"
 
 #include <windows.h>
@@ -46,7 +47,9 @@ struct RuntimeDiagnosticsSnapshot {
 
 class App {
 public:
-    explicit App(HINSTANCE instance);
+    explicit App(
+        HINSTANCE instance,
+        std::wstring startupHealthEvent = {});
     ~App();
 
     int Run();
@@ -158,6 +161,14 @@ public:
     bool SetProviderEnabled(
         std::string id,
         bool enabled);
+    bool SetUpdateSettings(
+        bool autoCheck,
+        UpdateChannel channel);
+    [[nodiscard]] win::UpdateSnapshot
+    UpdateStatus() const;
+    bool StartUpdateCheck(
+        bool force);
+    bool StartUpdateDownloadAndInstall();
     bool RepairGlobalHotkey(
         bool forceRebind = true);
 
@@ -244,6 +255,10 @@ private:
         kEverythingBootstrapMessage =
             WM_APP + 0x174;
 
+    static constexpr UINT
+        kUpdateStatusMessage =
+            WM_APP + 0x175;
+
     bool LaunchCommand(
         const Command& command,
         bool recordUsage,
@@ -271,6 +286,10 @@ private:
     void HandleEverythingBootstrapCompleted(
         std::uint64_t generation);
     void StopManagedEverythingLifecycle();
+    void HandleUpdateStatusMessage(
+        std::uint64_t generation);
+    bool BeginPreparedUpdate();
+    void SignalStartupHealthEvent();
     void CaptureActivationContext();
 
     HINSTANCE instance_{};
@@ -301,6 +320,8 @@ private:
         providerMonitorThread_;
     std::jthread
         everythingBootstrapThread_;
+    std::jthread
+        updateThread_;
     std::atomic_bool
         providerRefreshRunning_{false};
 
@@ -329,6 +350,17 @@ private:
         everythingBootstrapStatus_;
     std::uint64_t
         everythingBootstrapGeneration_{0};
+
+    mutable std::mutex
+        updateMutex_;
+    win::UpdateSnapshot
+        updateStatus_;
+    std::optional<UpdateManifest>
+        updateManifest_;
+    std::uint64_t
+        updateGeneration_{0};
+    bool updateInstallWhenReady_{false};
+    std::wstring startupHealthEvent_;
 
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};

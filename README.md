@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.9 — Native Update & Safe Apply
+
+Alpha 9 adds ALTRun Next's native self-update path so development and later stable builds no longer require manually visiting GitHub, downloading a ZIP and replacing files. **Settings → About** now exposes Stable / Development update channels, a default-on low-noise automatic check throttled to at most once per 24 hours, manual **Check for updates**, and explicit **Download and install**. Prerelease builds default to Development; stable builds default to Stable.
+
+Release CI now publishes a machine-readable `update-manifest.json` beside the x64/ARM64 ZIPs and `SHA256SUMS.txt`. The client fetches that manifest over HTTPS using WinHTTP, compares versions, selects the running architecture, downloads to a temporary non-ZIP filename, verifies SHA-256 with Windows BCrypt, extracts to `data/update/staging/<version>`, and validates the staged VERSION plus both update executables before any live file is touched.
+
+Installation is handed to the small packaged `ALTRunNext.Updater.exe`, copied to `%TEMP%` before launch. It waits for the current ALTRun Next process to exit, backs up only application files that will be replaced, never copies a staged `data/` tree over the user's data, applies the staged package, then restarts ALTRun Next. The restarted process signals a one-shot health event only after normal startup initialization; launch/health failure triggers rollback and relaunch of the previous version. A protected installation directory elevates only the updater; the main program is relaunched with the normal Explorer user token when possible.
+
+The updater is user-driven: update checks may run silently in the background, but packages are not downloaded or installed until **Download and install** is clicked. SHA-256 protects transfer/package integrity; cryptographic release signing remains a future distribution hardening step. settings.json advances to schemaVersion 7 for `update.autoCheck` and `update.channel`; commands.json remains schemaVersion 2, usage.json schemaVersion 1, provider-cache.json schemaVersion 2 and Shortcut TSV remains v3. Windows fixed FileVersion/ProductVersion is `0.7.0.90`.
+
 ## v0.7.0-alpha.8.4 — Everything Service Path Repair
 
 Alpha 8.4 hardens Managed Everything for ALTRun Next's portable/movable deployment model. A Windows service persists independently from the portable application folder, so an existing stopped Everything Service can still point to an old managed `Everything.exe` after ALTRun Next is moved, re-extracted or an old test directory is removed. Starting that stale service returns Win32 `ERROR_FILE_NOT_FOUND (2)`.

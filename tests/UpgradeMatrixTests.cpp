@@ -469,6 +469,94 @@ void AssertSchema5Migration(
     AssertDowngradeReadOnly(path);
 }
 
+void AssertSchema6Migration(
+    const std::filesystem::path& workRoot) {
+    const auto path =
+        workRoot /
+        "schema6-to-schema7" /
+        "settings.json";
+
+    std::filesystem::create_directories(
+        path.parent_path());
+
+    nlohmann::json source = {
+        {"schemaVersion", 6},
+        {"appearance", {
+            {"launcher", "classic"},
+            {"language", "zh-CN"},
+            {"showResultIcons", false}
+        }},
+        {"behavior", {
+            {"pinyinSearch", true},
+            {"wildcardMatching", false},
+            {"numericQuickLaunch", false},
+            {"numericQuickLaunchOrder", "one-to-zero"},
+            {"executeSingleResultImmediately", false}
+        }},
+        {"general", {
+            {"startWithWindows", false},
+            {"showOnStartup", false},
+            {"hideAfterLaunch", true},
+            {"clearQueryOnShow", true},
+            {"hideOnFocusLost", true},
+            {"showTrayIcon", true},
+            {"popupMonitor", "cursor"}
+        }},
+        {"providers", {
+            {"windows.startmenu", true},
+            {"windows.packaged", true},
+            {"windows.apppaths", true},
+            {"windows.path", true},
+            {"everything.filesystem", false}
+        }}
+    };
+
+    {
+        std::ofstream output(
+            path,
+            std::ios::binary |
+                std::ios::trunc);
+        assert(output);
+        output << source.dump(2);
+    }
+
+    SettingsStore store(path);
+    store.Load();
+
+    assert(
+        store.WasMigratedFromOlderSchema());
+    assert(
+        store.MigratedFromSchemaVersion() ==
+        6);
+    assert(
+        !store.IsReadOnlyDueToNewerSchema());
+    assert(
+        store.Data().autoCheckUpdates);
+    assert(
+        store.Data().updateChannel ==
+        UpdateChannel::Development);
+
+    const auto migrated =
+        nlohmann::json::parse(
+            ReadText(path));
+
+    assert(
+        migrated.at("schemaVersion")
+            .get<int>() ==
+        config::kSettingsSchemaVersion);
+    assert(
+        migrated.at("update")
+            .at("autoCheck")
+            .get<bool>());
+    assert(
+        migrated.at("update")
+            .at("channel")
+            .get<std::string>() ==
+        "development");
+
+    AssertDowngradeReadOnly(path);
+}
+
 void AssertCleanInstall(
     const std::filesystem::path& workRoot) {
     const auto path =
@@ -505,6 +593,20 @@ void AssertCleanInstall(
              .get<bool>());
     assert(
         !store.Data().showResultIcons);
+    assert(
+        store.Data().autoCheckUpdates);
+    assert(
+        store.Data().updateChannel ==
+        UpdateChannel::Development);
+    assert(
+        root.at("update")
+            .at("autoCheck")
+            .get<bool>());
+    assert(
+        root.at("update")
+            .at("channel")
+            .get<std::string>() ==
+        "development");
 
     const auto& bindings =
         root.at("hotkeys")
@@ -603,6 +705,7 @@ int main(
         workRoot);
 
     AssertCleanInstall(workRoot);
+    AssertSchema6Migration(workRoot);
     AssertSchema5Migration(workRoot);
 
     AssertSchema3Migration(
@@ -633,8 +736,8 @@ int main(
 
     std::cout
         << "Upgrade matrix tests passed: clean install, "
-           "schema 3/4/5 -> 6 with default-off result icons, "
-           "schema-5 downgrade read-only\n";
+           "schema 3/4/5/6 -> 7 with update defaults, "
+           "schema downgrade read-only\n";
 
     return 0;
 }

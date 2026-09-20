@@ -23,11 +23,15 @@ try {
     Expand-Archive -Path $archivePath -DestinationPath $tempRoot -Force
 
     $exe = Join-Path $tempRoot "ALTRunNext.exe"
+    $updater = Join-Path $tempRoot "ALTRunNext.Updater.exe"
     $versionPath = Join-Path $tempRoot "VERSION"
     $data = Join-Path $tempRoot "data"
 
     if (-not (Test-Path $exe)) {
         throw "Portable runtime smoke archive has no ALTRunNext.exe."
+    }
+    if (-not (Test-Path $updater)) {
+        throw "Portable runtime smoke archive has no ALTRunNext.Updater.exe."
     }
 
     New-Item -ItemType Directory -Force -Path $data | Out-Null
@@ -77,6 +81,19 @@ try {
 
     Set-Content -Path (Join-Path $data "settings.json") -Value $settings -Encoding utf8 -NoNewline
 
+    # The schema-2 fixture intentionally migrates through the current schema.
+    # Seed a recent runtime-only update check timestamp so this startup smoke
+    # never depends on GitHub/network availability while still verifying that
+    # migration defaults autoCheck to true.
+    $updateRoot = Join-Path $data "update"
+    New-Item -ItemType Directory -Force -Path $updateRoot | Out-Null
+    $nowUnix = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $updateState = @{
+        schemaVersion = 1
+        lastCheckUnix = $nowUnix
+    } | ConvertTo-Json
+    Set-Content -Path (Join-Path $updateRoot "update-state.json") -Value $updateState -Encoding utf8 -NoNewline
+
     $process = Start-Process -FilePath $exe -WorkingDirectory $tempRoot -PassThru
 
     Start-Sleep -Seconds $StartupSeconds
@@ -104,8 +121,8 @@ try {
         Get-Content $settingsPath -Raw |
         ConvertFrom-Json
 
-    if ($migratedSettings.schemaVersion -ne 6) {
-        throw "Packaged runtime did not migrate schema-2 settings to schema 6."
+    if ($migratedSettings.schemaVersion -ne 7) {
+        throw "Packaged runtime did not migrate schema-2 settings to schema 7."
     }
 
     if ($migratedSettings.behavior.pinyinSearch -ne $true) {
@@ -114,6 +131,14 @@ try {
 
     if ($migratedSettings.appearance.showResultIcons -ne $false) {
         throw "Packaged runtime migration must default search-result icons to disabled."
+    }
+
+    if ($migratedSettings.update.autoCheck -ne $true) {
+        throw "Packaged runtime migration must default automatic update checks to enabled."
+    }
+
+    if ($migratedSettings.update.channel -ne "development") {
+        throw "Packaged prerelease runtime migration must default to the Development update channel."
     }
 
     $expectedHotkeyActions = @(

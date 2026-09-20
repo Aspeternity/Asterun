@@ -16,6 +16,7 @@ Expand-Archive -Path $archivePath -DestinationPath $verify -Force
 
 $required = @(
     "ALTRunNext.exe",
+    "ALTRunNext.Updater.exe",
     "VERSION",
     "README.md",
     "CONFIG_SCHEMA.md",
@@ -35,6 +36,7 @@ foreach ($entry in $required) {
 
 $allowedTopLevel = @(
     "ALTRunNext.exe",
+    "ALTRunNext.Updater.exe",
     "VERSION",
     "README.md",
     "CONFIG_SCHEMA.md",

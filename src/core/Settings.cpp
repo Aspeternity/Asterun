@@ -2,6 +2,7 @@
 
 #include "ConfigIO.hpp"
 #include "HotkeyRegistry.hpp"
+#include "Version.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -196,6 +197,9 @@ SettingsStore::SettingsStore(
 
 void SettingsStore::Load() {
     settings_ = Settings{};
+    settings_.updateChannel =
+        DefaultUpdateChannelForVersion(
+            kVersion);
     readOnlyDueToNewerSchema_ =
         false;
     unsupportedSchemaVersion_ = 0;
@@ -562,6 +566,33 @@ bool SettingsStore::LoadJson() {
                             .executeSingleResultImmediately);
         }
 
+        if (root.contains("update") &&
+            root["update"].is_object()) {
+            const auto& update =
+                root["update"];
+
+            settings_.autoCheckUpdates =
+                update.value(
+                    "autoCheck",
+                    settings_
+                        .autoCheckUpdates);
+
+            const std::string channel =
+                LowerAscii(
+                    update.value(
+                        "channel",
+                        std::string(
+                            UpdateChannelName(
+                                settings_
+                                    .updateChannel))));
+
+            settings_.updateChannel =
+                channel == "development"
+                    ? UpdateChannel::
+                          Development
+                    : UpdateChannel::Stable;
+        }
+
         // Provider settings were introduced after the original schema.
         // Missing keys intentionally keep their default-enabled behavior,
         // so existing users upgrade without losing application sources.
@@ -803,7 +834,14 @@ bool SettingsStore::Save() const {
              settings_.showResultIcons}
         }},
         {"providers",
-         std::move(providersJson)}
+         std::move(providersJson)},
+        {"update", {
+            {"autoCheck",
+             settings_.autoCheckUpdates},
+            {"channel",
+             UpdateChannelName(
+                 settings_.updateChannel)}
+        }}
     };
 
     return config::SaveJsonAtomic(
@@ -1043,11 +1081,37 @@ bool SettingsStore::SetProviderEnabled(
     return true;
 }
 
+bool SettingsStore::SetUpdateSettings(
+    bool autoCheck,
+    UpdateChannel channel) {
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.autoCheckUpdates =
+        autoCheck;
+    settings_.updateChannel =
+        channel;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
 bool SettingsStore::ResetDefaults() {
     const Settings previous =
         settings_;
 
     settings_ = Settings{};
+    settings_.updateChannel =
+        DefaultUpdateChannelForVersion(
+            kVersion);
 
     if (!Save()) {
         settings_ = previous;

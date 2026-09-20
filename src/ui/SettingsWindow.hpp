@@ -29,6 +29,7 @@ public:
     void OnProgramIndexRefreshCompleted(
         int outcome);
     void OnDynamicProviderStatusChanged();
+    void OnUpdateStatusChanged();
 
 private:
     enum class Page {
@@ -137,6 +138,14 @@ private:
         kIdOpenDataFolder = 51301;
     static constexpr UINT
         kIdOpenGitHub = 51302;
+    static constexpr UINT
+        kIdUpdateChannel = 51303;
+    static constexpr UINT
+        kIdUpdateAutoCheck = 51304;
+    static constexpr UINT
+        kIdUpdateCheck = 51305;
+    static constexpr UINT
+        kIdUpdateInstall = 51306;
 
     static constexpr UINT
         kIdCommandSearch = 51401;
@@ -250,6 +259,8 @@ private:
     void AcquireEverything();
     void RecheckEverything();
     void RefreshDataCompatibilityStatus();
+    void RefreshUpdateStatus();
+    void ApplyUpdateSettings();
     void LoadCommandEditor(
         std::wstring_view id);
     void BeginNewCommand();
@@ -503,6 +514,13 @@ private:
     HWND aboutName_{};
     HWND aboutVersion_{};
     HWND aboutDescription_{};
+    HWND updateSectionTitle_{};
+    HWND updateChannelLabel_{};
+    HWND updateChannel_{};
+    HWND updateAutoCheck_{};
+    HWND updateStatus_{};
+    HWND updateCheck_{};
+    HWND updateInstall_{};
     HWND dataPathLabel_{};
     HWND dataPath_{};
     HWND openDataFolder_{};

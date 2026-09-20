@@ -2,6 +2,7 @@
 
 #include "HotkeyRegistry.hpp"
 #include "ProviderIds.hpp"
+#include "UpdatePolicy.hpp"
 
 #include <filesystem>
 #include <string>
@@ -54,6 +55,10 @@ struct Settings {
 
     ProviderEnableMap providerEnabled{
         providers::DefaultEnabled()};
+
+    bool autoCheckUpdates{true};
+    UpdateChannel updateChannel{
+        UpdateChannel::Stable};
 };
 
 class SettingsStore {
@@ -90,6 +95,9 @@ public:
     bool SetProviderEnabled(
         std::string id,
         bool enabled);
+    bool SetUpdateSettings(
+        bool autoCheck,
+        UpdateChannel channel);
     bool ResetDefaults();
     void SetGeneral(
         bool hideAfterLaunch,

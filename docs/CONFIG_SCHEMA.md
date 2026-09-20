@@ -11,10 +11,10 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.8.4:
+Each document carries its own schema version. As of v0.7.0-alpha.9:
 
 ```text
-settings.json       schemaVersion 6
+settings.json       schemaVersion 7
 commands.json       schemaVersion 2
 usage.json          schemaVersion 1
 provider-cache.json schemaVersion 2
@@ -63,6 +63,8 @@ v0.7.0-alpha.8.2 also keeps every persisted schema unchanged. Managed Everything
 v0.7.0-alpha.8.3 also keeps every persisted schema unchanged. Managed-client process ownership and shutdown are session/runtime lifecycle state only. Exiting ALTRun Next or disabling `everything.filesystem` may stop the ALTRun Next-managed Everything client, but does not persist a new preference and does not stop/delete the Windows Everything Service.
 
 v0.7.0-alpha.8.4 also keeps every persisted schema unchanged. Everything Service ImagePath inspection and stale-path repair are Windows runtime/service state only. No service path, elevation state or repair result is written to settings.json, commands.json, usage.json or provider-cache.json.
+
+v0.7.0-alpha.9 advances **settings.json to schemaVersion 7** for the native updater preferences. The new `update` object stores only `autoCheck` and `channel` (`stable` or `development`). Automatic checks default to enabled; prerelease binaries choose Development as the migration/default channel while stable binaries choose Stable. Update timestamps, download progress, manifests, staged packages and backups are runtime/update state under `data/update` and are not settings fields. A schema-6 binary opening schema 7 enters the existing read-only downgrade protection. commands.json remains schemaVersion 2, usage.json remains schemaVersion 1, provider-cache.json remains schemaVersion 2 and Shortcut TSV remains v3.
 
 ## Migration
 

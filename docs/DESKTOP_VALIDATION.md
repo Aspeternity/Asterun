@@ -170,3 +170,25 @@ The following checks extend the historical desktop matrix for the schema-4 centr
 - [ ] Restart ALTRun Next and verify every customized enabled/disabled state and chord persists.
 - [ ] Upgrade an existing schema-3 settings.json with a custom primary/auxiliary binding; schema 4 preserves both global bindings and adds defaults for the three launcher-local actions.
 - [ ] After schema-4 migration, record settings.json SHA-256, launch v0.6.0-alpha.5, attempt a settings change, verify newer-schema read-only protection and unchanged SHA-256, then return to alpha.6 and verify the Registry configuration is intact.
+
+
+## v0.7.0-alpha.9 Native Update validation
+
+Use an installed/extracted alpha.9-or-newer build for these checks. The first transition from an older build still requires one manual download because those binaries do not contain the updater.
+
+- [ ] On a prerelease build, Settings → About defaults the update channel to **Development** after schema-6 → schema-7 migration; a clean future stable build defaults to **Stable**.
+- [ ] Disabling automatic checks persists across restart. Enabling it does not trigger more than one automatic network check within 24 hours.
+- [ ] **Check for updates** runs asynchronously and leaves Launcher input responsive.
+- [ ] Development channel resolves `dev-latest/update-manifest.json`; Stable resolves GitHub's latest non-prerelease release.
+- [ ] When the manifest version equals the running version, About reports up to date and **Download and install** is disabled.
+- [ ] With a newer Development manifest, About reports the exact version and enables **Download and install**.
+- [ ] Download progress updates without blocking Settings or Launcher.
+- [ ] Tamper with a downloaded/staged test package in a controlled test build and verify SHA-256 mismatch prevents extraction/apply.
+- [ ] A valid update extracts under `data/update/staging/<version>` and verifies `VERSION`, `ALTRunNext.exe` and `ALTRunNext.Updater.exe` before apply.
+- [ ] Applying a valid update exits ALTRun Next, stops only its managed Everything client through the normal lifecycle, replaces application files and restarts automatically.
+- [ ] Existing `data/settings.json`, `commands.json`, `usage.json`, `provider-cache.json` and `data/tools/Everything` remain intact after update.
+- [ ] An install directory writable by the user updates without UAC.
+- [ ] A protected install directory requests UAC for the updater only; the restarted ALTRun Next process is not left elevated.
+- [ ] Simulate a launch/health failure in a test build and verify the updater restores the previous application files and relaunches the previous version.
+- [ ] After successful health confirmation, the backup/staging state is cleaned and the running VERSION matches the requested manifest version.
+- [ ] Release assets include `ALTRunNext-x64.zip`, `ALTRunNext-ARM64.zip`, `SHA256SUMS.txt` and `update-manifest.json`; manifest hashes match SHA256SUMS.txt.

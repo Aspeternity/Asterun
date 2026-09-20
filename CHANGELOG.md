@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0-alpha.9
+
+- Added native Stable / Development update channels to Settings → About.
+- Added default-on automatic update checks throttled to at most once per 24 hours plus explicit manual checks.
+- Prerelease builds default to Development; stable builds default to Stable.
+- Added release `update-manifest.json` generation with version, commit, architecture-specific asset names and SHA-256 values.
+- Added native WinHTTP manifest/package download, architecture selection, BCrypt SHA-256 verification and staged Windows Shell ZIP extraction.
+- Added packaged `ALTRunNext.Updater.exe`, copied to `%TEMP%` before applying so the updater can replace itself safely.
+- Added transactional application-file backup/apply/rollback while explicitly preserving the portable `data/` directory.
+- Added post-update startup health-event confirmation; launch/health failure rolls files back and relaunches the previous version.
+- Protected install directories elevate only the updater; the restarted main application uses the normal Explorer token when available.
+- Update downloads/installation remain explicitly user-driven; automatic checking never silently installs an update.
+- Advanced settings.json to schemaVersion 7 for `update.autoCheck` and `update.channel`; commands/usage/provider-cache/TSV schemas remain unchanged.
+- Added update policy/manifest regression coverage and Windows CI/package gates for the updater helper.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.90.
+
 ## 0.7.0-alpha.8.4
 
 - Fixed Everything Service startup error 2 when a persistent stopped service still points to an old/moved ALTRun Next managed Everything executable.
