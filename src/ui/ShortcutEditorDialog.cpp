@@ -18,6 +18,10 @@ namespace {
 constexpr wchar_t kShortcutEditorClass[] =
     L"ALTRunNext.ShortcutEditor";
 
+constexpr int kEditorWidthLogical = 620;
+constexpr int kEditorHeightLogical = 480;
+constexpr int kTypeDropdownHeightLogical = 150;
+
 constexpr UINT kIdName = 53101;
 constexpr UINT kIdKeyword = 53102;
 constexpr UINT kIdAliases = 53103;
@@ -214,8 +218,8 @@ bool ShortcutEditorDialog::Create(
             WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        650,
-        560,
+        kEditorWidthLogical,
+        kEditorHeightLogical,
         owner_,
         nullptr,
         instance_,
@@ -232,8 +236,8 @@ bool ShortcutEditorDialog::Create(
         nullptr,
         0,
         0,
-        Scale(650),
-        Scale(560),
+        Scale(kEditorWidthLogical),
+        Scale(kEditorHeightLogical),
         SWP_NOMOVE |
             SWP_NOZORDER |
             SWP_NOACTIVATE);
@@ -355,6 +359,25 @@ void ShortcutEditorDialog::CreateControls() {
                 nullptr);
         };
 
+    const auto makeGroup =
+        [&](HWND& target) {
+            target = CreateWindowExW(
+                0,
+                L"BUTTON",
+                L"",
+                WS_CHILD |
+                    WS_VISIBLE |
+                    BS_GROUPBOX,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                nullptr,
+                instance_,
+                nullptr);
+        };
+
     const auto makeEdit =
         [&](HWND& target,
             UINT id) {
@@ -404,11 +427,14 @@ void ShortcutEditorDialog::CreateControls() {
                 nullptr);
         };
 
-    makeStatic(nameLabel_, L"");
-    makeEdit(name_, kIdName);
+    makeGroup(shortcutGroup_);
+    makeGroup(executionGroup_);
 
     makeStatic(keywordLabel_, L"");
     makeEdit(keyword_, kIdKeyword);
+
+    makeStatic(nameLabel_, L"");
+    makeEdit(name_, kIdName);
 
     makeStatic(aliasesLabel_, L"");
     makeEdit(aliases_, kIdAliases);
@@ -505,7 +531,9 @@ void ShortcutEditorDialog::CreateControls() {
             : L"Segoe UI");
 
     for (HWND control :
-         std::array<HWND, 21>{
+         std::array<HWND, 23>{
+             shortcutGroup_,
+             executionGroup_,
              nameLabel_,
              name_,
              keywordLabel_,
@@ -551,6 +579,13 @@ void ShortcutEditorDialog::ApplyLanguage() {
                 L"New shortcut")
             : T(L"编辑快捷项",
                 L"Edit shortcut"));
+
+    SetWindowTextW(
+        shortcutGroup_,
+        T(L"快捷项", L"Shortcut"));
+    SetWindowTextW(
+        executionGroup_,
+        T(L"启动选项", L"Launch options"));
 
     SetWindowTextW(
         nameLabel_,
@@ -619,7 +654,7 @@ void ShortcutEditorDialog::ApplyLanguage() {
                L"Application"),
              T(L"网址", L"URL"),
              T(L"文件夹", L"Folder"),
-             T(L"命令", L"Command")}) {
+             T(L"命令行", L"Command line")}) {
         SendMessageW(
             type_,
             CB_ADDSTRING,
@@ -633,142 +668,87 @@ void ShortcutEditorDialog::ApplyLanguage() {
         CB_SETCURSEL,
         selected,
         0);
+
+    SendMessageW(
+        type_,
+        CB_SETMINVISIBLE,
+        4,
+        0);
+
+    UpdateTypeControls();
 }
 
 void ShortcutEditorDialog::Layout() {
     RECT client{};
     GetClientRect(hwnd_, &client);
 
-    const int margin = Scale(24);
-    const int labelWidth = Scale(120);
-    const int browseWidth = Scale(44);
+    const int margin = Scale(18);
+    const int groupInset = Scale(14);
+    const int labelWidth = Scale(112);
+    const int browseWidth = Scale(42);
     const int gap = Scale(8);
-    const int rowHeight = Scale(42);
-    const int fieldX =
-        margin + labelWidth;
-    const int fieldWidth =
-        client.right -
-        fieldX -
-        margin;
+    const int rowStep = Scale(34);
+    const int fieldHeight = Scale(28);
+    const int groupWidth = client.right - margin * 2;
 
-    int y = Scale(24);
+    const int shortcutTop = Scale(14);
+    const int shortcutHeight = Scale(218);
 
-    const auto placeField =
-        [&](HWND label,
-            HWND field,
-            HWND browse = nullptr) {
-            MoveWindow(
-                label,
-                margin,
-                y + Scale(6),
-                labelWidth - gap,
-                Scale(26),
-                TRUE);
+    MoveWindow(shortcutGroup_, margin, shortcutTop, groupWidth, shortcutHeight, TRUE);
 
-            const int width =
-                browse
-                    ? fieldWidth -
-                        browseWidth -
-                        gap
-                    : fieldWidth;
+    const int labelX = margin + groupInset;
+    const int fieldX = labelX + labelWidth;
+    const int fieldWidth = client.right - margin - groupInset - fieldX;
+    int y = shortcutTop + Scale(28);
 
-            MoveWindow(
-                field,
-                fieldX,
-                y,
-                width,
-                Scale(32),
-                TRUE);
+    const auto placeField = [&](HWND label, HWND field, HWND browse = nullptr) {
+        MoveWindow(label, labelX, y + Scale(4), labelWidth - gap, Scale(22), TRUE);
+        const int width = browse ? fieldWidth - browseWidth - gap : fieldWidth;
+        const int controlHeight = field == type_
+            ? Scale(kTypeDropdownHeightLogical)
+            : fieldHeight;
+        MoveWindow(field, fieldX, y, width, controlHeight, TRUE);
+        if (browse) {
+            MoveWindow(browse, fieldX + width + gap, y, browseWidth, fieldHeight, TRUE);
+        }
+        y += rowStep;
+    };
 
-            if (browse) {
-                MoveWindow(
-                    browse,
-                    fieldX +
-                        width +
-                        gap,
-                    y,
-                    browseWidth,
-                    Scale(32),
-                    TRUE);
-            }
-
-            y += rowHeight;
-        };
-
-    placeField(nameLabel_, name_);
     placeField(keywordLabel_, keyword_);
+    placeField(nameLabel_, name_);
     placeField(aliasesLabel_, aliases_);
     placeField(typeLabel_, type_);
-    placeField(
-        targetLabel_,
-        target_,
-        browseTarget_);
-    placeField(
-        argumentsLabel_,
-        arguments_);
-    placeField(
-        workdirLabel_,
-        workdir_,
-        browseWorkdir_);
+    placeField(targetLabel_, target_, browseTarget_);
 
-    const int optionWidth =
-        (fieldWidth - gap * 2) / 3;
+    const int executionTop = shortcutTop + shortcutHeight + Scale(10);
+    const int executionHeight = Scale(122);
+    MoveWindow(executionGroup_, margin, executionTop, groupWidth, executionHeight, TRUE);
 
-    MoveWindow(
-        enabled_,
-        fieldX,
-        y,
-        optionWidth,
-        Scale(30),
-        TRUE);
-    MoveWindow(
-        admin_,
-        fieldX +
-            optionWidth +
-            gap,
-        y,
-        optionWidth,
-        Scale(30),
-        TRUE);
-    MoveWindow(
-        pinned_,
-        fieldX +
-            (optionWidth + gap) * 2,
-        y,
-        optionWidth,
-        Scale(30),
-        TRUE);
+    y = executionTop + Scale(28);
+    placeField(argumentsLabel_, arguments_);
+    placeField(workdirLabel_, workdir_, browseWorkdir_);
 
-    y += Scale(52);
+    const int optionX = margin + groupInset;
+    const int optionWidth = (groupWidth - groupInset * 2 - gap * 2) / 3;
+    MoveWindow(enabled_, optionX, y, optionWidth, Scale(26), TRUE);
+    MoveWindow(admin_, optionX + optionWidth + gap, y, optionWidth, Scale(26), TRUE);
+    MoveWindow(pinned_, optionX + (optionWidth + gap) * 2, y, optionWidth, Scale(26), TRUE);
 
-    const int buttonWidth = Scale(96);
+    const int buttonWidth = Scale(92);
+    const int buttonHeight = Scale(32);
+    const int buttonY = client.bottom - margin - buttonHeight;
+    MoveWindow(test_, margin, buttonY, buttonWidth, buttonHeight, TRUE);
+    MoveWindow(cancel_, client.right - margin - buttonWidth, buttonY, buttonWidth, buttonHeight, TRUE);
+    MoveWindow(save_, client.right - margin - buttonWidth * 2 - gap, buttonY, buttonWidth, buttonHeight, TRUE);
+}
 
-    MoveWindow(
-        test_,
-        margin,
-        y,
-        buttonWidth,
-        Scale(34),
-        TRUE);
-    MoveWindow(
-        cancel_,
-        client.right -
-            margin -
-            buttonWidth,
-        y,
-        buttonWidth,
-        Scale(34),
-        TRUE);
-    MoveWindow(
-        save_,
-        client.right -
-            margin -
-            buttonWidth * 2 -
-            gap,
-        y,
-        buttonWidth,
-        Scale(34),
-        TRUE);
+void ShortcutEditorDialog::UpdateTypeControls() {
+    const auto type = TypeFromIndex(
+        static_cast<int>(SendMessageW(type_, CB_GETCURSEL, 0, 0)));
+
+    EnableWindow(
+        browseTarget_,
+        type == CommandType::Url ? FALSE : TRUE);
 }
 
 void ShortcutEditorDialog::LoadCommand(
@@ -1283,6 +1263,13 @@ LRESULT ShortcutEditorDialog::HandleMessage(
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
+        case kIdType:
+            if (HIWORD(wParam) ==
+                CBN_SELCHANGE) {
+                UpdateTypeControls();
+            }
+            return 0;
+
         case kIdBrowseTarget:
             if (HIWORD(wParam) ==
                 BN_CLICKED) {

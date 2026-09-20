@@ -36,8 +36,8 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
-if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6"):
-    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6") else 4
+if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3"):
+    expected_settings_schema = 5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3") else 4
     expected_schemas = {
         "kSettingsSchemaVersion": expected_settings_schema,
         "kCommandsSchemaVersion": 1,
@@ -261,7 +261,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "Microsoft.Windows.Common-Controls" in manifest:
             fail("v0.7 alpha.2.2 unexpectedly changes the global Common Controls manifest")
 
-    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6"):
+    if version in ("0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3"):
         app_h = read("src/app/App.hpp")
         app_cpp = read("src/app/App.cpp")
         settings_h = read("src/ui/SettingsWindow.hpp")
@@ -371,7 +371,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in memory_test:
                 fail(f"v0.7 alpha.2.3 process-memory test coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6"):
+    if version in ("0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3"):
         pinyin_cpp = read("src/core/PinyinSearch.cpp")
         search_test = read("tests/SearchEngineTests.cpp")
 
@@ -417,7 +417,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
             if token not in search_test:
                 fail(f"v0.7 alpha.2.4 lazy Pinyin regression coverage missing: {token}")
 
-    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6"):
+    if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3"):
         command_store_h = read("src/core/CommandStore.hpp")
         command_store_cpp = read("src/core/CommandStore.cpp")
         command_merge_h = read("src/core/CommandMerge.hpp")
@@ -549,8 +549,29 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         if "item->CtlID == kIdPinyinSearch" not in draw_item:
             fail("v0.7 alpha.2.6 Pinyin toggle is not routed through owner-draw")
 
+    if version == "0.7.0-alpha.3":
+        editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+        editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+        for token in (
+            "shortcutGroup_",
+            "executionGroup_",
+            "kEditorWidthLogical = 620",
+            "kEditorHeightLogical = 480",
+            "kTypeDropdownHeightLogical = 150",
+            "CB_SETMINVISIBLE",
+            "CBN_SELCHANGE",
+            'T(L"快捷项", L"Shortcut")',
+            'T(L"启动选项", L"Launch options")',
+            'T(L"命令行", L"Command line")',
+            "type == CommandType::Url",
+        ):
+            if token not in editor_h and token not in editor_cpp:
+                fail(f"v0.7 alpha.3 shortcut-editor usability contract missing: {token}")
+        if "std::array<const wchar_t*, 4>" not in editor_cpp:
+            fail("v0.7 alpha.3 type selector must expose exactly four command types")
+
     print(
-        "v0.7.0-alpha.2 Shortcut Manager portability contract verified:",
+        "v0.7.0 alpha.2/alpha.3 contract verified:",
         f"| commands=1 settings={expected_settings_schema} provider-cache=2",
         "| Move Up/Down UI removed, sortOrder retained",
         "| path preview + atomic apply + relative runtime resolution",
@@ -559,6 +580,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
         "| alpha.2.4 lazy Pinyin first-use initialization",
         "| alpha.2.5 Provider storage dedup + Pinyin search control",
         "| alpha.2.6 Pinyin Settings owner-draw routing",
+        "| alpha.3 compact grouped Shortcut Editor + four command types",
     )
     raise SystemExit(0)
 

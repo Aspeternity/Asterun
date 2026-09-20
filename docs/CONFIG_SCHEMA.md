@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.2.5:
+Each document carries its own schema version. As of v0.7.0-alpha.3:
 
 ```text
 settings.json       schemaVersion 5
@@ -37,6 +37,8 @@ v0.6.0-alpha.6 upgrades **settings.json to schemaVersion 4** for the centralized
 When a schema-3 document is loaded, its existing primary and auxiliary global hotkeys are imported into the matching Registry actions and launcher-local actions receive their defaults. Starting with v0.6.0-alpha.6.1, existing user global chords have migration priority: if a newly introduced optional launcher-local default duplicates one of them, that new local action is disabled rather than changing the established global chord or keeping two enabled actions with the same binding. The legacy `hotkey` object is still written as a compatibility mirror for the two global activation bindings. A v0.6.0-alpha.5 downgrade therefore sees schema 4, enters the existing read-only newer-schema mode, may read the familiar global fields, and must not rewrite the document. commands.json, usage.json and provider-cache.json are not migrated by alpha.6.
 
 v0.7.0-alpha.2.5 upgrades **settings.json to schemaVersion 5** to persist the new `behavior.pinyinSearch` preference. The default is `true`, preserving existing search behavior. A schema-4 document migrates atomically to schema 5 and receives `pinyinSearch: true`; disabling it prevents ASCII queries from invoking Hanzi-to-pinyin matching and immediately releases any loaded converter/cache. Re-enabling remains lazy. A schema-4 binary opening the migrated file sees a newer schema and enters read-only downgrade protection, so the preference cannot be silently discarded. commands.json, usage.json and provider-cache.json remain unchanged.
+
+v0.7.0-alpha.3 does **not** change any persisted schema. The Shortcut Editor usability/type-selector work is UI/runtime-only: settings remains schemaVersion 5, commands/usage remain schemaVersion 1 and provider-cache remains schemaVersion 2. The four command types were already represented by the existing `CommandType` field; alpha.3 fixes their editor presentation rather than changing stored command data.
 
 ## Migration
 

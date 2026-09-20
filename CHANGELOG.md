@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-alpha.3
+
+- Reorganized New/Edit Shortcut into compact Shortcut and Launch options groups instead of the previous oversized flat form.
+- Reordered the primary workflow to keyword, name, aliases, type and target before launch-specific fields.
+- Fixed the Win32 command-type ComboBox dropdown height so all four existing types are visible: Application, URL, Folder and Command line.
+- Added a four-item minimum-visible dropdown contract and immediate type-change handling.
+- Disabled the local target browse button for URL commands while retaining browsing for other command types.
+- Added release-contract coverage for the grouped editor structure and four command-type options.
+- Kept all persisted schemas and Provider/Pinyin/search behavior unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.30.
+
 ## 0.7.0-alpha.2.6
 
 - Fixed the blank Pinyin search row in General -> Search behavior.

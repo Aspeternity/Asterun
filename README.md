@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.3 — Shortcut Editor Usability & Command Type Completion
+
+Alpha 3 begins the feature-completion phase and deliberately leaves global visual polish and further memory tuning for final product cleanup. The standalone New/Edit Shortcut dialog is reorganized into two compact sections inspired by the original AltRun workflow: **Shortcut** for keyword/name/alias/type/target and **Launch options** for arguments, working directory and execution flags.
+
+The command type selector now reliably exposes all four existing runtime command types — **Application, URL, Folder and Command line**. The Win32 dropdown is given a real list height and a four-item minimum-visible count instead of being laid out as a 32-pixel-tall control that could show only one item. URL targets are entered directly and therefore disable the local-file browse button; Application, Folder and Command line retain browse behavior.
+
+No persisted schema changes are made: settings stays schemaVersion 5, commands/usage stay schemaVersion 1 and provider-cache stays schemaVersion 2. Provider storage deduplication, lazy/optional Pinyin and search/ranking behavior are unchanged. Windows fixed FileVersion/ProductVersion is `0.7.0.30`.
+
 ## v0.7.0-alpha.2.6 — Pinyin Search Toggle Rendering Fix
 
 Alpha 2.6 fixes the blank first row in General → Search behavior introduced with the Pinyin search toggle. The control was created, localized, laid out and wired to the setting correctly, but its owner-draw ID was omitted from the WM_DRAWITEM routing list and from DrawGeneralToggle's content switch.

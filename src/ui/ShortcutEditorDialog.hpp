@@ -45,6 +45,7 @@ private:
     void CreateControls();
     void ApplyLanguage();
     void Layout();
+    void UpdateTypeControls();
     void LoadCommand(
         std::wstring_view commandId);
     void BeginNew();
@@ -76,6 +77,8 @@ private:
     HWND owner_{};
     HWND hwnd_{};
 
+    HWND shortcutGroup_{};
+    HWND executionGroup_{};
     HWND nameLabel_{};
     HWND name_{};
     HWND keywordLabel_{};
