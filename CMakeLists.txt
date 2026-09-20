@@ -289,7 +289,55 @@ if(WIN32)
         ALTRunNextUpdater
         PROPERTIES
             OUTPUT_NAME
-                "ALTRunNext.Updater"
+                "Update"
+    )
+
+    add_executable(
+        ALTRunNextUninstaller
+        WIN32
+        src/uninstaller/UninstallMain.cpp
+    )
+
+    target_compile_definitions(
+        ALTRunNextUninstaller
+        PRIVATE
+            UNICODE
+            _UNICODE
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+            _WIN32_WINNT=0x0A00
+            WINVER=0x0A00
+    )
+
+    target_link_libraries(
+        ALTRunNextUninstaller
+        PRIVATE
+            advapi32
+            shell32
+            user32
+    )
+
+    if(MSVC)
+        target_compile_options(
+            ALTRunNextUninstaller
+            PRIVATE
+                /W4
+                /permissive-
+                /utf-8
+                /EHsc
+        )
+        target_link_options(
+            ALTRunNextUninstaller
+            PRIVATE
+                /SUBSYSTEM:WINDOWS
+        )
+    endif()
+
+    set_target_properties(
+        ALTRunNextUninstaller
+        PROPERTIES
+            OUTPUT_NAME
+                "Uninstall"
     )
 endif()
 

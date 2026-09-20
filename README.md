@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-alpha.9.2 — Portable Managed Everything & Native Uninstaller
+
+Alpha 9.2 restores the portable ownership boundary after real-world lifecycle review. Managed Everything is again fully contained under ALTRun Next's own `data/tools/Everything` tree. The Everything Windows Service remains `SERVICE_AUTO_START` and continues running when ALTRun Next exits, so Windows can keep the index warm and the next launcher start does not require another administrator confirmation. The session client still exits with ALTRun Next; normal exit is deliberately different from uninstall.
+
+The temporary Program Files service-host direction from alpha.9.1 is superseded. Alpha 9.2 detects that exact ALTRun-owned alpha.9.1 service path, asks for UAC only through the existing explicit repair flow, stops the service, retargets it back to the current portable managed `Everything.exe -svc`, restarts it, and removes the old `%ProgramFiles%\Aspeternity\ALTRunNext\EverythingService` residue. Healthy external/user-installed Everything services remain untouched.
+
+The portable package now uses the generic helper names `Update.exe` and `Uninstall.exe`. `Update.exe` keeps the existing native transactional update/rollback design. `Uninstall.exe` copies itself to `%TEMP%`, asks once whether user data should also be removed, elevates the temporary worker, closes the exact ALTRun Next installation being removed, stops/deletes only an Everything service whose executable belongs to this portable managed tree (or the known alpha.9.1 detached host), removes managed Everything and update runtime data, removes the matching current-user startup entry, then deletes application files. If user data is preserved, only the `data` user-state tree remains.
+
+For one transition release, the ZIP also contains an `ALTRunNext.Updater.exe` compatibility copy of `Update.exe`: alpha.9/alpha.9.1 hard-code that filename during staging, so removing it immediately would break native self-update into alpha.9.2. On first alpha.9.2 startup the installed compatibility name is deleted automatically; future packages can remove the bridge entirely. No persisted schemas change: settings stays 7, commands 2, usage 1, provider-cache 2 and Shortcut TSV v3. Windows fixed FileVersion/ProductVersion is `0.7.0.92`.
+
 ## v0.7.0-alpha.9.1 — Managed Service Detachment & Updater Validation Target
 
 Alpha 9.1 fixes a portable-lifecycle conflict discovered during real Windows validation. Alpha 8.3 correctly stopped the ALTRun Next-managed Everything client on application exit, but deliberately kept the Windows Everything Service warm. Because the legacy service `ImagePath` also pointed into `data/tools/Everything` inside that portable ALTRun Next folder, the service process could keep an old release directory locked even after ALTRun Next and its client had exited.

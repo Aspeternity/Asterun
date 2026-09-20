@@ -3220,8 +3220,8 @@ void SettingsWindow::RefreshProviderStatus() {
             case win::EverythingBootstrapStage::
                 RepairingService:
                 text += T(
-                    L"迁移 / 修复 Everything Service（请确认 UAC）",
-                    L"Migrating / repairing Everything Service (confirm UAC)");
+                    L"修复 Everything Service 路径（请确认 UAC）",
+                    L"Repairing the Everything Service path (confirm UAC)");
                 break;
             case win::EverythingBootstrapStage::
                 WaitingForService:
@@ -3258,12 +3258,12 @@ void SettingsWindow::RefreshProviderStatus() {
                     win::EverythingBootstrapFailure::
                         ServiceRepairRequired) {
                 text += T(
-                    L"检测到需要迁移或修复的 Everything Service",
-                    L"An Everything Service migration or repair is required");
+                    L"检测到需要修复的 Everything Service 路径",
+                    L"The Everything Service path needs repair");
                 text += L"\r\n    ↳ ";
                 text += T(
-                    L"旧版托管服务可能仍位于便携目录，导致退出后旧文件夹无法删除；也可能存在失效路径。点击“获取并启动 Everything”后，ALTRun Next 会在一次 UAC 授权中把自己的服务主程序迁移到 Program Files 下的受保护目录并修复服务。外部 Everything 不会被改写。",
-                    L"The legacy managed service may still live inside the portable folder and keep it locked after exit, or its path may be stale. Choose Get and start Everything to migrate ALTRun Next's service host to a protected Program Files location and repair the service with one UAC confirmation. External Everything installations are not retargeted.");
+                    L"服务可能仍指向移动前的旧路径，或使用 alpha.9.1 临时采用的 Program Files Service Host。点击“获取并启动 Everything”后，ALTRun Next 会在一次 UAC 授权中把自己管理的服务修复回当前便携目录 data/tools/Everything；外部 Everything 不会被改写。",
+                    L"The service may still point to a pre-move path or the temporary Program Files service host used by alpha.9.1. Choose Get and start Everything to repair ALTRun Next's managed service back to the current portable data/tools/Everything path with one UAC confirmation. External Everything installations are not retargeted.");
             } else if (
                 bootstrap.stage ==
                     win::EverythingBootstrapStage::
@@ -3371,8 +3371,8 @@ void SettingsWindow::RefreshProviderStatus() {
                 case win::EverythingBootstrapFailure::
                     ServiceRepairFailed:
                     text += T(
-                        L"Everything Service 迁移 / 修复失败",
-                        L"Could not migrate / repair Everything Service");
+                        L"Everything Service 路径修复失败",
+                        L"Could not repair the Everything Service path");
                     break;
                 case win::EverythingBootstrapFailure::
                     ServiceUnavailable:

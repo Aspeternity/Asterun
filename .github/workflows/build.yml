@@ -68,7 +68,10 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
-          Copy-Item build/Release/ALTRunNext.Updater.exe dist/ALTRunNext.Updater.exe
+          Copy-Item build/Release/Update.exe dist/Update.exe
+          Copy-Item build/Release/Uninstall.exe dist/Uninstall.exe
+          # One-release bridge: alpha.9/alpha.9.1 staging requires this old name.
+          Copy-Item build/Release/Update.exe dist/ALTRunNext.Updater.exe
           Copy-Item -Recurse build/Release/dict dist/dict
           Copy-Item -Recurse build/Release/third_party dist/third_party
           Copy-Item config/*.example.* dist/
@@ -106,7 +109,7 @@ jobs:
         run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
       - name: Build Windows smoke tests
         shell: pwsh
-        run: cmake --build build-smoke --config Release --target ALTRunNextUpdater windows_provider_smoke_tests process_memory_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests --parallel
+        run: cmake --build build-smoke --config Release --target ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests process_memory_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests --parallel
       - name: Run Windows smoke tests
         shell: pwsh
         run: ctest --test-dir build-smoke -C Release -R "^(windows_provider_smoke_tests|process_memory_tests|path_portability_tests|user_command_path_update_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_lifecycle_tests|everything_ipc_runtime_tests|update_policy_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|upgrade_matrix_tests|clipboard_runtime_tests|windows_context_runtime_tests)$" --output-on-failure
@@ -121,15 +124,18 @@ jobs:
         run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
       - name: Build x64 compatibility target
         shell: pwsh
-        run: cmake --build build-compat --config Release --target ALTRunNext ALTRunNextUpdater windows_provider_smoke_tests process_memory_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests --parallel
+        run: cmake --build build-compat --config Release --target ALTRunNext ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests process_memory_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests --parallel
       - name: Verify compatibility artifact
         shell: pwsh
         run: |
           if (-not (Test-Path build-compat/Release/ALTRunNext.exe)) {
             throw "Windows compatibility build did not produce ALTRunNext.exe."
           }
-          if (-not (Test-Path build-compat/Release/ALTRunNext.Updater.exe)) {
-            throw "Windows compatibility build did not produce ALTRunNext.Updater.exe."
+          if (-not (Test-Path build-compat/Release/Update.exe)) {
+            throw "Windows compatibility build did not produce Update.exe."
+          }
+          if (-not (Test-Path build-compat/Release/Uninstall.exe)) {
+            throw "Windows compatibility build did not produce Uninstall.exe."
           }
       - name: Run Windows compatibility smoke
         shell: pwsh

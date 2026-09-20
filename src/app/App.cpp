@@ -184,6 +184,19 @@ App::~App() {
 int App::Run() {
     std::error_code ec;
 
+    if (std::filesystem::is_regular_file(
+            baseDirectory_ /
+                L"Update.exe",
+            ec) &&
+        !ec) {
+        ec.clear();
+        std::filesystem::remove(
+            baseDirectory_ /
+                L"ALTRunNext.Updater.exe",
+            ec);
+    }
+
+    ec.clear();
     std::filesystem::create_directories(
         dataDirectory_,
         ec);

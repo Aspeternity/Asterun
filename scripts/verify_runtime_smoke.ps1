@@ -23,7 +23,9 @@ try {
     Expand-Archive -Path $archivePath -DestinationPath $tempRoot -Force
 
     $exe = Join-Path $tempRoot "ALTRunNext.exe"
-    $updater = Join-Path $tempRoot "ALTRunNext.Updater.exe"
+    $updater = Join-Path $tempRoot "Update.exe"
+    $uninstaller = Join-Path $tempRoot "Uninstall.exe"
+    $legacyUpdaterBridge = Join-Path $tempRoot "ALTRunNext.Updater.exe"
     $versionPath = Join-Path $tempRoot "VERSION"
     $data = Join-Path $tempRoot "data"
 
@@ -31,7 +33,13 @@ try {
         throw "Portable runtime smoke archive has no ALTRunNext.exe."
     }
     if (-not (Test-Path $updater)) {
-        throw "Portable runtime smoke archive has no ALTRunNext.Updater.exe."
+        throw "Portable runtime smoke archive has no Update.exe."
+    }
+    if (-not (Test-Path $uninstaller)) {
+        throw "Portable runtime smoke archive has no Uninstall.exe."
+    }
+    if (-not (Test-Path $legacyUpdaterBridge)) {
+        throw "Portable runtime smoke archive has no alpha.9 compatibility updater bridge."
     }
 
     New-Item -ItemType Directory -Force -Path $data | Out-Null

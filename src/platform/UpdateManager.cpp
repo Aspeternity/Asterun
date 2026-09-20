@@ -939,7 +939,12 @@ ExtractZipWithShell(
             !ec &&
             std::filesystem::is_regular_file(
                 destination /
-                    L"ALTRunNext.Updater.exe",
+                    L"Update.exe",
+                ec) &&
+            !ec &&
+            std::filesystem::is_regular_file(
+                destination /
+                    L"Uninstall.exe",
                 ec) &&
             !ec &&
             std::filesystem::is_regular_file(
@@ -1478,7 +1483,12 @@ PrepareUpdate(
         ec ||
         !std::filesystem::is_regular_file(
             stagingDirectory /
-                L"ALTRunNext.Updater.exe",
+                L"Update.exe",
+            ec) ||
+        ec ||
+        !std::filesystem::is_regular_file(
+            stagingDirectory /
+                L"Uninstall.exe",
             ec) ||
         ec) {
         snapshot =
@@ -1524,9 +1534,12 @@ bool LaunchPreparedUpdate(
         return false;
     }
 
+    // ALTRunNext.Updater.exe is retained only as a one-release package
+    // compatibility bridge for alpha.9/alpha.9.1 staging. Runtime launching
+    // from alpha.9.2 onward uses the generic Update.exe name.
     const auto updater =
         baseDirectory /
-        L"ALTRunNext.Updater.exe";
+        L"Update.exe";
 
     std::error_code ec;
 
@@ -1561,7 +1574,7 @@ bool LaunchPreparedUpdate(
     const auto tempUpdater =
         std::filesystem::path(
             tempBuffer.data()) /
-        (L"ALTRunNext.Updater." +
+        (L"ALTRunNext-Update." +
          std::to_wstring(
              parentProcessId) +
          L"." +

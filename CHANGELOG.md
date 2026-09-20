@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0-alpha.9.2
+
+- Restored Managed Everything to ALTRun Next's portable `data/tools/Everything` tree; no new permanent Program Files host is used.
+- Kept the Everything Windows Service `SERVICE_AUTO_START` and running across normal ALTRun Next exit so the index stays warm and later launcher starts do not need repeated UAC.
+- Kept the managed Everything client session-scoped: actual ALTRun Next exit still closes only the owned client.
+- Added alpha.9.1 compatibility migration: the temporary `%ProgramFiles%\Aspeternity\ALTRunNext\EverythingService` host is detected as ALTRun-owned, retargeted back to the current portable managed executable through the explicit elevated repair flow, then cleaned up.
+- Renamed the packaged native update helper to `Update.exe`.
+- Added `Uninstall.exe`: self-copies to TEMP, prompts whether to preserve user data, elevates once, closes the exact ALTRun Next installation, stops/deletes only owned Managed Everything service state, removes managed runtime/update files, and removes application files.
+- Uninstall ownership protection leaves healthy external/user-installed Everything services untouched.
+- When user data is preserved, `data/settings.json`, shortcuts, usage and other user state remain; Managed Everything and `data/update` are still removed.
+- Added a one-release `ALTRunNext.Updater.exe` compatibility copy in release ZIPs so alpha.9/alpha.9.1 can stage alpha.9.2; alpha.9.2 deletes the installed legacy helper name on first startup.
+- Updated Windows CI/package contracts for `Update.exe`, `Uninstall.exe`, the transition bridge, and Windows 10 compatibility builds.
+- Kept settings schemaVersion 7, commands schemaVersion 2, TSV v3, usage schemaVersion 1 and provider-cache schemaVersion 2 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.92.
+
 ## 0.7.0-alpha.9.1
 
 - Fixed old portable ALTRun Next folders remaining locked after exit because the persistent Everything Windows Service was still executing `Everything.exe -svc` from that folder.

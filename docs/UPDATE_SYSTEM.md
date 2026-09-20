@@ -51,11 +51,11 @@ The main process uses native WinHTTP over HTTPS. An update ZIP is first stored w
 data/update/staging/<version>/
 ```
 
-Before installation, the staged tree must contain a matching `VERSION`, `ALTRunNext.exe` and `ALTRunNext.Updater.exe`.
+Before installation, the staged tree must contain a matching `VERSION`, `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`.
 
 ## Apply / rollback
 
-`ALTRunNext.Updater.exe` is packaged beside the main executable. Before apply, the main process copies it to `%TEMP%`, launches that temporary copy and exits normally. This lets the helper replace both the main EXE and the packaged updater.
+`Update.exe` is packaged beside the main executable. Before apply, the main process copies it to `%TEMP%`, launches that temporary copy and exits normally. This lets the helper replace both the main EXE and the packaged updater.
 
 The helper:
 
@@ -79,3 +79,12 @@ The updater treats the portable `data/` directory as user/runtime state, not app
 ## Security boundary
 
 The current system provides HTTPS transport plus SHA-256 package integrity tied to the CI-generated release manifest. This detects corruption, truncation and a package that does not match the published manifest. It does **not** protect against compromise of the GitHub repository/release credentials that could replace both package and manifest. A future signed-release pipeline should add signature verification before apply.
+
+
+## Helper naming transition in alpha.9.2
+
+The public portable helper names are now `Update.exe` and `Uninstall.exe`. The alpha.9 and alpha.9.1 clients hard-code `ALTRunNext.Updater.exe` as a staged-package prerequisite, so the alpha.9.2 ZIP carries one compatibility copy under that old name. It is not the canonical helper name: after alpha.9.2 starts successfully, the installed compatibility file is deleted. Future update packages can use only `Update.exe` and `Uninstall.exe`.
+
+## Native uninstall boundary
+
+`Uninstall.exe` is intentionally separate from normal application exit. Normal exit closes the ALTRun-owned Everything client but leaves the auto-start Everything Service running. Uninstall copies itself to `%TEMP%`, optionally preserves user data, elevates the temporary worker, and removes the service only when its ImagePath is inside the current portable `data/tools/Everything` tree or matches the known alpha.9.1 detached ALTRun host. External Everything services fail the ownership test and are left untouched.

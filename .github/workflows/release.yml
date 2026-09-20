@@ -45,7 +45,7 @@ jobs:
         run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
       - name: Build Windows smoke tests
         shell: pwsh
-        run: cmake --build build-smoke --config Release --target windows_provider_smoke_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_ipc_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests clipboard_runtime_tests windows_context_runtime_tests --parallel
+        run: cmake --build build-smoke --config Release --target ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_ipc_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests clipboard_runtime_tests windows_context_runtime_tests --parallel
       - name: Run Windows smoke tests
         shell: pwsh
         run: ctest --test-dir build-smoke -C Release -R "^(windows_provider_smoke_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_ipc_runtime_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|clipboard_runtime_tests|windows_context_runtime_tests)$" --output-on-failure
@@ -61,12 +61,18 @@ jobs:
         run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
       - name: Build x64 compatibility target
         shell: pwsh
-        run: cmake --build build-compat --config Release --target ALTRunNext windows_provider_smoke_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_ipc_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests clipboard_runtime_tests windows_context_runtime_tests --parallel
+        run: cmake --build build-compat --config Release --target ALTRunNext ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_ipc_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests clipboard_runtime_tests windows_context_runtime_tests --parallel
       - name: Verify compatibility artifact
         shell: pwsh
         run: |
           if (-not (Test-Path build-compat/Release/ALTRunNext.exe)) {
             throw "Windows compatibility build did not produce ALTRunNext.exe."
+          }
+          if (-not (Test-Path build-compat/Release/Update.exe)) {
+            throw "Windows compatibility build did not produce Update.exe."
+          }
+          if (-not (Test-Path build-compat/Release/Uninstall.exe)) {
+            throw "Windows compatibility build did not produce Uninstall.exe."
           }
       - name: Run Windows compatibility smoke
         shell: pwsh
@@ -108,12 +114,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
+          Copy-Item build/Release/Update.exe dist/Update.exe
+          Copy-Item build/Release/Uninstall.exe dist/Uninstall.exe
+          # One-release bridge for alpha.9/alpha.9.1 updater staging.
+          Copy-Item build/Release/Update.exe dist/ALTRunNext.Updater.exe
           Copy-Item -Recurse build/Release/dict dist/dict
           Copy-Item -Recurse build/Release/third_party dist/third_party
           Copy-Item config/*.example.* dist/
           Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
           Copy-Item docs/DESKTOP_VALIDATION.md dist/DESKTOP_VALIDATION.md
           Copy-Item docs/V0.5_RC_VALIDATION.md dist/V0.5_RC_VALIDATION.md
+          Copy-Item docs/V0.6_RC_VALIDATION.md dist/V0.6_RC_VALIDATION.md
           Copy-Item docs/EVERYTHING_COMPATIBILITY.md dist/EVERYTHING_COMPATIBILITY.md
           Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
