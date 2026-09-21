@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../core/Command.hpp"
 #include "../core/SettingsLayout.hpp"
+#include "UiMetrics.hpp"
 
 #include <windows.h>
 
@@ -25,7 +25,6 @@ public:
     void ShowAbout();
     void ApplyLanguage();
     void RefreshFromSettings();
-    void RefreshCommands();
     void OnProgramIndexRefreshCompleted(
         int outcome);
     void OnDynamicProviderStatusChanged();
@@ -33,7 +32,6 @@ public:
 
 private:
     enum class Page {
-        Commands,
         General,
         Hotkeys,
         Diagnostics,
@@ -44,10 +42,9 @@ private:
     };
 
     static constexpr int
-        kSidebarWidthLogical = 190;
+        kSidebarWidthLogical =
+            ui::kSettingsSidebarWidthLogical;
 
-    static constexpr UINT
-        kIdNavCommands = 51000;
     static constexpr UINT
         kIdNavGeneral = 51001;
     static constexpr UINT
@@ -148,49 +145,6 @@ private:
         kIdUpdateInstall = 51306;
 
     static constexpr UINT
-        kIdCommandSearch = 51401;
-    static constexpr UINT
-        kIdCommandNew = 51402;
-    static constexpr UINT
-        kIdCommandList = 51403;
-    static constexpr UINT
-        kIdCommandMoveUp = 51404;
-    static constexpr UINT
-        kIdCommandMoveDown = 51405;
-    static constexpr UINT
-        kIdCommandName = 51410;
-    static constexpr UINT
-        kIdCommandKeyword = 51411;
-    static constexpr UINT
-        kIdCommandAliases = 51412;
-    static constexpr UINT
-        kIdCommandType = 51413;
-    static constexpr UINT
-        kIdCommandTarget = 51414;
-    static constexpr UINT
-        kIdCommandBrowseTarget = 51415;
-    static constexpr UINT
-        kIdCommandArguments = 51416;
-    static constexpr UINT
-        kIdCommandWorkdir = 51417;
-    static constexpr UINT
-        kIdCommandBrowseWorkdir = 51418;
-    static constexpr UINT
-        kIdCommandEnabled = 51419;
-    static constexpr UINT
-        kIdCommandAdmin = 51420;
-    static constexpr UINT
-        kIdCommandPinned = 51421;
-    static constexpr UINT
-        kIdCommandTest = 51422;
-    static constexpr UINT
-        kIdCommandDelete = 51423;
-    static constexpr UINT
-        kIdCommandCancel = 51424;
-    static constexpr UINT
-        kIdCommandSave = 51425;
-
-    static constexpr UINT
         kIdDataOpenFolder = 51501;
     static constexpr UINT
         kIdDataImportTsv = 51502;
@@ -237,7 +191,6 @@ private:
         LPARAM lParam);
 
     void CreateControls();
-    void CreateCommandPage();
     void CreateGeneralPage();
     void CreateHotkeyPage();
     void CreateDiagnosticsPage();
@@ -252,8 +205,6 @@ private:
     void UpdateNavLabels();
     void UpdatePageHeader();
 
-    void RefreshCommandList(
-        std::wstring_view preferredId = {});
     void RefreshProviderStatus();
     void RefreshActionDiagnostics();
     void AcquireEverything();
@@ -261,26 +212,6 @@ private:
     void RefreshDataCompatibilityStatus();
     void RefreshUpdateStatus();
     void ApplyUpdateSettings();
-    void LoadCommandEditor(
-        std::wstring_view id);
-    void BeginNewCommand();
-    void ClearCommandEditor();
-    void SetCommandEditorEnabled(
-        bool enabled);
-    void MarkEditorDirty();
-    bool ConfirmDiscardChanges();
-    bool SaveCommandEditor();
-    void DeleteEditingCommand();
-    void MoveEditingCommand(
-        int direction);
-    void TestEditingCommand();
-    void BrowseCommandTarget();
-    void BrowseCommandWorkingDirectory();
-    [[nodiscard]] Command
-    CollectCommandEditor() const;
-    [[nodiscard]] std::vector<std::wstring>
-    ParseAliases(
-        std::wstring_view text) const;
 
     void ToggleGeneralSetting(
         UINT id);
@@ -341,13 +272,6 @@ private:
         const wchar_t* text,
         UINT id);
 
-    HWND CreateEdit(
-        UINT id,
-        DWORD style =
-            ES_AUTOHSCROLL);
-
-    [[nodiscard]] std::wstring
-    ControlText(HWND control) const;
     [[nodiscard]] bool
     ToggleChecked(UINT id) const;
     [[nodiscard]]
@@ -375,7 +299,6 @@ private:
     HINSTANCE instance_{};
     HWND hwnd_{};
 
-    HWND navCommands_{};
     HWND navGeneral_{};
     HWND navHotkeys_{};
     HWND navDiagnostics_{};
@@ -385,37 +308,6 @@ private:
     HWND navAbout_{};
     HWND pageTitle_{};
     HWND pageDescription_{};
-
-    HWND commandSearch_{};
-    HWND commandNew_{};
-    HWND commandList_{};
-    HWND commandMoveUp_{};
-    HWND commandMoveDown_{};
-    HWND commandEditorTitle_{};
-    HWND commandNameLabel_{};
-    HWND commandName_{};
-    HWND commandKeywordLabel_{};
-    HWND commandKeyword_{};
-    HWND commandAliasesLabel_{};
-    HWND commandAliases_{};
-    HWND commandTypeLabel_{};
-    HWND commandType_{};
-    HWND commandTargetLabel_{};
-    HWND commandTarget_{};
-    HWND commandBrowseTarget_{};
-    HWND commandArgumentsLabel_{};
-    HWND commandArguments_{};
-    HWND commandWorkdirLabel_{};
-    HWND commandWorkdir_{};
-    HWND commandBrowseWorkdir_{};
-    HWND commandEnabled_{};
-    HWND commandAdmin_{};
-    HWND commandPinned_{};
-    HWND commandTest_{};
-    HWND commandDelete_{};
-    HWND commandCancel_{};
-    HWND commandSave_{};
-    HWND commandStatus_{};
 
     HWND generalBehaviorTitle_{};
     HWND startWithWindows_{};
@@ -537,19 +429,12 @@ private:
     UINT dpi_{96};
     Page page_{Page::General};
     bool syncing_{false};
-    bool editingNew_{false};
-    bool editorDirty_{false};
     int generalScrollOffset_{0};
-    std::wstring editingCommandId_;
     std::string selectedHotkeyActionId_;
     std::string capturingHotkeyActionId_;
     std::vector<std::string>
         hotkeyActionIds_;
-    std::vector<std::wstring>
-        filteredCommandIds_;
 
-    std::vector<HWND>
-        commandControls_;
     std::vector<HWND>
         generalControls_;
     std::vector<HWND>

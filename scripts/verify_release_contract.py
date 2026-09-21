@@ -36,6 +36,235 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.8.0-alpha.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 7,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.1 changed frozen {name}: {actual} != {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.1 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 7:
+        fail("v0.8 alpha.1 settings example must remain schemaVersion 7")
+    if settings.get("update") != {"autoCheck": True, "channel": "development"}:
+        fail("v0.8 alpha.1 prerelease must default the example update channel to Development")
+
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("providers") != expected_providers:
+        fail("v0.8 alpha.1 changed frozen provider defaults")
+
+    expected_hotkeys = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_hotkeys:
+        fail("v0.8 alpha.1 changed frozen Hotkey Registry IDs")
+
+    metrics = read("src/ui/UiMetrics.hpp")
+    for token in (
+        "kClassicLauncherMetrics",
+        "420",
+        "16",
+        "10",
+        "kModernCompactLauncherMetrics",
+        "620",
+        "32",
+        "9",
+        "kSettingsSidebarWidthLogical = 190",
+        "kSettingsContentLeftInsetLogical = 38",
+        "kSettingsContentRightInsetLogical = 34",
+        "kSettingsToggleRowLogical = 54",
+        "constexpr int Scale(",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.1 shared UI metrics contract missing: {token}")
+
+    theme = read("src/ui/UiTheme.hpp")
+    for token in (
+        "struct UiPalette",
+        "kApplicationPalette",
+        "kClassicLauncherPalette",
+        "kModernCompactLauncherPalette",
+        "LauncherPalette(",
+    ):
+        if token not in theme:
+            fail(f"v0.8 alpha.1 shared theme contract missing: {token}")
+
+    typography_h = read("src/ui/UiTypography.hpp")
+    typography_cpp = read("src/ui/UiTypography.cpp")
+    for token in (
+        "enum class UiFontRole",
+        "ApplicationFontSpec",
+        "LauncherFontSpec",
+        "CreateFontHandle",
+    ):
+        if token not in typography_h + typography_cpp:
+            fail(f"v0.8 alpha.1 shared typography contract missing: {token}")
+
+    migrated_ui = {
+        "Launcher": read("src/ui/LauncherWindow.cpp"),
+        "Settings": read("src/ui/SettingsWindow.cpp"),
+        "Shortcut Manager": read("src/ui/ShortcutManagerWindow.cpp"),
+        "Shortcut Editor": read("src/ui/ShortcutEditorDialog.cpp"),
+        "Path Conversion": read("src/ui/ShortcutPathConverterDialog.cpp"),
+    }
+    for name, source in migrated_ui.items():
+        if "ui::" not in source:
+            fail(f"v0.8 alpha.1 {name} is not wired to the shared UI foundation")
+        if "CreateFontW(" in source:
+            fail(f"v0.8 alpha.1 {name} still creates its own font directly")
+
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    launcher_cpp = migrated_ui["Launcher"]
+    for token in (
+        "ui::kClassicLauncherMetrics",
+        "ui::kModernCompactLauncherMetrics",
+        "ui::LauncherPalette",
+        "ui::LauncherFontSpec",
+    ):
+        if token not in launcher_h + launcher_cpp:
+            fail(f"v0.8 alpha.1 launcher foundation wiring missing: {token}")
+
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    settings_cpp = migrated_ui["Settings"]
+    legacy_settings_tokens = (
+        "Page::Commands",
+        "CreateCommandPage",
+        "kIdNavCommands",
+        "kIdCommandSearch",
+        "commandControls_",
+        "RefreshCommandList",
+        "LoadCommandEditor",
+        "editingCommandId_",
+        "filteredCommandIds_",
+        "搜索快捷项...",
+        "Search shortcuts...",
+        "快捷项详情",
+        "Shortcut details",
+        "主快捷词 *",
+        "Primary keyword *",
+        "取消更改",
+        "Discard changes",
+        "oldType",
+    )
+    for token in legacy_settings_tokens:
+        if token in settings_h or token in settings_cpp:
+            fail(f"v0.8 alpha.1 resurrected legacy Settings Command UI: {token}")
+
+    for token in (
+        "RefreshProviderStatus",
+        "RefreshActionDiagnostics",
+        "AcquireEverything",
+        "RecheckEverything",
+        "RefreshDataCompatibilityStatus",
+        "RefreshUpdateStatus",
+        "ApplyUpdateSettings",
+    ):
+        if token not in settings_h or token not in settings_cpp:
+            fail(f"v0.8 alpha.1 lost active Settings helper during legacy cleanup: {token}")
+
+    show_page_start = settings_cpp.find("void SettingsWindow::ShowPage")
+    show_page_end = settings_cpp.find("void SettingsWindow::RefreshHotkeyControls", show_page_start)
+    show_page = settings_cpp[show_page_start:show_page_end]
+    if show_page_start < 0 or show_page_end < 0:
+        fail("v0.8 alpha.1 Settings ShowPage block is missing")
+    if "if (\n        page == Page::Hotkeys)" not in show_page:
+        fail("v0.8 alpha.1 Settings ShowPage lost Hotkeys first refresh branch")
+    if "\nelse if (\n        page == Page::Hotkeys)" in show_page:
+        fail("v0.8 alpha.1 Settings ShowPage retained orphan Hotkeys else-if")
+
+    app_cpp = read("src/app/App.cpp")
+    if "->RefreshCommands()" in app_cpp:
+        fail("v0.8 alpha.1 kept the obsolete Settings shortcut refresh hook")
+
+    cmake = read("CMakeLists.txt")
+    for token in (
+        "src/ui/UiTypography.cpp",
+        "ui_foundation_tests",
+        "tests/UiFoundationTests.cpp",
+    ):
+        if token not in cmake:
+            fail(f"v0.8 alpha.1 build/test wiring missing: {token}")
+
+    ui_test = read("tests/UiFoundationTests.cpp")
+    for token in (
+        "kClassicLauncherMetrics.widthLogical == 420",
+        "kClassicLauncherMetrics.rowHeightLogical == 16",
+        "kClassicLauncherMetrics.maxResults == 10",
+        "kModernCompactLauncherMetrics.widthLogical == 620",
+        "kModernCompactLauncherMetrics.rowHeightLogical == 32",
+        "kModernCompactLauncherMetrics.maxResults == 9",
+        "kSettingsSidebarWidthLogical == 190",
+        "kSettingsToggleRowLogical == 54",
+    ):
+        if token not in ui_test:
+            fail(f"v0.8 alpha.1 UI regression coverage missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.7.0"',
+        '"0.8.0-alpha.1"',
+        "UpdateChannel::Development",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.1 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    for token in (
+        "## v0.8.0-alpha.1 — Unified UI Foundation & Legacy Cleanup",
+        "UiTheme",
+        "UiMetrics",
+        "UiTypography",
+        "0.8.0.1",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.1 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.1",
+        "ui_foundation_tests",
+        "0.8.0.1",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.1 changelog contract missing: {token}")
+
+    for token in (
+        "## v0.8.x - UI / UX refinement & product polish",
+        "## v0.9.x - Distribution & extensibility",
+        "v0.8.0-alpha.1",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.1 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.1 UI foundation contract verified:",
+        "| settings=7 commands=2 usage=1 provider-cache=2",
+        "| shared Theme/Metrics/Typography/DPI",
+        "| Classic=420/16/10 Modern=620/32/9",
+        "| legacy Settings Command UI removed",
+        "| no runtime feature/schema change",
+    )
+    raise SystemExit(0)
+
 if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alpha.2.3", "0.7.0-alpha.2.4", "0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4", "0.7.0-alpha.9", "0.7.0-alpha.9.1", "0.7.0-alpha.9.2", "0.7.0-alpha.9.3", "0.7.0-alpha.9.4", "0.7.0-beta.1", "0.7.0-beta.2", "0.7.0-beta.3", "0.7.0-beta.4", "0.7.0-beta.5", "0.7.0-beta.6", "0.7.0-beta.7", "0.7.0-beta.8", "0.7.0-beta.9", "0.7.0-beta.10", "0.7.0-beta.11", "0.7.0-beta.12", "0.7.0-rc.1", "0.7.0"):
     expected_settings_schema = 7 if version in ("0.7.0-alpha.9", "0.7.0-alpha.9.1", "0.7.0-alpha.9.2", "0.7.0-alpha.9.3", "0.7.0-alpha.9.4", "0.7.0-beta.1", "0.7.0-beta.2", "0.7.0-beta.3", "0.7.0-beta.4", "0.7.0-beta.5", "0.7.0-beta.6", "0.7.0-beta.7", "0.7.0-beta.8", "0.7.0-beta.9", "0.7.0-beta.10", "0.7.0-beta.11", "0.7.0-beta.12", "0.7.0-rc.1", "0.7.0") else (6 if version in ("0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4") else (5 if version in ("0.7.0-alpha.2.5", "0.7.0-alpha.2.6", "0.7.0-alpha.3", "0.7.0-alpha.3.1", "0.7.0-alpha.4", "0.7.0-alpha.5") else 4))
     expected_commands_schema = 2 if version in ("0.7.0-alpha.4", "0.7.0-alpha.5", "0.7.0-alpha.5.1", "0.7.0-alpha.5.2", "0.7.0-alpha.6", "0.7.0-alpha.7", "0.7.0-alpha.8", "0.7.0-alpha.8.1", "0.7.0-alpha.8.2", "0.7.0-alpha.8.3", "0.7.0-alpha.8.4", "0.7.0-alpha.9", "0.7.0-alpha.9.1", "0.7.0-alpha.9.2", "0.7.0-alpha.9.3", "0.7.0-alpha.9.4", "0.7.0-beta.1", "0.7.0-beta.2", "0.7.0-beta.3", "0.7.0-beta.4", "0.7.0-beta.5", "0.7.0-beta.6", "0.7.0-beta.7", "0.7.0-beta.8", "0.7.0-beta.9", "0.7.0-beta.10", "0.7.0-beta.11", "0.7.0-beta.12", "0.7.0-rc.1", "0.7.0") else 1

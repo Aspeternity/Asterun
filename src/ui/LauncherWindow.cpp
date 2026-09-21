@@ -9,6 +9,7 @@
 #include "../platform/ShellActions.hpp"
 #include "../platform/WinUtil.hpp"
 #include "ShortcutEditorDialog.hpp"
+#include "UiTypography.hpp"
 
 #include <windowsx.h>
 #include <commctrl.h>
@@ -335,34 +336,10 @@ void LauncherWindow::CreateChildren() {
         SetWindowLongPtrW(edit_, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(EditProc)));
 }
 
-LauncherWindow::ThemePalette LauncherWindow::CurrentPalette() const {
-    if (IsModern()) {
-        return {
-            RGB(246, 247, 249),
-            RGB(255, 255, 255),
-            RGB(255, 255, 255),
-            RGB(31, 41, 55),
-            RGB(107, 114, 128),
-            RGB(37, 99, 235),
-            RGB(229, 239, 255),
-            RGB(15, 23, 42),
-            RGB(229, 231, 235),
-            RGB(205, 210, 218),
-        };
-    }
-
-    return {
-        RGB(103, 109, 115),
-        RGB(244, 245, 247),
-        RGB(186, 214, 190),
-        RGB(38, 41, 145),
-        RGB(104, 119, 109),
-        RGB(38, 41, 145),
-        RGB(4, 119, 210),
-        RGB(255, 255, 255),
-        RGB(43, 45, 148),
-        RGB(91, 97, 104),
-    };
+const ui::UiPalette&
+LauncherWindow::CurrentPalette() const {
+    return ui::LauncherPalette(
+        app_.SettingsData().uiStyle);
 }
 
 void LauncherWindow::RecreateBrushes() {
@@ -388,7 +365,7 @@ void LauncherWindow::RecreateBrushes() {
     controlBrush_ = CreateSolidBrush(palette.controlBackground);
     accentBrush_ = CreateSolidBrush(palette.accentBackground);
     bottomBrush_ = CreateSolidBrush(
-        IsModern() ? palette.windowBackground : RGB(181, 208, 184));
+        palette.bottomBackground);
 }
 
 void LauncherWindow::ApplyFonts() {
@@ -405,32 +382,34 @@ void LauncherWindow::ApplyFonts() {
         titleFont_ = nullptr;
     }
 
-    const bool zh = app_.SettingsData().language == Language::ZhCN;
-    const int pointSize = IsModern() ? 10 : 9;
-    const int normalHeight = -MulDiv(pointSize, static_cast<int>(dpi_), 72);
-    const int titleHeight = -MulDiv(IsModern() ? 10 : 10, static_cast<int>(dpi_), 72);
+    const auto style =
+        app_.SettingsData().uiStyle;
+    const auto language =
+        app_.SettingsData().language;
 
-    const wchar_t* face = nullptr;
-    if (IsModern()) {
-        face = zh ? L"Microsoft YaHei UI" : L"Segoe UI";
-    } else {
-        face = zh ? L"SimSun" : L"Tahoma";
-    }
+    normalFont_ =
+        ui::CreateFontHandle(
+            ui::LauncherFontSpec(
+                style,
+                language,
+                ui::UiFontRole::Body),
+            dpi_);
 
-    normalFont_ = CreateFontW(
-        normalHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE, face);
+    boldFont_ =
+        ui::CreateFontHandle(
+            ui::LauncherFontSpec(
+                style,
+                language,
+                ui::UiFontRole::BodySemibold),
+            dpi_);
 
-    boldFont_ = CreateFontW(
-        normalHeight, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE, face);
-
-    titleFont_ = CreateFontW(
-        titleHeight, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE, face);
+    titleFont_ =
+        ui::CreateFontHandle(
+            ui::LauncherFontSpec(
+                style,
+                language,
+                ui::UiFontRole::LauncherTitle),
+            dpi_);
 
     SendMessageW(edit_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
     SendMessageW(hint_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
@@ -508,15 +487,14 @@ void LauncherWindow::ApplyAppearance() {
     ++resultIconEpoch_;
     CancelPendingResultIconRequests();
 
-    if (IsModern()) {
-        widthLogical_ = 620;
-        rowHeightLogical_ = 32;
-        maxResults_ = 9;
-    } else {
-        widthLogical_ = 420;
-        rowHeightLogical_ = 16;
-        maxResults_ = 10;
-    }
+    const auto metrics =
+        IsModern()
+            ? ui::kModernCompactLauncherMetrics
+            : ui::kClassicLauncherMetrics;
+
+    widthLogical_ = metrics.widthLogical;
+    rowHeightLogical_ = metrics.rowHeightLogical;
+    maxResults_ = metrics.maxResults;
 
     RecreateBrushes();
     UpdateControlFrames();
@@ -580,7 +558,9 @@ void LauncherWindow::ApplyLanguage() {
 }
 
 int LauncherWindow::DpiScale(int value) const {
-    return MulDiv(value, static_cast<int>(dpi_), 96);
+    return ui::Scale(
+        value,
+        dpi_);
 }
 
 void LauncherWindow::Layout() {

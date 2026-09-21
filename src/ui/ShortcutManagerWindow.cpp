@@ -2,6 +2,8 @@
 
 #include "ShortcutEditorDialog.hpp"
 #include "ShortcutPathConverterDialog.hpp"
+#include "UiMetrics.hpp"
+#include "UiTypography.hpp"
 #include "../app/App.hpp"
 #include "../core/Command.hpp"
 #include "../core/ContextActions.hpp"
@@ -99,10 +101,9 @@ ShortcutManagerWindow::T(
 
 int ShortcutManagerWindow::Scale(
     int value) const {
-    return MulDiv(
+    return ui::Scale(
         value,
-        static_cast<int>(dpi_),
-        96);
+        dpi_);
 }
 
 bool ShortcutManagerWindow::Create() {
@@ -257,28 +258,12 @@ void ShortcutManagerWindow::CreateControls() {
             LVS_EX_GRIDLINES |
             LVS_EX_DOUBLEBUFFER);
 
-    font_ = CreateFontW(
-        -MulDiv(
-            10,
-            static_cast<int>(dpi_),
-            72),
-        0,
-        0,
-        0,
-        FW_NORMAL,
-        FALSE,
-        FALSE,
-        FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH |
-            FF_DONTCARE,
-        app_.SettingsData().language ==
-                Language::ZhCN
-            ? L"Microsoft YaHei UI"
-            : L"Segoe UI");
+    font_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                app_.SettingsData().language,
+                ui::UiFontRole::Body),
+            dpi_);
 
     for (HWND control :
          std::array<HWND, 8>{

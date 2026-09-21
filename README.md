@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.1 — Unified UI Foundation & Legacy Cleanup
+
+Alpha 1 starts the v0.8 product-polish line without redesigning the visible interface yet. It introduces shared `UiTheme`, `UiMetrics` and `UiTypography` foundations so Launcher, Settings, Shortcut Manager, Shortcut Editor and Path Conversion use one source for semantic palettes, DPI scaling, geometry tokens and font specifications while preserving their existing appearance.
+
+Classic Launcher remains exactly `420 / 16 / 10` (logical width / row height / maximum results), and Modern Compact remains `620 / 32 / 9`. A new portable UI-foundation regression test locks these values and the Settings `190 / 38 / 34 / 54` layout metrics before later v0.8 visual work begins.
+
+The unreachable legacy Shortcut/Command editor embedded in Settings has been removed completely, including its old page enum, controls, layout, painting, message dispatch and App refresh hook. Shortcut functionality remains owned by the standalone Shortcut Manager and task-oriented Shortcut Editor; Command storage, import/export, Runtime Input, Path Conversion and Provider-to-shortcut behavior are unchanged.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything lifecycle, updater/uninstaller behavior or v0.7 compatibility contract changes in this alpha. Windows fixed FileVersion/ProductVersion is `0.8.0.1`.
+
 ## v0.7.0 — Stable
 
 v0.7.0 promotes the fully validated RC1 runtime to Stable without adding another runtime feature. The final real-Windows gate `beta.12 -> rc.1` native automatic update passed, and the RC release contract already froze schemas, Provider IDs, Hotkey Registry action IDs, Provider dedup, launcher selection behavior, Runtime Input/Path Conversion, Native Uninstall and Managed Everything ownership/lifecycle.

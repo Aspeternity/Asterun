@@ -1,5 +1,8 @@
 #include "ShortcutEditorDialog.hpp"
 
+#include "UiMetrics.hpp"
+#include "UiTypography.hpp"
+
 #include "../app/App.hpp"
 #include "../core/ShortcutEditorModel.hpp"
 #include "../core/RuntimeInput.hpp"
@@ -204,10 +207,9 @@ const wchar_t* ShortcutEditorDialog::T(
 
 int ShortcutEditorDialog::Scale(
     int value) const {
-    return MulDiv(
+    return ui::Scale(
         value,
-        static_cast<int>(dpi_),
-        96);
+        dpi_);
 }
 
 bool ShortcutEditorDialog::Create(
@@ -538,28 +540,12 @@ void ShortcutEditorDialog::CreateControls() {
         cancel_,
         kIdCancel);
 
-    font_ = CreateFontW(
-        -MulDiv(
-            10,
-            static_cast<int>(dpi_),
-            72),
-        0,
-        0,
-        0,
-        FW_NORMAL,
-        FALSE,
-        FALSE,
-        FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH |
-            FF_DONTCARE,
-        app_.SettingsData().language ==
-                Language::ZhCN
-            ? L"Microsoft YaHei UI"
-            : L"Segoe UI");
+    font_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                app_.SettingsData().language,
+                ui::UiFontRole::Body),
+            dpi_);
 
     const HWND allControls[] = {
         keywordLabel_,

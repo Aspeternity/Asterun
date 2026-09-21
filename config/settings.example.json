@@ -77,6 +77,6 @@
   },
   "update": {
     "autoCheck": true,
-    "channel": "stable"
+    "channel": "development"
   }
 }

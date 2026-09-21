@@ -1,5 +1,8 @@
 #include "SettingsWindow.hpp"
 
+#include "UiTheme.hpp"
+#include "UiTypography.hpp"
+
 #include "../app/App.hpp"
 #include "../core/HotkeyRegistry.hpp"
 #include "../core/LauncherActionPolicy.hpp"
@@ -15,7 +18,6 @@
 #include <array>
 #include <cstdint>
 #include <ctime>
-#include <cwctype>
 #include <filesystem>
 #include <iomanip>
 #include <iterator>
@@ -29,44 +31,24 @@ namespace {
 constexpr wchar_t kSettingsClass[] = L"ALTRunNext.Settings";
 constexpr wchar_t kSettingsTitle[] = L"ALTRun Next Settings";
 
-constexpr COLORREF kWindowBackground = RGB(255, 255, 255);
-constexpr COLORREF kSidebarBackground = RGB(246, 247, 249);
-constexpr COLORREF kCardBackground = RGB(249, 250, 252);
-constexpr COLORREF kCardPressed = RGB(243, 246, 249);
-constexpr COLORREF kBorder = RGB(225, 229, 235);
-constexpr COLORREF kText = RGB(31, 41, 55);
-constexpr COLORREF kMuted = RGB(100, 107, 116);
-constexpr COLORREF kAccent = RGB(0, 120, 212);
-
-std::wstring TrimWide(std::wstring_view value) {
-    std::size_t first = 0;
-    std::size_t last = value.size();
-
-    while (first < last && std::iswspace(value[first])) ++first;
-    while (last > first && std::iswspace(value[last - 1])) --last;
-
-    return std::wstring(value.substr(first, last - first));
-}
-
-std::wstring LowerWide(std::wstring_view value) {
-    std::wstring out(value);
-    std::transform(
-        out.begin(),
-        out.end(),
-        out.begin(),
-        [](wchar_t c) {
-            return static_cast<wchar_t>(std::towlower(c));
-        });
-    return out;
-}
-
-bool ContainsInsensitive(
-    std::wstring_view value,
-    std::wstring_view needle) {
-
-    if (needle.empty()) return true;
-    return LowerWide(value).find(LowerWide(needle)) != std::wstring::npos;
-}
+constexpr const auto& kPalette =
+    ui::kApplicationPalette;
+constexpr COLORREF kWindowBackground =
+    kPalette.windowBackground;
+constexpr COLORREF kSidebarBackground =
+    kPalette.sidebarBackground;
+constexpr COLORREF kCardBackground =
+    kPalette.cardBackground;
+constexpr COLORREF kCardPressed =
+    kPalette.pressedBackground;
+constexpr COLORREF kBorder =
+    kPalette.frame;
+constexpr COLORREF kText =
+    kPalette.text;
+constexpr COLORREF kMuted =
+    kPalette.mutedText;
+constexpr COLORREF kAccent =
+    kPalette.accent;
 
 std::wstring FormatBytes(
     std::uint64_t bytes) {
@@ -145,33 +127,6 @@ void SetChecked(HWND control, bool checked) {
         0);
 }
 
-int TypeIndex(CommandType type) {
-    switch (type) {
-    case CommandType::Url:
-        return 1;
-    case CommandType::Folder:
-        return 2;
-    case CommandType::CommandLine:
-        return 3;
-    case CommandType::Application:
-    default:
-        return 0;
-    }
-}
-
-CommandType TypeFromIndex(int index) {
-    switch (index) {
-    case 1:
-        return CommandType::Url;
-    case 2:
-        return CommandType::Folder;
-    case 3:
-        return CommandType::CommandLine;
-    default:
-        return CommandType::Application;
-    }
-}
-
 } // namespace
 
 SettingsWindow::SettingsWindow(App& app, HINSTANCE instance)
@@ -195,10 +150,9 @@ const wchar_t* SettingsWindow::T(
 }
 
 int SettingsWindow::Scale(int value) const {
-    return settings_layout::
-        Scale(
-            value,
-            dpi_);
+    return ui::Scale(
+        value,
+        dpi_);
 }
 
 bool SettingsWindow::Create() {
@@ -326,50 +280,6 @@ HWND SettingsWindow::CreateCheckbox(
         BS_AUTOCHECKBOX | BS_FLAT);
 }
 
-HWND SettingsWindow::CreateEdit(
-    UINT id,
-    DWORD style) {
-
-    HWND edit = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
-        L"EDIT",
-        L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP | style,
-        0, 0, 0, 0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(id)),
-        instance_,
-        nullptr);
-
-    SendMessageW(
-        edit,
-        EM_SETMARGINS,
-        EC_LEFTMARGIN | EC_RIGHTMARGIN,
-        MAKELPARAM(Scale(6), Scale(6)));
-
-    return edit;
-}
-
-std::wstring SettingsWindow::ControlText(
-    HWND control) const {
-
-    const int length =
-        GetWindowTextLengthW(control);
-
-    std::wstring value(
-        static_cast<std::size_t>(length + 1),
-        L'\0');
-
-    GetWindowTextW(
-        control,
-        value.data(),
-        length + 1);
-
-    value.resize(static_cast<std::size_t>(length));
-    return value;
-}
-
 void SettingsWindow::CreateControls() {
     navGeneral_ =
         CreateButton(
@@ -419,139 +329,6 @@ void SettingsWindow::CreateControls() {
     CreateDataPage();
     CreateDiagnosticsPage();
     CreateAboutPage();
-}
-
-void SettingsWindow::CreateCommandPage() {
-    commandSearch_ = CreateEdit(
-        kIdCommandSearch,
-        ES_AUTOHSCROLL);
-
-    commandNew_ =
-        CreateButton(L"", kIdCommandNew);
-
-    commandList_ = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
-        L"LISTBOX",
-        L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            WS_VSCROLL | LBS_NOTIFY |
-            LBS_NOINTEGRALHEIGHT,
-        0, 0, 0, 0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdCommandList)),
-        instance_,
-        nullptr);
-
-    commandMoveUp_ =
-        CreateButton(L"", kIdCommandMoveUp);
-    commandMoveDown_ =
-        CreateButton(L"", kIdCommandMoveDown);
-
-    commandEditorTitle_ = CreateStatic(L"");
-
-    commandNameLabel_ = CreateStatic(
-        L"",
-        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
-    commandName_ = CreateEdit(kIdCommandName);
-
-    commandKeywordLabel_ = CreateStatic(
-        L"",
-        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
-    commandKeyword_ = CreateEdit(kIdCommandKeyword);
-
-    commandAliasesLabel_ = CreateStatic(
-        L"",
-        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
-    commandAliases_ = CreateEdit(kIdCommandAliases);
-
-    commandTypeLabel_ = CreateStatic(
-        L"",
-        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
-    commandType_ = CreateWindowExW(
-        0,
-        L"COMBOBOX",
-        L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdCommandType)),
-        instance_,
-        nullptr);
-
-    commandTargetLabel_ = CreateStatic(
-        L"",
-        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
-    commandTarget_ = CreateEdit(kIdCommandTarget);
-    commandBrowseTarget_ =
-        CreateButton(L"...", kIdCommandBrowseTarget);
-
-    commandArgumentsLabel_ = CreateStatic(
-        L"",
-        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
-    commandArguments_ = CreateEdit(kIdCommandArguments);
-
-    commandWorkdirLabel_ = CreateStatic(
-        L"",
-        SS_LEFTNOWORDWRAP | SS_NOPREFIX);
-    commandWorkdir_ = CreateEdit(kIdCommandWorkdir);
-    commandBrowseWorkdir_ =
-        CreateButton(L"...", kIdCommandBrowseWorkdir);
-
-    commandEnabled_ =
-        CreateCheckbox(L"", kIdCommandEnabled);
-    commandAdmin_ =
-        CreateCheckbox(L"", kIdCommandAdmin);
-    commandPinned_ =
-        CreateCheckbox(L"", kIdCommandPinned);
-
-    commandTest_ =
-        CreateButton(L"", kIdCommandTest);
-    commandDelete_ =
-        CreateButton(L"", kIdCommandDelete);
-    commandCancel_ =
-        CreateButton(L"", kIdCommandCancel);
-    commandSave_ =
-        CreateButton(L"", kIdCommandSave);
-
-    commandStatus_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
-
-    commandControls_ = {
-        commandSearch_,
-        commandNew_,
-        commandList_,
-        commandMoveUp_,
-        commandMoveDown_,
-        commandEditorTitle_,
-        commandNameLabel_,
-        commandName_,
-        commandKeywordLabel_,
-        commandKeyword_,
-        commandAliasesLabel_,
-        commandAliases_,
-        commandTypeLabel_,
-        commandType_,
-        commandTargetLabel_,
-        commandTarget_,
-        commandBrowseTarget_,
-        commandArgumentsLabel_,
-        commandArguments_,
-        commandWorkdirLabel_,
-        commandWorkdir_,
-        commandBrowseWorkdir_,
-        commandEnabled_,
-        commandAdmin_,
-        commandPinned_,
-        commandTest_,
-        commandDelete_,
-        commandCancel_,
-        commandSave_,
-        commandStatus_,
-    };
 }
 
 void SettingsWindow::CreateGeneralPage() {
@@ -1193,61 +970,38 @@ void SettingsWindow::ApplyFonts() {
         sectionFont_ = nullptr;
     }
 
-    const wchar_t* face =
-        app_.SettingsData().language == Language::ZhCN
-            ? L"Microsoft YaHei UI"
-            : L"Segoe UI";
+    const auto language =
+        app_.SettingsData().language;
 
-    normalFont_ = CreateFontW(
-        -MulDiv(10, static_cast<int>(dpi_), 72),
-        0, 0, 0,
-        FW_NORMAL,
-        FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE,
-        face);
+    normalFont_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                language,
+                ui::UiFontRole::Body),
+            dpi_);
 
-    sectionFont_ = CreateFontW(
-        -MulDiv(11, static_cast<int>(dpi_), 72),
-        0, 0, 0,
-        FW_SEMIBOLD,
-        FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE,
-        face);
+    sectionFont_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                language,
+                ui::UiFontRole::SectionTitle),
+            dpi_);
 
-    titleFont_ = CreateFontW(
-        -MulDiv(18, static_cast<int>(dpi_), 72),
-        0, 0, 0,
-        FW_SEMIBOLD,
-        FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE,
-        face);
+    titleFont_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                language,
+                ui::UiFontRole::PageTitle),
+            dpi_);
 
-    appNameFont_ = CreateFontW(
-        -MulDiv(22, static_cast<int>(dpi_), 72),
-        0, 0, 0,
-        FW_SEMIBOLD,
-        FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE,
-        face);
+    appNameFont_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                language,
+                ui::UiFontRole::AppTitle),
+            dpi_);
 
     std::vector<HWND> normalControls{
-        navCommands_,
         navGeneral_,
         navHotkeys_,
         navDiagnostics_,
@@ -1256,35 +1010,6 @@ void SettingsWindow::ApplyFonts() {
         navData_,
         navAbout_,
         pageDescription_,
-        commandSearch_,
-        commandNew_,
-        commandList_,
-        commandMoveUp_,
-        commandMoveDown_,
-        commandNameLabel_,
-        commandName_,
-        commandKeywordLabel_,
-        commandKeyword_,
-        commandAliasesLabel_,
-        commandAliases_,
-        commandTypeLabel_,
-        commandType_,
-        commandTargetLabel_,
-        commandTarget_,
-        commandBrowseTarget_,
-        commandArgumentsLabel_,
-        commandArguments_,
-        commandWorkdirLabel_,
-        commandWorkdir_,
-        commandBrowseWorkdir_,
-        commandEnabled_,
-        commandAdmin_,
-        commandPinned_,
-        commandTest_,
-        commandDelete_,
-        commandCancel_,
-        commandSave_,
-        commandStatus_,
         searchBehaviorTitle_,
         numericQuickLaunchOrderLabel_,
         numericQuickLaunchOrder_,
@@ -1375,7 +1100,6 @@ void SettingsWindow::ApplyFonts() {
     }
 
     for (HWND control : std::array<HWND, 16>{
-             commandEditorTitle_,
              generalBehaviorTitle_,
              searchBehaviorTitle_,
              hotkeySectionTitle_,
@@ -1450,109 +1174,6 @@ void SettingsWindow::ApplyLanguage() {
     SetWindowTextW(
         hwnd_,
         T(L"ALTRun Next 设置", L"ALTRun Next Settings"));
-
-    SendMessageW(
-        commandSearch_,
-        EM_SETCUEBANNER,
-        TRUE,
-        reinterpret_cast<LPARAM>(
-            T(L"搜索快捷项...", L"Search shortcuts...")));
-
-    SetWindowTextW(
-        commandNew_,
-        T(L"+ 新建", L"+ New"));
-    SetWindowTextW(
-        commandMoveUp_,
-        T(L"上移", L"Move up"));
-    SetWindowTextW(
-        commandMoveDown_,
-        T(L"下移", L"Move down"));
-    SetWindowTextW(
-        commandEditorTitle_,
-        T(L"快捷项详情", L"Shortcut details"));
-    SetWindowTextW(
-        commandNameLabel_,
-        T(L"名称 *", L"Name *"));
-    SetWindowTextW(
-        commandKeywordLabel_,
-        T(L"主快捷词 *", L"Primary keyword *"));
-    SetWindowTextW(
-        commandAliasesLabel_,
-        T(L"别名（逗号分隔）", L"Aliases (comma separated)"));
-    SetWindowTextW(
-        commandTypeLabel_,
-        T(L"类型", L"Type"));
-    SetWindowTextW(
-        commandTargetLabel_,
-        T(L"目标 *", L"Target *"));
-    SetWindowTextW(
-        commandArgumentsLabel_,
-        T(L"参数", L"Arguments"));
-    SetWindowTextW(
-        commandWorkdirLabel_,
-        T(L"工作目录", L"Working directory"));
-    SetWindowTextW(
-        commandEnabled_,
-        T(L"启用", L"Enabled"));
-    SetWindowTextW(
-        commandAdmin_,
-        T(L"以管理员身份运行", L"Run as administrator"));
-    SetWindowTextW(
-        commandPinned_,
-        T(L"置顶", L"Pinned"));
-    SetWindowTextW(
-        commandTest_,
-        T(L"测试运行", L"Test"));
-    SetWindowTextW(
-        commandDelete_,
-        T(L"删除", L"Delete"));
-    SetWindowTextW(
-        commandCancel_,
-        T(L"取消更改", L"Discard changes"));
-    SetWindowTextW(
-        commandSave_,
-        T(L"保存", L"Save"));
-
-    const int oldType =
-        std::max(
-            0,
-            static_cast<int>(
-                SendMessageW(
-                    commandType_,
-                    CB_GETCURSEL,
-                    0,
-                    0)));
-
-    SendMessageW(commandType_, CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        commandType_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(
-            T(L"应用程序", L"Application")));
-    SendMessageW(
-        commandType_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(
-            T(L"网址", L"URL")));
-    SendMessageW(
-        commandType_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(
-            T(L"文件夹", L"Folder")));
-    SendMessageW(
-        commandType_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(
-            T(L"命令", L"Command")));
-    SendMessageW(
-        commandType_,
-        CB_SETCURSEL,
-        oldType,
-        0);
 
     SetWindowTextW(
         generalBehaviorTitle_,
@@ -1915,7 +1536,6 @@ void SettingsWindow::ApplyLanguage() {
     UpdateNavLabels();
     UpdatePageHeader();
     RefreshFromSettings();
-    RefreshCommandList(editingCommandId_);
     RefreshDataCompatibilityStatus();
 
     syncing_ = oldSyncing;
@@ -3511,10 +3131,6 @@ void SettingsWindow::RefreshDataCompatibilityStatus() {
     }
 }
 
-void SettingsWindow::RefreshCommands() {
-    RefreshCommandList(editingCommandId_);
-}
-
 void SettingsWindow::OnDynamicProviderStatusChanged() {
     if (page_ == Page::Providers) {
         RefreshProviderStatus();
@@ -3599,16 +3215,6 @@ void SettingsWindow::UpdateNavLabels() {
 
 void SettingsWindow::UpdatePageHeader() {
     switch (page_) {
-    case Page::Commands:
-        SetWindowTextW(
-            pageTitle_,
-            T(L"快捷项", L"Shortcuts"));
-        SetWindowTextW(
-            pageDescription_,
-            T(L"管理用户自定义快捷项。开始菜单自动发现的程序不会写入这里。",
-              L"Manage user shortcuts. Automatically discovered Start Menu apps are not stored here."));
-        break;
-
     case Page::General:
         SetWindowTextW(
             pageTitle_,
@@ -3681,24 +3287,6 @@ void SettingsWindow::UpdatePageHeader() {
     }
 }
 
-bool SettingsWindow::ConfirmDiscardChanges() {
-    if (!editorDirty_) return true;
-
-    const int result = MessageBoxW(
-        hwnd_,
-        T(L"当前快捷项有尚未保存的修改。\n\n确定放弃这些修改吗？",
-          L"The current shortcut has unsaved changes.\n\nDiscard them?"),
-        T(L"未保存的修改", L"Unsaved changes"),
-        MB_OKCANCEL | MB_ICONWARNING);
-
-    if (result != IDOK) {
-        return false;
-    }
-
-    editorDirty_ = false;
-    return true;
-}
-
 void SettingsWindow::ShowPage(Page page) {
     if (page_ == Page::Providers &&
         page != Page::Providers) {
@@ -3712,12 +3300,6 @@ void SettingsWindow::ShowPage(Page page) {
         KillTimer(
             hwnd_,
             kDiagnosticsStatusTimerId);
-    }
-
-    if (page_ == Page::Commands &&
-        page != Page::Commands &&
-        !ConfirmDiscardChanges()) {
-        return;
     }
 
     if (page != page_ &&
@@ -3735,7 +3317,6 @@ void SettingsWindow::ShowPage(Page page) {
         }
     };
 
-    setVisible(commandControls_, page == Page::Commands);
     setVisible(generalControls_, page == Page::General);
     setVisible(hotkeyControls_, page == Page::Hotkeys);
     setVisible(diagnosticsControls_, page == Page::Diagnostics);
@@ -3745,9 +3326,7 @@ void SettingsWindow::ShowPage(Page page) {
     setVisible(dataControls_, page == Page::Data);
     setVisible(aboutControls_, page == Page::About);
 
-    if (page == Page::Commands) {
-        RefreshCommandList(editingCommandId_);
-    } else if (
+    if (
         page == Page::Hotkeys) {
         RefreshHotkeyPage();
     } else if (
@@ -3781,626 +3360,6 @@ void SettingsWindow::ShowPage(Page page) {
         nullptr,
         RDW_INVALIDATE | RDW_ERASE |
             RDW_ALLCHILDREN | RDW_UPDATENOW);
-}
-
-void SettingsWindow::RefreshCommandList(
-    std::wstring_view preferredId) {
-
-    if (!commandList_) return;
-
-    const std::wstring filter =
-        TrimWide(ControlText(commandSearch_));
-
-    std::vector<const Command*> commands;
-    commands.reserve(app_.UserCommands().size());
-
-    for (const auto& command : app_.UserCommands()) {
-        bool matches =
-            filter.empty() ||
-            ContainsInsensitive(command.title, filter) ||
-            ContainsInsensitive(command.keyword, filter) ||
-            ContainsInsensitive(command.target, filter);
-
-        if (!matches) {
-            for (const auto& alias : command.aliases) {
-                if (ContainsInsensitive(alias, filter)) {
-                    matches = true;
-                    break;
-                }
-            }
-        }
-
-        if (matches) {
-            commands.push_back(&command);
-        }
-    }
-
-    std::stable_sort(
-        commands.begin(),
-        commands.end(),
-        [](const Command* a, const Command* b) {
-            if (a->sortOrder != b->sortOrder) {
-                return a->sortOrder < b->sortOrder;
-            }
-            return a->keyword < b->keyword;
-        });
-
-    const bool oldSyncing = syncing_;
-    syncing_ = true;
-
-    SendMessageW(commandList_, LB_RESETCONTENT, 0, 0);
-    filteredCommandIds_.clear();
-
-    int preferredIndex = -1;
-
-    for (const Command* command : commands) {
-        std::wstring label =
-            command->enabled ? L"✓  " : L"○  ";
-
-        if (command->pinned) {
-            label += L"★ ";
-        }
-
-        label += command->keyword;
-        label += L"    ";
-        label += command->title;
-
-        const LRESULT index = SendMessageW(
-            commandList_,
-            LB_ADDSTRING,
-            0,
-            reinterpret_cast<LPARAM>(label.c_str()));
-
-        if (index >= 0) {
-            filteredCommandIds_.push_back(command->id);
-
-            if (!preferredId.empty() &&
-                command->id == preferredId) {
-                preferredIndex =
-                    static_cast<int>(index);
-            }
-        }
-    }
-
-    if (preferredIndex >= 0) {
-        SendMessageW(
-            commandList_,
-            LB_SETCURSEL,
-            preferredIndex,
-            0);
-    } else if (
-        editingCommandId_.empty() &&
-        !editingNew_ &&
-        !filteredCommandIds_.empty()) {
-
-        SendMessageW(
-            commandList_,
-            LB_SETCURSEL,
-            0,
-            0);
-    } else {
-        SendMessageW(
-            commandList_,
-            LB_SETCURSEL,
-            static_cast<WPARAM>(-1),
-            0);
-    }
-
-    syncing_ = oldSyncing;
-
-    if (editingCommandId_.empty() &&
-        !editingNew_ &&
-        !filteredCommandIds_.empty()) {
-        LoadCommandEditor(filteredCommandIds_.front());
-    }
-
-    EnableWindow(
-        commandMoveUp_,
-        !editingCommandId_.empty());
-    EnableWindow(
-        commandMoveDown_,
-        !editingCommandId_.empty());
-}
-
-void SettingsWindow::LoadCommandEditor(
-    std::wstring_view id) {
-
-    const auto it = std::find_if(
-        app_.UserCommands().begin(),
-        app_.UserCommands().end(),
-        [&](const Command& command) {
-            return command.id == id;
-        });
-
-    if (it == app_.UserCommands().end()) {
-        ClearCommandEditor();
-        return;
-    }
-
-    const bool oldSyncing = syncing_;
-    syncing_ = true;
-
-    editingCommandId_ = it->id;
-    editingNew_ = false;
-    editorDirty_ = false;
-
-    SetWindowTextW(
-        commandEditorTitle_,
-        T(L"快捷项详情", L"Shortcut details"));
-
-    SetWindowTextW(commandName_, it->title.c_str());
-    SetWindowTextW(commandKeyword_, it->keyword.c_str());
-
-    std::wstring aliases;
-    for (std::size_t i = 0; i < it->aliases.size(); ++i) {
-        if (i > 0) aliases += L", ";
-        aliases += it->aliases[i];
-    }
-    SetWindowTextW(commandAliases_, aliases.c_str());
-
-    SendMessageW(
-        commandType_,
-        CB_SETCURSEL,
-        TypeIndex(it->type),
-        0);
-
-    SetWindowTextW(commandTarget_, it->target.c_str());
-    SetWindowTextW(commandArguments_, it->arguments.c_str());
-    SetWindowTextW(
-        commandWorkdir_,
-        it->workingDirectory.c_str());
-
-    SetChecked(commandEnabled_, it->enabled);
-    SetChecked(commandAdmin_, it->runAsAdmin);
-    SetChecked(commandPinned_, it->pinned);
-
-    SetWindowTextW(commandStatus_, L"");
-    SetCommandEditorEnabled(true);
-    EnableWindow(commandDelete_, TRUE);
-
-    syncing_ = oldSyncing;
-}
-
-void SettingsWindow::ClearCommandEditor() {
-    const bool oldSyncing = syncing_;
-    syncing_ = true;
-
-    editingCommandId_.clear();
-    editingNew_ = false;
-    editorDirty_ = false;
-
-    SetWindowTextW(
-        commandEditorTitle_,
-        T(L"快捷项详情", L"Shortcut details"));
-
-    SetWindowTextW(commandName_, L"");
-    SetWindowTextW(commandKeyword_, L"");
-    SetWindowTextW(commandAliases_, L"");
-    SendMessageW(commandType_, CB_SETCURSEL, 0, 0);
-    SetWindowTextW(commandTarget_, L"");
-    SetWindowTextW(commandArguments_, L"");
-    SetWindowTextW(commandWorkdir_, L"");
-    SetChecked(commandEnabled_, true);
-    SetChecked(commandAdmin_, false);
-    SetChecked(commandPinned_, false);
-    SetWindowTextW(commandStatus_, L"");
-
-    SetCommandEditorEnabled(false);
-
-    syncing_ = oldSyncing;
-}
-
-void SettingsWindow::SetCommandEditorEnabled(
-    bool enabled) {
-
-    for (HWND control : std::array<HWND, 16>{
-             commandName_,
-             commandKeyword_,
-             commandAliases_,
-             commandType_,
-             commandTarget_,
-             commandBrowseTarget_,
-             commandArguments_,
-             commandWorkdir_,
-             commandBrowseWorkdir_,
-             commandEnabled_,
-             commandAdmin_,
-             commandPinned_,
-             commandTest_,
-             commandDelete_,
-             commandCancel_,
-             commandSave_}) {
-        EnableWindow(
-            control,
-            enabled ? TRUE : FALSE);
-    }
-
-    EnableWindow(
-        commandDelete_,
-        enabled &&
-            !editingNew_ &&
-            !editingCommandId_.empty());
-}
-
-void SettingsWindow::BeginNewCommand() {
-    if (!ConfirmDiscardChanges()) return;
-
-    const bool oldSyncing = syncing_;
-    syncing_ = true;
-
-    editingCommandId_.clear();
-    editingNew_ = true;
-    editorDirty_ = false;
-
-    SendMessageW(
-        commandList_,
-        LB_SETCURSEL,
-        static_cast<WPARAM>(-1),
-        0);
-
-    SetWindowTextW(
-        commandEditorTitle_,
-        T(L"新建快捷项", L"New shortcut"));
-
-    SetWindowTextW(commandName_, L"");
-    SetWindowTextW(commandKeyword_, L"");
-    SetWindowTextW(commandAliases_, L"");
-    SendMessageW(commandType_, CB_SETCURSEL, 0, 0);
-    SetWindowTextW(commandTarget_, L"");
-    SetWindowTextW(commandArguments_, L"");
-    SetWindowTextW(commandWorkdir_, L"");
-    SetChecked(commandEnabled_, true);
-    SetChecked(commandAdmin_, false);
-    SetChecked(commandPinned_, false);
-    SetWindowTextW(commandStatus_, L"");
-
-    SetCommandEditorEnabled(true);
-    EnableWindow(commandDelete_, FALSE);
-
-    syncing_ = oldSyncing;
-
-    SetFocus(commandName_);
-}
-
-void SettingsWindow::MarkEditorDirty() {
-    if (syncing_) return;
-    if (editingNew_ || !editingCommandId_.empty()) {
-        editorDirty_ = true;
-        SetWindowTextW(
-            commandStatus_,
-            T(L"有未保存的修改", L"Unsaved changes"));
-    }
-}
-
-std::vector<std::wstring> SettingsWindow::ParseAliases(
-    std::wstring_view text) const {
-
-    std::vector<std::wstring> aliases;
-    std::wstring current;
-
-    auto flush = [&]() {
-        const std::wstring value = TrimWide(current);
-        current.clear();
-
-        if (value.empty()) return;
-
-        const auto duplicate = std::find_if(
-            aliases.begin(),
-            aliases.end(),
-            [&](const std::wstring& existing) {
-                return LowerWide(existing) == LowerWide(value);
-            });
-
-        if (duplicate == aliases.end()) {
-            aliases.push_back(value);
-        }
-    };
-
-    for (wchar_t c : text) {
-        if (c == L',' ||
-            c == L';' ||
-            c == L'，' ||
-            c == L'；') {
-            flush();
-        } else {
-            current.push_back(c);
-        }
-    }
-
-    flush();
-    return aliases;
-}
-
-Command SettingsWindow::CollectCommandEditor() const {
-    Command command;
-
-    command.title =
-        TrimWide(ControlText(commandName_));
-    command.keyword =
-        TrimWide(ControlText(commandKeyword_));
-    command.aliases =
-        ParseAliases(ControlText(commandAliases_));
-    command.type =
-        TypeFromIndex(
-            static_cast<int>(
-                SendMessageW(
-                    commandType_,
-                    CB_GETCURSEL,
-                    0,
-                    0)));
-    command.target =
-        TrimWide(ControlText(commandTarget_));
-    command.arguments =
-        TrimWide(ControlText(commandArguments_));
-    command.workingDirectory =
-        TrimWide(ControlText(commandWorkdir_));
-    command.icon = L"auto";
-    command.enabled = IsChecked(commandEnabled_);
-    command.runAsAdmin = IsChecked(commandAdmin_);
-    command.pinned = IsChecked(commandPinned_);
-    command.source = CommandSource::User;
-    command.basePriority = 120;
-
-    return command;
-}
-
-bool SettingsWindow::SaveCommandEditor() {
-    if (!editingNew_ && editingCommandId_.empty()) {
-        return false;
-    }
-
-    Command command = CollectCommandEditor();
-
-    if (command.title.empty() ||
-        command.keyword.empty() ||
-        command.target.empty()) {
-
-        MessageBoxW(
-            hwnd_,
-            T(L"名称、主快捷词和目标为必填项。",
-              L"Name, primary keyword and target are required."),
-            T(L"无法保存快捷项", L"Cannot save shortcut"),
-            MB_OK | MB_ICONWARNING);
-
-        return false;
-    }
-
-    const std::wstring keyword =
-        LowerWide(command.keyword);
-
-    bool duplicateKeyword = false;
-    for (const auto& existing : app_.UserCommands()) {
-        if (!editingCommandId_.empty() &&
-            existing.id == editingCommandId_) {
-            continue;
-        }
-
-        if (LowerWide(existing.keyword) == keyword) {
-            duplicateKeyword = true;
-            break;
-        }
-    }
-
-    if (duplicateKeyword) {
-        const int result = MessageBoxW(
-            hwnd_,
-            T(L"这个主快捷词已被另一个快捷项使用。\n\n仍然保存吗？",
-              L"This primary keyword is already used by another shortcut.\n\nSave anyway?"),
-            T(L"快捷词冲突", L"Keyword conflict"),
-            MB_YESNO | MB_ICONWARNING);
-
-        if (result != IDYES) {
-            return false;
-        }
-    }
-
-    std::wstring savedId = editingCommandId_;
-    bool saved = false;
-
-    if (editingNew_) {
-        saved = app_.CreateUserCommand(
-            std::move(command),
-            &savedId);
-    } else {
-        saved = app_.UpdateUserCommand(
-            editingCommandId_,
-            std::move(command));
-    }
-
-    if (!saved) {
-        MessageBoxW(
-            hwnd_,
-            T(L"写入 commands.json 失败。原数据未被替换。",
-              L"Failed to write commands.json. Existing data was not replaced."),
-            T(L"保存失败", L"Save failed"),
-            MB_OK | MB_ICONERROR);
-        return false;
-    }
-
-    editingNew_ = false;
-    editingCommandId_ = savedId;
-    editorDirty_ = false;
-
-    RefreshCommandList(savedId);
-    LoadCommandEditor(savedId);
-
-    SetWindowTextW(
-        commandStatus_,
-        T(L"已保存，Launcher 已刷新。",
-          L"Saved. The launcher has been refreshed."));
-
-    return true;
-}
-
-void SettingsWindow::DeleteEditingCommand() {
-    if (editingCommandId_.empty() || editingNew_) {
-        return;
-    }
-
-    const int result = MessageBoxW(
-        hwnd_,
-        T(L"确定删除这个快捷项吗？\n\n此操作会立即写入 commands.json。",
-          L"Delete this shortcut?\n\nThe change will be written to commands.json immediately."),
-        T(L"删除快捷项", L"Delete shortcut"),
-        MB_YESNO | MB_ICONWARNING);
-
-    if (result != IDYES) return;
-
-    const std::wstring id = editingCommandId_;
-
-    if (!app_.DeleteUserCommand(id)) {
-        MessageBoxW(
-            hwnd_,
-            T(L"删除失败。", L"Delete failed."),
-            T(L"快捷项", L"Shortcut"),
-            MB_OK | MB_ICONERROR);
-        return;
-    }
-
-    editingCommandId_.clear();
-    editingNew_ = false;
-    editorDirty_ = false;
-
-    RefreshCommandList();
-    if (filteredCommandIds_.empty()) {
-        ClearCommandEditor();
-    }
-
-    SetWindowTextW(
-        commandStatus_,
-        T(L"快捷项已删除。", L"Shortcut deleted."));
-}
-
-void SettingsWindow::MoveEditingCommand(int direction) {
-    if (editingCommandId_.empty() || editingNew_) {
-        return;
-    }
-
-    if (editorDirty_ && !ConfirmDiscardChanges()) {
-        return;
-    }
-
-    if (app_.MoveUserCommand(
-            editingCommandId_,
-            direction)) {
-        RefreshCommandList(editingCommandId_);
-        LoadCommandEditor(editingCommandId_);
-    }
-}
-
-void SettingsWindow::TestEditingCommand() {
-    Command command = CollectCommandEditor();
-
-    if (command.target.empty()) {
-        MessageBoxW(
-            hwnd_,
-            T(L"请先填写目标。", L"Enter a target first."),
-            T(L"测试运行", L"Test"),
-            MB_OK | MB_ICONWARNING);
-        return;
-    }
-
-    if (app_.TestCommand(command)) {
-        SetWindowTextW(
-            commandStatus_,
-            T(L"测试运行已启动。", L"Test launch started."));
-    }
-}
-
-void SettingsWindow::BrowseCommandTarget() {
-    std::wstring current =
-        ControlText(commandTarget_);
-
-    std::array<wchar_t, 32768> file{};
-    if (!current.empty() &&
-        current.size() < file.size()) {
-        std::copy(
-            current.begin(),
-            current.end(),
-            file.begin());
-    }
-
-    const wchar_t filter[] =
-        L"Programs and shortcuts\0*.exe;*.lnk;*.bat;*.cmd;*.com;*.url\0"
-        L"All files\0*.*\0\0";
-
-    OPENFILENAMEW open{};
-    open.lStructSize = sizeof(open);
-    open.hwndOwner = hwnd_;
-    open.lpstrFile = file.data();
-    open.nMaxFile =
-        static_cast<DWORD>(file.size());
-    open.lpstrFilter = filter;
-    open.nFilterIndex = 1;
-    open.Flags =
-        OFN_FILEMUSTEXIST |
-        OFN_PATHMUSTEXIST |
-        OFN_EXPLORER |
-        OFN_NOCHANGEDIR;
-
-    if (!GetOpenFileNameW(&open)) {
-        return;
-    }
-
-    const std::filesystem::path path(file.data());
-
-    SetWindowTextW(
-        commandTarget_,
-        path.wstring().c_str());
-
-    if (TrimWide(ControlText(commandName_)).empty()) {
-        SetWindowTextW(
-            commandName_,
-            path.stem().wstring().c_str());
-    }
-
-    if (TrimWide(ControlText(commandWorkdir_)).empty()) {
-        SetWindowTextW(
-            commandWorkdir_,
-            path.parent_path().wstring().c_str());
-    }
-
-    if (SendMessageW(
-            commandType_,
-            CB_GETCURSEL,
-            0,
-            0) < 0) {
-        SendMessageW(
-            commandType_,
-            CB_SETCURSEL,
-            0,
-            0);
-    }
-
-    MarkEditorDirty();
-}
-
-void SettingsWindow::BrowseCommandWorkingDirectory() {
-    BROWSEINFOW browse{};
-    browse.hwndOwner = hwnd_;
-    browse.lpszTitle =
-        T(L"选择工作目录", L"Choose working directory");
-    browse.ulFlags =
-        BIF_RETURNONLYFSDIRS |
-        BIF_NEWDIALOGSTYLE |
-        BIF_EDITBOX;
-
-    PIDLIST_ABSOLUTE item =
-        SHBrowseForFolderW(&browse);
-
-    if (!item) return;
-
-    std::array<wchar_t, MAX_PATH> path{};
-    if (SHGetPathFromIDListW(
-            item,
-            path.data())) {
-        SetWindowTextW(
-            commandWorkdir_,
-            path.data());
-        MarkEditorDirty();
-    }
-
-    CoTaskMemFree(item);
 }
 
 void SettingsWindow::RefreshHotkeyControls() {
@@ -5573,238 +4532,6 @@ void SettingsWindow::Layout() {
         Scale(42),
         TRUE);
 
-    if (page_ == Page::Commands) {
-        const int top = Scale(130);
-        const int leftWidth =
-            std::clamp(
-                Scale(300),
-                Scale(250),
-                std::max(
-                    Scale(250),
-                    contentWidth / 3));
-
-        const int gap = Scale(28);
-        const int editorX =
-            contentLeft + leftWidth + gap;
-        const int editorWidth =
-            std::max(
-                Scale(360),
-                contentRight - editorX);
-
-        MoveWindow(
-            commandSearch_,
-            contentLeft,
-            top,
-            leftWidth - Scale(90),
-            Scale(34),
-            TRUE);
-
-        MoveWindow(
-            commandNew_,
-            contentLeft + leftWidth - Scale(82),
-            top,
-            Scale(82),
-            Scale(34),
-            TRUE);
-
-        MoveWindow(
-            commandList_,
-            contentLeft,
-            top + Scale(46),
-            leftWidth,
-            std::max<int>(
-                Scale(250),
-                static_cast<int>(client.bottom) - top - Scale(118)),
-            TRUE);
-
-        MoveWindow(
-            commandMoveUp_,
-            contentLeft,
-            client.bottom - Scale(56),
-            (leftWidth - Scale(8)) / 2,
-            Scale(34),
-            TRUE);
-
-        MoveWindow(
-            commandMoveDown_,
-            contentLeft +
-                (leftWidth - Scale(8)) / 2 +
-                Scale(8),
-            client.bottom - Scale(56),
-            (leftWidth - Scale(8)) / 2,
-            Scale(34),
-            TRUE);
-
-        MoveWindow(
-            commandEditorTitle_,
-            editorX,
-            top,
-            editorWidth,
-            Scale(30),
-            TRUE);
-
-        const int labelWidth = Scale(132);
-        const int fieldX =
-            editorX + labelWidth;
-        const int fieldWidth =
-            std::max(
-                Scale(210),
-                editorWidth - labelWidth);
-        const int browseWidth = Scale(44);
-        const int rowHeight = Scale(44);
-        int y = top + Scale(42);
-
-        auto placeField =
-            [&](HWND label,
-                HWND control,
-                HWND browse = nullptr) {
-                MoveWindow(
-                    label,
-                    editorX,
-                    y + Scale(6),
-                    labelWidth - Scale(12),
-                    Scale(24),
-                    TRUE);
-
-                const int width =
-                    browse
-                        ? fieldWidth - browseWidth - Scale(8)
-                        : fieldWidth;
-
-                MoveWindow(
-                    control,
-                    fieldX,
-                    y,
-                    width,
-                    Scale(34),
-                    TRUE);
-
-                if (browse) {
-                    MoveWindow(
-                        browse,
-                        fieldX + width + Scale(8),
-                        y,
-                        browseWidth,
-                        Scale(34),
-                        TRUE);
-                }
-
-                y += rowHeight;
-            };
-
-        placeField(
-            commandNameLabel_,
-            commandName_);
-        placeField(
-            commandKeywordLabel_,
-            commandKeyword_);
-        placeField(
-            commandAliasesLabel_,
-            commandAliases_);
-        placeField(
-            commandTypeLabel_,
-            commandType_);
-        placeField(
-            commandTargetLabel_,
-            commandTarget_,
-            commandBrowseTarget_);
-        placeField(
-            commandArgumentsLabel_,
-            commandArguments_);
-        placeField(
-            commandWorkdirLabel_,
-            commandWorkdir_,
-            commandBrowseWorkdir_);
-
-        const int optionGap = Scale(8);
-        const int enabledWidth =
-            std::clamp(
-                fieldWidth * 24 / 100,
-                Scale(66),
-                Scale(96));
-        const int pinnedWidth =
-            std::clamp(
-                fieldWidth * 22 / 100,
-                Scale(62),
-                Scale(88));
-        const int adminWidth =
-            std::max(
-                Scale(72),
-                fieldWidth -
-                    enabledWidth -
-                    pinnedWidth -
-                    optionGap * 2);
-
-        MoveWindow(
-            commandEnabled_,
-            fieldX,
-            y + Scale(3),
-            enabledWidth,
-            Scale(30),
-            TRUE);
-
-        MoveWindow(
-            commandAdmin_,
-            fieldX +
-                enabledWidth +
-                optionGap,
-            y + Scale(3),
-            adminWidth,
-            Scale(30),
-            TRUE);
-
-        MoveWindow(
-            commandPinned_,
-            fieldX +
-                enabledWidth +
-                optionGap +
-                adminWidth +
-                optionGap,
-            y + Scale(3),
-            pinnedWidth,
-            Scale(30),
-            TRUE);
-
-        y += Scale(44);
-
-        const int actionGap = Scale(8);
-        const int actionWidth =
-            std::max(
-                1,
-                (fieldWidth -
-                 actionGap * 3) / 4);
-
-        std::array<HWND, 4> actions{
-            commandTest_,
-            commandDelete_,
-            commandCancel_,
-            commandSave_,
-        };
-
-        for (std::size_t i = 0;
-             i < actions.size();
-             ++i) {
-            MoveWindow(
-                actions[i],
-                fieldX +
-                    static_cast<int>(i) *
-                        (actionWidth +
-                         actionGap),
-                y,
-                actionWidth,
-                Scale(34),
-                TRUE);
-        }
-
-        MoveWindow(
-            commandStatus_,
-            fieldX,
-            y + Scale(44),
-            fieldWidth,
-            Scale(30),
-            TRUE);
-    }
-
     if (page_ == Page::General) {
         const auto metrics =
             BuildGeneralLayout(
@@ -6679,7 +5406,6 @@ RECT SettingsWindow::ProviderCardRect() const {
     };
 }
 
-
 void SettingsWindow::DrawNavigationButton(
     const DRAWITEMSTRUCT& item) {
 
@@ -6688,10 +5414,6 @@ void SettingsWindow::DrawNavigationButton(
     bool selected = false;
 
     switch (item.CtlID) {
-    case kIdNavCommands:
-        selected =
-            page_ == Page::Commands;
-        break;
     case kIdNavGeneral:
         selected =
             page_ == Page::General;
@@ -7587,12 +6309,6 @@ LRESULT SettingsWindow::HandleMessage(
         const UINT notify = HIWORD(wParam);
 
         switch (id) {
-        case kIdNavCommands:
-            if (notify == BN_CLICKED) {
-                ShowPage(Page::Commands);
-            }
-            return 0;
-
         case kIdNavGeneral:
             if (notify == BN_CLICKED) {
                 ShowPage(Page::General);
@@ -7632,135 +6348,6 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdNavAbout:
             if (notify == BN_CLICKED) {
                 ShowPage(Page::About);
-            }
-            return 0;
-
-        case kIdCommandSearch:
-            if (notify == EN_CHANGE && !syncing_) {
-                RefreshCommandList(editingCommandId_);
-            }
-            return 0;
-
-        case kIdCommandList:
-            if (notify == LBN_SELCHANGE && !syncing_) {
-                const int index =
-                    static_cast<int>(
-                        SendMessageW(
-                            commandList_,
-                            LB_GETCURSEL,
-                            0,
-                            0));
-
-                if (index >= 0 &&
-                    index <
-                        static_cast<int>(
-                            filteredCommandIds_.size())) {
-
-                    const std::wstring selectedId =
-                        filteredCommandIds_[
-                            static_cast<std::size_t>(index)];
-
-                    if (selectedId != editingCommandId_) {
-                        if (!ConfirmDiscardChanges()) {
-                            RefreshCommandList(
-                                editingCommandId_);
-                            return 0;
-                        }
-
-                        LoadCommandEditor(selectedId);
-                    }
-                }
-            }
-            return 0;
-
-        case kIdCommandNew:
-            if (notify == BN_CLICKED) {
-                BeginNewCommand();
-            }
-            return 0;
-
-        case kIdCommandMoveUp:
-            if (notify == BN_CLICKED) {
-                MoveEditingCommand(-1);
-            }
-            return 0;
-
-        case kIdCommandMoveDown:
-            if (notify == BN_CLICKED) {
-                MoveEditingCommand(1);
-            }
-            return 0;
-
-        case kIdCommandBrowseTarget:
-            if (notify == BN_CLICKED) {
-                BrowseCommandTarget();
-            }
-            return 0;
-
-        case kIdCommandBrowseWorkdir:
-            if (notify == BN_CLICKED) {
-                BrowseCommandWorkingDirectory();
-            }
-            return 0;
-
-        case kIdCommandTest:
-            if (notify == BN_CLICKED) {
-                TestEditingCommand();
-            }
-            return 0;
-
-        case kIdCommandDelete:
-            if (notify == BN_CLICKED) {
-                DeleteEditingCommand();
-            }
-            return 0;
-
-        case kIdCommandCancel:
-            if (notify == BN_CLICKED) {
-                editorDirty_ = false;
-
-                if (editingNew_) {
-                    editingNew_ = false;
-                    editingCommandId_.clear();
-                    RefreshCommandList();
-                    if (filteredCommandIds_.empty()) {
-                        ClearCommandEditor();
-                    }
-                } else if (!editingCommandId_.empty()) {
-                    LoadCommandEditor(
-                        editingCommandId_);
-                }
-            }
-            return 0;
-
-        case kIdCommandSave:
-            if (notify == BN_CLICKED) {
-                SaveCommandEditor();
-            }
-            return 0;
-
-        case kIdCommandName:
-        case kIdCommandKeyword:
-        case kIdCommandAliases:
-        case kIdCommandTarget:
-        case kIdCommandArguments:
-        case kIdCommandWorkdir:
-            if (notify == EN_CHANGE) {
-                MarkEditorDirty();
-            }
-            return 0;
-
-        case kIdCommandType:
-            if (notify == CBN_SELCHANGE) {
-                MarkEditorDirty();
-            }
-            return 0;
-
-        case kIdCommandEnabled:
-        case kIdCommandAdmin:
-        case kIdCommandPinned:
-            if (notify == BN_CLICKED) {
-                MarkEditorDirty();
             }
             return 0;
 
@@ -8255,64 +6842,6 @@ LRESULT SettingsWindow::HandleMessage(
             DeleteObject(border);
         }
 
-        if (page_ == Page::Commands) {
-            RECT clientRect{};
-            GetClientRect(hwnd_, &clientRect);
-
-            const int contentLeft =
-                Scale(kSidebarWidthLogical) +
-                Scale(38);
-
-            const int contentRight =
-                clientRect.right - Scale(34);
-
-            const int contentWidth =
-                std::max(
-                    Scale(360),
-                    contentRight - contentLeft);
-
-            const int leftWidth =
-                std::clamp(
-                    Scale(300),
-                    Scale(250),
-                    std::max(
-                        Scale(250),
-                        contentWidth / 3));
-
-            const int dividerX =
-                contentLeft +
-                leftWidth +
-                Scale(14);
-
-            HPEN divider =
-                CreatePen(
-                    PS_SOLID,
-                    1,
-                    kBorder);
-
-            oldPen =
-                SelectObject(
-                    dc,
-                    divider);
-
-            MoveToEx(
-                dc,
-                dividerX,
-                Scale(130),
-                nullptr);
-
-            LineTo(
-                dc,
-                dividerX,
-                client.bottom - Scale(22));
-
-            SelectObject(
-                dc,
-                oldPen);
-
-            DeleteObject(divider);
-        }
-
         EndPaint(
             hwnd_,
             &paint);
@@ -8345,7 +6874,6 @@ LRESULT SettingsWindow::HandleMessage(
         SetBkColor(dc, background);
 
         if (control == pageDescription_ ||
-            control == commandStatus_ ||
             control == hotkeyStatus_ ||
             control == auxiliaryHotkeyStatus_ ||
             control == dataStatus_ ||
@@ -8517,11 +7045,6 @@ LRESULT SettingsWindow::HandleMessage(
         KillTimer(
             hwnd_,
             kProviderStatusTimerId);
-
-        if (page_ == Page::Commands &&
-            !ConfirmDiscardChanges()) {
-            return 0;
-        }
 
         ShowWindow(
             hwnd_,

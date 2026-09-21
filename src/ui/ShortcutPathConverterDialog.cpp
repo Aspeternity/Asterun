@@ -1,5 +1,8 @@
 #include "ShortcutPathConverterDialog.hpp"
 
+#include "UiMetrics.hpp"
+#include "UiTypography.hpp"
+
 #include "../app/App.hpp"
 #include "../core/Command.hpp"
 #include "../core/UserCommandStore.hpp"
@@ -94,10 +97,9 @@ ShortcutPathConverterDialog::T(
 
 int ShortcutPathConverterDialog::Scale(
     int value) const {
-    return MulDiv(
+    return ui::Scale(
         value,
-        static_cast<int>(dpi_),
-        96);
+        dpi_);
 }
 
 bool ShortcutPathConverterDialog::Create() {
@@ -353,51 +355,22 @@ void ShortcutPathConverterDialog::CreateControls() {
         kIdClose,
         BS_PUSHBUTTON);
 
-    const wchar_t* fontFace =
-        app_.SettingsData().language ==
-                Language::ZhCN
-            ? L"Microsoft YaHei UI"
-            : L"Segoe UI";
+    const auto language =
+        app_.SettingsData().language;
 
-    font_ = CreateFontW(
-        -MulDiv(
-            10,
-            static_cast<int>(dpi_),
-            72),
-        0,
-        0,
-        0,
-        FW_NORMAL,
-        FALSE,
-        FALSE,
-        FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH |
-            FF_DONTCARE,
-        fontFace);
+    font_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                language,
+                ui::UiFontRole::Body),
+            dpi_);
 
-    groupFont_ = CreateFontW(
-        -MulDiv(
-            10,
-            static_cast<int>(dpi_),
-            72),
-        0,
-        0,
-        0,
-        FW_SEMIBOLD,
-        FALSE,
-        FALSE,
-        FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH |
-            FF_DONTCARE,
-        fontFace);
+    groupFont_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                language,
+                ui::UiFontRole::BodySemibold),
+            dpi_);
 
     for (HWND control :
          std::array<HWND, 7>{

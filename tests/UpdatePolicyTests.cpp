@@ -101,6 +101,15 @@ int main() {
             "0.7.0-beta.1",
             "0.6.0"));
     assert(
+        IsUpdateVersionNewer(
+            "0.7.0",
+            "0.8.0-alpha.1"));
+    assert(
+        !IsUpdateVersionNewer(
+            "0.8.0-alpha.1",
+            "0.7.0"));
+
+    assert(
         !CompareVersions(
             "bad",
             "0.7.0"));
@@ -113,6 +122,10 @@ int main() {
         DefaultUpdateChannelForVersion(
             "0.7.0") ==
         UpdateChannel::Stable);
+    assert(
+        DefaultUpdateChannelForVersion(
+            "0.8.0-alpha.1") ==
+        UpdateChannel::Development);
 
     assert(
         UpdateManifestUrl(

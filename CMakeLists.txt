@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.7.0 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.8.0 LANGUAGES CXX)
 
 file(
     STRINGS
@@ -195,6 +195,7 @@ if(WIN32)
         src/ui/ShortcutEditorDialog.cpp
         src/ui/ShortcutManagerWindow.cpp
         src/ui/ShortcutPathConverterDialog.cpp
+        src/ui/UiTypography.cpp
         src/resources.rc
         src/app.manifest
     )
@@ -378,6 +379,22 @@ if(BUILD_TESTING)
     add_test(
         NAME update_policy_tests
         COMMAND update_policy_tests
+    )
+
+    add_executable(
+        ui_foundation_tests
+        tests/UiFoundationTests.cpp
+    )
+    target_include_directories(
+        ui_foundation_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        ui_foundation_tests
+    )
+    add_test(
+        NAME ui_foundation_tests
+        COMMAND ui_foundation_tests
     )
 
     add_executable(search_engine_tests tests/SearchEngineTests.cpp)

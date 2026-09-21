@@ -142,7 +142,7 @@ Planned next:
 
 ## v0.7.x - Shortcut & launcher workflow
 
-In progress:
+Completed in v0.7.0:
 
 - Standalone Shortcut Manager and task-oriented Shortcut Editor
 - Unified comma-separated shortcut keywords while keeping the persisted primary/alias compatibility model internal
@@ -165,19 +165,29 @@ In progress:
 - beta.1 adds the commands schema 1 -> 2 / TSV v1-v2-v3 compatibility matrix, prerelease update-order gates and packaged v0.7 Beta desktop-validation checklist
 - beta.2 fixes real-Windows Shortcut Editor dynamic-layout repaint corruption and the unlabeled Working Directory browse control without changing frozen contracts
 
-Planned next:
+- beta.12 completes Provider-to-shortcut promotion and stable two-stage Provider de-duplication
+- rc.1 freezes the validated v0.7 runtime and final upgrade/release contracts
+- v0.7.0 Stable promotes the validated RC runtime with no new runtime feature
 
-- Continue focused Beta 2 fixes only if real Windows validation finds blockers
-- Real Windows desktop validation for Runtime Input, Path Conversion, custom icons, filtering, DPI, updater/uninstaller and compatibility behavior
-- Final UI/visual/performance consolidation remains deferred until the functional surface is stable
+## v0.8.x - UI / UX refinement & product polish
 
-## v0.8.x - Distribution & extensibility
+In progress:
+
+- v0.8.0-alpha.1 establishes shared UiTheme / UiMetrics / UiTypography foundations without intentional visual redesign
+- Alpha 1 preserves Classic 420/16/10 and Modern Compact 620/32/9 launcher geometry through regression-tested shared metrics
+- Alpha 1 removes the unreachable legacy Settings Command editor after Shortcut Manager / Editor became the authoritative workflow
+- Settings visual hierarchy and compact section/setting-row design follow after the foundation is stable
+- Shortcut Manager / Editor visual consolidation follows the Settings redesign
+- Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
+- UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
+
+## v0.9.x - Distribution & extensibility
 
 Planned:
 
-- Public plugin/provider API
+- Public plugin/provider API after the first-party product surface is stable
 - Signed release pipeline and signature enforcement in the existing updater
-- Migration assistant and diagnostics
+- Migration assistant and expanded diagnostics
 
 ## v1.0 - Stable classic launcher
 

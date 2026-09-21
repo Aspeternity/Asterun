@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.1
+
+- Added shared `UiTheme`, `UiMetrics` and `UiTypography` foundations for the native Win32 UI.
+- Migrated Launcher, Settings, Shortcut Manager, Shortcut Editor and Path Conversion to common DPI/font foundations without intentional visual changes.
+- Preserved Classic Launcher geometry at 420 / 16 / 10 and Modern Compact at 620 / 32 / 9.
+- Added `ui_foundation_tests` to lock launcher and Settings layout metrics before later v0.8 visual redesign work.
+- Removed the unreachable legacy Shortcut/Command editor from Settings, including dead controls, layout, painting and message routing.
+- Removed the obsolete Settings shortcut-refresh hook from App; the standalone Shortcut Manager/Editor remain the only shortcut-management UI.
+- Kept settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3 unchanged.
+- Added update ordering coverage for `0.7.0 < 0.8.0-alpha.1`; prerelease defaults remain on the Development channel.
+- Updated Windows fixed FileVersion/ProductVersion to 0.8.0.1.
+
 ## 0.7.0
 
 - Promoted the fully validated v0.7.0-rc.1 runtime to Stable with no new runtime feature.

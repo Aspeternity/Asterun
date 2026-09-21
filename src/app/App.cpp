@@ -1280,10 +1280,6 @@ void App::HandleProviderRefreshCompleted(
             window_->RefreshResults();
         }
 
-        if (settingsWindow_) {
-            settingsWindow_
-                ->RefreshCommands();
-        }
     }
 
     if (settingsWindow_) {

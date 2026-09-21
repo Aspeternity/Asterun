@@ -2,6 +2,8 @@
 
 #include "../core/LauncherResult.hpp"
 #include "../core/ResultIconPipeline.hpp"
+#include "UiMetrics.hpp"
+#include "UiTheme.hpp"
 
 #include <windows.h>
 
@@ -46,19 +48,6 @@ public:
     }
 
 private:
-    struct ThemePalette {
-        COLORREF windowBackground{};
-        COLORREF controlBackground{};
-        COLORREF accentBackground{};
-        COLORREF text{};
-        COLORREF mutedText{};
-        COLORREF keyword{};
-        COLORREF selectionBackground{};
-        COLORREF selectionText{};
-        COLORREF separator{};
-        COLORREF frame{};
-    };
-
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kIconReadyMessage = WM_APP + 18;
     static constexpr UINT kMenuShow = 40001;
@@ -151,7 +140,7 @@ private:
     [[nodiscard]] bool IsModern() const;
     [[nodiscard]] RECT ClassicCloseRect() const;
     [[nodiscard]] std::wstring CurrentQuery() const;
-    [[nodiscard]] ThemePalette CurrentPalette() const;
+    [[nodiscard]] const ui::UiPalette& CurrentPalette() const;
     [[nodiscard]] int DpiScale(int value) const;
 
     App& app_;
@@ -194,9 +183,12 @@ private:
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};
     UINT dpi_{96};
-    int widthLogical_{420};
-    int rowHeightLogical_{16};
-    std::size_t maxResults_{10};
+    int widthLogical_{
+        ui::kClassicLauncherMetrics.widthLogical};
+    int rowHeightLogical_{
+        ui::kClassicLauncherMetrics.rowHeightLogical};
+    std::size_t maxResults_{
+        ui::kClassicLauncherMetrics.maxResults};
     std::wstring titleText_{L"[ALTRun]"};
     std::uint64_t searchGeneration_{0};
     std::vector<LauncherResult>

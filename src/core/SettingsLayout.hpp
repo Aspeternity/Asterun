@@ -1,13 +1,18 @@
 #pragma once
 
+#include "../ui/UiMetrics.hpp"
+
 namespace altrun::settings_layout {
 
 inline constexpr int
-    kContentLeftInsetLogical = 38;
+    kContentLeftInsetLogical =
+        ui::kSettingsContentLeftInsetLogical;
 inline constexpr int
-    kContentRightInsetLogical = 34;
+    kContentRightInsetLogical =
+        ui::kSettingsContentRightInsetLogical;
 inline constexpr int
-    kToggleRowLogical = 54;
+    kToggleRowLogical =
+        ui::kSettingsToggleRowLogical;
 
 struct Rect {
     int left{};
@@ -45,7 +50,7 @@ BuildGeneralLayout(
     int clientWidth,
     unsigned dpi,
     int scrollOffset,
-    int sidebarWidthLogical = 190) noexcept;
+    int sidebarWidthLogical = ui::kSettingsSidebarWidthLogical) noexcept;
 
 [[nodiscard]] int MaxScrollOffset(
     const GeneralLayoutMetrics& fullLayout,

@@ -9,22 +9,9 @@ int Scale(
     int logicalValue,
     unsigned dpi) noexcept {
 
-    if (dpi == 0) {
-        dpi = 96;
-    }
-
-    const std::int64_t product =
-        static_cast<std::int64_t>(
-            logicalValue) *
-        static_cast<std::int64_t>(dpi);
-
-    if (product >= 0) {
-        return static_cast<int>(
-            (product + 48) / 96);
-    }
-
-    return static_cast<int>(
-        (product - 48) / 96);
+    return ui::Scale(
+        logicalValue,
+        dpi);
 }
 
 GeneralLayoutMetrics BuildGeneralLayout(
