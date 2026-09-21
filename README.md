@@ -4,14 +4,14 @@ ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, 
 
 ## Downloads
 
-### Stable v0.6.0
+### Stable v0.7.0
 
-The current stable release is published at the immutable `v0.6.0` tag:
+The current stable release is published at the immutable `v0.7.0` tag:
 
-- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.6.0
-- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.6.0/ALTRunNext-x64.zip
-- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.6.0/ALTRunNext-ARM64.zip
-- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.6.0/SHA256SUMS.txt
+- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.7.0
+- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.7.0/ALTRunNext-x64.zip
+- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.7.0/ALTRunNext-ARM64.zip
+- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.7.0/SHA256SUMS.txt
 
 ### Rolling development build
 
@@ -22,6 +22,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.7.0 — Stable
+
+v0.7.0 promotes the fully validated RC1 runtime to Stable without adding another runtime feature. The final real-Windows gate `beta.12 -> rc.1` native automatic update passed, and the RC release contract already froze schemas, Provider IDs, Hotkey Registry action IDs, Provider dedup, launcher selection behavior, Runtime Input/Path Conversion, Native Uninstall and Managed Everything ownership/lifecycle.
+
+Stable keeps settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3. The portable executable contract remains `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`.
+
+The only release-channel change is intentional: a fresh or migrated Stable build defaults to the Stable update channel, while prerelease builds continue to default to Development. Existing user-selected update preferences remain persisted normally.
+
+No v0.7 runtime behavior is changed during Stable promotion. Windows fixed FileVersion/ProductVersion is `0.7.0.300`.
 
 ## v0.7.0-rc.1 — Release Freeze & Upgrade Gate
 

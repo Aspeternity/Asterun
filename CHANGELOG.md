@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+
+- Promoted the fully validated v0.7.0-rc.1 runtime to Stable with no new runtime feature.
+- Recorded the successful real-Windows `beta.12 -> rc.1` native automatic-update gate.
+- Kept settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3 frozen.
+- Kept Provider IDs, Hotkey Registry action IDs, Provider dedup, Native Uninstall and Managed Everything lifecycle unchanged from RC1.
+- Switched fresh/migrated Stable builds to the Stable update channel while prereleases remain on Development.
+- Updated the published Stable download links from v0.6.0 to v0.7.0.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.300.
+
 ## 0.7.0-rc.1
 
 - Entered the v0.7 release-candidate freeze after all five final beta.12 Provider-to-shortcut real-Windows checks passed.

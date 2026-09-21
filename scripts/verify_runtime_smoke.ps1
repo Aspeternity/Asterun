@@ -141,8 +141,11 @@ try {
         throw "Packaged runtime migration must default automatic update checks to enabled."
     }
 
-    if ($migratedSettings.update.channel -ne "development") {
-        throw "Packaged prerelease runtime migration must default to the Development update channel."
+    $version = (Get-Content $versionPath -Raw).Trim()
+    $expectedUpdateChannel = if ($version -match '-') { "development" } else { "stable" }
+
+    if ($migratedSettings.update.channel -ne $expectedUpdateChannel) {
+        throw "Packaged runtime migration update channel '$($migratedSettings.update.channel)' does not match expected '$expectedUpdateChannel'."
     }
 
     $expectedHotkeyActions = @(
@@ -167,7 +170,6 @@ try {
         throw "Packaged runtime migration must keep Everything disabled when legacy settings did not opt in."
     }
 
-    $version = (Get-Content $versionPath -Raw).Trim()
     $fileVersion = (Get-Item $exe).VersionInfo.FileVersion
 
     Write-Host "Portable runtime smoke passed:"
@@ -175,7 +177,7 @@ try {
     Write-Host "  FileVersion string: $fileVersion"
     Write-Host "  Process id: $($process.Id)"
     Write-Host "  Startup observation: $StartupSeconds seconds"
-    Write-Host "  Runtime migration: schema 2 -> 7 with frozen Hotkey Registry + default-on Pinyin + default-off result icons + Development update defaults"
+    Write-Host "  Runtime migration: schema 2 -> 7 with frozen Hotkey Registry + default-on Pinyin + default-off result icons + release-appropriate update defaults"
 }
 finally {
     if ($null -ne $process) {

@@ -2,6 +2,7 @@
 #include "core/HotkeyRegistry.hpp"
 #include "core/ProviderIds.hpp"
 #include "core/Settings.hpp"
+#include "Version.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -19,6 +20,13 @@
 using namespace altrun;
 
 namespace {
+
+std::string ExpectedDefaultUpdateChannelName() {
+    return DefaultUpdateChannelForVersion(kVersion) ==
+            UpdateChannel::Stable
+        ? "stable"
+        : "development";
+}
 
 std::string ReadText(
     const std::filesystem::path& path) {
@@ -534,7 +542,7 @@ void AssertSchema6Migration(
         store.Data().autoCheckUpdates);
     assert(
         store.Data().updateChannel ==
-        UpdateChannel::Development);
+        DefaultUpdateChannelForVersion(kVersion));
 
     const auto migrated =
         nlohmann::json::parse(
@@ -552,7 +560,7 @@ void AssertSchema6Migration(
         migrated.at("update")
             .at("channel")
             .get<std::string>() ==
-        "development");
+        ExpectedDefaultUpdateChannelName());
 
     AssertDowngradeReadOnly(path);
 }
@@ -597,7 +605,7 @@ void AssertCleanInstall(
         store.Data().autoCheckUpdates);
     assert(
         store.Data().updateChannel ==
-        UpdateChannel::Development);
+        DefaultUpdateChannelForVersion(kVersion));
     assert(
         root.at("update")
             .at("autoCheck")
@@ -606,7 +614,7 @@ void AssertCleanInstall(
         root.at("update")
             .at("channel")
             .get<std::string>() ==
-        "development");
+        ExpectedDefaultUpdateChannelName());
 
     const auto& bindings =
         root.at("hotkeys")
