@@ -45,6 +45,7 @@ enum ResultContextMenuId : UINT {
     kResultContextLocate = 41005,
     kResultContextCopy = 41006,
     kResultContextDeleteShortcut = 41007,
+    kResultContextRunAsAdministrator = 41008,
 };
 
 COLORREF MixColor(COLORREF a, COLORREF b, int numerator, int denominator) {
@@ -2163,6 +2164,16 @@ void LauncherWindow::ShowResultContextMenu(
             FALSE);
     }
 
+    if (actions.runAsAdministrator) {
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kResultContextRunAsAdministrator,
+            zh
+                ? L"以管理员身份运行"
+                : L"Run as administrator");
+    }
+
     if (actions
             .navigateCurrentFileManager) {
         AppendMenuW(
@@ -2174,29 +2185,16 @@ void LauncherWindow::ShowResultContextMenu(
                 : L"Open in current file manager");
     }
 
-    if (actions.editShortcut ||
-        actions.addAsShortcut) {
+    if (actions.editShortcut) {
         appendSeparator();
 
-        if (actions.editShortcut) {
-            AppendMenuW(
-                menu,
-                MF_STRING,
-                kResultContextEditShortcut,
-                zh
-                    ? L"编辑快捷项..."
-                    : L"Edit shortcut...");
-        }
-
-        if (actions.addAsShortcut) {
-            AppendMenuW(
-                menu,
-                MF_STRING,
-                kResultContextAddShortcut,
-                zh
-                    ? L"添加为快捷项..."
-                    : L"Add as shortcut...");
-        }
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kResultContextEditShortcut,
+            zh
+                ? L"编辑快捷项..."
+                : L"Edit shortcut...");
     }
 
     if (actions.locateInExplorer ||
@@ -2209,11 +2207,15 @@ void LauncherWindow::ShowResultContextMenu(
                 MF_STRING,
                 kResultContextLocate,
                 zh
-                    ? L"在资源管理器中定位"
-                    : L"Show in File Explorer");
+                    ? L"打开所在目录"
+                    : L"Open containing folder");
         }
 
         if (actions.copyTarget) {
+            const bool pathLike =
+                CanRevealTargetInExplorer(
+                    result.target);
+
             const wchar_t* copyLabel =
                 result.action.kind ==
                         LauncherActionKind::
@@ -2221,8 +2223,7 @@ void LauncherWindow::ShowResultContextMenu(
                     ? (zh
                            ? L"复制链接"
                            : L"Copy link")
-                    : (actions
-                               .locateInExplorer
+                    : (pathLike
                            ? (zh
                                   ? L"复制路径"
                                   : L"Copy path")
@@ -2236,6 +2237,18 @@ void LauncherWindow::ShowResultContextMenu(
                 kResultContextCopy,
                 copyLabel);
         }
+    }
+
+    if (actions.addAsShortcut) {
+        appendSeparator();
+
+        AppendMenuW(
+            menu,
+            MF_STRING,
+            kResultContextAddShortcut,
+            zh
+                ? L"添加到快捷项..."
+                : L"Add to shortcuts...");
     }
 
     if (actions.deleteShortcut) {
@@ -2283,6 +2296,12 @@ void LauncherWindow::ShowResultContextMenu(
         execute(
             LauncherExecutionIntent::
                 Default);
+        return;
+
+    case kResultContextRunAsAdministrator:
+        execute(
+            LauncherExecutionIntent::
+                RunAsAdministrator);
         return;
 
     case kResultContextNavigate:
@@ -2337,8 +2356,8 @@ void LauncherWindow::ShowResultContextMenu(
             MessageBoxW(
                 hwnd_,
                 zh
-                    ? L"无法在资源管理器中定位此目标。目标可能已移动、删除，或不是文件系统路径。"
-                    : L"Could not show this target in File Explorer. It may have moved, been deleted, or may not be a filesystem path.",
+                    ? L"无法打开目标所在目录。目标可能已移动、删除，或不是文件系统路径。"
+                    : L"Could not open the target's containing folder. It may have moved, been deleted, or may not be a filesystem path.",
                 L"ALTRun Next",
                 MB_OK |
                     MB_ICONINFORMATION);

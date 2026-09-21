@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0-beta.12
+
+- Renamed the Launcher Provider/file promotion action to `Add to shortcuts...` / `添加到快捷项...`.
+- Renamed the Explorer file-operation label to `Open containing folder` / `打开所在目录`.
+- Reorganized Launcher context menus so execution, shortcut management, file operations and destructive actions are grouped consistently.
+- Added `Run as administrator` for eligible application, user-shortcut and executable-file results without changing persisted shortcut settings.
+- Direct folder results no longer show the redundant containing-folder action.
+- Kept the existing Add-to-shortcuts seed behavior: discovered name/target are preserved while the normal New shortcut editor starts with an empty focused keyword field.
+- Changed command merge to canonicalize Provider-vs-Provider duplicates before applying user shortcuts, preventing suppressed lower Provider entries from reviving after promotion.
+- Added a TeamSpeak-style regression where a Start Menu `.lnk` is promoted to `ts3` and the lower App Paths `.exe` remains suppressed.
+- Extended prerelease ordering coverage to `beta.11 < beta.12 < rc.1`.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.111.
+
 ## 0.7.0-beta.11
 
 - Resets result selection whenever the launcher edit control emits `EN_CHANGE`, so each changed query selects its newly best-ranked row.

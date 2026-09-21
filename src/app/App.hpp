@@ -208,7 +208,8 @@ public:
 
     bool ExecuteCommand(
         std::size_t index,
-        std::wstring_view runtimeInput = {});
+        std::wstring_view runtimeInput = {},
+        bool forceRunAsAdmin = false);
 
     bool ExecuteResult(
         const LauncherResult& result,
@@ -262,7 +263,8 @@ private:
     bool LaunchCommand(
         const Command& command,
         bool recordUsage,
-        std::wstring_view runtimeInput = {});
+        std::wstring_view runtimeInput = {},
+        bool forceRunAsAdmin = false);
     bool ApplyStartupRegistration(
         bool enabled) const;
     bool RebindGlobalHotkey(

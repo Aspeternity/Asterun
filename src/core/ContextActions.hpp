@@ -9,6 +9,7 @@ namespace altrun {
 
 struct LauncherContextActions {
     bool primary{false};
+    bool runAsAdministrator{false};
     bool navigateCurrentFileManager{false};
     bool addAsShortcut{false};
     bool editShortcut{false};

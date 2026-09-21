@@ -27,6 +27,7 @@ enum class LauncherActionKind {
 
 enum class LauncherExecutionIntent {
     Default,
+    RunAsAdministrator,
     NavigateCurrentFileManager,
     // Compatibility alias for the alpha.2 public/internal contract.
     NavigateCurrentExplorer =

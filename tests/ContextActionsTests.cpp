@@ -47,6 +47,7 @@ int main() {
                 false);
 
         assert(actions.primary);
+        assert(actions.runAsAdministrator);
         assert(actions.addAsShortcut);
         assert(!actions.editShortcut);
         assert(!actions.deleteShortcut);
@@ -96,7 +97,8 @@ int main() {
             withContext
                 .navigateCurrentFileManager);
         assert(withContext.addAsShortcut);
-        assert(withContext.locateInExplorer);
+        assert(!withContext.runAsAdministrator);
+        assert(!withContext.locateInExplorer);
 
         const Command seed =
             ShortcutSeedFromLauncherResult(
@@ -149,6 +151,7 @@ int main() {
                 false);
 
         assert(actions.addAsShortcut);
+        assert(!actions.runAsAdministrator);
         assert(!actions.locateInExplorer);
     }
 

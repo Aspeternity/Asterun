@@ -3060,16 +3060,23 @@ void App::OpenProjectPage() {
 
 bool App::ExecuteCommand(
     std::size_t index,
-    std::wstring_view runtimeInput) {
+    std::wstring_view runtimeInput,
+    bool forceRunAsAdmin) {
     return LaunchCommand(
         commandStore_.Commands().at(index),
         true,
-        runtimeInput);
+        runtimeInput,
+        forceRunAsAdmin);
 }
 
 bool App::ExecuteResult(
     const LauncherResult& result,
     LauncherExecutionIntent intent) {
+    const bool forceRunAsAdmin =
+        intent ==
+        LauncherExecutionIntent::
+            RunAsAdministrator;
+
     const ActionEvaluation evaluation =
         EvaluateLauncherAction(
             result,
@@ -3092,7 +3099,8 @@ bool App::ExecuteResult(
 
         return ExecuteCommand(
             action.commandIndex,
-            action.payload);
+            action.payload,
+            forceRunAsAdmin);
     }
 
     const std::wstring& target =
@@ -3185,7 +3193,10 @@ bool App::ExecuteResult(
         SEE_MASK_NOASYNC |
         SEE_MASK_FLAG_NO_UI;
     info.hwnd = nullptr;
-    info.lpVerb = L"open";
+    info.lpVerb =
+        forceRunAsAdmin
+            ? L"runas"
+            : L"open";
     info.lpFile = target.c_str();
     info.nShow = SW_SHOWNORMAL;
 
@@ -3236,7 +3247,8 @@ void App::ClearActivationContext() {
 bool App::LaunchCommand(
     const Command& command,
     bool recordUsage,
-    std::wstring_view runtimeInput) {
+    std::wstring_view runtimeInput,
+    bool forceRunAsAdmin) {
 
     Command resolved = command;
 
@@ -3310,7 +3322,8 @@ bool App::LaunchCommand(
     info.fMask = SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
     info.hwnd = nullptr;
     info.lpVerb =
-        resolved.runAsAdmin
+        (forceRunAsAdmin ||
+         resolved.runAsAdmin)
             ? L"runas"
             : nullptr;
     info.lpFile = target.c_str();

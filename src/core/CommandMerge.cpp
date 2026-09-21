@@ -299,10 +299,46 @@ MergeCommandViews(
                     right->source);
         });
 
+    // Resolve Provider-vs-Provider duplicates before user shortcuts are
+    // considered. This makes the Provider representative stable: adding a
+    // user shortcut for the winning Start Menu .lnk must not make a lower
+    // App Paths/PATH .exe for the same discovered application reappear.
+    std::vector<const Command*>
+        providerRepresentatives;
+
+    providerRepresentatives.reserve(
+        candidates.size());
+
     for (const Command* command :
          candidates) {
+        const bool providerDuplicate =
+            std::any_of(
+                providerRepresentatives.begin(),
+                providerRepresentatives.end(),
+                [&](const Command* existing) {
+                    return existing != nullptr &&
+                        IsDuplicateOf(
+                            *command,
+                            *existing);
+                });
 
-        const bool duplicate =
+        if (providerDuplicate) {
+            IncrementSuppressed(
+                result.stats,
+                command->source);
+            continue;
+        }
+
+        providerRepresentatives.push_back(
+            command);
+    }
+
+    // User shortcuts are authoritative only after the Provider view has been
+    // canonicalized. Exact-target user shortcuts suppress the Provider
+    // representative without reviving an already-suppressed lower Provider.
+    for (const Command* command :
+         providerRepresentatives) {
+        const bool duplicateWithUser =
             std::any_of(
                 result.commands.begin(),
                 result.commands.end(),
@@ -312,7 +348,7 @@ MergeCommandViews(
                         existing);
                 });
 
-        if (duplicate) {
+        if (duplicateWithUser) {
             IncrementSuppressed(
                 result.stats,
                 command->source);

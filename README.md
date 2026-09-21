@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-beta.12 — Provider-to-Shortcut Workflow & Stable Provider Dedup
+
+Beta 12 completes the practical Provider-to-user-shortcut workflow used for personal muscle-memory aliases such as `ts3, teamspeak3`. The existing Launcher context action is now named `Add to shortcuts...` / `添加到快捷项...`, and the surrounding menu is reorganized around execution, file operations, and shortcut management. The file operation label is `Open containing folder` / `打开所在目录`; direct folder results intentionally omit that redundant action.
+
+Eligible executable/application results also expose `Run as administrator`. This is an execution override only: it does not mutate the saved shortcut's `runAsAdmin` setting. User shortcuts retain `Edit shortcut...` and `Delete shortcut`, while Provider/file results use `Add to shortcuts...`. The existing shortcut seed already preserves the discovered name and exact target while leaving the keyword field empty and focused in the normal `New shortcut` editor.
+
+The command merge pipeline is now explicitly two-stage. Provider-vs-Provider duplicates are canonicalized first according to Provider priority, then user shortcuts are overlaid. This prevents a lower App Paths/PATH executable from reappearing after the winning Start Menu shortcut has been promoted to a user shortcut. In the TeamSpeak example, adding a `ts3` user shortcut for the Start Menu `.lnk` no longer causes the previously suppressed TeamSpeak 3 `.exe` Provider result to revive.
+
+No persisted schema, Provider ID/default, Provider cache format, search scoring weights, update/uninstall contract or Everything lifecycle changes are introduced. Update ordering now includes `beta.11 < beta.12 < rc.1`. Windows fixed FileVersion/ProductVersion is `0.7.0.111`.
+
 ## v0.7.0-beta.11 — Query-Edit Selection Reset
 
 Beta 11 completes the launcher selection-state fix started in Beta 10. Selection preservation is useful only while the query itself is unchanged (for example when asynchronous Everything results arrive). Previously every `EN_CHANGE` rebuilt results while remembering the old result id/provider, so a command that ranked first for an early prefix could remain selected after a longer query moved it to row 2, row 9, or another lower position.
@@ -115,7 +125,7 @@ Beta 1 freezes the v0.7 shortcut and launcher workflow surface after the alpha.9
 
 The frozen public identifiers include the existing Windows/Everything Provider IDs and Hotkey Registry action IDs. The portable executable contract is `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; the obsolete `ALTRunNext.Updater.exe` name remains prohibited. Managed Everything remains portable under `data/tools/Everything`; normal application exit keeps an enabled owned service warm, while explicitly disabling the Everything provider stops/disables only the owned service. External Everything ownership remains protected.
 
-Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < beta.6 < beta.7 < beta.8 < beta.9 < beta.10 < beta.11 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
+Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < beta.6 < beta.7 < beta.8 < beta.9 < beta.10 < beta.11 < beta.12 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
 
 The package now includes `V0.7_BETA_VALIDATION.md`, the manual real-Windows sign-off matrix for native alpha.9.4 -> beta.1 update, Shortcut Manager/Editor, Runtime Input, Path Conversion, asynchronous icons, Context Actions, Managed/External Everything ownership, native uninstall, DPI and performance. Windows fixed FileVersion/ProductVersion is `0.7.0.100`.
 

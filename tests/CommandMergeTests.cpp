@@ -270,6 +270,65 @@ int main() {
             merged.stats.suppressedPath == 1);
     }
 
+    {
+        // Provider dedupe must be stable even after the user promotes the
+        // winning Start Menu entry into a personal shortcut. The lower
+        // App Paths executable must not "revive" just because the Start Menu
+        // target is now suppressed by an exact-target user shortcut.
+        const std::vector<Command> users{
+            Make(
+                L"user:ts3",
+                L"TeamSpeak 3 Client",
+                L"ts3",
+                L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\TeamSpeak 3 Client.lnk",
+                CommandSource::User),
+        };
+
+        const std::vector<Command> providers{
+            Make(
+                L"start:teamspeak3",
+                L"TeamSpeak 3 Client",
+                L"teamspeak3client",
+                L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\TeamSpeak 3 Client.lnk",
+                CommandSource::StartMenu),
+            Make(
+                L"apppath:teamspeak3",
+                L"TeamSpeak 3 Client",
+                L"teamspeak3client",
+                L"D:\\TeamSpeak 3 Client\\ts3client_win64.exe",
+                CommandSource::AppPaths),
+            Make(
+                L"start:teamspeak6",
+                L"TeamSpeak",
+                L"teamspeak",
+                L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\TeamSpeak.lnk",
+                CommandSource::StartMenu),
+        };
+
+        const auto merged =
+            MergeCommands(
+                users,
+                providers);
+
+        assert(merged.commands.size() == 2);
+        assert(HasId(
+            merged.commands,
+            L"user:ts3"));
+        assert(HasId(
+            merged.commands,
+            L"start:teamspeak6"));
+        assert(!HasId(
+            merged.commands,
+            L"start:teamspeak3"));
+        assert(!HasId(
+            merged.commands,
+            L"apppath:teamspeak3"));
+        assert(
+            merged.stats.suppressedStartMenu == 1);
+        assert(
+            merged.stats.suppressedAppPaths == 1);
+    }
+
     std::cout
         << "Command merge regression tests passed\n";
 

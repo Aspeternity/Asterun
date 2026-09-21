@@ -3,6 +3,7 @@
 #include "ShortcutEditorModel.hpp"
 
 #include <cwctype>
+#include <filesystem>
 #include <string>
 
 namespace altrun {
@@ -61,6 +62,42 @@ HasNonFilesystemScheme(
     }
 
     return true;
+}
+
+[[nodiscard]] bool
+CanRunElevated(
+    const LauncherResult& result) {
+    if (result.kind ==
+            ResultKind::Folder ||
+        result.kind ==
+            ResultKind::Action) {
+        return false;
+    }
+
+    const std::wstring value =
+        TrimWide(result.target);
+
+    if (value.empty() ||
+        HasNonFilesystemScheme(value)) {
+        return false;
+    }
+
+    std::wstring extension =
+        std::filesystem::path(value)
+            .extension()
+            .wstring();
+
+    for (auto& ch : extension) {
+        ch = static_cast<wchar_t>(
+            std::towlower(ch));
+    }
+
+    return extension == L".exe" ||
+        extension == L".com" ||
+        extension == L".bat" ||
+        extension == L".cmd" ||
+        extension == L".msi" ||
+        extension == L".lnk";
 }
 
 [[nodiscard]] bool
@@ -127,6 +164,9 @@ EvaluateLauncherContextActions(
 
     actions.primary =
         PrimaryActionAvailable(result);
+    actions.runAsAdministrator =
+        actions.primary &&
+        CanRunElevated(result);
 
     const bool userShortcut =
         result.kind ==
@@ -153,6 +193,8 @@ EvaluateLauncherContextActions(
             ResultKind::Folder;
 
     actions.locateInExplorer =
+        result.kind !=
+            ResultKind::Folder &&
         CanRevealTargetInExplorer(
             result.target);
 

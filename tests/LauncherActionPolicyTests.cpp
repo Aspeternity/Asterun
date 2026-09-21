@@ -114,6 +114,31 @@ int main() {
     }
 
     {
+        LauncherResult elevated;
+        elevated.kind = ResultKind::Application;
+        elevated.target = L"C:\\Apps\\Tool.exe";
+        elevated.action.kind =
+            LauncherActionKind::ExecuteCommand;
+        elevated.action.commandIndex = 5;
+
+        const auto evaluation =
+            EvaluateLauncherAction(
+                elevated,
+                LauncherExecutionIntent::
+                    RunAsAdministrator,
+                false, false, false);
+
+        assert(evaluation.available);
+        assert(
+            evaluation.action.kind ==
+            LauncherActionKind::
+                ExecuteCommand);
+        assert(
+            evaluation.action.commandIndex ==
+            5);
+    }
+
+    {
         LauncherResult empty;
         empty.action.kind = LauncherActionKind::ExecuteCommand;
         empty.action.commandIndex = 4;
