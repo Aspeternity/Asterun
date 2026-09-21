@@ -2677,6 +2677,20 @@ LRESULT LauncherWindow::HandleMessage(
     case WM_COMMAND:
         if (LOWORD(wParam) == 1001 &&
             HIWORD(wParam) == EN_CHANGE) {
+            // A query edit starts a new ranking decision. Do not keep the
+            // command selected under the previous query merely because its
+            // result id still exists at a different row. Clearing selection
+            // before rebuilding makes the new query select its current best
+            // match (row 0). Rebuilds that happen without EN_CHANGE, such as
+            // asynchronous Everything merges, still preserve selection.
+            if (list_) {
+                SendMessageW(
+                    list_,
+                    LB_SETCURSEL,
+                    static_cast<WPARAM>(-1),
+                    0);
+            }
+
             // IME composition can emit intermediate EN_CHANGE events.
             // Search may update live, but single-result auto execution must
             // wait until composition is committed.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0-beta.11
+
+- Resets result selection whenever the launcher edit control emits `EN_CHANGE`, so each changed query selects its newly best-ranked row.
+- Fixes shortcut/result ids staying selected while their rank moves from row 1 to a lower row as the user continues typing.
+- Fixes backspace/manual query clearing following the old selected id into the empty-query default list.
+- Preserves current selection for asynchronous Everything/dynamic refreshes when the query text itself has not changed.
+- Keeps Beta 10's fresh Hide/Show selection reset and all existing search/ranking weights unchanged.
+- Extends prerelease ordering coverage to `beta.10 < beta.11 < rc.1`.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.110.
+
 ## 0.7.0-beta.10
 
 - Resets stale result selection when a fresh launcher invocation clears the previous query.
