@@ -52,6 +52,7 @@ private:
     void ApplyLanguage();
     void Layout();
     void ResizeForContent();
+    void RefreshDynamicLayout();
     void UpdateAdvancedVisibility();
     void UpdateRuntimeTestVisibility();
     void ToggleAdvanced();

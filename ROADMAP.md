@@ -163,10 +163,11 @@ In progress:
 - alpha.9.4 freezes the Managed Everything provider lifecycle after real Windows validation
 - beta.1 freezes settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and TSV v3
 - beta.1 adds the commands schema 1 -> 2 / TSV v1-v2-v3 compatibility matrix, prerelease update-order gates and packaged v0.7 Beta desktop-validation checklist
+- beta.2 fixes real-Windows Shortcut Editor dynamic-layout repaint corruption and the unlabeled Working Directory browse control without changing frozen contracts
 
 Planned next:
 
-- v0.7.0-beta.2 focused fixes from real Windows Beta 1 validation
+- Continue focused Beta 2 fixes only if real Windows validation finds blockers
 - Real Windows desktop validation for Runtime Input, Path Conversion, custom icons, filtering, DPI, updater/uninstaller and compatibility behavior
 - Final UI/visual/performance consolidation remains deferred until the functional surface is stable
 

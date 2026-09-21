@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-beta.2
+
+- Fixed the blank Working Directory browse button in the Shortcut Editor by assigning a localized `选择... / Browse...` label and a usable compact width.
+- Fixed stale paint trails after changing Runtime Input mode, including the horizontal line that could remain across the Test button.
+- Fixed severe Shortcut Editor visual corruption when Runtime Input changed while Advanced options were already expanded.
+- Unified Runtime Input and Advanced dynamic layout transitions through a final resize/layout/full erase-and-redraw pass instead of relying on a sequence of child `MoveWindow` repaints.
+- Suppressed intermediate parent redraw during programmatic content-height changes so the final layout paints atomically.
+- Added Beta validation regressions for Working Directory browse labeling and repeated Runtime Input switching in both collapsed and expanded Advanced states.
+- Kept all v0.7 Beta frozen schemas, Provider/Hotkey IDs, updater/uninstaller contracts and Managed Everything behavior unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.101.
+
 ## 0.7.0-beta.1
 
 - Entered v0.7 feature freeze: no new user-facing feature or persisted schema is added in Beta 1.

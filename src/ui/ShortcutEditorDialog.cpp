@@ -759,6 +759,10 @@ void ShortcutEditorDialog::ApplyLanguage() {
         T(L"工作目录（留空自动使用目标所在目录）",
           L"Working directory (blank = target directory)"));
     SetWindowTextW(
+        browseWorkdir_,
+        T(L"选择...",
+          L"Browse..."));
+    SetWindowTextW(
         iconLabel_,
         T(L"图标（留空 = 自动跟随目标）",
           L"Icon (blank = follow target)"));
@@ -1042,7 +1046,7 @@ void ShortcutEditorDialog::Layout() {
         y += Scale(22);
 
         const int workdirButtonWidth =
-            Scale(42);
+            Scale(66);
         MoveWindow(
             workdir_,
             margin,
@@ -1178,7 +1182,28 @@ void ShortcutEditorDialog::ResizeForContent() {
                 : 0)),
         SWP_NOMOVE |
             SWP_NOZORDER |
-            SWP_NOACTIVATE);
+            SWP_NOACTIVATE |
+            SWP_NOREDRAW);
+}
+
+void ShortcutEditorDialog::RefreshDynamicLayout() {
+    if (!hwnd_) {
+        return;
+    }
+
+    ResizeForContent();
+    Layout();
+
+    // Runtime-input and Advanced toggles can move most child controls at
+    // once. Erase the parent and invalidate all children after the complete
+    // move so the previous control rectangles cannot remain as paint trails.
+    RedrawWindow(
+        hwnd_,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_ALLCHILDREN);
 }
 
 void ShortcutEditorDialog::UpdateAdvancedVisibility() {
@@ -1224,8 +1249,7 @@ void ShortcutEditorDialog::UpdateRuntimeTestVisibility() {
         testInput_,
         visible ? SW_SHOW : SW_HIDE);
 
-    ResizeForContent();
-    Layout();
+    RefreshDynamicLayout();
 }
 
 void ShortcutEditorDialog::ToggleAdvanced() {
@@ -1233,8 +1257,7 @@ void ShortcutEditorDialog::ToggleAdvanced() {
         !advancedExpanded_;
 
     UpdateAdvancedVisibility();
-    ResizeForContent();
-    Layout();
+    RefreshDynamicLayout();
 }
 
 RuntimeInputMode

@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-beta.2 — Shortcut Editor Dynamic Layout Fixes
+
+Beta 2 is the first focused fix from real Windows Beta 1 validation. It does not add a feature or change any persisted schema. The Shortcut Editor working-directory browse button now has an explicit localized label and the same usable width as the other compact browse controls.
+
+Runtime Input and Advanced are both dynamic Shortcut Editor sections. Switching Runtime Input between No extra input / Pass through / URL encode moves the Test input row and every control below it; when Advanced was already expanded this could leave stale child-control borders/backgrounds, producing a line through the Test button or severe overlapping/fragmented paint trails. Beta 2 makes these transitions one explicit dynamic-relayout path: resize without intermediate parent redraw, lay out the final child rectangles, then invalidate/erase the parent and all children once. Advanced expand/collapse uses the same path.
+
+The v0.7 Beta freeze remains intact: settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3 are unchanged. Provider IDs, Hotkey action IDs, Update/Uninstall contracts and Managed Everything lifecycle are unchanged. Windows fixed FileVersion/ProductVersion is `0.7.0.101`.
+
 ## v0.7.0-beta.1 — Feature Freeze & Workflow Hardening
 
 Beta 1 freezes the v0.7 shortcut and launcher workflow surface after the alpha.9.4 Managed Everything lifecycle passed real Windows validation. No new user-facing feature or persisted data model is introduced. The compatibility baseline is now settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3.
