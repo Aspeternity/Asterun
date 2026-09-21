@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-beta.3
+
+- Hardened Native Uninstall full-remove cleanup against transient Windows sharing/lock/access-denied/directory-not-empty/busy failures with bounded retry.
+- Preserved exact ownership boundaries: only the current ALTRun Next installation and ALTRun-owned Managed Everything service/process paths are eligible for cleanup.
+- Fixed uninstall error reporting so filesystem deletion failures propagate their actual native error instead of reusing a stale `GetLastError()` value.
+- Added the failed removal path to the error dialog when cleanup still cannot complete after retries.
+- Kept preserve-data behavior unchanged: user state remains while Managed Everything, update runtime state and application files are removed.
+- Extended the v0.7 Beta validation checklist with the full-remove retry/diagnostic regression discovered on real Windows.
+- Extended prerelease ordering coverage to `beta.2 < beta.3 < rc.1`.
+- Kept all v0.7 frozen schemas, Provider/Hotkey IDs and Managed Everything lifecycle semantics unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.102.
+
 ## 0.7.0-beta.2
 
 - Fixed the blank Working Directory browse button in the Shortcut Editor by assigning a localized `选择... / Browse...` label and a usable compact width.

@@ -1,8 +1,8 @@
 #include <winver.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,7,0,101
- PRODUCTVERSION 0,7,0,101
+ FILEVERSION 0,7,0,102
+ PRODUCTVERSION 0,7,0,102
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -19,11 +19,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Aspeternity\0"
             VALUE "FileDescription", "ALTRun Next - classic lightweight launcher\0"
-            VALUE "FileVersion", "0.7.0-beta.2\0"
+            VALUE "FileVersion", "0.7.0-beta.3\0"
             VALUE "InternalName", "ALTRunNext\0"
             VALUE "OriginalFilename", "ALTRunNext.exe\0"
             VALUE "ProductName", "ALTRun Next\0"
-            VALUE "ProductVersion", "0.7.0-beta.2\0"
+            VALUE "ProductVersion", "0.7.0-beta.3\0"
         END
     END
     BLOCK "VarFileInfo"

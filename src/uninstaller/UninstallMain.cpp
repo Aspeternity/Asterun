@@ -45,6 +45,13 @@ struct PerformArguments {
     bool deleteData{false};
 };
 
+struct RemovalFailure {
+    DWORD error{ERROR_SUCCESS};
+    std::filesystem::path path;
+};
+
+std::filesystem::path gRemovalFailurePath;
+
 [[nodiscard]] bool
 ChineseUi() {
     return PRIMARYLANGID(
@@ -960,46 +967,125 @@ void CleanupDetachedAlpha91Files() {
         ec);
 }
 
+[[nodiscard]] DWORD
+NativeFilesystemError(
+    const std::error_code& error) {
+    if (!error) {
+        return ERROR_SUCCESS;
+    }
+
+    const int value =
+        error.value();
+
+    return value > 0
+        ? static_cast<DWORD>(value)
+        : ERROR_GEN_FAILURE;
+}
+
+[[nodiscard]] bool
+IsTransientRemovalError(
+    DWORD error) {
+    return error ==
+            ERROR_SHARING_VIOLATION ||
+        error ==
+            ERROR_LOCK_VIOLATION ||
+        error ==
+            ERROR_ACCESS_DENIED ||
+        error ==
+            ERROR_DIR_NOT_EMPTY ||
+        error ==
+            ERROR_BUSY;
+}
+
+[[nodiscard]] bool
+RemoveAllWithRetry(
+    const std::filesystem::path& path,
+    RemovalFailure& failure) {
+    constexpr int attempts = 25;
+    constexpr auto delay =
+        std::chrono::milliseconds(200);
+
+    for (int attempt = 0;
+         attempt < attempts;
+         ++attempt) {
+        std::error_code ec;
+
+        std::filesystem::remove_all(
+            path,
+            ec);
+
+        if (!ec) {
+            return true;
+        }
+
+        const DWORD error =
+            NativeFilesystemError(ec);
+
+        if (!IsTransientRemovalError(
+                error) ||
+            attempt + 1 >= attempts) {
+            failure.error =
+                error != ERROR_SUCCESS
+                    ? error
+                    : ERROR_GEN_FAILURE;
+            failure.path = path;
+            return false;
+        }
+
+        std::this_thread::sleep_for(
+            delay);
+    }
+
+    failure.error =
+        ERROR_GEN_FAILURE;
+    failure.path = path;
+    return false;
+}
+
 [[nodiscard]] bool
 RemoveInstallation(
     const std::filesystem::path& install,
-    bool deleteData) {
-    std::error_code ec;
+    bool deleteData,
+    RemovalFailure& failure) {
     const auto data =
         install /
         L"data";
 
-    std::filesystem::remove_all(
-        data /
-            L"tools" /
-            L"Everything",
-        ec);
-    if (ec) {
+    // A stopped service can race with final image/database handle release.
+    // Antivirus/indexing can also briefly hold a freshly stopped Everything
+    // file. Retry only normal transient Windows delete failures.
+    if (!RemoveAllWithRetry(
+            data /
+                L"tools" /
+                L"Everything",
+            failure)) {
         return false;
     }
 
-    ec.clear();
-    std::filesystem::remove_all(
-        data /
-            L"update",
-        ec);
-    if (ec) {
+    if (!RemoveAllWithRetry(
+            data /
+                L"update",
+            failure)) {
         return false;
     }
 
-    ec.clear();
-    std::filesystem::remove(
-        data /
-            L"tools",
-        ec);
-    ec.clear();
+    {
+        std::error_code ignored;
+        std::filesystem::remove(
+            data /
+                L"tools",
+            ignored);
+    }
 
     if (deleteData) {
-        std::filesystem::remove_all(
+        return RemoveAllWithRetry(
             install,
-            ec);
-        return !ec;
+            failure);
     }
+
+    std::error_code ec;
+    std::vector<std::filesystem::path>
+        entries;
 
     for (std::filesystem::
              directory_iterator
@@ -1014,17 +1100,26 @@ RemoveInstallation(
             continue;
         }
 
-        std::error_code removeError;
-        std::filesystem::remove_all(
-            it->path(),
-            removeError);
+        entries.push_back(
+            it->path());
+    }
 
-        if (removeError) {
+    if (ec) {
+        failure.error =
+            NativeFilesystemError(ec);
+        failure.path = install;
+        return false;
+    }
+
+    for (const auto& entry : entries) {
+        if (!RemoveAllWithRetry(
+                entry,
+                failure)) {
             return false;
         }
     }
 
-    return !ec;
+    return true;
 }
 
 void CleanupSelfLater() {
@@ -1078,9 +1173,20 @@ PerformUninstall(
         CleanupDetachedAlpha91Files();
     }
 
+    RemovalFailure removalFailure;
+
     if (!RemoveInstallation(
             args.install,
-            args.deleteData)) {
+            args.deleteData,
+            removalFailure)) {
+        gRemovalFailurePath =
+            removalFailure.path;
+
+        SetLastError(
+            removalFailure.error !=
+                    ERROR_SUCCESS
+                ? removalFailure.error
+                : ERROR_GEN_FAILURE);
         return 6;
     }
 
@@ -1293,6 +1399,17 @@ int WINAPI wWinMain(
                         ? error
                         : static_cast<DWORD>(
                               result));
+
+            if (!gRemovalFailurePath
+                     .empty()) {
+                message +=
+                    ChineseUi()
+                        ? L"\n\n失败路径："
+                        : L"\n\nFailed path: ";
+                message +=
+                    gRemovalFailurePath
+                        .wstring();
+            }
 
             MessageBoxW(
                 nullptr,

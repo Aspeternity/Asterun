@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-beta.3 — Native Uninstall Full-Remove Hardening
+
+Beta 3 is a focused fix from real Windows Native Uninstall validation. The preserve-data path passed, but the full-remove path could fail immediately after stopping Managed Everything when Windows, antivirus or another short-lived shell/indexing handle still held a file. The elevated TEMP uninstaller now retries only transient delete failures (sharing violation, lock violation, access denied, directory-not-empty and busy) for a bounded period before declaring the uninstall failed.
+
+The failure path is now diagnostic instead of misleading: filesystem deletion errors are propagated explicitly rather than displaying a stale Win32 `GetLastError()` value, and an unrecoverable failure dialog includes the path/phase that could not be removed. Preserve-data semantics, exact-install process ownership, Managed Everything service ownership and External Everything protection are unchanged.
+
+The v0.7 Beta freeze remains intact: no schema, Provider ID, Hotkey action, updater contract or Everything lifecycle changes are introduced. Update ordering now includes `beta.2 < beta.3 < rc.1`. Windows fixed FileVersion/ProductVersion is `0.7.0.102`.
+
 ## v0.7.0-beta.2 — Shortcut Editor Dynamic Layout Fixes
 
 Beta 2 is the first focused fix from real Windows Beta 1 validation. It does not add a feature or change any persisted schema. The Shortcut Editor working-directory browse button now has an explicit localized label and the same usable width as the other compact browse controls.
@@ -37,7 +45,7 @@ Beta 1 freezes the v0.7 shortcut and launcher workflow surface after the alpha.9
 
 The frozen public identifiers include the existing Windows/Everything Provider IDs and Hotkey Registry action IDs. The portable executable contract is `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; the obsolete `ALTRunNext.Updater.exe` name remains prohibited. Managed Everything remains portable under `data/tools/Everything`; normal application exit keeps an enabled owned service warm, while explicitly disabling the Everything provider stops/disables only the owned service. External Everything ownership remains protected.
 
-Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
+Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
 
 The package now includes `V0.7_BETA_VALIDATION.md`, the manual real-Windows sign-off matrix for native alpha.9.4 -> beta.1 update, Shortcut Manager/Editor, Runtime Input, Path Conversion, asynchronous icons, Context Actions, Managed/External Everything ownership, native uninstall, DPI and performance. Windows fixed FileVersion/ProductVersion is `0.7.0.100`.
 
