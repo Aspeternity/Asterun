@@ -1105,9 +1105,9 @@ ExplorerParkingDirectory(
     // Prefer one level farther out so the installation root is not a visible
     // child of the active Shell view.
     if (!grandparent.empty() &&
-        NormalizePath(
+        LowerPath(
             grandparent) !=
-            NormalizePath(parent) &&
+            LowerPath(parent) &&
         !PathStartsWithDirectory(
             grandparent,
             install)) {
