@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-beta.6
+
+- Reworked full-remove Native Uninstall into a normal-integrity Explorer broker plus elevated TEMP worker handshake.
+- UAC now appears before Explorer is moved away from the portable installation directory.
+- The elevated worker requests Explorer release only immediately before final installation-tree deletion.
+- The normal-integrity broker acknowledges the release request, exits, and the elevated worker waits for that exact parent PID before deleting the original `Uninstall.exe` and root directory.
+- Cancelling UAC leaves the user's Explorer location unchanged.
+- Preserved Beta 5's synchronous entry-by-entry deletion, precise failing-path diagnostics and Restart Manager lock-owner reporting; no whole-tree reboot deletion fallback was reintroduced.
+- Preserve-data uninstall retains the simpler parent-exit behavior.
+- Extended Beta desktop validation and prerelease ordering coverage for `beta.5 < beta.6 < rc.1`.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.105.
+
 ## 0.7.0-beta.5
 
 - Replaced full-root `std::filesystem::remove_all()` cleanup with entry-by-entry file/directory removal so failures identify the exact locked object.

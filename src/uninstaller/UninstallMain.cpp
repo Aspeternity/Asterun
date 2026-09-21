@@ -43,10 +43,26 @@ struct ServiceHandle {
     }
 };
 
+struct EventHandle {
+    HANDLE value{nullptr};
+
+    ~EventHandle() {
+        if (value) {
+            CloseHandle(value);
+        }
+    }
+
+    EventHandle() = default;
+    EventHandle(const EventHandle&) = delete;
+    EventHandle& operator=(const EventHandle&) = delete;
+};
+
 struct PerformArguments {
     DWORD parentPid{0};
     std::filesystem::path install;
     bool deleteData{false};
+    std::wstring shellReleaseRequest;
+    std::wstring shellReleaseDone;
 };
 
 struct RemovalFailure {
@@ -422,6 +438,14 @@ ParsePerformArguments(
             }
 
             deleteDataSeen = true;
+        } else if (
+            key == L"--shell-release-request") {
+            result.shellReleaseRequest =
+                std::wstring(value);
+        } else if (
+            key == L"--shell-release-done") {
+            result.shellReleaseDone =
+                std::wstring(value);
         } else {
             LocalFree(argv);
             return false;
@@ -430,10 +454,20 @@ ParsePerformArguments(
 
     LocalFree(argv);
 
+    const bool hasReleaseRequest =
+        !result.shellReleaseRequest.empty();
+    const bool hasReleaseDone =
+        !result.shellReleaseDone.empty();
+
     return perform &&
         result.parentPid != 0 &&
         !result.install.empty() &&
-        deleteDataSeen;
+        deleteDataSeen &&
+        hasReleaseRequest ==
+            hasReleaseDone &&
+        (!result.deleteData ||
+         (hasReleaseRequest &&
+          hasReleaseDone));
 }
 
 void RemoveStartupRegistration(
@@ -1155,6 +1189,122 @@ NavigateExplorerAwayFromInstall(
     return navigated;
 }
 
+[[nodiscard]] bool
+RequestShellRelease(
+    const PerformArguments& args) {
+    if (!args.deleteData) {
+        return true;
+    }
+
+    EventHandle request;
+    request.value =
+        OpenEventW(
+            EVENT_MODIFY_STATE,
+            FALSE,
+            args.shellReleaseRequest.c_str());
+
+    EventHandle done;
+    done.value =
+        OpenEventW(
+            SYNCHRONIZE,
+            FALSE,
+            args.shellReleaseDone.c_str());
+
+    if (!request.value ||
+        !done.value) {
+        SetLastError(
+            GetLastError() !=
+                    ERROR_SUCCESS
+                ? GetLastError()
+                : ERROR_INVALID_HANDLE);
+        return false;
+    }
+
+    if (!SetEvent(
+            request.value)) {
+        return false;
+    }
+
+    const DWORD released =
+        WaitForSingleObject(
+            done.value,
+            15000);
+
+    if (released !=
+        WAIT_OBJECT_0) {
+        SetLastError(
+            released ==
+                    WAIT_TIMEOUT
+                ? ERROR_TIMEOUT
+                : ERROR_GEN_FAILURE);
+        return false;
+    }
+
+    if (!WaitForProcess(
+            args.parentPid,
+            15000)) {
+        SetLastError(
+            ERROR_TIMEOUT);
+        return false;
+    }
+
+    return true;
+}
+
+[[nodiscard]] bool
+ServeShellReleaseBroker(
+    HANDLE requestEvent,
+    HANDLE workerProcess,
+    const std::filesystem::path& install,
+    HANDLE doneEvent) {
+    const HANDLE handles[] = {
+        requestEvent,
+        workerProcess,
+    };
+
+    const DWORD wait =
+        WaitForMultipleObjects(
+            2,
+            handles,
+            FALSE,
+            60000);
+
+    if (wait ==
+        WAIT_OBJECT_0) {
+        (void)NavigateExplorerAwayFromInstall(
+            install);
+
+        if (!SetEvent(
+                doneEvent)) {
+            return false;
+        }
+
+        // Returning from BeginUninstall now terminates the original
+        // installation-directory Uninstall.exe. The elevated TEMP worker waits
+        // for this exact PID before deleting the installation tree.
+        return true;
+    }
+
+    if (wait ==
+        WAIT_OBJECT_0 + 1) {
+        // Worker already exited before it needed the shell broker.
+        return true;
+    }
+
+    if (wait ==
+        WAIT_TIMEOUT) {
+        // Avoid trapping the original Uninstall.exe forever. Release Explorer
+        // once, unblock any delayed worker request, then let the parent exit.
+        (void)NavigateExplorerAwayFromInstall(
+            install);
+        (void)SetEvent(
+            doneEvent);
+        return true;
+    }
+
+    return false;
+}
+
 [[nodiscard]] std::wstring
 RestartManagerLockOwners(
     const std::filesystem::path& path) {
@@ -1589,9 +1739,13 @@ void CleanupSelfLater() {
 [[nodiscard]] int
 PerformUninstall(
     const PerformArguments& args) {
-    if (!WaitForProcess(
-            args.parentPid,
-            30000) ||
+    // Preserve-data mode can use the original simple parent-exit handshake.
+    // Full-remove mode keeps the normal-integrity parent alive as an Explorer
+    // broker until the elevated worker reaches the actual deletion phase.
+    if ((!args.deleteData &&
+         !WaitForProcess(
+             args.parentPid,
+             30000)) ||
         !ValidateInstallRoot(
             args.install)) {
         return 2;
@@ -1627,13 +1781,10 @@ PerformUninstall(
 
     RemovalFailure removalFailure;
 
-    // A user commonly launches Uninstall.exe from an Explorer window that is
-    // currently displaying this portable directory. Release that directory
-    // view before the final root-directory removal. The non-elevated launcher
-    // also performs this before UAC; this second pass is best-effort.
-    if (args.deleteData) {
-        (void)NavigateExplorerAwayFromInstall(
-            args.install);
+    if (args.deleteData &&
+        !RequestShellRelease(
+            args)) {
+        return 7;
     }
 
     if (!RemoveInstallation(
@@ -1733,13 +1884,6 @@ BeginUninstall() {
     const bool deleteData =
         dataChoice == IDYES;
 
-    if (deleteData) {
-        // Do this from the normal-integrity launcher before UAC so Explorer
-        // automation is not blocked by an integrity-level boundary.
-        (void)NavigateExplorerAwayFromInstall(
-            install);
-    }
-
     std::array<wchar_t, 32768>
         tempPath{};
     const DWORD tempLength =
@@ -1765,6 +1909,45 @@ BeginUninstall() {
              GetTickCount64()) +
          L".exe");
 
+    EventHandle shellReleaseRequest;
+    EventHandle shellReleaseDone;
+    std::wstring shellReleaseRequestName;
+    std::wstring shellReleaseDoneName;
+
+    if (deleteData) {
+        const auto brokerToken =
+            std::to_wstring(
+                GetCurrentProcessId()) +
+            L"." +
+            std::to_wstring(
+                GetTickCount64());
+
+        shellReleaseRequestName =
+            L"Local\\ALTRunNext.Uninstall.ReleaseRequest." +
+            brokerToken;
+        shellReleaseDoneName =
+            L"Local\\ALTRunNext.Uninstall.ReleaseDone." +
+            brokerToken;
+
+        shellReleaseRequest.value =
+            CreateEventW(
+                nullptr,
+                TRUE,
+                FALSE,
+                shellReleaseRequestName.c_str());
+        shellReleaseDone.value =
+            CreateEventW(
+                nullptr,
+                TRUE,
+                FALSE,
+                shellReleaseDoneName.c_str());
+
+        if (!shellReleaseRequest.value ||
+            !shellReleaseDone.value) {
+            return 15;
+        }
+    }
+
     std::error_code ec;
     std::filesystem::copy_file(
         current,
@@ -1789,6 +1972,16 @@ BeginUninstall() {
         (deleteData
              ? L"1"
              : L"0");
+
+    if (deleteData) {
+        arguments +=
+            L" --shell-release-request " +
+            QuoteArgument(
+                shellReleaseRequestName) +
+            L" --shell-release-done " +
+            QuoteArgument(
+                shellReleaseDoneName);
+    }
 
     SHELLEXECUTEINFOW info{};
     info.cbSize = sizeof(info);
@@ -1831,13 +2024,42 @@ BeginUninstall() {
             : 14;
     }
 
+    RemoveStartupRegistration(
+        install);
+
+    if (deleteData &&
+        info.hProcess) {
+        const bool brokerOk =
+            ServeShellReleaseBroker(
+                shellReleaseRequest.value,
+                info.hProcess,
+                install,
+                shellReleaseDone.value);
+
+        CloseHandle(
+            info.hProcess);
+
+        if (!brokerOk) {
+            MessageBoxW(
+                nullptr,
+                ChineseUi()
+                    ? L"无法完成卸载前的资源管理器释放。"
+                    : L"Could not complete the Explorer release handshake before uninstall.",
+                L"ALTRun Next",
+                MB_OK |
+                    MB_ICONERROR |
+                    MB_SETFOREGROUND |
+                    MB_TOPMOST);
+            return 16;
+        }
+
+        return 0;
+    }
+
     if (info.hProcess) {
         CloseHandle(
             info.hProcess);
     }
-
-    RemoveStartupRegistration(
-        install);
 
     return 0;
 }
