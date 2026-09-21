@@ -179,6 +179,7 @@ In progress:
 - v0.8.0-alpha.2 redesigns Settings with compact cards/rows, unified toggles/buttons, the final navigation order, concise Provider status and persisted Launcher/Settings placement modes
 - Alpha 2 advances settings schemaVersion to 8 only for window-placement preferences/state; existing v0.7 functional contracts remain frozen
 - v0.8.0-alpha.2.1 stabilizes real-Windows Settings rendering, replaces transparent STATIC repaint behavior, compacts the information hierarchy and adopts the two-line ALTRun / Next sidebar brand without changing persisted behavior
+- v0.8.0-alpha.2.2 locks Settings to a fixed compact window, moves General to a single-column 560px card system, restores placement combo choices, sharpens toggle rendering and removes the development-only Diagnostics page/runtime probe stack from the product binary
 - Shortcut Manager / Editor visual consolidation follows in v0.8.0-alpha.3
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

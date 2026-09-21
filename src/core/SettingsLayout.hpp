@@ -22,6 +22,8 @@ inline constexpr int
     kSectionTitleTopLogical = 108;
 inline constexpr int
     kFirstCardTopLogical = 140;
+inline constexpr int
+    kGeneralCardMaxWidthLogical = 560;
 
 struct Rect {
     int left{};
@@ -39,7 +41,6 @@ struct GeneralLayoutMetrics {
     int placementTitleTop{};
     int noteTop{};
     int contentBottom{};
-    bool stackedCards{false};
 };
 
 [[nodiscard]] int Scale(

@@ -9,7 +9,6 @@
 #include "../core/Settings.hpp"
 #include "../core/UsageStore.hpp"
 #include "../platform/EverythingBootstrapper.hpp"
-#include "../platform/ProcessMemory.hpp"
 #include "../platform/UpdateManager.hpp"
 #include "../platform/WindowsContext.hpp"
 
@@ -33,17 +32,7 @@ class LauncherWindow;
 class SettingsWindow;
 class ShortcutManagerWindow;
 
-struct RuntimeDiagnosticsSnapshot {
-    win::ProcessMemorySnapshot processMemory;
-    std::size_t userCommandCount{0};
-    std::size_t providerCommandCount{0};
-    std::size_t mergedCommandCount{0};
-    bool pinyinLoaded{false};
-    bool pinyinAvailable{false};
-    std::size_t pinyinCacheEntryCount{0};
-    bool providerRefreshRunning{false};
-    bool providerMonitorRunning{false};
-};
+
 
 class App {
 public:
@@ -87,9 +76,6 @@ public:
 
     bool StartEverythingBootstrap(
         bool allowDownload);
-
-    [[nodiscard]] RuntimeDiagnosticsSnapshot
-    RuntimeDiagnostics() const noexcept;
 
     [[nodiscard]] std::wstring
     DataCompatibilityWarning() const;

@@ -34,7 +34,6 @@ private:
     enum class Page {
         General,
         Hotkeys,
-        Diagnostics,
         Appearance,
         Providers,
         Data,
@@ -57,8 +56,6 @@ private:
         kIdNavProviders = 51005;
     static constexpr UINT
         kIdNavHotkeys = 51006;
-    static constexpr UINT
-        kIdNavDiagnostics = 51007;
 
     static constexpr UINT
         kIdStartWithWindows = 51100;
@@ -151,8 +148,6 @@ private:
 
     static constexpr UINT_PTR
         kProviderStatusTimerId = 0x51690;
-    static constexpr UINT_PTR
-        kDiagnosticsStatusTimerId = 0x51790;
 
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
@@ -168,7 +163,6 @@ private:
     void CreateControls();
     void CreateGeneralPage();
     void CreateHotkeyPage();
-    void CreateDiagnosticsPage();
     void CreateAppearancePage();
     void CreateProviderPage();
     void CreateDataPage();
@@ -181,7 +175,6 @@ private:
     void UpdatePageHeader();
 
     void RefreshProviderStatus();
-    void RefreshActionDiagnostics();
     void AcquireEverything();
     void RecheckEverything();
     void RefreshDataCompatibilityStatus();
@@ -283,7 +276,6 @@ private:
 
     HWND navGeneral_{};
     HWND navHotkeys_{};
-    HWND navDiagnostics_{};
     HWND navAppearance_{};
     HWND navProviders_{};
     HWND navData_{};
@@ -319,18 +311,6 @@ private:
     HWND hotkeyResetAll_{};
     HWND hotkeyPageStatus_{};
     HWND hotkeyPageNote_{};
-
-    HWND diagnosticsMemoryTitle_{};
-    HWND diagnosticsMemoryStatus_{};
-    HWND diagnosticsSearchTitle_{};
-    HWND diagnosticsSearchStatus_{};
-    HWND actionsWindowsTitle_{};
-    HWND actionsWindowsStatus_{};
-    HWND actionsClipboardTitle_{};
-    HWND actionsClipboardStatus_{};
-    HWND actionsWebTitle_{};
-    HWND actionsWebStatus_{};
-    HWND actionsNote_{};
 
     HWND placementSectionTitle_{};
     HWND popupMonitorLabel_{};
@@ -411,8 +391,6 @@ private:
         generalControls_;
     std::vector<HWND>
         hotkeyControls_;
-    std::vector<HWND>
-        diagnosticsControls_;
     std::vector<HWND>
         appearanceControls_;
     std::vector<HWND>

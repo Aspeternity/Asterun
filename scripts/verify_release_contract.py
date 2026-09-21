@@ -37,6 +37,242 @@ base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
 
+
+if version == "0.8.0-alpha.2.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.2 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.2 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 8:
+        fail("v0.8 alpha.2.2 settings example must remain schemaVersion 8")
+    if settings.get("update") != {"autoCheck": True, "channel": "development"}:
+        fail("v0.8 alpha.2.2 prerelease must default to Development updates")
+
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("providers") != expected_providers:
+        fail("v0.8 alpha.2.2 changed frozen provider defaults")
+
+    expected_hotkeys = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_hotkeys:
+        fail("v0.8 alpha.2.2 changed frozen Hotkey Registry action IDs")
+
+    expected_placement = {
+        "launcherMode": "top",
+        "settingsMode": "center",
+        "launcherLastValid": False,
+        "launcherLastX": 0,
+        "launcherLastY": 0,
+        "settingsLastValid": False,
+        "settingsLastX": 0,
+        "settingsLastY": 0,
+    }
+    if settings.get("windowPlacement") != expected_placement:
+        fail("v0.8 alpha.2.2 changed window-placement defaults")
+
+    metrics = read("src/ui/UiMetrics.hpp")
+    for token in (
+        "kClassicLauncherMetrics",
+        "420",
+        "16",
+        "10",
+        "kModernCompactLauncherMetrics",
+        "620",
+        "32",
+        "9",
+        "kSettingsSidebarWidthLogical = 176",
+        "kSettingsToggleRowLogical = 50",
+        "kSettingsComboRowLogical = 54",
+        "kSettingsCardRadiusLogical = 8",
+        "kSettingsNavHeightLogical = 40",
+        "kSettingsNavGapLogical = 4",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.2.2 Settings metric contract missing: {token}")
+
+    layout_h = read("src/core/SettingsLayout.hpp")
+    layout_cpp = read("src/core/SettingsLayout.cpp")
+    for token in (
+        "kPageTitleTopLogical = 22",
+        "kPageDividerTopLogical = 84",
+        "kSectionTitleTopLogical = 108",
+        "kFirstCardTopLogical = 140",
+        "kGeneralCardMaxWidthLogical = 560",
+    ):
+        if token not in layout_h:
+            fail(f"v0.8 alpha.2.2 single-column metric missing: {token}")
+
+    if "stackedCards" in layout_h or "stackedCards" in layout_cpp:
+        fail("v0.8 alpha.2.2 General must not retain responsive two-column/stacked switching")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "WS_CAPTION",
+        "WS_SYSMENU",
+        "WS_MINIMIZEBOX",
+        "Scale(820)",
+        "Scale(720)",
+        "SS_CENTER | SS_NOPREFIX",
+        'T(L"当前鼠标所在显示器"',
+        'T(L"当前活动窗口所在显示器"',
+        'T(L"主显示器"',
+        'T(L"靠近屏幕上方"',
+        'T(L"屏幕居中"',
+        'T(L"上次位置"',
+        "HALFTONE",
+        "StretchBlt",
+        "redrawClickedToggle",
+        "WM_SETREDRAW",
+        "OPAQUE",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.2.2 Settings interaction contract missing: {token}")
+
+    for token in (
+        "WS_OVERLAPPEDWINDOW",
+        "WS_THICKFRAME",
+        "WS_MAXIMIZEBOX",
+        "WM_GETMINMAXINFO",
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+        "navDiagnostics_",
+        "CreateDiagnosticsPage",
+        "RefreshActionDiagnostics",
+        "kDiagnosticsStatusTimerId",
+        "diagnosticsControls_",
+        "diagnosticsMemory",
+        "diagnosticsSearch",
+        "actionsWindows",
+        "actionsClipboard",
+        "actionsWeb",
+    ):
+        if token in settings_cpp or token in settings_h:
+            fail(f"v0.8 alpha.2.2 obsolete Settings/Diagnostics wiring remains: {token}")
+
+    app = read("src/app/App.cpp") + read("src/app/App.hpp")
+    for token in (
+        "RuntimeDiagnosticsSnapshot",
+        "RuntimeDiagnostics()",
+        "ProcessMemory",
+        "QueryCurrentProcessMemory",
+    ):
+        if token in app:
+            fail(f"v0.8 alpha.2.2 runtime diagnostics API remains: {token}")
+
+    cmake = read("CMakeLists.txt")
+    for token in (
+        "src/platform/ProcessMemory.cpp",
+        "process_memory_tests",
+        "tests/ProcessMemoryTests.cpp",
+        "psapi",
+    ):
+        if token in cmake:
+            fail(f"v0.8 alpha.2.2 diagnostics build dependency remains: {token}")
+
+    build_workflow = read(".github/workflows/build.yml")
+    if "process_memory_tests" in build_workflow:
+        fail("v0.8 alpha.2.2 build workflow still references deleted process-memory tests")
+
+    for path in (
+        "src/platform/ProcessMemory.cpp",
+        "src/platform/ProcessMemory.hpp",
+        "tests/ProcessMemoryTests.cpp",
+    ):
+        if (ROOT / path).exists():
+            fail(f"v0.8 alpha.2.2 deleted diagnostics file still exists: {path}")
+
+    ui_test = read("tests/UiFoundationTests.cpp")
+    for token in (
+        "kSettingsSidebarWidthLogical == 176",
+        "kSettingsToggleRowLogical == 50",
+        "kSettingsComboRowLogical == 54",
+    ):
+        if token not in ui_test:
+            fail(f"v0.8 alpha.2.2 UI regression coverage missing: {token}")
+
+    desktop_test = read("tests/DesktopValidationTests.cpp")
+    for token in (
+        "kGeneralCardMaxWidthLogical == 560",
+        "scale(820)",
+        "scale(720)",
+        "layout.behavior.left ==",
+        "layout.search.top >",
+    ):
+        if token not in desktop_test:
+            fail(f"v0.8 alpha.2.2 single-column desktop coverage missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.1"',
+        '"0.8.0-alpha.2.2"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Development",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.2 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.2 — Settings Interaction & Layout Polish",
+        "0.8.0.22",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.2 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.2",
+        "0.8.0.22",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.2 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.2",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.2 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.2 Settings interaction/layout contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| fixed 820x720 Settings client",
+        "| 176px sidebar + centered ALTRun / Next brand",
+        "| always-single-column General with 560px max cards",
+        "| placement combo choices restored",
+        "| supersampled toggle rendering + immediate repaint",
+        "| embedded Diagnostics and ProcessMemory probe stack removed",
+        "| frozen v0.7 behavior preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

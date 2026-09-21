@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.2.2
+
+- Made Settings a fixed-size native window with minimize/close only; removed free resize, maximize and resize-track handling.
+- Reduced the Settings sidebar from 208 to 176 logical pixels and centered the two-line `ALTRun` / `Next` brand over the navigation width.
+- Changed General to an always-single-column layout with a 560-logical-pixel maximum card width.
+- Restored all Launcher monitor / Launcher placement / Settings placement combo-box choices accidentally dropped during alpha.2.1 information cleanup.
+- Re-rendered right-side toggle switches through a 3× supersampled GDI surface with HALFTONE downsampling, replaced the dotted focus rectangle with a compact accent focus bar, and explicitly repainted clicked toggles.
+- Removed the development-only Diagnostics page from Settings completely, including navigation, controls, layout, painting, timers and message routing.
+- Removed `RuntimeDiagnosticsSnapshot`, `App::RuntimeDiagnostics`, the ProcessMemory platform layer, its Windows test target and the production `psapi` dependency.
+- Kept settings schemaVersion 8, Provider IDs/defaults, Hotkey Registry IDs, launcher/search behavior, Everything lifecycle, update/uninstall contracts and Shortcut TSV v3 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.22`.
 ## 0.8.0-alpha.2.1
 
 - Fixed real-Windows Settings page-switch corruption caused by transparent native STATIC backgrounds over a `WS_CLIPCHILDREN` parent.

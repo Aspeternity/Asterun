@@ -15,6 +15,7 @@ int Scale(
 }
 
 
+
 GeneralLayoutMetrics BuildGeneralLayout(
     int clientWidth,
     unsigned dpi,
@@ -41,52 +42,31 @@ GeneralLayoutMetrics BuildGeneralLayout(
         contentRight -
         contentLeft;
 
-    const int gap =
-        scale(18);
+    const int cardWidth =
+        std::min(
+            contentWidth,
+            scale(
+                kGeneralCardMaxWidthLogical));
 
-    const bool stackedCards =
-        contentWidth <
-        scale(680);
+    const int cardLeft =
+        contentLeft;
+    const int cardRight =
+        cardLeft + cardWidth;
 
-    const int cardTop =
+    const int behaviorTitleTop =
+        scale(kSectionTitleTopLogical);
+    const int behaviorTop =
         scale(kFirstCardTopLogical);
-
-    const int behaviorWidth =
-        stackedCards
-            ? contentWidth
-            : (contentWidth - gap) / 2;
-
     const int behaviorBottom =
-        cardTop +
+        behaviorTop +
         scale(kToggleRowLogical) * 7;
 
-    int searchTitleTop =
-        scale(kSectionTitleTopLogical);
-    int searchTop =
-        cardTop;
-    int searchLeft =
-        contentLeft +
-        behaviorWidth +
-        gap;
-
-    if (stackedCards) {
-        searchTitleTop =
-            behaviorBottom +
-            scale(18);
-        searchTop =
-            searchTitleTop +
-            scale(30);
-        searchLeft =
-            contentLeft;
-    }
-
-    const int searchWidth =
-        stackedCards
-            ? contentWidth
-            : contentWidth -
-                behaviorWidth -
-                gap;
-
+    const int searchTitleTop =
+        behaviorBottom +
+        scale(18);
+    const int searchTop =
+        searchTitleTop +
+        scale(30);
     const int searchBottom =
         searchTop +
         scale(kToggleRowLogical) * 5;
@@ -94,21 +74,9 @@ GeneralLayoutMetrics BuildGeneralLayout(
     const int placementTitleTop =
         searchBottom +
         scale(18);
-
     const int placementTop =
         placementTitleTop +
         scale(30);
-
-    const int placementLeft =
-        stackedCards
-            ? contentLeft
-            : searchLeft;
-
-    const int placementWidth =
-        stackedCards
-            ? contentWidth
-            : searchWidth;
-
     const int placementBottom =
         placementTop +
         scale(
@@ -116,41 +84,33 @@ GeneralLayoutMetrics BuildGeneralLayout(
             3;
 
     const int noteTop =
-        std::max(
-            behaviorBottom,
-            placementBottom);
+        placementBottom;
 
     GeneralLayoutMetrics metrics;
 
     metrics.behavior = {
-        contentLeft,
-        cardTop - scrollOffset,
-        contentLeft +
-            behaviorWidth,
-        behaviorBottom -
-            scrollOffset,
+        cardLeft,
+        behaviorTop - scrollOffset,
+        cardRight,
+        behaviorBottom - scrollOffset,
     };
 
     metrics.search = {
-        searchLeft,
+        cardLeft,
         searchTop - scrollOffset,
-        searchLeft +
-            searchWidth,
-        searchBottom -
-            scrollOffset,
+        cardRight,
+        searchBottom - scrollOffset,
     };
 
     metrics.placement = {
-        placementLeft,
+        cardLeft,
         placementTop - scrollOffset,
-        placementLeft +
-            placementWidth,
-        placementBottom -
-            scrollOffset,
+        cardRight,
+        placementBottom - scrollOffset,
     };
 
     metrics.behaviorTitleTop =
-        scale(kSectionTitleTopLogical) -
+        behaviorTitleTop -
         scrollOffset;
     metrics.searchTitleTop =
         searchTitleTop -
@@ -164,8 +124,6 @@ GeneralLayoutMetrics BuildGeneralLayout(
     metrics.contentBottom =
         noteTop +
         scale(12);
-    metrics.stackedCards =
-        stackedCards;
 
     return metrics;
 }

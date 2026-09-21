@@ -111,6 +111,10 @@ int main() {
     assert(
         settings_layout::
             kContentRightInsetLogical == 34);
+    assert(
+        settings_layout::
+            kGeneralCardMaxWidthLogical == 560);
+
 
     for (const unsigned dpi :
          std::array<unsigned, 4>{
@@ -122,122 +126,91 @@ int main() {
                     Scale(value, dpi);
             };
 
-        const int wideWidth =
-            scale(1040);
+        const int clientWidth =
+            scale(820);
 
-        const auto wide =
+        const auto layout =
             settings_layout::
                 BuildGeneralLayout(
-                    wideWidth,
+                    clientWidth,
                     dpi,
                     0);
 
-        assert(!wide.stackedCards);
-        AssertPositiveRect(wide.behavior);
-        AssertPositiveRect(wide.search);
-        AssertPositiveRect(wide.placement);
+        AssertPositiveRect(
+            layout.behavior);
+        AssertPositiveRect(
+            layout.search);
+        AssertPositiveRect(
+            layout.placement);
+
         assert(
-            wide.search.left >
-            wide.behavior.right);
-        assert(
-            wide.behavior.left ==
-            scale(ui::kSettingsSidebarWidthLogical) +
+            layout.behavior.left ==
+            scale(
+                ui::
+                    kSettingsSidebarWidthLogical) +
                 scale(
                     settings_layout::
                         kContentLeftInsetLogical));
+
         assert(
-            wide.behavior.bottom -
-                wide.behavior.top ==
+            layout.behavior.left ==
+            layout.search.left);
+        assert(
+            layout.behavior.left ==
+            layout.placement.left);
+        assert(
+            layout.behavior.right ==
+            layout.search.right);
+        assert(
+            layout.behavior.right ==
+            layout.placement.right);
+
+        assert(
+            layout.behavior.right -
+                layout.behavior.left ==
+            scale(
+                settings_layout::
+                    kGeneralCardMaxWidthLogical));
+
+        assert(
+            layout.behavior.bottom -
+                layout.behavior.top ==
             scale(
                 settings_layout::
                     kToggleRowLogical) *
                 7);
+
         assert(
-            wide.search.bottom -
-                wide.search.top ==
+            layout.search.bottom -
+                layout.search.top ==
             scale(
                 settings_layout::
                     kToggleRowLogical) *
                 5);
-        assert(
-            wide.behavior.right <=
-            wideWidth -
-                scale(
-                    settings_layout::
-                        kContentRightInsetLogical));
-        assert(
-            wide.search.right <=
-            wideWidth -
-                scale(
-                    settings_layout::
-                        kContentRightInsetLogical));
-        assert(
-            wide.placement.right <=
-            wideWidth -
-                scale(
-                    settings_layout::
-                        kContentRightInsetLogical));
-        assert(
-            settings_layout::
-                MaxScrollOffset(
-                    wide,
-                    scale(680),
-                    dpi) ==
-            0);
-        assert(
-            wide.placement.left ==
-            wide.search.left);
-        assert(
-            wide.placement.top >
-            wide.search.bottom);
 
-        const int narrowWidth =
-            scale(820);
-
-        const auto narrow =
-            settings_layout::
-                BuildGeneralLayout(
-                    narrowWidth,
-                    dpi,
-                    0);
-
-        assert(narrow.stackedCards);
-        AssertPositiveRect(narrow.behavior);
-        AssertPositiveRect(narrow.search);
-        AssertPositiveRect(narrow.placement);
         assert(
-            narrow.search.left ==
-            narrow.behavior.left);
+            layout.search.top >
+            layout.behavior.bottom);
         assert(
-            narrow.search.top >
-            narrow.behavior.bottom);
-        assert(
-            narrow.placement.left ==
-            narrow.search.left);
-        assert(
-            narrow.placement.top >
-            narrow.search.bottom);
-        assert(
-            narrow.search.right <=
-            narrowWidth -
-                scale(
-                    settings_layout::
-                        kContentRightInsetLogical));
-        assert(
-            narrow.placement.right <=
-            narrowWidth -
-                scale(
-                    settings_layout::
-                        kContentRightInsetLogical));
+            layout.placement.top >
+            layout.search.bottom);
 
         const int maxScroll =
             settings_layout::
                 MaxScrollOffset(
-                    narrow,
-                    scale(680),
+                    layout,
+                    scale(720),
                     dpi);
 
         assert(maxScroll > 0);
+
+        assert(
+            settings_layout::
+                MaxScrollOffset(
+                    layout,
+                    scale(1100),
+                    dpi) ==
+            0);
 
         const int scroll =
             scale(72);
@@ -245,25 +218,25 @@ int main() {
         const auto shifted =
             settings_layout::
                 BuildGeneralLayout(
-                    narrowWidth,
+                    clientWidth,
                     dpi,
                     scroll);
 
         assert(
             shifted.behavior.top ==
-            narrow.behavior.top -
+            layout.behavior.top -
                 scroll);
         assert(
             shifted.search.top ==
-            narrow.search.top -
+            layout.search.top -
                 scroll);
         assert(
             shifted.placement.top ==
-            narrow.placement.top -
+            layout.placement.top -
                 scroll);
         assert(
             shifted.contentBottom ==
-            narrow.contentBottom);
+            layout.contentBottom);
     }
 
     const settings_layout::Rect work{

@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.2 — Settings Interaction & Layout Polish
+
+Alpha 2.2 locks the Settings product structure around a fixed, compact native window instead of a freely resizable dashboard. The default client viewport is now 820×720 logical pixels, the resize/maximize affordances are removed, and the sidebar shrinks from 208 to 176 logical pixels. The two-line `ALTRun` / `Next` brand is centered over the same navigation width used below it.
+
+General is now permanently single-column. Launcher behavior, search behavior and window placement share one left/right edge with a 560-logical-pixel maximum card width, so labels and right-side controls no longer drift far apart on a wide window. The three placement combo boxes again populate their actual choices: current mouse monitor / active-window monitor / primary monitor, Launcher near-top / centered / last position, and Settings centered / last position.
+
+Toggle switches keep the compact right-side interaction but are rendered at 3× and downsampled with HALFTONE for cleaner edges. The old dotted focus rectangle is replaced by a narrow accent focus bar, and successful toggle clicks explicitly repaint the clicked control for immediate feedback.
+
+The development-only Diagnostics Settings page is removed rather than hidden. Its page enum, navigation, controls, timers, paint/layout/message routing, runtime snapshot API, ProcessMemory platform layer, process-memory test target and psapi production dependency are deleted. No separate Diagnostics executable is introduced in this phase; future support tooling can be designed independently if it becomes a real product requirement.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything ownership/lifecycle, updater/uninstaller behavior, Runtime Input, Path Conversion or Shortcut TSV contract changes in this polish pass. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.22`.
 ## v0.8.0-alpha.2.1 — Settings Rendering & Information Hierarchy Stabilization
 
 Alpha 2.1 is a focused real-Windows stabilization pass for the Settings redesign. It fixes page-switch repaint corruption by giving native static controls explicit sidebar/card/window backgrounds and repainting a completed page swap in one pass instead of leaving transparent child regions over stale pixels.
