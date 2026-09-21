@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-beta.4
+
+- Fixed Stable-channel update checks against legacy stable releases that do not contain `update-manifest.json`: HTTP 404 now falls back to GitHub latest-stable release metadata instead of surfacing as a system error.
+- Added a non-downgrade Stable-channel status when the running beta is newer than the latest stable release.
+- Preserved the checksum/manifest update path for future stable releases; a newer legacy stable without a manifest is reported as manual-update-required rather than downloaded unsafely.
+- Hardened Native Uninstall full-remove cleanup so persistently locked owned files can be queued with `MOVEFILE_DELAY_UNTIL_REBOOT` after bounded retries.
+- Kept deferred deletion strictly inside the already validated ALTRun installation/Managed Everything ownership boundary.
+- Made final Native Uninstall success and failure dialogs foreground/topmost so they are not hidden behind other desktop windows.
+- Extended Beta desktop validation and prerelease ordering coverage for `beta.3 < beta.4 < rc.1`.
+- Kept all v0.7 schemas, Provider/Hotkey IDs and Managed Everything lifecycle semantics frozen.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.103.
+
 ## 0.7.0-beta.3
 
 - Hardened Native Uninstall full-remove cleanup against transient Windows sharing/lock/access-denied/directory-not-empty/busy failures with bounded retry.

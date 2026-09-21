@@ -7288,6 +7288,18 @@ void SettingsWindow::RefreshUpdateStatus() {
               L"You're up to date.");
         break;
 
+    case win::UpdateStage::ChannelNotNewer:
+        text =
+            T(L"稳定版通道最新为 v",
+              L"The stable channel currently ends at v");
+        text += std::wstring(
+            status.availableVersion.begin(),
+            status.availableVersion.end());
+        text +=
+            T(L"；当前版本较新，不会降级。",
+              L"; this build is newer, so no downgrade will be offered.");
+        break;
+
     case win::UpdateStage::Available:
         text =
             T(L"发现新版本：",
@@ -7349,6 +7361,11 @@ void SettingsWindow::RefreshUpdateStatus() {
             text +=
                 T(L"无法获取更新清单",
                   L"could not fetch the update manifest");
+            break;
+        case win::UpdateFailure::StableManifestUnavailable:
+            text +=
+                T(L"最新稳定版未提供应用内更新清单，请从 GitHub 手动更新",
+                  L"the latest stable release does not provide an in-app update manifest; update manually from GitHub");
             break;
         case win::UpdateFailure::ManifestInvalid:
             text +=

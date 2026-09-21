@@ -998,9 +998,154 @@ IsTransientRemovalError(
 }
 
 [[nodiscard]] bool
-RemoveAllWithRetry(
+ScheduleDeleteOnReboot(
     const std::filesystem::path& path,
     RemovalFailure& failure) {
+    std::error_code ec;
+
+    if (!std::filesystem::exists(
+            path,
+            ec)) {
+        return !ec;
+    }
+
+    std::vector<std::filesystem::path>
+        files;
+    std::vector<std::filesystem::path>
+        directories;
+
+    if (std::filesystem::is_directory(
+            path,
+            ec) &&
+        !ec) {
+        for (std::filesystem::
+                 recursive_directory_iterator
+                 it(
+                     path,
+                     std::filesystem::
+                         directory_options::
+                             skip_permission_denied,
+                     ec),
+             end;
+             !ec && it != end;
+             it.increment(ec)) {
+            std::error_code typeError;
+            const bool isSymlink =
+                it->is_symlink(
+                    typeError);
+
+            if (typeError) {
+                failure.error =
+                    NativeFilesystemError(
+                        typeError);
+                failure.path =
+                    it->path();
+                return false;
+            }
+
+            const bool isDirectory =
+                it->is_directory(
+                    typeError);
+
+            if (typeError) {
+                failure.error =
+                    NativeFilesystemError(
+                        typeError);
+                failure.path =
+                    it->path();
+                return false;
+            }
+
+            if (isDirectory &&
+                !isSymlink) {
+                directories.push_back(
+                    it->path());
+            } else {
+                files.push_back(
+                    it->path());
+            }
+        }
+
+        if (ec) {
+            failure.error =
+                NativeFilesystemError(ec);
+            failure.path = path;
+            return false;
+        }
+    } else if (ec) {
+        failure.error =
+            NativeFilesystemError(ec);
+        failure.path = path;
+        return false;
+    } else {
+        files.push_back(path);
+    }
+
+    const auto schedule =
+        [&](const std::filesystem::path&
+                candidate) {
+            if (MoveFileExW(
+                    candidate.c_str(),
+                    nullptr,
+                    MOVEFILE_DELAY_UNTIL_REBOOT)) {
+                return true;
+            }
+
+            const DWORD error =
+                GetLastError();
+
+            if (error ==
+                    ERROR_FILE_NOT_FOUND ||
+                error ==
+                    ERROR_PATH_NOT_FOUND) {
+                return true;
+            }
+
+            failure.error =
+                error != ERROR_SUCCESS
+                    ? error
+                    : ERROR_GEN_FAILURE;
+            failure.path = candidate;
+            return false;
+        };
+
+    for (const auto& file : files) {
+        if (!schedule(file)) {
+            return false;
+        }
+    }
+
+    std::sort(
+        directories.begin(),
+        directories.end(),
+        [](const auto& left,
+           const auto& right) {
+            return left.native().size() >
+                right.native().size();
+        });
+
+    for (const auto& directory :
+         directories) {
+        if (!schedule(directory)) {
+            return false;
+        }
+    }
+
+    if (std::filesystem::is_directory(
+            path,
+            ec) &&
+        !ec) {
+        return schedule(path);
+    }
+
+    return true;
+}
+
+[[nodiscard]] bool
+RemoveAllWithRetry(
+    const std::filesystem::path& path,
+    RemovalFailure& failure,
+    bool& deferred) {
     constexpr int attempts = 25;
     constexpr auto delay =
         std::chrono::milliseconds(200);
@@ -1022,13 +1167,27 @@ RemoveAllWithRetry(
             NativeFilesystemError(ec);
 
         if (!IsTransientRemovalError(
-                error) ||
-            attempt + 1 >= attempts) {
+                error)) {
             failure.error =
                 error != ERROR_SUCCESS
                     ? error
                     : ERROR_GEN_FAILURE;
             failure.path = path;
+            return false;
+        }
+
+        if (attempt + 1 >= attempts) {
+            // Keep a valid uninstall successful even if Windows, Defender or
+            // another short-lived owner still holds an ALTRun-owned file.
+            // The elevated TEMP worker queues only the already-validated
+            // installation tree for deletion at the next system boot.
+            if (ScheduleDeleteOnReboot(
+                    path,
+                    failure)) {
+                deferred = true;
+                return true;
+            }
+
             return false;
         }
 
@@ -1046,7 +1205,8 @@ RemoveAllWithRetry(
 RemoveInstallation(
     const std::filesystem::path& install,
     bool deleteData,
-    RemovalFailure& failure) {
+    RemovalFailure& failure,
+    bool& deferred) {
     const auto data =
         install /
         L"data";
@@ -1058,14 +1218,16 @@ RemoveInstallation(
             data /
                 L"tools" /
                 L"Everything",
-            failure)) {
+            failure,
+            deferred)) {
         return false;
     }
 
     if (!RemoveAllWithRetry(
             data /
                 L"update",
-            failure)) {
+            failure,
+            deferred)) {
         return false;
     }
 
@@ -1080,7 +1242,8 @@ RemoveInstallation(
     if (deleteData) {
         return RemoveAllWithRetry(
             install,
-            failure);
+            failure,
+            deferred);
     }
 
     std::error_code ec;
@@ -1114,7 +1277,8 @@ RemoveInstallation(
     for (const auto& entry : entries) {
         if (!RemoveAllWithRetry(
                 entry,
-                failure)) {
+                failure,
+                deferred)) {
             return false;
         }
     }
@@ -1174,11 +1338,13 @@ PerformUninstall(
     }
 
     RemovalFailure removalFailure;
+    bool removalDeferred = false;
 
     if (!RemoveInstallation(
             args.install,
             args.deleteData,
-            removalFailure)) {
+            removalFailure,
+            removalDeferred)) {
         gRemovalFailurePath =
             removalFailure.path;
 
@@ -1190,7 +1356,7 @@ PerformUninstall(
         return 6;
     }
 
-    const std::wstring message =
+    std::wstring message =
         args.deleteData
             ? (ChineseUi()
                    ? L"ALTRun Next 已卸载完成。\n\n托管 Everything、后台服务和用户数据均已移除。"
@@ -1199,12 +1365,21 @@ PerformUninstall(
                    ? L"ALTRun Next 已卸载完成。\n\n托管 Everything 和后台服务已移除；用户数据仍保留在原目录的 data 文件夹中。"
                    : L"ALTRun Next has been uninstalled.\n\nManaged Everything and its service were removed. User data remains in the original data folder.");
 
+    if (removalDeferred) {
+        message +=
+            ChineseUi()
+                ? L"\n\n少数仍被 Windows 占用的文件已安排在下次系统重启后自动删除。"
+                : L"\n\nA few files still held by Windows are scheduled for automatic deletion at the next system restart.";
+    }
+
     MessageBoxW(
         nullptr,
         message.c_str(),
         L"ALTRun Next",
         MB_OK |
-            MB_ICONINFORMATION);
+            MB_ICONINFORMATION |
+            MB_SETFOREGROUND |
+            MB_TOPMOST);
 
     CleanupSelfLater();
     return 0;
@@ -1416,7 +1591,9 @@ int WINAPI wWinMain(
                 message.c_str(),
                 L"ALTRun Next",
                 MB_OK |
-                    MB_ICONERROR);
+                    MB_ICONERROR |
+                    MB_SETFOREGROUND |
+                    MB_TOPMOST);
             CleanupSelfLater();
         }
 

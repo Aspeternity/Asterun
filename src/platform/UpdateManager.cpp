@@ -39,6 +39,10 @@ constexpr std::uint64_t
     kMaximumPackageBytes =
         128ULL * 1024ULL * 1024ULL;
 
+constexpr wchar_t
+    kStableLatestReleaseMetadataUrl[] =
+        L"https://api.github.com/repos/Aspeternity/ALTRunNext/releases/latest";
+
 struct InternetHandle {
     HINTERNET value{nullptr};
     ~InternetHandle() {
@@ -415,6 +419,43 @@ DownloadText(
 
     nativeError = 0;
     return !output.empty();
+}
+
+[[nodiscard]]
+std::optional<std::string>
+ParseLatestStableReleaseVersion(
+    std::string_view text) {
+    try {
+        const auto value =
+            nlohmann::json::parse(text);
+
+        if (!value.is_object() ||
+            !value.contains("tag_name") ||
+            !value["tag_name"].is_string()) {
+            return std::nullopt;
+        }
+
+        std::string version =
+            value["tag_name"]
+                .get<std::string>();
+
+        if (!version.empty() &&
+            (version.front() == 'v' ||
+             version.front() == 'V')) {
+            version.erase(
+                version.begin());
+        }
+
+        if (!CompareVersions(
+                version,
+                version)) {
+            return std::nullopt;
+        }
+
+        return version;
+    } catch (...) {
+        return std::nullopt;
+    }
 }
 
 [[nodiscard]] bool
@@ -1158,6 +1199,91 @@ CheckForUpdate(
             text,
             nativeError,
             stopToken)) {
+        // Stable v0.6.0 predates the native updater and has no
+        // update-manifest.json. Treat that legacy release as release metadata
+        // rather than surfacing HTTP 404 as a system error.
+        if (channel ==
+                UpdateChannel::Stable &&
+            nativeError == 404 &&
+            !stopToken.stop_requested()) {
+            std::string releaseText;
+            std::uint32_t releaseError = 0;
+
+            if (DownloadText(
+                    kStableLatestReleaseMetadataUrl,
+                    releaseText,
+                    releaseError,
+                    stopToken)) {
+                const auto stableVersion =
+                    ParseLatestStableReleaseVersion(
+                        releaseText);
+
+                if (!stableVersion) {
+                    snapshot =
+                        Fail(
+                            snapshot,
+                            UpdateFailure::
+                                ManifestInvalid,
+                            ERROR_INVALID_DATA,
+                            progress);
+                    return result;
+                }
+
+                const auto comparison =
+                    CompareVersions(
+                        *stableVersion,
+                        currentVersion);
+
+                if (!comparison) {
+                    snapshot =
+                        Fail(
+                            snapshot,
+                            UpdateFailure::
+                                ManifestInvalid,
+                            ERROR_INVALID_DATA,
+                            progress);
+                    return result;
+                }
+
+                MarkChecked(
+                    dataDirectory);
+
+                snapshot.availableVersion =
+                    *stableVersion;
+                snapshot.nativeError = 0;
+                snapshot.running = false;
+
+                if (*comparison > 0) {
+                    snapshot =
+                        Fail(
+                            snapshot,
+                            UpdateFailure::
+                                StableManifestUnavailable,
+                            0,
+                            progress);
+                    return result;
+                }
+
+                snapshot.stage =
+                    *comparison < 0
+                        ? UpdateStage::
+                              ChannelNotNewer
+                        : UpdateStage::
+                              UpToDate;
+                snapshot.failure =
+                    UpdateFailure::None;
+
+                if (progress) {
+                    progress(snapshot);
+                }
+
+                return result;
+            }
+
+            nativeError =
+                releaseError;
+        }
+
         // A transient GitHub/release handoff failure must not suppress update
         // checks for the next 24 hours. Only a completed manifest fetch counts
         // as an automatic check for throttle purposes.
