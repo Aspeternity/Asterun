@@ -35,7 +35,6 @@ public:
         const std::vector<UserCommandPathUpdate>& updates);
     bool ImportTsv(
         const std::filesystem::path& path,
-        bool legacyMode,
         std::size_t* imported = nullptr,
         std::size_t* skipped = nullptr);
     bool ExportTsv(const std::filesystem::path& path) const;

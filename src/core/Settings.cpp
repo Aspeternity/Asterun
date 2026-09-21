@@ -1174,6 +1174,31 @@ bool SettingsStore::SetProviderEnabled(
     return true;
 }
 
+
+bool SettingsStore::SetProviderEnabledBatch(
+    const ProviderEnableMap& changes) {
+
+    if (changes.empty()) {
+        return true;
+    }
+
+    const Settings previous =
+        settings_;
+
+    for (const auto& [id, enabled] :
+         changes) {
+        settings_.providerEnabled[id] =
+            enabled;
+    }
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
 bool SettingsStore::SetUpdateSettings(
     bool autoCheck,
     UpdateChannel channel) {

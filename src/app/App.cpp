@@ -1075,13 +1075,11 @@ bool App::TestCommand(
 
 bool App::ImportUserCommands(
     const std::filesystem::path& path,
-    bool legacyMode,
     std::size_t* imported,
     std::size_t* skipped) {
 
     if (!commandStore_.ImportUserCommands(
             path,
-            legacyMode,
             imported,
             skipped)) {
         return false;
@@ -2566,6 +2564,84 @@ bool App::SetProviderEnabled(
     if (enabled) {
         StartProviderRefresh(
             {providerId});
+    }
+
+    return true;
+}
+
+
+bool App::SetProviderEnabledBatch(
+    const ProviderEnableMap& changes) {
+
+    ProviderEnableMap effective;
+    std::vector<std::string>
+        enabledChanges;
+
+    const auto& current =
+        settingsStore_.Data()
+            .providerEnabled;
+
+    for (const auto& [id, enabled] :
+         changes) {
+        if (id ==
+            providers::
+                kEverythingFilesystem) {
+            continue;
+        }
+
+        if (providers::IsEnabled(
+                current,
+                id,
+                true) ==
+            enabled) {
+            continue;
+        }
+
+        effective[id] = enabled;
+
+        if (enabled) {
+            enabledChanges.push_back(
+                id);
+        }
+    }
+
+    if (effective.empty()) {
+        return true;
+    }
+
+    if (!settingsStore_
+             .SetProviderEnabledBatch(
+                 effective)) {
+        return false;
+    }
+
+    commandStore_
+        .ReloadProviderCache(
+            settingsStore_.Data()
+                .providerEnabled);
+
+    {
+        std::scoped_lock lock(
+            providerMonitorConfigMutex_);
+
+        providerMonitorEnabled_ =
+            settingsStore_.Data()
+                .providerEnabled;
+    }
+
+    if (window_) {
+        window_->RefreshResults();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    if (!enabledChanges.empty()) {
+        StartProviderRefresh(
+            std::move(
+                enabledChanges));
     }
 
     return true;

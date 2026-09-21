@@ -23,6 +23,19 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.4 — Settings Final Polish & Hotkey Redesign
+
+Alpha 2.4 is the final Settings-focused polish pass before Shortcut Manager / Editor work. Sidebar navigation remains deliberately left-aligned while the centered two-line ALTRun / Next brand stays unchanged.
+
+General keeps the validated single-column layout, but Window placement selectors are now fixed at a compact 220 logical pixels instead of stretching with the card. Appearance adopts the same visual rhythm: 560-logical-pixel cards, 200-logical-pixel right-aligned selectors and vertically aligned labels.
+
+Hotkeys is rebuilt as a single-column grouped editor instead of the previous master/detail split. Global actions and launcher-internal actions are shown in separate cards. Each action has an inline binding button, optional enable switch, per-row error/capture status and a small Reset action that appears only when the binding differs from its default. Required primary activation has no meaningless enable switch. Existing Hotkey Registry action IDs, scopes, validation, conflict detection and global registration behavior are unchanged.
+
+Search-source switches now update visually immediately and debounce commits for 180 ms. Rapid clicks collapse to the final requested state instead of queueing synchronous provider work, and all ordinary discovery-source changes from the debounce window are applied through one Settings save, one provider-cache merge and one Launcher refresh. During the actual commit the source switches are temporarily disabled; failed changes are restored to the real persisted state. Everything remains a separate final lifecycle operation so its managed-service/UAC behavior is unchanged.
+
+Data removes the low-value manual legacy-AltRun import button and its permissive legacy import mode. Normal ALTRun Next shortcut TSV import/export remains, while automatic startup migration, legacy IDs and downgrade/schema compatibility are preserved. Import/export buttons are evenly split and the three maintenance actions now share the card width with equal margins/gaps.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, updater/uninstaller behavior, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.24`.
 ## v0.8.0-alpha.2.3 — Settings Compactness & Input Polish
 
 Alpha 2.3 is a focused real-Windows follow-up to the alpha.2.2 Settings validation. The fixed Settings viewport keeps its 820 logical-pixel width but drops from 720 to 620 logical pixels so Hotkeys, Search sources, Appearance, Data and About no longer sit inside an unnecessarily tall window. General remains intentionally single-column and scrollable.

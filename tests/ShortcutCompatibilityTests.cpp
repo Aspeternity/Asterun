@@ -77,7 +77,6 @@ void AssertImport(
     assert(
         store.ImportTsv(
             tsvPath,
-            false,
             &imported,
             &skipped));
     assert(imported == 1);
@@ -275,7 +274,6 @@ int main() {
     assert(
         destination.ImportTsv(
             exportPath,
-            false,
             &imported,
             &skipped));
     assert(imported >= 1);

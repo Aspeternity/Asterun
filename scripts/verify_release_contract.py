@@ -39,6 +39,228 @@ channel = match.group(4)
 
 
 
+
+if version == "0.8.0-alpha.2.4":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.4 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.4 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 8:
+        fail("v0.8 alpha.2.4 settings example must remain schemaVersion 8")
+    if settings.get("update") != {"autoCheck": True, "channel": "development"}:
+        fail("v0.8 alpha.2.4 prerelease must default to Development updates")
+
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("providers") != expected_providers:
+        fail("v0.8 alpha.2.4 changed frozen provider defaults")
+
+    expected_hotkeys = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_hotkeys:
+        fail("v0.8 alpha.2.4 changed frozen Hotkey Registry action IDs")
+
+    expected_placement = {
+        "launcherMode": "top",
+        "settingsMode": "center",
+        "launcherLastValid": False,
+        "launcherLastX": 0,
+        "launcherLastY": 0,
+        "settingsLastValid": False,
+        "settingsLastX": 0,
+        "settingsLastY": 0,
+    }
+    if settings.get("windowPlacement") != expected_placement:
+        fail("v0.8 alpha.2.4 changed window-placement defaults")
+
+    metrics = read("src/ui/UiMetrics.hpp")
+    for token in (
+        "kSettingsClientWidthLogical = 820",
+        "kSettingsClientHeightLogical = 620",
+        "kSettingsSidebarWidthLogical = 176",
+        "kSettingsToggleRowLogical = 50",
+        "kSettingsComboRowLogical = 54",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.2.4 Settings metric contract missing: {token}")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    # Sidebar navigation stays deliberately left-aligned.
+    nav_start = settings_cpp.find("void SettingsWindow::DrawNavigationButton(")
+    nav_end = settings_cpp.find("void SettingsWindow::DrawSwitchGlyph(", nav_start)
+    if nav_start < 0 or nav_end < 0:
+        fail("v0.8 alpha.2.4 navigation drawing implementation was not found")
+    nav_draw = settings_cpp[nav_start:nav_end]
+    for token in ("DT_LEFT", "selectionBackground"):
+        if token not in nav_draw:
+            fail(f"v0.8 alpha.2.4 left-aligned navigation contract missing: {token}")
+    if "DrawFocusRect" in nav_draw:
+        fail("v0.8 alpha.2.4 sidebar navigation must not restore dotted focus")
+
+    for token in (
+        "const int comboWidth =\n            Scale(220);",
+        "Scale(560)",
+        "Scale(200)",
+        "hotkeyGlobalTitle_",
+        "hotkeyLauncherTitle_",
+        "HotkeyRowControls",
+        "kIdHotkeyCaptureBase",
+        "kIdHotkeyEnabledBase",
+        "kIdHotkeyResetBase",
+        "BeginHotkeyCapture(\n        std::string_view actionId)",
+        "ToggleHotkeyActionEnabled(",
+        "ResetHotkeyAction(",
+        "DrawHotkeyToggle(",
+        "DrawSwitchGlyph(",
+        "pendingProviderStates_",
+        "kProviderCommitTimerId",
+        "CommitPendingProviderChanges()",
+        "providerCommitInProgress_",
+        "SetProviderEnabledBatch(",
+        "ordinaryChanges",
+        "180",
+        "ImportCommands()",
+        'T(L"导入快捷项…"',
+        'T(L"导出快捷项…"',
+        "const int transferWidth =",
+        "const int maintenanceWidth =",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.4 Settings final-polish contract missing: {token}")
+
+    for token in (
+        "hotkeyActionList_",
+        "hotkeyEditorTitle_",
+        "hotkeyEditorDescription_",
+        "hotkeyScope_",
+        "hotkeyEnabled_",
+        "hotkeyCapture_",
+        "hotkeyResetCurrent_",
+        "selectedHotkeyActionId_",
+        "DrawHotkeyActionItem",
+        "LoadHotkeyEditor",
+        "ToggleSelectedHotkeyEnabled",
+        "ResetSelectedHotkey",
+        "kIdDataImportLegacy",
+        "dataImportLegacy_",
+        "legacyMode",
+        "ImportCommands(false)",
+        "ImportCommands(true)",
+    ):
+        if token in settings_cpp or token in settings_h:
+            fail(f"v0.8 alpha.2.4 obsolete Settings path remains: {token}")
+
+    user_store = read("src/core/UserCommandStore.cpp") + read("src/core/UserCommandStore.hpp")
+    command_store = read("src/core/CommandStore.cpp") + read("src/core/CommandStore.hpp")
+    settings_store = read("src/core/Settings.cpp") + read("src/core/Settings.hpp")
+    app = read("src/app/App.cpp") + read("src/app/App.hpp")
+
+    if "SetProviderEnabledBatch(" not in settings_store or "SetProviderEnabledBatch(" not in app:
+        fail("v0.8 alpha.2.4 ordinary provider batching API is missing")
+
+    for token in ("legacyMode",):
+        if token in user_store or token in command_store or token in app:
+            fail(f"v0.8 alpha.2.4 manual legacy import mode remains in production API: {token}")
+
+    # Manual legacy import is gone, but automatic data migration and identity
+    # compatibility must remain available to existing ALTRun Next users.
+    for token in ("MigrateLegacyTsv", "legacyTsvPath_", "legacyIds"):
+        if token not in user_store:
+            fail(f"v0.8 alpha.2.4 automatic legacy compatibility was removed: {token}")
+
+    if "line.find(L'=')" in user_store:
+        fail("v0.8 alpha.2.4 permissive manual key=value legacy import parser remains")
+
+    if "ImportTsv(\n        const std::filesystem::path& path,\n        bool" in user_store:
+        fail("v0.8 alpha.2.4 UserCommandStore still exposes legacy-mode import flag")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.3"',
+        '"0.8.0-alpha.2.4"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Development",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.4 update ordering/default coverage missing: {token}")
+
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    schema_tests = read("tests/UserCommandSchemaTests.cpp")
+    if "ImportTsv(\n        exportedCommands,\n        false," in config_tests:
+        fail("v0.8 alpha.2.4 ConfigCore still uses removed legacy-mode argument")
+    if "ImportTsv(\n            exportPath,\n            false," in schema_tests:
+        fail("v0.8 alpha.2.4 UserCommandSchema still uses removed legacy-mode argument")
+
+    for token in (
+        "RuntimeDiagnosticsSnapshot",
+        "ProcessMemory",
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+    ):
+        if token in settings_cpp or token in settings_h or token in app:
+            fail(f"v0.8 alpha.2.4 removed Diagnostics wiring returned: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.4 — Settings Final Polish & Hotkey Redesign",
+        "0.8.0.24",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.4 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.4",
+        "0.8.0.24",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.4 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.4",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.4 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.4 Settings final-polish contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| sidebar navigation remains left-aligned",
+        "| compact placement/appearance selectors",
+        "| grouped inline hotkey editor",
+        "| 180ms final-intent provider debounce",
+        "| manual legacy import removed; automatic migration preserved",
+        "| balanced Data action layout",
+        "| frozen v0.7 behavior preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.3":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

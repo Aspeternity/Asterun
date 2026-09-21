@@ -729,7 +729,6 @@ bool UserCommandStore::ApplyPathUpdates(
 
 bool UserCommandStore::ImportTsv(
     const std::filesystem::path& path,
-    bool legacyMode,
     std::size_t* imported,
     std::size_t* skipped) {
 
@@ -771,12 +770,6 @@ bool UserCommandStore::ImportTsv(
             continue;
         }
 
-        if (legacyMode &&
-            line.front() == L'[' &&
-            line.back() == L']') {
-            continue;
-        }
-
         Command command;
         command.id = GenerateUuidV4();
         command.icon = L"auto";
@@ -787,7 +780,7 @@ bool UserCommandStore::ImportTsv(
 
         const auto fields = SplitTabs(line);
 
-        if (!legacyMode && fields.size() >= 11) {
+        if (fields.size() >= 11) {
             command.keyword = TrimWide(fields[0]);
             command.title = TrimWide(fields[1]);
             command.aliases = SplitAliases(fields[2]);
@@ -829,16 +822,6 @@ bool UserCommandStore::ImportTsv(
             if (fields.size() >= 5) {
                 command.workingDirectory = TrimWide(fields[4]);
             }
-        } else if (legacyMode) {
-            const auto equals = line.find(L'=');
-            if (equals == std::wstring::npos) {
-                ++skippedCount;
-                continue;
-            }
-
-            command.keyword = TrimWide(line.substr(0, equals));
-            command.title = command.keyword;
-            command.target = TrimWide(line.substr(equals + 1));
         } else {
             ++skippedCount;
             continue;

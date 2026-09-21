@@ -231,7 +231,6 @@ int main() {
     assert(
         imported.ImportTsv(
             exportPath,
-            false,
             &importedCount,
             &skippedCount));
     assert(importedCount >= 1);

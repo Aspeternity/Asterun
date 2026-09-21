@@ -99,7 +99,6 @@ public:
 
     bool ImportUserCommands(
         const std::filesystem::path& path,
-        bool legacyMode,
         std::size_t* imported = nullptr,
         std::size_t* skipped = nullptr);
     bool ExportUserCommands(
@@ -147,6 +146,8 @@ public:
     bool SetProviderEnabled(
         std::string id,
         bool enabled);
+    bool SetProviderEnabledBatch(
+        const ProviderEnableMap& changes);
     bool SetUpdateSettings(
         bool autoCheck,
         UpdateChannel channel);

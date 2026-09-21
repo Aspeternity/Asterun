@@ -112,6 +112,33 @@ int main() {
     assert(settings.Data().language == Language::EnUS);
     assert(std::filesystem::exists(data / "settings.json"));
 
+    ProviderEnableMap providerBatch{
+        {std::string(providers::kStartMenu), false},
+        {std::string(providers::kPath), false},
+    };
+    assert(settings.SetProviderEnabledBatch(providerBatch));
+    assert(!providers::IsEnabled(
+        settings.Data().providerEnabled,
+        providers::kStartMenu,
+        true));
+    assert(!providers::IsEnabled(
+        settings.Data().providerEnabled,
+        providers::kPath,
+        true));
+
+    SettingsStore providerBatchReloaded(
+        data / "settings.json",
+        legacySettings);
+    providerBatchReloaded.Load();
+    assert(!providers::IsEnabled(
+        providerBatchReloaded.Data().providerEnabled,
+        providers::kStartMenu,
+        true));
+    assert(!providers::IsEnabled(
+        providerBatchReloaded.Data().providerEnabled,
+        providers::kPath,
+        true));
+
     UserCommandStore commands(data / "commands.json", legacyCommands);
     commands.Load();
 
@@ -190,7 +217,6 @@ int main() {
     std::size_t skippedCount = 0;
     assert(importedCommands.ImportTsv(
         exportedCommands,
-        false,
         &importedCount,
         &skippedCount));
     assert(importedCount == 2);
@@ -200,24 +226,6 @@ int main() {
         data / "commands-imported.json");
     importedReloaded.Load();
     assert(importedReloaded.Commands().size() == 2);
-
-    const auto legacyBeta = root / "legacy-altrun.ini";
-    WriteText(
-        legacyBeta,
-        "[Shortcuts]\n"
-        "paint=mspaint.exe\n"
-        "term\tTerminal\tcmd.exe\t/k echo test\tC:\\\\Windows\n");
-
-    UserCommandStore legacyImported(
-        data / "commands-legacy-imported.json");
-    importedCount = 0;
-    skippedCount = 0;
-    assert(legacyImported.ImportTsv(
-        legacyBeta,
-        true,
-        &importedCount,
-        &skippedCount));
-    assert(importedCount == 2);
 
     UsageStore usage(data / "usage.json", legacyUsage);
     usage.Load(commandsReloaded.LegacyIdMap());

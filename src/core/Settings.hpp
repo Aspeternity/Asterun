@@ -103,6 +103,8 @@ public:
     bool SetProviderEnabled(
         std::string id,
         bool enabled);
+    bool SetProviderEnabledBatch(
+        const ProviderEnableMap& changes);
     bool SetUpdateSettings(
         bool autoCheck,
         UpdateChannel channel);

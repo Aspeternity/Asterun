@@ -354,13 +354,11 @@ bool CommandStore::ApplyUserCommandPathUpdates(
 
 bool CommandStore::ImportUserCommands(
     const std::filesystem::path& path,
-    bool legacyMode,
     std::size_t* imported,
     std::size_t* skipped) {
 
     if (!userCommandStore_.ImportTsv(
             path,
-            legacyMode,
             imported,
             skipped)) {
         return false;

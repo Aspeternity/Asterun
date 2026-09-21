@@ -7,6 +7,7 @@
 
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace altrun {
@@ -80,15 +81,13 @@ private:
         kIdWildcardMatching = 51130;
 
     static constexpr UINT
-        kIdHotkeyActionList = 51701;
-    static constexpr UINT
-        kIdHotkeyEnabled = 51702;
-    static constexpr UINT
-        kIdHotkeyCapture = 51703;
-    static constexpr UINT
-        kIdHotkeyResetCurrent = 51704;
-    static constexpr UINT
         kIdHotkeyResetAll = 51705;
+    static constexpr UINT
+        kIdHotkeyCaptureBase = 51720;
+    static constexpr UINT
+        kIdHotkeyEnabledBase = 51740;
+    static constexpr UINT
+        kIdHotkeyResetBase = 51760;
     static constexpr UINT
         kIdNumericQuickLaunch = 51131;
     static constexpr UINT
@@ -121,8 +120,6 @@ private:
     static constexpr UINT
         kIdDataImportTsv = 51502;
     static constexpr UINT
-        kIdDataImportLegacy = 51503;
-    static constexpr UINT
         kIdDataExport = 51504;
     static constexpr UINT
         kIdDataClearUsage = 51505;
@@ -148,6 +145,8 @@ private:
 
     static constexpr UINT_PTR
         kProviderStatusTimerId = 0x51690;
+    static constexpr UINT_PTR
+        kProviderCommitTimerId = 0x51691;
 
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
@@ -175,6 +174,7 @@ private:
     void UpdatePageHeader();
 
     void RefreshProviderStatus();
+    void CommitPendingProviderChanges();
     void AcquireEverything();
     void RecheckEverything();
     void RefreshDataCompatibilityStatus();
@@ -189,15 +189,38 @@ private:
     void ApplyWindowPlacementControls();
     void ApplyClassicBehaviorControl(
         UINT id = 0);
+    struct HotkeyRowControls {
+        std::string actionId;
+        HWND title{};
+        HWND capture{};
+        HWND enabled{};
+        HWND reset{};
+        HWND status{};
+    };
+
     void RefreshHotkeyPage();
-    void LoadHotkeyEditor(
+    void BeginHotkeyCapture(
         std::string_view actionId);
-    void BeginHotkeyCapture();
     void ApplyCapturedHotkey(
         UINT virtualKey);
-    void ToggleSelectedHotkeyEnabled();
-    void ResetSelectedHotkey();
+    void ToggleHotkeyActionEnabled(
+        std::string_view actionId);
+    void ResetHotkeyAction(
+        std::string_view actionId);
     void ResetAllHotkeys();
+    [[nodiscard]] HotkeyRowControls*
+    FindHotkeyRow(
+        std::string_view actionId);
+    [[nodiscard]] const HotkeyRowControls*
+    FindHotkeyRow(
+        std::string_view actionId) const;
+    [[nodiscard]] HotkeyRowControls*
+    HotkeyRowFromControlId(
+        UINT id,
+        UINT baseId);
+    void SetHotkeyRowStatus(
+        std::string_view actionId,
+        std::wstring_view status);
     [[nodiscard]] std::wstring
     HotkeyActionLabel(
         std::string_view actionId) const;
@@ -208,8 +231,7 @@ private:
     FormatHotkeyBinding(
         std::string_view actionId) const;
     void ApplyAppearanceControls();
-    void ImportCommands(
-        bool legacyMode);
+    void ImportCommands();
     void ExportCommands();
     void ClearUsageHistory();
     void RebuildProgramIndex();
@@ -220,8 +242,14 @@ private:
         const DRAWITEMSTRUCT& item);
     void DrawActionButton(
         const DRAWITEMSTRUCT& item);
-    void DrawHotkeyActionItem(
-        const DRAWITEMSTRUCT& item);
+    void DrawHotkeyToggle(
+        const DRAWITEMSTRUCT& item,
+        std::size_t rowIndex);
+    void DrawSwitchGlyph(
+        HDC dc,
+        const RECT& rect,
+        bool checked,
+        bool pressed);
 
     HWND CreateStatic(
         const wchar_t* text,
@@ -301,16 +329,11 @@ private:
     HWND numericQuickLaunchOrderLabel_{};
     HWND numericQuickLaunchOrder_{};
 
-    HWND hotkeyActionList_{};
-    HWND hotkeyEditorTitle_{};
-    HWND hotkeyEditorDescription_{};
-    HWND hotkeyScope_{};
-    HWND hotkeyEnabled_{};
-    HWND hotkeyCapture_{};
-    HWND hotkeyResetCurrent_{};
+    HWND hotkeyGlobalTitle_{};
+    HWND hotkeyLauncherTitle_{};
     HWND hotkeyResetAll_{};
-    HWND hotkeyPageStatus_{};
-    HWND hotkeyPageNote_{};
+    std::vector<HotkeyRowControls>
+        hotkeyRows_{};
 
     HWND placementSectionTitle_{};
     HWND popupMonitorLabel_{};
@@ -349,7 +372,6 @@ private:
     HWND openDataFolder_{};
     HWND dataTransferLabel_{};
     HWND dataImportTsv_{};
-    HWND dataImportLegacy_{};
     HWND dataExport_{};
     HWND dataMaintenanceLabel_{};
     HWND dataClearUsage_{};
@@ -382,10 +404,10 @@ private:
     Page page_{Page::General};
     bool syncing_{false};
     int generalScrollOffset_{0};
-    std::string selectedHotkeyActionId_;
     std::string capturingHotkeyActionId_;
-    std::vector<std::string>
-        hotkeyActionIds_;
+    std::unordered_map<std::string, bool>
+        pendingProviderStates_;
+    bool providerCommitInProgress_{false};
 
     std::vector<HWND>
         generalControls_;

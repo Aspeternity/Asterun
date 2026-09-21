@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <iterator>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -500,84 +501,93 @@ void SettingsWindow::CreateGeneralPage() {
     };
 }
 
+
 void SettingsWindow::CreateHotkeyPage() {
-    hotkeyActionList_ =
-        CreateWindowExW(
-            0,
-            L"LISTBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP | WS_VSCROLL |
-                LBS_NOTIFY |
-                LBS_OWNERDRAWFIXED |
-                LBS_HASSTRINGS |
-                LBS_NOINTEGRALHEIGHT,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdHotkeyActionList)),
-            instance_,
-            nullptr);
+    hotkeyGlobalTitle_ =
+        CreateStatic(L"");
+    hotkeyLauncherTitle_ =
+        CreateStatic(L"");
 
-    hotkeyEditorTitle_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-    hotkeyEditorDescription_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-    hotkeyScope_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
+    hotkeyRows_.clear();
+    hotkeyRows_.reserve(
+        HotkeyActionRegistry().size());
 
-    hotkeyEnabled_ =
-        CreateCheckboxRow(
-            L"",
-            kIdHotkeyEnabled);
+    std::size_t index = 0;
 
-    hotkeyCapture_ =
-        CreateButton(
-            L"",
-            kIdHotkeyCapture);
+    for (const auto& action :
+         HotkeyActionRegistry()) {
+        HotkeyRowControls row;
+        row.actionId = action.id;
 
-    hotkeyResetCurrent_ =
-        CreateButton(
-            L"",
-            kIdHotkeyResetCurrent);
+        row.title =
+            CreateStatic(
+                L"",
+                SS_LEFT |
+                    SS_NOPREFIX);
+
+        row.capture =
+            CreateButton(
+                L"",
+                kIdHotkeyCaptureBase +
+                    static_cast<UINT>(
+                        index));
+
+        if (!action.required) {
+            row.enabled =
+                CreateButton(
+                    L"",
+                    kIdHotkeyEnabledBase +
+                        static_cast<UINT>(
+                            index),
+                    BS_OWNERDRAW);
+        }
+
+        row.reset =
+            CreateButton(
+                L"",
+                kIdHotkeyResetBase +
+                    static_cast<UINT>(
+                        index));
+
+        row.status =
+            CreateStatic(
+                L"",
+                SS_LEFT |
+                    SS_NOPREFIX);
+
+        hotkeyRows_.push_back(
+            std::move(row));
+
+        ++index;
+    }
 
     hotkeyResetAll_ =
         CreateButton(
             L"",
             kIdHotkeyResetAll);
 
-    hotkeyPageStatus_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-
-    hotkeyPageNote_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-
     hotkeyControls_ = {
-        hotkeyActionList_,
-        hotkeyEditorTitle_,
-        hotkeyEditorDescription_,
-        hotkeyScope_,
-        hotkeyEnabled_,
-        hotkeyCapture_,
-        hotkeyResetCurrent_,
+        hotkeyGlobalTitle_,
+        hotkeyLauncherTitle_,
         hotkeyResetAll_,
-        hotkeyPageStatus_,
-        hotkeyPageNote_,
     };
+
+    for (const auto& row :
+         hotkeyRows_) {
+        hotkeyControls_.push_back(
+            row.title);
+        hotkeyControls_.push_back(
+            row.capture);
+        if (row.enabled) {
+            hotkeyControls_.push_back(
+                row.enabled);
+        }
+        hotkeyControls_.push_back(
+            row.reset);
+        hotkeyControls_.push_back(
+            row.status);
+    }
 }
-
-
 
 void SettingsWindow::CreateAppearancePage() {
     appearanceLauncherTitle_ =
@@ -723,10 +733,6 @@ void SettingsWindow::CreateDataPage() {
         CreateButton(
             L"",
             kIdDataImportTsv);
-    dataImportLegacy_ =
-        CreateButton(
-            L"",
-            kIdDataImportLegacy);
     dataExport_ =
         CreateButton(
             L"",
@@ -758,7 +764,6 @@ void SettingsWindow::CreateDataPage() {
         openDataFolder_,
         dataTransferLabel_,
         dataImportTsv_,
-        dataImportLegacy_,
         dataExport_,
         dataMaintenanceLabel_,
         dataClearUsage_,
@@ -920,15 +925,7 @@ void SettingsWindow::ApplyFonts() {
         settingsPlacementDescription_,
         settingsPlacement_,
         generalNote_,
-        hotkeyActionList_,
-        hotkeyEditorDescription_,
-        hotkeyScope_,
-        hotkeyEnabled_,
-        hotkeyCapture_,
-        hotkeyResetCurrent_,
         hotkeyResetAll_,
-        hotkeyPageStatus_,
-        hotkeyPageNote_,
         providerStartMenu_,
         providerPackaged_,
         providerAppPaths_,
@@ -946,7 +943,6 @@ void SettingsWindow::ApplyFonts() {
         dataPath_,
         openDataFolder_,
         dataImportTsv_,
-        dataImportLegacy_,
         dataExport_,
         dataClearUsage_,
         dataRebuildIndex_,
@@ -963,14 +959,6 @@ void SettingsWindow::ApplyFonts() {
         openGitHub_,
     };
 
-    if (hotkeyActionList_) {
-        SendMessageW(
-            hotkeyActionList_,
-            LB_SETITEMHEIGHT,
-            0,
-            Scale(52));
-    }
-
     for (HWND control :
          normalControls) {
         if (control) {
@@ -983,12 +971,41 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
+    for (const auto& row :
+         hotkeyRows_) {
+        for (HWND control :
+             std::array<HWND, 4>{
+                 row.capture,
+                 row.enabled,
+                 row.reset,
+                 row.status}) {
+            if (control) {
+                SendMessageW(
+                    control,
+                    WM_SETFONT,
+                    reinterpret_cast<WPARAM>(
+                        normalFont_),
+                    TRUE);
+            }
+        }
+
+        if (row.title) {
+            SendMessageW(
+                row.title,
+                WM_SETFONT,
+                reinterpret_cast<WPARAM>(
+                    sectionFont_),
+                TRUE);
+        }
+    }
+
     for (HWND control :
-         std::array<HWND, 13>{
+         std::array<HWND, 14>{
              generalBehaviorTitle_,
              searchBehaviorTitle_,
              placementSectionTitle_,
-             hotkeyEditorTitle_,
+             hotkeyGlobalTitle_,
+             hotkeyLauncherTitle_,
              providerSectionTitle_,
              providerFilesTitle_,
              appearanceLauncherTitle_,
@@ -1222,20 +1239,17 @@ void SettingsWindow::ApplyLanguage() {
         generalNote_,
         L"");
     SetWindowTextW(
-        hotkeyEnabled_,
-        T(L"启用此快捷键",
-          L"Enable this hotkey"));
+        hotkeyGlobalTitle_,
+        T(L"全局快捷键",
+          L"Global hotkeys"));
     SetWindowTextW(
-        hotkeyResetCurrent_,
-        T(L"恢复此项默认值",
-          L"Reset this binding"));
+        hotkeyLauncherTitle_,
+        T(L"启动器内快捷键",
+          L"Launcher hotkeys"));
     SetWindowTextW(
         hotkeyResetAll_,
         T(L"恢复全部默认快捷键",
           L"Reset all hotkeys"));
-    SetWindowTextW(
-        hotkeyPageNote_,
-        L"");
     SetWindowTextW(
         providerSectionTitle_,
         T(L"应用来源",
@@ -1336,16 +1350,12 @@ void SettingsWindow::ApplyLanguage() {
           L"Import & export"));
     SetWindowTextW(
         dataImportTsv_,
-        T(L"导入 TSV",
-          L"Import TSV"));
-    SetWindowTextW(
-        dataImportLegacy_,
-        T(L"导入旧版 AltRun",
-          L"Import legacy AltRun"));
+        T(L"导入快捷项…",
+          L"Import shortcuts…"));
     SetWindowTextW(
         dataExport_,
-        T(L"导出快捷项",
-          L"Export shortcuts"));
+        T(L"导出快捷项…",
+          L"Export shortcuts…"));
 
     SetWindowTextW(
         dataMaintenanceLabel_,
@@ -1598,6 +1608,7 @@ void SettingsWindow::RefreshFromSettings() {
     syncing_ = oldSyncing;
 }
 
+
 std::wstring SettingsWindow::HotkeyActionLabel(
     std::string_view actionId) const {
     if (actionId ==
@@ -1636,45 +1647,6 @@ std::wstring SettingsWindow::HotkeyActionLabel(
     return std::wstring(
         actionId.begin(),
         actionId.end());
-}
-
-
-std::wstring SettingsWindow::HotkeyActionDescription(
-    std::string_view actionId) const {
-    if (actionId ==
-        hotkey_actions::kActivate) {
-        return T(
-            L"全局显示或隐藏启动器。",
-            L"Show or hide the launcher globally.");
-    }
-    if (actionId ==
-        hotkey_actions::
-            kActivateSecondary) {
-        return T(
-            L"备用的全局呼出组合键。",
-            L"Optional secondary global activation.");
-    }
-    if (actionId ==
-        hotkey_actions::kOpenSettings) {
-        return T(
-            L"从启动器打开设置。",
-            L"Open Settings from the launcher.");
-    }
-    if (actionId ==
-        hotkey_actions::
-            kNavigateCurrentFileManager) {
-        return T(
-            L"在当前文件管理器中定位文件夹结果。",
-            L"Navigate a folder result in the current file manager.");
-    }
-    if (actionId ==
-        hotkey_actions::
-            kCopySelectedTarget) {
-        return T(
-            L"复制当前结果目标。",
-            L"Copy the selected result target.");
-    }
-    return L"";
 }
 
 std::wstring SettingsWindow::FormatHotkeyBinding(
@@ -1722,8 +1694,82 @@ std::wstring SettingsWindow::FormatHotkeyBinding(
     return result;
 }
 
+SettingsWindow::HotkeyRowControls*
+SettingsWindow::FindHotkeyRow(
+    std::string_view actionId) {
+    const auto it =
+        std::find_if(
+            hotkeyRows_.begin(),
+            hotkeyRows_.end(),
+            [&](const HotkeyRowControls& row) {
+                return row.actionId ==
+                    actionId;
+            });
+
+    return it == hotkeyRows_.end()
+        ? nullptr
+        : &*it;
+}
+
+const SettingsWindow::HotkeyRowControls*
+SettingsWindow::FindHotkeyRow(
+    std::string_view actionId) const {
+    const auto it =
+        std::find_if(
+            hotkeyRows_.begin(),
+            hotkeyRows_.end(),
+            [&](const HotkeyRowControls& row) {
+                return row.actionId ==
+                    actionId;
+            });
+
+    return it == hotkeyRows_.end()
+        ? nullptr
+        : &*it;
+}
+
+SettingsWindow::HotkeyRowControls*
+SettingsWindow::HotkeyRowFromControlId(
+    UINT id,
+    UINT baseId) {
+    if (id < baseId) {
+        return nullptr;
+    }
+
+    const std::size_t index =
+        static_cast<std::size_t>(
+            id - baseId);
+
+    if (index >= hotkeyRows_.size()) {
+        return nullptr;
+    }
+
+    return &hotkeyRows_[index];
+}
+
+void SettingsWindow::SetHotkeyRowStatus(
+    std::string_view actionId,
+    std::wstring_view status) {
+    auto* row =
+        FindHotkeyRow(actionId);
+
+    if (!row || !row->status) {
+        return;
+    }
+
+    SetWindowTextW(
+        row->status,
+        std::wstring(status).c_str());
+
+    ShowWindow(
+        row->status,
+        status.empty()
+            ? SW_HIDE
+            : SW_SHOW);
+}
+
 void SettingsWindow::RefreshHotkeyPage() {
-    if (!hotkeyActionList_) {
+    if (hotkeyRows_.empty()) {
         return;
     }
 
@@ -1731,191 +1777,125 @@ void SettingsWindow::RefreshHotkeyPage() {
         syncing_;
     syncing_ = true;
 
-    const std::string preferred =
-        selectedHotkeyActionId_;
+    const auto bindings =
+        app_.SettingsData()
+            .hotkeyBindings;
 
-    SendMessageW(
-        hotkeyActionList_,
-        LB_RESETCONTENT,
-        0,
-        0);
+    for (auto& row :
+         hotkeyRows_) {
+        const auto* action =
+            FindHotkeyAction(
+                row.actionId);
 
-    hotkeyActionIds_.clear();
-
-    int selectedIndex = -1;
-
-    for (const auto& action :
-         HotkeyActionRegistry()) {
-        const std::wstring label =
-            HotkeyActionLabel(
-                action.id);
-
-        const LRESULT index =
-            SendMessageW(
-                hotkeyActionList_,
-                LB_ADDSTRING,
-                0,
-                reinterpret_cast<LPARAM>(
-                    label.c_str()));
-
-        if (index >= 0) {
-            hotkeyActionIds_
-                .push_back(
-                    action.id);
-
-            if (action.id ==
-                preferred) {
-                selectedIndex =
-                    static_cast<int>(
-                        index);
-            }
+        if (!action) {
+            continue;
         }
-    }
 
-    if (selectedIndex < 0 &&
-        !hotkeyActionIds_.empty()) {
-        selectedIndex = 0;
-    }
+        const auto binding =
+            EffectiveHotkeyBinding(
+                bindings,
+                row.actionId);
 
-    if (selectedIndex >= 0) {
-        SendMessageW(
-            hotkeyActionList_,
-            LB_SETCURSEL,
-            selectedIndex,
-            0);
+        SetWindowTextW(
+            row.title,
+            HotkeyActionLabel(
+                row.actionId).c_str());
 
-        selectedHotkeyActionId_ =
-            hotkeyActionIds_[
-                static_cast<std::size_t>(
-                    selectedIndex)];
+        const bool capturing =
+            capturingHotkeyActionId_ ==
+                row.actionId;
 
-        LoadHotkeyEditor(
-            selectedHotkeyActionId_);
-    } else {
-        selectedHotkeyActionId_
-            .clear();
+        SetWindowTextW(
+            row.capture,
+            capturing
+                ? T(L"请按新的快捷键…",
+                    L"Press a new shortcut…")
+                : FormatHotkeyBinding(
+                      row.actionId).c_str());
+
+        if (row.enabled) {
+            InvalidateRect(
+                row.enabled,
+                nullptr,
+                TRUE);
+        }
+
+        auto current =
+            binding;
+        auto defaults =
+            action->defaultBinding;
+
+        CanonicalizeHotkeyBinding(
+            current);
+        CanonicalizeHotkeyBinding(
+            defaults);
+
+        const bool modified =
+            current.enabled !=
+                defaults.enabled ||
+            current.key !=
+                defaults.key ||
+            current.modifiers !=
+                defaults.modifiers;
+
+        SetWindowTextW(
+            row.reset,
+            T(L"恢复默认",
+              L"Reset"));
+
+        ShowWindow(
+            row.reset,
+            page_ == Page::Hotkeys &&
+                    modified
+                ? SW_SHOW
+                : SW_HIDE);
+
+        std::wstring status;
+
+        if (capturing) {
+            status =
+                T(L"按下新的组合键；Esc 取消。",
+                  L"Press a new key combination; Esc cancels.");
+        } else if (
+            binding.enabled &&
+            action->scope ==
+                HotkeyScope::Global &&
+            !app_.IsHotkeyActionRegistered(
+                row.actionId)) {
+            status =
+                T(L"Windows 注册失败，旧绑定仍有效。错误码：",
+                  L"Windows registration failed; the previous binding remains active. Error: ");
+            status +=
+                std::to_wstring(
+                    app_.HotkeyActionLastError(
+                        row.actionId));
+        }
+
+        SetWindowTextW(
+            row.status,
+            status.c_str());
+
+        ShowWindow(
+            row.status,
+            page_ == Page::Hotkeys &&
+                    !status.empty()
+                ? SW_SHOW
+                : SW_HIDE);
     }
 
     syncing_ = oldSyncing;
 }
 
-
-void SettingsWindow::LoadHotkeyEditor(
+void SettingsWindow::BeginHotkeyCapture(
     std::string_view actionId) {
-    const auto* action =
-        FindHotkeyAction(actionId);
-
-    if (!action) {
-        return;
-    }
-
-    selectedHotkeyActionId_ =
-        std::string(actionId);
-
-    const auto binding =
-        EffectiveHotkeyBinding(
-            app_.SettingsData()
-                .hotkeyBindings,
-            actionId);
-
-    const auto title =
-        HotkeyActionLabel(
-            actionId);
-
-    SetWindowTextW(
-        hotkeyEditorTitle_,
-        title.c_str());
-
-    const auto description =
-        HotkeyActionDescription(
-            actionId);
-
-    SetWindowTextW(
-        hotkeyEditorDescription_,
-        description.c_str());
-
-    std::wstring scope =
-        action->scope ==
-                HotkeyScope::Global
-            ? T(L"Windows 全局",
-                L"Windows global")
-            : T(L"启动器内部",
-                L"Launcher only");
-
-    SetWindowTextW(
-        hotkeyScope_,
-        scope.c_str());
-
-    SendMessageW(
-        hotkeyEnabled_,
-        BM_SETCHECK,
-        binding.enabled
-            ? BST_CHECKED
-            : BST_UNCHECKED,
-        0);
-
-    EnableWindow(
-        hotkeyEnabled_,
-        action->required
-            ? FALSE
-            : TRUE);
-
-    InvalidateRect(
-        hotkeyEnabled_,
-        nullptr,
-        TRUE);
-
-    const auto chord =
-        FormatHotkeyBinding(
-            actionId);
-
-    SetWindowTextW(
-        hotkeyCapture_,
-        capturingHotkeyActionId_ ==
-                actionId
-            ? T(L"请按新的快捷键…",
-                L"Press the new shortcut...")
-            : chord.c_str());
-
-    std::wstring status;
-
-    if (capturingHotkeyActionId_ ==
-        actionId) {
-        status =
-            T(L"按下新的组合键；Esc 取消。",
-              L"Press a new key combination; Esc cancels.");
-    } else if (
-        binding.enabled &&
-        action->scope ==
-            HotkeyScope::Global &&
-        !app_.IsHotkeyActionRegistered(
-            actionId)) {
-        status =
-            T(L"⚠ Windows 注册失败，旧绑定仍有效。错误码：",
-              L"⚠ Windows registration failed; the previous binding remains active. Error: ");
-        status +=
-            std::to_wstring(
-                app_.HotkeyActionLastError(
-                    actionId));
-    }
-
-    SetWindowTextW(
-        hotkeyPageStatus_,
-        status.c_str());
-}
-
-void SettingsWindow::BeginHotkeyCapture() {
-    if (selectedHotkeyActionId_
-            .empty()) {
+    if (!FindHotkeyAction(actionId)) {
         return;
     }
 
     capturingHotkeyActionId_ =
-        selectedHotkeyActionId_;
+        std::string(actionId);
 
-    LoadHotkeyEditor(
-        selectedHotkeyActionId_);
-
+    RefreshHotkeyPage();
     SetFocus(hwnd_);
 }
 
@@ -1926,11 +1906,13 @@ void SettingsWindow::ApplyCapturedHotkey(
         return;
     }
 
+    const std::string actionId =
+        capturingHotkeyActionId_;
+
     if (virtualKey == VK_ESCAPE) {
         capturingHotkeyActionId_
             .clear();
-        LoadHotkeyEditor(
-            selectedHotkeyActionId_);
+        RefreshHotkeyPage();
         return;
     }
 
@@ -1953,8 +1935,8 @@ void SettingsWindow::ApplyCapturedHotkey(
             virtualKey);
 
     if (key.empty()) {
-        SetWindowTextW(
-            hotkeyPageStatus_,
+        SetHotkeyRowStatus(
+            actionId,
             T(L"这个按键目前不受支持，请换一个组合键。",
               L"This key is not currently supported; choose another combination."));
         return;
@@ -1964,7 +1946,7 @@ void SettingsWindow::ApplyCapturedHotkey(
         EffectiveHotkeyBinding(
             app_.SettingsData()
                 .hotkeyBindings,
-            capturingHotkeyActionId_);
+            actionId);
 
     candidate.modifiers.clear();
     candidate.key = key;
@@ -1996,12 +1978,12 @@ void SettingsWindow::ApplyCapturedHotkey(
         candidate);
 
     if (!ValidateHotkeyBinding(
-            capturingHotkeyActionId_,
+            actionId,
             candidate)) {
-        SetWindowTextW(
-            hotkeyPageStatus_,
-            T(L"该组合键无效或会抢占搜索输入。裸字符、空格和编辑/导航键保留给输入框；无修饰键时请使用 F1–F24 或 Pause。",
-              L"This binding is invalid or would steal query input. Bare characters, Space and editing/navigation keys stay with the edit control; use F1-F24 or Pause when no modifier is present."));
+        SetHotkeyRowStatus(
+            actionId,
+            T(L"该组合键无效或会抢占搜索输入；无修饰键时请使用 F1–F24 或 Pause。",
+              L"This binding is invalid or would steal query input; use F1-F24 or Pause when no modifier is present."));
         return;
     }
 
@@ -2009,7 +1991,7 @@ void SettingsWindow::ApplyCapturedHotkey(
             FindHotkeyConflict(
                 app_.SettingsData()
                     .hotkeyBindings,
-                capturingHotkeyActionId_,
+                actionId,
                 candidate)) {
         std::wstring message =
             T(L"与“", L"Conflicts with “");
@@ -2020,19 +2002,19 @@ void SettingsWindow::ApplyCapturedHotkey(
             T(L"”冲突，请换一个组合键。",
               L"”; choose another binding.");
 
-        SetWindowTextW(
-            hotkeyPageStatus_,
-            message.c_str());
+        SetHotkeyRowStatus(
+            actionId,
+            message);
         return;
     }
 
     if (!app_.SetHotkeyBinding(
-            capturingHotkeyActionId_,
+            actionId,
             candidate)) {
-        SetWindowTextW(
-            hotkeyPageStatus_,
-            T(L"无法应用这个快捷键。若它是全局热键，可能已被其他程序占用；旧绑定保持不变。",
-              L"Could not apply this binding. A global shortcut may already be owned by another app; the previous binding remains active."));
+        SetHotkeyRowStatus(
+            actionId,
+            T(L"无法应用；全局快捷键可能已被其他程序占用，旧绑定保持不变。",
+              L"Could not apply; a global shortcut may already be owned by another app. The previous binding remains active."));
         return;
     }
 
@@ -2042,21 +2024,17 @@ void SettingsWindow::ApplyCapturedHotkey(
     RefreshHotkeyPage();
 }
 
-void SettingsWindow::ToggleSelectedHotkeyEnabled() {
-    if (syncing_ ||
-        selectedHotkeyActionId_
-            .empty()) {
+void SettingsWindow::ToggleHotkeyActionEnabled(
+    std::string_view actionId) {
+    if (syncing_) {
         return;
     }
 
     const auto* action =
-        FindHotkeyAction(
-            selectedHotkeyActionId_);
+        FindHotkeyAction(actionId);
 
     if (!action ||
         action->required) {
-        LoadHotkeyEditor(
-            selectedHotkeyActionId_);
         return;
     }
 
@@ -2064,7 +2042,7 @@ void SettingsWindow::ToggleSelectedHotkeyEnabled() {
         EffectiveHotkeyBinding(
             app_.SettingsData()
                 .hotkeyBindings,
-            selectedHotkeyActionId_);
+            actionId);
 
     binding.enabled =
         !binding.enabled;
@@ -2074,7 +2052,7 @@ void SettingsWindow::ToggleSelectedHotkeyEnabled() {
                 FindHotkeyConflict(
                     app_.SettingsData()
                         .hotkeyBindings,
-                    selectedHotkeyActionId_,
+                    actionId,
                     binding)) {
             std::wstring message =
                 T(L"无法启用：与“",
@@ -2084,30 +2062,30 @@ void SettingsWindow::ToggleSelectedHotkeyEnabled() {
                     *conflict);
             message += L"”.";
 
-            SetWindowTextW(
-                hotkeyPageStatus_,
-                message.c_str());
-            LoadHotkeyEditor(
-                selectedHotkeyActionId_);
+            SetHotkeyRowStatus(
+                actionId,
+                message);
             return;
         }
     }
 
     if (!app_.SetHotkeyBinding(
-            selectedHotkeyActionId_,
+            std::string(actionId),
             binding)) {
-        LoadHotkeyEditor(
-            selectedHotkeyActionId_);
+        SetHotkeyRowStatus(
+            actionId,
+            T(L"无法更新此快捷键状态。",
+              L"Could not update this hotkey state."));
         return;
     }
 
     RefreshHotkeyPage();
 }
 
-void SettingsWindow::ResetSelectedHotkey() {
+void SettingsWindow::ResetHotkeyAction(
+    std::string_view actionId) {
     const auto* action =
-        FindHotkeyAction(
-            selectedHotkeyActionId_);
+        FindHotkeyAction(actionId);
 
     if (!action) {
         return;
@@ -2117,7 +2095,7 @@ void SettingsWindow::ResetSelectedHotkey() {
             FindHotkeyConflict(
                 app_.SettingsData()
                     .hotkeyBindings,
-                selectedHotkeyActionId_,
+                actionId,
                 action->defaultBinding)) {
         std::wstring message =
             T(L"默认组合键当前与“",
@@ -2127,20 +2105,26 @@ void SettingsWindow::ResetSelectedHotkey() {
                 *conflict);
         message += L"”.";
 
-        SetWindowTextW(
-            hotkeyPageStatus_,
-            message.c_str());
+        SetHotkeyRowStatus(
+            actionId,
+            message);
         return;
     }
 
     if (!app_.SetHotkeyBinding(
-            selectedHotkeyActionId_,
+            std::string(actionId),
             action->defaultBinding)) {
-        SetWindowTextW(
-            hotkeyPageStatus_,
-            T(L"恢复失败；如果这是全局快捷键，默认组合可能已被其他程序占用。",
-              L"Reset failed; if this is a global shortcut, another app may own the default binding."));
+        SetHotkeyRowStatus(
+            actionId,
+            T(L"恢复失败；默认全局快捷键可能已被其他程序占用。",
+              L"Reset failed; another app may own the default global shortcut."));
         return;
+    }
+
+    if (capturingHotkeyActionId_ ==
+        actionId) {
+        capturingHotkeyActionId_
+            .clear();
     }
 
     RefreshHotkeyPage();
@@ -2150,7 +2134,7 @@ void SettingsWindow::ResetAllHotkeys() {
     const int answer =
         MessageBoxW(
             hwnd_,
-            T(L"恢复全部默认快捷键？\n\n主热键将恢复为 Alt + Space，辅助热键关闭，内部动作恢复默认组合。",
+            T(L"恢复全部默认快捷键？\n\n主热键将恢复为 Alt + Space，辅助热键关闭，启动器内动作恢复默认组合。",
               L"Reset every hotkey to defaults?\n\nPrimary activation returns to Alt + Space, secondary activation is disabled and launcher actions regain their defaults."),
             T(L"恢复默认快捷键",
               L"Reset hotkeys"),
@@ -2177,8 +2161,6 @@ void SettingsWindow::ResetAllHotkeys() {
         .clear();
     RefreshHotkeyPage();
 }
-
-
 
 void SettingsWindow::RefreshProviderStatus() {
     if (!providerStatus_) {
@@ -2570,7 +2552,6 @@ void SettingsWindow::ShowPage(Page page) {
              launcherPlacementDescription_,
              settingsPlacementDescription_,
              generalNote_,
-             hotkeyPageNote_,
              providerNote_,
              appearanceNote_,
              aboutDescription_}) {
@@ -2696,15 +2677,12 @@ void SettingsWindow::ApplyClassicBehaviorControl(
             : FALSE);
 }
 
-void SettingsWindow::ImportCommands(bool legacyMode) {
+
+void SettingsWindow::ImportCommands() {
     std::array<wchar_t, 32768> file{};
 
-    const wchar_t nextFilter[] =
-        L"ALTRun Next TSV\0*.tsv;*.txt\0"
-        L"All files\0*.*\0\0";
-
-    const wchar_t legacyFilter[] =
-        L"Legacy ALTRun files\0*.ini;*.txt;*.tsv\0"
+    const wchar_t filter[] =
+        L"ALTRun Next shortcuts\0*.tsv;*.txt\0"
         L"All files\0*.*\0\0";
 
     OPENFILENAMEW open{};
@@ -2712,9 +2690,9 @@ void SettingsWindow::ImportCommands(bool legacyMode) {
     open.hwndOwner = hwnd_;
     open.lpstrFile = file.data();
     open.nMaxFile =
-        static_cast<DWORD>(file.size());
-    open.lpstrFilter =
-        legacyMode ? legacyFilter : nextFilter;
+        static_cast<DWORD>(
+            file.size());
+    open.lpstrFilter = filter;
     open.nFilterIndex = 1;
     open.Flags =
         OFN_FILEMUSTEXIST |
@@ -2730,8 +2708,8 @@ void SettingsWindow::ImportCommands(bool legacyMode) {
     std::size_t skipped = 0;
 
     if (!app_.ImportUserCommands(
-            std::filesystem::path(file.data()),
-            legacyMode,
+            std::filesystem::path(
+                file.data()),
             &imported,
             &skipped)) {
 
@@ -2739,17 +2717,26 @@ void SettingsWindow::ImportCommands(bool legacyMode) {
             hwnd_,
             T(L"导入失败，原数据未被替换。",
               L"Import failed. Existing data was not replaced."),
-            T(L"导入快捷项", L"Import shortcuts"),
-            MB_OK | MB_ICONERROR);
+            T(L"导入快捷项",
+              L"Import shortcuts"),
+            MB_OK |
+                MB_ICONERROR);
         return;
     }
 
     std::wstring status =
-        T(L"导入完成：新增 ", L"Import complete: added ");
-    status += std::to_wstring(imported);
-    status += T(L" 项，跳过 ", L", skipped ");
-    status += std::to_wstring(skipped);
-    status += T(L" 项。", L".");
+        T(L"导入完成：新增 ",
+          L"Import complete: added ");
+    status +=
+        std::to_wstring(imported);
+    status +=
+        T(L" 项，跳过 ",
+          L", skipped ");
+    status +=
+        std::to_wstring(skipped);
+    status +=
+        T(L" 项。",
+          L".");
 
     SetWindowTextW(
         dataStatus_,
@@ -2946,10 +2933,12 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
         settings.popupMonitor);
 }
 
+
 void SettingsWindow::ToggleProviderSetting(
     UINT id) {
 
-    if (syncing_) {
+    if (syncing_ ||
+        providerCommitInProgress_) {
         return;
     }
 
@@ -2986,28 +2975,150 @@ void SettingsWindow::ToggleProviderSetting(
         return;
     }
 
-    const bool enabled =
+    // Keep the visual state local and immediate. The expensive provider
+    // cache/lifecycle work is committed once after a short quiet period,
+    // so repeated clicks collapse to the user's final intent instead of
+    // queueing synchronous refreshes on the UI thread.
+    pendingProviderStates_[
+        providerId] =
         !ToggleChecked(id);
 
-    const bool everythingProvider =
-        providerId ==
-        providers::
-            kEverythingFilesystem;
+    InvalidateRect(
+        reinterpret_cast<HWND>(
+            GetDlgItem(
+                hwnd_,
+                static_cast<int>(id))),
+        nullptr,
+        TRUE);
 
-    if (!app_.SetProviderEnabled(
-            std::move(providerId),
-            enabled)) {
+    KillTimer(
+        hwnd_,
+        kProviderCommitTimerId);
+
+    SetTimer(
+        hwnd_,
+        kProviderCommitTimerId,
+        180,
+        nullptr);
+}
+
+
+void SettingsWindow::CommitPendingProviderChanges() {
+    KillTimer(
+        hwnd_,
+        kProviderCommitTimerId);
+
+    if (pendingProviderStates_.empty() ||
+        providerCommitInProgress_) {
+        return;
+    }
+
+    const auto pending =
+        pendingProviderStates_;
+
+    providerCommitInProgress_ = true;
+
+    for (HWND control :
+         std::array<HWND, 5>{
+             providerStartMenu_,
+             providerPackaged_,
+             providerAppPaths_,
+             providerPath_,
+             providerEverything_}) {
+        EnableWindow(
+            control,
+            FALSE);
+    }
+
+    ProviderEnableMap ordinaryChanges;
+    std::optional<bool>
+        everythingChange;
+
+    for (const auto& [providerId, enabled] :
+         pending) {
+        const bool everything =
+            providerId ==
+            providers::
+                kEverythingFilesystem;
+
+        const bool current =
+            providers::IsEnabled(
+                app_.SettingsData()
+                    .providerEnabled,
+                providerId,
+                !everything);
+
+        if (current == enabled) {
+            continue;
+        }
+
+        if (everything) {
+            everythingChange =
+                enabled;
+        } else {
+            ordinaryChanges[
+                providerId] =
+                enabled;
+        }
+    }
+
+    bool failed = false;
+    bool everythingFailed = false;
+
+    // Apply all ordinary discovery providers in one Settings save / cache
+    // merge / Launcher refresh. This is the expensive work that used to run
+    // once per click.
+    if (!ordinaryChanges.empty() &&
+        !app_.SetProviderEnabledBatch(
+            ordinaryChanges)) {
+        failed = true;
+    }
+
+    // Everything remains a separate lifecycle operation because it may own
+    // a managed Service and require UAC. Run it after the cheap batch so a
+    // permission prompt cannot delay the ordinary-provider final state.
+    if (everythingChange &&
+        !app_.SetProviderEnabled(
+            std::string(
+                providers::
+                    kEverythingFilesystem),
+            *everythingChange)) {
+        failed = true;
+        everythingFailed = true;
+    }
+
+    pendingProviderStates_.clear();
+    providerCommitInProgress_ = false;
+
+    for (HWND control :
+         std::array<HWND, 5>{
+             providerStartMenu_,
+             providerPackaged_,
+             providerAppPaths_,
+             providerPath_,
+             providerEverything_}) {
+        EnableWindow(
+            control,
+            TRUE);
+        InvalidateRect(
+            control,
+            nullptr,
+            TRUE);
+    }
+
+    RefreshFromSettings();
+
+    if (failed) {
         MessageBoxW(
             hwnd_,
-            everythingProvider
-                ? T(L"无法更改 Everything 搜索源状态。\n\n如果使用的是 ALTRun Next 托管版，请确认 Windows 管理员权限请求；取消 UAC 后开关会恢复原状态。",
-                    L"Unable to change the Everything search-source state.\n\nIf ALTRun Next manages this Everything copy, approve the Windows administrator request. Cancelling UAC restores the previous setting.")
-                : T(L"无法保存搜索来源设置。",
-                    L"Unable to save search-source settings."),
+            everythingFailed
+                ? T(L"部分搜索来源未能应用；Everything 托管模式可能需要 Windows 管理员权限。未成功的开关已恢复实际状态。",
+                    L"Some search-source changes could not be applied. Managed Everything may require Windows administrator approval. Failed switches were restored to their actual state.")
+                : T(L"部分搜索来源设置无法保存，未成功的开关已恢复实际状态。",
+                    L"Some search-source settings could not be saved. Failed switches were restored to their actual state."),
             L"ALTRun Next",
-            MB_OK | MB_ICONERROR);
-
-        RefreshFromSettings();
+            MB_OK |
+                MB_ICONERROR);
     }
 }
 
@@ -3137,11 +3248,21 @@ bool SettingsWindow::ToggleChecked(
         app_.SettingsData();
 
     const auto providerEnabled =
-        [&](std::string_view providerId) {
+        [&](std::string_view providerId,
+            bool defaultEnabled = true) {
+            const auto pending =
+                pendingProviderStates_.find(
+                    std::string(providerId));
+
+            if (pending !=
+                pendingProviderStates_.end()) {
+                return pending->second;
+            }
+
             return providers::IsEnabled(
                 settings.providerEnabled,
                 providerId,
-                true);
+                defaultEnabled);
         };
 
     switch (id) {
@@ -3159,14 +3280,6 @@ bool SettingsWindow::ToggleChecked(
         return settings.showTrayIcon;
     case kIdShowResultIcons:
         return settings.showResultIcons;
-    case kIdHotkeyEnabled:
-        if (selectedHotkeyActionId_.empty()) {
-            return false;
-        }
-        return EffectiveHotkeyBinding(
-                   settings.hotkeyBindings,
-                   selectedHotkeyActionId_)
-            .enabled;
     case kIdUpdateAutoCheck:
         return settings.autoCheckUpdates;
     case kIdPinyinSearch:
@@ -3191,8 +3304,7 @@ bool SettingsWindow::ToggleChecked(
         return providerEnabled(
             providers::kPath);
     case kIdProviderEverything:
-        return providers::IsEnabled(
-            settings.providerEnabled,
+        return providerEnabled(
             providers::
                 kEverythingFilesystem,
             false);
@@ -3649,14 +3761,8 @@ void SettingsWindow::Layout() {
         const int labelX =
             metrics.placement.left +
             Scale(18);
-        const int placementWidth =
-            metrics.placement.right -
-            metrics.placement.left;
         const int comboWidth =
-            std::clamp(
-                placementWidth * 46 / 100,
-                Scale(180),
-                Scale(250));
+            Scale(220);
         const int comboX =
             metrics.placement.right -
             comboWidth -
@@ -3710,105 +3816,184 @@ void SettingsWindow::Layout() {
         }
     }
 
+
+
     if (page_ == Page::Hotkeys) {
-        const int top =
-            Scale(116);
-        const int gap =
-            Scale(18);
-        const int listWidth =
+        const int width =
             std::min(
-                Scale(285),
-                std::max(
-                    Scale(230),
-                    contentWidth * 38 / 100));
-        const int editorX =
-            contentLeft +
-            listWidth +
-            gap;
-        const int editorWidth =
-            std::max(
-                Scale(300),
-                contentRight -
-                    editorX);
+                contentWidth,
+                Scale(560));
+        const int cardLeft =
+            contentLeft;
+        const int cardRight =
+            contentLeft + width;
+        const int rowHeight =
+            Scale(72);
+        const int captureWidth =
+            Scale(166);
+        const int toggleWidth =
+            Scale(48);
+        const int controlGap =
+            Scale(10);
+        const int inner =
+            Scale(18);
+
+        const std::size_t globalCount =
+            static_cast<std::size_t>(
+                std::count_if(
+                    hotkeyRows_.begin(),
+                    hotkeyRows_.end(),
+                    [](const HotkeyRowControls& row) {
+                        const auto* action =
+                            FindHotkeyAction(
+                                row.actionId);
+                        return action &&
+                            action->scope ==
+                                HotkeyScope::Global;
+                    }));
+
+        const int globalTitleTop =
+            Scale(108);
+        const int globalCardTop =
+            Scale(140);
+        const int globalCardBottom =
+            globalCardTop +
+            static_cast<int>(
+                globalCount) *
+                rowHeight;
+        const int launcherTitleTop =
+            globalCardBottom +
+            Scale(22);
+        const int launcherCardTop =
+            launcherTitleTop +
+            Scale(32);
 
         MoveWindow(
-            hotkeyActionList_,
-            contentLeft + Scale(12),
-            top + Scale(12),
-            listWidth - Scale(24),
-            Scale(376),
-            TRUE);
-
-        MoveWindow(
-            hotkeyEditorTitle_,
-            editorX + Scale(18),
-            top + Scale(18),
-            editorWidth - Scale(36),
-            Scale(30),
-            TRUE);
-
-        MoveWindow(
-            hotkeyEditorDescription_,
-            editorX + Scale(18),
-            top + Scale(52),
-            editorWidth - Scale(36),
-            Scale(30),
-            TRUE);
-
-        MoveWindow(
-            hotkeyScope_,
-            editorX + Scale(18),
-            top + Scale(88),
-            editorWidth - Scale(36),
+            hotkeyGlobalTitle_,
+            contentLeft,
+            globalTitleTop,
+            width,
             Scale(26),
             TRUE);
 
         MoveWindow(
-            hotkeyEnabled_,
-            editorX + Scale(1),
-            top + Scale(122),
-            editorWidth - Scale(2),
-            Scale(
-                settings_layout::
-                    kToggleRowLogical),
+            hotkeyLauncherTitle_,
+            contentLeft,
+            launcherTitleTop,
+            width,
+            Scale(26),
             TRUE);
 
-        MoveWindow(
-            hotkeyCapture_,
-            editorX + Scale(18),
-            top + Scale(188),
-            std::min(
-                Scale(220),
-                editorWidth - Scale(36)),
-            Scale(36),
-            TRUE);
+        std::size_t globalIndex = 0;
+        std::size_t launcherIndex = 0;
 
-        MoveWindow(
-            hotkeyResetCurrent_,
-            editorX + Scale(18),
-            top + Scale(234),
-            std::min(
-                Scale(220),
-                editorWidth - Scale(36)),
-            Scale(36),
-            TRUE);
+        for (auto& row :
+             hotkeyRows_) {
+            const auto* action =
+                FindHotkeyAction(
+                    row.actionId);
 
-        MoveWindow(
-            hotkeyPageStatus_,
-            editorX + Scale(18),
-            top + Scale(282),
-            editorWidth - Scale(36),
-            Scale(44),
-            TRUE);
+            if (!action) {
+                continue;
+            }
+
+            const bool global =
+                action->scope ==
+                    HotkeyScope::Global;
+
+            const std::size_t groupIndex =
+                global
+                    ? globalIndex++
+                    : launcherIndex++;
+
+            const int top =
+                (global
+                    ? globalCardTop
+                    : launcherCardTop) +
+                static_cast<int>(
+                    groupIndex) *
+                    rowHeight;
+
+            const int toggleX =
+                cardRight -
+                inner -
+                toggleWidth;
+
+            const int captureX =
+                row.enabled
+                    ? toggleX -
+                        controlGap -
+                        captureWidth
+                    : cardRight -
+                        inner -
+                        captureWidth;
+
+            MoveWindow(
+                row.title,
+                cardLeft + inner,
+                top + Scale(11),
+                std::max(
+                    Scale(150),
+                    captureX -
+                        cardLeft -
+                        inner -
+                        Scale(14)),
+                Scale(28),
+                TRUE);
+
+            MoveWindow(
+                row.capture,
+                captureX,
+                top + Scale(10),
+                captureWidth,
+                Scale(34),
+                TRUE);
+
+            if (row.enabled) {
+                MoveWindow(
+                    row.enabled,
+                    toggleX,
+                    top + Scale(11),
+                    toggleWidth,
+                    Scale(32),
+                    TRUE);
+            }
+
+            MoveWindow(
+                row.status,
+                cardLeft + inner,
+                top + Scale(46),
+                std::max(
+                    Scale(160),
+                    captureX -
+                        cardLeft -
+                        inner -
+                        Scale(12)),
+                Scale(20),
+                TRUE);
+
+            MoveWindow(
+                row.reset,
+                captureX,
+                top + Scale(47),
+                Scale(78),
+                Scale(20),
+                TRUE);
+        }
+
+        const int launcherCardBottom =
+            launcherCardTop +
+            static_cast<int>(
+                launcherIndex) *
+                rowHeight;
 
         MoveWindow(
             hotkeyResetAll_,
-            editorX + Scale(18),
-            top + Scale(340),
-            std::min(
-                Scale(240),
-                editorWidth - Scale(36)),
-            Scale(36),
+            contentLeft,
+            launcherCardBottom +
+                Scale(16),
+            Scale(184),
+            Scale(34),
             TRUE);
     }
 
@@ -3902,11 +4087,21 @@ void SettingsWindow::Layout() {
             TRUE);
     }
 
+
     if (page_ == Page::Appearance) {
         const int width =
             std::min(
                 contentWidth,
-                Scale(680));
+                Scale(560));
+        const int inner =
+            Scale(18);
+        const int comboWidth =
+            Scale(200);
+        const int comboX =
+            contentLeft +
+            width -
+            inner -
+            comboWidth;
 
         MoveWindow(
             appearanceLauncherTitle_,
@@ -3918,17 +4113,21 @@ void SettingsWindow::Layout() {
 
         MoveWindow(
             uiStyleLabel_,
-            contentLeft + Scale(18),
-            Scale(158),
-            Scale(220),
+            contentLeft + inner,
+            Scale(157),
+            std::max(
+                Scale(160),
+                comboX -
+                    contentLeft -
+                    inner -
+                    Scale(16)),
             Scale(24),
             TRUE);
         MoveWindow(
             uiStyle_,
-            contentLeft + width -
-                Scale(308),
-            Scale(149),
-            Scale(290),
+            comboX,
+            Scale(153),
+            comboWidth,
             Scale(180),
             TRUE);
 
@@ -3942,26 +4141,35 @@ void SettingsWindow::Layout() {
 
         MoveWindow(
             languageLabel_,
-            contentLeft + Scale(18),
-            Scale(282),
-            Scale(220),
+            contentLeft + inner,
+            Scale(281),
+            std::max(
+                Scale(160),
+                comboX -
+                    contentLeft -
+                    inner -
+                    Scale(16)),
             Scale(24),
             TRUE);
         MoveWindow(
             language_,
-            contentLeft + width -
-                Scale(308),
-            Scale(273),
-            Scale(290),
+            comboX,
+            Scale(277),
+            comboWidth,
             Scale(180),
             TRUE);
     }
+
 
     if (page_ == Page::Data) {
         const int width =
             std::min(
                 contentWidth,
-                Scale(720));
+                Scale(560));
+        const int inner =
+            Scale(18);
+        const int gap =
+            Scale(12);
 
         MoveWindow(
             dataPathLabel_,
@@ -3970,19 +4178,27 @@ void SettingsWindow::Layout() {
             width,
             Scale(26),
             TRUE);
+
+        const int openWidth =
+            Scale(144);
+
         MoveWindow(
             dataPath_,
-            contentLeft + Scale(18),
+            contentLeft + inner,
             Scale(158),
-            width - Scale(220),
+            width -
+                inner * 3 -
+                openWidth,
             Scale(24),
             TRUE);
         MoveWindow(
             openDataFolder_,
-            contentLeft + width -
-                Scale(174),
+            contentLeft +
+                width -
+                inner -
+                openWidth,
             Scale(152),
-            Scale(156),
+            openWidth,
             Scale(34),
             TRUE);
 
@@ -3993,25 +4209,27 @@ void SettingsWindow::Layout() {
             width,
             Scale(26),
             TRUE);
+
+        const int transferWidth =
+            (width -
+             inner * 2 -
+             gap) / 2;
+
         MoveWindow(
             dataImportTsv_,
-            contentLeft + Scale(18),
+            contentLeft + inner,
             Scale(278),
-            Scale(170),
-            Scale(34),
-            TRUE);
-        MoveWindow(
-            dataImportLegacy_,
-            contentLeft + Scale(200),
-            Scale(278),
-            Scale(190),
+            transferWidth,
             Scale(34),
             TRUE);
         MoveWindow(
             dataExport_,
-            contentLeft + Scale(402),
+            contentLeft +
+                inner +
+                transferWidth +
+                gap,
             Scale(278),
-            Scale(170),
+            transferWidth,
             Scale(34),
             TRUE);
 
@@ -4022,25 +4240,39 @@ void SettingsWindow::Layout() {
             width,
             Scale(26),
             TRUE);
+
+        const int maintenanceWidth =
+            (width -
+             inner * 2 -
+             gap * 2) / 3;
+        const int maintenanceTop =
+            Scale(406);
+
         MoveWindow(
             dataClearUsage_,
-            contentLeft + Scale(18),
-            Scale(406),
-            Scale(170),
+            contentLeft + inner,
+            maintenanceTop,
+            maintenanceWidth,
             Scale(34),
             TRUE);
         MoveWindow(
             dataRebuildIndex_,
-            contentLeft + Scale(200),
-            Scale(406),
-            Scale(190),
+            contentLeft +
+                inner +
+                maintenanceWidth +
+                gap,
+            maintenanceTop,
+            maintenanceWidth,
             Scale(34),
             TRUE);
         MoveWindow(
             dataResetSettings_,
-            contentLeft + Scale(402),
-            Scale(406),
-            Scale(170),
+            contentLeft +
+                inner +
+                (maintenanceWidth +
+                 gap) * 2,
+            maintenanceTop,
+            maintenanceWidth,
             Scale(34),
             TRUE);
 
@@ -4359,161 +4591,358 @@ void SettingsWindow::DrawNavigationButton(
         oldFont);
 }
 
-void SettingsWindow::DrawHotkeyActionItem(
-    const DRAWITEMSTRUCT& item) {
 
-    if (item.itemID ==
-            static_cast<UINT>(-1) ||
-        item.itemID >=
-            hotkeyActionIds_.size()) {
+void SettingsWindow::DrawSwitchGlyph(
+    HDC dc,
+    const RECT& rect,
+    bool checked,
+    bool pressed) {
+
+    const int switchWidth =
+        rect.right -
+        rect.left;
+    const int switchHeight =
+        rect.bottom -
+        rect.top;
+
+    constexpr int kSupersample = 3;
+    const int margin =
+        std::max(1, Scale(2));
+    const int targetWidth =
+        switchWidth +
+        margin * 2;
+    const int targetHeight =
+        switchHeight +
+        margin * 2;
+    const int sourceWidth =
+        targetWidth *
+        kSupersample;
+    const int sourceHeight =
+        targetHeight *
+        kSupersample;
+
+    HDC switchDc =
+        CreateCompatibleDC(dc);
+
+    HBITMAP switchBitmap =
+        switchDc
+            ? CreateCompatibleBitmap(
+                  dc,
+                  sourceWidth,
+                  sourceHeight)
+            : nullptr;
+
+    const COLORREF background =
+        pressed
+            ? kCardPressed
+            : kCardBackground;
+
+    if (switchDc &&
+        switchBitmap) {
+        HGDIOBJ oldBitmap =
+            SelectObject(
+                switchDc,
+                switchBitmap);
+
+        RECT sourceRect{
+            0,
+            0,
+            sourceWidth,
+            sourceHeight,
+        };
+
+        HBRUSH sourceBackground =
+            CreateSolidBrush(
+                background);
+        FillRect(
+            switchDc,
+            &sourceRect,
+            sourceBackground);
+        DeleteObject(
+            sourceBackground);
+
+        const int sourceMargin =
+            margin *
+            kSupersample;
+        const int trackWidth =
+            switchWidth *
+            kSupersample;
+        const int trackHeight =
+            switchHeight *
+            kSupersample;
+
+        HBRUSH trackBrush =
+            CreateSolidBrush(
+                checked
+                    ? kAccent
+                    : RGB(
+                          210,
+                          216,
+                          224));
+
+        HGDIOBJ oldBrush =
+            SelectObject(
+                switchDc,
+                trackBrush);
+        HGDIOBJ oldPen =
+            SelectObject(
+                switchDc,
+                GetStockObject(
+                    NULL_PEN));
+
+        RoundRect(
+            switchDc,
+            sourceMargin,
+            sourceMargin,
+            sourceMargin +
+                trackWidth,
+            sourceMargin +
+                trackHeight,
+            trackHeight,
+            trackHeight);
+
+        const int knobSize =
+            Scale(16) *
+            kSupersample;
+        const int knobInset =
+            Scale(3) *
+            kSupersample;
+        const int knobLeft =
+            checked
+                ? sourceMargin +
+                    trackWidth -
+                    knobInset -
+                    knobSize
+                : sourceMargin +
+                    knobInset;
+
+        HBRUSH knobBrush =
+            CreateSolidBrush(
+                RGB(
+                    255,
+                    255,
+                    255));
+
+        SelectObject(
+            switchDc,
+            knobBrush);
+
+        Ellipse(
+            switchDc,
+            knobLeft,
+            sourceMargin +
+                knobInset,
+            knobLeft +
+                knobSize,
+            sourceMargin +
+                knobInset +
+                knobSize);
+
+        SelectObject(
+            switchDc,
+            oldBrush);
+        SelectObject(
+            switchDc,
+            oldPen);
+        DeleteObject(
+            trackBrush);
+        DeleteObject(
+            knobBrush);
+
+        const int oldStretchMode =
+            SetStretchBltMode(
+                dc,
+                HALFTONE);
+
+        POINT oldBrushOrigin{};
+        SetBrushOrgEx(
+            dc,
+            0,
+            0,
+            &oldBrushOrigin);
+
+        StretchBlt(
+            dc,
+            rect.left - margin,
+            rect.top - margin,
+            targetWidth,
+            targetHeight,
+            switchDc,
+            0,
+            0,
+            sourceWidth,
+            sourceHeight,
+            SRCCOPY);
+
+        SetBrushOrgEx(
+            dc,
+            oldBrushOrigin.x,
+            oldBrushOrigin.y,
+            nullptr);
+        SetStretchBltMode(
+            dc,
+            oldStretchMode);
+
+        SelectObject(
+            switchDc,
+            oldBitmap);
+    } else {
+        HBRUSH trackBrush =
+            CreateSolidBrush(
+                checked
+                    ? kAccent
+                    : RGB(
+                          210,
+                          216,
+                          224));
+
+        HGDIOBJ oldBrush =
+            SelectObject(
+                dc,
+                trackBrush);
+        HGDIOBJ oldPen =
+            SelectObject(
+                dc,
+                GetStockObject(
+                    NULL_PEN));
+
+        RoundRect(
+            dc,
+            rect.left,
+            rect.top,
+            rect.right,
+            rect.bottom,
+            switchHeight,
+            switchHeight);
+
+        const int knobSize =
+            Scale(16);
+        const int knobInset =
+            Scale(3);
+        const int knobLeft =
+            checked
+                ? rect.right -
+                    knobInset -
+                    knobSize
+                : rect.left +
+                    knobInset;
+
+        HBRUSH knobBrush =
+            CreateSolidBrush(
+                RGB(
+                    255,
+                    255,
+                    255));
+
+        SelectObject(
+            dc,
+            knobBrush);
+
+        Ellipse(
+            dc,
+            knobLeft,
+            rect.top +
+                knobInset,
+            knobLeft +
+                knobSize,
+            rect.top +
+                knobInset +
+                knobSize);
+
+        SelectObject(
+            dc,
+            oldBrush);
+        SelectObject(
+            dc,
+            oldPen);
+        DeleteObject(
+            trackBrush);
+        DeleteObject(
+            knobBrush);
+    }
+
+    if (switchBitmap) {
+        DeleteObject(
+            switchBitmap);
+    }
+    if (switchDc) {
+        DeleteDC(
+            switchDc);
+    }
+}
+
+void SettingsWindow::DrawHotkeyToggle(
+    const DRAWITEMSTRUCT& item,
+    std::size_t rowIndex) {
+
+    if (rowIndex >=
+        hotkeyRows_.size()) {
         return;
     }
 
-    RECT rect =
-        item.rcItem;
+    const auto& row =
+        hotkeyRows_[rowIndex];
 
-    const bool selected =
+    const auto binding =
+        EffectiveHotkeyBinding(
+            app_.SettingsData()
+                .hotkeyBindings,
+            row.actionId);
+
+    const bool pressed =
         (item.itemState &
          ODS_SELECTED) != 0;
+    const bool focused =
+        (item.itemState &
+         ODS_FOCUS) != 0;
 
     const COLORREF background =
-        selected
-            ? kPalette.selectionBackground
+        pressed || focused
+            ? kCardPressed
             : kCardBackground;
+
+    RECT itemRect =
+        item.rcItem;
 
     HBRUSH fill =
         CreateSolidBrush(
             background);
     FillRect(
         item.hDC,
-        &rect,
+        &itemRect,
         fill);
     DeleteObject(fill);
 
-    const std::string& actionId =
-        hotkeyActionIds_[
-            item.itemID];
+    const int switchWidth =
+        Scale(40);
+    const int switchHeight =
+        Scale(22);
 
-    const std::wstring title =
-        HotkeyActionLabel(
-            actionId);
-
-    const auto binding =
-        EffectiveHotkeyBinding(
-            app_.SettingsData()
-                .hotkeyBindings,
-            actionId);
-
-    const std::wstring detail =
-        binding.enabled
-            ? FormatHotkeyBinding(
-                  actionId)
-            : T(L"已禁用",
-                L"Disabled");
-
-    SetBkMode(
-        item.hDC,
-        TRANSPARENT);
-
-    HGDIOBJ oldFont =
-        SelectObject(
-            item.hDC,
-            sectionFont_);
-
-    RECT titleRect{
-        rect.left + Scale(12),
-        rect.top + Scale(6),
-        rect.right - Scale(10),
-        rect.top + Scale(28),
+    RECT switchRect{
+        itemRect.left +
+            (itemRect.right -
+             itemRect.left -
+             switchWidth) / 2,
+        itemRect.top +
+            (itemRect.bottom -
+             itemRect.top -
+             switchHeight) / 2,
+        0,
+        0,
     };
 
-    SetTextColor(
+    switchRect.right =
+        switchRect.left +
+        switchWidth;
+    switchRect.bottom =
+        switchRect.top +
+        switchHeight;
+
+    DrawSwitchGlyph(
         item.hDC,
-        kText);
-
-    DrawTextW(
-        item.hDC,
-        title.c_str(),
-        -1,
-        &titleRect,
-        DT_LEFT |
-            DT_SINGLELINE |
-            DT_VCENTER |
-            DT_END_ELLIPSIS |
-            DT_NOPREFIX);
-
-    SelectObject(
-        item.hDC,
-        normalFont_);
-
-    RECT detailRect{
-        titleRect.left,
-        rect.top + Scale(27),
-        titleRect.right,
-        rect.bottom - Scale(5),
-    };
-
-    SetTextColor(
-        item.hDC,
-        kMuted);
-
-    DrawTextW(
-        item.hDC,
-        detail.c_str(),
-        -1,
-        &detailRect,
-        DT_LEFT |
-            DT_SINGLELINE |
-            DT_VCENTER |
-            DT_END_ELLIPSIS |
-            DT_NOPREFIX);
-
-    SelectObject(
-        item.hDC,
-        oldFont);
-
-    if (item.itemID + 1 <
-        hotkeyActionIds_.size()) {
-        HPEN separator =
-            CreatePen(
-                PS_SOLID,
-                1,
-                kBorder);
-
-        HGDIOBJ oldPen =
-            SelectObject(
-                item.hDC,
-                separator);
-
-        MoveToEx(
-            item.hDC,
-            rect.left + Scale(12),
-            rect.bottom - 1,
-            nullptr);
-        LineTo(
-            item.hDC,
-            rect.right - Scale(10),
-            rect.bottom - 1);
-
-        SelectObject(
-            item.hDC,
-            oldPen);
-        DeleteObject(
-            separator);
-    }
-
-    if (item.itemState &
-        ODS_FOCUS) {
-        RECT focus =
-            rect;
-        InflateRect(
-            &focus,
-            -Scale(5),
-            -Scale(4));
-        DrawFocusRect(
-            item.hDC,
-            &focus);
-    }
+        switchRect,
+        binding.enabled,
+        pressed || focused);
 }
 
 void SettingsWindow::DrawActionButton(
@@ -4665,6 +5094,7 @@ void SettingsWindow::DrawActionButton(
 
 
 
+
 void SettingsWindow::DrawGeneralToggle(
     const DRAWITEMSTRUCT& item) {
 
@@ -4702,43 +5132,64 @@ void SettingsWindow::DrawGeneralToggle(
 
     switch (id) {
     case kIdStartWithWindows:
-        title = T(L"开机启动", L"Start with Windows");
+        title =
+            T(L"开机启动",
+              L"Start with Windows");
         break;
     case kIdShowOnStartup:
-        title = T(L"启动时显示启动器", L"Show launcher on startup");
+        title =
+            T(L"启动时显示启动器",
+              L"Show launcher on startup");
         break;
     case kIdHideAfterLaunch:
-        title = T(L"执行后自动隐藏", L"Hide after launch");
+        title =
+            T(L"执行后自动隐藏",
+              L"Hide after launch");
         break;
     case kIdClearQueryOnShow:
-        title = T(L"呼出时清空搜索", L"Clear query on open");
+        title =
+            T(L"呼出时清空搜索",
+              L"Clear query on open");
         break;
     case kIdHideOnFocusLost:
-        title = T(L"失去焦点时隐藏", L"Hide when focus is lost");
+        title =
+            T(L"失去焦点时隐藏",
+              L"Hide when focus is lost");
         break;
     case kIdShowTrayIcon:
-        title = T(L"显示系统托盘图标", L"Show system tray icon");
+        title =
+            T(L"显示系统托盘图标",
+              L"Show system tray icon");
         break;
     case kIdShowResultIcons:
-        title = T(L"显示搜索结果图标", L"Show search result icons");
+        title =
+            T(L"显示搜索结果图标",
+              L"Show search result icons");
         break;
     case kIdPinyinSearch:
-        title = T(L"启用拼音搜索", L"Enable Pinyin search");
+        title =
+            T(L"启用拼音搜索",
+              L"Enable Pinyin search");
         break;
     case kIdWildcardMatching:
-        title = T(L"允许 * / ? 通配符", L"Enable * / ? wildcards");
+        title =
+            T(L"允许 * / ? 通配符",
+              L"Enable * / ? wildcards");
         break;
     case kIdNumericQuickLaunch:
-        title = T(L"数字键快速执行结果", L"Quick launch with number keys");
+        title =
+            T(L"数字键快速执行结果",
+              L"Quick launch with number keys");
         break;
     case kIdExecuteSingleResult:
-        title = T(L"仅剩一个结果时立即执行", L"Execute when one result remains");
-        break;
-    case kIdHotkeyEnabled:
-        title = T(L"启用此快捷键", L"Enable this hotkey");
+        title =
+            T(L"仅剩一个结果时立即执行",
+              L"Execute when one result remains");
         break;
     case kIdProviderStartMenu:
-        title = T(L"开始菜单", L"Start Menu");
+        title =
+            T(L"开始菜单",
+              L"Start Menu");
         break;
     case kIdProviderPackaged:
         title = L"Windows Apps";
@@ -4750,10 +5201,14 @@ void SettingsWindow::DrawGeneralToggle(
         title = L"PATH";
         break;
     case kIdProviderEverything:
-        title = T(L"Everything 文件与文件夹", L"Everything files & folders");
+        title =
+            T(L"Everything 文件与文件夹",
+              L"Everything files & folders");
         break;
     case kIdUpdateAutoCheck:
-        title = T(L"自动检查更新", L"Automatically check for updates");
+        title =
+            T(L"自动检查更新",
+              L"Automatically check for updates");
         break;
     default:
         break;
@@ -4763,247 +5218,29 @@ void SettingsWindow::DrawGeneralToggle(
         Scale(40);
     const int switchHeight =
         Scale(22);
-    const int switchLeft =
+
+    RECT switchRect{
         rect.right -
-        Scale(18) -
-        switchWidth;
-    const int switchTop =
+            Scale(18) -
+            switchWidth,
         rect.top +
-        (rect.bottom -
-         rect.top -
-         switchHeight) / 2;
+            (rect.bottom -
+             rect.top -
+             switchHeight) / 2,
+        rect.right -
+            Scale(18),
+        0,
+    };
 
-    constexpr int kSupersample = 3;
-    const int margin =
-        std::max(1, Scale(2));
-    const int targetWidth =
-        switchWidth + margin * 2;
-    const int targetHeight =
-        switchHeight + margin * 2;
-    const int sourceWidth =
-        targetWidth * kSupersample;
-    const int sourceHeight =
-        targetHeight * kSupersample;
+    switchRect.bottom =
+        switchRect.top +
+        switchHeight;
 
-    HDC switchDc =
-        CreateCompatibleDC(
-            item.hDC);
-    HBITMAP switchBitmap =
-        switchDc
-            ? CreateCompatibleBitmap(
-                  item.hDC,
-                  sourceWidth,
-                  sourceHeight)
-            : nullptr;
-
-    if (switchDc && switchBitmap) {
-        HGDIOBJ oldBitmap =
-            SelectObject(
-                switchDc,
-                switchBitmap);
-
-        RECT sourceRect{
-            0,
-            0,
-            sourceWidth,
-            sourceHeight,
-        };
-
-        HBRUSH sourceBackground =
-            CreateSolidBrush(
-                rowColor);
-        FillRect(
-            switchDc,
-            &sourceRect,
-            sourceBackground);
-        DeleteObject(
-            sourceBackground);
-
-        const int sourceMargin =
-            margin * kSupersample;
-        const int trackWidth =
-            switchWidth * kSupersample;
-        const int trackHeight =
-            switchHeight * kSupersample;
-
-        HBRUSH trackBrush =
-            CreateSolidBrush(
-                checked
-                    ? kAccent
-                    : RGB(210, 216, 224));
-
-        HGDIOBJ oldBrush =
-            SelectObject(
-                switchDc,
-                trackBrush);
-        HGDIOBJ oldPen =
-            SelectObject(
-                switchDc,
-                GetStockObject(NULL_PEN));
-
-        RoundRect(
-            switchDc,
-            sourceMargin,
-            sourceMargin,
-            sourceMargin + trackWidth,
-            sourceMargin + trackHeight,
-            trackHeight,
-            trackHeight);
-
-        const int knobSize =
-            Scale(16) *
-            kSupersample;
-        const int knobInset =
-            Scale(3) *
-            kSupersample;
-        const int knobLeft =
-            checked
-                ? sourceMargin +
-                    trackWidth -
-                    knobInset -
-                    knobSize
-                : sourceMargin +
-                    knobInset;
-
-        HBRUSH knobBrush =
-            CreateSolidBrush(
-                RGB(255, 255, 255));
-
-        SelectObject(
-            switchDc,
-            knobBrush);
-
-        Ellipse(
-            switchDc,
-            knobLeft,
-            sourceMargin +
-                knobInset,
-            knobLeft +
-                knobSize,
-            sourceMargin +
-                knobInset +
-                knobSize);
-
-        SelectObject(
-            switchDc,
-            oldBrush);
-        SelectObject(
-            switchDc,
-            oldPen);
-        DeleteObject(
-            trackBrush);
-        DeleteObject(
-            knobBrush);
-
-        const int oldStretchMode =
-            SetStretchBltMode(
-                item.hDC,
-                HALFTONE);
-        POINT oldBrushOrigin{};
-        SetBrushOrgEx(
-            item.hDC,
-            0,
-            0,
-            &oldBrushOrigin);
-
-        StretchBlt(
-            item.hDC,
-            switchLeft - margin,
-            switchTop - margin,
-            targetWidth,
-            targetHeight,
-            switchDc,
-            0,
-            0,
-            sourceWidth,
-            sourceHeight,
-            SRCCOPY);
-
-        SetBrushOrgEx(
-            item.hDC,
-            oldBrushOrigin.x,
-            oldBrushOrigin.y,
-            nullptr);
-        SetStretchBltMode(
-            item.hDC,
-            oldStretchMode);
-
-        SelectObject(
-            switchDc,
-            oldBitmap);
-    } else {
-        HBRUSH trackBrush =
-            CreateSolidBrush(
-                checked
-                    ? kAccent
-                    : RGB(210, 216, 224));
-        HGDIOBJ oldBrush =
-            SelectObject(
-                item.hDC,
-                trackBrush);
-        HGDIOBJ oldPen =
-            SelectObject(
-                item.hDC,
-                GetStockObject(NULL_PEN));
-
-        RoundRect(
-            item.hDC,
-            switchLeft,
-            switchTop,
-            switchLeft + switchWidth,
-            switchTop + switchHeight,
-            switchHeight,
-            switchHeight);
-
-        const int knobSize =
-            Scale(16);
-        const int knobInset =
-            Scale(3);
-        const int knobLeft =
-            checked
-                ? switchLeft +
-                    switchWidth -
-                    knobInset -
-                    knobSize
-                : switchLeft +
-                    knobInset;
-
-        HBRUSH knobBrush =
-            CreateSolidBrush(
-                RGB(255, 255, 255));
-        SelectObject(
-            item.hDC,
-            knobBrush);
-
-        Ellipse(
-            item.hDC,
-            knobLeft,
-            switchTop + knobInset,
-            knobLeft + knobSize,
-            switchTop +
-                knobInset +
-                knobSize);
-
-        SelectObject(
-            item.hDC,
-            oldBrush);
-        SelectObject(
-            item.hDC,
-            oldPen);
-        DeleteObject(
-            trackBrush);
-        DeleteObject(
-            knobBrush);
-    }
-
-    if (switchBitmap) {
-        DeleteObject(
-            switchBitmap);
-    }
-    if (switchDc) {
-        DeleteDC(
-            switchDc);
-    }
+    DrawSwitchGlyph(
+        item.hDC,
+        switchRect,
+        checked,
+        pressed);
 
     SetBkMode(
         item.hDC,
@@ -5018,9 +5255,11 @@ void SettingsWindow::DrawGeneralToggle(
             normalFont_);
 
     RECT titleRect{
-        rect.left + Scale(18),
+        rect.left +
+            Scale(18),
         rect.top,
-        switchLeft - Scale(16),
+        switchRect.left -
+            Scale(16),
         rect.bottom,
     };
 
@@ -5040,11 +5279,14 @@ void SettingsWindow::DrawGeneralToggle(
         oldFont);
 
     const bool lastRow =
-        id == kIdShowResultIcons ||
-        id == kIdProviderPath ||
-        id == kIdProviderEverything ||
-        id == kIdUpdateAutoCheck ||
-        id == kIdHotkeyEnabled;
+        id ==
+            kIdShowResultIcons ||
+        id ==
+            kIdProviderPath ||
+        id ==
+            kIdProviderEverything ||
+        id ==
+            kIdUpdateAutoCheck;
 
     if (!lastRow) {
         HPEN separator =
@@ -5060,12 +5302,14 @@ void SettingsWindow::DrawGeneralToggle(
 
         MoveToEx(
             item.hDC,
-            rect.left + Scale(18),
+            rect.left +
+                Scale(18),
             rect.bottom - 1,
             nullptr);
         LineTo(
             item.hDC,
-            rect.right - Scale(18),
+            rect.right -
+                Scale(18),
             rect.bottom - 1);
 
         SelectObject(
@@ -5078,10 +5322,14 @@ void SettingsWindow::DrawGeneralToggle(
     if (item.itemState &
         ODS_FOCUS) {
         RECT focusBar{
-            rect.left + Scale(5),
-            rect.top + Scale(12),
-            rect.left + Scale(7),
-            rect.bottom - Scale(12),
+            rect.left +
+                Scale(5),
+            rect.top +
+                Scale(12),
+            rect.left +
+                Scale(7),
+            rect.bottom -
+                Scale(12),
         };
 
         HBRUSH focusBrush =
@@ -5553,6 +5801,12 @@ LRESULT SettingsWindow::HandleMessage(
     switch (message) {
     case WM_TIMER:
         if (wParam ==
+            kProviderCommitTimerId) {
+            CommitPendingProviderChanges();
+            return 0;
+        }
+
+        if (wParam ==
             kProviderStatusTimerId &&
             page_ == Page::Providers) {
             RefreshProviderStatus();
@@ -5599,6 +5853,52 @@ LRESULT SettingsWindow::HandleMessage(
         const bool toggleActivated =
             notify == BN_CLICKED ||
             notify == BN_DOUBLECLICKED;
+
+        if (id >= kIdHotkeyCaptureBase &&
+            id < kIdHotkeyCaptureBase +
+                hotkeyRows_.size()) {
+            if (notify == BN_CLICKED) {
+                if (auto* row =
+                        HotkeyRowFromControlId(
+                            id,
+                            kIdHotkeyCaptureBase)) {
+                    BeginHotkeyCapture(
+                        row->actionId);
+                }
+            }
+            return 0;
+        }
+
+        if (id >= kIdHotkeyEnabledBase &&
+            id < kIdHotkeyEnabledBase +
+                hotkeyRows_.size()) {
+            if (toggleActivated) {
+                if (auto* row =
+                        HotkeyRowFromControlId(
+                            id,
+                            kIdHotkeyEnabledBase)) {
+                    ToggleHotkeyActionEnabled(
+                        row->actionId);
+                    redrawClickedToggle();
+                }
+            }
+            return 0;
+        }
+
+        if (id >= kIdHotkeyResetBase &&
+            id < kIdHotkeyResetBase +
+                hotkeyRows_.size()) {
+            if (notify == BN_CLICKED) {
+                if (auto* row =
+                        HotkeyRowFromControlId(
+                            id,
+                            kIdHotkeyResetBase)) {
+                    ResetHotkeyAction(
+                        row->actionId);
+                }
+            }
+            return 0;
+        }
 
         switch (id) {
         case kIdNavGeneral:
@@ -5667,52 +5967,6 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdHotkeyActionList:
-            if (notify == LBN_SELCHANGE &&
-                !syncing_) {
-                const int index =
-                    static_cast<int>(
-                        SendMessageW(
-                            hotkeyActionList_,
-                            LB_GETCURSEL,
-                            0,
-                            0));
-
-                if (index >= 0 &&
-                    index <
-                        static_cast<int>(
-                            hotkeyActionIds_
-                                .size())) {
-                    capturingHotkeyActionId_
-                        .clear();
-                    LoadHotkeyEditor(
-                        hotkeyActionIds_[
-                            static_cast<
-                                std::size_t>(
-                                index)]);
-                }
-            }
-            return 0;
-
-        case kIdHotkeyEnabled:
-            if (toggleActivated) {
-                ToggleSelectedHotkeyEnabled();
-                redrawClickedToggle();
-            }
-            return 0;
-
-        case kIdHotkeyCapture:
-            if (notify == BN_CLICKED) {
-                BeginHotkeyCapture();
-            }
-            return 0;
-
-        case kIdHotkeyResetCurrent:
-            if (notify == BN_CLICKED) {
-                ResetSelectedHotkey();
-            }
-            return 0;
-
         case kIdHotkeyResetAll:
             if (notify == BN_CLICKED) {
                 ResetAllHotkeys();
@@ -5757,13 +6011,7 @@ LRESULT SettingsWindow::HandleMessage(
 
         case kIdDataImportTsv:
             if (notify == BN_CLICKED) {
-                ImportCommands(false);
-            }
-            return 0;
-
-        case kIdDataImportLegacy:
-            if (notify == BN_CLICKED) {
-                ImportCommands(true);
+                ImportCommands();
             }
             return 0;
 
@@ -5869,12 +6117,18 @@ LRESULT SettingsWindow::HandleMessage(
             break;
         }
 
-        if (item->CtlID ==
-                kIdHotkeyActionList &&
-            item->CtlType ==
-                ODT_LISTBOX) {
-            DrawHotkeyActionItem(
-                *item);
+        if (item->CtlType ==
+                ODT_BUTTON &&
+            item->CtlID >=
+                kIdHotkeyEnabledBase &&
+            item->CtlID <
+                kIdHotkeyEnabledBase +
+                    hotkeyRows_.size()) {
+            DrawHotkeyToggle(
+                *item,
+                static_cast<std::size_t>(
+                    item->CtlID -
+                    kIdHotkeyEnabledBase));
             return TRUE;
         }
 
@@ -5896,7 +6150,6 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdHideOnFocusLost ||
             item->CtlID == kIdShowTrayIcon ||
             item->CtlID == kIdShowResultIcons ||
-            item->CtlID == kIdHotkeyEnabled ||
             item->CtlID == kIdPinyinSearch ||
             item->CtlID == kIdWildcardMatching ||
             item->CtlID == kIdNumericQuickLaunch ||
@@ -6162,40 +6415,61 @@ LRESULT SettingsWindow::HandleMessage(
                 PlacementCardRect());
         } else if (
             page_ == Page::Hotkeys) {
-
             const int contentRight =
                 client.right -
                 Scale(
                     settings_layout::
                         kContentRightInsetLogical);
-            const int contentWidth =
-                contentRight -
-                contentLeft;
-            const int gap =
-                Scale(18);
-            const int listWidth =
-                std::min(
-                    Scale(285),
-                    std::max(
-                        Scale(230),
-                        contentWidth *
-                            38 / 100));
+            const int rowHeight =
+                Scale(72);
+            const int globalCount =
+                static_cast<int>(
+                    std::count_if(
+                        hotkeyRows_.begin(),
+                        hotkeyRows_.end(),
+                        [](const HotkeyRowControls& row) {
+                            const auto* action =
+                                FindHotkeyAction(
+                                    row.actionId);
+                            return action &&
+                                action->scope ==
+                                    HotkeyScope::Global;
+                        }));
+            const int launcherCount =
+                static_cast<int>(
+                    hotkeyRows_.size()) -
+                globalCount;
+            const int globalHeight =
+                globalCount *
+                rowHeight;
+            const int launcherTop =
+                Scale(140) +
+                globalHeight +
+                Scale(54);
 
             drawCard({
                 contentLeft,
-                Scale(116),
+                Scale(140),
                 contentLeft +
-                    listWidth,
-                Scale(516),
+                    std::min(
+                        contentRight -
+                            contentLeft,
+                        Scale(560)),
+                Scale(140) +
+                    globalHeight,
             });
 
             drawCard({
+                contentLeft,
+                launcherTop,
                 contentLeft +
-                    listWidth +
-                    gap,
-                Scale(116),
-                contentRight,
-                Scale(516),
+                    std::min(
+                        contentRight -
+                            contentLeft,
+                        Scale(560)),
+                launcherTop +
+                    launcherCount *
+                        rowHeight,
             });
         } else if (
             page_ == Page::Providers) {
@@ -6212,29 +6486,29 @@ LRESULT SettingsWindow::HandleMessage(
                 PageCardRect(
                     140,
                     58,
-                    680));
+                    560));
             drawCard(
                 PageCardRect(
                     264,
                     58,
-                    680));
+                    560));
         } else if (
             page_ == Page::Data) {
             drawCard(
                 PageCardRect(
                     140,
                     60,
-                    720));
+                    560));
             drawCard(
                 PageCardRect(
                     264,
                     64,
-                    720));
+                    560));
             drawCard(
                 PageCardRect(
                     392,
                     64,
-                    720));
+                    560));
         } else if (
             page_ == Page::About) {
             drawCard(
@@ -6287,6 +6561,26 @@ LRESULT SettingsWindow::HandleMessage(
             control == brandName_ ||
             control == brandSubtitle_;
 
+        const bool hotkeyCardStatic =
+            std::any_of(
+                hotkeyRows_.begin(),
+                hotkeyRows_.end(),
+                [&](const HotkeyRowControls& row) {
+                    return control ==
+                            row.title ||
+                        control ==
+                            row.status;
+                });
+
+        const bool hotkeyMutedStatic =
+            std::any_of(
+                hotkeyRows_.begin(),
+                hotkeyRows_.end(),
+                [&](const HotkeyRowControls& row) {
+                    return control ==
+                        row.status;
+                });
+
         const bool cardStatic =
             control ==
                 numericQuickLaunchOrderLabel_ ||
@@ -6295,11 +6589,7 @@ LRESULT SettingsWindow::HandleMessage(
                 launcherPlacementLabel_ ||
             control ==
                 settingsPlacementLabel_ ||
-            control == hotkeyEditorTitle_ ||
-            control ==
-                hotkeyEditorDescription_ ||
-            control == hotkeyScope_ ||
-            control == hotkeyPageStatus_ ||
+            hotkeyCardStatic ||
             control == providerStatus_ ||
             control == uiStyleLabel_ ||
             control == languageLabel_ ||
@@ -6330,11 +6620,7 @@ LRESULT SettingsWindow::HandleMessage(
             control ==
                 settingsPlacementDescription_ ||
             control == generalNote_ ||
-            control ==
-                hotkeyEditorDescription_ ||
-            control == hotkeyScope_ ||
-            control == hotkeyPageStatus_ ||
-            control == hotkeyPageNote_ ||
+            hotkeyMutedStatic ||
             control == providerStatus_ ||
             control == providerNote_ ||
             control == appearanceNote_ ||
@@ -6465,9 +6751,14 @@ LRESULT SettingsWindow::HandleMessage(
     }
 
     case WM_CLOSE:
+        CommitPendingProviderChanges();
+
         KillTimer(
             hwnd_,
             kProviderStatusTimerId);
+        KillTimer(
+            hwnd_,
+            kProviderCommitTimerId);
 
         ShowWindow(
             hwnd_,
@@ -6476,6 +6767,12 @@ LRESULT SettingsWindow::HandleMessage(
         return 0;
 
     case WM_DESTROY:
+        KillTimer(
+            hwnd_,
+            kProviderStatusTimerId);
+        KillTimer(
+            hwnd_,
+            kProviderCommitTimerId);
         hwnd_ = nullptr;
         return 0;
 

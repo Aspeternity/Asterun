@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.2.4
+
+- Kept sidebar navigation left-aligned and preserved the validated 176px sidebar / centered two-line brand.
+- Reduced General window-placement combo boxes to a fixed 220 logical pixels.
+- Replaced the Hotkeys master/detail layout with grouped single-column Global / Launcher hotkey cards and inline binding controls.
+- Added per-action inline capture, optional enable switches, conditional per-row Reset actions and per-row validation/registration status without changing Hotkey Registry IDs or behavior.
+- Debounced Search source commits for 180 ms so rapid clicks collapse to the final desired state instead of queueing synchronous provider refresh work.
+- Batched ordinary discovery-source changes into one Settings save, provider-cache merge, Launcher refresh and provider-refresh request per debounce window.
+- Kept Everything as a separate final lifecycle operation so its managed-service/UAC semantics remain unchanged while failed changes restore the actual persisted state.
+- Reduced Appearance cards to 560 logical pixels with 200px right-aligned combos and corrected label/combo vertical alignment.
+- Removed the manual legacy AltRun import UI and permissive legacy import mode while retaining automatic legacy-data migration and legacy ID/schema compatibility.
+- Rebalanced Data import/export into two equal buttons and Maintenance into three equal buttons with shared card margins/gaps.
+- Kept Settings schemaVersion 8 and all frozen v0.7 runtime/provider/update/shortcut contracts unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.24`.
 ## 0.8.0-alpha.2.3
 
 - Reduced the fixed Settings client viewport from 820×720 to 820×620 logical pixels while keeping General single-column and scrollable.
