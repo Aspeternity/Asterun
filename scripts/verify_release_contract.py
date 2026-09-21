@@ -38,6 +38,208 @@ channel = match.group(4)
 
 
 
+
+if version == "0.8.0-alpha.2.3":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.3 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.3 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 8:
+        fail("v0.8 alpha.2.3 settings example must remain schemaVersion 8")
+    if settings.get("update") != {"autoCheck": True, "channel": "development"}:
+        fail("v0.8 alpha.2.3 prerelease must default to Development updates")
+
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("providers") != expected_providers:
+        fail("v0.8 alpha.2.3 changed frozen provider defaults")
+
+    expected_hotkeys = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_hotkeys:
+        fail("v0.8 alpha.2.3 changed frozen Hotkey Registry action IDs")
+
+    expected_placement = {
+        "launcherMode": "top",
+        "settingsMode": "center",
+        "launcherLastValid": False,
+        "launcherLastX": 0,
+        "launcherLastY": 0,
+        "settingsLastValid": False,
+        "settingsLastX": 0,
+        "settingsLastY": 0,
+    }
+    if settings.get("windowPlacement") != expected_placement:
+        fail("v0.8 alpha.2.3 changed window-placement defaults")
+
+    metrics = read("src/ui/UiMetrics.hpp")
+    for token in (
+        "kSettingsClientWidthLogical = 820",
+        "kSettingsClientHeightLogical = 620",
+        "kSettingsSidebarWidthLogical = 176",
+        "kSettingsToggleRowLogical = 50",
+        "kSettingsComboRowLogical = 54",
+        "kSettingsCardRadiusLogical = 8",
+        "kSettingsNavHeightLogical = 40",
+        "kSettingsNavGapLogical = 4",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.2.3 Settings metric contract missing: {token}")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "ui::kSettingsClientWidthLogical",
+        "ui::kSettingsClientHeightLogical",
+        "SS_CENTER | SS_NOPREFIX",
+        "HALFTONE",
+        "StretchBlt",
+        "redrawClickedToggle",
+        "notify == BN_CLICKED",
+        "notify == BN_DOUBLECLICKED",
+        "const bool focused =",
+        ": focused",
+        "? kCardPressed",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.2.3 interaction contract missing: {token}")
+
+    nav_start = settings_cpp.find("void SettingsWindow::DrawNavigationButton(")
+    nav_end = settings_cpp.find("void SettingsWindow::DrawHotkeyActionItem(", nav_start)
+    if nav_start < 0 or nav_end < 0:
+        fail("v0.8 alpha.2.3 navigation drawing implementation was not found")
+    nav_draw = settings_cpp[nav_start:nav_end]
+    if "DrawFocusRect" in nav_draw:
+        fail("v0.8 alpha.2.3 sidebar navigation must not use dotted DrawFocusRect")
+
+    for token in (
+        "WS_OVERLAPPEDWINDOW",
+        "WS_THICKFRAME",
+        "WS_MAXIMIZEBOX",
+        "WM_GETMINMAXINFO",
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+        "navDiagnostics_",
+        "CreateDiagnosticsPage",
+        "RefreshActionDiagnostics",
+        "kDiagnosticsStatusTimerId",
+        "diagnosticsControls_",
+        "RuntimeDiagnosticsSnapshot",
+        "ProcessMemory",
+    ):
+        if token in settings_cpp or token in settings_h:
+            fail(f"v0.8 alpha.2.3 obsolete Settings/Diagnostics wiring remains: {token}")
+
+    app = read("src/app/App.cpp") + read("src/app/App.hpp")
+    for token in (
+        "RuntimeDiagnosticsSnapshot",
+        "RuntimeDiagnostics()",
+        "ProcessMemory",
+        "QueryCurrentProcessMemory",
+    ):
+        if token in app:
+            fail(f"v0.8 alpha.2.3 runtime diagnostics API remains: {token}")
+
+    cmake = read("CMakeLists.txt")
+    build_workflow = read(".github/workflows/build.yml")
+    for token in (
+        "src/platform/ProcessMemory.cpp",
+        "process_memory_tests",
+        "tests/ProcessMemoryTests.cpp",
+        "psapi",
+    ):
+        if token in cmake or token in build_workflow:
+            fail(f"v0.8 alpha.2.3 deleted diagnostics build dependency remains: {token}")
+
+    ui_test = read("tests/UiFoundationTests.cpp")
+    for token in (
+        "kSettingsClientWidthLogical == 820",
+        "kSettingsClientHeightLogical == 620",
+        "kSettingsSidebarWidthLogical == 176",
+    ):
+        if token not in ui_test:
+            fail(f"v0.8 alpha.2.3 UI viewport coverage missing: {token}")
+
+    desktop_test = read("tests/DesktopValidationTests.cpp")
+    for token in (
+        "kSettingsClientWidthLogical",
+        "kSettingsClientHeightLogical",
+        "kGeneralCardMaxWidthLogical == 560",
+        "layout.behavior.left ==",
+        "layout.search.top >",
+    ):
+        if token not in desktop_test:
+            fail(f"v0.8 alpha.2.3 compact-layout coverage missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.2"',
+        '"0.8.0-alpha.2.3"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Development",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.3 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.3 — Settings Compactness & Input Polish",
+        "0.8.0.23",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.3 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.3",
+        "0.8.0.23",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.3 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.3",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.3 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.3 Settings compactness/input contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| fixed 820x620 Settings client",
+        "| no dotted sidebar DrawFocusRect",
+        "| BN_CLICKED + BN_DOUBLECLICKED toggle activation",
+        "| alpha.2.2 supersampled switch rendering preserved",
+        "| embedded Diagnostics remains removed",
+        "| frozen v0.7 behavior preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.2":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

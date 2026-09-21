@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.2.3
+
+- Reduced the fixed Settings client viewport from 820×720 to 820×620 logical pixels while keeping General single-column and scrollable.
+- Added shared Settings client-width/client-height UI metrics so the fixed viewport is regression-tested instead of duplicated as magic numbers.
+- Removed the sidebar navigation `DrawFocusRect` dotted outline; selected navigation keeps its accent treatment and keyboard focus now uses a subtle background state.
+- Fixed rapid repeated clicks on owner-drawn Settings switches by accepting both `BN_CLICKED` and `BN_DOUBLECLICKED` as toggle activations.
+- Kept the alpha.2.2 3× supersampled/HALFTONE switch rendering and explicit immediate repaint path.
+- Tightened the About project card so it remains fully inside the shorter fixed viewport.
+- Kept settings schemaVersion 8 and all frozen v0.7 runtime/provider/hotkey/update/shortcut contracts unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.23`.
 ## 0.8.0-alpha.2.2
 
 - Made Settings a fixed-size native window with minimize/close only; removed free resize, maximize and resize-track handling.

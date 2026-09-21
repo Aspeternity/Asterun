@@ -19,6 +19,8 @@ int main() {
     assert(ui::kModernCompactLauncherMetrics.rowHeightLogical == 32);
     assert(ui::kModernCompactLauncherMetrics.maxResults == 9);
 
+    assert(ui::kSettingsClientWidthLogical == 820);
+    assert(ui::kSettingsClientHeightLogical == 620);
     assert(ui::kSettingsSidebarWidthLogical == 176);
     assert(ui::kSettingsContentLeftInsetLogical == 38);
     assert(ui::kSettingsContentRightInsetLogical == 34);

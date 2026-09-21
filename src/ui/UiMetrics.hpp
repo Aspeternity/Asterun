@@ -48,6 +48,10 @@ inline constexpr LauncherMetrics
     };
 
 inline constexpr int
+    kSettingsClientWidthLogical = 820;
+inline constexpr int
+    kSettingsClientHeightLogical = 620;
+inline constexpr int
     kSettingsSidebarWidthLogical = 176;
 inline constexpr int
     kSettingsContentLeftInsetLogical = 38;

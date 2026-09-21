@@ -23,6 +23,15 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.3 — Settings Compactness & Input Polish
+
+Alpha 2.3 is a focused real-Windows follow-up to the alpha.2.2 Settings validation. The fixed Settings viewport keeps its 820 logical-pixel width but drops from 720 to 620 logical pixels so Hotkeys, Search sources, Appearance, Data and About no longer sit inside an unnecessarily tall window. General remains intentionally single-column and scrollable.
+
+Sidebar navigation no longer uses the legacy dotted `DrawFocusRect` treatment. The current page still uses the existing selection background, bold label and left accent bar, while keyboard focus on a non-selected navigation item is represented only by a subtle background state.
+
+Owner-drawn Settings toggles now treat both `BN_CLICKED` and `BN_DOUBLECLICKED` as physical toggle activations. Win32 reports the second press of a rapid double-click on an owner-drawn button as `BN_DOUBLECLICKED`, which previously made quick repeated clicks appear to be ignored. The alpha.2.2 supersampled switch rendering and explicit immediate repaint remain unchanged.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything ownership/lifecycle, updater/uninstaller behavior, Runtime Input, Path Conversion or Shortcut TSV contract changes in this polish pass. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.23`.
 ## v0.8.0-alpha.2.2 — Settings Interaction & Layout Polish
 
 Alpha 2.2 locks the Settings product structure around a fixed, compact native window instead of a freely resizable dashboard. The default client viewport is now 820×720 logical pixels, the resize/maximize affordances are removed, and the sidebar shrinks from 208 to 176 logical pixels. The two-line `ALTRun` / `Next` brand is centered over the same navigation width used below it.

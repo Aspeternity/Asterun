@@ -152,8 +152,10 @@ bool SettingsWindow::Create() {
     RECT desiredWindow{
         0,
         0,
-        Scale(820),
-        Scale(720),
+        Scale(
+            ui::kSettingsClientWidthLogical),
+        Scale(
+            ui::kSettingsClientHeightLogical),
     };
 
     const DWORD windowStyle =
@@ -4237,6 +4239,9 @@ void SettingsWindow::DrawNavigationButton(
     const bool pressed =
         (item.itemState &
          ODS_SELECTED) != 0;
+    const bool focused =
+        (item.itemState &
+         ODS_FOCUS) != 0;
 
     RECT surface = rect;
     InflateRect(
@@ -4250,7 +4255,9 @@ void SettingsWindow::DrawNavigationButton(
             : selected
                 ? kPalette
                       .selectionBackground
-                : kSidebarBackground;
+                : focused
+                    ? kCardPressed
+                    : kSidebarBackground;
 
     HBRUSH fill =
         CreateSolidBrush(
@@ -4350,19 +4357,6 @@ void SettingsWindow::DrawNavigationButton(
     SelectObject(
         item.hDC,
         oldFont);
-
-    if (item.itemState &
-        ODS_FOCUS) {
-        RECT focus =
-            surface;
-        InflateRect(
-            &focus,
-            -Scale(7),
-            -Scale(5));
-        DrawFocusRect(
-            item.hDC,
-            &focus);
-    }
 }
 
 void SettingsWindow::DrawHotkeyActionItem(
@@ -5598,6 +5592,14 @@ LRESULT SettingsWindow::HandleMessage(
                     control);
             };
 
+        // BS_OWNERDRAW buttons report the second press of a rapid
+        // double-click as BN_DOUBLECLICKED rather than BN_CLICKED.
+        // Treat both notifications as one physical toggle activation so
+        // every quick click flips the setting exactly once.
+        const bool toggleActivated =
+            notify == BN_CLICKED ||
+            notify == BN_DOUBLECLICKED;
+
         switch (id) {
         case kIdNavGeneral:
             if (notify == BN_CLICKED) {
@@ -5642,7 +5644,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdHideOnFocusLost:
         case kIdShowTrayIcon:
         case kIdShowResultIcons:
-            if (notify == BN_CLICKED) {
+            if (toggleActivated) {
                 ToggleGeneralSetting(id);
                 redrawClickedToggle();
             }
@@ -5652,7 +5654,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdWildcardMatching:
         case kIdNumericQuickLaunch:
         case kIdExecuteSingleResult:
-            if (notify == BN_CLICKED) {
+            if (toggleActivated) {
                 ApplyClassicBehaviorControl(id);
                 redrawClickedToggle();
             }
@@ -5693,7 +5695,7 @@ LRESULT SettingsWindow::HandleMessage(
             return 0;
 
         case kIdHotkeyEnabled:
-            if (notify == BN_CLICKED) {
+            if (toggleActivated) {
                 ToggleSelectedHotkeyEnabled();
                 redrawClickedToggle();
             }
@@ -5722,7 +5724,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdProviderAppPaths:
         case kIdProviderPath:
         case kIdProviderEverything:
-            if (notify == BN_CLICKED) {
+            if (toggleActivated) {
                 ToggleProviderSetting(id);
                 redrawClickedToggle();
             }
@@ -5816,7 +5818,7 @@ LRESULT SettingsWindow::HandleMessage(
             return 0;
 
         case kIdUpdateAutoCheck:
-            if (notify == BN_CLICKED &&
+            if (toggleActivated &&
                 !syncing_) {
                 const auto settings =
                     app_.SettingsData();
@@ -6243,7 +6245,7 @@ LRESULT SettingsWindow::HandleMessage(
             drawCard(
                 PageCardRect(
                     542,
-                    80,
+                    64,
                     680));
         }
 

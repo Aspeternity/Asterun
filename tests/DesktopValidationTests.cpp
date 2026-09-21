@@ -127,7 +127,13 @@ int main() {
             };
 
         const int clientWidth =
-            scale(820);
+            scale(
+                ui::
+                    kSettingsClientWidthLogical);
+        const int clientHeight =
+            scale(
+                ui::
+                    kSettingsClientHeightLogical);
 
         const auto layout =
             settings_layout::
@@ -199,7 +205,7 @@ int main() {
             settings_layout::
                 MaxScrollOffset(
                     layout,
-                    scale(720),
+                    clientHeight,
                     dpi);
 
         assert(maxScroll > 0);
