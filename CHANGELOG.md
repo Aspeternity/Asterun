@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-beta.8
+
+- Fixed the Beta 7 high-probability full-uninstall timeout/error 1460 caused by acquiring a broker DELETE lease while Explorer was enumerating the installation folder from its immediate parent.
+- Explorer now parks one level farther away from the installation root, with a Windows temporary-directory fallback for layouts where no distinct grandparent exists.
+- Removed root DELETE-lease acquisition from the normal-integrity broker; the elevated worker now owns the single destructive lease.
+- The broker signals Shell release immediately, preventing the ReleaseDone/1460 timeout cascade seen when the broker lease could not be acquired.
+- The elevated worker acquires the root lease before any installation-tree deletion and keeps it through precise child cleanup and final handle-based root deletion.
+- Root lease failures now query Restart Manager for possible lock owners as well as reporting the exact root path/error.
+- Kept the reboot-delete fallback removed and preserved UAC-cancel, preserve-data, Stable update and Managed Everything ownership semantics.
+- Extended Beta validation and prerelease ordering coverage for `beta.7 < beta.8 < rc.1`.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.107.
+
 ## 0.7.0-beta.7
 
 - Added a continuous DELETE-access lease handoff between the normal-integrity Explorer broker and elevated TEMP uninstaller.

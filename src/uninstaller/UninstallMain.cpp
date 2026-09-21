@@ -1092,13 +1092,53 @@ FileUrlToPath(
     return true;
 }
 
-[[nodiscard]] int
-NavigateExplorerAwayFromInstall(
+[[nodiscard]] std::filesystem::path
+ExplorerParkingDirectory(
     const std::filesystem::path& install) {
     const auto parent =
         install.parent_path();
+    const auto grandparent =
+        parent.parent_path();
 
-    if (parent.empty()) {
+    // Parking directly in the immediate parent can cause Explorer to
+    // immediately enumerate/select the ALTRun folder we are about to delete.
+    // Prefer one level farther out so the installation root is not a visible
+    // child of the active Shell view.
+    if (!grandparent.empty() &&
+        NormalizePath(
+            grandparent) !=
+            NormalizePath(parent) &&
+        !PathStartsWithDirectory(
+            grandparent,
+            install)) {
+        return grandparent;
+    }
+
+    std::array<wchar_t, 32768>
+        temp{};
+    const DWORD length =
+        GetTempPathW(
+            static_cast<DWORD>(
+                temp.size()),
+            temp.data());
+
+    if (length > 0 &&
+        length < temp.size()) {
+        return std::filesystem::path(
+            temp.data());
+    }
+
+    return parent;
+}
+
+[[nodiscard]] int
+NavigateExplorerAwayFromInstall(
+    const std::filesystem::path& install) {
+    const auto parking =
+        ExplorerParkingDirectory(
+            install);
+
+    if (parking.empty()) {
         return 0;
     }
 
@@ -1186,7 +1226,7 @@ NavigateExplorerAwayFromInstall(
         if (insideInstall) {
             BSTR target =
                 SysAllocString(
-                    parent.c_str());
+                    parking.c_str());
 
             if (target) {
                 VARIANT empty;
@@ -1213,9 +1253,9 @@ NavigateExplorerAwayFromInstall(
     windows->Release();
 
     if (navigated > 0) {
-        // Explorer navigation is asynchronous. Give it a short opportunity to
-        // release directory-change handles before the elevated worker starts
-        // removing the installation root.
+        // Explorer navigation is asynchronous. The elevated worker will not
+        // delete anything until it independently acquires the installation
+        // root DELETE lease.
         std::this_thread::sleep_for(
             std::chrono::milliseconds(
                 350));
@@ -1319,7 +1359,7 @@ RequestShellRelease(
             args.install,
             rootLease,
             failure,
-            5000)) {
+            8000)) {
         SetLastError(
             failure.error);
         return false;
@@ -1375,25 +1415,21 @@ ServeShellReleaseBroker(
         (void)NavigateExplorerAwayFromInstall(
             install);
 
-        const auto parent =
-            install.parent_path();
+        const auto parking =
+            ExplorerParkingDirectory(
+                install);
 
-        if (!parent.empty()) {
+        if (!parking.empty()) {
             (void)SetCurrentDirectoryW(
-                parent.c_str());
+                parking.c_str());
         }
 
-        RemovalFailure leaseFailure;
-        DirectoryHandle brokerLease;
-
-        if (!AcquireDirectoryDeleteLease(
-                install,
-                brokerLease,
-                leaseFailure,
-                15000)) {
-            return false;
-        }
-
+        // Do not try to acquire DELETE access from the broker here. Parking in
+        // the immediate parent previously made Explorer enumerate/select the
+        // ALTRun folder and turned the broker's lease attempt into a frequent
+        // self-inflicted sharing timeout. Signal release immediately; the
+        // elevated worker owns the lease acquisition and performs it before
+        // any destructive cleanup.
         if (!SetEvent(
                 doneEvent)) {
             return false;
@@ -1409,18 +1445,12 @@ ServeShellReleaseBroker(
                 2,
                 handoffHandles,
                 FALSE,
-                15000);
+                20000);
 
         if (handoff ==
-            WAIT_OBJECT_0) {
-            // The elevated worker now owns a matching DELETE-capable root
-            // handle. Closing this lease and exiting the original Uninstall.exe
-            // preserves continuous delete sharing across the integrity boundary.
-            return true;
-        }
-
-        if (handoff ==
-            WAIT_OBJECT_0 + 1) {
+                WAIT_OBJECT_0 ||
+            handoff ==
+                WAIT_OBJECT_0 + 1) {
             return true;
         }
 
@@ -1617,6 +1647,9 @@ AcquireDirectoryDeleteLease(
                     ? error
                     : ERROR_GEN_FAILURE;
             failure.path = path;
+            failure.lockOwners =
+                RestartManagerLockOwners(
+                    path);
             return false;
         }
 
@@ -1635,6 +1668,9 @@ AcquireDirectoryDeleteLease(
                     ? error
                     : ERROR_SHARING_VIOLATION;
             failure.path = path;
+            failure.lockOwners =
+                RestartManagerLockOwners(
+                    path);
             return false;
         }
 

@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-beta.8 — Native Uninstall Shell-Parking Fix
+
+Beta 8 corrects the Beta 7 delete-lease handoff after real Windows validation showed frequent error 1460 timeouts. The issue was self-inflicted: Beta 7 navigated Explorer only to the installation folder's immediate parent and then asked the normal-integrity broker to acquire DELETE access to the root. Explorer could immediately enumerate or select the just-left ALTRun folder in that parent view, keeping a non-delete-sharing Shell handle alive and causing the broker lease to time out.
+
+Full removal now parks any Explorer view one level farther away from the installation root (falling back to the Windows temporary directory for root-level layouts). The broker no longer acquires a DELETE lease at all. It signals Shell release immediately and stays alive only until the elevated worker has independently acquired the single root DELETE lease. The elevated worker acquires that lease before deleting any installation-tree entries, then keeps it through precise child cleanup and final handle-based root deletion.
+
+This also removes the Beta 7 double-timeout failure pattern: a broker-side lease failure can no longer leave the worker waiting for `ReleaseDone` until error 1460. If the elevated worker still cannot acquire the root lease, it reports the real root path/error and Restart Manager lock owners when available, before destructive cleanup begins.
+
+No reboot-delete fallback is used. UAC cancellation, preserve-data behavior, foreground completion dialogs, Stable update behavior and Managed Everything ownership remain unchanged. Update ordering now includes `beta.7 < beta.8 < rc.1`. Windows fixed FileVersion/ProductVersion is `0.7.0.107`.
+
 ## v0.7.0-beta.7 — Native Uninstall Delete-Lease Handoff
 
 Beta 7 closes the remaining intermittent full-remove race observed after the Beta 6 Explorer broker change. A successful Explorer navigation alone is not a durable guarantee that the installation root will still be delete-share-compatible several milliseconds later. The broker and elevated worker now perform a continuous DELETE-access lease handoff on the installation root.
@@ -81,7 +91,7 @@ Beta 1 freezes the v0.7 shortcut and launcher workflow surface after the alpha.9
 
 The frozen public identifiers include the existing Windows/Everything Provider IDs and Hotkey Registry action IDs. The portable executable contract is `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; the obsolete `ALTRunNext.Updater.exe` name remains prohibited. Managed Everything remains portable under `data/tools/Everything`; normal application exit keeps an enabled owned service warm, while explicitly disabling the Everything provider stops/disables only the owned service. External Everything ownership remains protected.
 
-Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < beta.6 < beta.7 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
+Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < beta.6 < beta.7 < beta.8 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
 
 The package now includes `V0.7_BETA_VALIDATION.md`, the manual real-Windows sign-off matrix for native alpha.9.4 -> beta.1 update, Shortcut Manager/Editor, Runtime Input, Path Conversion, asynchronous icons, Context Actions, Managed/External Everything ownership, native uninstall, DPI and performance. Windows fixed FileVersion/ProductVersion is `0.7.0.100`.
 
