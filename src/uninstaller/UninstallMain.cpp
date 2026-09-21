@@ -5,6 +5,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <ole2.h>
 #include <exdisp.h>
 #include <restartmanager.h>
 #include <shellapi.h>
@@ -1565,8 +1566,7 @@ RemoveInstallation(
     for (const auto& entry : entries) {
         if (!RemoveAllWithRetry(
                 entry,
-                failure,
-                deferred)) {
+                failure)) {
             return false;
         }
     }
