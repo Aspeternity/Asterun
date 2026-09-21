@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0-rc.1
+
+- Entered the v0.7 release-candidate freeze after all five final beta.12 Provider-to-shortcut real-Windows checks passed.
+- Added `V0.7_RC_VALIDATION.md` as the final clean-install, `beta.12 -> rc.1` native-update, regression, platform, packaging and Stable-promotion gate.
+- Froze settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3.
+- Froze current Provider IDs, Hotkey Registry action IDs, Classic launcher geometry, update behavior, Native Uninstall behavior and Managed Everything ownership/lifecycle.
+- Kept the portable helper contract `ALTRunNext.exe`, `Update.exe`, `Uninstall.exe`; the obsolete `ALTRunNext.Updater.exe` remains prohibited.
+- Added the RC validation document to both main and tag-release packages and to the exact package allowlist.
+- Reused the full beta.12 automated release contract for rc.1 and added RC-specific gate checks; no new runtime feature was introduced.
+- Froze release ordering as `0.7.0-beta.12 < 0.7.0-rc.1 < 0.7.0`.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.200.
+
 ## 0.7.0-beta.12
 
 - Renamed the Launcher Provider/file promotion action to `Add to shortcuts...` / `添加到快捷项...`.

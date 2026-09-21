@@ -25,6 +25,7 @@ $required = @(
     "V0.5_RC_VALIDATION.md",
     "V0.6_RC_VALIDATION.md",
     "V0.7_BETA_VALIDATION.md",
+    "V0.7_RC_VALIDATION.md",
     "EVERYTHING_COMPATIBILITY.md",
     "dict",
     "third_party/cpp-pinyin-LICENSE.txt"
@@ -47,6 +48,7 @@ $allowedTopLevel = @(
     "V0.5_RC_VALIDATION.md",
     "V0.6_RC_VALIDATION.md",
     "V0.7_BETA_VALIDATION.md",
+    "V0.7_RC_VALIDATION.md",
     "EVERYTHING_COMPATIBILITY.md",
     "commands.example.json",
     "commands.example.tsv",

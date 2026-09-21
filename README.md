@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-rc.1 — Release Freeze & Upgrade Gate
+
+RC1 freezes the validated Beta 12 runtime rather than adding another feature. The final Beta 12 Provider-to-shortcut workflow passed real-Windows validation, including the TeamSpeak `ts3, teamspeak3` promotion case and the regression that prevents a lower App Paths/PATH Provider duplicate from reviving after a user shortcut is created.
+
+The RC contract keeps settings schemaVersion 7, commands schemaVersion 2, usage schemaVersion 1, provider-cache schemaVersion 2 and Shortcut TSV v3 unchanged. Provider IDs, Hotkey Registry action IDs, launcher geometry, update behavior, Native Uninstall ownership/DELETE-lease behavior and Managed Everything lifecycle are frozen. The portable executable contract remains `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`.
+
+`V0.7_RC_VALIDATION.md` is now the final manual release gate. It covers clean install, native `beta.12 -> rc.1` update, Provider-to-shortcut regression, Shortcut/Runtime Input/Path Conversion, launcher selection/performance, Managed Everything ownership/lifecycle, Native Uninstall, DPI/Windows 10 compatibility, x64/ARM64 packaging and release identity. Release ordering is frozen as `beta.12 < rc.1 < stable`.
+
+No new user-facing behavior is introduced in RC1. Windows fixed FileVersion/ProductVersion is `0.7.0.200`.
+
 ## v0.7.0-beta.12 — Provider-to-Shortcut Workflow & Stable Provider Dedup
 
 Beta 12 completes the practical Provider-to-user-shortcut workflow used for personal muscle-memory aliases such as `ts3, teamspeak3`. The existing Launcher context action is now named `Add to shortcuts...` / `添加到快捷项...`, and the surrounding menu is reorganized around execution, file operations, and shortcut management. The file operation label is `Open containing folder` / `打开所在目录`; direct folder results intentionally omit that redundant action.
