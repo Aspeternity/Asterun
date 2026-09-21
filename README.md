@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-beta.5 — Precise Native Uninstall Cleanup
+
+Beta 5 replaces the Beta 4 reboot-deletion fallback with deterministic, diagnosable cleanup. Full-remove now enumerates the portable installation tree and deletes files and directories individually, deepest-first, so a persistent failure identifies the exact path rather than only the installation root.
+
+Because users commonly launch `Uninstall.exe` from an Explorer window that is currently displaying the portable directory, the non-elevated launcher now detects Explorer views inside the installation tree and navigates them to the parent directory before UAC and final root removal. A second best-effort release pass runs in the elevated worker. Regular-file failures query Windows Restart Manager and include possible locking application/PID information in the failure dialog when available.
+
+The previous behavior that queued the whole remaining installation tree for deletion at the next reboot has been removed. A normal full uninstall is expected to complete synchronously; true third-party locks are reported precisely instead of being hidden behind a reboot workaround.
+
+No persisted schema, Provider ID, Hotkey action, update package contract, Stable-channel behavior or Managed Everything lifecycle changes are introduced. Update ordering now includes `beta.4 < beta.5 < rc.1`. Windows fixed FileVersion/ProductVersion is `0.7.0.104`.
+
 ## v0.7.0-beta.4 — Stable Update & Native Uninstall Completion Fixes
 
 Beta 4 is the second focused fix from real Windows Beta validation. Stable-channel update checks no longer report HTTP 404 as a system error when the current stable release predates the native updater. If `releases/latest` has no `update-manifest.json`, ALTRun Next now reads the latest stable release metadata, reports that older stable version without offering a downgrade, and keeps future stable releases with manifests on the normal signed/checksummed update path.
@@ -53,7 +63,7 @@ Beta 1 freezes the v0.7 shortcut and launcher workflow surface after the alpha.9
 
 The frozen public identifiers include the existing Windows/Everything Provider IDs and Hotkey Registry action IDs. The portable executable contract is `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; the obsolete `ALTRunNext.Updater.exe` name remains prohibited. Managed Everything remains portable under `data/tools/Everything`; normal application exit keeps an enabled owned service warm, while explicitly disabling the Everything provider stops/disables only the owned service. External Everything ownership remains protected.
 
-Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
+Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
 
 The package now includes `V0.7_BETA_VALIDATION.md`, the manual real-Windows sign-off matrix for native alpha.9.4 -> beta.1 update, Shortcut Manager/Editor, Runtime Input, Path Conversion, asynchronous icons, Context Actions, Managed/External Everything ownership, native uninstall, DPI and performance. Windows fixed FileVersion/ProductVersion is `0.7.0.100`.
 

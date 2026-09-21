@@ -5,7 +5,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <exdisp.h>
+#include <restartmanager.h>
 #include <shellapi.h>
+#include <shlwapi.h>
 #include <tlhelp32.h>
 
 #include <algorithm>
@@ -48,9 +51,11 @@ struct PerformArguments {
 struct RemovalFailure {
     DWORD error{ERROR_SUCCESS};
     std::filesystem::path path;
+    std::wstring lockOwners;
 };
 
 std::filesystem::path gRemovalFailurePath;
+std::wstring gRemovalFailureLockOwners;
 
 [[nodiscard]] bool
 ChineseUi() {
@@ -967,6 +972,295 @@ void CleanupDetachedAlpha91Files() {
         ec);
 }
 
+struct ComApartment {
+    HRESULT result{
+        CoInitializeEx(
+            nullptr,
+            COINIT_APARTMENTTHREADED)};
+
+    ~ComApartment() {
+        if (SUCCEEDED(result)) {
+            CoUninitialize();
+        }
+    }
+
+    [[nodiscard]] bool Ready() const {
+        return SUCCEEDED(result) ||
+            result == RPC_E_CHANGED_MODE;
+    }
+};
+
+[[nodiscard]] bool
+FileUrlToPath(
+    BSTR url,
+    std::filesystem::path& path) {
+    if (!url || !*url) {
+        return false;
+    }
+
+    std::array<wchar_t, 32768>
+        buffer{};
+    DWORD length =
+        static_cast<DWORD>(
+            buffer.size());
+
+    if (FAILED(
+            PathCreateFromUrlW(
+                url,
+                buffer.data(),
+                &length,
+                0)) ||
+        length == 0) {
+        return false;
+    }
+
+    path =
+        std::filesystem::path(
+            std::wstring(
+                buffer.data(),
+                length));
+    return true;
+}
+
+[[nodiscard]] int
+NavigateExplorerAwayFromInstall(
+    const std::filesystem::path& install) {
+    const auto parent =
+        install.parent_path();
+
+    if (parent.empty()) {
+        return 0;
+    }
+
+    ComApartment apartment;
+
+    if (!apartment.Ready()) {
+        return 0;
+    }
+
+    IShellWindows* windows =
+        nullptr;
+
+    if (FAILED(
+            CoCreateInstance(
+                CLSID_ShellWindows,
+                nullptr,
+                CLSCTX_LOCAL_SERVER,
+                IID_PPV_ARGS(
+                    &windows))) ||
+        !windows) {
+        return 0;
+    }
+
+    long count = 0;
+    (void)windows->get_Count(
+        &count);
+
+    int navigated = 0;
+
+    for (long i = 0;
+         i < count;
+         ++i) {
+        VARIANT index;
+        VariantInit(&index);
+        index.vt = VT_I4;
+        index.lVal = i;
+
+        IDispatch* dispatch =
+            nullptr;
+
+        if (FAILED(
+                windows->Item(
+                    index,
+                    &dispatch)) ||
+            !dispatch) {
+            continue;
+        }
+
+        IWebBrowser2* browser =
+            nullptr;
+        const HRESULT query =
+            dispatch->QueryInterface(
+                IID_PPV_ARGS(
+                    &browser));
+        dispatch->Release();
+
+        if (FAILED(query) ||
+            !browser) {
+            continue;
+        }
+
+        BSTR locationUrl =
+            nullptr;
+        std::filesystem::path
+            location;
+
+        const HRESULT locationResult =
+            browser->get_LocationURL(
+                &locationUrl);
+
+        const bool insideInstall =
+            SUCCEEDED(locationResult) &&
+            FileUrlToPath(
+                locationUrl,
+                location) &&
+            PathStartsWithDirectory(
+                location,
+                install);
+
+        if (locationUrl) {
+            SysFreeString(
+                locationUrl);
+        }
+
+        if (insideInstall) {
+            BSTR target =
+                SysAllocString(
+                    parent.c_str());
+
+            if (target) {
+                VARIANT empty;
+                VariantInit(&empty);
+
+                if (SUCCEEDED(
+                        browser->Navigate(
+                            target,
+                            &empty,
+                            &empty,
+                            &empty,
+                            &empty))) {
+                    ++navigated;
+                }
+
+                SysFreeString(
+                    target);
+            }
+        }
+
+        browser->Release();
+    }
+
+    windows->Release();
+
+    if (navigated > 0) {
+        // Explorer navigation is asynchronous. Give it a short opportunity to
+        // release directory-change handles before the elevated worker starts
+        // removing the installation root.
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                350));
+    }
+
+    return navigated;
+}
+
+[[nodiscard]] std::wstring
+RestartManagerLockOwners(
+    const std::filesystem::path& path) {
+    DWORD session = 0;
+    WCHAR key[
+        CCH_RM_SESSION_KEY + 1]{};
+
+    if (RmStartSession(
+            &session,
+            0,
+            key) != ERROR_SUCCESS) {
+        return {};
+    }
+
+    const auto finish =
+        [&]() {
+            RmEndSession(
+                session);
+        };
+
+    LPCWSTR resources[] = {
+        path.c_str(),
+    };
+
+    if (RmRegisterResources(
+            session,
+            1,
+            resources,
+            0,
+            nullptr,
+            0,
+            nullptr) !=
+        ERROR_SUCCESS) {
+        finish();
+        return {};
+    }
+
+    UINT needed = 0;
+    UINT count = 0;
+    DWORD rebootReasons = 0;
+
+    DWORD result =
+        RmGetList(
+            session,
+            &needed,
+            &count,
+            nullptr,
+            &rebootReasons);
+
+    if (result !=
+            ERROR_MORE_DATA ||
+        needed == 0) {
+        finish();
+        return {};
+    }
+
+    std::vector<RM_PROCESS_INFO>
+        processes(needed);
+    count = needed;
+
+    result =
+        RmGetList(
+            session,
+            &needed,
+            &count,
+            processes.data(),
+            &rebootReasons);
+
+    finish();
+
+    if (result != ERROR_SUCCESS ||
+        count == 0) {
+        return {};
+    }
+
+    std::wstring owners;
+
+    for (UINT i = 0;
+         i < count;
+         ++i) {
+        if (!owners.empty()) {
+            owners += L", ";
+        }
+
+        const auto& process =
+            processes[i];
+
+        if (process.strAppName[0] !=
+            L'\0') {
+            owners +=
+                process.strAppName;
+        } else {
+            owners +=
+                L"PID";
+        }
+
+        owners += L" (PID ";
+        owners +=
+            std::to_wstring(
+                process.Process
+                    .dwProcessId);
+        owners += L")";
+    }
+
+    return owners;
+}
+
 [[nodiscard]] DWORD
 NativeFilesystemError(
     const std::error_code& error) {
@@ -998,154 +1292,9 @@ IsTransientRemovalError(
 }
 
 [[nodiscard]] bool
-ScheduleDeleteOnReboot(
+RemoveOneWithRetry(
     const std::filesystem::path& path,
     RemovalFailure& failure) {
-    std::error_code ec;
-
-    if (!std::filesystem::exists(
-            path,
-            ec)) {
-        return !ec;
-    }
-
-    std::vector<std::filesystem::path>
-        files;
-    std::vector<std::filesystem::path>
-        directories;
-
-    if (std::filesystem::is_directory(
-            path,
-            ec) &&
-        !ec) {
-        for (std::filesystem::
-                 recursive_directory_iterator
-                 it(
-                     path,
-                     std::filesystem::
-                         directory_options::
-                             skip_permission_denied,
-                     ec),
-             end;
-             !ec && it != end;
-             it.increment(ec)) {
-            std::error_code typeError;
-            const bool isSymlink =
-                it->is_symlink(
-                    typeError);
-
-            if (typeError) {
-                failure.error =
-                    NativeFilesystemError(
-                        typeError);
-                failure.path =
-                    it->path();
-                return false;
-            }
-
-            const bool isDirectory =
-                it->is_directory(
-                    typeError);
-
-            if (typeError) {
-                failure.error =
-                    NativeFilesystemError(
-                        typeError);
-                failure.path =
-                    it->path();
-                return false;
-            }
-
-            if (isDirectory &&
-                !isSymlink) {
-                directories.push_back(
-                    it->path());
-            } else {
-                files.push_back(
-                    it->path());
-            }
-        }
-
-        if (ec) {
-            failure.error =
-                NativeFilesystemError(ec);
-            failure.path = path;
-            return false;
-        }
-    } else if (ec) {
-        failure.error =
-            NativeFilesystemError(ec);
-        failure.path = path;
-        return false;
-    } else {
-        files.push_back(path);
-    }
-
-    const auto schedule =
-        [&](const std::filesystem::path&
-                candidate) {
-            if (MoveFileExW(
-                    candidate.c_str(),
-                    nullptr,
-                    MOVEFILE_DELAY_UNTIL_REBOOT)) {
-                return true;
-            }
-
-            const DWORD error =
-                GetLastError();
-
-            if (error ==
-                    ERROR_FILE_NOT_FOUND ||
-                error ==
-                    ERROR_PATH_NOT_FOUND) {
-                return true;
-            }
-
-            failure.error =
-                error != ERROR_SUCCESS
-                    ? error
-                    : ERROR_GEN_FAILURE;
-            failure.path = candidate;
-            return false;
-        };
-
-    for (const auto& file : files) {
-        if (!schedule(file)) {
-            return false;
-        }
-    }
-
-    std::sort(
-        directories.begin(),
-        directories.end(),
-        [](const auto& left,
-           const auto& right) {
-            return left.native().size() >
-                right.native().size();
-        });
-
-    for (const auto& directory :
-         directories) {
-        if (!schedule(directory)) {
-            return false;
-        }
-    }
-
-    if (std::filesystem::is_directory(
-            path,
-            ec) &&
-        !ec) {
-        return schedule(path);
-    }
-
-    return true;
-}
-
-[[nodiscard]] bool
-RemoveAllWithRetry(
-    const std::filesystem::path& path,
-    RemovalFailure& failure,
-    bool& deferred) {
     constexpr int attempts = 25;
     constexpr auto delay =
         std::chrono::milliseconds(200);
@@ -1155,37 +1304,39 @@ RemoveAllWithRetry(
          ++attempt) {
         std::error_code ec;
 
-        std::filesystem::remove_all(
-            path,
-            ec);
+        const bool removed =
+            std::filesystem::remove(
+                path,
+                ec);
 
         if (!ec) {
-            return true;
+            return removed ||
+                !std::filesystem::exists(
+                    path,
+                    ec);
         }
 
         const DWORD error =
             NativeFilesystemError(ec);
 
         if (!IsTransientRemovalError(
-                error)) {
+                error) ||
+            attempt + 1 >= attempts) {
             failure.error =
                 error != ERROR_SUCCESS
                     ? error
                     : ERROR_GEN_FAILURE;
             failure.path = path;
-            return false;
-        }
 
-        if (attempt + 1 >= attempts) {
-            // Keep a valid uninstall successful even if Windows, Defender or
-            // another short-lived owner still holds an ALTRun-owned file.
-            // The elevated TEMP worker queues only the already-validated
-            // installation tree for deletion at the next system boot.
-            if (ScheduleDeleteOnReboot(
-                    path,
-                    failure)) {
-                deferred = true;
-                return true;
+            std::error_code typeError;
+            if (std::filesystem::
+                    is_regular_file(
+                        path,
+                        typeError) &&
+                !typeError) {
+                failure.lockOwners =
+                    RestartManagerLockOwners(
+                        path);
             }
 
             return false;
@@ -1202,11 +1353,151 @@ RemoveAllWithRetry(
 }
 
 [[nodiscard]] bool
+RemoveAllWithRetry(
+    const std::filesystem::path& path,
+    RemovalFailure& failure) {
+    std::error_code ec;
+
+    if (!std::filesystem::exists(
+            path,
+            ec)) {
+        return !ec;
+    }
+
+    const bool isSymlink =
+        std::filesystem::is_symlink(
+            path,
+            ec);
+
+    if (ec) {
+        failure.error =
+            NativeFilesystemError(ec);
+        failure.path = path;
+        return false;
+    }
+
+    const bool isDirectory =
+        std::filesystem::is_directory(
+            path,
+            ec);
+
+    if (ec) {
+        failure.error =
+            NativeFilesystemError(ec);
+        failure.path = path;
+        return false;
+    }
+
+    if (!isDirectory ||
+        isSymlink) {
+        return RemoveOneWithRetry(
+            path,
+            failure);
+    }
+
+    std::vector<std::filesystem::path>
+        files;
+    std::vector<std::filesystem::path>
+        directories;
+
+    {
+        std::filesystem::
+            recursive_directory_iterator
+            it(
+                path,
+                std::filesystem::
+                    directory_options::
+                        skip_permission_denied,
+                ec);
+        const std::filesystem::
+            recursive_directory_iterator
+            endIterator;
+
+        while (!ec &&
+               it != endIterator) {
+            std::error_code typeError;
+            const bool childSymlink =
+                it->is_symlink(
+                    typeError);
+
+            if (typeError) {
+                failure.error =
+                    NativeFilesystemError(
+                        typeError);
+                failure.path =
+                    it->path();
+                return false;
+            }
+
+            const bool childDirectory =
+                it->is_directory(
+                    typeError);
+
+            if (typeError) {
+                failure.error =
+                    NativeFilesystemError(
+                        typeError);
+                failure.path =
+                    it->path();
+                return false;
+            }
+
+            if (childDirectory &&
+                !childSymlink) {
+                directories.push_back(
+                    it->path());
+            } else {
+                files.push_back(
+                    it->path());
+            }
+
+            it.increment(ec);
+        }
+    }
+
+    if (ec) {
+        failure.error =
+            NativeFilesystemError(ec);
+        failure.path = path;
+        return false;
+    }
+
+    for (const auto& file : files) {
+        if (!RemoveOneWithRetry(
+                file,
+                failure)) {
+            return false;
+        }
+    }
+
+    std::sort(
+        directories.begin(),
+        directories.end(),
+        [](const auto& left,
+           const auto& right) {
+            return left.native().size() >
+                right.native().size();
+        });
+
+    for (const auto& directory :
+         directories) {
+        if (!RemoveOneWithRetry(
+                directory,
+                failure)) {
+            return false;
+        }
+    }
+
+    return RemoveOneWithRetry(
+        path,
+        failure);
+}
+
+[[nodiscard]] bool
 RemoveInstallation(
     const std::filesystem::path& install,
     bool deleteData,
-    RemovalFailure& failure,
-    bool& deferred) {
+    RemovalFailure& failure) {
     const auto data =
         install /
         L"data";
@@ -1218,16 +1509,14 @@ RemoveInstallation(
             data /
                 L"tools" /
                 L"Everything",
-            failure,
-            deferred)) {
+            failure)) {
         return false;
     }
 
     if (!RemoveAllWithRetry(
             data /
                 L"update",
-            failure,
-            deferred)) {
+            failure)) {
         return false;
     }
 
@@ -1242,8 +1531,7 @@ RemoveInstallation(
     if (deleteData) {
         return RemoveAllWithRetry(
             install,
-            failure,
-            deferred);
+            failure);
     }
 
     std::error_code ec;
@@ -1338,15 +1626,24 @@ PerformUninstall(
     }
 
     RemovalFailure removalFailure;
-    bool removalDeferred = false;
+
+    // A user commonly launches Uninstall.exe from an Explorer window that is
+    // currently displaying this portable directory. Release that directory
+    // view before the final root-directory removal. The non-elevated launcher
+    // also performs this before UAC; this second pass is best-effort.
+    if (args.deleteData) {
+        (void)NavigateExplorerAwayFromInstall(
+            args.install);
+    }
 
     if (!RemoveInstallation(
             args.install,
             args.deleteData,
-            removalFailure,
-            removalDeferred)) {
+            removalFailure)) {
         gRemovalFailurePath =
             removalFailure.path;
+        gRemovalFailureLockOwners =
+            removalFailure.lockOwners;
 
         SetLastError(
             removalFailure.error !=
@@ -1364,13 +1661,6 @@ PerformUninstall(
             : (ChineseUi()
                    ? L"ALTRun Next 已卸载完成。\n\n托管 Everything 和后台服务已移除；用户数据仍保留在原目录的 data 文件夹中。"
                    : L"ALTRun Next has been uninstalled.\n\nManaged Everything and its service were removed. User data remains in the original data folder.");
-
-    if (removalDeferred) {
-        message +=
-            ChineseUi()
-                ? L"\n\n少数仍被 Windows 占用的文件已安排在下次系统重启后自动删除。"
-                : L"\n\nA few files still held by Windows are scheduled for automatic deletion at the next system restart.";
-    }
 
     MessageBoxW(
         nullptr,
@@ -1442,6 +1732,13 @@ BeginUninstall() {
 
     const bool deleteData =
         dataChoice == IDYES;
+
+    if (deleteData) {
+        // Do this from the normal-integrity launcher before UAC so Explorer
+        // automation is not blocked by an integrity-level boundary.
+        (void)NavigateExplorerAwayFromInstall(
+            install);
+    }
 
     std::array<wchar_t, 32768>
         tempPath{};
@@ -1584,6 +1881,16 @@ int WINAPI wWinMain(
                 message +=
                     gRemovalFailurePath
                         .wstring();
+            }
+
+            if (!gRemovalFailureLockOwners
+                     .empty()) {
+                message +=
+                    ChineseUi()
+                        ? L"\n\n可能占用进程："
+                        : L"\n\nPossible lock owner(s): ";
+                message +=
+                    gRemovalFailureLockOwners;
             }
 
             MessageBoxW(

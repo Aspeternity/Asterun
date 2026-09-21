@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-beta.5
+
+- Replaced full-root `std::filesystem::remove_all()` cleanup with entry-by-entry file/directory removal so failures identify the exact locked object.
+- Detects Explorer windows/tabs currently viewing the ALTRun installation tree and navigates them to the parent directory before root deletion.
+- Adds a second best-effort Explorer release pass in the elevated TEMP uninstaller before full removal.
+- Uses Windows Restart Manager to report possible locking application/PID information for regular files that remain locked after bounded retries.
+- Removed the Beta 4 fallback that deferred the remaining installation tree wholesale to the next system reboot.
+- Preserved exact-install and Managed Everything ownership boundaries and existing foreground/topmost completion dialogs.
+- Extended Beta desktop validation and prerelease ordering coverage for `beta.4 < beta.5 < rc.1`.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.104.
+
 ## 0.7.0-beta.4
 
 - Fixed Stable-channel update checks against legacy stable releases that do not contain `update-manifest.json`: HTTP 404 now falls back to GitHub latest-stable release metadata instead of surfacing as a system error.

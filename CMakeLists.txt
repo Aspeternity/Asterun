@@ -314,6 +314,10 @@ if(WIN32)
         PRIVATE
             advapi32
             shell32
+            shlwapi
+            ole32
+            oleaut32
+            rstrtmgr
             user32
     )
 
