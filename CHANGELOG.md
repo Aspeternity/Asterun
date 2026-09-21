@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0-alpha.2
+
+- Redesigned Settings around compact native cards, setting rows, right-side toggle switches and unified action buttons.
+- Changed sidebar order to General, Hotkeys, Search sources, Appearance, Data, Diagnostics, About.
+- Moved search-result icons from Appearance to General / Launcher behavior.
+- Added independent Launcher monitor and placement controls: near top, centered or last position.
+- Added Settings window placement control: centered or last position; remembered positions are clamped to available monitor work areas.
+- Added a small Modern Compact launcher drag strip so remembered Launcher positioning works without changing its input-first interaction.
+- Converted Hotkeys to a two-column card layout with a two-line owner-drawn action list.
+- Split Search sources into application providers and an Everything file/folder card with simplified status hierarchy.
+- Moved the data-directory entry from About to Data and reorganized Data, Diagnostics and About into the shared Settings visual system.
+- Removed the permanently hidden legacy General-page hotkey controls and routing.
+- Bumped settings schemaVersion from 7 to 8 for persisted window-placement preferences/state; schema 7 -> 8 migration keeps existing behavior with Launcher=top and Settings=center.
+- Preserved Provider IDs/defaults, Hotkey Registry IDs, search/ranking, Managed Everything lifecycle, update/uninstall behavior and Shortcut TSV v3.
+- Updated Windows fixed FileVersion/ProductVersion to 0.8.0.2.
+
 ## 0.8.0-alpha.1
 
 - Added shared `UiTheme`, `UiMetrics` and `UiTypography` foundations for the native Win32 UI.

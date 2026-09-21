@@ -45,16 +45,10 @@ GeneralLayoutMetrics BuildGeneralLayout(
 
     const bool stackedCards =
         contentWidth <
-        scale(650);
+        scale(680);
 
     const int cardTop =
         scale(170);
-
-    const int behaviorRowHeight =
-        scale(kToggleRowLogical);
-
-    const int searchRowHeight =
-        scale(kToggleRowLogical);
 
     const int behaviorWidth =
         stackedCards
@@ -63,14 +57,12 @@ GeneralLayoutMetrics BuildGeneralLayout(
 
     const int behaviorBottom =
         cardTop +
-        behaviorRowHeight * 6;
+        scale(kToggleRowLogical) * 7;
 
     int searchTitleTop =
         scale(138);
-
     int searchTop =
         cardTop;
-
     int searchLeft =
         contentLeft +
         behaviorWidth +
@@ -80,11 +72,9 @@ GeneralLayoutMetrics BuildGeneralLayout(
         searchTitleTop =
             behaviorBottom +
             scale(18);
-
         searchTop =
             searchTitleTop +
             scale(32);
-
         searchLeft =
             contentLeft;
     }
@@ -98,51 +88,37 @@ GeneralLayoutMetrics BuildGeneralLayout(
 
     const int searchBottom =
         searchTop +
-        searchRowHeight * 5;
+        scale(kToggleRowLogical) * 5;
 
-    const int cardsBottom =
-        std::max(
-            behaviorBottom,
-            searchBottom);
+    const int placementTitleTop =
+        searchBottom +
+        scale(20);
 
-    // v0.6 alpha.6 moves all hotkey editing to its own Settings page.
-    // Keep the legacy metric fields populated for compatibility with the
-    // existing layout contract, but collapse the General-page hotkey area.
-    const bool compactHotkeys =
-        false;
+    const int placementTop =
+        placementTitleTop +
+        scale(32);
 
-    const int hotkeySectionTop =
-        cardsBottom +
-        scale(16);
+    const int placementLeft =
+        stackedCards
+            ? contentLeft
+            : searchLeft;
 
-    const int primaryRowTop =
-        hotkeySectionTop;
-    const int primaryKeyRowTop =
-        hotkeySectionTop;
-    const int primaryStatusTop =
-        hotkeySectionTop;
-    const int auxiliaryRowTop =
-        hotkeySectionTop;
-    const int auxiliaryKeyRowTop =
-        hotkeySectionTop;
-    const int auxiliaryStatusTop =
-        hotkeySectionTop;
+    const int placementWidth =
+        stackedCards
+            ? contentWidth
+            : searchWidth;
 
-    const int popupSectionTop =
-        cardsBottom +
-        scale(16);
-
-    const int monitorTop =
-        popupSectionTop +
-        scale(30);
-
-    const int monitorBottom =
-        monitorTop +
-        scale(54);
+    const int placementBottom =
+        placementTop +
+        scale(
+            ui::kSettingsComboRowLogical) *
+            3;
 
     const int noteTop =
-        monitorBottom +
-        scale(8);
+        std::max(
+            behaviorBottom,
+            placementBottom) +
+        scale(12);
 
     GeneralLayoutMetrics metrics;
 
@@ -164,67 +140,32 @@ GeneralLayoutMetrics BuildGeneralLayout(
             scrollOffset,
     };
 
-    metrics.monitor = {
-        contentLeft,
-        monitorTop - scrollOffset,
-        contentRight,
-        monitorBottom -
+    metrics.placement = {
+        placementLeft,
+        placementTop - scrollOffset,
+        placementLeft +
+            placementWidth,
+        placementBottom -
             scrollOffset,
     };
 
     metrics.behaviorTitleTop =
         scale(138) -
         scrollOffset;
-
     metrics.searchTitleTop =
         searchTitleTop -
         scrollOffset;
-
-    metrics.hotkeySectionTop =
-        hotkeySectionTop -
+    metrics.placementTitleTop =
+        placementTitleTop -
         scrollOffset;
-
-    metrics.primaryRowTop =
-        primaryRowTop -
-        scrollOffset;
-
-    metrics.primaryKeyRowTop =
-        primaryKeyRowTop -
-        scrollOffset;
-
-    metrics.primaryStatusTop =
-        primaryStatusTop -
-        scrollOffset;
-
-    metrics.auxiliaryRowTop =
-        auxiliaryRowTop -
-        scrollOffset;
-
-    metrics.auxiliaryKeyRowTop =
-        auxiliaryKeyRowTop -
-        scrollOffset;
-
-    metrics.auxiliaryStatusTop =
-        auxiliaryStatusTop -
-        scrollOffset;
-
-    metrics.popupSectionTop =
-        popupSectionTop -
-        scrollOffset;
-
     metrics.noteTop =
         noteTop -
         scrollOffset;
-
     metrics.contentBottom =
         noteTop +
-        scale(28);
-
+        scale(34);
     metrics.stackedCards =
         stackedCards;
-
-    metrics.compactHotkeys =
-        compactHotkeys;
 
     return metrics;
 }

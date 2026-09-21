@@ -32,6 +32,14 @@ struct Settings {
     bool hideOnFocusLost{true};
     bool showTrayIcon{true};
     std::string popupMonitor{"cursor"};
+    std::string launcherPlacement{"top"};
+    std::string settingsPlacement{"center"};
+    bool launcherLastPositionValid{false};
+    int launcherLastX{0};
+    int launcherLastY{0};
+    bool settingsLastPositionValid{false};
+    int settingsLastX{0};
+    int settingsLastY{0};
 
     std::vector<std::string>
         hotkeyModifiers{"alt"};
@@ -98,6 +106,15 @@ public:
     bool SetUpdateSettings(
         bool autoCheck,
         UpdateChannel channel);
+    bool SetWindowPlacement(
+        std::string launcherPlacement,
+        std::string settingsPlacement);
+    bool RememberLauncherPosition(
+        int x,
+        int y);
+    bool RememberSettingsPosition(
+        int x,
+        int y);
     bool ResetDefaults();
     void SetGeneral(
         bool hideAfterLaunch,

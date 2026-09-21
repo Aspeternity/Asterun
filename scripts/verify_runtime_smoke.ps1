@@ -125,8 +125,15 @@ try {
         Get-Content $settingsPath -Raw |
         ConvertFrom-Json
 
-    if ($migratedSettings.schemaVersion -ne 7) {
-        throw "Packaged runtime did not migrate schema-2 settings to schema 7."
+    if ($migratedSettings.schemaVersion -ne 8) {
+        throw "Packaged runtime did not migrate schema-2 settings to schema 8."
+    }
+
+    if ($migratedSettings.windowPlacement.launcherMode -ne "top" -or
+        $migratedSettings.windowPlacement.settingsMode -ne "center" -or
+        $migratedSettings.windowPlacement.launcherLastValid -ne $false -or
+        $migratedSettings.windowPlacement.settingsLastValid -ne $false) {
+        throw "Packaged runtime migration must default window placement to launcher=top/settings=center with no remembered positions."
     }
 
     if ($migratedSettings.behavior.pinyinSearch -ne $true) {
@@ -177,7 +184,7 @@ try {
     Write-Host "  FileVersion string: $fileVersion"
     Write-Host "  Process id: $($process.Id)"
     Write-Host "  Startup observation: $StartupSeconds seconds"
-    Write-Host "  Runtime migration: schema 2 -> 7 with frozen Hotkey Registry + default-on Pinyin + default-off result icons + release-appropriate update defaults"
+    Write-Host "  Runtime migration: schema 2 -> 8 with default window placement + frozen Hotkey Registry + default-on Pinyin + default-off result icons + release-appropriate update defaults"
 }
 finally {
     if ($null -ne $process) {

@@ -2907,6 +2907,48 @@ void App::SetGeneralSettings(
     if (settingsWindow_) settingsWindow_->RefreshFromSettings();
 }
 
+bool App::SetWindowPlacementSettings(
+    std::string launcherPlacement,
+    std::string settingsPlacement) {
+
+    if (!settingsStore_.SetWindowPlacement(
+            std::move(
+                launcherPlacement),
+            std::move(
+                settingsPlacement))) {
+        return false;
+    }
+
+    if (window_) {
+        window_->ApplyGeneralSettings();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
+void App::RememberLauncherPosition(
+    int x,
+    int y) {
+    settingsStore_.
+        RememberLauncherPosition(
+            x,
+            y);
+}
+
+void App::RememberSettingsPosition(
+    int x,
+    int y) {
+    settingsStore_.
+        RememberSettingsPosition(
+            x,
+            y);
+}
+
 bool App::ApplyStartupRegistration(
     bool enabled) const {
 

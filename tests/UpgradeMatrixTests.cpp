@@ -565,6 +565,118 @@ void AssertSchema6Migration(
     AssertDowngradeReadOnly(path);
 }
 
+void AssertSchema7Migration(
+    const std::filesystem::path& workRoot) {
+    const auto path =
+        workRoot /
+        "schema7-to-schema8" /
+        "settings.json";
+
+    std::filesystem::create_directories(
+        path.parent_path());
+
+    nlohmann::json source = {
+        {"schemaVersion", 7},
+        {"general", {
+            {"startWithWindows", false},
+            {"showOnStartup", false},
+            {"hideAfterLaunch", true},
+            {"clearQueryOnShow", true},
+            {"hideOnFocusLost", true},
+            {"showTrayIcon", true},
+            {"popupMonitor", "active"}
+        }},
+        {"behavior", {
+            {"pinyinSearch", true},
+            {"wildcardMatching", true},
+            {"numericQuickLaunch", true},
+            {"numericQuickLaunchOrder", "zero-to-nine"},
+            {"executeSingleResultImmediately", false}
+        }},
+        {"appearance", {
+            {"launcher", "modern-compact"},
+            {"language", "en-US"},
+            {"showResultIcons", true}
+        }},
+        {"providers", {
+            {"windows.startmenu", true},
+            {"windows.packaged", true},
+            {"windows.apppaths", true},
+            {"windows.path", true},
+            {"everything.filesystem", false}
+        }},
+        {"update", {
+            {"autoCheck", false},
+            {"channel", "development"}
+        }}
+    };
+
+    {
+        std::ofstream output(
+            path,
+            std::ios::binary |
+                std::ios::trunc);
+        assert(output);
+        output << source.dump(2);
+    }
+
+    SettingsStore store(path);
+    store.Load();
+
+    assert(
+        store.WasMigratedFromOlderSchema());
+    assert(
+        store.MigratedFromSchemaVersion() ==
+        7);
+    assert(
+        !store.IsReadOnlyDueToNewerSchema());
+
+    AssertCommonFields(
+        store.Data(),
+        source);
+
+    assert(
+        store.Data().launcherPlacement ==
+        "top");
+    assert(
+        store.Data().settingsPlacement ==
+        "center");
+    assert(
+        !store.Data().launcherLastPositionValid);
+    assert(
+        !store.Data().settingsLastPositionValid);
+
+    const auto migrated =
+        nlohmann::json::parse(
+            ReadText(path));
+
+    assert(
+        migrated.at("schemaVersion")
+            .get<int>() ==
+        config::kSettingsSchemaVersion);
+
+    const auto& placement =
+        migrated.at(
+            "windowPlacement");
+
+    assert(
+        placement.at("launcherMode")
+            .get<std::string>() ==
+        "top");
+    assert(
+        placement.at("settingsMode")
+            .get<std::string>() ==
+        "center");
+    assert(
+        !placement.at("launcherLastValid")
+             .get<bool>());
+    assert(
+        !placement.at("settingsLastValid")
+             .get<bool>());
+
+    AssertDowngradeReadOnly(path);
+}
+
 void AssertCleanInstall(
     const std::filesystem::path& workRoot) {
     const auto path =
@@ -591,6 +703,31 @@ void AssertCleanInstall(
         root.at("schemaVersion")
             .get<int>() ==
         config::kSettingsSchemaVersion);
+    assert(
+        root.at("windowPlacement")
+            .at("launcherMode")
+            .get<std::string>() ==
+        "top");
+    assert(
+        root.at("windowPlacement")
+            .at("settingsMode")
+            .get<std::string>() ==
+        "center");
+    assert(
+        !root.at("windowPlacement")
+             .at("launcherLastValid")
+             .get<bool>());
+    assert(
+        !root.at("windowPlacement")
+             .at("settingsLastValid")
+             .get<bool>());
+    assert(
+        store.Data().launcherPlacement ==
+        "top");
+    assert(
+        store.Data().settingsPlacement ==
+        "center");
+
     assert(
         root.at("behavior")
             .at("pinyinSearch")
@@ -713,6 +850,7 @@ int main(
         workRoot);
 
     AssertCleanInstall(workRoot);
+    AssertSchema7Migration(workRoot);
     AssertSchema6Migration(workRoot);
     AssertSchema5Migration(workRoot);
 
@@ -744,7 +882,7 @@ int main(
 
     std::cout
         << "Upgrade matrix tests passed: clean install, "
-           "schema 3/4/5/6 -> 7 with update defaults, "
+           "schema 3/4/5/6/7 -> 8 with placement/update defaults, "
            "schema downgrade read-only\n";
 
     return 0;

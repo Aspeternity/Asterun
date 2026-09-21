@@ -164,6 +164,15 @@ public:
     bool SetUpdateSettings(
         bool autoCheck,
         UpdateChannel channel);
+    bool SetWindowPlacementSettings(
+        std::string launcherPlacement,
+        std::string settingsPlacement);
+    void RememberLauncherPosition(
+        int x,
+        int y);
+    void RememberSettingsPosition(
+        int x,
+        int y);
     [[nodiscard]] win::UpdateSnapshot
     UpdateStatus() const;
     bool StartUpdateCheck(

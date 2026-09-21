@@ -48,13 +48,22 @@ inline constexpr LauncherMetrics
     };
 
 inline constexpr int
-    kSettingsSidebarWidthLogical = 190;
+    kSettingsSidebarWidthLogical = 208;
 inline constexpr int
     kSettingsContentLeftInsetLogical = 38;
 inline constexpr int
     kSettingsContentRightInsetLogical = 34;
 inline constexpr int
-    kSettingsToggleRowLogical = 54;
+    kSettingsToggleRowLogical = 62;
+
+inline constexpr int
+    kSettingsComboRowLogical = 68;
+inline constexpr int
+    kSettingsCardRadiusLogical = 8;
+inline constexpr int
+    kSettingsNavHeightLogical = 40;
+inline constexpr int
+    kSettingsNavGapLogical = 4;
 
 inline constexpr int
     kStandardControlHeightLogical = 34;

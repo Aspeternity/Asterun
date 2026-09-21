@@ -74,33 +74,10 @@ private:
         kIdPopupMonitor = 51105;
     static constexpr UINT
         kIdShowOnStartup = 51106;
-
     static constexpr UINT
-        kIdHotkeyCtrl = 51110;
+        kIdLauncherPlacement = 51107;
     static constexpr UINT
-        kIdHotkeyAlt = 51111;
-    static constexpr UINT
-        kIdHotkeyShift = 51112;
-    static constexpr UINT
-        kIdHotkeyWin = 51113;
-    static constexpr UINT
-        kIdHotkeyKey = 51114;
-    static constexpr UINT
-        kIdHotkeyApply = 51115;
-    static constexpr UINT
-        kIdAuxHotkeyEnabled = 51116;
-    static constexpr UINT
-        kIdAuxHotkeyCtrl = 51117;
-    static constexpr UINT
-        kIdAuxHotkeyAlt = 51118;
-    static constexpr UINT
-        kIdAuxHotkeyShift = 51119;
-    static constexpr UINT
-        kIdAuxHotkeyWin = 51120;
-    static constexpr UINT
-        kIdAuxHotkeyKey = 51121;
-    static constexpr UINT
-        kIdAuxHotkeyApply = 51122;
+        kIdSettingsPlacement = 51108;
 
     static constexpr UINT
         kIdWildcardMatching = 51130;
@@ -144,8 +121,6 @@ private:
     static constexpr UINT
         kIdUpdateInstall = 51306;
 
-    static constexpr UINT
-        kIdDataOpenFolder = 51501;
     static constexpr UINT
         kIdDataImportTsv = 51502;
     static constexpr UINT
@@ -200,7 +175,7 @@ private:
     void CreateAboutPage();
     void ApplyFonts();
     void Layout();
-    void CenterOnCurrentMonitor();
+    void PositionForShow();
     void ShowPage(Page page);
     void UpdateNavLabels();
     void UpdatePageHeader();
@@ -218,11 +193,9 @@ private:
     void ToggleProviderSetting(
         UINT id);
     void ApplyMonitorControl();
-    void ApplyHotkeyControl();
-    void ApplyAuxiliaryHotkeyControl();
+    void ApplyWindowPlacementControls();
     void ApplyClassicBehaviorControl(
         UINT id = 0);
-    void RefreshHotkeyControls();
     void RefreshHotkeyPage();
     void LoadHotkeyEditor(
         std::string_view actionId);
@@ -252,6 +225,10 @@ private:
         const DRAWITEMSTRUCT& item);
     void DrawNavigationButton(
         const DRAWITEMSTRUCT& item);
+    void DrawActionButton(
+        const DRAWITEMSTRUCT& item);
+    void DrawHotkeyActionItem(
+        const DRAWITEMSTRUCT& item);
 
     HWND CreateStatic(
         const wchar_t* text,
@@ -262,7 +239,7 @@ private:
         const wchar_t* text,
         UINT id,
         DWORD style =
-            BS_PUSHBUTTON | BS_FLAT);
+            BS_OWNERDRAW);
 
     HWND CreateCheckboxRow(
         const wchar_t* text,
@@ -286,9 +263,14 @@ private:
     [[nodiscard]] RECT
     SearchBehaviorCardRect() const;
     [[nodiscard]] RECT
-    MonitorCardRect() const;
+    PlacementCardRect() const;
     [[nodiscard]] RECT
     ProviderCardRect() const;
+    [[nodiscard]] RECT
+    PageCardRect(
+        int topLogical,
+        int heightLogical,
+        int maxWidthLogical = 720) const;
 
     int Scale(int value) const;
     const wchar_t* T(
@@ -306,6 +288,8 @@ private:
     HWND navProviders_{};
     HWND navData_{};
     HWND navAbout_{};
+    HWND brandName_{};
+    HWND brandSubtitle_{};
     HWND pageTitle_{};
     HWND pageDescription_{};
 
@@ -316,6 +300,7 @@ private:
     HWND clearQueryOnShow_{};
     HWND hideOnFocusLost_{};
     HWND showTrayIcon_{};
+    HWND showResultIcons_{};
     HWND searchBehaviorTitle_{};
     HWND pinyinSearch_{};
     HWND wildcardMatching_{};
@@ -323,25 +308,6 @@ private:
     HWND executeSingleResult_{};
     HWND numericQuickLaunchOrderLabel_{};
     HWND numericQuickLaunchOrder_{};
-
-    HWND hotkeySectionTitle_{};
-    HWND primaryHotkeyLabel_{};
-    HWND hotkeyCtrl_{};
-    HWND hotkeyAlt_{};
-    HWND hotkeyShift_{};
-    HWND hotkeyWin_{};
-    HWND hotkeyKey_{};
-    HWND hotkeyApply_{};
-    HWND hotkeyStatus_{};
-
-    HWND auxiliaryHotkeyEnabled_{};
-    HWND auxiliaryHotkeyCtrl_{};
-    HWND auxiliaryHotkeyAlt_{};
-    HWND auxiliaryHotkeyShift_{};
-    HWND auxiliaryHotkeyWin_{};
-    HWND auxiliaryHotkeyKey_{};
-    HWND auxiliaryHotkeyApply_{};
-    HWND auxiliaryHotkeyStatus_{};
 
     HWND hotkeyActionList_{};
     HWND hotkeyEditorTitle_{};
@@ -366,21 +332,28 @@ private:
     HWND actionsWebStatus_{};
     HWND actionsNote_{};
 
-    HWND popupSectionTitle_{};
+    HWND placementSectionTitle_{};
     HWND popupMonitorLabel_{};
     HWND popupMonitorDescription_{};
     HWND popupMonitor_{};
+    HWND launcherPlacementLabel_{};
+    HWND launcherPlacementDescription_{};
+    HWND launcherPlacement_{};
+    HWND settingsPlacementLabel_{};
+    HWND settingsPlacementDescription_{};
+    HWND settingsPlacement_{};
     HWND generalNote_{};
 
+    HWND appearanceLauncherTitle_{};
     HWND uiStyleLabel_{};
     HWND uiStyle_{};
+    HWND appearanceAppTitle_{};
     HWND languageLabel_{};
     HWND language_{};
-    HWND showResultIcons_{};
-    HWND resultIconsNote_{};
     HWND appearanceNote_{};
 
     HWND providerSectionTitle_{};
+    HWND providerFilesTitle_{};
     HWND providerStartMenu_{};
     HWND providerPackaged_{};
     HWND providerAppPaths_{};
@@ -391,8 +364,9 @@ private:
     HWND providerRecheckEverything_{};
     HWND providerNote_{};
 
-    HWND dataOpenLabel_{};
-    HWND dataOpenFolder_{};
+    HWND dataPathLabel_{};
+    HWND dataPath_{};
+    HWND openDataFolder_{};
     HWND dataTransferLabel_{};
     HWND dataImportTsv_{};
     HWND dataImportLegacy_{};
@@ -404,6 +378,7 @@ private:
     HWND dataStatus_{};
 
     HWND aboutName_{};
+    HWND aboutProjectTitle_{};
     HWND aboutVersion_{};
     HWND aboutDescription_{};
     HWND updateSectionTitle_{};
@@ -413,9 +388,6 @@ private:
     HWND updateStatus_{};
     HWND updateCheck_{};
     HWND updateInstall_{};
-    HWND dataPathLabel_{};
-    HWND dataPath_{};
-    HWND openDataFolder_{};
     HWND openGitHub_{};
 
     HFONT normalFont_{};
@@ -441,8 +413,6 @@ private:
         hotkeyControls_;
     std::vector<HWND>
         diagnosticsControls_;
-    std::vector<HWND>
-        legacyHotkeyControls_;
     std::vector<HWND>
         appearanceControls_;
     std::vector<HWND>

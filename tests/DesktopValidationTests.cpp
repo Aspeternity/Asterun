@@ -122,16 +122,15 @@ int main() {
                     0);
 
         assert(!wide.stackedCards);
-        assert(!wide.compactHotkeys);
         AssertPositiveRect(wide.behavior);
         AssertPositiveRect(wide.search);
-        AssertPositiveRect(wide.monitor);
+        AssertPositiveRect(wide.placement);
         assert(
             wide.search.left >
             wide.behavior.right);
         assert(
             wide.behavior.left ==
-            scale(190) +
+            scale(ui::kSettingsSidebarWidthLogical) +
                 scale(
                     settings_layout::
                         kContentLeftInsetLogical));
@@ -141,7 +140,7 @@ int main() {
             scale(
                 settings_layout::
                     kToggleRowLogical) *
-                6);
+                7);
         assert(
             wide.search.bottom -
                 wide.search.top ==
@@ -162,7 +161,7 @@ int main() {
                     settings_layout::
                         kContentRightInsetLogical));
         assert(
-            wide.monitor.right <=
+            wide.placement.right <=
             wideWidth -
                 scale(
                     settings_layout::
@@ -174,6 +173,12 @@ int main() {
                     scale(800),
                     dpi) ==
             0);
+        assert(
+            wide.placement.left ==
+            wide.search.left);
+        assert(
+            wide.placement.top >
+            wide.search.bottom);
 
         const int narrowWidth =
             scale(820);
@@ -186,12 +191,9 @@ int main() {
                     0);
 
         assert(narrow.stackedCards);
-        // alpha.6 moved hotkey editing to a dedicated page, so General no
-        // longer needs a compact hotkey sub-layout even at narrow widths.
-        assert(!narrow.compactHotkeys);
         AssertPositiveRect(narrow.behavior);
         AssertPositiveRect(narrow.search);
-        AssertPositiveRect(narrow.monitor);
+        AssertPositiveRect(narrow.placement);
         assert(
             narrow.search.left ==
             narrow.behavior.left);
@@ -199,13 +201,19 @@ int main() {
             narrow.search.top >
             narrow.behavior.bottom);
         assert(
+            narrow.placement.left ==
+            narrow.search.left);
+        assert(
+            narrow.placement.top >
+            narrow.search.bottom);
+        assert(
             narrow.search.right <=
             narrowWidth -
                 scale(
                     settings_layout::
                         kContentRightInsetLogical));
         assert(
-            narrow.monitor.right <=
+            narrow.placement.right <=
             narrowWidth -
                 scale(
                     settings_layout::
@@ -239,8 +247,8 @@ int main() {
             narrow.search.top -
                 scroll);
         assert(
-            shifted.monitor.top ==
-            narrow.monitor.top -
+            shifted.placement.top ==
+            narrow.placement.top -
                 scroll);
         assert(
             shifted.contentBottom ==

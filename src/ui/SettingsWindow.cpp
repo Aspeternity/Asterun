@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
-#include <ctime>
 #include <filesystem>
 #include <iomanip>
 #include <iterator>
@@ -76,55 +75,6 @@ std::wstring FormatBytes(
     }
 
     return out.str();
-}
-
-std::wstring FormatLocalTime(
-    std::int64_t unixTime) {
-
-    if (unixTime <= 0) {
-        return L"—";
-    }
-
-    const std::time_t value =
-        static_cast<std::time_t>(
-            unixTime);
-
-    std::tm local{};
-
-    if (localtime_s(
-            &local,
-            &value) != 0) {
-        return L"—";
-    }
-
-    wchar_t buffer[32]{};
-
-    if (std::wcsftime(
-            buffer,
-            sizeof(buffer) /
-                sizeof(buffer[0]),
-            L"%Y-%m-%d %H:%M:%S",
-            &local) == 0) {
-        return L"—";
-    }
-
-    return buffer;
-}
-
-bool IsChecked(HWND control) {
-    return SendMessageW(
-        control,
-        BM_GETCHECK,
-        0,
-        0) == BST_CHECKED;
-}
-
-void SetChecked(HWND control, bool checked) {
-    SendMessageW(
-        control,
-        BM_SETCHECK,
-        checked ? BST_CHECKED : BST_UNCHECKED,
-        0);
 }
 
 } // namespace
@@ -281,6 +231,11 @@ HWND SettingsWindow::CreateCheckbox(
 }
 
 void SettingsWindow::CreateControls() {
+    brandName_ =
+        CreateStatic(L"ALTRun Next");
+    brandSubtitle_ =
+        CreateStatic(L"Settings");
+
     navGeneral_ =
         CreateButton(
             L"",
@@ -291,25 +246,25 @@ void SettingsWindow::CreateControls() {
             L"",
             kIdNavHotkeys,
             BS_OWNERDRAW);
-    navDiagnostics_ =
+    navProviders_ =
         CreateButton(
             L"",
-            kIdNavDiagnostics,
+            kIdNavProviders,
             BS_OWNERDRAW);
     navAppearance_ =
         CreateButton(
             L"",
             kIdNavAppearance,
             BS_OWNERDRAW);
-    navProviders_ =
-        CreateButton(
-            L"",
-            kIdNavProviders,
-            BS_OWNERDRAW);
     navData_ =
         CreateButton(
             L"",
             kIdNavData,
+            BS_OWNERDRAW);
+    navDiagnostics_ =
+        CreateButton(
+            L"",
+            kIdNavDiagnostics,
             BS_OWNERDRAW);
     navAbout_ =
         CreateButton(
@@ -317,35 +272,56 @@ void SettingsWindow::CreateControls() {
             kIdNavAbout,
             BS_OWNERDRAW);
 
-    pageTitle_ = CreateStatic(L"", SS_LEFT);
-    pageDescription_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
+    pageTitle_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+    pageDescription_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
 
     CreateGeneralPage();
     CreateHotkeyPage();
-    CreateAppearancePage();
     CreateProviderPage();
+    CreateAppearancePage();
     CreateDataPage();
     CreateDiagnosticsPage();
     CreateAboutPage();
 }
 
 void SettingsWindow::CreateGeneralPage() {
-    generalBehaviorTitle_ = CreateStatic(L"");
+    generalBehaviorTitle_ =
+        CreateStatic(L"");
 
     startWithWindows_ =
-        CreateCheckboxRow(L"", kIdStartWithWindows);
+        CreateCheckboxRow(
+            L"",
+            kIdStartWithWindows);
     showOnStartup_ =
-        CreateCheckboxRow(L"", kIdShowOnStartup);
+        CreateCheckboxRow(
+            L"",
+            kIdShowOnStartup);
     hideAfterLaunch_ =
-        CreateCheckboxRow(L"", kIdHideAfterLaunch);
+        CreateCheckboxRow(
+            L"",
+            kIdHideAfterLaunch);
     clearQueryOnShow_ =
-        CreateCheckboxRow(L"", kIdClearQueryOnShow);
+        CreateCheckboxRow(
+            L"",
+            kIdClearQueryOnShow);
     hideOnFocusLost_ =
-        CreateCheckboxRow(L"", kIdHideOnFocusLost);
+        CreateCheckboxRow(
+            L"",
+            kIdHideOnFocusLost);
     showTrayIcon_ =
-        CreateCheckboxRow(L"", kIdShowTrayIcon);
+        CreateCheckboxRow(
+            L"",
+            kIdShowTrayIcon);
+    showResultIcons_ =
+        CreateCheckboxRow(
+            L"",
+            kIdShowResultIcons);
 
     searchBehaviorTitle_ =
         CreateStatic(L"");
@@ -375,8 +351,10 @@ void SettingsWindow::CreateGeneralPage() {
             0,
             L"COMBOBOX",
             L"",
-            WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-                CBS_DROPDOWNLIST | WS_VSCROLL,
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP |
+                CBS_DROPDOWNLIST |
+                WS_VSCROLL,
             0, 0, 0, 0,
             hwnd_,
             reinterpret_cast<HMENU>(
@@ -385,178 +363,82 @@ void SettingsWindow::CreateGeneralPage() {
             instance_,
             nullptr);
 
-    hotkeySectionTitle_ = CreateStatic(L"");
-    primaryHotkeyLabel_ = CreateStatic(L"");
+    placementSectionTitle_ =
+        CreateStatic(L"");
 
-    hotkeyCtrl_ =
-        CreateCheckbox(L"Ctrl", kIdHotkeyCtrl);
-    hotkeyAlt_ =
-        CreateCheckbox(L"Alt", kIdHotkeyAlt);
-    hotkeyShift_ =
-        CreateCheckbox(L"Shift", kIdHotkeyShift);
-    hotkeyWin_ =
-        CreateCheckbox(L"Win", kIdHotkeyWin);
-
-    hotkeyKey_ = CreateWindowExW(
-        0,
-        L"COMBOBOX",
-        L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdHotkeyKey)),
-        instance_,
-        nullptr);
-
-    auxiliaryHotkeyEnabled_ =
-        CreateCheckbox(
+    popupMonitorLabel_ =
+        CreateStatic(L"");
+    popupMonitorDescription_ =
+        CreateStatic(
             L"",
-            kIdAuxHotkeyEnabled);
-    auxiliaryHotkeyCtrl_ =
-        CreateCheckbox(
-            L"Ctrl",
-            kIdAuxHotkeyCtrl);
-    auxiliaryHotkeyAlt_ =
-        CreateCheckbox(
-            L"Alt",
-            kIdAuxHotkeyAlt);
-    auxiliaryHotkeyShift_ =
-        CreateCheckbox(
-            L"Shift",
-            kIdAuxHotkeyShift);
-    auxiliaryHotkeyWin_ =
-        CreateCheckbox(
-            L"Win",
-            kIdAuxHotkeyWin);
-
-    auxiliaryHotkeyKey_ =
+            SS_LEFT | SS_NOPREFIX);
+    popupMonitor_ =
         CreateWindowExW(
             0,
             L"COMBOBOX",
             L"",
-            WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-                CBS_DROPDOWNLIST | WS_VSCROLL,
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP |
+                CBS_DROPDOWNLIST |
+                WS_VSCROLL,
             0, 0, 0, 0,
             hwnd_,
             reinterpret_cast<HMENU>(
                 static_cast<UINT_PTR>(
-                    kIdAuxHotkeyKey)),
+                    kIdPopupMonitor)),
             instance_,
             nullptr);
 
-    const auto addHotkeyKey =
-        [&](HWND combo,
-            UINT virtualKey) {
-            const std::wstring display =
-                hotkey::KeyDisplayName(
-                    virtualKey);
-
-            const LRESULT index =
-                SendMessageW(
-                    combo,
-                    CB_ADDSTRING,
-                    0,
-                    reinterpret_cast<LPARAM>(
-                        display.c_str()));
-
-            if (index >= 0) {
-                SendMessageW(
-                    combo,
-                    CB_SETITEMDATA,
-                    static_cast<WPARAM>(
-                        index),
-                    static_cast<LPARAM>(
-                        virtualKey));
-            }
-        };
-
-    const auto populateHotkeyCombo =
-        [&](HWND combo) {
-            addHotkeyKey(combo, VK_SPACE);
-            addHotkeyKey(combo, VK_PAUSE);
-
-            for (UINT key = 'A';
-                 key <= 'Z';
-                 ++key) {
-                addHotkeyKey(combo, key);
-            }
-
-            for (UINT key = '0';
-                 key <= '9';
-                 ++key) {
-                addHotkeyKey(combo, key);
-            }
-
-            for (UINT key = VK_F1;
-                 key <= VK_F24;
-                 ++key) {
-                addHotkeyKey(combo, key);
-            }
-
-            for (const UINT key :
-                 std::array<UINT, 12>{
-                     VK_RETURN,
-                     VK_TAB,
-                     VK_ESCAPE,
-                     VK_HOME,
-                     VK_END,
-                     VK_INSERT,
-                     VK_DELETE,
-                     VK_PRIOR,
-                     VK_NEXT,
-                     VK_UP,
-                     VK_DOWN,
-                     VK_LEFT}) {
-                addHotkeyKey(combo, key);
-            }
-
-            addHotkeyKey(combo, VK_RIGHT);
-        };
-
-    populateHotkeyCombo(hotkeyKey_);
-    populateHotkeyCombo(auxiliaryHotkeyKey_);
-
-    hotkeyApply_ =
-        CreateButton(L"", kIdHotkeyApply);
-
-    hotkeyStatus_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
-
-    auxiliaryHotkeyApply_ =
-        CreateButton(
-            L"",
-            kIdAuxHotkeyApply);
-
-    auxiliaryHotkeyStatus_ =
+    launcherPlacementLabel_ =
+        CreateStatic(L"");
+    launcherPlacementDescription_ =
         CreateStatic(
             L"",
             SS_LEFT | SS_NOPREFIX);
+    launcherPlacement_ =
+        CreateWindowExW(
+            0,
+            L"COMBOBOX",
+            L"",
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP |
+                CBS_DROPDOWNLIST |
+                WS_VSCROLL,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    kIdLauncherPlacement)),
+            instance_,
+            nullptr);
 
-    popupSectionTitle_ = CreateStatic(L"");
-    popupMonitorLabel_ = CreateStatic(L"");
-    popupMonitorDescription_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
+    settingsPlacementLabel_ =
+        CreateStatic(L"");
+    settingsPlacementDescription_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+    settingsPlacement_ =
+        CreateWindowExW(
+            0,
+            L"COMBOBOX",
+            L"",
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP |
+                CBS_DROPDOWNLIST |
+                WS_VSCROLL,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    kIdSettingsPlacement)),
+            instance_,
+            nullptr);
 
-    popupMonitor_ = CreateWindowExW(
-        0,
-        L"COMBOBOX",
-        L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdPopupMonitor)),
-        instance_,
-        nullptr);
-
-    generalNote_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
+    generalNote_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
 
     generalControls_ = {
         generalBehaviorTitle_,
@@ -566,6 +448,7 @@ void SettingsWindow::CreateGeneralPage() {
         clearQueryOnShow_,
         hideOnFocusLost_,
         showTrayIcon_,
+        showResultIcons_,
         searchBehaviorTitle_,
         pinyinSearch_,
         wildcardMatching_,
@@ -573,50 +456,31 @@ void SettingsWindow::CreateGeneralPage() {
         executeSingleResult_,
         numericQuickLaunchOrderLabel_,
         numericQuickLaunchOrder_,
-        popupSectionTitle_,
+        placementSectionTitle_,
         popupMonitorLabel_,
         popupMonitorDescription_,
         popupMonitor_,
+        launcherPlacementLabel_,
+        launcherPlacementDescription_,
+        launcherPlacement_,
+        settingsPlacementLabel_,
+        settingsPlacementDescription_,
+        settingsPlacement_,
         generalNote_,
     };
-
-    legacyHotkeyControls_ = {
-        hotkeySectionTitle_,
-        primaryHotkeyLabel_,
-        hotkeyCtrl_,
-        hotkeyAlt_,
-        hotkeyShift_,
-        hotkeyWin_,
-        hotkeyKey_,
-        hotkeyApply_,
-        hotkeyStatus_,
-        auxiliaryHotkeyEnabled_,
-        auxiliaryHotkeyCtrl_,
-        auxiliaryHotkeyAlt_,
-        auxiliaryHotkeyShift_,
-        auxiliaryHotkeyWin_,
-        auxiliaryHotkeyKey_,
-        auxiliaryHotkeyApply_,
-        auxiliaryHotkeyStatus_,
-    };
-
-    for (HWND control :
-         legacyHotkeyControls_) {
-        ShowWindow(
-            control,
-            SW_HIDE);
-    }
 }
 
 void SettingsWindow::CreateHotkeyPage() {
     hotkeyActionList_ =
         CreateWindowExW(
-            WS_EX_CLIENTEDGE,
+            0,
             L"LISTBOX",
             L"",
             WS_CHILD | WS_VISIBLE |
                 WS_TABSTOP | WS_VSCROLL |
                 LBS_NOTIFY |
+                LBS_OWNERDRAWFIXED |
+                LBS_HASSTRINGS |
                 LBS_NOINTEGRALHEIGHT,
             0, 0, 0, 0,
             hwnd_,
@@ -726,62 +590,72 @@ void SettingsWindow::CreateDiagnosticsPage() {
 }
 
 void SettingsWindow::CreateAppearancePage() {
-    uiStyleLabel_ = CreateStatic(L"");
+    appearanceLauncherTitle_ =
+        CreateStatic(L"");
 
-    uiStyle_ = CreateWindowExW(
-        0,
-        L"COMBOBOX",
-        L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdUiStyle)),
-        instance_,
-        nullptr);
+    uiStyleLabel_ =
+        CreateStatic(L"");
 
-    languageLabel_ = CreateStatic(L"");
-
-    language_ = CreateWindowExW(
-        0,
-        L"COMBOBOX",
-        L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdLanguage)),
-        instance_,
-        nullptr);
-
-    showResultIcons_ =
-        CreateCheckbox(
+    uiStyle_ =
+        CreateWindowExW(
+            0,
+            L"COMBOBOX",
             L"",
-            kIdShowResultIcons);
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP |
+                CBS_DROPDOWNLIST |
+                WS_VSCROLL,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    kIdUiStyle)),
+            instance_,
+            nullptr);
 
-    resultIconsNote_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
+    appearanceAppTitle_ =
+        CreateStatic(L"");
 
-    appearanceNote_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
+    languageLabel_ =
+        CreateStatic(L"");
+
+    language_ =
+        CreateWindowExW(
+            0,
+            L"COMBOBOX",
+            L"",
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP |
+                CBS_DROPDOWNLIST |
+                WS_VSCROLL,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    kIdLanguage)),
+            instance_,
+            nullptr);
+
+    appearanceNote_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
 
     appearanceControls_ = {
+        appearanceLauncherTitle_,
         uiStyleLabel_,
         uiStyle_,
+        appearanceAppTitle_,
         languageLabel_,
         language_,
-        showResultIcons_,
-        resultIconsNote_,
         appearanceNote_,
     };
 }
 
 void SettingsWindow::CreateProviderPage() {
     providerSectionTitle_ =
+        CreateStatic(L"");
+    providerFilesTitle_ =
         CreateStatic(L"");
 
     providerStartMenu_ =
@@ -826,6 +700,7 @@ void SettingsWindow::CreateProviderPage() {
 
     providerControls_ = {
         providerSectionTitle_,
+        providerFilesTitle_,
         providerStartMenu_,
         providerPackaged_,
         providerAppPaths_,
@@ -839,33 +714,58 @@ void SettingsWindow::CreateProviderPage() {
 }
 
 void SettingsWindow::CreateDataPage() {
-    dataOpenLabel_ = CreateStatic(L"");
-    dataOpenFolder_ =
-        CreateButton(L"", kIdDataOpenFolder);
+    dataPathLabel_ =
+        CreateStatic(L"");
+    dataPath_ =
+        CreateStatic(
+            L"",
+            SS_LEFT |
+                SS_PATHELLIPSIS |
+                SS_NOPREFIX);
+    openDataFolder_ =
+        CreateButton(
+            L"",
+            kIdOpenDataFolder);
 
-    dataTransferLabel_ = CreateStatic(L"");
+    dataTransferLabel_ =
+        CreateStatic(L"");
     dataImportTsv_ =
-        CreateButton(L"", kIdDataImportTsv);
+        CreateButton(
+            L"",
+            kIdDataImportTsv);
     dataImportLegacy_ =
-        CreateButton(L"", kIdDataImportLegacy);
+        CreateButton(
+            L"",
+            kIdDataImportLegacy);
     dataExport_ =
-        CreateButton(L"", kIdDataExport);
+        CreateButton(
+            L"",
+            kIdDataExport);
 
-    dataMaintenanceLabel_ = CreateStatic(L"");
+    dataMaintenanceLabel_ =
+        CreateStatic(L"");
     dataClearUsage_ =
-        CreateButton(L"", kIdDataClearUsage);
+        CreateButton(
+            L"",
+            kIdDataClearUsage);
     dataRebuildIndex_ =
-        CreateButton(L"", kIdDataRebuildIndex);
+        CreateButton(
+            L"",
+            kIdDataRebuildIndex);
     dataResetSettings_ =
-        CreateButton(L"", kIdDataResetSettings);
+        CreateButton(
+            L"",
+            kIdDataResetSettings);
 
-    dataStatus_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
+    dataStatus_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
 
     dataControls_ = {
-        dataOpenLabel_,
-        dataOpenFolder_,
+        dataPathLabel_,
+        dataPath_,
+        openDataFolder_,
         dataTransferLabel_,
         dataImportTsv_,
         dataImportLegacy_,
@@ -879,18 +779,19 @@ void SettingsWindow::CreateDataPage() {
 }
 
 void SettingsWindow::CreateAboutPage() {
-    aboutName_ = CreateStatic(L"ALTRun Next");
-    aboutVersion_ = CreateStatic(L"");
-    aboutDescription_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_NOPREFIX);
-
-    dataPathLabel_ = CreateStatic(L"");
-    dataPath_ = CreateStatic(
-        L"",
-        SS_LEFT | SS_PATHELLIPSIS | SS_NOPREFIX);
+    aboutName_ =
+        CreateStatic(
+            L"ALTRun Next");
+    aboutVersion_ =
+        CreateStatic(L"");
+    aboutDescription_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
 
     updateSectionTitle_ =
+        CreateStatic(L"");
+    aboutProjectTitle_ =
         CreateStatic(L"");
     updateChannelLabel_ =
         CreateStatic(L"");
@@ -913,13 +814,15 @@ void SettingsWindow::CreateAboutPage() {
             nullptr);
 
     updateAutoCheck_ =
-        CreateCheckbox(
+        CreateCheckboxRow(
             L"",
             kIdUpdateAutoCheck);
+
     updateStatus_ =
         CreateStatic(
             L"",
             SS_LEFT | SS_NOPREFIX);
+
     updateCheck_ =
         CreateButton(
             L"",
@@ -929,25 +832,23 @@ void SettingsWindow::CreateAboutPage() {
             L"",
             kIdUpdateInstall);
 
-    openDataFolder_ =
-        CreateButton(L"", kIdOpenDataFolder);
     openGitHub_ =
-        CreateButton(L"", kIdOpenGitHub);
+        CreateButton(
+            L"",
+            kIdOpenGitHub);
 
     aboutControls_ = {
         aboutName_,
         aboutVersion_,
         aboutDescription_,
         updateSectionTitle_,
+        aboutProjectTitle_,
         updateChannelLabel_,
         updateChannel_,
         updateAutoCheck_,
         updateStatus_,
         updateCheck_,
         updateInstall_,
-        dataPathLabel_,
-        dataPath_,
-        openDataFolder_,
         openGitHub_,
     };
 }
@@ -979,21 +880,18 @@ void SettingsWindow::ApplyFonts() {
                 language,
                 ui::UiFontRole::Body),
             dpi_);
-
     sectionFont_ =
         ui::CreateFontHandle(
             ui::ApplicationFontSpec(
                 language,
                 ui::UiFontRole::SectionTitle),
             dpi_);
-
     titleFont_ =
         ui::CreateFontHandle(
             ui::ApplicationFontSpec(
                 language,
                 ui::UiFontRole::PageTitle),
             dpi_);
-
     appNameFont_ =
         ui::CreateFontHandle(
             ui::ApplicationFontSpec(
@@ -1001,34 +899,39 @@ void SettingsWindow::ApplyFonts() {
                 ui::UiFontRole::AppTitle),
             dpi_);
 
-    std::vector<HWND> normalControls{
+    const std::vector<HWND> normalControls{
         navGeneral_,
         navHotkeys_,
-        navDiagnostics_,
-        navAppearance_,
         navProviders_,
+        navAppearance_,
         navData_,
+        navDiagnostics_,
         navAbout_,
+        brandSubtitle_,
         pageDescription_,
-        searchBehaviorTitle_,
+        startWithWindows_,
+        showOnStartup_,
+        hideAfterLaunch_,
+        clearQueryOnShow_,
+        hideOnFocusLost_,
+        showTrayIcon_,
+        showResultIcons_,
+        pinyinSearch_,
+        wildcardMatching_,
+        numericQuickLaunch_,
+        executeSingleResult_,
         numericQuickLaunchOrderLabel_,
         numericQuickLaunchOrder_,
-        primaryHotkeyLabel_,
-        hotkeyCtrl_,
-        hotkeyAlt_,
-        hotkeyShift_,
-        hotkeyWin_,
-        hotkeyKey_,
-        hotkeyApply_,
-        hotkeyStatus_,
-        auxiliaryHotkeyEnabled_,
-        auxiliaryHotkeyCtrl_,
-        auxiliaryHotkeyAlt_,
-        auxiliaryHotkeyShift_,
-        auxiliaryHotkeyWin_,
-        auxiliaryHotkeyKey_,
-        auxiliaryHotkeyApply_,
-        auxiliaryHotkeyStatus_,
+        popupMonitorLabel_,
+        popupMonitorDescription_,
+        popupMonitor_,
+        launcherPlacementLabel_,
+        launcherPlacementDescription_,
+        launcherPlacement_,
+        settingsPlacementLabel_,
+        settingsPlacementDescription_,
+        settingsPlacement_,
+        generalNote_,
         hotkeyActionList_,
         hotkeyEditorDescription_,
         hotkeyScope_,
@@ -1038,23 +941,6 @@ void SettingsWindow::ApplyFonts() {
         hotkeyResetAll_,
         hotkeyPageStatus_,
         hotkeyPageNote_,
-        diagnosticsMemoryStatus_,
-        diagnosticsSearchStatus_,
-        actionsWindowsStatus_,
-        actionsClipboardStatus_,
-        actionsWebStatus_,
-        actionsNote_,
-        popupMonitorLabel_,
-        popupMonitorDescription_,
-        popupMonitor_,
-        generalNote_,
-        uiStyleLabel_,
-        uiStyle_,
-        languageLabel_,
-        language_,
-        showResultIcons_,
-        resultIconsNote_,
-        appearanceNote_,
         providerStartMenu_,
         providerPackaged_,
         providerAppPaths_,
@@ -1064,17 +950,26 @@ void SettingsWindow::ApplyFonts() {
         providerGetEverything_,
         providerRecheckEverything_,
         providerNote_,
-        dataOpenLabel_,
-        dataOpenFolder_,
-        dataTransferLabel_,
+        uiStyleLabel_,
+        uiStyle_,
+        languageLabel_,
+        language_,
+        appearanceNote_,
+        dataPath_,
+        openDataFolder_,
         dataImportTsv_,
         dataImportLegacy_,
         dataExport_,
-        dataMaintenanceLabel_,
         dataClearUsage_,
         dataRebuildIndex_,
         dataResetSettings_,
         dataStatus_,
+        diagnosticsMemoryStatus_,
+        diagnosticsSearchStatus_,
+        actionsWindowsStatus_,
+        actionsClipboardStatus_,
+        actionsWebStatus_,
+        actionsNote_,
         aboutVersion_,
         aboutDescription_,
         updateChannelLabel_,
@@ -1083,43 +978,55 @@ void SettingsWindow::ApplyFonts() {
         updateStatus_,
         updateCheck_,
         updateInstall_,
-        dataPathLabel_,
-        dataPath_,
-        openDataFolder_,
         openGitHub_,
     };
 
-    for (HWND control : normalControls) {
+    if (hotkeyActionList_) {
+        SendMessageW(
+            hotkeyActionList_,
+            LB_SETITEMHEIGHT,
+            0,
+            Scale(52));
+    }
+
+    for (HWND control :
+         normalControls) {
         if (control) {
             SendMessageW(
                 control,
                 WM_SETFONT,
-                reinterpret_cast<WPARAM>(normalFont_),
+                reinterpret_cast<WPARAM>(
+                    normalFont_),
                 TRUE);
         }
     }
 
-    for (HWND control : std::array<HWND, 16>{
+    for (HWND control :
+         std::array<HWND, 18>{
              generalBehaviorTitle_,
              searchBehaviorTitle_,
-             hotkeySectionTitle_,
+             placementSectionTitle_,
              hotkeyEditorTitle_,
+             providerSectionTitle_,
+             providerFilesTitle_,
+             appearanceLauncherTitle_,
+             appearanceAppTitle_,
+             dataPathLabel_,
+             dataTransferLabel_,
+             dataMaintenanceLabel_,
              diagnosticsMemoryTitle_,
              diagnosticsSearchTitle_,
              actionsWindowsTitle_,
              actionsClipboardTitle_,
              actionsWebTitle_,
-             popupSectionTitle_,
-             providerSectionTitle_,
              updateSectionTitle_,
-             dataOpenLabel_,
-             dataTransferLabel_,
-             dataMaintenanceLabel_}) {
+             aboutProjectTitle_}) {
         if (control) {
             SendMessageW(
                 control,
                 WM_SETFONT,
-                reinterpret_cast<WPARAM>(sectionFont_),
+                reinterpret_cast<WPARAM>(
+                    sectionFont_),
                 TRUE);
         }
     }
@@ -1128,38 +1035,21 @@ void SettingsWindow::ApplyFonts() {
         SendMessageW(
             pageTitle_,
             WM_SETFONT,
-            reinterpret_cast<WPARAM>(titleFont_),
+            reinterpret_cast<WPARAM>(
+                titleFont_),
             TRUE);
     }
 
-    if (aboutName_) {
-        SendMessageW(
-            aboutName_,
-            WM_SETFONT,
-            reinterpret_cast<WPARAM>(appNameFont_),
-            TRUE);
-    }
-
-    for (HWND control : std::array<HWND, 14>{
-             startWithWindows_,
-             showOnStartup_,
-             hideAfterLaunch_,
-             clearQueryOnShow_,
-             hideOnFocusLost_,
-             showTrayIcon_,
-             wildcardMatching_,
-             numericQuickLaunch_,
-             executeSingleResult_,
-             providerStartMenu_,
-             providerPackaged_,
-             providerAppPaths_,
-             providerPath_,
-             providerEverything_}) {
+    for (HWND control :
+         std::array<HWND, 2>{
+             brandName_,
+             aboutName_}) {
         if (control) {
             SendMessageW(
                 control,
                 WM_SETFONT,
-                reinterpret_cast<WPARAM>(normalFont_),
+                reinterpret_cast<WPARAM>(
+                    appNameFont_),
                 TRUE);
         }
     }
@@ -1168,35 +1058,53 @@ void SettingsWindow::ApplyFonts() {
 void SettingsWindow::ApplyLanguage() {
     if (!hwnd_) return;
 
-    const bool oldSyncing = syncing_;
+    const bool oldSyncing =
+        syncing_;
     syncing_ = true;
 
     SetWindowTextW(
         hwnd_,
-        T(L"ALTRun Next 设置", L"ALTRun Next Settings"));
+        T(L"ALTRun Next 设置",
+          L"ALTRun Next Settings"));
+    SetWindowTextW(
+        brandName_,
+        L"ALTRun Next");
+    SetWindowTextW(
+        brandSubtitle_,
+        T(L"设置", L"Settings"));
 
     SetWindowTextW(
         generalBehaviorTitle_,
-        T(L"启动器行为", L"Launcher behavior"));
+        T(L"启动器行为",
+          L"Launcher behavior"));
     SetWindowTextW(
         startWithWindows_,
-        T(L"开机启动", L"Start with Windows"));
+        T(L"开机启动",
+          L"Start with Windows"));
     SetWindowTextW(
         showOnStartup_,
         T(L"启动时显示启动器",
           L"Show launcher on startup"));
     SetWindowTextW(
         hideAfterLaunch_,
-        T(L"执行后自动隐藏", L"Hide after launch"));
+        T(L"执行后自动隐藏",
+          L"Hide after launch"));
     SetWindowTextW(
         clearQueryOnShow_,
-        T(L"呼出时清空搜索", L"Clear query on open"));
+        T(L"呼出时清空搜索",
+          L"Clear query on open"));
     SetWindowTextW(
         hideOnFocusLost_,
-        T(L"失去焦点时隐藏", L"Hide when focus is lost"));
+        T(L"失去焦点时隐藏",
+          L"Hide when focus is lost"));
     SetWindowTextW(
         showTrayIcon_,
-        T(L"显示系统托盘图标", L"Show system tray icon"));
+        T(L"显示系统托盘图标",
+          L"Show system tray icon"));
+    SetWindowTextW(
+        showResultIcons_,
+        T(L"显示搜索结果图标",
+          L"Show search result icons"));
 
     SetWindowTextW(
         searchBehaviorTitle_,
@@ -1225,57 +1133,113 @@ void SettingsWindow::ApplyLanguage() {
 
     SendMessageW(
         numericQuickLaunchOrder_,
-        CB_RESETCONTENT,
-        0,
-        0);
+        CB_RESETCONTENT, 0, 0);
     SendMessageW(
         numericQuickLaunchOrder_,
-        CB_ADDSTRING,
-        0,
+        CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
             L"1–9, 0"));
     SendMessageW(
         numericQuickLaunchOrder_,
-        CB_ADDSTRING,
-        0,
+        CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
             L"0–9"));
 
     SetWindowTextW(
-        hotkeySectionTitle_,
-        T(L"全局热键",
-          L"Global hotkeys"));
-    SetWindowTextW(
-        primaryHotkeyLabel_,
-        T(L"主热键",
-          L"Primary"));
-    SetWindowTextW(
-        hotkeyApply_,
-        T(L"应用",
-          L"Apply"));
-    SetWindowTextW(
-        auxiliaryHotkeyEnabled_,
-        T(L"启用辅助热键",
-          L"Enable auxiliary hotkey"));
-    SetWindowTextW(
-        auxiliaryHotkeyApply_,
-        T(L"应用",
-          L"Apply"));
-
-    SetWindowTextW(
-        popupSectionTitle_,
-        T(L"呼出位置", L"Launcher placement"));
+        placementSectionTitle_,
+        T(L"窗口位置",
+          L"Window placement"));
     SetWindowTextW(
         popupMonitorLabel_,
-        T(L"显示器", L"Monitor"));
+        T(L"Launcher 目标显示器",
+          L"Launcher monitor"));
     SetWindowTextW(
         popupMonitorDescription_,
-        T(L"选择启动器每次呼出时使用哪一块屏幕。",
+        T(L"决定 Launcher 呼出时使用哪一块屏幕。",
           L"Choose which display the launcher uses when it opens."));
+
+    SendMessageW(
+        popupMonitor_,
+        CB_RESETCONTENT, 0, 0);
+    SendMessageW(
+        popupMonitor_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"当前鼠标所在显示器",
+              L"Monitor containing the mouse")));
+    SendMessageW(
+        popupMonitor_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"当前活动窗口所在显示器",
+              L"Monitor containing the active window")));
+    SendMessageW(
+        popupMonitor_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"主显示器",
+              L"Primary monitor")));
+
+    SetWindowTextW(
+        launcherPlacementLabel_,
+        T(L"Launcher 出现位置",
+          L"Launcher position"));
+    SetWindowTextW(
+        launcherPlacementDescription_,
+        T(L"选择靠上、屏幕居中或恢复上次拖动后的坐标。",
+          L"Open near the top, centered, or at the last manually moved position."));
+
+    SendMessageW(
+        launcherPlacement_,
+        CB_RESETCONTENT, 0, 0);
+    SendMessageW(
+        launcherPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"靠近屏幕上方",
+              L"Near top of screen")));
+    SendMessageW(
+        launcherPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"屏幕居中",
+              L"Center on screen")));
+    SendMessageW(
+        launcherPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"上次位置",
+              L"Last position")));
+
+    SetWindowTextW(
+        settingsPlacementLabel_,
+        T(L"设置窗口出现位置",
+          L"Settings window position"));
+    SetWindowTextW(
+        settingsPlacementDescription_,
+        T(L"每次重新打开设置时居中，或恢复上次拖动后的坐标。",
+          L"Center the Settings window when reopened, or restore its last moved position."));
+
+    SendMessageW(
+        settingsPlacement_,
+        CB_RESETCONTENT, 0, 0);
+    SendMessageW(
+        settingsPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"屏幕居中",
+              L"Center on screen")));
+    SendMessageW(
+        settingsPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"上次位置",
+              L"Last position")));
+
     SetWindowTextW(
         generalNote_,
-        T(L"热键已集中到“快捷键”页面管理；这里仅保留启动器行为、搜索方式和呼出位置。",
-          L"Hotkeys are managed centrally on the Hotkeys page; this page now focuses on launcher behavior, search and placement."));
+        T(L"窗口位置与搜索行为会立即保存；“上次位置”会自动限制在当前可用屏幕范围内。",
+          L"Placement and search behavior are saved immediately. Last positions are clamped to the currently available displays."));
 
     SetWindowTextW(
         hotkeyEnabled_,
@@ -1291,117 +1255,30 @@ void SettingsWindow::ApplyLanguage() {
           L"Reset all hotkeys"));
     SetWindowTextW(
         hotkeyPageNote_,
-        T(L"点击快捷键按钮后直接按下新的组合键；Esc 取消。全局热键只有在 Windows 注册成功后才会保存，内部热键会检查与其他动作以及基础导航键的冲突。",
-          L"Click the binding button, then press the new key combination; Esc cancels. Global bindings are saved only after Windows registers them, while launcher bindings are checked against actions and reserved navigation keys."));
-
-    SendMessageW(popupMonitor_, CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        popupMonitor_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(
-            T(L"当前鼠标所在显示器", L"Monitor containing the mouse")));
-    SendMessageW(
-        popupMonitor_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(
-            T(L"当前活动窗口所在显示器", L"Monitor containing the active window")));
-    SendMessageW(
-        popupMonitor_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(
-            T(L"主显示器", L"Primary monitor")));
-
-    SetWindowTextW(
-        uiStyleLabel_,
-        T(L"启动器样式", L"Launcher style"));
-
-    SendMessageW(uiStyle_, CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        uiStyle_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(L"Classic ALTRun"));
-    SendMessageW(
-        uiStyle_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(L"Modern Compact"));
-
-    SetWindowTextW(
-        languageLabel_,
-        T(L"界面语言", L"Interface language"));
-
-    SendMessageW(language_, CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        language_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(L"简体中文"));
-    SendMessageW(
-        language_,
-        CB_ADDSTRING,
-        0,
-        reinterpret_cast<LPARAM>(L"English"));
-
-    SetWindowTextW(
-        showResultIcons_,
-        T(L"显示搜索结果图标",
-          L"Show search result icons"));
-
-    SetWindowTextW(
-        resultIconsNote_,
-        T(L"关闭时不会解析或缓存 Windows Shell 图标，可减少连续搜索时的前端开销。",
-          L"When disabled, Windows Shell icons are not resolved or cached, reducing front-end work while typing."));
-
-    SetWindowTextW(
-        appearanceNote_,
-        T(L"外观、语言和结果图标设置会立即应用，并写入 data/settings.json。",
-          L"Appearance, language and result-icon changes apply immediately and are saved to data/settings.json."));
-
-    SetWindowTextW(
-        diagnosticsMemoryTitle_,
-        T(L"进程内存",
-          L"Process memory"));
-    SetWindowTextW(
-        diagnosticsSearchTitle_,
-        T(L"搜索数据与后台",
-          L"Search data & background"));
-
-    SetWindowTextW(
-        actionsWindowsTitle_,
-        T(L"Windows 导航与上下文",
-          L"Windows navigation & context"));
-    SetWindowTextW(
-        actionsClipboardTitle_,
-        T(L"剪贴板与文本",
-          L"Clipboard & text"));
-    SetWindowTextW(
-        actionsWebTitle_,
-        T(L"网页与 URL",
-          L"Web & URL"));
-    SetWindowTextW(
-        actionsNote_,
-        T(L"此页每秒刷新一次运行时快照，不提供行为开关，也不会主动裁剪工作集。Working Set / Private Bytes 与任务管理器“内存”列的统计口径可能不同。",
-          L"This page refreshes runtime snapshots once per second, provides no behavior toggles and never trims the working set. Working Set / Private Bytes can differ from Task Manager's Memory column."));
+        T(L"选择左侧动作后，可直接更改快捷键；Esc 取消捕获。Windows 全局热键只有注册成功后才会保存。",
+          L"Select an action on the left, then change its binding directly; Esc cancels capture. Windows-global bindings are saved only after registration succeeds."));
 
     SetWindowTextW(
         providerSectionTitle_,
-        T(L"搜索来源", L"Search sources"));
+        T(L"应用来源",
+          L"Application sources"));
+    SetWindowTextW(
+        providerFilesTitle_,
+        T(L"文件与文件夹",
+          L"Files & folders"));
     SetWindowTextW(
         providerStartMenu_,
-        T(L"开始菜单", L"Start Menu"));
+        T(L"开始菜单",
+          L"Start Menu"));
     SetWindowTextW(
         providerPackaged_,
-        T(L"Windows Apps", L"Windows Apps"));
+        L"Windows Apps");
     SetWindowTextW(
         providerAppPaths_,
-        T(L"App Paths", L"App Paths"));
+        L"App Paths");
     SetWindowTextW(
         providerPath_,
-        T(L"PATH", L"PATH"));
+        L"PATH");
     SetWindowTextW(
         providerEverything_,
         T(L"Everything 文件与文件夹",
@@ -1416,118 +1293,200 @@ void SettingsWindow::ApplyLanguage() {
           L"Recheck"));
     SetWindowTextW(
         providerNote_,
-        T(L"Everything 通过本机 IPC 实时查询。ALTRun Next 不预捆绑 Everything：优先复用本机已有标准版；自己管理的便携版使用 Everything Service 完成 NTFS 索引，并在后台运行且隐藏托盘图标。正常退出 ALTRun Next 时只关闭托管客户端，Everything Service 保留运行；关闭此搜索源时，如果 Service 属于 ALTRun Next，会同时停止并禁用其开机自启，重新启用时恢复。外部 Everything 不会被停止或改配置。",
-          L"Everything is queried live over local IPC. ALTRun Next does not bundle Everything: existing standard copies are preferred; its managed portable copy uses the Everything Service for NTFS indexing and runs in the background with the tray icon hidden. Normal ALTRun Next exit stops only the managed client and keeps the service warm. Disabling this source also stops an ALTRun-owned service and disables its boot startup; re-enabling restores it. External Everything installations are never stopped or reconfigured."));
+        T(L"Everything 使用本机 IPC 实时查询。ALTRun Next 会优先复用已有标准版；只有自己管理的便携版才会管理其 Service 生命周期。",
+          L"Everything is queried live over local IPC. Existing standard copies are preferred; ALTRun Next manages service lifecycle only for its own portable copy."));
 
     SetWindowTextW(
-        dataOpenLabel_,
-        T(L"数据目录", L"Data directory"));
+        appearanceLauncherTitle_,
+        T(L"启动器",
+          L"Launcher"));
     SetWindowTextW(
-        dataOpenFolder_,
-        T(L"打开数据目录", L"Open data folder"));
+        uiStyleLabel_,
+        T(L"启动器样式",
+          L"Launcher style"));
+    SendMessageW(
+        uiStyle_,
+        CB_RESETCONTENT, 0, 0);
+    SendMessageW(
+        uiStyle_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            L"Classic ALTRun"));
+    SendMessageW(
+        uiStyle_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            L"Modern Compact"));
+
+    SetWindowTextW(
+        appearanceAppTitle_,
+        T(L"应用",
+          L"Application"));
+    SetWindowTextW(
+        languageLabel_,
+        T(L"界面语言",
+          L"Interface language"));
+    SendMessageW(
+        language_,
+        CB_RESETCONTENT, 0, 0);
+    SendMessageW(
+        language_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            L"简体中文"));
+    SendMessageW(
+        language_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            L"English"));
+    SetWindowTextW(
+        appearanceNote_,
+        T(L"启动器样式和界面语言会立即应用。结果图标已移到“常规 → 启动器行为”。",
+          L"Launcher style and interface language apply immediately. Result icons are now under General → Launcher behavior."));
+
+    SetWindowTextW(
+        dataPathLabel_,
+        T(L"数据目录",
+          L"Data directory"));
+    SetWindowTextW(
+        dataPath_,
+        app_.DataDirectory().c_str());
+    SetWindowTextW(
+        openDataFolder_,
+        T(L"打开目录",
+          L"Open folder"));
 
     SetWindowTextW(
         dataTransferLabel_,
-        T(L"导入 / 导出", L"Import / Export"));
+        T(L"导入与导出",
+          L"Import & export"));
     SetWindowTextW(
         dataImportTsv_,
-        T(L"导入 ALTRun Next TSV", L"Import ALTRun Next TSV"));
+        T(L"导入 TSV",
+          L"Import TSV"));
     SetWindowTextW(
         dataImportLegacy_,
-        T(L"导入旧版 ALTRun（Beta）", L"Import legacy ALTRun (Beta)"));
+        T(L"导入旧版 AltRun",
+          L"Import legacy AltRun"));
     SetWindowTextW(
         dataExport_,
-        T(L"导出快捷项 TSV", L"Export shortcuts TSV"));
+        T(L"导出快捷项",
+          L"Export shortcuts"));
 
     SetWindowTextW(
         dataMaintenanceLabel_,
-        T(L"维护", L"Maintenance"));
+        T(L"维护",
+          L"Maintenance"));
     SetWindowTextW(
         dataClearUsage_,
-        T(L"清空使用历史", L"Clear usage history"));
+        T(L"清除使用历史",
+          L"Clear usage history"));
     SetWindowTextW(
         dataRebuildIndex_,
-        T(L"重建程序索引", L"Rebuild program index"));
+        T(L"重新建立程序索引",
+          L"Rebuild program index"));
     SetWindowTextW(
         dataResetSettings_,
-        T(L"恢复默认设置", L"Restore default settings"));
-
-    std::wstring versionText =
-        T(L"版本 ", L"Version ");
-    versionText += kVersionWide;
+        T(L"恢复默认设置",
+          L"Reset settings"));
 
     SetWindowTextW(
+        diagnosticsMemoryTitle_,
+        T(L"进程内存",
+          L"Process memory"));
+    SetWindowTextW(
+        diagnosticsSearchTitle_,
+        T(L"搜索数据与后台",
+          L"Search data & background"));
+    SetWindowTextW(
+        actionsWindowsTitle_,
+        T(L"Windows 导航与上下文",
+          L"Windows navigation & context"));
+    SetWindowTextW(
+        actionsClipboardTitle_,
+        T(L"剪贴板与文本",
+          L"Clipboard & text"));
+    SetWindowTextW(
+        actionsWebTitle_,
+        T(L"网页与 URL",
+          L"Web & URL"));
+    SetWindowTextW(
+        actionsNote_,
+        T(L"诊断数据每秒刷新一次，仅用于观察运行状态，不会主动修改或裁剪进程。",
+          L"Diagnostics refresh once per second for observation only and never modify or trim the process."));
+
+    SetWindowTextW(
+        aboutName_,
+        L"ALTRun Next");
+
+    std::wstring version =
+        L"v";
+    version.append(
+        kVersion.begin(),
+        kVersion.end());
+    SetWindowTextW(
         aboutVersion_,
-        versionText.c_str());
+        version.c_str());
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量级、键盘优先的 Windows 快捷启动器。\nv0.7 将快捷项提升为独立核心管理功能。",
-          L"A lightweight, keyboard-first Windows launcher.\nv0.7 promotes shortcuts into a first-class management workflow."));
+        T(L"轻量、快速、键盘优先的 Windows 启动器。",
+          L"A lightweight, fast, keyboard-first Windows launcher."));
 
     SetWindowTextW(
         updateSectionTitle_,
-        T(L"更新", L"Updates"));
+        T(L"更新",
+          L"Updates"));
+    SetWindowTextW(
+        aboutProjectTitle_,
+        T(L"项目",
+          L"Project"));
     SetWindowTextW(
         updateChannelLabel_,
-        T(L"更新通道", L"Update channel"));
+        T(L"更新通道",
+          L"Update channel"));
 
     const int oldUpdateChannel =
-        std::max(
-            0,
-            static_cast<int>(
-                SendMessageW(
-                    updateChannel_,
-                    CB_GETCURSEL,
-                    0,
-                    0)));
+        static_cast<int>(
+            SendMessageW(
+                updateChannel_,
+                CB_GETCURSEL,
+                0,
+                0));
 
     SendMessageW(
         updateChannel_,
-        CB_RESETCONTENT,
-        0,
-        0);
+        CB_RESETCONTENT, 0, 0);
     SendMessageW(
         updateChannel_,
-        CB_ADDSTRING,
-        0,
+        CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
             T(L"稳定版", L"Stable")));
     SendMessageW(
         updateChannel_,
-        CB_ADDSTRING,
-        0,
+        CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
             T(L"开发版", L"Development")));
     SendMessageW(
         updateChannel_,
         CB_SETCURSEL,
-        oldUpdateChannel,
+        oldUpdateChannel >= 0
+            ? oldUpdateChannel
+            : 0,
         0);
 
     SetWindowTextW(
         updateAutoCheck_,
-        T(L"自动检查更新（最多每天一次）",
-          L"Automatically check for updates (at most once per day)"));
+        T(L"自动检查更新",
+          L"Automatically check for updates"));
     SetWindowTextW(
         updateCheck_,
-        T(L"检查更新", L"Check for updates"));
+        T(L"检查更新",
+          L"Check for updates"));
     SetWindowTextW(
         updateInstall_,
-        T(L"下载并安装", L"Download and install"));
-
-    SetWindowTextW(
-        dataPathLabel_,
-        T(L"数据目录", L"Data directory"));
-
-    SetWindowTextW(
-        dataPath_,
-        app_.DataDirectory().c_str());
-
-    SetWindowTextW(
-        openDataFolder_,
-        T(L"打开数据目录", L"Open data folder"));
-
+        T(L"下载并安装",
+          L"Download and install"));
     SetWindowTextW(
         openGitHub_,
         L"GitHub");
@@ -1544,21 +1503,29 @@ void SettingsWindow::ApplyLanguage() {
         hwnd_,
         nullptr,
         nullptr,
-        RDW_INVALIDATE | RDW_ERASE |
-            RDW_ALLCHILDREN | RDW_UPDATENOW);
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
 }
 
 void SettingsWindow::RefreshFromSettings() {
     if (!hwnd_) return;
 
-    const bool oldSyncing = syncing_;
+    const bool oldSyncing =
+        syncing_;
     syncing_ = true;
 
-    const auto& settings = app_.SettingsData();
+    const auto& settings =
+        app_.SettingsData();
 
     int monitorIndex = 0;
-    if (settings.popupMonitor == "active") monitorIndex = 1;
-    else if (settings.popupMonitor == "primary") monitorIndex = 2;
+    if (settings.popupMonitor == "active") {
+        monitorIndex = 1;
+    } else if (
+        settings.popupMonitor == "primary") {
+        monitorIndex = 2;
+    }
 
     SendMessageW(
         popupMonitor_,
@@ -1566,16 +1533,47 @@ void SettingsWindow::RefreshFromSettings() {
         monitorIndex,
         0);
 
+    int launcherPlacementIndex = 0;
+    if (settings.launcherPlacement ==
+        "center") {
+        launcherPlacementIndex = 1;
+    } else if (
+        settings.launcherPlacement ==
+        "last") {
+        launcherPlacementIndex = 2;
+    }
+
+    SendMessageW(
+        launcherPlacement_,
+        CB_SETCURSEL,
+        launcherPlacementIndex,
+        0);
+
+    SendMessageW(
+        settingsPlacement_,
+        CB_SETCURSEL,
+        settings.settingsPlacement ==
+                "last"
+            ? 1
+            : 0,
+        0);
+
     SendMessageW(
         uiStyle_,
         CB_SETCURSEL,
-        settings.uiStyle == UiStyle::ModernCompact ? 1 : 0,
+        settings.uiStyle ==
+                UiStyle::ModernCompact
+            ? 1
+            : 0,
         0);
 
     SendMessageW(
         language_,
         CB_SETCURSEL,
-        settings.language == Language::EnUS ? 1 : 0,
+        settings.language ==
+                Language::EnUS
+            ? 1
+            : 0,
         0);
 
     SendMessageW(
@@ -1618,18 +1616,19 @@ void SettingsWindow::RefreshFromSettings() {
             ? TRUE
             : FALSE);
 
-    RefreshHotkeyControls();
     RefreshHotkeyPage();
     RefreshActionDiagnostics();
     RefreshUpdateStatus();
 
-    for (HWND control : std::array<HWND, 15>{
+    for (HWND control :
+         std::array<HWND, 17>{
              startWithWindows_,
              showOnStartup_,
              hideAfterLaunch_,
              clearQueryOnShow_,
              hideOnFocusLost_,
              showTrayIcon_,
+             showResultIcons_,
              pinyinSearch_,
              wildcardMatching_,
              numericQuickLaunch_,
@@ -1638,7 +1637,8 @@ void SettingsWindow::RefreshFromSettings() {
              providerPackaged_,
              providerAppPaths_,
              providerPath_,
-             providerEverything_}) {
+             providerEverything_,
+             updateAutoCheck_}) {
         if (control) {
             InvalidateRect(
                 control,
@@ -1799,22 +1799,9 @@ void SettingsWindow::RefreshHotkeyPage() {
 
     for (const auto& action :
          HotkeyActionRegistry()) {
-        std::wstring label =
+        const std::wstring label =
             HotkeyActionLabel(
                 action.id);
-
-        const auto binding =
-            EffectiveHotkeyBinding(
-                app_.SettingsData()
-                    .hotkeyBindings,
-                action.id);
-
-        label += L"    ";
-        label += binding.enabled
-            ? FormatHotkeyBinding(
-                  action.id)
-            : T(L"（已禁用）",
-                L"(disabled)");
 
         const LRESULT index =
             SendMessageW(
@@ -2558,95 +2545,7 @@ void SettingsWindow::RefreshProviderStatus() {
         return;
     }
 
-    const auto statuses =
-        app_.ProviderStatuses();
-
-    std::wstring text;
-
-    for (std::size_t i = 0;
-         i < statuses.size();
-         ++i) {
-
-        const auto& status =
-            statuses[i];
-
-        std::wstring name =
-            status.name;
-
-        if (status.id ==
-            providers::kStartMenu) {
-            name =
-                T(L"开始菜单", L"Start Menu");
-        } else if (
-            status.id ==
-            providers::kPackaged) {
-            name = L"Windows Apps";
-        } else if (
-            status.id ==
-            providers::kAppPaths) {
-            name = L"App Paths";
-        } else if (
-            status.id ==
-            providers::kPath) {
-            name = L"PATH";
-        }
-
-        text += name;
-        text += L"  ·  ";
-
-        if (!status.enabled) {
-            text += T(
-                L"已禁用",
-                L"Disabled");
-        } else if (
-            status.lastAttemptUnix > 0 &&
-            !status.lastAttemptSucceeded) {
-            text += T(
-                L"刷新失败",
-                L"Refresh failed");
-        } else {
-            text += T(
-                L"正常",
-                L"Healthy");
-        }
-
-        text += L"  ·  ";
-        text += T(L"缓存 ", L"Cached ");
-        text += std::to_wstring(
-            status.commandCount);
-        text += T(L" / 搜索 ", L" / active ");
-        text += std::to_wstring(
-            status.activeCommandCount);
-
-        if (status.suppressedCommandCount >
-            0) {
-            text += T(L" / 去重 ", L" / dedup ");
-            text += std::to_wstring(
-                status.suppressedCommandCount);
-        }
-
-        text += L"  ·  ";
-        text += T(
-            L"成功刷新 ",
-            L"Last success ");
-        text += FormatLocalTime(
-            status.lastRefreshUnix);
-
-        if (status.lastAttemptUnix > 0 &&
-            !status.lastAttemptSucceeded &&
-            !status.lastError.empty()) {
-
-            text += L"\r\n    ↳ ";
-            text += T(
-                L"错误：",
-                L"Error: ");
-            text += status.lastError;
-        }
-
-        text += L"\r\n";
-    }
-
-    const bool everythingEnabled =
+    const bool enabled =
         providers::IsEnabled(
             app_.SettingsData()
                 .providerEnabled,
@@ -2654,419 +2553,226 @@ void SettingsWindow::RefreshProviderStatus() {
                 kEverythingFilesystem,
             false);
 
+    const auto ipc =
+        app_.EverythingStatus();
+    const auto bootstrap =
+        app_.EverythingBootstrapStatus();
+
     bool showGetEverything = false;
     bool showRecheck = false;
+    std::wstring text;
 
-    text += T(
-        L"Everything 文件与文件夹",
-        L"Everything files & folders");
-    text += L"  ·  ";
+    if (!enabled) {
+        text =
+            T(L"○ Everything 文件与文件夹已禁用",
+              L"○ Everything files & folders are disabled");
+        text += L"\r\n";
+        text +=
+            T(L"启用后通过本机 IPC 实时查询，不会影响上方应用来源。",
+              L"Enable it for live local IPC queries; application sources above remain independent.");
+    } else if (
+        ipc.availability ==
+        EverythingAvailability::
+            Available) {
 
-    if (!everythingEnabled) {
+        text =
+            T(L"● Everything 正在运行",
+              L"● Everything is running");
+
+        text += L"\r\n";
         text += T(
-            L"已禁用",
-            L"Disabled");
-    } else {
-        const auto ipc =
-            app_.EverythingStatus();
-        const auto bootstrap =
-            app_.EverythingBootstrapStatus();
+            L"IPC 已连接",
+            L"IPC connected");
 
-        if (ipc.availability ==
-            EverythingAvailability::
-                Available) {
+        if (bootstrap.source ==
+                win::EverythingBootstrapSource::
+                    Managed ||
+            bootstrap.source ==
+                win::EverythingBootstrapSource::
+                    Downloaded ||
+            bootstrap.downloaded) {
             text += T(
-                L"IPC 可用",
-                L"IPC available");
-
-            if (!ipc.ipcWindowClass.empty()) {
-                text += L"\r\n    ↳ ";
-                text += T(
-                    L"IPC 端点：",
-                    L"IPC endpoint: ");
-                text += ipc.ipcWindowClass;
-
-                if (ipc.namedInstanceFallback) {
-                    text += T(
-                        L"  ·  命名实例",
-                        L"  ·  named instance");
-                }
-            }
-
-            if (bootstrap.downloaded) {
-                text += L"\r\n    ↳ ";
-                text += T(
-                    L"已由 ALTRun Next 获取并启动官方标准便携版",
-                    L"Official standard portable build was fetched and started by ALTRun Next");
-            }
-
-            if (ipc.hasQuery) {
-                text += L"\r\n    ↳ ";
-                text += T(
-                    L"最近查询：",
-                    L"Last query: ");
-
-                switch (ipc.lastStatus) {
-                case EverythingQueryStatus::Success:
-                    text += T(
-                        L"成功",
-                        L"Success");
-                    break;
-                case EverythingQueryStatus::Unavailable:
-                    text += T(
-                        L"不可用",
-                        L"Unavailable");
-                    break;
-                case EverythingQueryStatus::SendTimeout:
-                    text += T(
-                        L"发送超时",
-                        L"Send timeout");
-                    break;
-                case EverythingQueryStatus::ReplyTimeout:
-                    text += T(
-                        L"响应超时",
-                        L"Reply timeout");
-                    break;
-                case EverythingQueryStatus::ProtocolError:
-                    text += T(
-                        L"协议错误",
-                        L"Protocol error");
-                    break;
-                case EverythingQueryStatus::Cancelled:
-                    text += T(
-                        L"已取消",
-                        L"Cancelled");
-                    break;
-                }
-
-                text += T(
-                    L"  ·  显示 ",
-                    L"  ·  returned ");
-                text += std::to_wstring(
-                    ipc.lastResultCount);
-
-                if (ipc.lastTotalMatches > 0) {
-                    text += L" / ";
-                    text += std::to_wstring(
-                        ipc.lastTotalMatches);
-                }
-
-                text += T(
-                    L"  ·  耗时 ",
-                    L"  ·  latency ");
-                text += std::to_wstring(
-                    std::max<std::int64_t>(
-                        0,
-                        (ipc.lastLatency.count() +
-                         500) /
-                            1000));
-                text += L" ms";
-            } else {
-                text += T(
-                    L"  ·  等待首次查询",
-                    L"  ·  Waiting for first query");
-            }
-        } else if (bootstrap.running) {
-            text += T(
-                L"正在准备 Everything",
-                L"Preparing Everything");
-            text += L"  ·  ";
-
-            switch (bootstrap.stage) {
-            case win::EverythingBootstrapStage::
-                Discovering:
-                text += T(
-                    L"检测本机已有版本",
-                    L"Looking for an existing copy");
-                break;
-            case win::EverythingBootstrapStage::
-                StartingExisting:
-                text += T(
-                    L"正在启动已有版本",
-                    L"Starting existing copy");
-                break;
-            case win::EverythingBootstrapStage::
-                DownloadingManifest:
-                text += T(
-                    L"获取官方 SHA-256 清单",
-                    L"Fetching official SHA-256 manifest");
-                break;
-            case win::EverythingBootstrapStage::
-                DownloadingPackage:
-                text += T(
-                    L"下载官方标准便携版",
-                    L"Downloading official standard portable build");
-                if (bootstrap.downloadedBytes > 0) {
-                    text += L"  ·  ";
-                    text += FormatBytes(
-                        bootstrap.downloadedBytes);
-                    if (bootstrap.totalBytes > 0) {
-                        text += L" / ";
-                        text += FormatBytes(
-                            bootstrap.totalBytes);
-                    }
-                }
-                break;
-            case win::EverythingBootstrapStage::
-                VerifyingPackage:
-                text += T(
-                    L"校验 SHA-256",
-                    L"Verifying SHA-256");
-                break;
-            case win::EverythingBootstrapStage::
-                ExtractingPackage:
-                text += T(
-                    L"解压便携版",
-                    L"Extracting portable build");
-                break;
-            case win::EverythingBootstrapStage::
-                ConfiguringManaged:
-                text += T(
-                    L"配置后台运行并隐藏托盘图标",
-                    L"Configuring background mode and hidden tray icon");
-                break;
-            case win::EverythingBootstrapStage::
-                StoppingManaged:
-                text += T(
-                    L"正在重启托管 Everything 以应用配置",
-                    L"Restarting managed Everything to apply configuration");
-                break;
-            case win::EverythingBootstrapStage::
-                InstallingService:
-                text += T(
-                    L"安装 / 启动 Everything Service（请确认 UAC）",
-                    L"Installing / starting Everything Service (confirm UAC)");
-                break;
-            case win::EverythingBootstrapStage::
-                RepairingService:
-                text += T(
-                    L"修复 Everything Service 路径（请确认 UAC）",
-                    L"Repairing the Everything Service path (confirm UAC)");
-                break;
-            case win::EverythingBootstrapStage::
-                WaitingForService:
-                text += T(
-                    L"等待 Everything Service 就绪",
-                    L"Waiting for Everything Service");
-                break;
-            case win::EverythingBootstrapStage::
-                StartingManaged:
-                text += T(
-                    L"启动托管实例",
-                    L"Starting managed instance");
-                break;
-            case win::EverythingBootstrapStage::
-                WaitingForIpc:
-                text += T(
-                    L"等待 IPC 就绪",
-                    L"Waiting for IPC");
-                break;
-            default:
-                text += T(
-                    L"处理中",
-                    L"Working");
-                break;
-            }
+                L" · ALTRun Next 托管",
+                L" · Managed by ALTRun Next");
         } else {
-            showGetEverything = true;
-            showRecheck = true;
+            text += T(
+                L" · 外部安装",
+                L" · External installation");
+        }
 
-            if (bootstrap.stage ==
-                    win::EverythingBootstrapStage::
-                        NeedsInstall &&
-                bootstrap.failure ==
-                    win::EverythingBootstrapFailure::
-                        ServiceRepairRequired) {
-                text += T(
-                    L"检测到需要修复的 Everything Service 路径",
-                    L"The Everything Service path needs repair");
-                text += L"\r\n    ↳ ";
-                text += T(
-                    L"服务可能仍指向移动前的旧路径，或使用 alpha.9.1 临时采用的 Program Files Service Host。点击“获取并启动 Everything”后，ALTRun Next 会在一次 UAC 授权中把自己管理的服务修复回当前便携目录 data/tools/Everything；外部 Everything 不会被改写。",
-                    L"The service may still point to a pre-move path or the temporary Program Files service host used by alpha.9.1. Choose Get and start Everything to repair ALTRun Next's managed service back to the current portable data/tools/Everything path with one UAC confirmation. External Everything installations are not retargeted.");
-            } else if (
-                bootstrap.stage ==
-                    win::EverythingBootstrapStage::
-                        NeedsInstall &&
-                bootstrap.failure ==
-                    win::EverythingBootstrapFailure::
-                        ServiceRequired) {
-                text += T(
-                    L"托管 Everything 已就绪，但缺少 NTFS 索引服务",
-                    L"Managed Everything is present, but the NTFS indexing service is missing");
-                text += L"\r\n    ↳ ";
-                text += T(
-                    L"点击“获取并启动 Everything”安装 Everything Service；Windows 只会在首次安装服务时请求 UAC。托管版将继续以普通用户后台运行且不显示托盘图标。",
-                    L"Choose Get and start Everything to install the Everything Service. Windows asks for UAC only when the service is first installed. The managed client will continue as a standard-user background process with no tray icon.");
-            } else if (
-                bootstrap.stage ==
-                    win::EverythingBootstrapStage::
-                        NeedsInstall &&
-                bootstrap.failure ==
-                    win::EverythingBootstrapFailure::
-                        IpcUnavailable) {
-                text += T(
-                    L"检测到 Everything，但 IPC 不可用",
-                    L"Everything was found, but IPC is unavailable");
-                text += L"  ·  ";
-                text += T(
-                    L"可能是 Lite 版或当前实例配置不兼容",
-                    L"It may be Lite or an incompatible instance configuration");
-            } else if (
-                bootstrap.stage ==
+        if (ipc.hasQuery) {
+            text += L"\r\n";
+            text +=
+                T(L"最近查询：",
+                  L"Last query: ");
+
+            switch (ipc.lastStatus) {
+            case EverythingQueryStatus::Success:
+                text += T(L"成功", L"Success");
+                break;
+            case EverythingQueryStatus::Unavailable:
+                text += T(L"不可用", L"Unavailable");
+                break;
+            case EverythingQueryStatus::SendTimeout:
+                text += T(L"发送超时", L"Send timeout");
+                break;
+            case EverythingQueryStatus::ReplyTimeout:
+                text += T(L"响应超时", L"Reply timeout");
+                break;
+            case EverythingQueryStatus::ProtocolError:
+                text += T(L"协议错误", L"Protocol error");
+                break;
+            case EverythingQueryStatus::Cancelled:
+                text += T(L"已取消", L"Cancelled");
+                break;
+            }
+
+            text += T(
+                L" · 返回 ",
+                L" · returned ");
+            text += std::to_wstring(
+                ipc.lastResultCount);
+
+            text += T(
+                L" · ",
+                L" · ");
+            text += std::to_wstring(
+                std::max<std::int64_t>(
+                    0,
+                    (ipc.lastLatency.count() +
+                     500) /
+                        1000));
+            text += L" ms";
+        }
+    } else if (bootstrap.running) {
+        text =
+            T(L"◌ 正在准备 Everything",
+              L"◌ Preparing Everything");
+        text += L"\r\n";
+
+        switch (bootstrap.stage) {
+        case win::EverythingBootstrapStage::Discovering:
+            text += T(L"正在检测本机已有版本", L"Looking for an existing copy");
+            break;
+        case win::EverythingBootstrapStage::StartingExisting:
+            text += T(L"正在启动已有版本", L"Starting existing copy");
+            break;
+        case win::EverythingBootstrapStage::DownloadingManifest:
+            text += T(L"正在获取官方校验清单", L"Fetching official checksum manifest");
+            break;
+        case win::EverythingBootstrapStage::DownloadingPackage:
+            text += T(L"正在下载官方标准便携版", L"Downloading official standard portable build");
+            if (bootstrap.downloadedBytes > 0) {
+                text += L" · ";
+                text += FormatBytes(
+                    bootstrap.downloadedBytes);
+                if (bootstrap.totalBytes > 0) {
+                    text += L" / ";
+                    text += FormatBytes(
+                        bootstrap.totalBytes);
+                }
+            }
+            break;
+        case win::EverythingBootstrapStage::VerifyingPackage:
+            text += T(L"正在校验 SHA-256", L"Verifying SHA-256");
+            break;
+        case win::EverythingBootstrapStage::ExtractingPackage:
+            text += T(L"正在解压便携版", L"Extracting portable build");
+            break;
+        case win::EverythingBootstrapStage::InstallingService:
+        case win::EverythingBootstrapStage::RepairingService:
+            text += T(L"正在配置 Everything Service，请确认 UAC", L"Configuring Everything Service; confirm UAC");
+            break;
+        case win::EverythingBootstrapStage::WaitingForService:
+            text += T(L"正在等待 Everything Service", L"Waiting for Everything Service");
+            break;
+        case win::EverythingBootstrapStage::StartingManaged:
+        case win::EverythingBootstrapStage::WaitingForIpc:
+            text += T(L"正在启动托管实例并等待 IPC", L"Starting the managed instance and waiting for IPC");
+            break;
+        default:
+            text += T(L"正在应用托管配置", L"Applying managed configuration");
+            break;
+        }
+    } else {
+        showGetEverything = true;
+        showRecheck = true;
+
+        if (bootstrap.failure ==
+                win::EverythingBootstrapFailure::
+                    ServiceRepairRequired) {
+            text =
+                T(L"⚠ Everything Service 路径需要修复",
+                  L"⚠ Everything Service path needs repair");
+            text += L"\r\n";
+            text +=
+                T(L"选择“获取并启动 Everything”后会在一次 UAC 授权中修复 ALTRun Next 自己管理的 Service。",
+                  L"Choose Get and start Everything to repair only the ALTRun-managed service with one UAC confirmation.");
+        } else if (
+            bootstrap.failure ==
+                win::EverythingBootstrapFailure::
+                    ServiceRequired) {
+            text =
+                T(L"⚠ Everything 缺少 NTFS 索引服务",
+                  L"⚠ Everything is missing its NTFS indexing service");
+            text += L"\r\n";
+            text +=
+                T(L"选择“获取并启动 Everything”安装 Everything Service。",
+                  L"Choose Get and start Everything to install the Everything Service.");
+        } else if (
+            bootstrap.stage ==
                 win::EverythingBootstrapStage::
                     Failed) {
-                text += T(
-                    L"自动准备失败",
-                    L"Automatic preparation failed");
+            text =
+                T(L"⚠ Everything 自动准备失败",
+                  L"⚠ Automatic Everything setup failed");
 
-                text += L"  ·  ";
-                switch (bootstrap.failure) {
-                case win::EverythingBootstrapFailure::
-                    ManifestDownloadFailed:
-                    text += T(
-                        L"无法获取官方校验清单",
-                        L"Could not fetch the official checksum manifest");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    PackageChecksumMissing:
-                    text += T(
-                        L"官方清单中缺少当前安装包校验值",
-                        L"The official manifest does not contain this package");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    PackageDownloadFailed:
-                    text += T(
-                        L"下载安装包失败",
-                        L"Package download failed");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    PackageHashFailed:
-                    text += T(
-                        L"无法计算安装包 SHA-256",
-                        L"Could not calculate package SHA-256");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    PackageHashMismatch:
-                    text += T(
-                        L"SHA-256 校验不一致，安装包已拒绝",
-                        L"SHA-256 mismatch; the package was rejected");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    PackageStagingFailed:
-                    text += T(
-                        L"已校验安装包转入 ZIP 解压阶段失败",
-                        L"Could not stage the verified package as a ZIP for extraction");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    ExtractionFailed:
-                    text += T(
-                        L"解压失败",
-                        L"Extraction failed");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    ManagedStopFailed:
-                    text += T(
-                        L"无法关闭旧的托管 Everything 实例",
-                        L"Could not stop the previous managed Everything instance");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    ManagedConfigFailed:
-                    text += T(
-                        L"无法写入托管 Everything 配置",
-                        L"Could not write the managed Everything configuration");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    ServiceElevationCancelled:
-                    text += T(
-                        L"已取消 UAC，Everything Service 未安装",
-                        L"UAC was cancelled; the Everything Service was not installed");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    ServiceInstallFailed:
-                    text += T(
-                        L"Everything Service 安装 / 启动失败",
-                        L"Everything Service installation / startup failed");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    ServiceRepairFailed:
-                    text += T(
-                        L"Everything Service 路径修复失败",
-                        L"Could not repair the Everything Service path");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    ServiceUnavailable:
-                    text += T(
-                        L"Everything Service 未能进入运行状态",
-                        L"Everything Service did not reach the running state");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    ManagedLaunchFailed:
-                case win::EverythingBootstrapFailure::
-                    ExistingLaunchFailed:
-                    text += T(
-                        L"启动 Everything 失败",
-                        L"Could not start Everything");
-                    break;
-                case win::EverythingBootstrapFailure::
-                    IpcUnavailable:
-                    text += T(
-                        L"启动后 IPC 仍不可用",
-                        L"IPC remained unavailable after startup");
-                    break;
-                default:
-                    text += T(
-                        L"请重新检测或再次获取",
-                        L"Recheck or try fetching again");
-                    break;
-                }
-
-                if (bootstrap.nativeError != 0) {
-                    text += T(
-                        L"  ·  系统错误 ",
-                        L"  ·  native error ");
-                    text += std::to_wstring(
-                        bootstrap.nativeError);
-                }
-            } else if (ipc.ambiguousNamedInstances) {
-                text += T(
-                    L"检测到多个 Everything 命名实例，无法安全自动选择",
-                    L"Multiple named Everything instances were found; automatic selection is ambiguous");
-            } else {
-                text += T(
-                    L"未检测到可用的 Everything IPC",
-                    L"No usable Everything IPC was detected");
-            }
-
-            text += L"\r\n    ↳ ";
-            text += T(
-                L"可重新检测已有标准版，或由 ALTRun Next 获取并启动官方标准便携版；应用搜索回退仍有效。",
-                L"Recheck an existing standard copy, or let ALTRun Next fetch and start the official standard portable build. Application-search fallback remains active.");
-
-            if (!bootstrap.executablePath.empty()) {
-                text += L"\r\n    ↳ ";
-                text += T(
-                    L"检测到：",
-                    L"Detected: ");
+            if (bootstrap.nativeError != 0) {
+                text += L" · ";
                 text +=
-                    bootstrap.executablePath
-                        .wstring();
+                    T(L"系统错误 ",
+                      L"Native error ");
+                text += std::to_wstring(
+                    bootstrap.nativeError);
             }
+
+            text += L"\r\n";
+            text +=
+                T(L"可重新检测已有标准版，或再次获取托管便携版。",
+                  L"Recheck an existing standard copy or try the managed portable setup again.");
+        } else if (
+            ipc.ambiguousNamedInstances) {
+            text =
+                T(L"⚠ 检测到多个 Everything 命名实例",
+                  L"⚠ Multiple named Everything instances detected");
+            text += L"\r\n";
+            text +=
+                T(L"无法安全自动选择，请保留一个可用标准实例后重新检测。",
+                  L"Automatic selection is ambiguous; keep one usable standard instance and recheck.");
+        } else {
+            text =
+                T(L"○ 未检测到可用的 Everything",
+                  L"○ No usable Everything instance detected");
+            text += L"\r\n";
+            text +=
+                T(L"可重新检测已有标准版，或让 ALTRun Next 获取官方标准便携版。",
+                  L"Recheck an existing standard copy or let ALTRun Next fetch the official standard portable build.");
         }
     }
 
-    const bool providerPageVisible =
+    const bool visible =
         page_ == Page::Providers;
 
     ShowWindow(
         providerGetEverything_,
-        providerPageVisible &&
+        visible &&
                 showGetEverything
             ? SW_SHOW
             : SW_HIDE);
+
     ShowWindow(
         providerRecheckEverything_,
-        providerPageVisible &&
+        visible &&
                 showRecheck
             ? SW_SHOW
             : SW_HIDE);
@@ -3197,11 +2903,11 @@ void SettingsWindow::UpdateNavLabels() {
         navHotkeys_,
         label(Page::Hotkeys, L"快捷键", L"Hotkeys").c_str());
     SetWindowTextW(
-        navAppearance_,
-        label(Page::Appearance, L"外观", L"Appearance").c_str());
-    SetWindowTextW(
         navProviders_,
         label(Page::Providers, L"搜索来源", L"Search sources").c_str());
+    SetWindowTextW(
+        navAppearance_,
+        label(Page::Appearance, L"外观", L"Appearance").c_str());
     SetWindowTextW(
         navData_,
         label(Page::Data, L"数据", L"Data").c_str());
@@ -3251,8 +2957,8 @@ void SettingsWindow::UpdatePageHeader() {
             T(L"外观", L"Appearance"));
         SetWindowTextW(
             pageDescription_,
-            T(L"选择启动器样式、界面语言以及是否显示搜索结果图标。",
-              L"Choose launcher style, interface language and whether result icons are shown."));
+            T(L"选择启动器样式和 ALTRun Next 的界面语言。",
+              L"Choose launcher style and the ALTRun Next interface language."));
         break;
 
     case Page::Providers:
@@ -3281,8 +2987,8 @@ void SettingsWindow::UpdatePageHeader() {
             T(L"关于", L"About"));
         SetWindowTextW(
             pageDescription_,
-            T(L"版本、项目入口和本地数据位置。",
-              L"Version information, project links and local data."));
+            T(L"查看版本、更新状态和项目入口。",
+              L"View version information, update status and project links."));
         break;
     }
 }
@@ -3320,7 +3026,6 @@ void SettingsWindow::ShowPage(Page page) {
     setVisible(generalControls_, page == Page::General);
     setVisible(hotkeyControls_, page == Page::Hotkeys);
     setVisible(diagnosticsControls_, page == Page::Diagnostics);
-    setVisible(legacyHotkeyControls_, false);
     setVisible(appearanceControls_, page == Page::Appearance);
     setVisible(providerControls_, page == Page::Providers);
     setVisible(dataControls_, page == Page::Data);
@@ -3360,382 +3065,6 @@ void SettingsWindow::ShowPage(Page page) {
         nullptr,
         RDW_INVALIDATE | RDW_ERASE |
             RDW_ALLCHILDREN | RDW_UPDATENOW);
-}
-
-void SettingsWindow::RefreshHotkeyControls() {
-    const auto& settings = app_.SettingsData();
-
-    const auto hasModifier =
-        [&](std::string_view name) {
-            return std::find(
-                       settings.hotkeyModifiers.begin(),
-                       settings.hotkeyModifiers.end(),
-                       name) !=
-                   settings.hotkeyModifiers.end();
-        };
-
-    SetChecked(hotkeyCtrl_, hasModifier("ctrl") || hasModifier("control"));
-    SetChecked(hotkeyAlt_, hasModifier("alt"));
-    SetChecked(hotkeyShift_, hasModifier("shift"));
-    SetChecked(hotkeyWin_, hasModifier("win") || hasModifier("windows"));
-
-    const UINT desired =
-        hotkey::KeyFromName(settings.hotkeyKey);
-
-    const int count =
-        static_cast<int>(
-            SendMessageW(
-                hotkeyKey_,
-                CB_GETCOUNT,
-                0,
-                0));
-
-    int selected = -1;
-
-    for (int i = 0; i < count; ++i) {
-        const UINT value =
-            static_cast<UINT>(
-                SendMessageW(
-                    hotkeyKey_,
-                    CB_GETITEMDATA,
-                    static_cast<WPARAM>(i),
-                    0));
-
-        if (value == desired) {
-            selected = i;
-            break;
-        }
-    }
-
-    if (selected < 0 && count > 0) {
-        selected = 0;
-    }
-
-    SendMessageW(
-        hotkeyKey_,
-        CB_SETCURSEL,
-        selected,
-        0);
-
-    std::wstring display;
-    const auto append =
-        [&](std::wstring_view part) {
-            if (!display.empty()) display += L" + ";
-            display += part;
-        };
-
-    if (hasModifier("ctrl") || hasModifier("control")) append(L"Ctrl");
-    if (hasModifier("alt")) append(L"Alt");
-    if (hasModifier("shift")) append(L"Shift");
-    if (hasModifier("win") || hasModifier("windows")) append(L"Win");
-
-    if (desired != 0) {
-        append(hotkey::KeyDisplayName(desired));
-    }
-
-    std::wstring status =
-        T(L"当前热键：", L"Current hotkey: ");
-    status += display;
-
-    if (app_.IsGlobalHotkeyRegistered()) {
-        status += T(
-            L"  ·  已注册",
-            L"  ·  Registered");
-    } else {
-        status += T(
-            L"  ·  未注册",
-            L"  ·  Not registered");
-
-        const DWORD error =
-            app_.GlobalHotkeyLastError();
-
-        if (error != ERROR_SUCCESS) {
-            status += T(
-                L"（错误码 ",
-                L" (error ");
-            status += std::to_wstring(error);
-            status += T(L"）", L")");
-        }
-    }
-
-    SetWindowTextW(
-        hotkeyStatus_,
-        status.c_str());
-
-    const auto hasAuxModifier =
-        [&](std::string_view name) {
-            return std::find(
-                       settings
-                           .auxiliaryHotkeyModifiers
-                           .begin(),
-                       settings
-                           .auxiliaryHotkeyModifiers
-                           .end(),
-                       name) !=
-                   settings
-                       .auxiliaryHotkeyModifiers
-                       .end();
-        };
-
-    SetChecked(
-        auxiliaryHotkeyEnabled_,
-        settings.auxiliaryHotkeyEnabled);
-    SetChecked(
-        auxiliaryHotkeyCtrl_,
-        hasAuxModifier("ctrl") ||
-            hasAuxModifier("control"));
-    SetChecked(
-        auxiliaryHotkeyAlt_,
-        hasAuxModifier("alt"));
-    SetChecked(
-        auxiliaryHotkeyShift_,
-        hasAuxModifier("shift"));
-    SetChecked(
-        auxiliaryHotkeyWin_,
-        hasAuxModifier("win") ||
-            hasAuxModifier("windows"));
-
-    const UINT auxiliaryDesired =
-        hotkey::KeyFromName(
-            settings.auxiliaryHotkeyKey);
-
-    const int auxiliaryCount =
-        static_cast<int>(
-            SendMessageW(
-                auxiliaryHotkeyKey_,
-                CB_GETCOUNT,
-                0,
-                0));
-
-    int auxiliarySelected = -1;
-
-    for (int i = 0;
-         i < auxiliaryCount;
-         ++i) {
-        const UINT value =
-            static_cast<UINT>(
-                SendMessageW(
-                    auxiliaryHotkeyKey_,
-                    CB_GETITEMDATA,
-                    static_cast<WPARAM>(i),
-                    0));
-
-        if (value ==
-            auxiliaryDesired) {
-            auxiliarySelected = i;
-            break;
-        }
-    }
-
-    if (auxiliarySelected < 0 &&
-        auxiliaryCount > 0) {
-        auxiliarySelected = 0;
-    }
-
-    SendMessageW(
-        auxiliaryHotkeyKey_,
-        CB_SETCURSEL,
-        auxiliarySelected,
-        0);
-
-    std::wstring auxiliaryDisplay;
-
-    const auto appendAuxiliary =
-        [&](std::wstring_view part) {
-            if (!auxiliaryDisplay.empty()) {
-                auxiliaryDisplay += L" + ";
-            }
-            auxiliaryDisplay += part;
-        };
-
-    if (hasAuxModifier("ctrl") ||
-        hasAuxModifier("control")) {
-        appendAuxiliary(L"Ctrl");
-    }
-    if (hasAuxModifier("alt")) {
-        appendAuxiliary(L"Alt");
-    }
-    if (hasAuxModifier("shift")) {
-        appendAuxiliary(L"Shift");
-    }
-    if (hasAuxModifier("win") ||
-        hasAuxModifier("windows")) {
-        appendAuxiliary(L"Win");
-    }
-
-    if (auxiliaryDesired != 0) {
-        appendAuxiliary(
-            hotkey::KeyDisplayName(
-                auxiliaryDesired));
-    }
-
-    std::wstring auxiliaryStatus =
-        T(L"辅助热键：",
-          L"Auxiliary hotkey: ");
-    auxiliaryStatus +=
-        auxiliaryDisplay;
-
-    if (!settings.auxiliaryHotkeyEnabled) {
-        auxiliaryStatus +=
-            T(L"  ·  已禁用",
-              L"  ·  Disabled");
-    } else if (
-        app_.IsAuxiliaryHotkeyRegistered()) {
-        auxiliaryStatus +=
-            T(L"  ·  已注册",
-              L"  ·  Registered");
-    } else {
-        auxiliaryStatus +=
-            T(L"  ·  未注册",
-              L"  ·  Not registered");
-
-        const DWORD error =
-            app_.AuxiliaryHotkeyLastError();
-
-        if (error != ERROR_SUCCESS) {
-            auxiliaryStatus +=
-                T(L"（错误码 ",
-                  L" (error ");
-            auxiliaryStatus +=
-                std::to_wstring(error);
-            auxiliaryStatus +=
-                T(L"）", L")");
-        }
-    }
-
-    SetWindowTextW(
-        auxiliaryHotkeyStatus_,
-        auxiliaryStatus.c_str());
-}
-
-void SettingsWindow::ApplyHotkeyControl() {
-    if (syncing_) return;
-
-    std::vector<std::string> modifiers;
-
-    if (IsChecked(hotkeyCtrl_)) modifiers.push_back("ctrl");
-    if (IsChecked(hotkeyAlt_)) modifiers.push_back("alt");
-    if (IsChecked(hotkeyShift_)) modifiers.push_back("shift");
-    if (IsChecked(hotkeyWin_)) modifiers.push_back("win");
-
-    if (modifiers.empty()) {
-        MessageBoxW(
-            hwnd_,
-            T(L"请至少选择一个修饰键（Ctrl / Alt / Shift / Win）。",
-              L"Choose at least one modifier (Ctrl / Alt / Shift / Win)."),
-            T(L"全局热键", L"Global hotkey"),
-            MB_OK | MB_ICONWARNING);
-        RefreshHotkeyControls();
-        return;
-    }
-
-    const int index =
-        static_cast<int>(
-            SendMessageW(
-                hotkeyKey_,
-                CB_GETCURSEL,
-                0,
-                0));
-
-    if (index < 0) {
-        return;
-    }
-
-    const UINT virtualKey =
-        static_cast<UINT>(
-            SendMessageW(
-                hotkeyKey_,
-                CB_GETITEMDATA,
-                static_cast<WPARAM>(index),
-                0));
-
-    const std::string key =
-        hotkey::KeyName(virtualKey);
-
-    if (key.empty() ||
-        !app_.SetHotkeySettings(
-            std::move(modifiers),
-            key)) {
-
-        MessageBoxW(
-            hwnd_,
-            T(L"Windows 无法注册这个热键，可能已被其他程序占用。旧热键保持不变。",
-              L"Windows could not register this hotkey. It may already be used by another application. The previous hotkey is unchanged."),
-            T(L"热键冲突", L"Hotkey conflict"),
-            MB_OK | MB_ICONWARNING);
-
-        RefreshHotkeyControls();
-        return;
-    }
-
-    RefreshHotkeyControls();
-}
-
-void SettingsWindow::ApplyAuxiliaryHotkeyControl() {
-    if (syncing_) return;
-
-    std::vector<std::string> modifiers;
-
-    if (IsChecked(auxiliaryHotkeyCtrl_)) {
-        modifiers.push_back("ctrl");
-    }
-    if (IsChecked(auxiliaryHotkeyAlt_)) {
-        modifiers.push_back("alt");
-    }
-    if (IsChecked(auxiliaryHotkeyShift_)) {
-        modifiers.push_back("shift");
-    }
-    if (IsChecked(auxiliaryHotkeyWin_)) {
-        modifiers.push_back("win");
-    }
-
-    const int index =
-        static_cast<int>(
-            SendMessageW(
-                auxiliaryHotkeyKey_,
-                CB_GETCURSEL,
-                0,
-                0));
-
-    if (index < 0) {
-        RefreshHotkeyControls();
-        return;
-    }
-
-    const UINT virtualKey =
-        static_cast<UINT>(
-            SendMessageW(
-                auxiliaryHotkeyKey_,
-                CB_GETITEMDATA,
-                static_cast<WPARAM>(index),
-                0));
-
-    const std::string key =
-        hotkey::KeyName(virtualKey);
-
-    const bool enabled =
-        IsChecked(
-            auxiliaryHotkeyEnabled_);
-
-    if (key.empty() ||
-        !app_.SetAuxiliaryHotkeySettings(
-            enabled,
-            std::move(modifiers),
-            key)) {
-
-        MessageBoxW(
-            hwnd_,
-            T(L"Windows 无法注册这个辅助热键，可能已被其他程序占用。旧辅助热键保持不变。",
-              L"Windows could not register this auxiliary hotkey. It may already be used by another application. The previous auxiliary hotkey is unchanged."),
-            T(L"辅助热键冲突",
-              L"Auxiliary hotkey conflict"),
-            MB_OK | MB_ICONWARNING);
-
-        RefreshHotkeyControls();
-        return;
-    }
-
-    RefreshHotkeyControls();
 }
 
 void SettingsWindow::ApplyClassicBehaviorControl(
@@ -4031,6 +3360,19 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
         }
         return;
 
+    case kIdShowResultIcons:
+        if (!app_.SetShowResultIcons(
+                !settings.showResultIcons)) {
+            MessageBoxW(
+                hwnd_,
+                T(L"无法保存搜索结果图标设置。",
+                  L"Unable to save the result-icon setting."),
+                L"ALTRun Next",
+                MB_OK | MB_ICONERROR);
+            RefreshFromSettings();
+        }
+        return;
+
     case kIdHideAfterLaunch:
         hideAfterLaunch = !hideAfterLaunch;
         break;
@@ -4123,43 +3465,100 @@ void SettingsWindow::ToggleProviderSetting(
 void SettingsWindow::ApplyMonitorControl() {
     if (syncing_) return;
 
-    const auto settings = app_.SettingsData();
+    const auto settings =
+        app_.SettingsData();
 
     const int monitorIndex =
-        static_cast<int>(SendMessageW(
-            popupMonitor_,
-            CB_GETCURSEL,
-            0,
-            0));
+        static_cast<int>(
+            SendMessageW(
+                popupMonitor_,
+                CB_GETCURSEL,
+                0,
+                0));
 
-    std::string popupMonitor = "cursor";
-    if (monitorIndex == 1) popupMonitor = "active";
-    else if (monitorIndex == 2) popupMonitor = "primary";
+    std::string popupMonitor =
+        "cursor";
+
+    if (monitorIndex == 1) {
+        popupMonitor = "active";
+    } else if (monitorIndex == 2) {
+        popupMonitor = "primary";
+    }
 
     app_.SetGeneralSettings(
         settings.hideAfterLaunch,
         settings.clearQueryOnShow,
         settings.hideOnFocusLost,
         settings.showTrayIcon,
-        std::move(popupMonitor));
+        std::move(
+            popupMonitor));
+}
+
+void SettingsWindow::ApplyWindowPlacementControls() {
+    if (syncing_) return;
+
+    const int launcherIndex =
+        static_cast<int>(
+            SendMessageW(
+                launcherPlacement_,
+                CB_GETCURSEL,
+                0,
+                0));
+
+    const int settingsIndex =
+        static_cast<int>(
+            SendMessageW(
+                settingsPlacement_,
+                CB_GETCURSEL,
+                0,
+                0));
+
+    std::string launcherMode =
+        "top";
+
+    if (launcherIndex == 1) {
+        launcherMode = "center";
+    } else if (launcherIndex == 2) {
+        launcherMode = "last";
+    }
+
+    const std::string settingsMode =
+        settingsIndex == 1
+            ? "last"
+            : "center";
+
+    if (!app_.SetWindowPlacementSettings(
+            std::move(
+                launcherMode),
+            settingsMode)) {
+        MessageBoxW(
+            hwnd_,
+            T(L"无法保存窗口位置设置。",
+              L"Unable to save window placement settings."),
+            L"ALTRun Next",
+            MB_OK | MB_ICONERROR);
+        RefreshFromSettings();
+    }
 }
 
 void SettingsWindow::ApplyAppearanceControls() {
     if (syncing_) return;
 
     const int styleIndex =
-        static_cast<int>(SendMessageW(
-            uiStyle_,
-            CB_GETCURSEL,
-            0,
-            0));
+        static_cast<int>(
+            SendMessageW(
+                uiStyle_,
+                CB_GETCURSEL,
+                0,
+                0));
 
     const int languageIndex =
-        static_cast<int>(SendMessageW(
-            language_,
-            CB_GETCURSEL,
-            0,
-            0));
+        static_cast<int>(
+            SendMessageW(
+                language_,
+                CB_GETCURSEL,
+                0,
+                0));
 
     const UiStyle style =
         styleIndex == 1
@@ -4171,34 +3570,14 @@ void SettingsWindow::ApplyAppearanceControls() {
             ? Language::EnUS
             : Language::ZhCN;
 
-    const bool showResultIcons =
-        SendMessageW(
-            showResultIcons_,
-            BM_GETCHECK,
-            0,
-            0) == BST_CHECKED;
-
-    if (style != app_.SettingsData().uiStyle) {
+    if (style !=
+        app_.SettingsData().uiStyle) {
         app_.SetUiStyle(style);
     }
 
-    if (language != app_.SettingsData().language) {
+    if (language !=
+        app_.SettingsData().language) {
         app_.SetLanguage(language);
-    }
-
-    if (showResultIcons !=
-        app_.SettingsData()
-            .showResultIcons) {
-        if (!app_.SetShowResultIcons(
-                showResultIcons)) {
-            MessageBoxW(
-                hwnd_,
-                T(L"无法保存搜索结果图标设置。",
-                  L"Unable to save the result-icon setting."),
-                L"ALTRun Next",
-                MB_OK | MB_ICONERROR);
-            RefreshFromSettings();
-        }
     }
 }
 
@@ -4229,6 +3608,10 @@ bool SettingsWindow::ToggleChecked(
         return settings.hideOnFocusLost;
     case kIdShowTrayIcon:
         return settings.showTrayIcon;
+    case kIdShowResultIcons:
+        return settings.showResultIcons;
+    case kIdUpdateAutoCheck:
+        return settings.autoCheckUpdates;
     case kIdPinyinSearch:
         return settings.pinyinSearch;
     case kIdWildcardMatching:
@@ -4423,44 +3806,41 @@ void SettingsWindow::ScrollGeneral(
 }
 
 RECT SettingsWindow::BehaviorCardRect() const {
-    const auto rect =
+    const auto metrics =
         BuildGeneralLayout(
-            generalScrollOffset_)
-            .behavior;
+            generalScrollOffset_);
 
     return {
-        rect.left,
-        rect.top,
-        rect.right,
-        rect.bottom,
+        metrics.behavior.left,
+        metrics.behavior.top,
+        metrics.behavior.right,
+        metrics.behavior.bottom,
     };
 }
 
 RECT SettingsWindow::SearchBehaviorCardRect() const {
-    const auto rect =
+    const auto metrics =
         BuildGeneralLayout(
-            generalScrollOffset_)
-            .search;
+            generalScrollOffset_);
 
     return {
-        rect.left,
-        rect.top,
-        rect.right,
-        rect.bottom,
+        metrics.search.left,
+        metrics.search.top,
+        metrics.search.right,
+        metrics.search.bottom,
     };
 }
 
-RECT SettingsWindow::MonitorCardRect() const {
-    const auto rect =
+RECT SettingsWindow::PlacementCardRect() const {
+    const auto metrics =
         BuildGeneralLayout(
-            generalScrollOffset_)
-            .monitor;
+            generalScrollOffset_);
 
     return {
-        rect.left,
-        rect.top,
-        rect.right,
-        rect.bottom,
+        metrics.placement.left,
+        metrics.placement.top,
+        metrics.placement.right,
+        metrics.placement.bottom,
     };
 }
 
@@ -4470,29 +3850,59 @@ void SettingsWindow::Layout() {
     UpdateGeneralScrollBar();
 
     RECT client{};
-    GetClientRect(hwnd_, &client);
+    GetClientRect(
+        hwnd_,
+        &client);
 
-    const int sidebar = Scale(kSidebarWidthLogical);
-    const int sidebarMargin = Scale(18);
-    const int navWidth = sidebar - sidebarMargin * 2;
-    const int navHeight = Scale(42);
-    const int navGap = Scale(8);
+    const int sidebar =
+        Scale(
+            kSidebarWidthLogical);
+    const int sidebarMargin =
+        Scale(16);
+    const int navWidth =
+        sidebar -
+        sidebarMargin * 2;
+    const int navHeight =
+        Scale(
+            ui::kSettingsNavHeightLogical);
+    const int navGap =
+        Scale(
+            ui::kSettingsNavGapLogical);
 
-    std::array<HWND, 7> nav{
+    MoveWindow(
+        brandName_,
+        sidebarMargin,
+        Scale(18),
+        navWidth,
+        Scale(32),
+        TRUE);
+    MoveWindow(
+        brandSubtitle_,
+        sidebarMargin,
+        Scale(49),
+        navWidth,
+        Scale(22),
+        TRUE);
+
+    std::array<HWND, 6> primaryNav{
         navGeneral_,
         navHotkeys_,
-        navAppearance_,
         navProviders_,
+        navAppearance_,
         navData_,
         navDiagnostics_,
-        navAbout_,
     };
 
-    for (std::size_t i = 0; i < nav.size(); ++i) {
+    const int navTop =
+        Scale(88);
+
+    for (std::size_t i = 0;
+         i < primaryNav.size();
+         ++i) {
         MoveWindow(
-            nav[i],
+            primaryNav[i],
             sidebarMargin,
-            Scale(72) +
+            navTop +
                 static_cast<int>(i) *
                     (navHeight + navGap),
             navWidth,
@@ -4500,14 +3910,41 @@ void SettingsWindow::Layout() {
             TRUE);
     }
 
+    const int aboutY =
+        std::max(
+            navTop +
+                static_cast<int>(
+                    primaryNav.size()) *
+                    (navHeight + navGap) +
+                Scale(20),
+            static_cast<int>(
+                client.bottom) -
+                navHeight -
+                Scale(22));
+
+    MoveWindow(
+        navAbout_,
+        sidebarMargin,
+        aboutY,
+        navWidth,
+        navHeight,
+        TRUE);
+
     const int contentLeft =
-        sidebar + Scale(38);
+        sidebar +
+        Scale(
+            settings_layout::
+                kContentLeftInsetLogical);
     const int contentRight =
-        client.right - Scale(34);
+        client.right -
+        Scale(
+            settings_layout::
+                kContentRightInsetLogical);
     const int contentWidth =
         std::max(
             Scale(360),
-            contentRight - contentLeft);
+            contentRight -
+                contentLeft);
 
     const int pageScroll =
         page_ == Page::General
@@ -4517,7 +3954,7 @@ void SettingsWindow::Layout() {
     MoveWindow(
         pageTitle_,
         contentLeft,
-        Scale(30) -
+        Scale(26) -
             pageScroll,
         contentWidth,
         Scale(42),
@@ -4526,23 +3963,16 @@ void SettingsWindow::Layout() {
     MoveWindow(
         pageDescription_,
         contentLeft,
-        Scale(76) -
+        Scale(70) -
             pageScroll,
         contentWidth,
-        Scale(42),
+        Scale(38),
         TRUE);
 
     if (page_ == Page::General) {
         const auto metrics =
             BuildGeneralLayout(
                 generalScrollOffset_);
-
-        const int x =
-            metrics.monitor.left;
-
-        const int controlWidth =
-            metrics.monitor.right -
-            metrics.monitor.left;
 
         MoveWindow(
             generalBehaviorTitle_,
@@ -4562,55 +3992,48 @@ void SettingsWindow::Layout() {
             Scale(28),
             TRUE);
 
-        const int behaviorRowHeight =
+        const int toggleHeight =
             Scale(
                 settings_layout::
                     kToggleRowLogical);
 
-        const int behaviorRowX =
+        const int behaviorX =
             metrics.behavior.left +
             Scale(1);
-
-        const int behaviorRowWidth =
+        const int behaviorWidth =
             metrics.behavior.right -
             metrics.behavior.left -
             Scale(2);
 
-        std::array<HWND, 6> behaviorRows{
+        std::array<HWND, 7> behaviorRows{
             startWithWindows_,
             showOnStartup_,
             hideAfterLaunch_,
             clearQueryOnShow_,
             hideOnFocusLost_,
             showTrayIcon_,
+            showResultIcons_,
         };
 
         for (std::size_t i = 0;
              i < behaviorRows.size();
              ++i) {
-
             MoveWindow(
                 behaviorRows[i],
-                behaviorRowX,
+                behaviorX,
                 metrics.behavior.top +
                     Scale(1) +
                     static_cast<int>(i) *
-                        behaviorRowHeight,
-                behaviorRowWidth,
-                behaviorRowHeight,
+                        toggleHeight,
+                behaviorWidth,
+                toggleHeight,
                 TRUE);
         }
 
-        const int searchRowHeight =
-            Scale(
-                settings_layout::
-                    kToggleRowLogical);
-
-        const int searchRowX =
+        const int searchX =
             metrics.search.left +
             Scale(1);
-
-        const int searchRowWidth =
+        const int searchWidth =
             metrics.search.right -
             metrics.search.left -
             Scale(2);
@@ -4625,751 +4048,735 @@ void SettingsWindow::Layout() {
         for (std::size_t i = 0;
              i < searchRows.size();
              ++i) {
-
             MoveWindow(
                 searchRows[i],
-                searchRowX,
+                searchX,
                 metrics.search.top +
                     Scale(1) +
                     static_cast<int>(i) *
-                        searchRowHeight,
-                searchRowWidth,
-                searchRowHeight,
+                        toggleHeight,
+                searchWidth,
+                toggleHeight,
                 TRUE);
         }
 
         const int orderTop =
             metrics.search.top +
-            Scale(
-                settings_layout::
-                    kToggleRowLogical *
-                    4);
+            toggleHeight * 4;
 
         MoveWindow(
             numericQuickLaunchOrderLabel_,
             metrics.search.left +
                 Scale(18),
             orderTop +
-                Scale(15),
-            Scale(105),
+                Scale(19),
+            Scale(150),
             Scale(24),
             TRUE);
 
         MoveWindow(
             numericQuickLaunchOrder_,
             metrics.search.right -
-                Scale(150),
+                Scale(168),
             orderTop +
-                Scale(10),
-            Scale(132),
+                Scale(14),
+            Scale(150),
             Scale(180),
             TRUE);
 
         MoveWindow(
-            hotkeySectionTitle_,
-            x,
-            metrics.hotkeySectionTop,
-            controlWidth,
+            placementSectionTitle_,
+            metrics.placement.left,
+            metrics.placementTitleTop,
+            metrics.placement.right -
+                metrics.placement.left,
             Scale(28),
             TRUE);
 
-        const int modifierWidth =
-            metrics.compactHotkeys
-                ? std::clamp(
-                      (controlWidth -
-                       Scale(140)) / 4,
-                      Scale(26),
-                      Scale(56))
-                : Scale(58);
+        const int rowHeight =
+            Scale(
+                ui::kSettingsComboRowLogical);
+        const int labelX =
+            metrics.placement.left +
+            Scale(18);
+        const int placementWidth =
+            metrics.placement.right -
+            metrics.placement.left;
+        const int comboWidth =
+            std::clamp(
+                placementWidth * 46 / 100,
+                Scale(180),
+                Scale(250));
+        const int comboX =
+            metrics.placement.right -
+            comboWidth -
+            Scale(18);
 
-        MoveWindow(
-            primaryHotkeyLabel_,
-            x,
-            metrics.primaryRowTop +
-                Scale(2),
-            Scale(72),
-            Scale(28),
-            TRUE);
+        struct PlacementRow {
+            HWND label;
+            HWND description;
+            HWND combo;
+        };
 
-        int hotkeyX =
-            x + Scale(82);
+        const std::array<PlacementRow, 3>
+            placementRows{{
+                {
+                    popupMonitorLabel_,
+                    popupMonitorDescription_,
+                    popupMonitor_,
+                },
+                {
+                    launcherPlacementLabel_,
+                    launcherPlacementDescription_,
+                    launcherPlacement_,
+                },
+                {
+                    settingsPlacementLabel_,
+                    settingsPlacementDescription_,
+                    settingsPlacement_,
+                },
+            }};
 
-        for (HWND control :
-             std::array<HWND, 4>{
-                 hotkeyCtrl_,
-                 hotkeyAlt_,
-                 hotkeyShift_,
-                 hotkeyWin_}) {
+        for (std::size_t i = 0;
+             i < placementRows.size();
+             ++i) {
+            const int top =
+                metrics.placement.top +
+                static_cast<int>(i) *
+                    rowHeight;
 
             MoveWindow(
-                control,
-                hotkeyX,
-                metrics.primaryRowTop,
-                modifierWidth,
-                Scale(30),
+                placementRows[i].label,
+                labelX,
+                top + Scale(10),
+                std::max(
+                    Scale(180),
+                    comboX -
+                        labelX -
+                        Scale(16)),
+                Scale(24),
                 TRUE);
-
-            hotkeyX +=
-                modifierWidth;
-        }
-
-        const int keyRowX =
-            metrics.compactHotkeys
-                ? x + Scale(82)
-                : hotkeyX + Scale(10);
-
-        const int applyWidth =
-            Scale(80);
-
-        const int keyWidth =
-            metrics.compactHotkeys
-                ? std::max(
-                      Scale(80),
-                      std::min(
-                          Scale(140),
-                          controlWidth -
-                              Scale(82) -
-                              applyWidth -
-                              Scale(12)))
-                : std::max(
-                      Scale(110),
-                      std::min(
-                          Scale(138),
-                          controlWidth -
-                              (keyRowX - x) -
-                              applyWidth -
-                              Scale(12)));
-
-        MoveWindow(
-            hotkeyKey_,
-            keyRowX,
-            metrics.primaryKeyRowTop -
-                Scale(2),
-            keyWidth,
-            Scale(220),
-            TRUE);
-
-        MoveWindow(
-            hotkeyApply_,
-            keyRowX +
-                keyWidth +
-                Scale(8),
-            metrics.primaryKeyRowTop -
-                Scale(2),
-            applyWidth,
-            Scale(32),
-            TRUE);
-
-        MoveWindow(
-            hotkeyStatus_,
-            x,
-            metrics.primaryStatusTop,
-            controlWidth,
-            Scale(24),
-            TRUE);
-
-        MoveWindow(
-            auxiliaryHotkeyEnabled_,
-            x,
-            metrics.auxiliaryRowTop,
-            metrics.compactHotkeys
-                ? Scale(132)
-                : Scale(170),
-            Scale(30),
-            TRUE);
-
-        int auxiliaryX =
-            x +
-            (metrics.compactHotkeys
-                 ? Scale(140)
-                 : Scale(180));
-
-        for (HWND control :
-             std::array<HWND, 4>{
-                 auxiliaryHotkeyCtrl_,
-                 auxiliaryHotkeyAlt_,
-                 auxiliaryHotkeyShift_,
-                 auxiliaryHotkeyWin_}) {
 
             MoveWindow(
-                control,
-                auxiliaryX,
-                metrics.auxiliaryRowTop,
-                modifierWidth,
-                Scale(30),
+                placementRows[i].description,
+                labelX,
+                top + Scale(34),
+                std::max(
+                    Scale(180),
+                    comboX -
+                        labelX -
+                        Scale(16)),
+                Scale(24),
                 TRUE);
 
-            auxiliaryX +=
-                modifierWidth;
+            MoveWindow(
+                placementRows[i].combo,
+                comboX,
+                top + Scale(18),
+                comboWidth,
+                Scale(220),
+                TRUE);
         }
-
-        const int auxiliaryKeyX =
-            metrics.compactHotkeys
-                ? x + Scale(82)
-                : auxiliaryX +
-                    Scale(8);
-
-        const int auxiliaryKeyWidth =
-            metrics.compactHotkeys
-                ? keyWidth
-                : std::max(
-                      Scale(100),
-                      std::min(
-                          Scale(138),
-                          controlWidth -
-                              (auxiliaryKeyX - x) -
-                              applyWidth -
-                              Scale(12)));
-
-        MoveWindow(
-            auxiliaryHotkeyKey_,
-            auxiliaryKeyX,
-            metrics.auxiliaryKeyRowTop -
-                Scale(2),
-            auxiliaryKeyWidth,
-            Scale(220),
-            TRUE);
-
-        MoveWindow(
-            auxiliaryHotkeyApply_,
-            auxiliaryKeyX +
-                auxiliaryKeyWidth +
-                Scale(8),
-            metrics.auxiliaryKeyRowTop -
-                Scale(2),
-            applyWidth,
-            Scale(32),
-            TRUE);
-
-        MoveWindow(
-            auxiliaryHotkeyStatus_,
-            x,
-            metrics.auxiliaryStatusTop,
-            controlWidth,
-            Scale(24),
-            TRUE);
-
-        MoveWindow(
-            popupSectionTitle_,
-            x,
-            metrics.popupSectionTop,
-            controlWidth,
-            Scale(28),
-            TRUE);
-
-        const int monitorWidth =
-            metrics.monitor.right -
-            metrics.monitor.left;
-
-        MoveWindow(
-            popupMonitorLabel_,
-            metrics.monitor.left +
-                Scale(18),
-            metrics.monitor.top +
-                Scale(9),
-            Scale(180),
-            Scale(22),
-            TRUE);
-
-        MoveWindow(
-            popupMonitorDescription_,
-            metrics.monitor.left +
-                Scale(18),
-            metrics.monitor.top +
-                Scale(30),
-            std::max(
-                Scale(160),
-                monitorWidth -
-                    Scale(330)),
-            Scale(22),
-            TRUE);
-
-        MoveWindow(
-            popupMonitor_,
-            metrics.monitor.right -
-                Scale(278),
-            metrics.monitor.top +
-                Scale(11),
-            Scale(250),
-            Scale(220),
-            TRUE);
 
         MoveWindow(
             generalNote_,
-            x,
+            metrics.placement.left,
             metrics.noteTop,
-            controlWidth,
-            Scale(28),
+            metrics.placement.right -
+                metrics.placement.left,
+            Scale(36),
             TRUE);
     }
 
     if (page_ == Page::Hotkeys) {
         const int top =
-            Scale(138);
-        const int listWidth =
-            std::clamp(
-                Scale(270),
-                Scale(220),
-                std::max(
-                    Scale(220),
-                    contentWidth / 3));
+            Scale(150);
         const int gap =
-            Scale(28);
+            Scale(18);
+        const int listWidth =
+            std::min(
+                Scale(285),
+                std::max(
+                    Scale(230),
+                    contentWidth * 38 / 100));
         const int editorX =
             contentLeft +
             listWidth +
             gap;
         const int editorWidth =
             std::max(
-                Scale(320),
+                Scale(300),
                 contentRight -
                     editorX);
 
         MoveWindow(
             hotkeyActionList_,
-            contentLeft,
-            top,
-            listWidth,
-            Scale(360),
+            contentLeft + Scale(12),
+            top + Scale(12),
+            listWidth - Scale(24),
+            Scale(390),
             TRUE);
 
         MoveWindow(
             hotkeyEditorTitle_,
-            editorX,
-            top,
-            editorWidth,
-            Scale(32),
+            editorX + Scale(18),
+            top + Scale(18),
+            editorWidth - Scale(36),
+            Scale(30),
             TRUE);
 
         MoveWindow(
             hotkeyEditorDescription_,
-            editorX,
-            top + Scale(42),
-            editorWidth,
-            Scale(56),
+            editorX + Scale(18),
+            top + Scale(54),
+            editorWidth - Scale(36),
+            Scale(54),
             TRUE);
 
         MoveWindow(
             hotkeyScope_,
-            editorX,
-            top + Scale(108),
-            editorWidth,
+            editorX + Scale(18),
+            top + Scale(112),
+            editorWidth - Scale(36),
             Scale(26),
             TRUE);
 
         MoveWindow(
             hotkeyEnabled_,
-            editorX,
-            top + Scale(148),
-            Scale(210),
+            editorX + Scale(18),
+            top + Scale(150),
+            editorWidth - Scale(36),
             Scale(28),
             TRUE);
 
         MoveWindow(
             hotkeyCapture_,
-            editorX,
-            top + Scale(192),
+            editorX + Scale(18),
+            top + Scale(194),
             std::min(
-                editorWidth,
-                Scale(300)),
-            Scale(38),
+                Scale(220),
+                editorWidth - Scale(36)),
+            Scale(36),
             TRUE);
 
         MoveWindow(
             hotkeyResetCurrent_,
-            editorX +
-                std::min(
-                    editorWidth,
-                    Scale(300)) +
-                Scale(10),
-            top + Scale(192),
-            std::max(
-                Scale(120),
-                editorWidth -
-                    std::min(
-                        editorWidth,
-                        Scale(300)) -
-                    Scale(10)),
-            Scale(38),
+            editorX + Scale(18),
+            top + Scale(244),
+            std::min(
+                Scale(220),
+                editorWidth - Scale(36)),
+            Scale(36),
             TRUE);
 
         MoveWindow(
             hotkeyPageStatus_,
-            editorX,
-            top + Scale(244),
-            editorWidth,
-            Scale(70),
+            editorX + Scale(18),
+            top + Scale(294),
+            editorWidth - Scale(36),
+            Scale(64),
             TRUE);
 
         MoveWindow(
             hotkeyResetAll_,
-            editorX,
-            top + Scale(330),
+            editorX + Scale(18),
+            top + Scale(372),
             std::min(
-                editorWidth,
-                Scale(240)),
-            Scale(38),
+                Scale(240),
+                editorWidth - Scale(36)),
+            Scale(36),
             TRUE);
 
         MoveWindow(
             hotkeyPageNote_,
             contentLeft,
-            top + Scale(390),
+            top + Scale(430),
             contentWidth,
-            Scale(70),
+            Scale(58),
             TRUE);
-    }
-
-    if (page_ == Page::Diagnostics) {
-        const int x = contentLeft;
-        const int width =
-            std::min(contentWidth, Scale(760));
-        const int y = Scale(138);
-        const int gap = Scale(20);
-        const int columnWidth =
-            std::max(
-                1,
-                (width - gap) / 2);
-
-        MoveWindow(
-            diagnosticsMemoryTitle_,
-            x, y,
-            columnWidth, Scale(24), TRUE);
-        MoveWindow(
-            diagnosticsMemoryStatus_,
-            x, y + Scale(28),
-            columnWidth, Scale(78), TRUE);
-
-        MoveWindow(
-            diagnosticsSearchTitle_,
-            x + columnWidth + gap, y,
-            columnWidth, Scale(24), TRUE);
-        MoveWindow(
-            diagnosticsSearchStatus_,
-            x + columnWidth + gap,
-            y + Scale(28),
-            columnWidth, Scale(92), TRUE);
-
-        MoveWindow(
-            actionsWindowsTitle_,
-            x, y + Scale(126),
-            width, Scale(24), TRUE);
-        MoveWindow(
-            actionsWindowsStatus_,
-            x, y + Scale(154),
-            width, Scale(142), TRUE);
-
-        MoveWindow(
-            actionsClipboardTitle_,
-            x, y + Scale(306),
-            width, Scale(24), TRUE);
-        MoveWindow(
-            actionsClipboardStatus_,
-            x, y + Scale(334),
-            width, Scale(58), TRUE);
-
-        MoveWindow(
-            actionsWebTitle_,
-            x, y + Scale(402),
-            width, Scale(24), TRUE);
-        MoveWindow(
-            actionsWebStatus_,
-            x, y + Scale(430),
-            width, Scale(58), TRUE);
-
-        MoveWindow(
-            actionsNote_,
-            x, y + Scale(500),
-            width, Scale(60), TRUE);
-    }
-
-    if (page_ == Page::Appearance) {
-        const int x = contentLeft;
-        const int y = Scale(150);
-        const int controlWidth =
-            std::min(
-                contentWidth,
-                Scale(570));
-
-        MoveWindow(
-            uiStyleLabel_,
-            x, y,
-            Scale(180), Scale(28), TRUE);
-
-        MoveWindow(
-            uiStyle_,
-            x, y + Scale(34),
-            Scale(320), Scale(220), TRUE);
-
-        MoveWindow(
-            languageLabel_,
-            x, y + Scale(100),
-            Scale(180), Scale(28), TRUE);
-
-        MoveWindow(
-            language_,
-            x, y + Scale(134),
-            Scale(320), Scale(220), TRUE);
-
-        MoveWindow(
-            showResultIcons_,
-            x, y + Scale(198),
-            controlWidth, Scale(30), TRUE);
-
-        MoveWindow(
-            resultIconsNote_,
-            x + Scale(22),
-            y + Scale(232),
-            controlWidth - Scale(22),
-            Scale(42), TRUE);
-
-        MoveWindow(
-            appearanceNote_,
-            x, y + Scale(292),
-            controlWidth, Scale(52), TRUE);
     }
 
     if (page_ == Page::Providers) {
-        const int x = contentLeft;
-        const int controlWidth =
+        const int width =
             std::min(
                 contentWidth,
-                Scale(590));
+                Scale(720));
 
         MoveWindow(
             providerSectionTitle_,
-            x,
+            contentLeft,
             Scale(138),
-            controlWidth,
+            width,
             Scale(28),
             TRUE);
 
-        const RECT providerCard =
+        const RECT appCard =
             ProviderCardRect();
-
         const int rowHeight =
             Scale(
                 settings_layout::
                     kToggleRowLogical);
-        const int rowX =
-            providerCard.left +
-            Scale(1);
-        const int rowWidth =
-            providerCard.right -
-            providerCard.left -
-            Scale(2);
 
-        std::array<HWND, 5> rows{
+        std::array<HWND, 4> appRows{
             providerStartMenu_,
             providerPackaged_,
             providerAppPaths_,
             providerPath_,
-            providerEverything_,
         };
 
         for (std::size_t i = 0;
-             i < rows.size();
+             i < appRows.size();
              ++i) {
             MoveWindow(
-                rows[i],
-                rowX,
-                providerCard.top +
+                appRows[i],
+                appCard.left +
+                    Scale(1),
+                appCard.top +
                     Scale(1) +
                     static_cast<int>(i) *
                         rowHeight,
-                rowWidth,
+                appCard.right -
+                    appCard.left -
+                    Scale(2),
                 rowHeight,
                 TRUE);
         }
 
+        const int filesTitleTop =
+            170 +
+            settings_layout::
+                kToggleRowLogical * 4 +
+            22;
+
+        MoveWindow(
+            providerFilesTitle_,
+            contentLeft,
+            Scale(filesTitleTop),
+            width,
+            Scale(28),
+            TRUE);
+
+        const int filesTop =
+            filesTitleTop + 32;
+
+        MoveWindow(
+            providerEverything_,
+            contentLeft + Scale(1),
+            Scale(filesTop + 1),
+            width - Scale(2),
+            rowHeight,
+            TRUE);
+
         MoveWindow(
             providerStatus_,
-            x,
-            providerCard.bottom +
-                Scale(22),
-            controlWidth,
-            Scale(126),
+            contentLeft + Scale(18),
+            Scale(
+                filesTop +
+                settings_layout::
+                    kToggleRowLogical +
+                12),
+            width - Scale(36),
+            Scale(96),
             TRUE);
 
         MoveWindow(
             providerGetEverything_,
-            x,
-            providerCard.bottom +
-                Scale(156),
-            Scale(202),
+            contentLeft + Scale(18),
+            Scale(filesTop + 174),
+            Scale(210),
             Scale(34),
             TRUE);
 
         MoveWindow(
             providerRecheckEverything_,
-            x + Scale(214),
-            providerCard.bottom +
-                Scale(156),
-            Scale(120),
+            contentLeft + Scale(240),
+            Scale(filesTop + 174),
+            Scale(128),
             Scale(34),
             TRUE);
 
         MoveWindow(
             providerNote_,
-            x,
-            providerCard.bottom +
-                Scale(202),
-            controlWidth,
-            Scale(66),
+            contentLeft + Scale(18),
+            Scale(filesTop + 220),
+            width - Scale(36),
+            Scale(60),
+            TRUE);
+    }
+
+    if (page_ == Page::Appearance) {
+        const int width =
+            std::min(
+                contentWidth,
+                Scale(680));
+
+        MoveWindow(
+            appearanceLauncherTitle_,
+            contentLeft,
+            Scale(138),
+            width,
+            Scale(28),
+            TRUE);
+
+        MoveWindow(
+            uiStyleLabel_,
+            contentLeft + Scale(18),
+            Scale(192),
+            Scale(220),
+            Scale(26),
+            TRUE);
+        MoveWindow(
+            uiStyle_,
+            contentLeft + width -
+                Scale(308),
+            Scale(183),
+            Scale(290),
+            Scale(220),
+            TRUE);
+
+        MoveWindow(
+            appearanceAppTitle_,
+            contentLeft,
+            Scale(270),
+            width,
+            Scale(28),
+            TRUE);
+
+        MoveWindow(
+            languageLabel_,
+            contentLeft + Scale(18),
+            Scale(324),
+            Scale(220),
+            Scale(26),
+            TRUE);
+        MoveWindow(
+            language_,
+            contentLeft + width -
+                Scale(308),
+            Scale(315),
+            Scale(290),
+            Scale(220),
+            TRUE);
+
+        MoveWindow(
+            appearanceNote_,
+            contentLeft,
+            Scale(398),
+            width,
+            Scale(54),
             TRUE);
     }
 
     if (page_ == Page::Data) {
-        const int x = contentLeft;
         const int width =
             std::min(
                 contentWidth,
-                Scale(700));
-
-        MoveWindow(
-            dataOpenLabel_,
-            x, Scale(146),
-            width, Scale(28), TRUE);
-
-        MoveWindow(
-            dataOpenFolder_,
-            x, Scale(182),
-            Scale(190), Scale(36), TRUE);
-
-        MoveWindow(
-            dataTransferLabel_,
-            x, Scale(252),
-            width, Scale(28), TRUE);
-
-        MoveWindow(
-            dataImportTsv_,
-            x, Scale(288),
-            Scale(200), Scale(36), TRUE);
-
-        MoveWindow(
-            dataImportLegacy_,
-            x + Scale(214), Scale(288),
-            Scale(220), Scale(36), TRUE);
-
-        MoveWindow(
-            dataExport_,
-            x + Scale(448), Scale(288),
-            Scale(190), Scale(36), TRUE);
-
-        MoveWindow(
-            dataMaintenanceLabel_,
-            x, Scale(370),
-            width, Scale(28), TRUE);
-
-        MoveWindow(
-            dataClearUsage_,
-            x, Scale(406),
-            Scale(190), Scale(36), TRUE);
-
-        MoveWindow(
-            dataRebuildIndex_,
-            x + Scale(204), Scale(406),
-            Scale(190), Scale(36), TRUE);
-
-        MoveWindow(
-            dataResetSettings_,
-            x + Scale(408), Scale(406),
-            Scale(190), Scale(36), TRUE);
-
-        MoveWindow(
-            dataStatus_,
-            x, Scale(468),
-            width, Scale(126), TRUE);
-    }
-
-    if (page_ == Page::About) {
-        const int x = contentLeft;
-        const int y = Scale(150);
-        const int controlWidth =
-            std::min(
-                contentWidth,
-                Scale(620));
-
-        MoveWindow(
-            aboutName_,
-            x, y - Scale(12),
-            controlWidth, Scale(46), TRUE);
-
-        MoveWindow(
-            aboutVersion_,
-            x, y + Scale(42),
-            controlWidth, Scale(28), TRUE);
-
-        MoveWindow(
-            aboutDescription_,
-            x, y + Scale(82),
-            controlWidth, Scale(58), TRUE);
-
-        MoveWindow(
-            updateSectionTitle_,
-            x, y + Scale(154),
-            controlWidth, Scale(28), TRUE);
-
-        MoveWindow(
-            updateChannelLabel_,
-            x, y + Scale(194),
-            Scale(150), Scale(26), TRUE);
-
-        MoveWindow(
-            updateChannel_,
-            x, y + Scale(224),
-            Scale(210), Scale(220), TRUE);
-
-        MoveWindow(
-            updateAutoCheck_,
-            x + Scale(230),
-            y + Scale(224),
-            std::max(
-                Scale(250),
-                controlWidth -
-                    Scale(230)),
-            Scale(32), TRUE);
-
-        MoveWindow(
-            updateStatus_,
-            x, y + Scale(272),
-            controlWidth, Scale(78), TRUE);
-
-        MoveWindow(
-            updateCheck_,
-            x, y + Scale(360),
-            Scale(150), Scale(38), TRUE);
-
-        MoveWindow(
-            updateInstall_,
-            x + Scale(166),
-            y + Scale(360),
-            Scale(190), Scale(38), TRUE);
+                Scale(720));
 
         MoveWindow(
             dataPathLabel_,
-            x, y + Scale(424),
-            Scale(200), Scale(28), TRUE);
-
+            contentLeft,
+            Scale(138),
+            width,
+            Scale(28),
+            TRUE);
         MoveWindow(
             dataPath_,
-            x, y + Scale(458),
-            controlWidth, Scale(30), TRUE);
-
+            contentLeft + Scale(18),
+            Scale(190),
+            width - Scale(220),
+            Scale(28),
+            TRUE);
         MoveWindow(
             openDataFolder_,
-            x, y + Scale(508),
-            Scale(180), Scale(38), TRUE);
+            contentLeft + width -
+                Scale(174),
+            Scale(181),
+            Scale(156),
+            Scale(36),
+            TRUE);
 
         MoveWindow(
+            dataTransferLabel_,
+            contentLeft,
+            Scale(280),
+            width,
+            Scale(28),
+            TRUE);
+        MoveWindow(
+            dataImportTsv_,
+            contentLeft + Scale(18),
+            Scale(330),
+            Scale(170),
+            Scale(36),
+            TRUE);
+        MoveWindow(
+            dataImportLegacy_,
+            contentLeft + Scale(200),
+            Scale(330),
+            Scale(190),
+            Scale(36),
+            TRUE);
+        MoveWindow(
+            dataExport_,
+            contentLeft + Scale(402),
+            Scale(330),
+            Scale(170),
+            Scale(36),
+            TRUE);
+
+        MoveWindow(
+            dataMaintenanceLabel_,
+            contentLeft,
+            Scale(420),
+            width,
+            Scale(28),
+            TRUE);
+        MoveWindow(
+            dataClearUsage_,
+            contentLeft + Scale(18),
+            Scale(470),
+            Scale(170),
+            Scale(36),
+            TRUE);
+        MoveWindow(
+            dataRebuildIndex_,
+            contentLeft + Scale(200),
+            Scale(470),
+            Scale(190),
+            Scale(36),
+            TRUE);
+        MoveWindow(
+            dataResetSettings_,
+            contentLeft + Scale(402),
+            Scale(470),
+            Scale(170),
+            Scale(36),
+            TRUE);
+
+        MoveWindow(
+            dataStatus_,
+            contentLeft,
+            Scale(552),
+            width,
+            Scale(74),
+            TRUE);
+    }
+
+    if (page_ == Page::Diagnostics) {
+        const int width =
+            std::min(
+                contentWidth,
+                Scale(760));
+        const int gap =
+            Scale(18);
+        const int column =
+            (width - gap) / 2;
+
+        MoveWindow(
+            diagnosticsMemoryTitle_,
+            contentLeft + Scale(18),
+            Scale(164),
+            column - Scale(36),
+            Scale(24),
+            TRUE);
+        MoveWindow(
+            diagnosticsMemoryStatus_,
+            contentLeft + Scale(18),
+            Scale(194),
+            column - Scale(36),
+            Scale(70),
+            TRUE);
+
+        MoveWindow(
+            diagnosticsSearchTitle_,
+            contentLeft + column +
+                gap + Scale(18),
+            Scale(164),
+            column - Scale(36),
+            Scale(24),
+            TRUE);
+        MoveWindow(
+            diagnosticsSearchStatus_,
+            contentLeft + column +
+                gap + Scale(18),
+            Scale(194),
+            column - Scale(36),
+            Scale(78),
+            TRUE);
+
+        const int actionTop =
+            310;
+
+        MoveWindow(
+            actionsWindowsTitle_,
+            contentLeft + Scale(18),
+            Scale(actionTop + 14),
+            width - Scale(36),
+            Scale(24),
+            TRUE);
+        MoveWindow(
+            actionsWindowsStatus_,
+            contentLeft + Scale(18),
+            Scale(actionTop + 44),
+            width - Scale(36),
+            Scale(105),
+            TRUE);
+
+        MoveWindow(
+            actionsClipboardTitle_,
+            contentLeft + Scale(18),
+            Scale(actionTop + 180),
+            width - Scale(36),
+            Scale(24),
+            TRUE);
+        MoveWindow(
+            actionsClipboardStatus_,
+            contentLeft + Scale(18),
+            Scale(actionTop + 210),
+            width - Scale(36),
+            Scale(48),
+            TRUE);
+
+        MoveWindow(
+            actionsWebTitle_,
+            contentLeft + Scale(18),
+            Scale(actionTop + 288),
+            width - Scale(36),
+            Scale(24),
+            TRUE);
+        MoveWindow(
+            actionsWebStatus_,
+            contentLeft + Scale(18),
+            Scale(actionTop + 318),
+            width - Scale(36),
+            Scale(48),
+            TRUE);
+
+        MoveWindow(
+            actionsNote_,
+            contentLeft,
+            Scale(actionTop + 390),
+            width,
+            Scale(48),
+            TRUE);
+    }
+
+    if (page_ == Page::About) {
+        const int width =
+            std::min(
+                contentWidth,
+                Scale(680));
+
+        MoveWindow(
+            aboutName_,
+            contentLeft,
+            Scale(136),
+            width,
+            Scale(42),
+            TRUE);
+        MoveWindow(
+            aboutVersion_,
+            contentLeft,
+            Scale(182),
+            width,
+            Scale(26),
+            TRUE);
+        MoveWindow(
+            aboutDescription_,
+            contentLeft,
+            Scale(214),
+            width,
+            Scale(40),
+            TRUE);
+
+        MoveWindow(
+            updateSectionTitle_,
+            contentLeft,
+            Scale(282),
+            width,
+            Scale(28),
+            TRUE);
+
+        MoveWindow(
+            updateChannelLabel_,
+            contentLeft + Scale(18),
+            Scale(334),
+            Scale(160),
+            Scale(26),
+            TRUE);
+        MoveWindow(
+            updateChannel_,
+            contentLeft + width -
+                Scale(236),
+            Scale(325),
+            Scale(218),
+            Scale(220),
+            TRUE);
+
+        MoveWindow(
+            updateAutoCheck_,
+            contentLeft + Scale(1),
+            Scale(376),
+            width - Scale(2),
+            Scale(
+                settings_layout::
+                    kToggleRowLogical),
+            TRUE);
+
+        MoveWindow(
+            updateStatus_,
+            contentLeft + Scale(18),
+            Scale(448),
+            width - Scale(36),
+            Scale(50),
+            TRUE);
+
+        MoveWindow(
+            updateCheck_,
+            contentLeft + Scale(18),
+            Scale(506),
+            Scale(150),
+            Scale(36),
+            TRUE);
+        MoveWindow(
+            updateInstall_,
+            contentLeft + Scale(180),
+            Scale(506),
+            Scale(180),
+            Scale(36),
+            TRUE);
+
+        MoveWindow(
+            aboutProjectTitle_,
+            contentLeft,
+            Scale(576),
+            width,
+            Scale(28),
+            TRUE);
+        MoveWindow(
             openGitHub_,
-            x + Scale(196),
-            y + Scale(508),
-            Scale(120), Scale(38), TRUE);
+            contentLeft + Scale(18),
+            Scale(622),
+            Scale(150),
+            Scale(36),
+            TRUE);
     }
 }
 
 RECT SettingsWindow::ProviderCardRect() const {
+    return PageCardRect(
+        170,
+        settings_layout::
+            kToggleRowLogical * 4,
+        720);
+}
+
+RECT SettingsWindow::PageCardRect(
+    int topLogical,
+    int heightLogical,
+    int maxWidthLogical) const {
+
     RECT client{};
     GetClientRect(
         hwnd_,
@@ -5380,36 +4787,39 @@ RECT SettingsWindow::ProviderCardRect() const {
         Scale(
             settings_layout::
                 kContentLeftInsetLogical);
+
     const int contentRight =
         client.right -
         Scale(
             settings_layout::
                 kContentRightInsetLogical);
+
     const int contentWidth =
         std::max(
             Scale(320),
             contentRight -
                 contentLeft);
-    const int cardWidth =
+
+    const int width =
         std::min(
             contentWidth,
-            Scale(590));
+            Scale(maxWidthLogical));
 
     return {
         contentLeft,
-        Scale(170),
-        contentLeft + cardWidth,
+        Scale(topLogical),
+        contentLeft + width,
         Scale(
-            170 +
-            settings_layout::
-                kToggleRowLogical * 5),
+            topLogical +
+            heightLogical),
     };
 }
 
 void SettingsWindow::DrawNavigationButton(
     const DRAWITEMSTRUCT& item) {
 
-    RECT rect = item.rcItem;
+    RECT rect =
+        item.rcItem;
 
     bool selected = false;
 
@@ -5422,21 +4832,21 @@ void SettingsWindow::DrawNavigationButton(
         selected =
             page_ == Page::Hotkeys;
         break;
-    case kIdNavDiagnostics:
+    case kIdNavProviders:
         selected =
-            page_ == Page::Diagnostics;
+            page_ == Page::Providers;
         break;
     case kIdNavAppearance:
         selected =
             page_ == Page::Appearance;
         break;
-    case kIdNavProviders:
-        selected =
-            page_ == Page::Providers;
-        break;
     case kIdNavData:
         selected =
             page_ == Page::Data;
+        break;
+    case kIdNavDiagnostics:
+        selected =
+            page_ == Page::Diagnostics;
         break;
     case kIdNavAbout:
         selected =
@@ -5450,36 +4860,73 @@ void SettingsWindow::DrawNavigationButton(
         (item.itemState &
          ODS_SELECTED) != 0;
 
+    RECT surface = rect;
+    InflateRect(
+        &surface,
+        -Scale(2),
+        -Scale(1));
+
     const COLORREF background =
         pressed
             ? kCardPressed
             : selected
-                ? RGB(232, 241, 250)
+                ? kPalette
+                      .selectionBackground
                 : kSidebarBackground;
 
     HBRUSH fill =
-        CreateSolidBrush(background);
-    FillRect(
+        CreateSolidBrush(
+            background);
+    HPEN pen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            background);
+
+    HGDIOBJ oldBrush =
+        SelectObject(
+            item.hDC,
+            fill);
+    HGDIOBJ oldPen =
+        SelectObject(
+            item.hDC,
+            pen);
+
+    RoundRect(
         item.hDC,
-        &rect,
-        fill);
+        surface.left,
+        surface.top,
+        surface.right,
+        surface.bottom,
+        Scale(7),
+        Scale(7));
+
+    SelectObject(
+        item.hDC,
+        oldBrush);
+    SelectObject(
+        item.hDC,
+        oldPen);
     DeleteObject(fill);
+    DeleteObject(pen);
 
     if (selected) {
         RECT accent{
-            rect.left,
-            rect.top + Scale(5),
-            rect.left + Scale(4),
-            rect.bottom - Scale(5),
+            surface.left,
+            surface.top + Scale(7),
+            surface.left + Scale(3),
+            surface.bottom - Scale(7),
         };
 
         HBRUSH accentBrush =
-            CreateSolidBrush(kAccent);
+            CreateSolidBrush(
+                kAccent);
         FillRect(
             item.hDC,
             &accent,
             accentBrush);
-        DeleteObject(accentBrush);
+        DeleteObject(
+            accentBrush);
     }
 
     wchar_t textBuffer[96]{};
@@ -5487,7 +4934,8 @@ void SettingsWindow::DrawNavigationButton(
         item.hwndItem,
         textBuffer,
         static_cast<int>(
-            std::size(textBuffer)));
+            std::size(
+                textBuffer)));
 
     SetBkMode(
         item.hDC,
@@ -5504,10 +4952,10 @@ void SettingsWindow::DrawNavigationButton(
                 : normalFont_);
 
     RECT textRect{
-        rect.left + Scale(18),
-        rect.top,
-        rect.right - Scale(12),
-        rect.bottom,
+        surface.left + Scale(16),
+        surface.top,
+        surface.right - Scale(12),
+        surface.bottom,
     };
 
     DrawTextW(
@@ -5527,11 +4975,316 @@ void SettingsWindow::DrawNavigationButton(
 
     if (item.itemState &
         ODS_FOCUS) {
-        RECT focus = rect;
+        RECT focus =
+            surface;
         InflateRect(
             &focus,
-            -Scale(6),
+            -Scale(7),
             -Scale(5));
+        DrawFocusRect(
+            item.hDC,
+            &focus);
+    }
+}
+
+void SettingsWindow::DrawHotkeyActionItem(
+    const DRAWITEMSTRUCT& item) {
+
+    if (item.itemID ==
+            static_cast<UINT>(-1) ||
+        item.itemID >=
+            hotkeyActionIds_.size()) {
+        return;
+    }
+
+    RECT rect =
+        item.rcItem;
+
+    const bool selected =
+        (item.itemState &
+         ODS_SELECTED) != 0;
+
+    const COLORREF background =
+        selected
+            ? kPalette.selectionBackground
+            : kCardBackground;
+
+    HBRUSH fill =
+        CreateSolidBrush(
+            background);
+    FillRect(
+        item.hDC,
+        &rect,
+        fill);
+    DeleteObject(fill);
+
+    const std::string& actionId =
+        hotkeyActionIds_[
+            item.itemID];
+
+    const std::wstring title =
+        HotkeyActionLabel(
+            actionId);
+
+    const auto binding =
+        EffectiveHotkeyBinding(
+            app_.SettingsData()
+                .hotkeyBindings,
+            actionId);
+
+    const std::wstring detail =
+        binding.enabled
+            ? FormatHotkeyBinding(
+                  actionId)
+            : T(L"已禁用",
+                L"Disabled");
+
+    SetBkMode(
+        item.hDC,
+        TRANSPARENT);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            item.hDC,
+            sectionFont_);
+
+    RECT titleRect{
+        rect.left + Scale(12),
+        rect.top + Scale(6),
+        rect.right - Scale(10),
+        rect.top + Scale(28),
+    };
+
+    SetTextColor(
+        item.hDC,
+        kText);
+
+    DrawTextW(
+        item.hDC,
+        title.c_str(),
+        -1,
+        &titleRect,
+        DT_LEFT |
+            DT_SINGLELINE |
+            DT_VCENTER |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        item.hDC,
+        normalFont_);
+
+    RECT detailRect{
+        titleRect.left,
+        rect.top + Scale(27),
+        titleRect.right,
+        rect.bottom - Scale(5),
+    };
+
+    SetTextColor(
+        item.hDC,
+        kMuted);
+
+    DrawTextW(
+        item.hDC,
+        detail.c_str(),
+        -1,
+        &detailRect,
+        DT_LEFT |
+            DT_SINGLELINE |
+            DT_VCENTER |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        item.hDC,
+        oldFont);
+
+    if (item.itemID + 1 <
+        hotkeyActionIds_.size()) {
+        HPEN separator =
+            CreatePen(
+                PS_SOLID,
+                1,
+                kBorder);
+
+        HGDIOBJ oldPen =
+            SelectObject(
+                item.hDC,
+                separator);
+
+        MoveToEx(
+            item.hDC,
+            rect.left + Scale(12),
+            rect.bottom - 1,
+            nullptr);
+        LineTo(
+            item.hDC,
+            rect.right - Scale(10),
+            rect.bottom - 1);
+
+        SelectObject(
+            item.hDC,
+            oldPen);
+        DeleteObject(
+            separator);
+    }
+
+    if (item.itemState &
+        ODS_FOCUS) {
+        RECT focus =
+            rect;
+        InflateRect(
+            &focus,
+            -Scale(5),
+            -Scale(4));
+        DrawFocusRect(
+            item.hDC,
+            &focus);
+    }
+}
+
+void SettingsWindow::DrawActionButton(
+    const DRAWITEMSTRUCT& item) {
+
+    RECT rect =
+        item.rcItem;
+
+    const bool disabled =
+        (item.itemState &
+         ODS_DISABLED) != 0;
+    const bool pressed =
+        (item.itemState &
+         ODS_SELECTED) != 0;
+
+    const bool primary =
+        item.CtlID ==
+            kIdUpdateInstall;
+    const bool danger =
+        item.CtlID ==
+            kIdDataResetSettings;
+
+    COLORREF fillColor =
+        pressed
+            ? kCardPressed
+            : RGB(255, 255, 255);
+    COLORREF borderColor =
+        kBorder;
+    COLORREF textColor =
+        disabled
+            ? RGB(155, 162, 171)
+            : kText;
+
+    if (primary && !disabled) {
+        fillColor =
+            pressed
+                ? RGB(0, 99, 177)
+                : kAccent;
+        borderColor =
+            fillColor;
+        textColor =
+            RGB(255, 255, 255);
+    } else if (
+        danger &&
+        !disabled) {
+        textColor =
+            RGB(190, 45, 45);
+        borderColor =
+            RGB(226, 185, 185);
+    }
+
+    RECT surface =
+        rect;
+    InflateRect(
+        &surface,
+        -1,
+        -1);
+
+    HBRUSH fill =
+        CreateSolidBrush(
+            fillColor);
+    HPEN pen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            borderColor);
+
+    HGDIOBJ oldBrush =
+        SelectObject(
+            item.hDC,
+            fill);
+    HGDIOBJ oldPen =
+        SelectObject(
+            item.hDC,
+            pen);
+
+    RoundRect(
+        item.hDC,
+        surface.left,
+        surface.top,
+        surface.right,
+        surface.bottom,
+        Scale(6),
+        Scale(6));
+
+    SelectObject(
+        item.hDC,
+        oldBrush);
+    SelectObject(
+        item.hDC,
+        oldPen);
+    DeleteObject(fill);
+    DeleteObject(pen);
+
+    wchar_t buffer[160]{};
+    GetWindowTextW(
+        item.hwndItem,
+        buffer,
+        static_cast<int>(
+            std::size(buffer)));
+
+    SetBkMode(
+        item.hDC,
+        TRANSPARENT);
+    SetTextColor(
+        item.hDC,
+        textColor);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            item.hDC,
+            normalFont_);
+
+    RECT textRect =
+        surface;
+    InflateRect(
+        &textRect,
+        -Scale(10),
+        0);
+
+    DrawTextW(
+        item.hDC,
+        buffer,
+        -1,
+        &textRect,
+        DT_CENTER |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        item.hDC,
+        oldFont);
+
+    if (item.itemState &
+        ODS_FOCUS) {
+        RECT focus =
+            surface;
+        InflateRect(
+            &focus,
+            -Scale(5),
+            -Scale(4));
         DrawFocusRect(
             item.hDC,
             &focus);
@@ -5541,104 +5294,32 @@ void SettingsWindow::DrawNavigationButton(
 void SettingsWindow::DrawGeneralToggle(
     const DRAWITEMSTRUCT& item) {
 
-    RECT rect = item.rcItem;
+    RECT rect =
+        item.rcItem;
 
-    const COLORREF rowBackground =
-        (item.itemState & ODS_SELECTED)
-            ? kCardPressed
-            : kCardBackground;
+    const bool pressed =
+        (item.itemState &
+         ODS_SELECTED) != 0;
 
     HBRUSH rowBrush =
-        CreateSolidBrush(rowBackground);
-    FillRect(item.hDC, &rect, rowBrush);
-    DeleteObject(rowBrush);
+        CreateSolidBrush(
+            pressed
+                ? kCardPressed
+                : kCardBackground);
+
+    FillRect(
+        item.hDC,
+        &rect,
+        rowBrush);
+    DeleteObject(
+        rowBrush);
 
     const UINT id =
-        static_cast<UINT>(item.CtlID);
+        static_cast<UINT>(
+            item.CtlID);
+
     const bool checked =
         ToggleChecked(id);
-
-    const int boxSize = Scale(20);
-    const int boxLeft =
-        rect.left + Scale(18);
-    const int boxTop =
-        rect.top +
-        (rect.bottom - rect.top - boxSize) / 2;
-
-    RECT box{
-        boxLeft,
-        boxTop,
-        boxLeft + boxSize,
-        boxTop + boxSize,
-    };
-
-    HBRUSH boxBrush =
-        CreateSolidBrush(
-            checked
-                ? kAccent
-                : RGB(255, 255, 255));
-
-    HPEN boxPen =
-        CreatePen(
-            PS_SOLID,
-            std::max(1, Scale(1)),
-            checked
-                ? kAccent
-                : RGB(166, 174, 184));
-
-    HGDIOBJ oldBrush =
-        SelectObject(item.hDC, boxBrush);
-    HGDIOBJ oldPen =
-        SelectObject(item.hDC, boxPen);
-
-    RoundRect(
-        item.hDC,
-        box.left,
-        box.top,
-        box.right,
-        box.bottom,
-        Scale(5),
-        Scale(5));
-
-    SelectObject(item.hDC, oldBrush);
-    SelectObject(item.hDC, oldPen);
-    DeleteObject(boxBrush);
-    DeleteObject(boxPen);
-
-    if (checked) {
-        HPEN checkPen =
-            CreatePen(
-                PS_SOLID,
-                std::max(2, Scale(2)),
-                RGB(255, 255, 255));
-
-        oldPen =
-            SelectObject(
-                item.hDC,
-                checkPen);
-
-        MoveToEx(
-            item.hDC,
-            box.left + Scale(5),
-            box.top + Scale(10),
-            nullptr);
-
-        LineTo(
-            item.hDC,
-            box.left + Scale(9),
-            box.top + Scale(14));
-
-        LineTo(
-            item.hDC,
-            box.left + Scale(16),
-            box.top + Scale(6));
-
-        SelectObject(
-            item.hDC,
-            oldPen);
-
-        DeleteObject(checkPen);
-    }
 
     const wchar_t* title = L"";
     const wchar_t* description = L"";
@@ -5650,179 +5331,299 @@ void SettingsWindow::DrawGeneralToggle(
             L"Start with Windows");
         description = T(
             L"登录 Windows 后自动启动 ALTRun Next。",
-            L"Launch ALTRun Next automatically after signing in to Windows.");
+            L"Launch ALTRun Next automatically after signing in.");
         break;
-
     case kIdShowOnStartup:
         title = T(
             L"启动时显示启动器",
             L"Show launcher on startup");
         description = T(
             L"程序启动后立即显示 Launcher；默认保持后台静默启动。",
-            L"Show the launcher when the app starts; the default remains silent background startup.");
+            L"Show the launcher when the app starts; otherwise start silently.");
         break;
-
     case kIdHideAfterLaunch:
         title = T(
             L"执行后自动隐藏",
             L"Hide after launch");
         description = T(
-            L"成功启动快捷项后自动收起启动器。",
-            L"Automatically close the launcher after a command starts.");
+            L"成功执行结果后自动收起 Launcher。",
+            L"Hide the launcher after a result is executed successfully.");
         break;
-
     case kIdClearQueryOnShow:
         title = T(
             L"呼出时清空搜索",
             L"Clear query on open");
         description = T(
-            L"每次呼出启动器时从空白搜索开始。",
-            L"Start with an empty search every time the launcher opens.");
+            L"每次呼出 Launcher 时从空白搜索开始。",
+            L"Start with an empty query every time the launcher opens.");
         break;
-
     case kIdHideOnFocusLost:
         title = T(
             L"失去焦点时隐藏",
             L"Hide when focus is lost");
         description = T(
-            L"切换到其他窗口时自动收起启动器。",
-            L"Hide the launcher automatically when another window is focused.");
+            L"切换到其他窗口时自动收起 Launcher。",
+            L"Hide the launcher when another window receives focus.");
         break;
-
     case kIdShowTrayIcon:
         title = T(
             L"显示系统托盘图标",
             L"Show system tray icon");
         description = T(
-            L"保留托盘入口，用于打开设置、重新加载或退出。",
-            L"Keep the tray entry for Settings, reload and exit actions.");
+            L"保留托盘入口，用于设置、重新加载和退出。",
+            L"Keep the tray entry for Settings, reload and exit.");
         break;
-
+    case kIdShowResultIcons:
+        title = T(
+            L"显示搜索结果图标",
+            L"Show search result icons");
+        description = T(
+            L"关闭时不解析或缓存 Shell 图标，连续搜索会更轻。",
+            L"Disable Shell icon resolution and caching for lighter continuous search.");
+        break;
     case kIdPinyinSearch:
         title = T(
             L"启用拼音搜索",
             L"Enable Pinyin search");
         description = T(
-            L"使用全拼、首字母和混合拼音匹配中文；关闭后不会加载 cpp-pinyin，可减少不需要的内存占用。",
-            L"Match Chinese with full, initial and hybrid Pinyin; when disabled, cpp-pinyin stays unloaded to avoid unnecessary memory use.");
+            L"支持全拼、首字母和混合拼音匹配中文。",
+            L"Match Chinese using full, initial and mixed Pinyin.");
         break;
-
     case kIdWildcardMatching:
         title = T(
             L"允许 * / ? 通配符",
             L"Enable * / ? wildcards");
         description = T(
-            L"查询包含 * 或 ? 时使用 glob 匹配；普通搜索仍使用模糊和拼音匹配。",
-            L"Use glob matching when the query contains * or ?; normal fuzzy and pinyin search stays unchanged.");
+            L"查询包含通配符时使用 glob 匹配。",
+            L"Use glob matching when the query contains wildcard characters.");
         break;
-
     case kIdNumericQuickLaunch:
         title = T(
             L"数字键快速执行结果",
             L"Quick launch with number keys");
         description = T(
-            L"Classic 下数字键直接执行对应结果；启用后数字不会输入搜索框。",
-            L"In Classic mode, number keys launch the matching result instead of typing digits into the query.");
+            L"Classic 下数字键直接执行对应结果。",
+            L"In Classic mode, number keys execute matching results.");
         break;
-
     case kIdExecuteSingleResult:
         title = T(
             L"仅剩一个结果时立即执行",
             L"Execute immediately when one result remains");
         description = T(
             L"非空查询只剩唯一结果时立即启动；默认关闭以避免误触。",
-            L"Launch immediately when a non-empty query narrows to one result; off by default to avoid accidents.");
+            L"Launch when a non-empty query narrows to one result; off by default.");
         break;
-
     case kIdProviderStartMenu:
         title = T(
             L"开始菜单",
             L"Start Menu");
         description = T(
             L"发现当前用户和所有用户开始菜单中的快捷方式与程序。",
-            L"Discover shortcuts and programs from the current-user and all-users Start Menu.");
+            L"Discover shortcuts and programs from Windows Start Menu locations.");
         break;
-
     case kIdProviderPackaged:
-        title = T(
-            L"Windows Apps",
-            L"Windows Apps");
+        title = L"Windows Apps";
         description = T(
             L"发现 Microsoft Store、UWP 和 MSIX 应用。",
             L"Discover Microsoft Store, UWP and MSIX applications.");
         break;
-
     case kIdProviderAppPaths:
         title = L"App Paths";
         description = T(
-            L"从 Windows 注册表的 App Paths 中发现传统桌面程序。",
-            L"Discover traditional desktop apps from the Windows App Paths registry.");
+            L"从注册表 App Paths 发现传统桌面程序。",
+            L"Discover traditional desktop applications from the App Paths registry.");
         break;
-
     case kIdProviderPath:
         title = L"PATH";
         description = T(
-            L"发现 PATH 环境变量目录中的 EXE、COM、BAT 和 CMD。",
-            L"Discover EXE, COM, BAT and CMD files exposed through the PATH environment variable.");
+            L"发现 PATH 中的 EXE、COM、BAT 和 CMD。",
+            L"Discover EXE, COM, BAT and CMD files exposed through PATH.");
         break;
-
     case kIdProviderEverything:
         title = T(
             L"Everything 文件与文件夹",
             L"Everything files & folders");
         description = T(
-            L"通过正在运行的标准版 Everything IPC 实时搜索文件和文件夹；Lite 版没有 IPC。",
-            L"Search files and folders live through a running standard Everything IPC instance; Everything Lite has no IPC.");
+            L"通过标准版 Everything IPC 实时搜索文件和文件夹。",
+            L"Search files and folders live through standard Everything IPC.");
         break;
-
+    case kIdUpdateAutoCheck:
+        title = T(
+            L"自动检查更新",
+            L"Automatically check for updates");
+        description = T(
+            L"后台最多每天检查一次当前更新通道。",
+            L"Check the selected update channel in the background at most once per day.");
+        break;
     default:
         break;
     }
 
-    SetBkMode(item.hDC, TRANSPARENT);
+    const int switchWidth =
+        Scale(40);
+    const int switchHeight =
+        Scale(22);
+    const int switchLeft =
+        rect.right -
+        Scale(18) -
+        switchWidth;
+    const int switchTop =
+        rect.top +
+        (rect.bottom -
+         rect.top -
+         switchHeight) / 2;
 
-    RECT titleRect{
-        box.right + Scale(14),
-        rect.top + Scale(6),
-        rect.right - Scale(16),
-        rect.top + Scale(27),
+    RECT track{
+        switchLeft,
+        switchTop,
+        switchLeft + switchWidth,
+        switchTop + switchHeight,
     };
+
+    const COLORREF trackColor =
+        checked
+            ? kAccent
+            : RGB(214, 219, 226);
+
+    HBRUSH trackBrush =
+        CreateSolidBrush(
+            trackColor);
+    HPEN trackPen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            checked
+                ? kAccent
+                : RGB(184, 191, 201));
+
+    HGDIOBJ oldBrush =
+        SelectObject(
+            item.hDC,
+            trackBrush);
+    HGDIOBJ oldPen =
+        SelectObject(
+            item.hDC,
+            trackPen);
+
+    RoundRect(
+        item.hDC,
+        track.left,
+        track.top,
+        track.right,
+        track.bottom,
+        switchHeight,
+        switchHeight);
+
+    SelectObject(
+        item.hDC,
+        oldBrush);
+    SelectObject(
+        item.hDC,
+        oldPen);
+    DeleteObject(
+        trackBrush);
+    DeleteObject(
+        trackPen);
+
+    const int knobSize =
+        Scale(16);
+    const int knobInset =
+        Scale(3);
+    const int knobLeft =
+        checked
+            ? track.right -
+                knobInset -
+                knobSize
+            : track.left +
+                knobInset;
+
+    HBRUSH knobBrush =
+        CreateSolidBrush(
+            RGB(255, 255, 255));
+    HPEN knobPen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            RGB(255, 255, 255));
+
+    oldBrush =
+        SelectObject(
+            item.hDC,
+            knobBrush);
+    oldPen =
+        SelectObject(
+            item.hDC,
+            knobPen);
+
+    Ellipse(
+        item.hDC,
+        knobLeft,
+        track.top + knobInset,
+        knobLeft + knobSize,
+        track.top +
+            knobInset +
+            knobSize);
+
+    SelectObject(
+        item.hDC,
+        oldBrush);
+    SelectObject(
+        item.hDC,
+        oldPen);
+    DeleteObject(
+        knobBrush);
+    DeleteObject(
+        knobPen);
+
+    SetBkMode(
+        item.hDC,
+        TRANSPARENT);
 
     HGDIOBJ oldFont =
         SelectObject(
             item.hDC,
-            sectionFont_);
+            normalFont_);
 
-    SetTextColor(item.hDC, kText);
+    RECT titleRect{
+        rect.left + Scale(18),
+        rect.top + Scale(9),
+        switchLeft - Scale(16),
+        rect.top + Scale(31),
+    };
 
+    SetTextColor(
+        item.hDC,
+        kText);
     DrawTextW(
         item.hDC,
         title,
         -1,
         &titleRect,
-        DT_LEFT | DT_SINGLELINE |
-            DT_VCENTER | DT_NOPREFIX);
+        DT_LEFT |
+            DT_SINGLELINE |
+            DT_VCENTER |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
 
     RECT descriptionRect{
         titleRect.left,
-        rect.top + Scale(29),
+        rect.top + Scale(32),
         titleRect.right,
         rect.bottom - Scale(6),
     };
 
-    SelectObject(
+    SetTextColor(
         item.hDC,
-        normalFont_);
-
-    SetTextColor(item.hDC, kMuted);
-
+        kMuted);
     DrawTextW(
         item.hDC,
         description,
         -1,
         &descriptionRect,
-        DT_LEFT | DT_SINGLELINE |
-            DT_VCENTER | DT_END_ELLIPSIS |
+        DT_LEFT |
+            DT_SINGLELINE |
+            DT_VCENTER |
+            DT_END_ELLIPSIS |
             DT_NOPREFIX);
 
     SelectObject(
@@ -5830,8 +5631,10 @@ void SettingsWindow::DrawGeneralToggle(
         oldFont);
 
     const bool lastRow =
-        id == kIdShowTrayIcon ||
-        id == kIdProviderEverything;
+        id == kIdShowResultIcons ||
+        id == kIdProviderPath ||
+        id == kIdProviderEverything ||
+        id == kIdUpdateAutoCheck;
 
     if (!lastRow) {
         HPEN separator =
@@ -5847,27 +5650,29 @@ void SettingsWindow::DrawGeneralToggle(
 
         MoveToEx(
             item.hDC,
-            rect.left + Scale(52),
+            rect.left + Scale(18),
             rect.bottom - 1,
             nullptr);
 
         LineTo(
             item.hDC,
-            rect.right - Scale(14),
+            rect.right - Scale(18),
             rect.bottom - 1);
 
         SelectObject(
             item.hDC,
             oldPen);
-
-        DeleteObject(separator);
+        DeleteObject(
+            separator);
     }
 
-    if (item.itemState & ODS_FOCUS) {
-        RECT focus = rect;
+    if (item.itemState &
+        ODS_FOCUS) {
+        RECT focus =
+            rect;
         InflateRect(
             &focus,
-            -Scale(6),
+            -Scale(7),
             -Scale(5));
         DrawFocusRect(
             item.hDC,
@@ -5875,43 +5680,102 @@ void SettingsWindow::DrawGeneralToggle(
     }
 }
 
-void SettingsWindow::CenterOnCurrentMonitor() {
+void SettingsWindow::PositionForShow() {
+    RECT rect{};
+    GetWindowRect(
+        hwnd_,
+        &rect);
+
+    const int requestedWidth =
+        rect.right - rect.left;
+    const int requestedHeight =
+        rect.bottom - rect.top;
+
+    const auto& settings =
+        app_.SettingsData();
+
+    if (settings.settingsPlacement ==
+            "last" &&
+        settings.settingsLastPositionValid) {
+
+        RECT requested{
+            settings.settingsLastX,
+            settings.settingsLastY,
+            settings.settingsLastX +
+                requestedWidth,
+            settings.settingsLastY +
+                requestedHeight,
+        };
+
+        HMONITOR monitor =
+            MonitorFromRect(
+                &requested,
+                MONITOR_DEFAULTTONEAREST);
+
+        MONITORINFO info{
+            sizeof(info)};
+
+        if (GetMonitorInfoW(
+                monitor,
+                &info)) {
+
+            const auto clamped =
+                settings_layout::
+                    ClampRectToWorkArea(
+                        {
+                            requested.left,
+                            requested.top,
+                            requested.right,
+                            requested.bottom,
+                        },
+                        {
+                            info.rcWork.left,
+                            info.rcWork.top,
+                            info.rcWork.right,
+                            info.rcWork.bottom,
+                        });
+
+            SetWindowPos(
+                hwnd_,
+                nullptr,
+                clamped.left,
+                clamped.top,
+                clamped.right -
+                    clamped.left,
+                clamped.bottom -
+                    clamped.top,
+                SWP_NOZORDER |
+                    SWP_NOACTIVATE);
+            return;
+        }
+    }
+
     POINT cursor{};
-    GetCursorPos(&cursor);
+    GetCursorPos(
+        &cursor);
 
     HMONITOR monitor =
         MonitorFromPoint(
             cursor,
             MONITOR_DEFAULTTONEAREST);
 
-    MONITORINFO info{sizeof(info)};
-    GetMonitorInfoW(monitor, &info);
-
-    RECT rect{};
-    GetWindowRect(hwnd_, &rect);
-
-    const int requestedWidth =
-        rect.right - rect.left;
-
-    const int requestedHeight =
-        rect.bottom - rect.top;
+    MONITORINFO info{
+        sizeof(info)};
+    GetMonitorInfoW(
+        monitor,
+        &info);
 
     const int workWidth =
         info.rcWork.right -
         info.rcWork.left;
-
     const int workHeight =
         info.rcWork.bottom -
         info.rcWork.top;
 
-    // Per-monitor DPI can make the logical default larger than the
-    // available work area (for example 150% scaling on a 1080p panel).
-    // Never center an oversized Settings window partly off-screen.
     const int width =
         std::min(
             requestedWidth,
             workWidth);
-
     const int height =
         std::min(
             requestedHeight,
@@ -5922,7 +5786,6 @@ void SettingsWindow::CenterOnCurrentMonitor() {
         std::max(
             0,
             (workWidth - width) / 2);
-
     const int y =
         info.rcWork.top +
         std::max(
@@ -5936,7 +5799,8 @@ void SettingsWindow::CenterOnCurrentMonitor() {
         y,
         width,
         height,
-        SWP_NOZORDER | SWP_NOACTIVATE);
+        SWP_NOZORDER |
+            SWP_NOACTIVATE);
 }
 
 void SettingsWindow::OnUpdateStatusChanged() {
@@ -5962,8 +5826,8 @@ void SettingsWindow::ApplyUpdateSettings() {
             : UpdateChannel::Stable;
 
     const bool autoCheck =
-        IsChecked(
-            updateAutoCheck_);
+        app_.SettingsData()
+            .autoCheckUpdates;
 
     if (!app_.SetUpdateSettings(
             autoCheck,
@@ -6218,7 +6082,7 @@ void SettingsWindow::Show() {
     }
 
     if (!IsWindowVisible(hwnd_)) {
-        CenterOnCurrentMonitor();
+        PositionForShow();
     }
 
     ShowWindow(
@@ -6357,6 +6221,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdClearQueryOnShow:
         case kIdHideOnFocusLost:
         case kIdShowTrayIcon:
+        case kIdShowResultIcons:
             if (notify == BN_CLICKED) {
                 ToggleGeneralSetting(id);
             }
@@ -6429,18 +6294,6 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdAuxHotkeyEnabled:
-            if (notify == BN_CLICKED) {
-                ApplyAuxiliaryHotkeyControl();
-            }
-            return 0;
-
-        case kIdAuxHotkeyApply:
-            if (notify == BN_CLICKED) {
-                ApplyAuxiliaryHotkeyControl();
-            }
-            return 0;
-
         case kIdProviderStartMenu:
         case kIdProviderPackaged:
         case kIdProviderAppPaths:
@@ -6463,21 +6316,16 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdHotkeyApply:
-            if (notify == BN_CLICKED) {
-                ApplyHotkeyControl();
-            }
-            return 0;
-
         case kIdPopupMonitor:
             if (notify == CBN_SELCHANGE) {
                 ApplyMonitorControl();
             }
             return 0;
 
-        case kIdDataOpenFolder:
-            if (notify == BN_CLICKED) {
-                app_.OpenDataFolder();
+        case kIdLauncherPlacement:
+        case kIdSettingsPlacement:
+            if (notify == CBN_SELCHANGE) {
+                ApplyWindowPlacementControls();
             }
             return 0;
 
@@ -6524,12 +6372,6 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdShowResultIcons:
-            if (notify == BN_CLICKED) {
-                ApplyAppearanceControls();
-            }
-            return 0;
-
         case kIdOpenDataFolder:
             if (notify == BN_CLICKED) {
                 app_.OpenDataFolder();
@@ -6552,7 +6394,21 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdUpdateAutoCheck:
             if (notify == BN_CLICKED &&
                 !syncing_) {
-                ApplyUpdateSettings();
+                const auto settings =
+                    app_.SettingsData();
+
+                if (!app_.SetUpdateSettings(
+                        !settings.autoCheckUpdates,
+                        settings.updateChannel)) {
+                    MessageBoxW(
+                        hwnd_,
+                        T(L"无法保存更新设置。",
+                          L"Could not save update settings."),
+                        L"ALTRun Next",
+                        MB_OK | MB_ICONERROR);
+                }
+
+                RefreshFromSettings();
             }
             return 0;
 
@@ -6578,40 +6434,63 @@ LRESULT SettingsWindow::HandleMessage(
 
     case WM_DRAWITEM: {
         const auto* item =
-            reinterpret_cast<DRAWITEMSTRUCT*>(
-                lParam);
+            reinterpret_cast<
+                DRAWITEMSTRUCT*>(
+                    lParam);
 
-        if (item &&
-            (item->CtlID == kIdNavGeneral ||
-             item->CtlID == kIdNavHotkeys ||
-             item->CtlID == kIdNavDiagnostics ||
-             item->CtlID == kIdNavAppearance ||
-             item->CtlID == kIdNavProviders ||
-             item->CtlID == kIdNavData ||
-             item->CtlID == kIdNavAbout)) {
-            DrawNavigationButton(*item);
+        if (!item) {
+            break;
+        }
+
+        if (item->CtlID ==
+                kIdHotkeyActionList &&
+            item->CtlType ==
+                ODT_LISTBOX) {
+            DrawHotkeyActionItem(
+                *item);
             return TRUE;
         }
 
-        if (item &&
-            (item->CtlID == kIdStartWithWindows ||
-             item->CtlID == kIdShowOnStartup ||
-             item->CtlID == kIdHideAfterLaunch ||
-             item->CtlID == kIdClearQueryOnShow ||
-             item->CtlID == kIdHideOnFocusLost ||
-             item->CtlID == kIdShowTrayIcon ||
-             item->CtlID == kIdPinyinSearch ||
-             item->CtlID == kIdWildcardMatching ||
-             item->CtlID == kIdNumericQuickLaunch ||
-             item->CtlID == kIdExecuteSingleResult ||
-             item->CtlID == kIdProviderStartMenu ||
-             item->CtlID == kIdProviderPackaged ||
-             item->CtlID == kIdProviderAppPaths ||
-             item->CtlID == kIdProviderPath ||
-             item->CtlID == kIdProviderEverything)) {
-            DrawGeneralToggle(*item);
+        if (item->CtlID == kIdNavGeneral ||
+            item->CtlID == kIdNavHotkeys ||
+            item->CtlID == kIdNavProviders ||
+            item->CtlID == kIdNavAppearance ||
+            item->CtlID == kIdNavData ||
+            item->CtlID == kIdNavDiagnostics ||
+            item->CtlID == kIdNavAbout) {
+            DrawNavigationButton(
+                *item);
             return TRUE;
         }
+
+        if (item->CtlID == kIdStartWithWindows ||
+            item->CtlID == kIdShowOnStartup ||
+            item->CtlID == kIdHideAfterLaunch ||
+            item->CtlID == kIdClearQueryOnShow ||
+            item->CtlID == kIdHideOnFocusLost ||
+            item->CtlID == kIdShowTrayIcon ||
+            item->CtlID == kIdShowResultIcons ||
+            item->CtlID == kIdPinyinSearch ||
+            item->CtlID == kIdWildcardMatching ||
+            item->CtlID == kIdNumericQuickLaunch ||
+            item->CtlID == kIdExecuteSingleResult ||
+            item->CtlID == kIdProviderStartMenu ||
+            item->CtlID == kIdProviderPackaged ||
+            item->CtlID == kIdProviderAppPaths ||
+            item->CtlID == kIdProviderPath ||
+            item->CtlID == kIdProviderEverything ||
+            item->CtlID == kIdUpdateAutoCheck) {
+            DrawGeneralToggle(
+                *item);
+            return TRUE;
+        }
+
+        if (item->CtlType == ODT_BUTTON) {
+            DrawActionButton(
+                *item);
+            return TRUE;
+        }
+
         break;
     }
 
@@ -6700,17 +6579,24 @@ LRESULT SettingsWindow::HandleMessage(
                 &paint);
 
         RECT client{};
-        GetClientRect(hwnd_, &client);
+        GetClientRect(
+            hwnd_,
+            &client);
+
         FillRect(
             dc,
             &client,
             backgroundBrush_);
 
+        const int sidebarX =
+            Scale(
+                kSidebarWidthLogical);
+
         RECT sidebar{
             client.left,
             client.top,
-            Scale(kSidebarWidthLogical),
-            client.bottom
+            sidebarX,
+            client.bottom,
         };
 
         FillRect(
@@ -6729,37 +6615,74 @@ LRESULT SettingsWindow::HandleMessage(
                 dc,
                 separator);
 
-        const int sidebarX =
-            Scale(kSidebarWidthLogical);
-
         MoveToEx(
             dc,
             sidebarX,
             client.top,
             nullptr);
-
         LineTo(
             dc,
             sidebarX,
             client.bottom);
 
+        const int contentLeft =
+            sidebarX +
+            Scale(
+                settings_layout::
+                    kContentLeftInsetLogical);
+
+        MoveToEx(
+            dc,
+            contentLeft,
+            Scale(116) -
+                (page_ ==
+                         Page::General
+                     ? generalScrollOffset_
+                     : 0),
+            nullptr);
+        LineTo(
+            dc,
+            client.right -
+                Scale(
+                    settings_layout::
+                        kContentRightInsetLogical),
+            Scale(116) -
+                (page_ ==
+                         Page::General
+                     ? generalScrollOffset_
+                     : 0));
+
+        const int aboutSeparatorY =
+            std::max(
+                Scale(360),
+                static_cast<int>(
+                    client.bottom) -
+                    Scale(
+                        ui::
+                            kSettingsNavHeightLogical) -
+                    Scale(34));
+
+        MoveToEx(
+            dc,
+            Scale(16),
+            aboutSeparatorY,
+            nullptr);
+        LineTo(
+            dc,
+            sidebarX - Scale(16),
+            aboutSeparatorY);
+
         SelectObject(
             dc,
             oldPen);
+        DeleteObject(
+            separator);
 
-        DeleteObject(separator);
-
-        if (page_ == Page::General) {
-            for (const RECT card :
-                 std::array<RECT, 3>{
-                     BehaviorCardRect(),
-                     SearchBehaviorCardRect(),
-                     MonitorCardRect()}) {
-
+        const auto drawCard =
+            [&](RECT card) {
                 HBRUSH fill =
                     CreateSolidBrush(
                         kCardBackground);
-
                 HPEN border =
                     CreatePen(
                         PS_SOLID,
@@ -6770,7 +6693,6 @@ LRESULT SettingsWindow::HandleMessage(
                     SelectObject(
                         dc,
                         fill);
-
                 HGDIOBJ previousPen =
                     SelectObject(
                         dc,
@@ -6782,64 +6704,175 @@ LRESULT SettingsWindow::HandleMessage(
                     card.top,
                     card.right,
                     card.bottom,
-                    Scale(8),
-                    Scale(8));
+                    Scale(
+                        ui::
+                            kSettingsCardRadiusLogical),
+                    Scale(
+                        ui::
+                            kSettingsCardRadiusLogical));
 
                 SelectObject(
                     dc,
                     previousBrush);
-
                 SelectObject(
                     dc,
                     previousPen);
-
                 DeleteObject(fill);
                 DeleteObject(border);
-            }
-        }
+            };
 
-        if (page_ == Page::Providers) {
-            const RECT card =
-                ProviderCardRect();
+        if (page_ == Page::General) {
+            drawCard(
+                BehaviorCardRect());
+            drawCard(
+                SearchBehaviorCardRect());
+            drawCard(
+                PlacementCardRect());
+        } else if (
+            page_ == Page::Hotkeys) {
 
-            HBRUSH fill =
-                CreateSolidBrush(
-                    kCardBackground);
+            const int contentRight =
+                client.right -
+                Scale(
+                    settings_layout::
+                        kContentRightInsetLogical);
+            const int contentWidth =
+                contentRight -
+                contentLeft;
+            const int gap =
+                Scale(18);
+            const int listWidth =
+                std::min(
+                    Scale(285),
+                    std::max(
+                        Scale(230),
+                        contentWidth *
+                            38 / 100));
 
-            HPEN border =
-                CreatePen(
-                    PS_SOLID,
-                    1,
-                    kBorder);
+            drawCard({
+                contentLeft,
+                Scale(150),
+                contentLeft +
+                    listWidth,
+                Scale(564),
+            });
 
-            HGDIOBJ previousBrush =
-                SelectObject(
-                    dc,
-                    fill);
+            drawCard({
+                contentLeft +
+                    listWidth +
+                    gap,
+                Scale(150),
+                contentRight,
+                Scale(564),
+            });
+        } else if (
+            page_ == Page::Providers) {
+            drawCard(
+                ProviderCardRect());
 
-            HGDIOBJ previousPen =
-                SelectObject(
-                    dc,
-                    border);
+            const int filesTitleTop =
+                170 +
+                settings_layout::
+                    kToggleRowLogical * 4 +
+                22;
 
-            RoundRect(
-                dc,
-                card.left,
-                card.top,
-                card.right,
-                card.bottom,
-                Scale(8),
-                Scale(8));
+            drawCard(
+                PageCardRect(
+                    filesTitleTop + 32,
+                    294,
+                    720));
+        } else if (
+            page_ == Page::Appearance) {
+            drawCard(
+                PageCardRect(
+                    170,
+                    68,
+                    680));
+            drawCard(
+                PageCardRect(
+                    302,
+                    68,
+                    680));
+        } else if (
+            page_ == Page::Data) {
+            drawCard(
+                PageCardRect(
+                    170,
+                    66,
+                    720));
+            drawCard(
+                PageCardRect(
+                    312,
+                    72,
+                    720));
+            drawCard(
+                PageCardRect(
+                    452,
+                    72,
+                    720));
+        } else if (
+            page_ == Page::Diagnostics) {
 
-            SelectObject(
-                dc,
-                previousBrush);
-            SelectObject(
-                dc,
-                previousPen);
+            const int contentRight =
+                client.right -
+                Scale(
+                    settings_layout::
+                        kContentRightInsetLogical);
+            const int width =
+                std::min(
+                    contentRight -
+                        contentLeft,
+                    Scale(760));
+            const int gap =
+                Scale(18);
+            const int column =
+                (width - gap) / 2;
 
-            DeleteObject(fill);
-            DeleteObject(border);
+            drawCard({
+                contentLeft,
+                Scale(150),
+                contentLeft +
+                    column,
+                Scale(286),
+            });
+
+            drawCard({
+                contentLeft +
+                    column +
+                    gap,
+                Scale(150),
+                contentLeft +
+                    width,
+                Scale(286),
+            });
+
+            drawCard(
+                PageCardRect(
+                    310,
+                    160,
+                    760));
+            drawCard(
+                PageCardRect(
+                    490,
+                    88,
+                    760));
+            drawCard(
+                PageCardRect(
+                    598,
+                    88,
+                    760));
+        } else if (
+            page_ == Page::About) {
+            drawCard(
+                PageCardRect(
+                    314,
+                    238,
+                    680));
+            drawCard(
+                PageCardRect(
+                    608,
+                    80,
+                    680));
         }
 
         EndPaint(
@@ -6852,50 +6885,76 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_ERASEBKGND:
         return 1;
 
+    case WM_CTLCOLORLISTBOX: {
+        HDC dc =
+            reinterpret_cast<HDC>(
+                wParam);
+        SetTextColor(
+            dc,
+            kText);
+        SetBkColor(
+            dc,
+            kCardBackground);
+        return reinterpret_cast<LRESULT>(
+            cardBrush_);
+    }
+
     case WM_CTLCOLORSTATIC: {
         HDC dc =
-            reinterpret_cast<HDC>(wParam);
+            reinterpret_cast<HDC>(
+                wParam);
 
         HWND control =
-            reinterpret_cast<HWND>(lParam);
+            reinterpret_cast<HWND>(
+                lParam);
 
-        const bool cardStatic =
+        SetBkMode(
+            dc,
+            TRANSPARENT);
+
+        const bool muted =
+            control == brandSubtitle_ ||
+            control == pageDescription_ ||
             control ==
-                numericQuickLaunchOrderLabel_ ||
-            control == popupMonitorLabel_ ||
-            control == popupMonitorDescription_;
-
-        const COLORREF background =
-            cardStatic
-                ? kCardBackground
-                : kWindowBackground;
-
-        SetBkMode(dc, OPAQUE);
-        SetBkColor(dc, background);
-
-        if (control == pageDescription_ ||
-            control == hotkeyStatus_ ||
-            control == auxiliaryHotkeyStatus_ ||
-            control == dataStatus_ ||
+                popupMonitorDescription_ ||
+            control ==
+                launcherPlacementDescription_ ||
+            control ==
+                settingsPlacementDescription_ ||
             control == generalNote_ ||
-            control == popupMonitorDescription_ ||
-            control == resultIconsNote_ ||
-            control == appearanceNote_ ||
+            control ==
+                hotkeyEditorDescription_ ||
+            control == hotkeyScope_ ||
+            control == hotkeyPageStatus_ ||
+            control == hotkeyPageNote_ ||
+            control ==
+                diagnosticsMemoryStatus_ ||
+            control ==
+                diagnosticsSearchStatus_ ||
+            control == actionsWindowsStatus_ ||
+            control ==
+                actionsClipboardStatus_ ||
+            control == actionsWebStatus_ ||
+            control == actionsNote_ ||
             control == providerStatus_ ||
             control == providerNote_ ||
+            control == appearanceNote_ ||
+            control == dataStatus_ ||
+            control == dataPath_ ||
             control == aboutVersion_ ||
             control == aboutDescription_ ||
-            control == dataPathLabel_ ||
-            control == dataPath_) {
-            SetTextColor(dc, kMuted);
-        } else {
-            SetTextColor(dc, kText);
-        }
+            control == updateStatus_;
 
-        return reinterpret_cast<LRESULT>(
-            cardStatic
-                ? cardBrush_
-                : backgroundBrush_);
+        SetTextColor(
+            dc,
+            muted
+                ? kMuted
+                : kText);
+
+        return reinterpret_cast<
+            LRESULT>(
+                GetStockObject(
+                    HOLLOW_BRUSH));
     }
 
     case WM_SIZE:
@@ -6905,6 +6964,21 @@ LRESULT SettingsWindow::HandleMessage(
             nullptr,
             TRUE);
         return 0;
+
+    case WM_EXITSIZEMOVE: {
+        if (!IsIconic(hwnd_) &&
+            !IsZoomed(hwnd_)) {
+            RECT moved{};
+            if (GetWindowRect(
+                    hwnd_,
+                    &moved)) {
+                app_.RememberSettingsPosition(
+                    moved.left,
+                    moved.top);
+            }
+        }
+        return 0;
+    }
 
     case WM_DPICHANGED: {
         dpi_ = HIWORD(wParam);

@@ -665,43 +665,134 @@ void LauncherWindow::Layout() {
 }
 
 void LauncherWindow::Reposition() {
-    HMONITOR monitor = nullptr;
-    const auto& popupMonitor = app_.SettingsData().popupMonitor;
-
-    if (popupMonitor == "primary") {
-        POINT origin{0, 0};
-        monitor = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
-    } else if (popupMonitor == "active") {
-        HWND foreground = GetForegroundWindow();
-        monitor = MonitorFromWindow(
-            foreground,
-            MONITOR_DEFAULTTONEAREST);
-    } else {
-        POINT cursor{};
-        GetCursorPos(&cursor);
-        monitor = MonitorFromPoint(
-            cursor,
-            MONITOR_DEFAULTTONEAREST);
-    }
-
-    MONITORINFO info{sizeof(info)};
-    GetMonitorInfoW(monitor, &info);
+    const auto& settings =
+        app_.SettingsData();
 
     RECT rect{};
     GetWindowRect(hwnd_, &rect);
-    const int width = rect.right - rect.left;
-    const int height = rect.bottom - rect.top;
-    const int workWidth = info.rcWork.right - info.rcWork.left;
-    const int workHeight = info.rcWork.bottom - info.rcWork.top;
 
-    const int x = info.rcWork.left + (workWidth - width) / 2;
-    const int y = info.rcWork.top + std::max(DpiScale(45), (workHeight - height) / 5);
+    const int width =
+        rect.right - rect.left;
+    const int height =
+        rect.bottom - rect.top;
+
+    if (settings.launcherPlacement == "last" &&
+        settings.launcherLastPositionValid) {
+
+        RECT requested{
+            settings.launcherLastX,
+            settings.launcherLastY,
+            settings.launcherLastX + width,
+            settings.launcherLastY + height,
+        };
+
+        HMONITOR monitor =
+            MonitorFromRect(
+                &requested,
+                MONITOR_DEFAULTTONEAREST);
+
+        MONITORINFO info{
+            sizeof(info)};
+        GetMonitorInfoW(
+            monitor,
+            &info);
+
+        const int workWidth =
+            info.rcWork.right -
+            info.rcWork.left;
+        const int workHeight =
+            info.rcWork.bottom -
+            info.rcWork.top;
+
+        const int x =
+            std::clamp(
+                requested.left,
+                info.rcWork.left,
+                info.rcWork.right -
+                    std::min(
+                        width,
+                        workWidth));
+
+        const int y =
+            std::clamp(
+                requested.top,
+                info.rcWork.top,
+                info.rcWork.bottom -
+                    std::min(
+                        height,
+                        workHeight));
+
+        SetWindowPos(
+            hwnd_,
+            HWND_TOPMOST,
+            x,
+            y,
+            width,
+            height,
+            SWP_NOACTIVATE);
+        return;
+    }
+
+    HMONITOR monitor = nullptr;
+
+    if (settings.popupMonitor == "primary") {
+        POINT origin{0, 0};
+        monitor =
+            MonitorFromPoint(
+                origin,
+                MONITOR_DEFAULTTOPRIMARY);
+    } else if (
+        settings.popupMonitor == "active") {
+        HWND foreground =
+            GetForegroundWindow();
+        monitor =
+            MonitorFromWindow(
+                foreground,
+                MONITOR_DEFAULTTONEAREST);
+    } else {
+        POINT cursor{};
+        GetCursorPos(&cursor);
+        monitor =
+            MonitorFromPoint(
+                cursor,
+                MONITOR_DEFAULTTONEAREST);
+    }
+
+    MONITORINFO info{
+        sizeof(info)};
+    GetMonitorInfoW(
+        monitor,
+        &info);
+
+    const int workWidth =
+        info.rcWork.right -
+        info.rcWork.left;
+    const int workHeight =
+        info.rcWork.bottom -
+        info.rcWork.top;
+
+    const int x =
+        info.rcWork.left +
+        (workWidth - width) / 2;
+
+    const int y =
+        settings.launcherPlacement ==
+                "center"
+            ? info.rcWork.top +
+                (workHeight - height) / 2
+            : info.rcWork.top +
+                std::max(
+                    DpiScale(45),
+                    (workHeight -
+                     height) / 5);
 
     SetWindowPos(
         hwnd_,
         HWND_TOPMOST,
-        x, y,
-        width, height,
+        x,
+        y,
+        width,
+        height,
         SWP_NOACTIVATE);
 }
 
@@ -1966,6 +2057,10 @@ void LauncherWindow::ApplyGeneralSettings() {
     } else {
         RemoveTrayIcon();
     }
+
+    if (IsWindowVisible(hwnd_)) {
+        Reposition();
+    }
 }
 
 void LauncherWindow::ShowResultContextMenu(
@@ -2642,21 +2737,38 @@ LRESULT LauncherWindow::HandleMessage(
     UINT message, WPARAM wParam, LPARAM lParam) {
 
     switch (message) {
-    case WM_NCHITTEST:
-        if (!IsModern()) {
-            POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
-            ScreenToClient(hwnd_, &point);
+    case WM_NCHITTEST: {
+        POINT point{
+            GET_X_LPARAM(lParam),
+            GET_Y_LPARAM(lParam),
+        };
+        ScreenToClient(
+            hwnd_,
+            &point);
 
-            const RECT close = ClassicCloseRect();
-            if (PtInRect(&close, point)) {
+        if (!IsModern()) {
+            const RECT close =
+                ClassicCloseRect();
+
+            if (PtInRect(
+                    &close,
+                    point)) {
                 return HTCLIENT;
             }
 
-            if (point.y >= 0 && point.y < DpiScale(30)) {
+            if (point.y >= 0 &&
+                point.y < DpiScale(30)) {
                 return HTCAPTION;
             }
+        } else if (
+            point.y >= 0 &&
+            point.y < DpiScale(10)) {
+            // Modern Compact intentionally keeps only a very small drag
+            // strip so the input remains the primary interaction target.
+            return HTCAPTION;
         }
         break;
+    }
 
     case WM_LBUTTONUP:
         if (!IsModern()) {
@@ -3084,6 +3196,18 @@ LRESULT LauncherWindow::HandleMessage(
         SelectObject(item->hDC, oldFont);
 
         return TRUE;
+    }
+
+    case WM_EXITSIZEMOVE: {
+        RECT rect{};
+        if (GetWindowRect(
+                hwnd_,
+                &rect)) {
+            app_.RememberLauncherPosition(
+                rect.left,
+                rect.top);
+        }
+        return 0;
     }
 
     case WM_DPICHANGED: {

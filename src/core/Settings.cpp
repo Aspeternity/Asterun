@@ -76,6 +76,31 @@ const char* LanguageName(
         : "zh-CN";
 }
 
+std::string NormalizeLauncherPlacement(
+    std::string value) {
+    value = LowerAscii(
+        TrimAscii(
+            std::move(value)));
+
+    if (value == "center" ||
+        value == "last") {
+        return value;
+    }
+
+    return "top";
+}
+
+std::string NormalizeSettingsPlacement(
+    std::string value) {
+    value = LowerAscii(
+        TrimAscii(
+            std::move(value)));
+
+    return value == "last"
+        ? "last"
+        : "center";
+}
+
 void SyncLegacyHotkeyMirrors(
     Settings& settings) {
     const auto primary =
@@ -338,6 +363,54 @@ bool SettingsStore::LoadJson() {
                     "popupMonitor",
                     settings_
                         .popupMonitor);
+        }
+
+        if (root.contains("windowPlacement") &&
+            root["windowPlacement"]
+                .is_object()) {
+
+            const auto& placement =
+                root["windowPlacement"];
+
+            settings_.launcherPlacement =
+                NormalizeLauncherPlacement(
+                    placement.value(
+                        "launcherMode",
+                        settings_
+                            .launcherPlacement));
+
+            settings_.settingsPlacement =
+                NormalizeSettingsPlacement(
+                    placement.value(
+                        "settingsMode",
+                        settings_
+                            .settingsPlacement));
+
+            settings_.launcherLastPositionValid =
+                placement.value(
+                    "launcherLastValid",
+                    false);
+            settings_.launcherLastX =
+                placement.value(
+                    "launcherLastX",
+                    0);
+            settings_.launcherLastY =
+                placement.value(
+                    "launcherLastY",
+                    0);
+
+            settings_.settingsLastPositionValid =
+                placement.value(
+                    "settingsLastValid",
+                    false);
+            settings_.settingsLastX =
+                placement.value(
+                    "settingsLastX",
+                    0);
+            settings_.settingsLastY =
+                placement.value(
+                    "settingsLastY",
+                    0);
         }
 
         if (root.contains("hotkey") &&
@@ -833,6 +906,26 @@ bool SettingsStore::Save() const {
             {"showResultIcons",
              settings_.showResultIcons}
         }},
+        {"windowPlacement", {
+            {"launcherMode",
+             NormalizeLauncherPlacement(
+                 settings_.launcherPlacement)},
+            {"settingsMode",
+             NormalizeSettingsPlacement(
+                 settings_.settingsPlacement)},
+            {"launcherLastValid",
+             settings_.launcherLastPositionValid},
+            {"launcherLastX",
+             settings_.launcherLastX},
+            {"launcherLastY",
+             settings_.launcherLastY},
+            {"settingsLastValid",
+             settings_.settingsLastPositionValid},
+            {"settingsLastX",
+             settings_.settingsLastX},
+            {"settingsLastY",
+             settings_.settingsLastY}
+        }},
         {"providers",
          std::move(providersJson)},
         {"update", {
@@ -1095,6 +1188,108 @@ bool SettingsStore::SetUpdateSettings(
         autoCheck;
     settings_.updateChannel =
         channel;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::SetWindowPlacement(
+    std::string launcherPlacement,
+    std::string settingsPlacement) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    launcherPlacement =
+        NormalizeLauncherPlacement(
+            std::move(
+                launcherPlacement));
+    settingsPlacement =
+        NormalizeSettingsPlacement(
+            std::move(
+                settingsPlacement));
+
+    if (settings_.launcherPlacement ==
+            launcherPlacement &&
+        settings_.settingsPlacement ==
+            settingsPlacement) {
+        return true;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.launcherPlacement =
+        std::move(
+            launcherPlacement);
+    settings_.settingsPlacement =
+        std::move(
+            settingsPlacement);
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::RememberLauncherPosition(
+    int x,
+    int y) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    if (settings_.launcherLastPositionValid &&
+        settings_.launcherLastX == x &&
+        settings_.launcherLastY == y) {
+        return true;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.launcherLastPositionValid =
+        true;
+    settings_.launcherLastX = x;
+    settings_.launcherLastY = y;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::RememberSettingsPosition(
+    int x,
+    int y) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    if (settings_.settingsLastPositionValid &&
+        settings_.settingsLastX == x &&
+        settings_.settingsLastY == y) {
+        return true;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.settingsLastPositionValid =
+        true;
+    settings_.settingsLastX = x;
+    settings_.settingsLastY = y;
 
     if (!Save()) {
         settings_ = previous;

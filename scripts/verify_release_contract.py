@@ -36,6 +36,267 @@ if not match:
 base = ".".join(match.group(1, 2, 3))
 channel = match.group(4)
 
+if version == "0.8.0-alpha.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 8:
+        fail("v0.8 alpha.2 settings example must use schemaVersion 8")
+    if settings.get("update") != {"autoCheck": True, "channel": "development"}:
+        fail("v0.8 alpha.2 prerelease must default to Development updates")
+
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("providers") != expected_providers:
+        fail("v0.8 alpha.2 changed frozen provider defaults")
+
+    expected_hotkeys = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_hotkeys:
+        fail("v0.8 alpha.2 changed frozen Hotkey Registry action IDs")
+
+    expected_placement = {
+        "launcherMode": "top",
+        "settingsMode": "center",
+        "launcherLastValid": False,
+        "launcherLastX": 0,
+        "launcherLastY": 0,
+        "settingsLastValid": False,
+        "settingsLastX": 0,
+        "settingsLastY": 0,
+    }
+    if settings.get("windowPlacement") != expected_placement:
+        fail("v0.8 alpha.2 windowPlacement defaults do not preserve prior behavior")
+
+    metrics = read("src/ui/UiMetrics.hpp")
+    for token in (
+        "kClassicLauncherMetrics",
+        "420",
+        "16",
+        "10",
+        "kModernCompactLauncherMetrics",
+        "620",
+        "32",
+        "9",
+        "kSettingsSidebarWidthLogical = 208",
+        "kSettingsToggleRowLogical = 62",
+        "kSettingsComboRowLogical = 68",
+        "kSettingsCardRadiusLogical = 8",
+        "kSettingsNavHeightLogical = 40",
+        "kSettingsNavGapLogical = 4",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.2 Settings metric contract missing: {token}")
+
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    launcher_cpp = read("src/ui/LauncherWindow.cpp")
+    settings_store = read("src/core/Settings.cpp") + read("src/core/Settings.hpp")
+    app = read("src/app/App.cpp") + read("src/app/App.hpp")
+
+    legacy_hotkey_tokens = (
+        "legacyHotkeyControls_",
+        "hotkeyCtrl_",
+        "hotkeyApply_",
+        "auxiliaryHotkeyCtrl_",
+        "ApplyAuxiliaryHotkeyControl",
+        "ApplyHotkeyControl",
+        "RefreshHotkeyControls",
+        "hotkeySectionTitle_",
+        "primaryHotkeyLabel_",
+    )
+    for token in legacy_hotkey_tokens:
+        if token in settings_h or token in settings_cpp:
+            fail(f"v0.8 alpha.2 resurrected legacy General hotkey UI: {token}")
+
+    for token in (
+        "brandName_",
+        "brandSubtitle_",
+        "kIdLauncherPlacement",
+        "kIdSettingsPlacement",
+        "placementSectionTitle_",
+        "launcherPlacement_",
+        "settingsPlacement_",
+        "DrawActionButton",
+        "DrawHotkeyActionItem",
+        "LBS_OWNERDRAWFIXED",
+        "providerFilesTitle_",
+        "appearanceLauncherTitle_",
+        "appearanceAppTitle_",
+        "aboutProjectTitle_",
+    ):
+        if token not in settings_h + settings_cpp:
+            fail(f"v0.8 alpha.2 Settings redesign wiring missing: {token}")
+
+    create_general_start = settings_cpp.find("void SettingsWindow::CreateGeneralPage")
+    create_general_end = settings_cpp.find("void SettingsWindow::CreateHotkeyPage", create_general_start)
+    create_general = settings_cpp[create_general_start:create_general_end]
+    if "showResultIcons_" not in create_general:
+        fail("v0.8 alpha.2 result icons must live in General / Launcher behavior")
+
+    create_appearance_start = settings_cpp.find("void SettingsWindow::CreateAppearancePage")
+    create_appearance_end = settings_cpp.find("void SettingsWindow::CreateProviderPage", create_appearance_start)
+    create_appearance = settings_cpp[create_appearance_start:create_appearance_end]
+    if "showResultIcons_" in create_appearance or "resultIconsNote_" in create_appearance:
+        fail("v0.8 alpha.2 Appearance must not own result-icon controls")
+
+    layout_start = settings_cpp.find("void SettingsWindow::Layout")
+    layout_end = settings_cpp.find("RECT SettingsWindow::ProviderCardRect", layout_start)
+    layout = settings_cpp[layout_start:layout_end]
+    required_nav_order = (
+        "navGeneral_",
+        "navHotkeys_",
+        "navProviders_",
+        "navAppearance_",
+        "navData_",
+        "navDiagnostics_",
+    )
+    nav_positions = [layout.find(token) for token in required_nav_order]
+    if any(position < 0 for position in nav_positions) or nav_positions != sorted(nav_positions):
+        fail("v0.8 alpha.2 sidebar order must be General -> Hotkeys -> Search sources -> Appearance -> Data -> Diagnostics")
+
+    for token in (
+        'launcherPlacement{"top"}',
+        'settingsPlacement{"center"}',
+        "launcherLastPositionValid",
+        "settingsLastPositionValid",
+        '"windowPlacement"',
+        "SetWindowPlacement(",
+        "RememberLauncherPosition(",
+        "RememberSettingsPosition(",
+    ):
+        if token not in settings_store:
+            fail(f"v0.8 alpha.2 placement persistence contract missing: {token}")
+
+    for token in (
+        "SetWindowPlacementSettings",
+        "RememberLauncherPosition",
+        "RememberSettingsPosition",
+    ):
+        if token not in app:
+            fail(f"v0.8 alpha.2 App placement integration missing: {token}")
+
+    for token in (
+        'settings.launcherPlacement == "last"',
+        'settings.launcherPlacement ==\n                "center"',
+        "MonitorFromRect",
+        "RememberLauncherPosition",
+        "WM_EXITSIZEMOVE",
+    ):
+        if token not in launcher_cpp:
+            fail(f"v0.8 alpha.2 Launcher placement behavior missing: {token}")
+
+    for token in (
+        "PositionForShow",
+        "settings.settingsPlacement ==",
+        '"last"',
+        "ClampRectToWorkArea",
+        "RememberSettingsPosition",
+        "WM_EXITSIZEMOVE",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.2 Settings placement behavior missing: {token}")
+
+    ui_test = read("tests/UiFoundationTests.cpp")
+    for token in (
+        "kSettingsSidebarWidthLogical == 208",
+        "kSettingsToggleRowLogical == 62",
+        "kSettingsComboRowLogical == 68",
+        "kSettingsCardRadiusLogical == 8",
+    ):
+        if token not in ui_test:
+            fail(f"v0.8 alpha.2 UI metric regression coverage missing: {token}")
+
+    upgrade = read("tests/UpgradeMatrixTests.cpp")
+    for token in (
+        "AssertSchema7Migration",
+        "schema7-to-schema8",
+        'launcherPlacement ==\n        "top"',
+        'settingsPlacement ==\n        "center"',
+        '"windowPlacement"',
+    ):
+        if token not in upgrade:
+            fail(f"v0.8 alpha.2 schema 7 -> 8 migration coverage missing: {token}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "schemaVersion -ne 8",
+        "schema 2 -> 8",
+        "windowPlacement.launcherMode",
+        "windowPlacement.settingsMode",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.2 packaged runtime migration gate missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.1"',
+        '"0.8.0-alpha.2"',
+        "UpdateChannel::Development",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    for token in (
+        "## v0.8.0-alpha.2 — Settings UX Redesign",
+        "schemaVersion advances from 7 to 8",
+        "0.8.0.2",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2",
+        "schemaVersion from 7 to 8",
+        "0.8.0.2",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2",
+        "v0.8.0-alpha.3",
+        "settings schemaVersion to 8",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2 Settings UX contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| nav=General/Hotkeys/Search sources/Appearance/Data/Diagnostics/About",
+        "| result icons moved to General",
+        "| Launcher monitor separated from top/center/last placement",
+        "| Settings center/last placement with remembered positions",
+        "| legacy General hotkey UI removed",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 7,

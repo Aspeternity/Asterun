@@ -24,21 +24,13 @@ struct Rect {
 struct GeneralLayoutMetrics {
     Rect behavior{};
     Rect search{};
-    Rect monitor{};
+    Rect placement{};
     int behaviorTitleTop{};
     int searchTitleTop{};
-    int hotkeySectionTop{};
-    int primaryRowTop{};
-    int primaryKeyRowTop{};
-    int primaryStatusTop{};
-    int auxiliaryRowTop{};
-    int auxiliaryKeyRowTop{};
-    int auxiliaryStatusTop{};
-    int popupSectionTop{};
+    int placementTitleTop{};
     int noteTop{};
     int contentBottom{};
     bool stackedCards{false};
-    bool compactHotkeys{false};
 };
 
 [[nodiscard]] int Scale(

@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2 — Settings UX Redesign
+
+Alpha 2 is the first visible v0.8 product-polish release. Settings now uses a compact native card/row system with a 208 logical-pixel sidebar, fixed page header, right-side toggle switches, unified secondary/primary/danger buttons, and the navigation order `General -> Hotkeys -> Search sources -> Appearance -> Data -> Diagnostics -> About`.
+
+General now owns launcher behavior, search behavior and window placement. Search-result icons move from Appearance into Launcher behavior. Monitor selection remains independent from placement: Launcher can open near the top, centered, or at its last manually moved position; Settings can open centered or at its last position. Last positions are clamped to a currently available monitor so display/DPI changes cannot strand a window off-screen.
+
+Hotkeys keeps its two-column workflow but gains a two-line owner-drawn action list. Search sources separates Windows application providers from Everything file/folder search and presents concise Everything state. Appearance now contains only launcher style and language. Data owns the data-directory entry plus import/export and maintenance actions. Diagnostics is reorganized into scan-friendly cards. About now focuses on product identity, updates and the project link.
+
+The obsolete hidden General-page hotkey controls are removed completely. Settings schemaVersion advances from 7 to 8 only for the new window-placement preferences/state; all existing v0.7 Provider IDs/defaults, Hotkey Registry IDs, search/ranking behavior, Managed Everything lifecycle, updater/uninstaller contracts and Shortcut TSV v3 remain unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.2`.
+
 ## v0.8.0-alpha.1 — Unified UI Foundation & Legacy Cleanup
 
 Alpha 1 starts the v0.8 product-polish line without redesigning the visible interface yet. It introduces shared `UiTheme`, `UiMetrics` and `UiTypography` foundations so Launcher, Settings, Shortcut Manager, Shortcut Editor and Path Conversion use one source for semantic palettes, DPI scaling, geometry tokens and font specifications while preserving their existing appearance.
