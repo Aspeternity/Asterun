@@ -1,7 +1,11 @@
+#include "core/AppPathsProvider.hpp"
+#include "core/ProviderCache.hpp"
 #include "core/ProviderIds.hpp"
 #include "core/ProviderRegistry.hpp"
 
 #include <cassert>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <unordered_set>
@@ -10,6 +14,107 @@
 using namespace altrun;
 
 int main() {
+    {
+        AppPathsProvider provider;
+
+        for (const auto& command :
+             provider.Discover()) {
+            std::error_code ec;
+            assert(
+                std::filesystem::
+                    is_regular_file(
+                        std::filesystem::path(
+                            command.target),
+                        ec));
+        }
+    }
+
+    {
+        const auto root =
+            std::filesystem::
+                temp_directory_path() /
+            "ALTRunNext-provider-smoke";
+
+        std::error_code ec;
+        std::filesystem::remove_all(
+            root,
+            ec);
+        ec.clear();
+        std::filesystem::create_directories(
+            root,
+            ec);
+        assert(!ec);
+
+        const auto cachePath =
+            root /
+            "provider-cache.json";
+        const auto liveTarget =
+            root /
+            "live.exe";
+        const auto missingTarget =
+            root /
+            "missing.exe";
+
+        {
+            std::ofstream liveFile(
+                liveTarget,
+                std::ios::binary);
+            liveFile.put('\0');
+        }
+
+        ProviderCacheData data;
+        ProviderCacheEntry entry;
+
+        Command live;
+        live.id = L"apppath:live";
+        live.title = L"Live";
+        live.keyword = L"live";
+        live.target =
+            liveTarget.wstring();
+        live.source =
+            CommandSource::AppPaths;
+        live.enabled = true;
+        entry.commands.push_back(live);
+
+        Command stale;
+        stale.id = L"apppath:stale";
+        stale.title = L"Stale";
+        stale.keyword = L"stale";
+        stale.target =
+            missingTarget.wstring();
+        stale.source =
+            CommandSource::AppPaths;
+        stale.enabled = true;
+        entry.commands.push_back(stale);
+
+        data.emplace(
+            std::string(
+                providers::kAppPaths),
+            std::move(entry));
+
+        ProviderCache cache(cachePath);
+        assert(cache.Save(data));
+
+        const auto loaded =
+            cache.Load();
+        const auto it =
+            loaded.find(
+                std::string(
+                    providers::kAppPaths));
+
+        assert(it != loaded.end());
+        assert(
+            it->second.commands.size() ==
+            1);
+        assert(
+            it->second.commands[0].id ==
+            L"apppath:live");
+
+        std::filesystem::remove_all(
+            root,
+            ec);
+    }
+
     ProviderRegistry registry;
 
     const auto descriptors =

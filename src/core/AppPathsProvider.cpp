@@ -241,6 +241,16 @@ void EnumerateAppPathsKey(
             continue;
         }
 
+        std::error_code targetError;
+        if (!std::filesystem::is_regular_file(
+                std::filesystem::path(target),
+                targetError)) {
+            // App Paths entries are not guaranteed to be cleaned up when an
+            // application is moved or uninstalled. Do not expose a command
+            // that is already known to fail with ERROR_FILE_NOT_FOUND.
+            continue;
+        }
+
         std::wstring title =
             FriendlyStem(
                 subkeyName);

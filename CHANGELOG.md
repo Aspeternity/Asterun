@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0-beta.9
+
+- Filters stale Windows App Paths registry entries whose resolved executable target no longer exists.
+- Applies the same stale-target validation while loading generated provider-cache data, so old cached App Paths commands disappear before asynchronous refresh completes.
+- Preserves valid Start Menu/PATH/packaged-app discovery and existing provider ranking/merge behavior.
+- Adds Windows provider smoke coverage for live App Paths targets and old-cache stale-entry suppression.
+- Extends prerelease ordering coverage to `beta.8 < beta.9 < rc.1`.
+- Keeps settings schema 7, commands schema 2, usage schema 1, provider-cache schema 2 and Shortcut TSV v3 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.108.
+
 ## 0.7.0-beta.8
 
 - Fixed the Beta 7 high-probability full-uninstall timeout/error 1460 caused by acquiring a broker DELETE lease while Explorer was enumerating the installation folder from its immediate parent.

@@ -4,6 +4,7 @@
 #include "ProviderIds.hpp"
 #include "TextCodec.hpp"
 
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -107,6 +108,25 @@ bool SourceMatchesProvider(
         providerId == expected;
 }
 
+bool CachedProviderTargetIsUsable(
+    const Command& command) {
+#ifdef _WIN32
+    if (command.source ==
+            CommandSource::AppPaths) {
+        std::error_code ec;
+        return std::filesystem::
+            is_regular_file(
+                std::filesystem::path(
+                    command.target),
+                ec);
+    }
+#else
+    (void)command;
+#endif
+
+    return true;
+}
+
 std::optional<Command>
 ParseCommand(
     const nlohmann::json& item) {
@@ -208,6 +228,11 @@ ParseCommand(
 
     if (command.icon.empty()) {
         command.icon = L"auto";
+    }
+
+    if (!CachedProviderTargetIsUsable(
+            command)) {
+        return std::nullopt;
     }
 
     return command;

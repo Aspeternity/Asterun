@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-beta.9 — Stale App Paths Filtering
+
+Beta 9 is a focused provider-data fix discovered after the full Beta validation pass. Windows can retain `App Paths` registry entries after an application has been moved or uninstalled; previous ALTRun Next builds accepted the registry string as authoritative, so a stale entry such as `chrome.exe -> D:\\Chrome\\App\\chrome.exe` could outrank a valid Start Menu shortcut and fail only when executed.
+
+The App Paths provider now requires the resolved target to be a live regular file before indexing it. Provider cache loading applies the same rule on Windows, so stale App Paths commands written by older builds disappear from the very first search after upgrade instead of remaining visible until the asynchronous provider refresh completes. Existing Start Menu, PATH and packaged-app behavior is unchanged.
+
+Windows provider smoke coverage now verifies both live App Paths discovery and old-cache stale-entry suppression. No persisted schema, Provider ID/default, ranking weight, update/uninstall contract, Everything lifecycle or shortcut format changes are introduced. Update ordering now includes `beta.8 < beta.9 < rc.1`. Windows fixed FileVersion/ProductVersion is `0.7.0.108`.
+
 ## v0.7.0-beta.8 — Native Uninstall Shell-Parking Fix
 
 Beta 8 corrects the Beta 7 delete-lease handoff after real Windows validation showed frequent error 1460 timeouts. The issue was self-inflicted: Beta 7 navigated Explorer only to the installation folder's immediate parent and then asked the normal-integrity broker to acquire DELETE access to the root. Explorer could immediately enumerate or select the just-left ALTRun folder in that parent view, keeping a non-delete-sharing Shell handle alive and causing the broker lease to time out.
@@ -91,7 +99,7 @@ Beta 1 freezes the v0.7 shortcut and launcher workflow surface after the alpha.9
 
 The frozen public identifiers include the existing Windows/Everything Provider IDs and Hotkey Registry action IDs. The portable executable contract is `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; the obsolete `ALTRunNext.Updater.exe` name remains prohibited. Managed Everything remains portable under `data/tools/Everything`; normal application exit keeps an enabled owned service warm, while explicitly disabling the Everything provider stops/disables only the owned service. External Everything ownership remains protected.
 
-Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < beta.6 < beta.7 < beta.8 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
+Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < beta.6 < beta.7 < beta.8 < beta.9 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
 
 The package now includes `V0.7_BETA_VALIDATION.md`, the manual real-Windows sign-off matrix for native alpha.9.4 -> beta.1 update, Shortcut Manager/Editor, Runtime Input, Path Conversion, asynchronous icons, Context Actions, Managed/External Everything ownership, native uninstall, DPI and performance. Windows fixed FileVersion/ProductVersion is `0.7.0.100`.
 
