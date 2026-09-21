@@ -109,13 +109,11 @@ private:
     static constexpr UINT
         kIdOpenGitHub = 51302;
     static constexpr UINT
-        kIdUpdateChannel = 51303;
+        kIdUpdatePrerelease = 51303;
     static constexpr UINT
         kIdUpdateAutoCheck = 51304;
     static constexpr UINT
-        kIdUpdateCheck = 51305;
-    static constexpr UINT
-        kIdUpdateInstall = 51306;
+        kIdUpdateAction = 51305;
 
     static constexpr UINT
         kIdDataImportTsv = 51502;
@@ -179,7 +177,7 @@ private:
     void RecheckEverything();
     void RefreshDataCompatibilityStatus();
     void RefreshUpdateStatus();
-    void ApplyUpdateSettings();
+    void TogglePrereleaseUpdates();
 
     void ToggleGeneralSetting(
         UINT id);
@@ -380,16 +378,13 @@ private:
     HWND dataStatus_{};
 
     HWND aboutName_{};
-    HWND aboutProjectTitle_{};
     HWND aboutVersion_{};
     HWND aboutDescription_{};
     HWND updateSectionTitle_{};
-    HWND updateChannelLabel_{};
-    HWND updateChannel_{};
     HWND updateAutoCheck_{};
+    HWND updatePrerelease_{};
     HWND updateStatus_{};
-    HWND updateCheck_{};
-    HWND updateInstall_{};
+    HWND updateAction_{};
     HWND openGitHub_{};
 
     HFONT normalFont_{};

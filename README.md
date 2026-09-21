@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.7 — About Page & Update UX Polish
+
+Alpha 2.7 finishes the Settings redesign with a compact About page and a user-facing prerelease preference instead of the previous technical update-channel selector.
+
+The About header now groups the product name, version, one-line product description and GitHub entry without a separate low-density Project card. Updates use a 560-logical-pixel card with two native switches: automatic checks and **接收预发布版更新 / Get prerelease updates**. Stable remains the internal default channel for every first run and settings reset, regardless of whether the current build itself is Stable, Alpha, Beta or RC; existing persisted channel choices are preserved.
+
+Update status and action now share one compact row. A single state-driven action changes between Check, Check again, Download and install, progress states and Retry instead of permanently showing two competing buttons. Changing the prerelease preference invalidates the previous update result through the existing update-generation/reset path and starts a fresh check only when automatic checking is enabled.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything lifecycle, updater safety/rollback/startup-health contract, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.27`.
+
 ## v0.8.0-alpha.2.6 — Settings Focus & Combo Polish
 
 Alpha 2.6 fixes the last two native ComboBox rough edges found in real-Windows Settings validation.

@@ -167,6 +167,10 @@ int main() {
     assert(
         IsUpdateVersionNewer(
             "0.8.0-alpha.2.6",
+            "0.8.0-alpha.2.7"));
+    assert(
+        IsUpdateVersionNewer(
+            "0.8.0-alpha.2.7",
             "0.8.0-alpha.3"));
 
     assert(
@@ -177,43 +181,23 @@ int main() {
     assert(
         DefaultUpdateChannelForVersion(
             "0.7.0-alpha.9") ==
-        UpdateChannel::Development);
+        UpdateChannel::Stable);
+    assert(
+        DefaultUpdateChannelForVersion(
+            "0.7.0-beta.12") ==
+        UpdateChannel::Stable);
+    assert(
+        DefaultUpdateChannelForVersion(
+            "0.7.0-rc.1") ==
+        UpdateChannel::Stable);
     assert(
         DefaultUpdateChannelForVersion(
             "0.7.0") ==
         UpdateChannel::Stable);
     assert(
         DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.1") ==
-        UpdateChannel::Development);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.2") ==
-        UpdateChannel::Development);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.2.1") ==
-        UpdateChannel::Development);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.2.2") ==
-        UpdateChannel::Development);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.2.3") ==
-        UpdateChannel::Development);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.2.4") ==
-        UpdateChannel::Development);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.2.5") ==
-        UpdateChannel::Development);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.2.6") ==
-        UpdateChannel::Development);
+            "0.8.0-alpha.2.7") ==
+        UpdateChannel::Stable);
 
     assert(
         UpdateManifestUrl(

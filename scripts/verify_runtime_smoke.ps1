@@ -149,7 +149,7 @@ try {
     }
 
     $version = (Get-Content $versionPath -Raw).Trim()
-    $expectedUpdateChannel = if ($version -match '-') { "development" } else { "stable" }
+    $expectedUpdateChannel = "stable"
 
     if ($migratedSettings.update.channel -ne $expectedUpdateChannel) {
         throw "Packaged runtime migration update channel '$($migratedSettings.update.channel)' does not match expected '$expectedUpdateChannel'."

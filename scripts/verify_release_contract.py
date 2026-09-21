@@ -42,6 +42,129 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.2.7":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.7 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.7 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 8:
+        fail("v0.8 alpha.2.7 settings example must remain schemaVersion 8")
+    if settings.get("update") != {"autoCheck": True, "channel": "stable"}:
+        fail("v0.8 alpha.2.7 prerelease updates must default to opt-in/off")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "kIdUpdatePrerelease",
+        "updatePrerelease_",
+        "kIdUpdateAction",
+        "updateAction_",
+        'T(L"接收预发布版更新",',
+        'L"Get prerelease updates"',
+        "TogglePrereleaseUpdates",
+        "PageCardRect(\n                    258,\n                    174,\n                    560)",
+        "const int actionWidth =\n            Scale(140);",
+        "aboutDescription_",
+        "openGitHub_",
+        "const auto dismissComboFocus =",
+        "std::array<HWND, 6>",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.7 About/update UX contract missing: {token}")
+
+    for token in (
+        "aboutProjectTitle_",
+        "updateChannelLabel_",
+        "updateChannel_",
+        "kIdUpdateChannel",
+        "updateCheck_",
+        "updateInstall_",
+        "kIdUpdateCheck",
+        "kIdUpdateInstall",
+        "RuntimeDiagnosticsSnapshot",
+        "ProcessMemory",
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+        "kIdDataImportLegacy",
+        "dataImportLegacy_",
+    ):
+        if token in settings_cpp or token in settings_h:
+            fail(f"v0.8 alpha.2.7 obsolete/removed Settings surface returned: {token}")
+
+    update_policy = read("src/core/UpdatePolicy.cpp")
+    if "return UpdateChannel::Stable;" not in update_policy:
+        fail("v0.8 alpha.2.7 first-run update channel must default to Stable")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.6"',
+        '"0.8.0-alpha.2.7"',
+        '"0.8.0-alpha.3"',
+        '"0.7.0-alpha.9"',
+        '"0.7.0-beta.12"',
+        '"0.7.0-rc.1"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.7 update ordering/default coverage missing: {token}")
+
+    config_schema = read("docs/CONFIG_SCHEMA.md")
+    for token in (
+        "Starting with v0.8.0-alpha.2.7",
+        "prerelease updates are always an explicit opt-in",
+        "existing persisted channel choices are preserved",
+    ):
+        if token not in config_schema:
+            fail(f"v0.8 alpha.2.7 config documentation missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.7 — About Page & Update UX Polish",
+        "0.8.0.27",
+        "接收预发布版更新",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.7 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.7",
+        "0.8.0.27",
+        "Get prerelease updates",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.7 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.7",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.7 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.7 About/update UX contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| prerelease updates=opt-in",
+        "| About card=560",
+        "| single state-driven update action",
+        "| alpha.2.6 behavior preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.6":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.2.7
+
+- Reworked About into a compact product header plus one 560-logical-pixel Updates card and removed the low-density Project card.
+- Replaced the visible Stable / Development channel ComboBox with the user-facing **接收预发布版更新 / Get prerelease updates** switch while preserving the internal update-channel contract.
+- Made prerelease updates opt-in by default for every build type; fresh settings and reset defaults now use the Stable channel even when the running build is Alpha, Beta or RC.
+- Preserved existing persisted update-channel choices across upgrades.
+- Consolidated Check and Download/Install into one state-driven update action with Check again, progress and Retry states.
+- Kept channel/preference changes on the existing update-generation reset path so stale check results are discarded and automatic checking refreshes only when enabled.
+- Kept Settings schemaVersion 8 and all frozen v0.7 updater safety, rollback, startup-health and publication contracts unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.27`.
+
 ## 0.8.0-alpha.2.6
 
 - Made every Settings ComboBox relinquish focus when the user clicks elsewhere inside the Settings window, including background/card/static areas.

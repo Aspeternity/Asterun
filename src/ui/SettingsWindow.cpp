@@ -786,46 +786,25 @@ void SettingsWindow::CreateAboutPage() {
 
     updateSectionTitle_ =
         CreateStatic(L"");
-    aboutProjectTitle_ =
-        CreateStatic(L"");
-    updateChannelLabel_ =
-        CreateStatic(L"");
-
-    updateChannel_ =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdUpdateChannel)),
-            instance_,
-            nullptr);
 
     updateAutoCheck_ =
         CreateCheckboxRow(
             L"",
             kIdUpdateAutoCheck);
+    updatePrerelease_ =
+        CreateCheckboxRow(
+            L"",
+            kIdUpdatePrerelease);
 
     updateStatus_ =
         CreateStatic(
             L"",
             SS_LEFT | SS_NOPREFIX);
 
-    updateCheck_ =
+    updateAction_ =
         CreateButton(
             L"",
-            kIdUpdateCheck);
-    updateInstall_ =
-        CreateButton(
-            L"",
-            kIdUpdateInstall);
+            kIdUpdateAction);
 
     openGitHub_ =
         CreateButton(
@@ -837,13 +816,10 @@ void SettingsWindow::CreateAboutPage() {
         aboutVersion_,
         aboutDescription_,
         updateSectionTitle_,
-        aboutProjectTitle_,
-        updateChannelLabel_,
-        updateChannel_,
         updateAutoCheck_,
+        updatePrerelease_,
         updateStatus_,
-        updateCheck_,
-        updateInstall_,
+        updateAction_,
         openGitHub_,
     };
 }
@@ -950,12 +926,10 @@ void SettingsWindow::ApplyFonts() {
         dataStatus_,
         aboutVersion_,
         aboutDescription_,
-        updateChannelLabel_,
-        updateChannel_,
         updateAutoCheck_,
+        updatePrerelease_,
         updateStatus_,
-        updateCheck_,
-        updateInstall_,
+        updateAction_,
         openGitHub_,
     };
 
@@ -1000,7 +974,7 @@ void SettingsWindow::ApplyFonts() {
     }
 
     for (HWND control :
-         std::array<HWND, 14>{
+         std::array<HWND, 13>{
              generalBehaviorTitle_,
              searchBehaviorTitle_,
              placementSectionTitle_,
@@ -1013,8 +987,7 @@ void SettingsWindow::ApplyFonts() {
              dataPathLabel_,
              dataTransferLabel_,
              dataMaintenanceLabel_,
-             updateSectionTitle_,
-             aboutProjectTitle_}) {
+             updateSectionTitle_}) {
         if (control) {
             SendMessageW(
                 control,
@@ -1389,61 +1362,26 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutDescription_,
-        L"");
+        T(L"Windows 原生、轻量、高响应的键盘启动器",
+          L"Native, lightweight, responsive keyboard launcher for Windows"));
+
     SetWindowTextW(
         updateSectionTitle_,
         T(L"更新",
           L"Updates"));
-    SetWindowTextW(
-        aboutProjectTitle_,
-        T(L"项目",
-          L"Project"));
-    SetWindowTextW(
-        updateChannelLabel_,
-        T(L"更新通道",
-          L"Update channel"));
-
-    const int oldUpdateChannel =
-        static_cast<int>(
-            SendMessageW(
-                updateChannel_,
-                CB_GETCURSEL,
-                0,
-                0));
-
-    SendMessageW(
-        updateChannel_,
-        CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        updateChannel_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"稳定版", L"Stable")));
-    SendMessageW(
-        updateChannel_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"开发版", L"Development")));
-    SendMessageW(
-        updateChannel_,
-        CB_SETCURSEL,
-        oldUpdateChannel >= 0
-            ? oldUpdateChannel
-            : 0,
-        0);
 
     SetWindowTextW(
         updateAutoCheck_,
         T(L"自动检查更新",
           L"Automatically check for updates"));
     SetWindowTextW(
-        updateCheck_,
+        updatePrerelease_,
+        T(L"接收预发布版更新",
+          L"Get prerelease updates"));
+    SetWindowTextW(
+        updateAction_,
         T(L"检查更新",
           L"Check for updates"));
-    SetWindowTextW(
-        updateInstall_,
-        T(L"下载并安装",
-          L"Download and install"));
     SetWindowTextW(
         openGitHub_,
         L"GitHub");
@@ -1534,18 +1472,18 @@ void SettingsWindow::RefreshFromSettings() {
         0);
 
     SendMessageW(
-        updateChannel_,
-        CB_SETCURSEL,
-        settings.updateChannel ==
-                UpdateChannel::Development
-            ? 1
-            : 0,
-        0);
-
-    SendMessageW(
         updateAutoCheck_,
         BM_SETCHECK,
         settings.autoCheckUpdates
+            ? BST_CHECKED
+            : BST_UNCHECKED,
+        0);
+
+    SendMessageW(
+        updatePrerelease_,
+        BM_SETCHECK,
+        settings.updateChannel ==
+                UpdateChannel::Development
             ? BST_CHECKED
             : BST_UNCHECKED,
         0);
@@ -1577,7 +1515,7 @@ void SettingsWindow::RefreshFromSettings() {
     RefreshUpdateStatus();
 
     for (HWND control :
-         std::array<HWND, 17>{
+         std::array<HWND, 18>{
              startWithWindows_,
              showOnStartup_,
              hideAfterLaunch_,
@@ -1594,7 +1532,8 @@ void SettingsWindow::RefreshFromSettings() {
              providerAppPaths_,
              providerPath_,
              providerEverything_,
-             updateAutoCheck_}) {
+             updateAutoCheck_,
+             updatePrerelease_}) {
         if (control) {
             InvalidateRect(
                 control,
@@ -2546,15 +2485,14 @@ void SettingsWindow::ShowPage(Page page) {
         page == Page::About);
 
     for (HWND control :
-         std::array<HWND, 9>{
+         std::array<HWND, 7>{
              pageDescription_,
              popupMonitorDescription_,
              launcherPlacementDescription_,
              settingsPlacementDescription_,
              generalNote_,
              providerNote_,
-             appearanceNote_,
-             aboutDescription_}) {
+             appearanceNote_}) {
         if (control) {
             ShowWindow(
                 control,
@@ -3282,6 +3220,9 @@ bool SettingsWindow::ToggleChecked(
         return settings.showResultIcons;
     case kIdUpdateAutoCheck:
         return settings.autoCheckUpdates;
+    case kIdUpdatePrerelease:
+        return settings.updateChannel ==
+            UpdateChannel::Development;
     case kIdPinyinSearch:
         return settings.pinyinSearch;
     case kIdWildcardMatching:
@@ -4292,92 +4233,97 @@ void SettingsWindow::Layout() {
         const int width =
             std::min(
                 contentWidth,
-                Scale(680));
+                Scale(560));
+        const int inner =
+            Scale(18);
+        const int actionWidth =
+            Scale(140);
 
         MoveWindow(
             aboutName_,
             contentLeft,
             Scale(108),
-            width,
+            width - Scale(150),
             Scale(42),
+            TRUE);
+        MoveWindow(
+            openGitHub_,
+            contentLeft +
+                width -
+                Scale(120),
+            Scale(112),
+            Scale(120),
+            Scale(34),
             TRUE);
         MoveWindow(
             aboutVersion_,
             contentLeft,
             Scale(150),
             width,
-            Scale(26),
+            Scale(24),
+            TRUE);
+        MoveWindow(
+            aboutDescription_,
+            contentLeft,
+            Scale(178),
+            width,
+            Scale(24),
             TRUE);
 
         MoveWindow(
             updateSectionTitle_,
             contentLeft,
-            Scale(206),
+            Scale(226),
             width,
             Scale(26),
             TRUE);
 
-        MoveWindow(
-            updateChannelLabel_,
-            contentLeft + Scale(18),
-            Scale(258),
-            Scale(160),
-            Scale(24),
-            TRUE);
-        MoveWindow(
-            updateChannel_,
-            contentLeft + width -
-                Scale(236),
-            Scale(249),
-            Scale(218),
-            Scale(180),
-            TRUE);
+        const int updateTop =
+            Scale(258);
+        const int rowHeight =
+            Scale(
+                settings_layout::
+                    kToggleRowLogical);
 
         MoveWindow(
             updateAutoCheck_,
             contentLeft + Scale(1),
-            Scale(294),
+            updateTop + Scale(1),
             width - Scale(2),
-            Scale(
-                settings_layout::
-                    kToggleRowLogical),
+            rowHeight,
+            TRUE);
+
+        MoveWindow(
+            updatePrerelease_,
+            contentLeft + Scale(1),
+            updateTop +
+                rowHeight,
+            width - Scale(2),
+            rowHeight,
             TRUE);
 
         MoveWindow(
             updateStatus_,
-            contentLeft + Scale(18),
-            Scale(354),
-            width - Scale(36),
-            Scale(52),
+            contentLeft + inner,
+            updateTop +
+                rowHeight * 2 +
+                Scale(14),
+            width -
+                inner * 3 -
+                actionWidth,
+            Scale(42),
             TRUE);
 
         MoveWindow(
-            updateCheck_,
-            contentLeft + Scale(18),
-            Scale(420),
-            Scale(150),
-            Scale(34),
-            TRUE);
-        MoveWindow(
-            updateInstall_,
-            contentLeft + Scale(180),
-            Scale(420),
-            Scale(180),
-            Scale(34),
-            TRUE);
-
-        MoveWindow(
-            aboutProjectTitle_,
-            contentLeft,
-            Scale(510),
-            width,
-            Scale(26),
-            TRUE);
-        MoveWindow(
-            openGitHub_,
-            contentLeft + Scale(18),
-            Scale(560),
-            Scale(150),
+            updateAction_,
+            contentLeft +
+                width -
+                inner -
+                actionWidth,
+            updateTop +
+                rowHeight * 2 +
+                Scale(15),
+            actionWidth,
             Scale(34),
             TRUE);
     }
@@ -4963,7 +4909,9 @@ void SettingsWindow::DrawActionButton(
 
     const bool primary =
         item.CtlID ==
-            kIdUpdateInstall;
+                kIdUpdateAction &&
+            app_.UpdateStatus().stage ==
+                win::UpdateStage::Available;
     const bool danger =
         item.CtlID ==
             kIdDataResetSettings;
@@ -5474,31 +5422,23 @@ void SettingsWindow::OnUpdateStatusChanged() {
     RefreshUpdateStatus();
 }
 
-void SettingsWindow::ApplyUpdateSettings() {
+void SettingsWindow::TogglePrereleaseUpdates() {
     if (syncing_) {
         return;
     }
 
-    const int channelIndex =
-        static_cast<int>(
-            SendMessageW(
-                updateChannel_,
-                CB_GETCURSEL,
-                0,
-                0));
+    const auto settings =
+        app_.SettingsData();
 
-    const UpdateChannel channel =
-        channelIndex == 1
-            ? UpdateChannel::Development
-            : UpdateChannel::Stable;
-
-    const bool autoCheck =
-        app_.SettingsData()
-            .autoCheckUpdates;
+    const UpdateChannel nextChannel =
+        settings.updateChannel ==
+                UpdateChannel::Development
+            ? UpdateChannel::Stable
+            : UpdateChannel::Development;
 
     if (!app_.SetUpdateSettings(
-            autoCheck,
-            channel)) {
+            settings.autoCheckUpdates,
+            nextChannel)) {
         MessageBoxW(
             hwnd_,
             T(L"无法保存更新设置。",
@@ -5512,8 +5452,7 @@ void SettingsWindow::ApplyUpdateSettings() {
 
 void SettingsWindow::RefreshUpdateStatus() {
     if (!updateStatus_ ||
-        !updateCheck_ ||
-        !updateInstall_) {
+        !updateAction_) {
         return;
     }
 
@@ -5521,36 +5460,52 @@ void SettingsWindow::RefreshUpdateStatus() {
         app_.UpdateStatus();
 
     std::wstring text;
+    const wchar_t* actionText =
+        T(L"检查更新",
+          L"Check for updates");
+    bool actionEnabled = false;
 
     switch (status.stage) {
     case win::UpdateStage::Idle:
         text =
             T(L"尚未检查更新。",
               L"Updates have not been checked yet.");
+        actionEnabled = true;
         break;
 
     case win::UpdateStage::Checking:
         text =
             T(L"正在检查更新...",
               L"Checking for updates...");
+        actionText =
+            T(L"正在检查...",
+              L"Checking...");
         break;
 
     case win::UpdateStage::UpToDate:
         text =
             T(L"已是最新版本。",
               L"You're up to date.");
+        actionText =
+            T(L"再次检查",
+              L"Check again");
+        actionEnabled = true;
         break;
 
     case win::UpdateStage::ChannelNotNewer:
         text =
-            T(L"稳定版通道最新为 v",
-              L"The stable channel currently ends at v");
+            T(L"正式版最新为 v",
+              L"The latest stable release is v");
         text += std::wstring(
             status.availableVersion.begin(),
             status.availableVersion.end());
         text +=
             T(L"；当前版本较新，不会降级。",
               L"; this build is newer, so no downgrade will be offered.");
+        actionText =
+            T(L"再次检查",
+              L"Check again");
+        actionEnabled = true;
         break;
 
     case win::UpdateStage::Available:
@@ -5560,6 +5515,10 @@ void SettingsWindow::RefreshUpdateStatus() {
         text += std::wstring(
             status.availableVersion.begin(),
             status.availableVersion.end());
+        actionText =
+            T(L"下载并安装",
+              L"Download and install");
+        actionEnabled = true;
         break;
 
     case win::UpdateStage::Downloading:
@@ -5578,30 +5537,46 @@ void SettingsWindow::RefreshUpdateStatus() {
                     status.totalBytes);
             }
         }
+
+        actionText =
+            T(L"正在下载...",
+              L"Downloading...");
         break;
 
     case win::UpdateStage::Verifying:
         text =
             T(L"正在校验更新包 SHA-256...",
               L"Verifying update package SHA-256...");
+        actionText =
+            T(L"正在校验...",
+              L"Verifying...");
         break;
 
     case win::UpdateStage::Extracting:
         text =
             T(L"正在准备更新文件...",
               L"Preparing update files...");
+        actionText =
+            T(L"正在准备...",
+              L"Preparing...");
         break;
 
     case win::UpdateStage::ReadyToInstall:
         text =
             T(L"更新已下载并校验，正在准备安装...",
               L"Update downloaded and verified; preparing installation...");
+        actionText =
+            T(L"正在安装...",
+              L"Installing...");
         break;
 
     case win::UpdateStage::Applying:
         text =
             T(L"正在启动安全更新程序，ALTRun Next 将退出并自动重新启动。",
               L"Starting the safe updater. ALTRun Next will exit and restart automatically.");
+        actionText =
+            T(L"正在更新...",
+              L"Updating...");
         break;
 
     case win::UpdateStage::Failed:
@@ -5657,8 +5632,8 @@ void SettingsWindow::RefreshUpdateStatus() {
             break;
         case win::UpdateFailure::UpdaterMissing:
             text +=
-                T(L"缺少 ALTRunNext.Updater.exe",
-                  L"ALTRunNext.Updater.exe is missing");
+                T(L"缺少 Update.exe",
+                  L"Update.exe is missing");
             break;
         case win::UpdateFailure::LaunchUpdaterFailed:
             text +=
@@ -5684,38 +5659,44 @@ void SettingsWindow::RefreshUpdateStatus() {
             text += std::to_wstring(
                 status.nativeError);
         }
+
+        actionText =
+            T(L"重试",
+              L"Retry");
+        actionEnabled = true;
         break;
     }
 
     SetWindowTextW(
         updateStatus_,
         text.c_str());
+    SetWindowTextW(
+        updateAction_,
+        actionText);
 
     EnableWindow(
-        updateCheck_,
-        status.running
-            ? FALSE
-            : TRUE);
-
-    EnableWindow(
-        updateInstall_,
-        status.stage ==
-                win::UpdateStage::Available &&
-            !status.running
+        updateAction_,
+        actionEnabled &&
+                !status.running
             ? TRUE
             : FALSE);
-
-    EnableWindow(
-        updateChannel_,
-        status.running
-            ? FALSE
-            : TRUE);
 
     EnableWindow(
         updateAutoCheck_,
         status.running
             ? FALSE
             : TRUE);
+
+    EnableWindow(
+        updatePrerelease_,
+        status.running
+            ? FALSE
+            : TRUE);
+
+    InvalidateRect(
+        updateAction_,
+        nullptr,
+        TRUE);
 }
 
 void SettingsWindow::ShowAbout() {
@@ -5811,14 +5792,13 @@ LRESULT SettingsWindow::HandleMessage(
             }
 
             for (HWND combo :
-                 std::array<HWND, 7>{
+                 std::array<HWND, 6>{
                      numericQuickLaunchOrder_,
                      popupMonitor_,
                      launcherPlacement_,
                      settingsPlacement_,
                      uiStyle_,
-                     language_,
-                     updateChannel_}) {
+                     language_}) {
                 if (focused == combo) {
                     SetFocus(hwnd_);
                     return;
@@ -6106,10 +6086,11 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdUpdateChannel:
-            if (notify == CBN_SELCHANGE &&
+        case kIdUpdatePrerelease:
+            if (toggleActivated &&
                 !syncing_) {
-                ApplyUpdateSettings();
+                TogglePrereleaseUpdates();
+                redrawClickedToggle();
             }
             return 0;
 
@@ -6135,16 +6116,19 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdUpdateCheck:
+        case kIdUpdateAction:
             if (notify == BN_CLICKED) {
-                app_.StartUpdateCheck(true);
-                RefreshUpdateStatus();
-            }
-            return 0;
+                const auto status =
+                    app_.UpdateStatus();
 
-        case kIdUpdateInstall:
-            if (notify == BN_CLICKED) {
-                app_.StartUpdateDownloadAndInstall();
+                if (status.stage ==
+                        win::UpdateStage::Available &&
+                    !status.running) {
+                    app_.StartUpdateDownloadAndInstall();
+                } else if (!status.running) {
+                    app_.StartUpdateCheck(true);
+                }
+
                 RefreshUpdateStatus();
             }
             return 0;
@@ -6207,7 +6191,8 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdProviderAppPaths ||
             item->CtlID == kIdProviderPath ||
             item->CtlID == kIdProviderEverything ||
-            item->CtlID == kIdUpdateAutoCheck) {
+            item->CtlID == kIdUpdateAutoCheck ||
+            item->CtlID == kIdUpdatePrerelease) {
             DrawGeneralToggle(
                 *item);
             return TRUE;
@@ -6561,14 +6546,9 @@ LRESULT SettingsWindow::HandleMessage(
             page_ == Page::About) {
             drawCard(
                 PageCardRect(
-                    238,
-                    238,
-                    680));
-            drawCard(
-                PageCardRect(
-                    542,
-                    64,
-                    680));
+                    258,
+                    174,
+                    560));
         }
 
         EndPaint(
@@ -6642,7 +6622,6 @@ LRESULT SettingsWindow::HandleMessage(
             control == uiStyleLabel_ ||
             control == languageLabel_ ||
             control == dataPath_ ||
-            control == updateChannelLabel_ ||
             control == updateStatus_;
 
         const COLORREF background =

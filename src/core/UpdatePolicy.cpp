@@ -299,12 +299,10 @@ UpdateChannelName(
 
 UpdateChannel
 DefaultUpdateChannelForVersion(
-    std::string_view version) {
-    return version.find('-') !=
-                   std::string_view::npos
-        ? UpdateChannel::
-              Development
-        : UpdateChannel::Stable;
+    std::string_view) {
+    // Prerelease updates are always opt-in. First-run and reset defaults
+    // stay on the stable channel regardless of the current build label.
+    return UpdateChannel::Stable;
 }
 
 std::optional<int>
