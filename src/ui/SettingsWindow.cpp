@@ -146,13 +146,42 @@ bool SettingsWindow::Create() {
 
     dpi_ = GetDpiForWindow(hwnd_);
 
+    // Size from the desired client viewport rather than treating an
+    // outer-window size as if it were client geometry.
+    RECT desiredWindow{
+        0,
+        0,
+        Scale(1080),
+        Scale(720),
+    };
+
+    const DWORD windowStyle =
+        static_cast<DWORD>(
+            GetWindowLongPtrW(
+                hwnd_,
+                GWL_STYLE));
+    const DWORD windowExStyle =
+        static_cast<DWORD>(
+            GetWindowLongPtrW(
+                hwnd_,
+                GWL_EXSTYLE));
+
+    AdjustWindowRectExForDpi(
+        &desiredWindow,
+        windowStyle,
+        FALSE,
+        windowExStyle,
+        dpi_);
+
     SetWindowPos(
         hwnd_,
         nullptr,
         0,
         0,
-        Scale(1080),
-        Scale(800),
+        desiredWindow.right -
+            desiredWindow.left,
+        desiredWindow.bottom -
+            desiredWindow.top,
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
     ShowScrollBar(
@@ -232,9 +261,9 @@ HWND SettingsWindow::CreateCheckbox(
 
 void SettingsWindow::CreateControls() {
     brandName_ =
-        CreateStatic(L"ALTRun Next");
+        CreateStatic(L"ALTRun");
     brandSubtitle_ =
-        CreateStatic(L"Settings");
+        CreateStatic(L"Next");
 
     navGeneral_ =
         CreateButton(
@@ -504,7 +533,7 @@ void SettingsWindow::CreateHotkeyPage() {
             SS_LEFT | SS_NOPREFIX);
 
     hotkeyEnabled_ =
-        CreateCheckbox(
+        CreateCheckboxRow(
             L"",
             kIdHotkeyEnabled);
 
@@ -907,7 +936,6 @@ void SettingsWindow::ApplyFonts() {
         navData_,
         navDiagnostics_,
         navAbout_,
-        brandSubtitle_,
         pageDescription_,
         startWithWindows_,
         showOnStartup_,
@@ -1040,6 +1068,15 @@ void SettingsWindow::ApplyFonts() {
             TRUE);
     }
 
+    if (brandSubtitle_) {
+        SendMessageW(
+            brandSubtitle_,
+            WM_SETFONT,
+            reinterpret_cast<WPARAM>(
+                titleFont_),
+            TRUE);
+    }
+
     for (HWND control :
          std::array<HWND, 2>{
              brandName_,
@@ -1068,11 +1105,10 @@ void SettingsWindow::ApplyLanguage() {
           L"ALTRun Next Settings"));
     SetWindowTextW(
         brandName_,
-        L"ALTRun Next");
+        L"ALTRun");
     SetWindowTextW(
         brandSubtitle_,
-        T(L"设置", L"Settings"));
-
+        L"Next");
     SetWindowTextW(
         generalBehaviorTitle_,
         T(L"启动器行为",
@@ -1155,92 +1191,24 @@ void SettingsWindow::ApplyLanguage() {
           L"Launcher monitor"));
     SetWindowTextW(
         popupMonitorDescription_,
-        T(L"决定 Launcher 呼出时使用哪一块屏幕。",
-          L"Choose which display the launcher uses when it opens."));
-
-    SendMessageW(
-        popupMonitor_,
-        CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        popupMonitor_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"当前鼠标所在显示器",
-              L"Monitor containing the mouse")));
-    SendMessageW(
-        popupMonitor_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"当前活动窗口所在显示器",
-              L"Monitor containing the active window")));
-    SendMessageW(
-        popupMonitor_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"主显示器",
-              L"Primary monitor")));
-
+        L"");
     SetWindowTextW(
         launcherPlacementLabel_,
         T(L"Launcher 出现位置",
           L"Launcher position"));
     SetWindowTextW(
         launcherPlacementDescription_,
-        T(L"选择靠上、屏幕居中或恢复上次拖动后的坐标。",
-          L"Open near the top, centered, or at the last manually moved position."));
-
-    SendMessageW(
-        launcherPlacement_,
-        CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        launcherPlacement_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"靠近屏幕上方",
-              L"Near top of screen")));
-    SendMessageW(
-        launcherPlacement_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"屏幕居中",
-              L"Center on screen")));
-    SendMessageW(
-        launcherPlacement_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"上次位置",
-              L"Last position")));
-
+        L"");
     SetWindowTextW(
         settingsPlacementLabel_,
         T(L"设置窗口出现位置",
           L"Settings window position"));
     SetWindowTextW(
         settingsPlacementDescription_,
-        T(L"每次重新打开设置时居中，或恢复上次拖动后的坐标。",
-          L"Center the Settings window when reopened, or restore its last moved position."));
-
-    SendMessageW(
-        settingsPlacement_,
-        CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        settingsPlacement_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"屏幕居中",
-              L"Center on screen")));
-    SendMessageW(
-        settingsPlacement_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            T(L"上次位置",
-              L"Last position")));
-
+        L"");
     SetWindowTextW(
         generalNote_,
-        T(L"窗口位置与搜索行为会立即保存；“上次位置”会自动限制在当前可用屏幕范围内。",
-          L"Placement and search behavior are saved immediately. Last positions are clamped to the currently available displays."));
-
+        L"");
     SetWindowTextW(
         hotkeyEnabled_,
         T(L"启用此快捷键",
@@ -1255,9 +1223,7 @@ void SettingsWindow::ApplyLanguage() {
           L"Reset all hotkeys"));
     SetWindowTextW(
         hotkeyPageNote_,
-        T(L"选择左侧动作后，可直接更改快捷键；Esc 取消捕获。Windows 全局热键只有注册成功后才会保存。",
-          L"Select an action on the left, then change its binding directly; Esc cancels capture. Windows-global bindings are saved only after registration succeeds."));
-
+        L"");
     SetWindowTextW(
         providerSectionTitle_,
         T(L"应用来源",
@@ -1293,9 +1259,7 @@ void SettingsWindow::ApplyLanguage() {
           L"Recheck"));
     SetWindowTextW(
         providerNote_,
-        T(L"Everything 使用本机 IPC 实时查询。ALTRun Next 会优先复用已有标准版；只有自己管理的便携版才会管理其 Service 生命周期。",
-          L"Everything is queried live over local IPC. Existing standard copies are preferred; ALTRun Next manages service lifecycle only for its own portable copy."));
-
+        L"");
     SetWindowTextW(
         appearanceLauncherTitle_,
         T(L"启动器",
@@ -1341,9 +1305,7 @@ void SettingsWindow::ApplyLanguage() {
             L"English"));
     SetWindowTextW(
         appearanceNote_,
-        T(L"启动器样式和界面语言会立即应用。结果图标已移到“常规 → 启动器行为”。",
-          L"Launcher style and interface language apply immediately. Result icons are now under General → Launcher behavior."));
-
+        L"");
     SetWindowTextW(
         dataPathLabel_,
         T(L"数据目录",
@@ -1412,9 +1374,7 @@ void SettingsWindow::ApplyLanguage() {
           L"Web & URL"));
     SetWindowTextW(
         actionsNote_,
-        T(L"诊断数据每秒刷新一次，仅用于观察运行状态，不会主动修改或裁剪进程。",
-          L"Diagnostics refresh once per second for observation only and never modify or trim the process."));
-
+        L"");
     SetWindowTextW(
         aboutName_,
         L"ALTRun Next");
@@ -1430,9 +1390,7 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutDescription_,
-        T(L"轻量、快速、键盘优先的 Windows 启动器。",
-          L"A lightweight, fast, keyboard-first Windows launcher."));
-
+        L"");
     SetWindowTextW(
         updateSectionTitle_,
         T(L"更新",
@@ -1692,40 +1650,41 @@ std::wstring SettingsWindow::HotkeyActionLabel(
         actionId.end());
 }
 
+
 std::wstring SettingsWindow::HotkeyActionDescription(
     std::string_view actionId) const {
     if (actionId ==
         hotkey_actions::kActivate) {
         return T(
-            L"在任何程序中显示或隐藏启动器。主热键始终保持启用，并要求至少一个修饰键。",
-            L"Show or hide the launcher from any application. The primary binding is always enabled and requires a modifier.");
+            L"全局显示或隐藏启动器。",
+            L"Show or hide the launcher globally.");
     }
     if (actionId ==
         hotkey_actions::
             kActivateSecondary) {
         return T(
-            L"可选的第二组 Windows 全局呼出热键，默认关闭。",
-            L"Optional second Windows-global activation binding; disabled by default.");
+            L"备用的全局呼出组合键。",
+            L"Optional secondary global activation.");
     }
     if (actionId ==
         hotkey_actions::kOpenSettings) {
         return T(
-            L"仅在启动器窗口打开时进入设置页面。",
-            L"Open Settings while the launcher is visible.");
+            L"从启动器打开设置。",
+            L"Open Settings from the launcher.");
     }
     if (actionId ==
         hotkey_actions::
             kNavigateCurrentFileManager) {
         return T(
-            L"对 Folder 结果执行上下文导航：Explorer 或 Total Commander 当前面板。",
-            L"Contextually navigate a Folder result in Explorer or the active Total Commander panel.");
+            L"在当前文件管理器中定位文件夹结果。",
+            L"Navigate a folder result in the current file manager.");
     }
     if (actionId ==
         hotkey_actions::
             kCopySelectedTarget) {
         return T(
-            L"复制当前结果的路径、URL、Target 或 Smart Action payload。",
-            L"Copy the selected result path, URL, target or Smart Action payload.");
+            L"复制当前结果目标。",
+            L"Copy the selected result target.");
     }
     return L"";
 }
@@ -1852,6 +1811,7 @@ void SettingsWindow::RefreshHotkeyPage() {
     syncing_ = oldSyncing;
 }
 
+
 void SettingsWindow::LoadHotkeyEditor(
     std::string_view actionId) {
     const auto* action =
@@ -1889,10 +1849,10 @@ void SettingsWindow::LoadHotkeyEditor(
     std::wstring scope =
         action->scope ==
                 HotkeyScope::Global
-            ? T(L"作用域：Windows 全局",
-                L"Scope: Windows global")
-            : T(L"作用域：启动器内部",
-                L"Scope: Launcher");
+            ? T(L"Windows 全局",
+                L"Windows global")
+            : T(L"启动器内部",
+                L"Launcher only");
 
     SetWindowTextW(
         hotkeyScope_,
@@ -1912,6 +1872,11 @@ void SettingsWindow::LoadHotkeyEditor(
             ? FALSE
             : TRUE);
 
+    InvalidateRect(
+        hotkeyEnabled_,
+        nullptr,
+        TRUE);
+
     const auto chord =
         FormatHotkeyBinding(
             actionId);
@@ -1929,33 +1894,21 @@ void SettingsWindow::LoadHotkeyEditor(
     if (capturingHotkeyActionId_ ==
         actionId) {
         status =
-            T(L"正在捕获：按下组合键；Esc 取消。",
-              L"Capturing: press a key combination; Esc cancels.");
-    } else if (!binding.enabled) {
-        status =
-            T(L"运行状态：已禁用",
-              L"Runtime status: Disabled");
+            T(L"按下新的组合键；Esc 取消。",
+              L"Press a new key combination; Esc cancels.");
     } else if (
+        binding.enabled &&
         action->scope ==
-        HotkeyScope::Global) {
-        if (app_.IsHotkeyActionRegistered(
-                actionId)) {
-            status =
-                T(L"运行状态：● 已向 Windows 注册",
-                  L"Runtime status: ● Registered with Windows");
-        } else {
-            status =
-                T(L"运行状态：⚠ Windows 注册失败，旧绑定仍保持有效。错误码：",
-                  L"Runtime status: ⚠ Windows registration failed; the previous binding remains active. Error: ");
-            status +=
-                std::to_wstring(
-                    app_.HotkeyActionLastError(
-                        actionId));
-        }
-    } else {
+            HotkeyScope::Global &&
+        !app_.IsHotkeyActionRegistered(
+            actionId)) {
         status =
-            T(L"运行状态：● 就绪（仅启动器内）",
-              L"Runtime status: ● Ready (launcher only)");
+            T(L"⚠ Windows 注册失败，旧绑定仍有效。错误码：",
+              L"⚠ Windows registration failed; the previous binding remains active. Error: ");
+        status +=
+            std::to_wstring(
+                app_.HotkeyActionLastError(
+                    actionId));
     }
 
     SetWindowTextW(
@@ -2540,6 +2493,7 @@ void SettingsWindow::RefreshActionDiagnostics() {
           L"Direct HTTP / HTTPS / www URLs: Ready\r\n{query} URL templates: Ready  ·  builtin.web is runtime-only and is not written to provider-cache"));
 }
 
+
 void SettingsWindow::RefreshProviderStatus() {
     if (!providerStatus_) {
         return;
@@ -2564,12 +2518,8 @@ void SettingsWindow::RefreshProviderStatus() {
 
     if (!enabled) {
         text =
-            T(L"○ Everything 文件与文件夹已禁用",
-              L"○ Everything files & folders are disabled");
-        text += L"\r\n";
-        text +=
-            T(L"启用后通过本机 IPC 实时查询，不会影响上方应用来源。",
-              L"Enable it for live local IPC queries; application sources above remain independent.");
+            T(L"○ Everything 已禁用",
+              L"○ Everything is disabled");
     } else if (
         ipc.availability ==
         EverythingAvailability::
@@ -2579,11 +2529,6 @@ void SettingsWindow::RefreshProviderStatus() {
             T(L"● Everything 正在运行",
               L"● Everything is running");
 
-        text += L"\r\n";
-        text += T(
-            L"IPC 已连接",
-            L"IPC connected");
-
         if (bootstrap.source ==
                 win::EverythingBootstrapSource::
                     Managed ||
@@ -2591,79 +2536,35 @@ void SettingsWindow::RefreshProviderStatus() {
                 win::EverythingBootstrapSource::
                     Downloaded ||
             bootstrap.downloaded) {
-            text += T(
-                L" · ALTRun Next 托管",
-                L" · Managed by ALTRun Next");
-        } else {
-            text += T(
-                L" · 外部安装",
-                L" · External installation");
-        }
-
-        if (ipc.hasQuery) {
-            text += L"\r\n";
             text +=
-                T(L"最近查询：",
-                  L"Last query: ");
-
-            switch (ipc.lastStatus) {
-            case EverythingQueryStatus::Success:
-                text += T(L"成功", L"Success");
-                break;
-            case EverythingQueryStatus::Unavailable:
-                text += T(L"不可用", L"Unavailable");
-                break;
-            case EverythingQueryStatus::SendTimeout:
-                text += T(L"发送超时", L"Send timeout");
-                break;
-            case EverythingQueryStatus::ReplyTimeout:
-                text += T(L"响应超时", L"Reply timeout");
-                break;
-            case EverythingQueryStatus::ProtocolError:
-                text += T(L"协议错误", L"Protocol error");
-                break;
-            case EverythingQueryStatus::Cancelled:
-                text += T(L"已取消", L"Cancelled");
-                break;
-            }
-
-            text += T(
-                L" · 返回 ",
-                L" · returned ");
-            text += std::to_wstring(
-                ipc.lastResultCount);
-
-            text += T(
-                L" · ",
-                L" · ");
-            text += std::to_wstring(
-                std::max<std::int64_t>(
-                    0,
-                    (ipc.lastLatency.count() +
-                     500) /
-                        1000));
-            text += L" ms";
+                T(L" · ALTRun Next 托管",
+                  L" · Managed by ALTRun Next");
+        } else {
+            text +=
+                T(L" · 外部安装",
+                  L" · External installation");
         }
     } else if (bootstrap.running) {
         text =
             T(L"◌ 正在准备 Everything",
               L"◌ Preparing Everything");
-        text += L"\r\n";
+
+        text += L" · ";
 
         switch (bootstrap.stage) {
         case win::EverythingBootstrapStage::Discovering:
-            text += T(L"正在检测本机已有版本", L"Looking for an existing copy");
+            text += T(L"检测本机版本", L"Detecting local copies");
             break;
         case win::EverythingBootstrapStage::StartingExisting:
-            text += T(L"正在启动已有版本", L"Starting existing copy");
+            text += T(L"启动已有版本", L"Starting existing copy");
             break;
         case win::EverythingBootstrapStage::DownloadingManifest:
-            text += T(L"正在获取官方校验清单", L"Fetching official checksum manifest");
+            text += T(L"获取校验清单", L"Fetching checksums");
             break;
         case win::EverythingBootstrapStage::DownloadingPackage:
-            text += T(L"正在下载官方标准便携版", L"Downloading official standard portable build");
+            text += T(L"下载便携版", L"Downloading portable build");
             if (bootstrap.downloadedBytes > 0) {
-                text += L" · ";
+                text += L" ";
                 text += FormatBytes(
                     bootstrap.downloadedBytes);
                 if (bootstrap.totalBytes > 0) {
@@ -2674,24 +2575,24 @@ void SettingsWindow::RefreshProviderStatus() {
             }
             break;
         case win::EverythingBootstrapStage::VerifyingPackage:
-            text += T(L"正在校验 SHA-256", L"Verifying SHA-256");
+            text += T(L"校验 SHA-256", L"Verifying SHA-256");
             break;
         case win::EverythingBootstrapStage::ExtractingPackage:
-            text += T(L"正在解压便携版", L"Extracting portable build");
+            text += T(L"解压文件", L"Extracting");
             break;
         case win::EverythingBootstrapStage::InstallingService:
         case win::EverythingBootstrapStage::RepairingService:
-            text += T(L"正在配置 Everything Service，请确认 UAC", L"Configuring Everything Service; confirm UAC");
+            text += T(L"配置 Service，请确认 UAC", L"Configuring Service; confirm UAC");
             break;
         case win::EverythingBootstrapStage::WaitingForService:
-            text += T(L"正在等待 Everything Service", L"Waiting for Everything Service");
+            text += T(L"等待 Service", L"Waiting for Service");
             break;
         case win::EverythingBootstrapStage::StartingManaged:
         case win::EverythingBootstrapStage::WaitingForIpc:
-            text += T(L"正在启动托管实例并等待 IPC", L"Starting the managed instance and waiting for IPC");
+            text += T(L"等待 IPC", L"Waiting for IPC");
             break;
         default:
-            text += T(L"正在应用托管配置", L"Applying managed configuration");
+            text += T(L"应用配置", L"Applying configuration");
             break;
         }
     } else {
@@ -2702,23 +2603,15 @@ void SettingsWindow::RefreshProviderStatus() {
                 win::EverythingBootstrapFailure::
                     ServiceRepairRequired) {
             text =
-                T(L"⚠ Everything Service 路径需要修复",
-                  L"⚠ Everything Service path needs repair");
-            text += L"\r\n";
-            text +=
-                T(L"选择“获取并启动 Everything”后会在一次 UAC 授权中修复 ALTRun Next 自己管理的 Service。",
-                  L"Choose Get and start Everything to repair only the ALTRun-managed service with one UAC confirmation.");
+                T(L"⚠ Everything Service 需要修复",
+                  L"⚠ Everything Service needs repair");
         } else if (
             bootstrap.failure ==
                 win::EverythingBootstrapFailure::
                     ServiceRequired) {
             text =
-                T(L"⚠ Everything 缺少 NTFS 索引服务",
-                  L"⚠ Everything is missing its NTFS indexing service");
-            text += L"\r\n";
-            text +=
-                T(L"选择“获取并启动 Everything”安装 Everything Service。",
-                  L"Choose Get and start Everything to install the Everything Service.");
+                T(L"⚠ Everything Service 尚未安装",
+                  L"⚠ Everything Service is not installed");
         } else if (
             bootstrap.stage ==
                 win::EverythingBootstrapStage::
@@ -2728,35 +2621,19 @@ void SettingsWindow::RefreshProviderStatus() {
                   L"⚠ Automatic Everything setup failed");
 
             if (bootstrap.nativeError != 0) {
-                text += L" · ";
-                text +=
-                    T(L"系统错误 ",
-                      L"Native error ");
+                text += T(L" · 系统错误 ", L" · Native error ");
                 text += std::to_wstring(
                     bootstrap.nativeError);
             }
-
-            text += L"\r\n";
-            text +=
-                T(L"可重新检测已有标准版，或再次获取托管便携版。",
-                  L"Recheck an existing standard copy or try the managed portable setup again.");
         } else if (
             ipc.ambiguousNamedInstances) {
             text =
                 T(L"⚠ 检测到多个 Everything 命名实例",
                   L"⚠ Multiple named Everything instances detected");
-            text += L"\r\n";
-            text +=
-                T(L"无法安全自动选择，请保留一个可用标准实例后重新检测。",
-                  L"Automatic selection is ambiguous; keep one usable standard instance and recheck.");
         } else {
             text =
                 T(L"○ 未检测到可用的 Everything",
                   L"○ No usable Everything instance detected");
-            text += L"\r\n";
-            text +=
-                T(L"可重新检测已有标准版，或让 ALTRun Next 获取官方标准便携版。",
-                  L"Recheck an existing standard copy or let ALTRun Next fetch the official standard portable build.");
         }
     }
 
@@ -2817,6 +2694,7 @@ void SettingsWindow::RecheckEverything() {
     RefreshProviderStatus();
 }
 
+
 void SettingsWindow::RefreshDataCompatibilityStatus() {
     if (!dataStatus_) {
         return;
@@ -2825,16 +2703,9 @@ void SettingsWindow::RefreshDataCompatibilityStatus() {
     const std::wstring warning =
         app_.DataCompatibilityWarning();
 
-    if (!warning.empty()) {
-        SetWindowTextW(
-            dataStatus_,
-            warning.c_str());
-    } else if (page_ == Page::Data) {
-        SetWindowTextW(
-            dataStatus_,
-            T(L"数据健康检查正常：目录可写，且本次启动未发生备份恢复或兼容保护。",
-              L"Data health check passed: the directory is writable and no backup recovery or compatibility protection was needed this startup."));
-    }
+    SetWindowTextW(
+        dataStatus_,
+        warning.c_str());
 }
 
 void SettingsWindow::OnDynamicProviderStatusChanged() {
@@ -2919,79 +2790,46 @@ void SettingsWindow::UpdateNavLabels() {
         label(Page::About, L"关于", L"About").c_str());
 }
 
+
 void SettingsWindow::UpdatePageHeader() {
+    const wchar_t* title = L"";
+
     switch (page_) {
     case Page::General:
-        SetWindowTextW(
-            pageTitle_,
-            T(L"常规", L"General"));
-        SetWindowTextW(
-            pageDescription_,
-            T(L"控制启动器行为、搜索方式和呼出位置。",
-              L"Control launcher behavior, search interaction and placement."));
+        title = T(L"常规", L"General");
         break;
-
     case Page::Hotkeys:
-        SetWindowTextW(
-            pageTitle_,
-            T(L"快捷键", L"Hotkeys"));
-        SetWindowTextW(
-            pageDescription_,
-            T(L"集中管理全局呼出和启动器内部动作热键；新增动作会统一注册到这里。",
-              L"Manage global activation and launcher action bindings in one place; future hotkey actions register here."));
+        title = T(L"快捷键", L"Hotkeys");
         break;
-
     case Page::Diagnostics:
-        SetWindowTextW(
-            pageTitle_,
-            T(L"诊断", L"Diagnostics"));
-        SetWindowTextW(
-            pageDescription_,
-            T(L"查看进程内存、搜索数据、后台任务、Smart Actions 与 Windows 呼出上下文，建立性能与故障诊断基线。",
-              L"Inspect process memory, search data, background work, Smart Actions and Windows activation context for performance and troubleshooting baselines."));
+        title = T(L"诊断", L"Diagnostics");
         break;
-
     case Page::Appearance:
-        SetWindowTextW(
-            pageTitle_,
-            T(L"外观", L"Appearance"));
-        SetWindowTextW(
-            pageDescription_,
-            T(L"选择启动器样式和 ALTRun Next 的界面语言。",
-              L"Choose launcher style and the ALTRun Next interface language."));
+        title = T(L"外观", L"Appearance");
         break;
-
     case Page::Providers:
-        SetWindowTextW(
-            pageTitle_,
-            T(L"搜索来源", L"Search sources"));
-        SetWindowTextW(
-            pageDescription_,
-            T(L"控制 Windows 应用来源和 Everything 文件 / 文件夹搜索，并查看运行状态。",
-              L"Choose Windows application sources and Everything file/folder search, and inspect runtime status."));
+        title = T(L"搜索来源", L"Search sources");
         break;
-
     case Page::Data:
-        SetWindowTextW(
-            pageTitle_,
-            T(L"数据", L"Data"));
-        SetWindowTextW(
-            pageDescription_,
-            T(L"导入、导出和维护 ALTRun Next 的本地数据。",
-              L"Import, export and maintain ALTRun Next local data."));
+        title = T(L"数据", L"Data");
         break;
-
     case Page::About:
-        SetWindowTextW(
-            pageTitle_,
-            T(L"关于", L"About"));
-        SetWindowTextW(
-            pageDescription_,
-            T(L"查看版本、更新状态和项目入口。",
-              L"View version information, update status and project links."));
+        title = T(L"关于", L"About");
         break;
     }
+
+    SetWindowTextW(
+        pageTitle_,
+        title);
+
+    SetWindowTextW(
+        pageDescription_,
+        L"");
+    ShowWindow(
+        pageDescription_,
+        SW_HIDE);
 }
+
 
 void SettingsWindow::ShowPage(Page page) {
     if (page_ == Page::Providers &&
@@ -3013,26 +2851,68 @@ void SettingsWindow::ShowPage(Page page) {
         generalScrollOffset_ = 0;
     }
 
+    SendMessageW(
+        hwnd_,
+        WM_SETREDRAW,
+        FALSE,
+        0);
+
     page_ = page;
 
-    const auto setVisible = [](const std::vector<HWND>& controls, bool visible) {
-        for (HWND control : controls) {
+    const auto setVisible =
+        [](const std::vector<HWND>& controls,
+           bool visible) {
+            for (HWND control : controls) {
+                ShowWindow(
+                    control,
+                    visible
+                        ? SW_SHOW
+                        : SW_HIDE);
+            }
+        };
+
+    setVisible(
+        generalControls_,
+        page == Page::General);
+    setVisible(
+        hotkeyControls_,
+        page == Page::Hotkeys);
+    setVisible(
+        diagnosticsControls_,
+        page == Page::Diagnostics);
+    setVisible(
+        appearanceControls_,
+        page == Page::Appearance);
+    setVisible(
+        providerControls_,
+        page == Page::Providers);
+    setVisible(
+        dataControls_,
+        page == Page::Data);
+    setVisible(
+        aboutControls_,
+        page == Page::About);
+
+    for (HWND control :
+         std::array<HWND, 10>{
+             pageDescription_,
+             popupMonitorDescription_,
+             launcherPlacementDescription_,
+             settingsPlacementDescription_,
+             generalNote_,
+             hotkeyPageNote_,
+             providerNote_,
+             appearanceNote_,
+             actionsNote_,
+             aboutDescription_}) {
+        if (control) {
             ShowWindow(
                 control,
-                visible ? SW_SHOW : SW_HIDE);
+                SW_HIDE);
         }
-    };
+    }
 
-    setVisible(generalControls_, page == Page::General);
-    setVisible(hotkeyControls_, page == Page::Hotkeys);
-    setVisible(diagnosticsControls_, page == Page::Diagnostics);
-    setVisible(appearanceControls_, page == Page::Appearance);
-    setVisible(providerControls_, page == Page::Providers);
-    setVisible(dataControls_, page == Page::Data);
-    setVisible(aboutControls_, page == Page::About);
-
-    if (
-        page == Page::Hotkeys) {
+    if (page == Page::Hotkeys) {
         RefreshHotkeyPage();
     } else if (
         page == Page::Diagnostics) {
@@ -3059,12 +2939,20 @@ void SettingsWindow::ShowPage(Page page) {
     UpdatePageHeader();
     Layout();
 
+    SendMessageW(
+        hwnd_,
+        WM_SETREDRAW,
+        TRUE,
+        0);
+
     RedrawWindow(
         hwnd_,
         nullptr,
         nullptr,
-        RDW_INVALIDATE | RDW_ERASE |
-            RDW_ALLCHILDREN | RDW_UPDATENOW);
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
 }
 
 void SettingsWindow::ApplyClassicBehaviorControl(
@@ -3610,6 +3498,14 @@ bool SettingsWindow::ToggleChecked(
         return settings.showTrayIcon;
     case kIdShowResultIcons:
         return settings.showResultIcons;
+    case kIdHotkeyEnabled:
+        if (selectedHotkeyActionId_.empty()) {
+            return false;
+        }
+        return EffectiveHotkeyBinding(
+                   settings.hotkeyBindings,
+                   selectedHotkeyActionId_)
+            .enabled;
     case kIdUpdateAutoCheck:
         return settings.autoCheckUpdates;
     case kIdPinyinSearch:
@@ -3844,6 +3740,7 @@ RECT SettingsWindow::PlacementCardRect() const {
     };
 }
 
+
 void SettingsWindow::Layout() {
     if (!hwnd_) return;
 
@@ -3872,16 +3769,16 @@ void SettingsWindow::Layout() {
     MoveWindow(
         brandName_,
         sidebarMargin,
-        Scale(18),
+        Scale(14),
         navWidth,
-        Scale(32),
+        Scale(34),
         TRUE);
     MoveWindow(
         brandSubtitle_,
-        sidebarMargin,
-        Scale(49),
-        navWidth,
-        Scale(22),
+        sidebarMargin + Scale(28),
+        Scale(47),
+        navWidth - Scale(28),
+        Scale(30),
         TRUE);
 
     std::array<HWND, 6> primaryNav{
@@ -3894,7 +3791,7 @@ void SettingsWindow::Layout() {
     };
 
     const int navTop =
-        Scale(88);
+        Scale(96);
 
     for (std::size_t i = 0;
          i < primaryNav.size();
@@ -3954,19 +3851,12 @@ void SettingsWindow::Layout() {
     MoveWindow(
         pageTitle_,
         contentLeft,
-        Scale(26) -
+        Scale(
+            settings_layout::
+                kPageTitleTopLogical) -
             pageScroll,
         contentWidth,
-        Scale(42),
-        TRUE);
-
-    MoveWindow(
-        pageDescription_,
-        contentLeft,
-        Scale(70) -
-            pageScroll,
-        contentWidth,
-        Scale(38),
+        Scale(40),
         TRUE);
 
     if (page_ == Page::General) {
@@ -3980,7 +3870,7 @@ void SettingsWindow::Layout() {
             metrics.behaviorTitleTop,
             metrics.behavior.right -
                 metrics.behavior.left,
-            Scale(28),
+            Scale(26),
             TRUE);
 
         MoveWindow(
@@ -3989,7 +3879,7 @@ void SettingsWindow::Layout() {
             metrics.searchTitleTop,
             metrics.search.right -
                 metrics.search.left,
-            Scale(28),
+            Scale(26),
             TRUE);
 
         const int toggleHeight =
@@ -4069,7 +3959,7 @@ void SettingsWindow::Layout() {
             metrics.search.left +
                 Scale(18),
             orderTop +
-                Scale(19),
+                Scale(13),
             Scale(150),
             Scale(24),
             TRUE);
@@ -4079,7 +3969,7 @@ void SettingsWindow::Layout() {
             metrics.search.right -
                 Scale(168),
             orderTop +
-                Scale(14),
+                Scale(9),
             Scale(150),
             Scale(180),
             TRUE);
@@ -4090,7 +3980,7 @@ void SettingsWindow::Layout() {
             metrics.placementTitleTop,
             metrics.placement.right -
                 metrics.placement.left,
-            Scale(28),
+            Scale(26),
             TRUE);
 
         const int rowHeight =
@@ -4112,27 +4002,20 @@ void SettingsWindow::Layout() {
             comboWidth -
             Scale(18);
 
-        struct PlacementRow {
-            HWND label;
-            HWND description;
-            HWND combo;
-        };
-
-        const std::array<PlacementRow, 3>
+        const std::array<
+            std::pair<HWND, HWND>,
+            3>
             placementRows{{
                 {
                     popupMonitorLabel_,
-                    popupMonitorDescription_,
                     popupMonitor_,
                 },
                 {
                     launcherPlacementLabel_,
-                    launcherPlacementDescription_,
                     launcherPlacement_,
                 },
                 {
                     settingsPlacementLabel_,
-                    settingsPlacementDescription_,
                     settingsPlacement_,
                 },
             }};
@@ -4146,11 +4029,11 @@ void SettingsWindow::Layout() {
                     rowHeight;
 
             MoveWindow(
-                placementRows[i].label,
+                placementRows[i].first,
                 labelX,
-                top + Scale(10),
+                top + Scale(15),
                 std::max(
-                    Scale(180),
+                    Scale(150),
                     comboX -
                         labelX -
                         Scale(16)),
@@ -4158,39 +4041,18 @@ void SettingsWindow::Layout() {
                 TRUE);
 
             MoveWindow(
-                placementRows[i].description,
-                labelX,
-                top + Scale(34),
-                std::max(
-                    Scale(180),
-                    comboX -
-                        labelX -
-                        Scale(16)),
-                Scale(24),
-                TRUE);
-
-            MoveWindow(
-                placementRows[i].combo,
+                placementRows[i].second,
                 comboX,
-                top + Scale(18),
+                top + Scale(10),
                 comboWidth,
-                Scale(220),
+                Scale(180),
                 TRUE);
         }
-
-        MoveWindow(
-            generalNote_,
-            metrics.placement.left,
-            metrics.noteTop,
-            metrics.placement.right -
-                metrics.placement.left,
-            Scale(36),
-            TRUE);
     }
 
     if (page_ == Page::Hotkeys) {
         const int top =
-            Scale(150);
+            Scale(116);
         const int gap =
             Scale(18);
         const int listWidth =
@@ -4214,7 +4076,7 @@ void SettingsWindow::Layout() {
             contentLeft + Scale(12),
             top + Scale(12),
             listWidth - Scale(24),
-            Scale(390),
+            Scale(376),
             TRUE);
 
         MoveWindow(
@@ -4228,31 +4090,33 @@ void SettingsWindow::Layout() {
         MoveWindow(
             hotkeyEditorDescription_,
             editorX + Scale(18),
-            top + Scale(54),
+            top + Scale(52),
             editorWidth - Scale(36),
-            Scale(54),
+            Scale(30),
             TRUE);
 
         MoveWindow(
             hotkeyScope_,
             editorX + Scale(18),
-            top + Scale(112),
+            top + Scale(88),
             editorWidth - Scale(36),
             Scale(26),
             TRUE);
 
         MoveWindow(
             hotkeyEnabled_,
-            editorX + Scale(18),
-            top + Scale(150),
-            editorWidth - Scale(36),
-            Scale(28),
+            editorX + Scale(1),
+            top + Scale(122),
+            editorWidth - Scale(2),
+            Scale(
+                settings_layout::
+                    kToggleRowLogical),
             TRUE);
 
         MoveWindow(
             hotkeyCapture_,
             editorX + Scale(18),
-            top + Scale(194),
+            top + Scale(188),
             std::min(
                 Scale(220),
                 editorWidth - Scale(36)),
@@ -4262,7 +4126,7 @@ void SettingsWindow::Layout() {
         MoveWindow(
             hotkeyResetCurrent_,
             editorX + Scale(18),
-            top + Scale(244),
+            top + Scale(234),
             std::min(
                 Scale(220),
                 editorWidth - Scale(36)),
@@ -4272,27 +4136,19 @@ void SettingsWindow::Layout() {
         MoveWindow(
             hotkeyPageStatus_,
             editorX + Scale(18),
-            top + Scale(294),
+            top + Scale(282),
             editorWidth - Scale(36),
-            Scale(64),
+            Scale(44),
             TRUE);
 
         MoveWindow(
             hotkeyResetAll_,
             editorX + Scale(18),
-            top + Scale(372),
+            top + Scale(340),
             std::min(
                 Scale(240),
                 editorWidth - Scale(36)),
             Scale(36),
-            TRUE);
-
-        MoveWindow(
-            hotkeyPageNote_,
-            contentLeft,
-            top + Scale(430),
-            contentWidth,
-            Scale(58),
             TRUE);
     }
 
@@ -4305,9 +4161,9 @@ void SettingsWindow::Layout() {
         MoveWindow(
             providerSectionTitle_,
             contentLeft,
-            Scale(138),
+            Scale(108),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
 
         const RECT appCard =
@@ -4342,27 +4198,21 @@ void SettingsWindow::Layout() {
                 TRUE);
         }
 
-        const int filesTitleTop =
-            170 +
-            settings_layout::
-                kToggleRowLogical * 4 +
-            22;
-
         MoveWindow(
             providerFilesTitle_,
             contentLeft,
-            Scale(filesTitleTop),
+            Scale(362),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
 
         const int filesTop =
-            filesTitleTop + 32;
+            Scale(394);
 
         MoveWindow(
             providerEverything_,
             contentLeft + Scale(1),
-            Scale(filesTop + 1),
+            filesTop + Scale(1),
             width - Scale(2),
             rowHeight,
             TRUE);
@@ -4370,19 +4220,15 @@ void SettingsWindow::Layout() {
         MoveWindow(
             providerStatus_,
             contentLeft + Scale(18),
-            Scale(
-                filesTop +
-                settings_layout::
-                    kToggleRowLogical +
-                12),
+            filesTop + Scale(62),
             width - Scale(36),
-            Scale(96),
+            Scale(42),
             TRUE);
 
         MoveWindow(
             providerGetEverything_,
             contentLeft + Scale(18),
-            Scale(filesTop + 174),
+            filesTop + Scale(116),
             Scale(210),
             Scale(34),
             TRUE);
@@ -4390,17 +4236,9 @@ void SettingsWindow::Layout() {
         MoveWindow(
             providerRecheckEverything_,
             contentLeft + Scale(240),
-            Scale(filesTop + 174),
+            filesTop + Scale(116),
             Scale(128),
             Scale(34),
-            TRUE);
-
-        MoveWindow(
-            providerNote_,
-            contentLeft + Scale(18),
-            Scale(filesTop + 220),
-            width - Scale(36),
-            Scale(60),
             TRUE);
     }
 
@@ -4413,57 +4251,49 @@ void SettingsWindow::Layout() {
         MoveWindow(
             appearanceLauncherTitle_,
             contentLeft,
-            Scale(138),
+            Scale(108),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
 
         MoveWindow(
             uiStyleLabel_,
             contentLeft + Scale(18),
-            Scale(192),
+            Scale(158),
             Scale(220),
-            Scale(26),
+            Scale(24),
             TRUE);
         MoveWindow(
             uiStyle_,
             contentLeft + width -
                 Scale(308),
-            Scale(183),
+            Scale(149),
             Scale(290),
-            Scale(220),
+            Scale(180),
             TRUE);
 
         MoveWindow(
             appearanceAppTitle_,
             contentLeft,
-            Scale(270),
+            Scale(232),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
 
         MoveWindow(
             languageLabel_,
             contentLeft + Scale(18),
-            Scale(324),
+            Scale(282),
             Scale(220),
-            Scale(26),
+            Scale(24),
             TRUE);
         MoveWindow(
             language_,
             contentLeft + width -
                 Scale(308),
-            Scale(315),
+            Scale(273),
             Scale(290),
-            Scale(220),
-            TRUE);
-
-        MoveWindow(
-            appearanceNote_,
-            contentLeft,
-            Scale(398),
-            width,
-            Scale(54),
+            Scale(180),
             TRUE);
     }
 
@@ -4476,90 +4306,90 @@ void SettingsWindow::Layout() {
         MoveWindow(
             dataPathLabel_,
             contentLeft,
-            Scale(138),
+            Scale(108),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
         MoveWindow(
             dataPath_,
             contentLeft + Scale(18),
-            Scale(190),
+            Scale(158),
             width - Scale(220),
-            Scale(28),
+            Scale(24),
             TRUE);
         MoveWindow(
             openDataFolder_,
             contentLeft + width -
                 Scale(174),
-            Scale(181),
+            Scale(152),
             Scale(156),
-            Scale(36),
+            Scale(34),
             TRUE);
 
         MoveWindow(
             dataTransferLabel_,
             contentLeft,
-            Scale(280),
+            Scale(232),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
         MoveWindow(
             dataImportTsv_,
             contentLeft + Scale(18),
-            Scale(330),
+            Scale(278),
             Scale(170),
-            Scale(36),
+            Scale(34),
             TRUE);
         MoveWindow(
             dataImportLegacy_,
             contentLeft + Scale(200),
-            Scale(330),
+            Scale(278),
             Scale(190),
-            Scale(36),
+            Scale(34),
             TRUE);
         MoveWindow(
             dataExport_,
             contentLeft + Scale(402),
-            Scale(330),
+            Scale(278),
             Scale(170),
-            Scale(36),
+            Scale(34),
             TRUE);
 
         MoveWindow(
             dataMaintenanceLabel_,
             contentLeft,
-            Scale(420),
+            Scale(360),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
         MoveWindow(
             dataClearUsage_,
             contentLeft + Scale(18),
-            Scale(470),
+            Scale(406),
             Scale(170),
-            Scale(36),
+            Scale(34),
             TRUE);
         MoveWindow(
             dataRebuildIndex_,
             contentLeft + Scale(200),
-            Scale(470),
+            Scale(406),
             Scale(190),
-            Scale(36),
+            Scale(34),
             TRUE);
         MoveWindow(
             dataResetSettings_,
             contentLeft + Scale(402),
-            Scale(470),
+            Scale(406),
             Scale(170),
-            Scale(36),
+            Scale(34),
             TRUE);
 
         MoveWindow(
             dataStatus_,
             contentLeft,
-            Scale(552),
+            Scale(478),
             width,
-            Scale(74),
+            Scale(54),
             TRUE);
     }
 
@@ -4576,14 +4406,14 @@ void SettingsWindow::Layout() {
         MoveWindow(
             diagnosticsMemoryTitle_,
             contentLeft + Scale(18),
-            Scale(164),
+            Scale(132),
             column - Scale(36),
             Scale(24),
             TRUE);
         MoveWindow(
             diagnosticsMemoryStatus_,
             contentLeft + Scale(18),
-            Scale(194),
+            Scale(162),
             column - Scale(36),
             Scale(70),
             TRUE);
@@ -4592,7 +4422,7 @@ void SettingsWindow::Layout() {
             diagnosticsSearchTitle_,
             contentLeft + column +
                 gap + Scale(18),
-            Scale(164),
+            Scale(132),
             column - Scale(36),
             Scale(24),
             TRUE);
@@ -4600,65 +4430,54 @@ void SettingsWindow::Layout() {
             diagnosticsSearchStatus_,
             contentLeft + column +
                 gap + Scale(18),
-            Scale(194),
+            Scale(162),
             column - Scale(36),
-            Scale(78),
+            Scale(74),
             TRUE);
-
-        const int actionTop =
-            310;
 
         MoveWindow(
             actionsWindowsTitle_,
             contentLeft + Scale(18),
-            Scale(actionTop + 14),
+            Scale(284),
             width - Scale(36),
             Scale(24),
             TRUE);
         MoveWindow(
             actionsWindowsStatus_,
             contentLeft + Scale(18),
-            Scale(actionTop + 44),
+            Scale(314),
             width - Scale(36),
-            Scale(105),
+            Scale(122),
             TRUE);
 
         MoveWindow(
             actionsClipboardTitle_,
             contentLeft + Scale(18),
-            Scale(actionTop + 180),
+            Scale(484),
             width - Scale(36),
             Scale(24),
             TRUE);
         MoveWindow(
             actionsClipboardStatus_,
             contentLeft + Scale(18),
-            Scale(actionTop + 210),
+            Scale(514),
             width - Scale(36),
-            Scale(48),
+            Scale(38),
             TRUE);
 
         MoveWindow(
             actionsWebTitle_,
             contentLeft + Scale(18),
-            Scale(actionTop + 288),
+            Scale(592),
             width - Scale(36),
             Scale(24),
             TRUE);
         MoveWindow(
             actionsWebStatus_,
             contentLeft + Scale(18),
-            Scale(actionTop + 318),
+            Scale(622),
             width - Scale(36),
-            Scale(48),
-            TRUE);
-
-        MoveWindow(
-            actionsNote_,
-            contentLeft,
-            Scale(actionTop + 390),
-            width,
-            Scale(48),
+            Scale(38),
             TRUE);
     }
 
@@ -4671,53 +4490,46 @@ void SettingsWindow::Layout() {
         MoveWindow(
             aboutName_,
             contentLeft,
-            Scale(136),
+            Scale(108),
             width,
             Scale(42),
             TRUE);
         MoveWindow(
             aboutVersion_,
             contentLeft,
-            Scale(182),
+            Scale(150),
             width,
             Scale(26),
-            TRUE);
-        MoveWindow(
-            aboutDescription_,
-            contentLeft,
-            Scale(214),
-            width,
-            Scale(40),
             TRUE);
 
         MoveWindow(
             updateSectionTitle_,
             contentLeft,
-            Scale(282),
+            Scale(206),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
 
         MoveWindow(
             updateChannelLabel_,
             contentLeft + Scale(18),
-            Scale(334),
+            Scale(258),
             Scale(160),
-            Scale(26),
+            Scale(24),
             TRUE);
         MoveWindow(
             updateChannel_,
             contentLeft + width -
                 Scale(236),
-            Scale(325),
+            Scale(249),
             Scale(218),
-            Scale(220),
+            Scale(180),
             TRUE);
 
         MoveWindow(
             updateAutoCheck_,
             contentLeft + Scale(1),
-            Scale(376),
+            Scale(294),
             width - Scale(2),
             Scale(
                 settings_layout::
@@ -4727,46 +4539,46 @@ void SettingsWindow::Layout() {
         MoveWindow(
             updateStatus_,
             contentLeft + Scale(18),
-            Scale(448),
+            Scale(354),
             width - Scale(36),
-            Scale(50),
+            Scale(52),
             TRUE);
 
         MoveWindow(
             updateCheck_,
             contentLeft + Scale(18),
-            Scale(506),
+            Scale(420),
             Scale(150),
-            Scale(36),
+            Scale(34),
             TRUE);
         MoveWindow(
             updateInstall_,
             contentLeft + Scale(180),
-            Scale(506),
+            Scale(420),
             Scale(180),
-            Scale(36),
+            Scale(34),
             TRUE);
 
         MoveWindow(
             aboutProjectTitle_,
             contentLeft,
-            Scale(576),
+            Scale(510),
             width,
-            Scale(28),
+            Scale(26),
             TRUE);
         MoveWindow(
             openGitHub_,
             contentLeft + Scale(18),
-            Scale(622),
+            Scale(560),
             Scale(150),
-            Scale(36),
+            Scale(34),
             TRUE);
     }
 }
 
 RECT SettingsWindow::ProviderCardRect() const {
     return PageCardRect(
-        170,
+        140,
         settings_layout::
             kToggleRowLogical * 4,
         720);
@@ -5291,6 +5103,7 @@ void SettingsWindow::DrawActionButton(
     }
 }
 
+
 void SettingsWindow::DrawGeneralToggle(
     const DRAWITEMSTRUCT& item) {
 
@@ -5322,147 +5135,68 @@ void SettingsWindow::DrawGeneralToggle(
         ToggleChecked(id);
 
     const wchar_t* title = L"";
-    const wchar_t* description = L"";
 
     switch (id) {
     case kIdStartWithWindows:
-        title = T(
-            L"开机启动",
-            L"Start with Windows");
-        description = T(
-            L"登录 Windows 后自动启动 ALTRun Next。",
-            L"Launch ALTRun Next automatically after signing in.");
+        title = T(L"开机启动", L"Start with Windows");
         break;
     case kIdShowOnStartup:
-        title = T(
-            L"启动时显示启动器",
-            L"Show launcher on startup");
-        description = T(
-            L"程序启动后立即显示 Launcher；默认保持后台静默启动。",
-            L"Show the launcher when the app starts; otherwise start silently.");
+        title = T(L"启动时显示启动器", L"Show launcher on startup");
         break;
     case kIdHideAfterLaunch:
-        title = T(
-            L"执行后自动隐藏",
-            L"Hide after launch");
-        description = T(
-            L"成功执行结果后自动收起 Launcher。",
-            L"Hide the launcher after a result is executed successfully.");
+        title = T(L"执行后自动隐藏", L"Hide after launch");
         break;
     case kIdClearQueryOnShow:
-        title = T(
-            L"呼出时清空搜索",
-            L"Clear query on open");
-        description = T(
-            L"每次呼出 Launcher 时从空白搜索开始。",
-            L"Start with an empty query every time the launcher opens.");
+        title = T(L"呼出时清空搜索", L"Clear query on open");
         break;
     case kIdHideOnFocusLost:
-        title = T(
-            L"失去焦点时隐藏",
-            L"Hide when focus is lost");
-        description = T(
-            L"切换到其他窗口时自动收起 Launcher。",
-            L"Hide the launcher when another window receives focus.");
+        title = T(L"失去焦点时隐藏", L"Hide when focus is lost");
         break;
     case kIdShowTrayIcon:
-        title = T(
-            L"显示系统托盘图标",
-            L"Show system tray icon");
-        description = T(
-            L"保留托盘入口，用于设置、重新加载和退出。",
-            L"Keep the tray entry for Settings, reload and exit.");
+        title = T(L"显示系统托盘图标", L"Show system tray icon");
         break;
     case kIdShowResultIcons:
-        title = T(
-            L"显示搜索结果图标",
-            L"Show search result icons");
-        description = T(
-            L"关闭时不解析或缓存 Shell 图标，连续搜索会更轻。",
-            L"Disable Shell icon resolution and caching for lighter continuous search.");
+        title = T(L"显示搜索结果图标", L"Show search result icons");
         break;
     case kIdPinyinSearch:
-        title = T(
-            L"启用拼音搜索",
-            L"Enable Pinyin search");
-        description = T(
-            L"支持全拼、首字母和混合拼音匹配中文。",
-            L"Match Chinese using full, initial and mixed Pinyin.");
+        title = T(L"启用拼音搜索", L"Enable Pinyin search");
         break;
     case kIdWildcardMatching:
-        title = T(
-            L"允许 * / ? 通配符",
-            L"Enable * / ? wildcards");
-        description = T(
-            L"查询包含通配符时使用 glob 匹配。",
-            L"Use glob matching when the query contains wildcard characters.");
+        title = T(L"允许 * / ? 通配符", L"Enable * / ? wildcards");
         break;
     case kIdNumericQuickLaunch:
-        title = T(
-            L"数字键快速执行结果",
-            L"Quick launch with number keys");
-        description = T(
-            L"Classic 下数字键直接执行对应结果。",
-            L"In Classic mode, number keys execute matching results.");
+        title = T(L"数字键快速执行结果", L"Quick launch with number keys");
         break;
     case kIdExecuteSingleResult:
-        title = T(
-            L"仅剩一个结果时立即执行",
-            L"Execute immediately when one result remains");
-        description = T(
-            L"非空查询只剩唯一结果时立即启动；默认关闭以避免误触。",
-            L"Launch when a non-empty query narrows to one result; off by default.");
+        title = T(L"仅剩一个结果时立即执行", L"Execute when one result remains");
+        break;
+    case kIdHotkeyEnabled:
+        title = T(L"启用此快捷键", L"Enable this hotkey");
         break;
     case kIdProviderStartMenu:
-        title = T(
-            L"开始菜单",
-            L"Start Menu");
-        description = T(
-            L"发现当前用户和所有用户开始菜单中的快捷方式与程序。",
-            L"Discover shortcuts and programs from Windows Start Menu locations.");
+        title = T(L"开始菜单", L"Start Menu");
         break;
     case kIdProviderPackaged:
         title = L"Windows Apps";
-        description = T(
-            L"发现 Microsoft Store、UWP 和 MSIX 应用。",
-            L"Discover Microsoft Store, UWP and MSIX applications.");
         break;
     case kIdProviderAppPaths:
         title = L"App Paths";
-        description = T(
-            L"从注册表 App Paths 发现传统桌面程序。",
-            L"Discover traditional desktop applications from the App Paths registry.");
         break;
     case kIdProviderPath:
         title = L"PATH";
-        description = T(
-            L"发现 PATH 中的 EXE、COM、BAT 和 CMD。",
-            L"Discover EXE, COM, BAT and CMD files exposed through PATH.");
         break;
     case kIdProviderEverything:
-        title = T(
-            L"Everything 文件与文件夹",
-            L"Everything files & folders");
-        description = T(
-            L"通过标准版 Everything IPC 实时搜索文件和文件夹。",
-            L"Search files and folders live through standard Everything IPC.");
+        title = T(L"Everything 文件与文件夹", L"Everything files & folders");
         break;
     case kIdUpdateAutoCheck:
-        title = T(
-            L"自动检查更新",
-            L"Automatically check for updates");
-        description = T(
-            L"后台最多每天检查一次当前更新通道。",
-            L"Check the selected update channel in the background at most once per day.");
+        title = T(L"自动检查更新", L"Automatically check for updates");
         break;
     default:
         break;
     }
 
-    const int switchWidth =
-        Scale(40);
-    const int switchHeight =
-        Scale(22);
+    const int switchWidth = Scale(40);
+    const int switchHeight = Scale(22);
     const int switchLeft =
         rect.right -
         Scale(18) -
@@ -5480,14 +5214,11 @@ void SettingsWindow::DrawGeneralToggle(
         switchTop + switchHeight,
     };
 
-    const COLORREF trackColor =
-        checked
-            ? kAccent
-            : RGB(214, 219, 226);
-
     HBRUSH trackBrush =
         CreateSolidBrush(
-            trackColor);
+            checked
+                ? kAccent
+                : RGB(214, 219, 226));
     HPEN trackPen =
         CreatePen(
             PS_SOLID,
@@ -5514,21 +5245,13 @@ void SettingsWindow::DrawGeneralToggle(
         switchHeight,
         switchHeight);
 
-    SelectObject(
-        item.hDC,
-        oldBrush);
-    SelectObject(
-        item.hDC,
-        oldPen);
-    DeleteObject(
-        trackBrush);
-    DeleteObject(
-        trackPen);
+    SelectObject(item.hDC, oldBrush);
+    SelectObject(item.hDC, oldPen);
+    DeleteObject(trackBrush);
+    DeleteObject(trackPen);
 
-    const int knobSize =
-        Scale(16);
-    const int knobInset =
-        Scale(3);
+    const int knobSize = Scale(16);
+    const int knobInset = Scale(3);
     const int knobLeft =
         checked
             ? track.right -
@@ -5564,20 +5287,17 @@ void SettingsWindow::DrawGeneralToggle(
             knobInset +
             knobSize);
 
-    SelectObject(
-        item.hDC,
-        oldBrush);
-    SelectObject(
-        item.hDC,
-        oldPen);
-    DeleteObject(
-        knobBrush);
-    DeleteObject(
-        knobPen);
+    SelectObject(item.hDC, oldBrush);
+    SelectObject(item.hDC, oldPen);
+    DeleteObject(knobBrush);
+    DeleteObject(knobPen);
 
     SetBkMode(
         item.hDC,
         TRANSPARENT);
+    SetTextColor(
+        item.hDC,
+        kText);
 
     HGDIOBJ oldFont =
         SelectObject(
@@ -5586,40 +5306,16 @@ void SettingsWindow::DrawGeneralToggle(
 
     RECT titleRect{
         rect.left + Scale(18),
-        rect.top + Scale(9),
+        rect.top,
         switchLeft - Scale(16),
-        rect.top + Scale(31),
+        rect.bottom,
     };
 
-    SetTextColor(
-        item.hDC,
-        kText);
     DrawTextW(
         item.hDC,
         title,
         -1,
         &titleRect,
-        DT_LEFT |
-            DT_SINGLELINE |
-            DT_VCENTER |
-            DT_END_ELLIPSIS |
-            DT_NOPREFIX);
-
-    RECT descriptionRect{
-        titleRect.left,
-        rect.top + Scale(32),
-        titleRect.right,
-        rect.bottom - Scale(6),
-    };
-
-    SetTextColor(
-        item.hDC,
-        kMuted);
-    DrawTextW(
-        item.hDC,
-        description,
-        -1,
-        &descriptionRect,
         DT_LEFT |
             DT_SINGLELINE |
             DT_VCENTER |
@@ -5634,7 +5330,8 @@ void SettingsWindow::DrawGeneralToggle(
         id == kIdShowResultIcons ||
         id == kIdProviderPath ||
         id == kIdProviderEverything ||
-        id == kIdUpdateAutoCheck;
+        id == kIdUpdateAutoCheck ||
+        id == kIdHotkeyEnabled;
 
     if (!lastRow) {
         HPEN separator =
@@ -5653,7 +5350,6 @@ void SettingsWindow::DrawGeneralToggle(
             rect.left + Scale(18),
             rect.bottom - 1,
             nullptr);
-
         LineTo(
             item.hDC,
             rect.right - Scale(18),
@@ -5668,8 +5364,7 @@ void SettingsWindow::DrawGeneralToggle(
 
     if (item.itemState &
         ODS_FOCUS) {
-        RECT focus =
-            rect;
+        RECT focus = rect;
         InflateRect(
             &focus,
             -Scale(7),
@@ -6470,6 +6165,7 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdHideOnFocusLost ||
             item->CtlID == kIdShowTrayIcon ||
             item->CtlID == kIdShowResultIcons ||
+            item->CtlID == kIdHotkeyEnabled ||
             item->CtlID == kIdPinyinSearch ||
             item->CtlID == kIdWildcardMatching ||
             item->CtlID == kIdNumericQuickLaunch ||
@@ -6571,6 +6267,7 @@ LRESULT SettingsWindow::HandleMessage(
         }
         break;
 
+
     case WM_PAINT: {
         PAINTSTRUCT paint{};
         HDC dc =
@@ -6634,7 +6331,9 @@ LRESULT SettingsWindow::HandleMessage(
         MoveToEx(
             dc,
             contentLeft,
-            Scale(116) -
+            Scale(
+                settings_layout::
+                    kPageDividerTopLogical) -
                 (page_ ==
                          Page::General
                      ? generalScrollOffset_
@@ -6646,7 +6345,9 @@ LRESULT SettingsWindow::HandleMessage(
                 Scale(
                     settings_layout::
                         kContentRightInsetLogical),
-            Scale(116) -
+            Scale(
+                settings_layout::
+                    kPageDividerTopLogical) -
                 (page_ ==
                          Page::General
                      ? generalScrollOffset_
@@ -6751,64 +6452,57 @@ LRESULT SettingsWindow::HandleMessage(
 
             drawCard({
                 contentLeft,
-                Scale(150),
+                Scale(116),
                 contentLeft +
                     listWidth,
-                Scale(564),
+                Scale(516),
             });
 
             drawCard({
                 contentLeft +
                     listWidth +
                     gap,
-                Scale(150),
+                Scale(116),
                 contentRight,
-                Scale(564),
+                Scale(516),
             });
         } else if (
             page_ == Page::Providers) {
             drawCard(
                 ProviderCardRect());
-
-            const int filesTitleTop =
-                170 +
-                settings_layout::
-                    kToggleRowLogical * 4 +
-                22;
-
             drawCard(
                 PageCardRect(
-                    filesTitleTop + 32,
-                    294,
+                    394,
+                    174,
                     720));
         } else if (
             page_ == Page::Appearance) {
             drawCard(
                 PageCardRect(
-                    170,
-                    68,
+                    140,
+                    58,
                     680));
             drawCard(
                 PageCardRect(
-                    302,
-                    68,
+                    264,
+                    58,
                     680));
         } else if (
             page_ == Page::Data) {
             drawCard(
                 PageCardRect(
-                    170,
-                    66,
+                    140,
+                    60,
                     720));
             drawCard(
                 PageCardRect(
-                    312,
-                    72,
+                    264,
+                    64,
                     720));
             drawCard(
                 PageCardRect(
-                    452,
-                    72,
+                    392,
+                    64,
                     720));
         } else if (
             page_ == Page::Diagnostics) {
@@ -6830,47 +6524,47 @@ LRESULT SettingsWindow::HandleMessage(
 
             drawCard({
                 contentLeft,
-                Scale(150),
+                Scale(118),
                 contentLeft +
                     column,
-                Scale(286),
+                Scale(248),
             });
 
             drawCard({
                 contentLeft +
                     column +
                     gap,
-                Scale(150),
+                Scale(118),
                 contentLeft +
                     width,
-                Scale(286),
+                Scale(248),
             });
 
             drawCard(
                 PageCardRect(
-                    310,
-                    160,
+                    270,
+                    180,
                     760));
             drawCard(
                 PageCardRect(
-                    490,
+                    470,
                     88,
                     760));
             drawCard(
                 PageCardRect(
-                    598,
+                    578,
                     88,
                     760));
         } else if (
             page_ == Page::About) {
             drawCard(
                 PageCardRect(
-                    314,
+                    238,
                     238,
                     680));
             drawCard(
                 PageCardRect(
-                    608,
+                    542,
                     80,
                     680));
         }
@@ -6899,6 +6593,7 @@ LRESULT SettingsWindow::HandleMessage(
             cardBrush_);
     }
 
+
     case WM_CTLCOLORSTATIC: {
         HDC dc =
             reinterpret_cast<HDC>(
@@ -6908,12 +6603,61 @@ LRESULT SettingsWindow::HandleMessage(
             reinterpret_cast<HWND>(
                 lParam);
 
+        const bool sidebarStatic =
+            control == brandName_ ||
+            control == brandSubtitle_;
+
+        const bool cardStatic =
+            control ==
+                numericQuickLaunchOrderLabel_ ||
+            control == popupMonitorLabel_ ||
+            control ==
+                launcherPlacementLabel_ ||
+            control ==
+                settingsPlacementLabel_ ||
+            control == hotkeyEditorTitle_ ||
+            control ==
+                hotkeyEditorDescription_ ||
+            control == hotkeyScope_ ||
+            control == hotkeyPageStatus_ ||
+            control == providerStatus_ ||
+            control == uiStyleLabel_ ||
+            control == languageLabel_ ||
+            control == dataPath_ ||
+            control ==
+                diagnosticsMemoryTitle_ ||
+            control ==
+                diagnosticsMemoryStatus_ ||
+            control ==
+                diagnosticsSearchTitle_ ||
+            control ==
+                diagnosticsSearchStatus_ ||
+            control == actionsWindowsTitle_ ||
+            control == actionsWindowsStatus_ ||
+            control ==
+                actionsClipboardTitle_ ||
+            control ==
+                actionsClipboardStatus_ ||
+            control == actionsWebTitle_ ||
+            control == actionsWebStatus_ ||
+            control == updateChannelLabel_ ||
+            control == updateStatus_;
+
+        const COLORREF background =
+            sidebarStatic
+                ? kSidebarBackground
+                : cardStatic
+                    ? kCardBackground
+                    : kWindowBackground;
+
         SetBkMode(
             dc,
-            TRANSPARENT);
+            OPAQUE);
+        SetBkColor(
+            dc,
+            background);
 
         const bool muted =
-            control == brandSubtitle_ ||
             control == pageDescription_ ||
             control ==
                 popupMonitorDescription_ ||
@@ -6953,8 +6697,11 @@ LRESULT SettingsWindow::HandleMessage(
 
         return reinterpret_cast<
             LRESULT>(
-                GetStockObject(
-                    HOLLOW_BRUSH));
+                sidebarStatic
+                    ? sidebarBrush_
+                    : cardStatic
+                        ? cardBrush_
+                        : backgroundBrush_);
     }
 
     case WM_SIZE:

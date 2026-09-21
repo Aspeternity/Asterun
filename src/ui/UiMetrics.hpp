@@ -54,10 +54,10 @@ inline constexpr int
 inline constexpr int
     kSettingsContentRightInsetLogical = 34;
 inline constexpr int
-    kSettingsToggleRowLogical = 62;
+    kSettingsToggleRowLogical = 50;
 
 inline constexpr int
-    kSettingsComboRowLogical = 68;
+    kSettingsComboRowLogical = 54;
 inline constexpr int
     kSettingsCardRadiusLogical = 8;
 inline constexpr int

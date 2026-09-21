@@ -14,6 +14,15 @@ inline constexpr int
     kToggleRowLogical =
         ui::kSettingsToggleRowLogical;
 
+inline constexpr int
+    kPageTitleTopLogical = 22;
+inline constexpr int
+    kPageDividerTopLogical = 84;
+inline constexpr int
+    kSectionTitleTopLogical = 108;
+inline constexpr int
+    kFirstCardTopLogical = 140;
+
 struct Rect {
     int left{};
     int top{};

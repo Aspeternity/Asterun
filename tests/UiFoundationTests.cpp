@@ -22,20 +22,20 @@ int main() {
     assert(ui::kSettingsSidebarWidthLogical == 208);
     assert(ui::kSettingsContentLeftInsetLogical == 38);
     assert(ui::kSettingsContentRightInsetLogical == 34);
-    assert(ui::kSettingsToggleRowLogical == 62);
+    assert(ui::kSettingsToggleRowLogical == 50);
 
     for (const auto [dpi, expected] :
          std::array<std::pair<unsigned, int>, 4>{
-             std::pair{96u, 62},
-             std::pair{120u, 78},
-             std::pair{144u, 93},
-             std::pair{192u, 124},
+             std::pair{96u, 50},
+             std::pair{120u, 63},
+             std::pair{144u, 75},
+             std::pair{192u, 100},
          }) {
-        assert(ui::Scale(62, dpi) == expected);
+        assert(ui::Scale(50, dpi) == expected);
     }
 
-    assert(ui::Scale(62, 0) == 62);
-    assert(ui::kSettingsComboRowLogical == 68);
+    assert(ui::Scale(50, 0) == 50);
+    assert(ui::kSettingsComboRowLogical == 54);
     assert(ui::kSettingsCardRadiusLogical == 8);
     assert(ui::kSettingsNavHeightLogical == 40);
     assert(ui::kSettingsNavGapLogical == 4);

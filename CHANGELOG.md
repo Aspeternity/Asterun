@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.2.1
+
+- Fixed real-Windows Settings page-switch corruption caused by transparent native STATIC backgrounds over a `WS_CLIPCHILDREN` parent.
+- Changed Settings static controls to paint explicit sidebar, card or window backgrounds and consolidated page swaps behind one final redraw.
+- Reworked the sidebar identity into a two-line `ALTRun` / `Next` brand and removed the separate Settings subtitle / white brand tile.
+- Removed persistent explanatory filler from page headers, General placement rows, Search sources, Appearance, Data, Diagnostics and About.
+- Reduced Settings toggle rows from 62 to 50 logical pixels and combo rows from 68 to 54 while preserving the 208 logical-pixel sidebar.
+- Converted Hotkeys enablement to the same right-side owner-drawn toggle language and kept normal registration status silent unless capture or an error needs attention.
+- Simplified Everything status to user-facing state plus actions; technical query details remain available from Diagnostics.
+- Sized the default Settings window from a 1080×720 logical client viewport with DPI-aware non-client adjustment instead of treating the outer window as the client area.
+- Kept settings schemaVersion 8, Provider IDs/defaults, Hotkey Registry IDs, launcher/search behavior, Everything lifecycle, update/uninstall contracts and Shortcut TSV v3 unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.21`.
 ## 0.8.0-alpha.2
 
 - Redesigned Settings around compact native cards, setting rows, right-side toggle switches and unified action buttons.

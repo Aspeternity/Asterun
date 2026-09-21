@@ -23,6 +23,15 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.1 — Settings Rendering & Information Hierarchy Stabilization
+
+Alpha 2.1 is a focused real-Windows stabilization pass for the Settings redesign. It fixes page-switch repaint corruption by giving native static controls explicit sidebar/card/window backgrounds and repainting a completed page swap in one pass instead of leaving transparent child regions over stale pixels.
+
+The Settings information hierarchy is reduced rather than padded with explanation text. The sidebar brand is now a two-line `ALTRun` / `Next` mark with no separate “Settings” subtitle or white brand tile. General uses compact one-line toggle rows and label-plus-combo placement rows; Hotkeys uses the same toggle language for per-action enablement; Search sources keeps concise Everything state and actions; Appearance, Data and About drop migration/healthy-state filler text. Diagnostics remains intentionally information-dense.
+
+General row metrics are compacted to 50 logical pixels and placement rows to 54 logical pixels. The initial Settings window is sized from a 1080×720 logical client viewport through `AdjustWindowRectExForDpi`, eliminating the alpha.2 outer-window/client-area mismatch while retaining responsive stacking and scrolling on genuinely narrow windows.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything ownership/lifecycle, updater/uninstaller behavior, Runtime Input, Path Conversion or Shortcut TSV contract changes in this hotfix. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.21`.
 ## v0.8.0-alpha.2 — Settings UX Redesign
 
 Alpha 2 is the first visible v0.8 product-polish release. Settings now uses a compact native card/row system with a 208 logical-pixel sidebar, fixed page header, right-side toggle switches, unified secondary/primary/danger buttons, and the navigation order `General -> Hotkeys -> Search sources -> Appearance -> Data -> Diagnostics -> About`.

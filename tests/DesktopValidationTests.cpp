@@ -93,7 +93,18 @@ int main() {
 
     assert(
         settings_layout::
-            kToggleRowLogical >= 54);
+            kToggleRowLogical == 50);
+    assert(
+        ui::kSettingsComboRowLogical == 54);
+    assert(
+        settings_layout::
+            kPageDividerTopLogical == 84);
+    assert(
+        settings_layout::
+            kSectionTitleTopLogical == 108);
+    assert(
+        settings_layout::
+            kFirstCardTopLogical == 140);
     assert(
         settings_layout::
             kContentLeftInsetLogical == 38);
@@ -170,7 +181,7 @@ int main() {
             settings_layout::
                 MaxScrollOffset(
                     wide,
-                    scale(800),
+                    scale(680),
                     dpi) ==
             0);
         assert(
