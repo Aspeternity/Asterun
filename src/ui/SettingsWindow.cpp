@@ -3739,10 +3739,10 @@ void SettingsWindow::Layout() {
         MoveWindow(
             numericQuickLaunchOrder_,
             metrics.search.right -
-                Scale(168),
+                Scale(118),
             orderTop +
                 Scale(9),
-            Scale(150),
+            Scale(100),
             Scale(180),
             TRUE);
 
@@ -3762,7 +3762,7 @@ void SettingsWindow::Layout() {
             metrics.placement.left +
             Scale(18);
         const int comboWidth =
-            Scale(220);
+            Scale(180);
         const int comboX =
             metrics.placement.right -
             comboWidth -
@@ -3919,14 +3919,12 @@ void SettingsWindow::Layout() {
                 inner -
                 toggleWidth;
 
+            // Reserve the switch column even for required actions so every
+            // shortcut capture button shares the same left/right baseline.
             const int captureX =
-                row.enabled
-                    ? toggleX -
-                        controlGap -
-                        captureWidth
-                    : cardRight -
-                        inner -
-                        captureWidth;
+                toggleX -
+                controlGap -
+                captureWidth;
 
             MoveWindow(
                 row.title,
@@ -3987,12 +3985,17 @@ void SettingsWindow::Layout() {
                 launcherIndex) *
                 rowHeight;
 
+        const int resetAllWidth =
+            Scale(184);
+
         MoveWindow(
             hotkeyResetAll_,
-            contentLeft,
+            cardRight -
+                inner -
+                resetAllWidth,
             launcherCardBottom +
                 Scale(16),
-            Scale(184),
+            resetAllWidth,
             Scale(34),
             TRUE);
     }
@@ -4126,7 +4129,7 @@ void SettingsWindow::Layout() {
         MoveWindow(
             uiStyle_,
             comboX,
-            Scale(153),
+            Scale(158),
             comboWidth,
             Scale(180),
             TRUE);
@@ -4154,7 +4157,7 @@ void SettingsWindow::Layout() {
         MoveWindow(
             language_,
             comboX,
-            Scale(277),
+            Scale(282),
             comboWidth,
             Scale(180),
             TRUE);

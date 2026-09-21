@@ -40,6 +40,132 @@ channel = match.group(4)
 
 
 
+
+if version == "0.8.0-alpha.2.5":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.5 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.5 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 8:
+        fail("v0.8 alpha.2.5 settings example must remain schemaVersion 8")
+
+    expected_providers = {
+        "windows.startmenu": True,
+        "windows.packaged": True,
+        "windows.apppaths": True,
+        "windows.path": True,
+        "everything.filesystem": False,
+    }
+    if settings.get("providers") != expected_providers:
+        fail("v0.8 alpha.2.5 changed frozen provider defaults")
+
+    expected_hotkeys = {
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    }
+    bindings = settings.get("hotkeys", {}).get("bindings", {})
+    if set(bindings) != expected_hotkeys:
+        fail("v0.8 alpha.2.5 changed frozen Hotkey Registry action IDs")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "Scale(118)",
+        "Scale(100)",
+        "const int comboWidth =\n            Scale(180);",
+        "const int captureX =\n                toggleX -",
+        "const int resetAllWidth =\n            Scale(184);",
+        "cardRight -\n                inner -\n                resetAllWidth",
+        "Scale(158)",
+        "Scale(282)",
+        "pendingProviderStates_",
+        "SetProviderEnabledBatch(",
+        "hotkeyGlobalTitle_",
+        "hotkeyLauncherTitle_",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.5 alignment contract missing: {token}")
+
+    for token in (
+        "Scale(168)",
+        "const int comboWidth =\n            Scale(220);",
+        "row.enabled\n                    ? toggleX",
+    ):
+        if token in settings_cpp:
+            fail(f"v0.8 alpha.2.5 obsolete alignment remains: {token}")
+
+    for token in (
+        "RuntimeDiagnosticsSnapshot",
+        "ProcessMemory",
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+        "kIdDataImportLegacy",
+        "dataImportLegacy_",
+    ):
+        if token in settings_cpp or token in settings_h:
+            fail(f"v0.8 alpha.2.5 removed Settings surface returned: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.4"',
+        '"0.8.0-alpha.2.5"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Development",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.5 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.5 — Settings Alignment Hotfix",
+        "0.8.0.25",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.5 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.5",
+        "0.8.0.25",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.5 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.5",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.5 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.5 Settings alignment contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| numeric order combo=100",
+        "| placement combos=180",
+        "| hotkey capture baseline unified",
+        "| reset-all lower-right",
+        "| Appearance combos vertically corrected",
+        "| alpha.2.4 behavior preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.4":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

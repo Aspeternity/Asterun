@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.5 — Settings Alignment Hotfix
+
+Alpha 2.5 is a narrow real-Windows alignment follow-up to the final Settings polish. It intentionally keeps the validated 820×620 fixed window, 176px left-aligned sidebar, grouped Hotkeys, Provider debounce and Data layout unchanged.
+
+General now reduces the numeric-order selector from 150 to 100 logical pixels and the three Window placement selectors from 220 to 180 logical pixels while keeping them right-aligned. This removes the remaining oversized-combo feel without changing any placement choices or persistence.
+
+Hotkeys now reserves the optional Switch column for every action, including the required primary activation action. As a result all five shortcut capture buttons share one vertical baseline. The page-wide Reset all hotkeys action moves from the lower left to the lower right and aligns with the Hotkey card's inner right edge.
+
+Appearance keeps 200-logical-pixel selectors but moves both native combo boxes down 5 logical pixels so their visible edit portions align vertically with the centered labels inside each card.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything lifecycle, updater/uninstaller behavior, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.25`.
 ## v0.8.0-alpha.2.4 — Settings Final Polish & Hotkey Redesign
 
 Alpha 2.4 is the final Settings-focused polish pass before Shortcut Manager / Editor work. Sidebar navigation remains deliberately left-aligned while the centered two-line ALTRun / Next brand stays unchanged.

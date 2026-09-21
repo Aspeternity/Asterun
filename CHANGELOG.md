@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.2.5
+
+- Reduced the General numeric-order combo from 150 to 100 logical pixels.
+- Reduced all three General Window placement combos from 220 to 180 logical pixels while preserving right alignment and persisted choices.
+- Reserved the Hotkey switch column for required actions so all five shortcut capture buttons align to the same left/right baseline.
+- Moved `恢复全部默认快捷键` / `Reset all hotkeys` to the Hotkey page lower-right edge.
+- Moved both Appearance combo boxes down 5 logical pixels to align their visible control centers with the row labels.
+- Kept Settings schemaVersion 8 and all alpha.2.4 runtime/provider/hotkey/data contracts unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.25`.
 ## 0.8.0-alpha.2.4
 
 - Kept sidebar navigation left-aligned and preserved the validated 176px sidebar / centered two-line brand.
