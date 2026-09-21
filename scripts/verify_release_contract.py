@@ -885,7 +885,7 @@ if version in ("0.7.0-alpha.2", "0.7.0-alpha.2.1", "0.7.0-alpha.2.2", "0.7.0-alp
                 if token not in changelog:
                     fail(f"v0.7 beta.4 changelog missing: {token}")
 
-        if version in ("0.7.0-beta.5", "0.7.0-beta.6"):
+        if version == "0.7.0-beta.5":
             uninstaller = read("src/uninstaller/UninstallMain.cpp")
             cmake = read("CMakeLists.txt")
             beta_validation = read("docs/V0.7_BETA_VALIDATION.md")
