@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0-beta.10
+
+- Resets stale result selection when a fresh launcher invocation clears the previous query.
+- Clears the list selection before `SetWindowTextW` so the synchronous `EN_CHANGE` rebuild deterministically selects row 1.
+- Keeps in-session selection preservation for asynchronous Everything/dynamic-result refreshes.
+- Leaves reopen behavior unchanged when Clear query on show is disabled.
+- Extends prerelease ordering coverage to `beta.9 < beta.10 < rc.1`.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.109.
+
 ## 0.7.0-beta.9
 
 - Filters stale Windows App Paths registry entries whose resolved executable target no longer exists.

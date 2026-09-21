@@ -1144,6 +1144,18 @@ void LauncherWindow::Show() {
     imeComposing_ = false;
 
     if (app_.SettingsData().clearQueryOnShow) {
+        // A fresh invocation must not carry the previous visible session's
+        // result selection into the newly cleared query. SetWindowTextW sends
+        // EN_CHANGE synchronously, so clear the list selection first; the
+        // resulting rebuild will deterministically select row 0.
+        if (list_) {
+            SendMessageW(
+                list_,
+                LB_SETCURSEL,
+                static_cast<WPARAM>(-1),
+                0);
+        }
+
         SetWindowTextW(edit_, L"");
     }
 
