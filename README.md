@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.7.0-beta.7 — Native Uninstall Delete-Lease Handoff
+
+Beta 7 closes the remaining intermittent full-remove race observed after the Beta 6 Explorer broker change. A successful Explorer navigation alone is not a durable guarantee that the installation root will still be delete-share-compatible several milliseconds later. The broker and elevated worker now perform a continuous DELETE-access lease handoff on the installation root.
+
+After Explorer is released, the normal-integrity broker opens the installation directory with DELETE access and `FILE_SHARE_DELETE`, then keeps that handle alive while signaling the elevated worker. The elevated worker acquires its own matching root handle before acknowledging the handoff; only then does the broker close its lease and exit. This removes the window in which Explorer or another Shell component could reopen the directory with incompatible sharing.
+
+The elevated worker keeps its root lease for the entire destructive phase. It deletes child entries individually using the existing precise cleanup path, then marks the now-empty root for deletion through `SetFileInformationByHandle(FileDispositionInfo)` on the already-held handle instead of reopening the root by path. If a root lease cannot be obtained, uninstall fails before destructive tree cleanup rather than leaving an empty outer folder.
+
+No reboot-delete fallback is used. Precise file diagnostics, Restart Manager lock-owner reporting, UAC cancellation behavior, preserve-data semantics, Stable update behavior and Managed Everything ownership remain unchanged. Update ordering now includes `beta.6 < beta.7 < rc.1`. Windows fixed FileVersion/ProductVersion is `0.7.0.106`.
+
 ## v0.7.0-beta.6 — Native Uninstall Broker UX
 
 Beta 6 keeps the synchronous, precise cleanup from Beta 5 while making the Explorer-release step behave like a mature uninstaller. The original normal-integrity `Uninstall.exe` now remains alive after launching the elevated TEMP worker and acts as a short-lived Explorer broker. Two named local events coordinate the handoff.
@@ -71,7 +81,7 @@ Beta 1 freezes the v0.7 shortcut and launcher workflow surface after the alpha.9
 
 The frozen public identifiers include the existing Windows/Everything Provider IDs and Hotkey Registry action IDs. The portable executable contract is `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`; the obsolete `ALTRunNext.Updater.exe` name remains prohibited. Managed Everything remains portable under `data/tools/Everything`; normal application exit keeps an enabled owned service warm, while explicitly disabling the Everything provider stops/disables only the owned service. External Everything ownership remains protected.
 
-Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < beta.6 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
+Beta 1 adds a dedicated shortcut compatibility matrix covering commands schema-1 migration plus TSV v1/v2/v3 imports, legacy five-column import and full v3 export/import round-trip of aliases, command type, portable paths, runtime input, custom icon and elevation state. Update policy tests now freeze the real prerelease progression `alpha.9.4 < beta.1 < beta.2 < beta.3 < beta.4 < beta.5 < beta.6 < beta.7 < rc.1 < stable` and explicitly reject downgrade to alpha or v0.6 stable.
 
 The package now includes `V0.7_BETA_VALIDATION.md`, the manual real-Windows sign-off matrix for native alpha.9.4 -> beta.1 update, Shortcut Manager/Editor, Runtime Input, Path Conversion, asynchronous icons, Context Actions, Managed/External Everything ownership, native uninstall, DPI and performance. Windows fixed FileVersion/ProductVersion is `0.7.0.100`.
 

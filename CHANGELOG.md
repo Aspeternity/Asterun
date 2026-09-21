@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0-beta.7
+
+- Added a continuous DELETE-access lease handoff between the normal-integrity Explorer broker and elevated TEMP uninstaller.
+- The broker now holds a DELETE-capable installation-root handle until the elevated worker confirms it acquired its own matching handle, closing the intermittent shell race window.
+- Full-remove acquires the root lease before deleting installation-tree entries, so a lease failure no longer leaves an otherwise empty outer folder.
+- The elevated worker keeps the root lease through child cleanup and deletes the empty root with `SetFileInformationByHandle(FileDispositionInfo)` instead of reopening the path for the final delete.
+- Kept synchronous entry-by-entry child cleanup, precise failure-path diagnostics, Restart Manager lock-owner reporting and foreground completion dialogs.
+- Kept the reboot-delete fallback removed and preserved UAC-cancel, preserve-data, Stable update and Managed Everything ownership semantics.
+- Extended Beta validation and prerelease ordering coverage for `beta.6 < beta.7 < rc.1`.
+- Updated Windows fixed FileVersion/ProductVersion to 0.7.0.106.
+
 ## 0.7.0-beta.6
 
 - Reworked full-remove Native Uninstall into a normal-integrity Explorer broker plus elevated TEMP worker handshake.

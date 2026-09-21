@@ -43,11 +43,15 @@ int main() {
     assert(
         IsUpdateVersionNewer(
             "0.7.0-beta.6",
+            "0.7.0-beta.7"));
+    assert(
+        IsUpdateVersionNewer(
+            "0.7.0-beta.7",
             "0.7.0-rc.1"));
     assert(
         !IsUpdateVersionNewer(
-            "0.7.0-beta.6",
-            "0.7.0-beta.5"));
+            "0.7.0-beta.7",
+            "0.7.0-beta.6"));
     assert(
         IsUpdateVersionNewer(
             "0.7.0-beta.1",

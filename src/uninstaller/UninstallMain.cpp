@@ -57,12 +57,38 @@ struct EventHandle {
     EventHandle& operator=(const EventHandle&) = delete;
 };
 
+struct DirectoryHandle {
+    HANDLE value{INVALID_HANDLE_VALUE};
+
+    ~DirectoryHandle() {
+        Reset();
+    }
+
+    DirectoryHandle() = default;
+    DirectoryHandle(const DirectoryHandle&) = delete;
+    DirectoryHandle& operator=(const DirectoryHandle&) = delete;
+
+    [[nodiscard]] bool Valid() const {
+        return value !=
+                INVALID_HANDLE_VALUE &&
+            value != nullptr;
+    }
+
+    void Reset() {
+        if (Valid()) {
+            CloseHandle(value);
+        }
+        value = INVALID_HANDLE_VALUE;
+    }
+};
+
 struct PerformArguments {
     DWORD parentPid{0};
     std::filesystem::path install;
     bool deleteData{false};
     std::wstring shellReleaseRequest;
     std::wstring shellReleaseDone;
+    std::wstring shellLeaseAcquired;
 };
 
 struct RemovalFailure {
@@ -446,6 +472,10 @@ ParsePerformArguments(
             key == L"--shell-release-done") {
             result.shellReleaseDone =
                 std::wstring(value);
+        } else if (
+            key == L"--shell-lease-acquired") {
+            result.shellLeaseAcquired =
+                std::wstring(value);
         } else {
             LocalFree(argv);
             return false;
@@ -458,6 +488,8 @@ ParsePerformArguments(
         !result.shellReleaseRequest.empty();
     const bool hasReleaseDone =
         !result.shellReleaseDone.empty();
+    const bool hasLeaseAcquired =
+        !result.shellLeaseAcquired.empty();
 
     return perform &&
         result.parentPid != 0 &&
@@ -465,9 +497,12 @@ ParsePerformArguments(
         deleteDataSeen &&
         hasReleaseRequest ==
             hasReleaseDone &&
+        hasReleaseDone ==
+            hasLeaseAcquired &&
         (!result.deleteData ||
          (hasReleaseRequest &&
-          hasReleaseDone));
+          hasReleaseDone &&
+          hasLeaseAcquired));
 }
 
 void RemoveStartupRegistration(
@@ -1190,8 +1225,23 @@ NavigateExplorerAwayFromInstall(
 }
 
 [[nodiscard]] bool
+AcquireDirectoryDeleteLease(
+    const std::filesystem::path& path,
+    DirectoryHandle& lease,
+    RemovalFailure& failure,
+    DWORD timeoutMs);
+
+[[nodiscard]] bool
+DeleteDirectoryThroughLease(
+    DirectoryHandle& lease,
+    const std::filesystem::path& path,
+    RemovalFailure& failure);
+
+[[nodiscard]] bool
 RequestShellRelease(
-    const PerformArguments& args) {
+    const PerformArguments& args,
+    DirectoryHandle& rootLease,
+    RemovalFailure& failure) {
     if (!args.deleteData) {
         return true;
     }
@@ -1210,41 +1260,91 @@ RequestShellRelease(
             FALSE,
             args.shellReleaseDone.c_str());
 
+    EventHandle leaseAcquired;
+    leaseAcquired.value =
+        OpenEventW(
+            EVENT_MODIFY_STATE,
+            FALSE,
+            args.shellLeaseAcquired.c_str());
+
     if (!request.value ||
-        !done.value) {
+        !done.value ||
+        !leaseAcquired.value) {
+        const DWORD error =
+            GetLastError();
+        failure.error =
+            error != ERROR_SUCCESS
+                ? error
+                : ERROR_INVALID_HANDLE;
+        failure.path =
+            args.install;
         SetLastError(
-            GetLastError() !=
-                    ERROR_SUCCESS
-                ? GetLastError()
-                : ERROR_INVALID_HANDLE);
+            failure.error);
         return false;
     }
 
     if (!SetEvent(
             request.value)) {
+        failure.error =
+            GetLastError();
+        failure.path =
+            args.install;
         return false;
     }
 
     const DWORD released =
         WaitForSingleObject(
             done.value,
-            15000);
+            20000);
 
     if (released !=
         WAIT_OBJECT_0) {
-        SetLastError(
+        failure.error =
             released ==
                     WAIT_TIMEOUT
                 ? ERROR_TIMEOUT
-                : ERROR_GEN_FAILURE);
+                : ERROR_GEN_FAILURE;
+        failure.path =
+            args.install;
+        SetLastError(
+            failure.error);
+        return false;
+    }
+
+    // The normal-integrity broker still holds its own DELETE-capable directory
+    // handle at this point. Acquire the elevated worker's matching lease before
+    // acknowledging the handoff, so there is never a window in which Explorer
+    // or another Shell component can reopen the root without FILE_SHARE_DELETE.
+    if (!AcquireDirectoryDeleteLease(
+            args.install,
+            rootLease,
+            failure,
+            5000)) {
+        SetLastError(
+            failure.error);
+        return false;
+    }
+
+    if (!SetEvent(
+            leaseAcquired.value)) {
+        failure.error =
+            GetLastError();
+        failure.path =
+            args.install;
+        rootLease.Reset();
         return false;
     }
 
     if (!WaitForProcess(
             args.parentPid,
             15000)) {
+        failure.error =
+            ERROR_TIMEOUT;
+        failure.path =
+            args.install;
+        rootLease.Reset();
         SetLastError(
-            ERROR_TIMEOUT);
+            failure.error);
         return false;
     }
 
@@ -1256,7 +1356,8 @@ ServeShellReleaseBroker(
     HANDLE requestEvent,
     HANDLE workerProcess,
     const std::filesystem::path& install,
-    HANDLE doneEvent) {
+    HANDLE doneEvent,
+    HANDLE leaseAcquiredEvent) {
     const HANDLE handles[] = {
         requestEvent,
         workerProcess,
@@ -1274,31 +1375,60 @@ ServeShellReleaseBroker(
         (void)NavigateExplorerAwayFromInstall(
             install);
 
+        const auto parent =
+            install.parent_path();
+
+        if (!parent.empty()) {
+            (void)SetCurrentDirectoryW(
+                parent.c_str());
+        }
+
+        RemovalFailure leaseFailure;
+        DirectoryHandle brokerLease;
+
+        if (!AcquireDirectoryDeleteLease(
+                install,
+                brokerLease,
+                leaseFailure,
+                15000)) {
+            return false;
+        }
+
         if (!SetEvent(
                 doneEvent)) {
             return false;
         }
 
-        // Returning from BeginUninstall now terminates the original
-        // installation-directory Uninstall.exe. The elevated TEMP worker waits
-        // for this exact PID before deleting the installation tree.
-        return true;
+        const HANDLE handoffHandles[] = {
+            leaseAcquiredEvent,
+            workerProcess,
+        };
+
+        const DWORD handoff =
+            WaitForMultipleObjects(
+                2,
+                handoffHandles,
+                FALSE,
+                15000);
+
+        if (handoff ==
+            WAIT_OBJECT_0) {
+            // The elevated worker now owns a matching DELETE-capable root
+            // handle. Closing this lease and exiting the original Uninstall.exe
+            // preserves continuous delete sharing across the integrity boundary.
+            return true;
+        }
+
+        if (handoff ==
+            WAIT_OBJECT_0 + 1) {
+            return true;
+        }
+
+        return false;
     }
 
     if (wait ==
         WAIT_OBJECT_0 + 1) {
-        // Worker already exited before it needed the shell broker.
-        return true;
-    }
-
-    if (wait ==
-        WAIT_TIMEOUT) {
-        // Avoid trapping the original Uninstall.exe forever. Release Explorer
-        // once, unblock any delayed worker request, then let the parent exit.
-        (void)NavigateExplorerAwayFromInstall(
-            install);
-        (void)SetEvent(
-            doneEvent);
         return true;
     }
 
@@ -1440,6 +1570,113 @@ IsTransientRemovalError(
             ERROR_DIR_NOT_EMPTY ||
         error ==
             ERROR_BUSY;
+}
+
+[[nodiscard]] bool
+AcquireDirectoryDeleteLease(
+    const std::filesystem::path& path,
+    DirectoryHandle& lease,
+    RemovalFailure& failure,
+    DWORD timeoutMs) {
+    lease.Reset();
+
+    constexpr auto delay =
+        std::chrono::milliseconds(100);
+    const auto started =
+        std::chrono::steady_clock::now();
+
+    for (;;) {
+        HANDLE handle =
+            CreateFileW(
+                path.c_str(),
+                DELETE |
+                    FILE_READ_ATTRIBUTES |
+                    SYNCHRONIZE,
+                FILE_SHARE_READ |
+                    FILE_SHARE_WRITE |
+                    FILE_SHARE_DELETE,
+                nullptr,
+                OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS,
+                nullptr);
+
+        if (handle !=
+            INVALID_HANDLE_VALUE) {
+            lease.value =
+                handle;
+            return true;
+        }
+
+        const DWORD error =
+            GetLastError();
+
+        if (!IsTransientRemovalError(
+                error)) {
+            failure.error =
+                error != ERROR_SUCCESS
+                    ? error
+                    : ERROR_GEN_FAILURE;
+            failure.path = path;
+            return false;
+        }
+
+        const auto elapsed =
+            std::chrono::duration_cast<
+                std::chrono::milliseconds>(
+                std::chrono::
+                    steady_clock::now() -
+                started);
+
+        if (elapsed.count() >=
+            static_cast<long long>(
+                timeoutMs)) {
+            failure.error =
+                error != ERROR_SUCCESS
+                    ? error
+                    : ERROR_SHARING_VIOLATION;
+            failure.path = path;
+            return false;
+        }
+
+        std::this_thread::sleep_for(
+            delay);
+    }
+}
+
+[[nodiscard]] bool
+DeleteDirectoryThroughLease(
+    DirectoryHandle& lease,
+    const std::filesystem::path& path,
+    RemovalFailure& failure) {
+    if (!lease.Valid()) {
+        failure.error =
+            ERROR_INVALID_HANDLE;
+        failure.path = path;
+        return false;
+    }
+
+    FILE_DISPOSITION_INFO disposition{};
+    disposition.DeleteFile =
+        TRUE;
+
+    if (!SetFileInformationByHandle(
+            lease.value,
+            FileDispositionInfo,
+            &disposition,
+            sizeof(disposition))) {
+        const DWORD error =
+            GetLastError();
+
+        failure.error =
+            error != ERROR_SUCCESS
+                ? error
+                : ERROR_GEN_FAILURE;
+        failure.path = path;
+        return false;
+    }
+
+    lease.Reset();
+    return true;
 }
 
 [[nodiscard]] bool
@@ -1648,7 +1885,8 @@ RemoveAllWithRetry(
 RemoveInstallation(
     const std::filesystem::path& install,
     bool deleteData,
-    RemovalFailure& failure) {
+    RemovalFailure& failure,
+    DirectoryHandle* rootLease) {
     const auto data =
         install /
         L"data";
@@ -1679,12 +1917,6 @@ RemoveInstallation(
             ignored);
     }
 
-    if (deleteData) {
-        return RemoveAllWithRetry(
-            install,
-            failure);
-    }
-
     std::error_code ec;
     std::vector<std::filesystem::path>
         entries;
@@ -1695,10 +1927,11 @@ RemoveInstallation(
          end;
          !ec && it != end;
          it.increment(ec)) {
-        if (LowerPath(
+        if (!deleteData &&
+            LowerPath(
                 it->path()
                     .filename()) ==
-            L"data") {
+                L"data") {
             continue;
         }
 
@@ -1719,6 +1952,21 @@ RemoveInstallation(
                 failure)) {
             return false;
         }
+    }
+
+    if (deleteData) {
+        if (!rootLease) {
+            failure.error =
+                ERROR_INVALID_HANDLE;
+            failure.path =
+                install;
+            return false;
+        }
+
+        return DeleteDirectoryThroughLease(
+            *rootLease,
+            install,
+            failure);
     }
 
     return true;
@@ -1780,17 +2028,32 @@ PerformUninstall(
     }
 
     RemovalFailure removalFailure;
+    DirectoryHandle rootLease;
 
     if (args.deleteData &&
         !RequestShellRelease(
-            args)) {
+            args,
+            rootLease,
+            removalFailure)) {
+        gRemovalFailurePath =
+            removalFailure.path;
+        gRemovalFailureLockOwners =
+            removalFailure.lockOwners;
+        SetLastError(
+            removalFailure.error !=
+                    ERROR_SUCCESS
+                ? removalFailure.error
+                : ERROR_GEN_FAILURE);
         return 7;
     }
 
     if (!RemoveInstallation(
             args.install,
             args.deleteData,
-            removalFailure)) {
+            removalFailure,
+            args.deleteData
+                ? &rootLease
+                : nullptr)) {
         gRemovalFailurePath =
             removalFailure.path;
         gRemovalFailureLockOwners =
@@ -1911,8 +2174,10 @@ BeginUninstall() {
 
     EventHandle shellReleaseRequest;
     EventHandle shellReleaseDone;
+    EventHandle shellLeaseAcquired;
     std::wstring shellReleaseRequestName;
     std::wstring shellReleaseDoneName;
+    std::wstring shellLeaseAcquiredName;
 
     if (deleteData) {
         const auto brokerToken =
@@ -1928,6 +2193,9 @@ BeginUninstall() {
         shellReleaseDoneName =
             L"Local\\ALTRunNext.Uninstall.ReleaseDone." +
             brokerToken;
+        shellLeaseAcquiredName =
+            L"Local\\ALTRunNext.Uninstall.LeaseAcquired." +
+            brokerToken;
 
         shellReleaseRequest.value =
             CreateEventW(
@@ -1941,9 +2209,16 @@ BeginUninstall() {
                 TRUE,
                 FALSE,
                 shellReleaseDoneName.c_str());
+        shellLeaseAcquired.value =
+            CreateEventW(
+                nullptr,
+                TRUE,
+                FALSE,
+                shellLeaseAcquiredName.c_str());
 
         if (!shellReleaseRequest.value ||
-            !shellReleaseDone.value) {
+            !shellReleaseDone.value ||
+            !shellLeaseAcquired.value) {
             return 15;
         }
     }
@@ -1980,7 +2255,10 @@ BeginUninstall() {
                 shellReleaseRequestName) +
             L" --shell-release-done " +
             QuoteArgument(
-                shellReleaseDoneName);
+                shellReleaseDoneName) +
+            L" --shell-lease-acquired " +
+            QuoteArgument(
+                shellLeaseAcquiredName);
     }
 
     SHELLEXECUTEINFOW info{};
@@ -2034,7 +2312,8 @@ BeginUninstall() {
                 shellReleaseRequest.value,
                 info.hProcess,
                 install,
-                shellReleaseDone.value);
+                shellReleaseDone.value,
+                shellLeaseAcquired.value);
 
         CloseHandle(
             info.hProcess);
