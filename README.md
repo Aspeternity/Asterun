@@ -23,6 +23,15 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.6 — Settings Focus & Combo Polish
+
+Alpha 2.6 fixes the last two native ComboBox rough edges found in real-Windows Settings validation.
+
+All Settings combo boxes now release their focus when the user clicks elsewhere inside the Settings window, including blank/card/static areas. The window handles both direct background clicks and child mouse notifications, so the previous blue selection highlight no longer remains stuck until another combo box or an external desktop area is clicked.
+
+Appearance keeps the validated vertical alignment from alpha.2.5 but reduces both Launcher style and interface-language selectors from 200 to 160 logical pixels. The controls remain right-aligned inside the same 560-logical-pixel cards.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything lifecycle, updater/uninstaller behavior, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.26`.
 ## v0.8.0-alpha.2.5 — Settings Alignment Hotfix
 
 Alpha 2.5 is a narrow real-Windows alignment follow-up to the final Settings polish. It intentionally keeps the validated 820×620 fixed window, 176px left-aligned sidebar, grouped Hotkeys, Provider debounce and Data layout unchanged.

@@ -183,6 +183,7 @@ In progress:
 - v0.8.0-alpha.2.3 shortens the fixed Settings viewport to 820×620, replaces dotted sidebar focus with a restrained native focus state and fixes rapid owner-drawn toggle clicks by handling BN_DOUBLECLICKED
 - v0.8.0-alpha.2.4 completes Settings polish with compact selectors, grouped inline Hotkeys, debounced Search-source commits, balanced Data actions and removal of the manual legacy-AltRun import path while preserving automatic migration
 - v0.8.0-alpha.2.5 applies the final Settings alignment hotfix: shorter General selectors, one Hotkey capture baseline, lower-right Reset-all placement and corrected Appearance combo vertical centering
+- v0.8.0-alpha.2.6 clears native ComboBox focus on internal Settings clicks and shortens the two Appearance selectors to 160 logical pixels
 - Shortcut Manager / Editor visual consolidation follows in v0.8.0-alpha.3
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

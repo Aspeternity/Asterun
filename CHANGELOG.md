@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0-alpha.2.6
+
+- Made every Settings ComboBox relinquish focus when the user clicks elsewhere inside the Settings window, including background/card/static areas.
+- Added parent mouse-notification handling so native child controls no longer leave a previously selected ComboBox visually focused after unrelated internal clicks.
+- Reduced both Appearance selectors from 200 to 160 logical pixels while preserving their alpha.2.5 vertical alignment and right edge.
+- Kept Settings schemaVersion 8 and all alpha.2.5 runtime/provider/hotkey/data contracts unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.26`.
 ## 0.8.0-alpha.2.5
 
 - Reduced the General numeric-order combo from 150 to 100 logical pixels.

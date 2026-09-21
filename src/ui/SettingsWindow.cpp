@@ -4099,7 +4099,7 @@ void SettingsWindow::Layout() {
         const int inner =
             Scale(18);
         const int comboWidth =
-            Scale(200);
+            Scale(160);
         const int comboX =
             contentLeft +
             width -
@@ -5801,7 +5801,52 @@ LRESULT SettingsWindow::HandleMessage(
     WPARAM wParam,
     LPARAM lParam) {
 
+    const auto dismissComboFocus =
+        [&]() {
+            const HWND focused =
+                GetFocus();
+
+            if (!focused) {
+                return;
+            }
+
+            for (HWND combo :
+                 std::array<HWND, 7>{
+                     numericQuickLaunchOrder_,
+                     popupMonitor_,
+                     launcherPlacement_,
+                     settingsPlacement_,
+                     uiStyle_,
+                     language_,
+                     updateChannel_}) {
+                if (focused == combo) {
+                    SetFocus(hwnd_);
+                    return;
+                }
+            }
+        };
+
     switch (message) {
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+        dismissComboFocus();
+        break;
+
+    case WM_PARENTNOTIFY:
+        if (LOWORD(wParam) ==
+                WM_LBUTTONDOWN ||
+            LOWORD(wParam) ==
+                WM_RBUTTONDOWN ||
+            LOWORD(wParam) ==
+                WM_MBUTTONDOWN) {
+            // Native ComboBox controls keep their selection highlight while
+            // focused. Any click elsewhere inside Settings should dismiss that
+            // focus first; the clicked child can then take focus normally.
+            dismissComboFocus();
+        }
+        break;
+
     case WM_TIMER:
         if (wParam ==
             kProviderCommitTimerId) {

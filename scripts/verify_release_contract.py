@@ -41,6 +41,105 @@ channel = match.group(4)
 
 
 
+
+if version == "0.8.0-alpha.2.6":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.6 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.6 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 8:
+        fail("v0.8 alpha.2.6 settings example must remain schemaVersion 8")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "const auto dismissComboFocus =",
+        "std::array<HWND, 7>",
+        "numericQuickLaunchOrder_",
+        "popupMonitor_",
+        "launcherPlacement_",
+        "settingsPlacement_",
+        "uiStyle_",
+        "language_",
+        "updateChannel_",
+        "case WM_LBUTTONDOWN:",
+        "case WM_PARENTNOTIFY:",
+        "dismissComboFocus();",
+        "const int comboWidth =\n            Scale(160);",
+        "const int comboWidth =\n            Scale(180);",
+        "Scale(100)",
+        "hotkeyGlobalTitle_",
+        "pendingProviderStates_",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.6 Settings focus/polish contract missing: {token}")
+
+    for token in (
+        "RuntimeDiagnosticsSnapshot",
+        "ProcessMemory",
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+        "kIdDataImportLegacy",
+        "dataImportLegacy_",
+    ):
+        if token in settings_cpp or token in settings_h:
+            fail(f"v0.8 alpha.2.6 removed Settings surface returned: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.5"',
+        '"0.8.0-alpha.2.6"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Development",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.6 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.6 — Settings Focus & Combo Polish",
+        "0.8.0.26",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.6 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.6",
+        "0.8.0.26",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.6 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.6",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.6 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.6 Settings focus/polish contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| all Settings combos dismiss on internal clicks",
+        "| Appearance combos=160",
+        "| alpha.2.5 behavior preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.5":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,
