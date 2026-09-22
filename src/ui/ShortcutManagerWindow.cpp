@@ -451,11 +451,85 @@ void ShortcutManagerWindow::Show(
         return;
     }
 
-    Refresh(preferredId);
+    const bool reopening =
+        !IsWindowVisible(hwnd_);
+
+    if (reopening) {
+        ResetTransientState(
+            preferredId);
+    } else {
+        Refresh(preferredId);
+    }
 
     ShowWindow(hwnd_, SW_SHOW);
     ShowWindow(hwnd_, SW_RESTORE);
     SetForegroundWindow(hwnd_);
+}
+
+void ShortcutManagerWindow::
+ResetTransientState(
+    std::wstring_view preferredId) {
+    suppressFilterRefresh_ = true;
+
+    if (filter_) {
+        SetWindowTextW(
+            filter_,
+            L"");
+    }
+
+    suppressFilterRefresh_ = false;
+
+    if (list_) {
+        ListView_SetItemState(
+            list_,
+            -1,
+            0,
+            LVIS_SELECTED |
+                LVIS_FOCUSED);
+        ListView_SetSelectionMark(
+            list_,
+            -1);
+    }
+
+    Refresh(preferredId);
+
+    if (list_ &&
+        preferredId.empty()) {
+        ListView_SetItemState(
+            list_,
+            -1,
+            0,
+            LVIS_SELECTED |
+                LVIS_FOCUSED);
+        ListView_SetSelectionMark(
+            list_,
+            -1);
+
+        if (ListView_GetItemCount(
+                list_) > 0) {
+            ListView_EnsureVisible(
+                list_,
+                0,
+                FALSE);
+        }
+
+        EnableWindow(
+            edit_,
+            FALSE);
+        EnableWindow(
+            delete_,
+            FALSE);
+        EnableWindow(
+            test_,
+            FALSE);
+    }
+
+    if (filter_) {
+        InvalidateRect(
+            filter_,
+            nullptr,
+            TRUE);
+    }
 }
 
 void ShortcutManagerWindow::Refresh(
@@ -580,11 +654,6 @@ void ShortcutManagerWindow::Refresh(
         }
     }
 
-    if (selected < 0 &&
-        !visibleIds_.empty()) {
-        selected = 0;
-    }
-
     if (selected >= 0) {
         ListView_SetItemState(
             list_,
@@ -639,10 +708,52 @@ void ShortcutManagerWindow::Layout() {
             ui::
                 kStandardControlHeightLogical);
 
+    int searchHeight =
+        Scale(24);
+
+    if (font_) {
+        HDC dc =
+            GetDC(hwnd_);
+
+        if (dc) {
+            HGDIOBJ oldFont =
+                SelectObject(
+                    dc,
+                    font_);
+
+            TEXTMETRICW metrics{};
+            if (GetTextMetricsW(
+                    dc,
+                    &metrics)) {
+                searchHeight =
+                    std::min(
+                        buttonHeight,
+                        std::max(
+                            Scale(22),
+                            static_cast<int>(
+                                metrics.tmHeight) +
+                                Scale(6)));
+            }
+
+            SelectObject(
+                dc,
+                oldFont);
+            ReleaseDC(
+                hwnd_,
+                dc);
+        }
+    }
+
     const int newButtonWidth =
         Scale(112);
     const int topY =
         margin;
+    const int searchY =
+        topY +
+        std::max(
+            0,
+            (buttonHeight -
+             searchHeight) / 2);
 
     const int availableWidth =
         std::max(
@@ -729,9 +840,9 @@ void ShortcutManagerWindow::Layout() {
     move(
         filter_,
         margin,
-        topY,
+        searchY,
         filterWidth,
-        buttonHeight);
+        searchHeight);
 
     move(
         add_,
@@ -934,7 +1045,8 @@ RebuildRowHeightImageList() {
 }
 
 void ShortcutManagerWindow::
-UpdateColumnWidths() {
+UpdateColumnWidths(
+    int resizedColumn) {
     if (!list_) {
         return;
     }
@@ -944,43 +1056,145 @@ UpdateColumnWidths() {
         list_,
         &client);
 
-    int contentWidth =
-        client.right -
-        client.left;
-
-    contentWidth =
+    const int contentWidth =
         std::max(
             Scale(360),
-            contentWidth);
+            static_cast<int>(
+                client.right -
+                client.left));
 
-    // Four real columns only. The final Target column always consumes the
-    // exact remainder so resize never exposes a fake fifth header cell.
-    const int keywords =
-        contentWidth * 22 / 100;
-    const int name =
-        contentWidth * 26 / 100;
-    const int type =
-        contentWidth * 12 / 100;
+    const int minimumTarget =
+        Scale(120);
+
+    std::array<int, 3> widths{};
+
+    if (!customColumnWidths_ &&
+        resizedColumn < 0) {
+        widths[0] =
+            contentWidth * 22 / 100;
+        widths[1] =
+            contentWidth * 26 / 100;
+        widths[2] =
+            contentWidth * 12 / 100;
+    } else {
+        for (int index = 0;
+             index < 3;
+             ++index) {
+            widths[
+                static_cast<std::size_t>(
+                    index)] =
+                ListView_GetColumnWidth(
+                    list_,
+                    index);
+        }
+    }
+
+    const std::array<int, 3>
+        minimums{
+            Scale(72),
+            Scale(96),
+            Scale(72),
+        };
+
+    for (std::size_t index = 0;
+         index < widths.size();
+         ++index) {
+        widths[index] =
+            std::max(
+                minimums[index],
+                widths[index]);
+    }
+
+    const int firstThreeLimit =
+        std::max(
+            minimums[0] +
+                minimums[1] +
+                minimums[2],
+            contentWidth -
+                minimumTarget);
+
+    int firstThreeTotal =
+        widths[0] +
+        widths[1] +
+        widths[2];
+
+    if (firstThreeTotal >
+        firstThreeLimit) {
+        int excess =
+            firstThreeTotal -
+            firstThreeLimit;
+
+        const auto shrink =
+            [&](int index) {
+                if (excess <= 0) {
+                    return;
+                }
+
+                const int capacity =
+                    std::max(
+                        0,
+                        widths[
+                            static_cast<
+                                std::size_t>(
+                                    index)] -
+                            minimums[
+                                static_cast<
+                                    std::size_t>(
+                                        index)]);
+
+                const int amount =
+                    std::min(
+                        excess,
+                        capacity);
+
+                widths[
+                    static_cast<
+                        std::size_t>(
+                            index)] -=
+                    amount;
+                excess -= amount;
+            };
+
+        if (resizedColumn >= 0 &&
+            resizedColumn < 3) {
+            shrink(resizedColumn);
+        }
+
+        for (int index :
+             std::array<int, 3>{
+                 1,
+                 0,
+                 2}) {
+            if (index !=
+                resizedColumn) {
+                shrink(index);
+            }
+        }
+    }
+
+    firstThreeTotal =
+        widths[0] +
+        widths[1] +
+        widths[2];
+
     const int target =
         std::max(
             1,
             contentWidth -
-                keywords -
-                name -
-                type);
+                firstThreeTotal);
 
-    ListView_SetColumnWidth(
-        list_,
-        0,
-        keywords);
-    ListView_SetColumnWidth(
-        list_,
-        1,
-        name);
-    ListView_SetColumnWidth(
-        list_,
-        2,
-        type);
+    for (int index = 0;
+         index < 3;
+         ++index) {
+        ListView_SetColumnWidth(
+            list_,
+            index,
+            widths[
+                static_cast<
+                    std::size_t>(
+                        index)]);
+    }
+
     ListView_SetColumnWidth(
         list_,
         3,
@@ -1816,6 +2030,72 @@ ChildSubclassProc(
     }
 
     if (self &&
+        hwnd == self->list_ &&
+        message == WM_NOTIFY) {
+        const auto* notification =
+            reinterpret_cast<NMHDR*>(
+                lParam);
+
+        if (notification &&
+            notification->hwndFrom ==
+                ListView_GetHeader(
+                    self->list_)) {
+            const auto* header =
+                reinterpret_cast<
+                    NMHEADERW*>(
+                        lParam);
+
+            if ((notification->code ==
+                     HDN_BEGINTRACKW ||
+                 notification->code ==
+                     HDN_DIVIDERDBLCLICKW) &&
+                header &&
+                header->iItem == 3) {
+                // Target is the elastic final column. Keeping its right edge
+                // fixed prevents a user drag from creating a pseudo fifth
+                // header area.
+                return TRUE;
+            }
+
+            if ((notification->code ==
+                     HDN_ENDTRACKW ||
+                 notification->code ==
+                     HDN_DIVIDERDBLCLICKW) &&
+                header &&
+                header->iItem >= 0 &&
+                header->iItem < 3) {
+                const int column =
+                    header->iItem;
+
+                const LRESULT result =
+                    DefSubclassProc(
+                        hwnd,
+                        message,
+                        wParam,
+                        lParam);
+
+                self->
+                    customColumnWidths_ =
+                        true;
+                self->
+                    UpdateColumnWidths(
+                        column);
+
+                RedrawWindow(
+                    self->list_,
+                    nullptr,
+                    nullptr,
+                    RDW_INVALIDATE |
+                        RDW_ERASE |
+                        RDW_ALLCHILDREN |
+                        RDW_UPDATENOW);
+
+                return result;
+            }
+        }
+    }
+
+    if (self &&
         hwnd == self->filter_) {
         if (message == WM_SETFOCUS ||
             message == WM_KILLFOCUS ||
@@ -1840,14 +2120,25 @@ ChildSubclassProc(
 
                 if (dc) {
                     RECT rect{};
-                    GetClientRect(
+                    SendMessageW(
                         hwnd,
-                        &rect);
+                        EM_GETRECT,
+                        0,
+                        reinterpret_cast<
+                            LPARAM>(&rect));
 
-                    rect.left +=
-                        self->Scale(10);
-                    rect.right -=
-                        self->Scale(8);
+                    if (rect.right <=
+                            rect.left ||
+                        rect.bottom <=
+                            rect.top) {
+                        GetClientRect(
+                            hwnd,
+                            &rect);
+                        rect.left +=
+                            self->Scale(10);
+                        rect.right -=
+                            self->Scale(8);
+                    }
 
                     SetBkMode(
                         dc,
@@ -2081,7 +2372,14 @@ LRESULT ShortcutManagerWindow::HandleMessage(
             return 0;
         case kIdFilter:
             if (HIWORD(wParam) ==
-                EN_CHANGE) {
+                    EN_CHANGE &&
+                !suppressFilterRefresh_) {
+                InvalidateRect(
+                    filter_,
+                    nullptr,
+                    TRUE);
+                UpdateWindow(
+                    filter_);
                 Refresh();
             }
             return 0;

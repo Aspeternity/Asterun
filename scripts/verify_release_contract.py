@@ -42,6 +42,137 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.3":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.3 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.3 must keep provider-cache schemaVersion 2")
+
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+
+    for token in (
+        "ResetTransientState",
+        "suppressFilterRefresh_",
+        "customColumnWidths_",
+        "ListView_SetSelectionMark",
+        "preferredId.empty()",
+        "GetTextMetricsW",
+        "metrics.tmHeight",
+        "EM_GETRECT",
+        "HDN_BEGINTRACKW",
+        "HDN_ENDTRACKW",
+        "HDN_DIVIDERDBLCLICKW",
+        "header->iItem == 3",
+        "minimumTarget",
+        "UpdateColumnWidths(",
+        "RDW_ALLCHILDREN",
+        "RDW_UPDATENOW",
+        "Scale(24)",
+        "BeginDeferWindowPos(7)",
+        "SWP_NOCOPYBITS",
+    ):
+        if token not in manager_cpp and token not in manager_h:
+            fail(f"v0.8 alpha.3.3 Shortcut Manager final polish missing: {token}")
+
+    for token in (
+        "selected = 0;",
+        "Scale(30)",
+        "EM_SETCUEBANNER",
+        "LVS_EX_GRIDLINES",
+        "kIdClose",
+        "close_",
+    ):
+        if token in manager_cpp or token in manager_h:
+            fail(f"v0.8 alpha.3.3 obsolete Manager behavior returned: {token}")
+
+    if manager_cpp.count("ListView_InsertColumn(") != 1:
+        fail("v0.8 alpha.3.3 must keep exactly the four-column creation helper")
+
+    for token in (
+        "addColumn(\n        0,",
+        "addColumn(\n        1,",
+        "addColumn(\n        2,",
+        "addColumn(\n        3,",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.3 four-column contract missing: {token}")
+
+    if "StartUpdateCheck(" in manager_cpp:
+        fail("v0.8 alpha.3.3 Shortcut Manager must not touch updater execution")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    path_converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    for token in (
+        "RuntimeInputMode",
+        "Advanced",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.3 Shortcut Editor baseline missing: {token}")
+    if "ShortcutPathConverterDialog::Show" not in path_converter_cpp:
+        fail("v0.8 alpha.3.3 Path Conversion implementation missing")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.2"',
+        '"0.8.0-alpha.3.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.3 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.3 — Shortcut Manager Final Polish",
+        "0.8.0.33",
+        "interaction state separately",
+        "elastic final column",
+        "body-font metrics",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.3 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.3",
+        "0.8.0.33",
+        "clears the search query",
+        "Target as the locked elastic final column",
+        "EN_CHANGE",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.3 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.3",
+        "v0.8.0-alpha.3.4",
+        "v0.8.0-alpha.3.5",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.3 Shortcut Manager final polish verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| reopen=geometry-kept/transient-reset",
+        "| rows=24px",
+        "| columns=3 user-resizable + elastic Target",
+        "| target divider=locked",
+        "| search=font-derived/edit-rect/erase-on-change",
+        "| Editor/Path Conversion semantics untouched",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.2":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

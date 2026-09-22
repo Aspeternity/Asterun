@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.3 — Shortcut Manager Final Polish
+
+Alpha 3.3 closes the Shortcut Manager phase with the remaining real-Windows reopen, column-resize and search-edit fixes. Shortcut Editor and Path Conversion internals remain unchanged.
+
+The Manager now treats window geometry and interaction state separately. Hiding and reopening the Manager keeps the current-process window position and size, but each reopen clears the search query, clears ListView selection/focus, returns the list to the top and disables Test / Edit / Delete until the user makes a new selection. Internal create/edit refreshes still keep targeting the newly created or edited shortcut through the existing preferred-ID path.
+
+The table remains exactly four columns after manual resizing. Keywords / Name / Type can be resized by the user; Target is the elastic final column and immediately consumes the remaining ListView client width. The Target divider itself is locked, and oversized first-three-column layouts are clamped so a useful Target area remains. A full ListView redraw after header tracking removes stale selection pixels and prevents the previous pseudo-fifth-column residue.
+
+The search field keeps the native single-line EDIT behavior but now derives its compact height from the active body-font metrics and centers that input surface in the top action row. Custom placeholder drawing follows the EDIT formatting rectangle, and every EN_CHANGE erases/repaints the edit before filtering so typed text cannot coexist with stale **搜索快捷项 / Search shortcuts** pixels.
+
+The alpha.3.2 24px row density, restrained selection, DeferWindowPos resize fix, free resize/maximize behavior, 900×560 default and 720×480 minimum remain unchanged. No shortcut persistence, filtering semantics, context actions, Path Conversion, Shortcut Editor, Runtime Input, Provider, Hotkey, updater or Shortcut TSV v3 behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.33`.
+
 ## v0.8.0-alpha.3.2 — Shortcut Manager Real-world Polish
 
 Alpha 3.2 keeps the alpha.3.1 information architecture and fixes the real-Windows density, resize and native-control issues found during desktop validation. Shortcut Editor and Path Conversion internals remain untouched.

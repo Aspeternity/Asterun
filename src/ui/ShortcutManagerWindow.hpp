@@ -69,8 +69,11 @@ private:
     void Layout();
     void RecreateFonts();
     void RebuildRowHeightImageList();
-    void UpdateColumnWidths();
+    void UpdateColumnWidths(
+        int resizedColumn = -1);
     void UpdateEmptyText();
+    void ResetTransientState(
+        std::wstring_view preferredId);
     void DrawActionButton(
         const DRAWITEMSTRUCT& item);
     LRESULT HandleListCustomDraw(
@@ -116,6 +119,8 @@ private:
     HFONT headerFont_{};
     HIMAGELIST rowHeightImageList_{};
     UINT dpi_{96};
+    bool customColumnWidths_{false};
+    bool suppressFilterRefresh_{false};
     std::vector<std::wstring>
         visibleIds_;
 };

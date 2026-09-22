@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0-alpha.3.3
+
+- Split Shortcut Manager state into persistent-in-process geometry and transient interaction state.
+- Reopening the hidden Manager now keeps its last position/size but clears the search query, selection/focus and list scroll context.
+- Reopen no longer auto-selects the first shortcut; Test / Edit / Delete stay disabled until a fresh selection is made.
+- Preserved preferred-ID selection for internal create/edit refreshes so workflow continuity is not lost.
+- Made Keywords / Name / Type user-resizable while keeping Target as the locked elastic final column.
+- Recomputed Target immediately after header resize/double-click and clamped oversized first-three-column layouts so no pseudo-fifth header region can appear.
+- Added a full ListView redraw after manual header resizing to clear stale selected-row pixels outside the real four-column area.
+- Sized the search EDIT from the active body-font metrics and vertically centered that compact surface in the top control row.
+- Changed placeholder drawing to use the EDIT formatting rectangle and forced erase/repaint on EN_CHANGE, eliminating stale placeholder pixels under typed search text.
+- Preserved alpha.3.2 24px rows, free resize/maximize, DeferWindowPos resize behavior, selection styling and all frozen v0.7 functional contracts.
+- Kept Shortcut Editor and Path Conversion internals unchanged.
+- Kept Settings schemaVersion 8; updated Windows fixed FileVersion/ProductVersion to `0.8.0.33`.
+
 ## 0.8.0-alpha.3.2
 
 - Fixed repeated Shortcut Manager resize artifacts by batching child moves with DeferWindowPos / SWP_NOCOPYBITS and redrawing the parent plus all children once per layout pass.
