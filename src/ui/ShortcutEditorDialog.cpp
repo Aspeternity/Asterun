@@ -2143,10 +2143,11 @@ void ShortcutEditorDialog::ResizeForContent() {
     const int nonClientHeight =
         std::max(
             0,
-            (window.bottom -
-             window.top) -
+            static_cast<int>(
+                (window.bottom -
+                 window.top) -
                 (client.bottom -
-                 client.top));
+                 client.top)));
 
     const int desiredOuterHeight =
         DesiredClientHeight() +
