@@ -1392,7 +1392,7 @@ HandleButtonCustomDraw(
             control,
             text,
             static_cast<int>(
-                std::size(text)));
+                _countof(text)));
 
         SetBkMode(
             draw->hdc,
@@ -1581,7 +1581,7 @@ HandleButtonCustomDraw(
         control,
         text,
         static_cast<int>(
-            std::size(text)));
+            _countof(text)));
 
     SetBkMode(
         draw->hdc,
