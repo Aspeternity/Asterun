@@ -346,9 +346,19 @@ bool SettingsWindow::Create() {
     ShowPage(Page::General);
     Layout();
 
-    // The HWND stays genuinely hidden until Show(). Because creation no
-    // longer uses CW_USEDEFAULT, there is no native first-show/default
-    // placement left to consume with a synthetic SW_HIDE call.
+    // Resolve the real configured rectangle while the HWND is still hidden.
+    // Center mode previously used the monitor's upper-left corner only as a
+    // creation/DPI anchor, then relied on SWP_SHOWWINDOW to replace that
+    // first normal placement. Real Windows validation showed USER32 can keep
+    // the creation point as the first visible normal position. Move the
+    // hidden HWND to its final Center/Last rectangle first, then consume the
+    // first-show state there.
+    PositionForShow();
+
+    ShowWindow(
+        hwnd_,
+        SW_HIDE);
+
     return true;
 }
 
@@ -6107,8 +6117,7 @@ void SettingsWindow::PositionForShow() {
                 clamped.bottom -
                     clamped.top,
                 SWP_NOZORDER |
-                    SWP_NOACTIVATE |
-                    SWP_SHOWWINDOW);
+                    SWP_NOACTIVATE);
             return;
         }
     }
@@ -6163,8 +6172,7 @@ void SettingsWindow::PositionForShow() {
         width,
         height,
         SWP_NOZORDER |
-            SWP_NOACTIVATE |
-            SWP_SHOWWINDOW);
+            SWP_NOACTIVATE);
 }
 
 void SettingsWindow::OnUpdateStatusChanged() {
@@ -6498,11 +6506,15 @@ void SettingsWindow::Show() {
     }
 
     if (!IsWindowVisible(hwnd_)) {
-        // Position and reveal the newly recreated Settings window in one
-        // SetWindowPos(... SWP_SHOWWINDOW) operation. The HWND was created
-        // hidden on the correct monitor, so no default upper-left visible
-        // frame or separate ShowWindow restore placement can intervene.
+        // Create() already consumed USER32's first-show state after moving
+        // the hidden HWND to the configured rectangle. Re-resolve placement
+        // immediately before the real show (important for cursor-monitor
+        // centering), then restore from that already-correct normal position.
         PositionForShow();
+
+        ShowWindow(
+            hwnd_,
+            SW_SHOWNORMAL);
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,

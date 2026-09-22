@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.17
+
+- Fixed the alpha.3.16 regression where **Settings placement = Centered** consistently opened at the selected monitor's upper-left corner.
+- Confirmed the failure was specific to Center mode: Last-position mode worked because its hidden creation point already matched the desired saved normal position.
+- Keep explicit non-`CW_USEDEFAULT` creation on the intended monitor for correct initial Per-Monitor-DPI context.
+- After final client/outer sizing and layout, resolve Center/Last while the HWND is still hidden and move it to the real final rectangle before any first-show state is consumed.
+- Restore the proven hidden `ShowWindow(SW_HIDE)` first-show consumption step, but only after the hidden HWND has already been positioned at its true Center/Last rectangle.
+- Remove `SWP_SHOWWINDOW` from `PositionForShow()`; placement now only positions/sizes and never makes the window visible as a side effect.
+- On the real open path, re-resolve placement and use `ShowWindow(SW_SHOWNORMAL)` from an already-correct normal position.
+- Preserve alpha.3.16's owner-draw update-status repaint fix, destroy-on-close lifecycle, About Show-first ordering, Last-position clamping and all frozen shortcut/search behavior.
+- Preserve Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.47`.
+
 ## 0.8.0-alpha.3.16
 
 - Fixed About occasionally remaining visually stuck on **正在检查更新... / Checking for updates...** after the background update check had already completed.

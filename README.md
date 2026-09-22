@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.17 — Settings Center Placement Finalization
+
+Alpha 3.17 corrects the Center-placement regression exposed by real-Windows validation of alpha.3.16. Last-position mode already behaved correctly, while Center mode consistently opened at the upper-left corner of the selected monitor.
+
+The reason was deterministic: alpha.3.16 intentionally created a hidden Center-mode Settings HWND at the target monitor's work-area origin so the initial DPI context belonged to the correct monitor. It then expected `SetWindowPos(... SWP_SHOWWINDOW)` to replace that creation point with the centered rectangle on the first visible transition. In practice, USER32 can retain the creation point as the HWND's first normal placement, so Last mode worked because its creation point was already the desired saved position, while Center mode exposed the monitor-origin anchor.
+
+Alpha 3.17 keeps explicit non-`CW_USEDEFAULT` creation and the correct monitor/DPI anchor, but changes the first-show sequence. After controls, fonts and final DPI-aware outer size are established, `PositionForShow()` now moves the still-hidden HWND to the real Center/Last rectangle without showing it. A hidden `ShowWindow(SW_HIDE)` call then consumes USER32's first-show state only after the normal position is already correct. The real `Show()` re-resolves placement and uses `SW_SHOWNORMAL`; Center therefore restores from a centered normal position instead of the monitor origin, while Last keeps its already validated semantics.
+
+The alpha.3.16 owner-draw update-status repaint fix remains unchanged. Settings still destroys its HWND on close, About still routes through Show before selecting the About page, and all Shortcut Editor/Manager/search behavior remains frozen. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.47`.
+
 ## v0.8.0-alpha.3.16 — Settings First-Paint & Update Status Reliability
 
 Alpha 3.16 is a targeted Settings reliability fix for two real-Windows regressions that remained after the destroy/recreate lifecycle work.
