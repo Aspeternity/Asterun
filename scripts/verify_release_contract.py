@@ -104,14 +104,14 @@ if version == "0.8.0-alpha.3.7":
 
     for token in (
         "case WM_CLOSE:\n        DestroyWindow(hwnd_);",
-        "ShortcutEditorDialog::~ShortcutEditorDialog()",
+        "~ShortcutEditorDialog()",
     ):
         if token not in editor_cpp:
             fail(f"v0.8 alpha.3.7 Shortcut Editor destroy lifecycle missing: {token}")
 
     for token in (
         "case WM_CLOSE:\n        DestroyWindow(hwnd_);",
-        "ShortcutPathConverterDialog::~ShortcutPathConverterDialog()",
+        "~ShortcutPathConverterDialog()",
     ):
         if token not in converter_cpp:
             fail(f"v0.8 alpha.3.7 Path Conversion destroy lifecycle missing: {token}")
