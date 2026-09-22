@@ -42,6 +42,145 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.2.14":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.14 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.14 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "const int resetWidth =\n            Scale(84);",
+        "const int resetGap =\n            Scale(12);",
+        "const int resetX =\n                captureX -",
+        "row.reset,\n                resetX,",
+        "row.statusVisible;",
+        "const bool showReset =\n            page_ == Page::Hotkeys &&\n            modified;",
+        "Only status/capture",
+        "WM_SETREDRAW",
+        "RDW_ALLCHILDREN",
+        "CancelHotkeyCapture",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.14 Hotkey inline-reset contract missing: {token}")
+
+    aux_start = settings_cpp.find(
+        "bool SettingsWindow::\nHotkeyRowHasAuxiliaryContent(")
+    aux_end = settings_cpp.find(
+        "\nint SettingsWindow::HotkeyAuxiliaryHeight(",
+        aux_start)
+    if aux_start < 0 or aux_end < 0:
+        fail("v0.8 alpha.2.14 auxiliary-state helper could not be inspected")
+    aux_body = settings_cpp[aux_start:aux_end]
+    if "row.resetVisible" in aux_body:
+        fail("v0.8 alpha.2.14 Reset must not contribute to auxiliary row height")
+    if "row.statusVisible" not in aux_body:
+        fail("v0.8 alpha.2.14 status must remain the auxiliary-height trigger")
+
+    aux_height_start = settings_cpp.find(
+        "int SettingsWindow::HotkeyAuxiliaryHeight(")
+    aux_height_end = settings_cpp.find(
+        "\nint SettingsWindow::HotkeyRowHeight(",
+        aux_height_start)
+    if aux_height_start < 0 or aux_height_end < 0:
+        fail("v0.8 alpha.2.14 HotkeyAuxiliaryHeight could not be inspected")
+    if "resetVisible" in settings_cpp[aux_height_start:aux_height_end]:
+        fail("v0.8 alpha.2.14 reset-only states must not expand Hotkey rows")
+
+    layout_start = settings_cpp.find(
+        "if (page_ == Page::Hotkeys) {",
+        settings_cpp.find("void SettingsWindow::Layout()"))
+    layout_end = settings_cpp.find(
+        "if (page_ == Page::Providers) {",
+        layout_start)
+    if layout_start < 0 or layout_end < 0:
+        fail("v0.8 alpha.2.14 Hotkey layout block could not be inspected")
+    layout_body = settings_cpp[layout_start:layout_end]
+    for token in (
+        "resetX",
+        "resetGap",
+        "resetWidth",
+        "top +\n                    (baseRowHeight -\n                     Scale(26)) / 2",
+    ):
+        if token not in layout_body:
+            fail(f"v0.8 alpha.2.14 inline Reset geometry missing: {token}")
+    if "WM_VSCROLL" in layout_body:
+        fail("v0.8 alpha.2.14 must not add Hotkey scrolling")
+
+    hotkey_registry = (
+        read("src/core/HotkeyRegistry.hpp") +
+        read("src/core/HotkeyRegistry.cpp")
+    )
+    for token in (
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    ):
+        if token not in hotkey_registry:
+            fail(f"v0.8 alpha.2.14 Hotkey Registry ID changed/missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.13"',
+        '"0.8.0-alpha.2.14"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.14 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.14 — Hotkey Inline Reset Polish",
+        "0.8.0.34",
+        "immediately to the left",
+        "No scrolling is added",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.14 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.14",
+        "0.8.0.34",
+        "inline Reset column",
+        "only auxiliary-row content",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.14 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.14",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.14 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.14 Hotkey inline-reset contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| per-item Reset=inline main row",
+        "| modified bindings=no row expansion",
+        "| auxiliary height=status only",
+        "| scrolling=not added",
+        "| alpha.2.13 atomic redraw preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.13":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.2.14
+
+- Moved per-item **恢复默认 / Reset** from the auxiliary row to the main Hotkey row immediately left of the capture control.
+- Kept Reset as the existing lightweight owner-drawn text action; no bordered button styling was reintroduced.
+- Reserved a stable inline Reset column so shortcut capture controls do not move when a binding becomes modified.
+- Removed Reset visibility from Hotkey auxiliary-height calculations, so modifying one or all five shortcuts no longer expands cards or pushes Reset-all below the fixed viewport.
+- Kept capture guidance and validation/registration errors as the only auxiliary-row content.
+- Preserved the alpha.2.13 explicit visibility state and parent-level atomic redraw path.
+- Added no Hotkey scrolling because normal modified-binding states now fit the fixed Settings viewport without overflow.
+- Preserved Settings schemaVersion 8 and every frozen Hotkey Registry/binding/validation/conflict/global-registration contract.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.34`.
+
 ## 0.8.0-alpha.2.13
 
 - Fixed the alpha.2.12 Hotkey rendering regression that produced white strips, stale pixels, clipping and overlapping controls after entering capture mode.

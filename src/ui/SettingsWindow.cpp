@@ -1726,15 +1726,6 @@ void SettingsWindow::SetHotkeyRowStatus(
             ? SW_SHOW
             : SW_HIDE);
 
-    if (row->statusVisible &&
-        row->reset) {
-        row->resetVisible =
-            false;
-        ShowWindow(
-            row->reset,
-            SW_HIDE);
-    }
-
     if (!atomicUpdate) {
         return;
     }
@@ -1764,8 +1755,7 @@ HotkeyRowHasAuxiliaryContent(
     const HotkeyRowControls& row) const {
 
     return
-        row.statusVisible ||
-        row.resetVisible;
+        row.statusVisible;
 }
 
 int SettingsWindow::HotkeyAuxiliaryHeight(
@@ -1774,10 +1764,6 @@ int SettingsWindow::HotkeyAuxiliaryHeight(
     if (!HotkeyRowHasAuxiliaryContent(
             row)) {
         return 0;
-    }
-
-    if (!row.statusVisible) {
-        return Scale(30);
     }
 
     wchar_t buffer[512]{};
@@ -1986,12 +1972,11 @@ void SettingsWindow::RefreshHotkeyPage(
             page_ == Page::Hotkeys &&
             !status.empty();
 
-        // Auxiliary states have a strict priority so a row never stacks
-        // capture/error copy and the per-item Reset action at the same time.
+        // Per-item Reset is an inline main-row action. Only status/capture
+        // copy expands the row below the shortcut control.
         const bool showReset =
             page_ == Page::Hotkeys &&
-            modified &&
-            !showStatus;
+            modified;
 
         SetWindowTextW(
             row.status,
@@ -4006,6 +3991,10 @@ void SettingsWindow::Layout() {
             Scale(54);
         const int captureWidth =
             Scale(166);
+        const int resetWidth =
+            Scale(84);
+        const int resetGap =
+            Scale(12);
         const int toggleWidth =
             Scale(48);
         const int controlGap =
@@ -4081,6 +4070,10 @@ void SettingsWindow::Layout() {
                 toggleX -
                 controlGap -
                 captureWidth;
+            const int resetX =
+                captureX -
+                resetGap -
+                resetWidth;
 
             MoveWindow(
                 row.title,
@@ -4090,7 +4083,7 @@ void SettingsWindow::Layout() {
                      Scale(24)) / 2,
                 std::max(
                     Scale(150),
-                    captureX -
+                    resetX -
                         cardLeft -
                         inner -
                         Scale(14)),
@@ -4143,10 +4136,11 @@ void SettingsWindow::Layout() {
 
             MoveWindow(
                 row.reset,
-                captureX,
-                auxiliaryTop +
-                    Scale(2),
-                Scale(84),
+                resetX,
+                top +
+                    (baseRowHeight -
+                     Scale(26)) / 2,
+                resetWidth,
                 Scale(26),
                 TRUE);
 

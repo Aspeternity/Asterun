@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.14 — Hotkey Inline Reset Polish
+
+Alpha 2.14 removes the last unnecessary height expansion caused by modified Hotkey bindings.
+
+Per-item **恢复默认 / Reset** remains a lightweight owner-drawn text action, but now sits on the same main row immediately to the left of the shortcut capture control. The reset column is reserved consistently so capture controls never move when a binding becomes modified. Changing one or all five shortcuts therefore no longer increases Hotkey row/card height or pushes **恢复全部默认快捷键 / Reset all hotkeys** below the fixed Settings viewport.
+
+Only genuine transient/status information—capture guidance and validation/registration errors—uses the auxiliary row below the shortcut control. Those status rows continue to use the alpha.2.13 explicit visibility state and parent-level atomic redraw path.
+
+No scrolling is added to the Hotkeys page in this release because ordinary modified bindings no longer create overflow. No persisted schema, Hotkey Registry ID, binding validation, conflict detection, global registration, Provider behavior, updater contract, search/ranking behavior, Everything lifecycle, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.34`.
+
 ## v0.8.0-alpha.2.13 — Hotkey Atomic Layout Fix
 
 Alpha 2.13 fixes the real-Windows rendering regression exposed by alpha.2.12 when Hotkey rows expand for capture/reset/error auxiliary content.
