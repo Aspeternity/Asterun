@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.14 — Shortcut Editor Density & Native Edit Alignment
+
+Alpha 3.14 is a focused real-Windows density pass on the Shortcut Editor after alpha.3.13 validated the modern Shell pickers and owner-drawn Advanced header. It keeps those parts frozen and targets the two remaining desktop-validation issues: excessive vertical whitespace and native single-line Edit fields whose border was substantially taller than their text/caret.
+
+Native Edit height is now derived from the active Body font metrics, following the same proven approach already used by Shortcut Manager's search box. The editor keeps real single-line Win32 Edit controls, IME behavior, tab navigation and keyboard semantics; it does not switch to multiline or custom-painted text fields just to simulate vertical centering. Edit controls also receive restrained left/right text margins so typed values and cue banners no longer sit against the border.
+
+The Advanced section is reorganized from three stacked label-then-field blocks into dense label/value rows: **固定参数 / Fixed arguments**, **工作目录 / Working directory**, and **图标 / Icon** now keep their labels on the left and native inputs/actions on the same row. **以管理员身份运行 / Run as administrator** aligns with the value column below them. This removes repeated blank bands while preserving the exact field order and semantics.
+
+The editor's collapsed/expanded geometry and Runtime-Test expansion are reduced to match the new content density. Target browsing, Runtime Input, Advanced toggle behavior, icon auto semantics, shortcut model/persistence, Settings placement/lifecycle and Shortcut Manager behavior are unchanged. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.44`.
+
 ## v0.8.0-alpha.3.13 — Shortcut Editor Native Polish & Modern Pickers
 
 Alpha 3.13 is the real-Windows polish pass following the alpha.3.12 Shortcut Editor visual consolidation. It keeps the compact form structure and shortcut/runtime semantics unchanged, while removing two pieces of UI that still felt visibly legacy in desktop validation.

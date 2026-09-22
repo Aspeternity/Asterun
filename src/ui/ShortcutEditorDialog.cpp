@@ -26,9 +26,9 @@ constexpr wchar_t kShortcutEditorClass[] =
     L"ALTRunNext.ShortcutEditor";
 
 constexpr int kEditorWidthLogical = 720;
-constexpr int kCollapsedHeightLogical = 472;
-constexpr int kExpandedHeightLogical = 648;
-constexpr int kRuntimeTestExtraHeightLogical = 52;
+constexpr int kCollapsedHeightLogical = 410;
+constexpr int kExpandedHeightLogical = 522;
+constexpr int kRuntimeTestExtraHeightLogical = 42;
 constexpr int kTypeDropdownHeightLogical = 150;
 constexpr int kRuntimeInputDropdownHeightLogical = 110;
 
@@ -710,6 +710,17 @@ void ShortcutEditorDialog::CreateControls() {
                         id)),
                 instance_,
                 nullptr);
+
+            if (control) {
+                SendMessageW(
+                    control,
+                    EM_SETMARGINS,
+                    EC_LEFTMARGIN |
+                        EC_RIGHTMARGIN,
+                    MAKELPARAM(
+                        Scale(7),
+                        Scale(7)));
+            }
         };
 
     const auto makeButton =
@@ -1156,14 +1167,70 @@ void ShortcutEditorDialog::Layout() {
 
     const int margin = Scale(24);
     const int labelHeight = Scale(18);
-    const int fieldHeight = Scale(30);
     const int hintHeight = Scale(18);
     const int gap = Scale(8);
     const int columnGap = Scale(18);
+    const int controlRowHeight = Scale(28);
     const int fileButtonWidth = Scale(62);
     const int folderButtonWidth = Scale(78);
     const int contentWidth =
         client.right - margin * 2;
+
+    // Native single-line Edit text is top-biased inside an arbitrarily tall
+    // client rectangle. Fit the border to the active body font instead of
+    // replacing the control or changing its IME/keyboard semantics.
+    int editHeight = Scale(24);
+
+    if (font_) {
+        HDC dc =
+            GetDC(hwnd_);
+
+        if (dc) {
+            HGDIOBJ oldFont =
+                SelectObject(
+                    dc,
+                    font_);
+
+            TEXTMETRICW metrics{};
+            if (GetTextMetricsW(
+                    dc,
+                    &metrics)) {
+                editHeight =
+                    std::min(
+                        controlRowHeight,
+                        std::max(
+                            Scale(22),
+                            static_cast<int>(
+                                metrics.tmHeight) +
+                                Scale(6)));
+            }
+
+            SelectObject(
+                dc,
+                oldFont);
+            ReleaseDC(
+                hwnd_,
+                dc);
+        }
+    }
+
+    const auto editTop =
+        [&](int rowTop) {
+            return rowTop +
+                std::max(
+                    0,
+                    (controlRowHeight -
+                     editHeight) / 2);
+        };
+
+    const auto rowTextTop =
+        [&](int rowTop) {
+            return rowTop +
+                std::max(
+                    0,
+                    (controlRowHeight -
+                     labelHeight) / 2);
+        };
 
     int y = Scale(18);
 
@@ -1198,21 +1265,25 @@ void ShortcutEditorDialog::Layout() {
         TRUE);
     y += Scale(22);
 
+    const int identityEditTop =
+        editTop(y);
+
     MoveWindow(
         name_,
         margin,
-        y,
+        identityEditTop,
         nameWidth,
-        fieldHeight,
+        editHeight,
         TRUE);
     MoveWindow(
         keyword_,
         keywordLeft,
-        y,
+        identityEditTop,
         keywordWidth,
-        fieldHeight,
+        editHeight,
         TRUE);
-    y += Scale(34);
+    y += controlRowHeight +
+        Scale(2);
 
     MoveWindow(
         keywordHint_,
@@ -1221,7 +1292,7 @@ void ShortcutEditorDialog::Layout() {
         keywordWidth,
         hintHeight,
         TRUE);
-    y += Scale(28);
+    y += Scale(24);
 
     // Target remains the widest row because file paths/URLs are the most
     // space-sensitive values in the editor.
@@ -1239,13 +1310,15 @@ void ShortcutEditorDialog::Layout() {
         fileButtonWidth -
         folderButtonWidth -
         gap * 2;
+    const int targetEditTop =
+        editTop(y);
 
     MoveWindow(
         target_,
         margin,
-        y,
+        targetEditTop,
         targetWidth,
-        fieldHeight,
+        editHeight,
         TRUE);
     MoveWindow(
         browseFile_,
@@ -1254,7 +1327,7 @@ void ShortcutEditorDialog::Layout() {
             gap,
         y,
         fileButtonWidth,
-        fieldHeight,
+        controlRowHeight,
         TRUE);
     MoveWindow(
         browseFolder_,
@@ -1265,9 +1338,10 @@ void ShortcutEditorDialog::Layout() {
             gap,
         y,
         folderButtonWidth,
-        fieldHeight,
+        controlRowHeight,
         TRUE);
-    y += Scale(44);
+    y += controlRowHeight +
+        Scale(8);
 
     const int metadataLabelWidth =
         Scale(86);
@@ -1277,7 +1351,7 @@ void ShortcutEditorDialog::Layout() {
     MoveWindow(
         typeLabel_,
         margin,
-        y + Scale(5),
+        rowTextTop(y),
         metadataLabelWidth,
         labelHeight,
         TRUE);
@@ -1296,17 +1370,18 @@ void ShortcutEditorDialog::Layout() {
             metadataLabelWidth +
             typeWidth +
             gap,
-        y + Scale(5),
+        rowTextTop(y),
         contentWidth -
             metadataLabelWidth -
             typeWidth -
             gap,
         labelHeight,
         TRUE);
-    y += Scale(42);
+    y += controlRowHeight +
+        Scale(6);
 
     runtimeSeparatorY_ = y;
-    y += Scale(18);
+    y += Scale(14);
 
     const int runtimeWidth =
         Scale(190);
@@ -1314,7 +1389,7 @@ void ShortcutEditorDialog::Layout() {
     MoveWindow(
         runtimeInputLabel_,
         margin,
-        y + Scale(5),
+        rowTextTop(y),
         metadataLabelWidth,
         labelHeight,
         TRUE);
@@ -1333,21 +1408,22 @@ void ShortcutEditorDialog::Layout() {
             metadataLabelWidth +
             runtimeWidth +
             gap,
-        y + Scale(1),
+        rowTextTop(y),
         contentWidth -
             metadataLabelWidth -
             runtimeWidth -
             gap,
-        Scale(34),
+        labelHeight,
         TRUE);
-    y += Scale(44);
+    y += controlRowHeight +
+        Scale(6);
 
     if (SelectedRuntimeInputMode() !=
         RuntimeInputMode::None) {
         MoveWindow(
             testInputLabel_,
             margin,
-            y + Scale(5),
+            rowTextTop(y),
             metadataLabelWidth,
             labelHeight,
             TRUE);
@@ -1355,10 +1431,10 @@ void ShortcutEditorDialog::Layout() {
             testInput_,
             margin +
                 metadataLabelWidth,
-            y,
+            editTop(y),
             contentWidth -
                 metadataLabelWidth,
-            fieldHeight,
+            editHeight,
             TRUE);
         y += Scale(
             kRuntimeTestExtraHeightLogical);
@@ -1369,48 +1445,64 @@ void ShortcutEditorDialog::Layout() {
         margin,
         y,
         contentWidth,
-        Scale(32),
+        controlRowHeight,
         TRUE);
-    y += Scale(40);
+    y += controlRowHeight +
+        Scale(6);
 
     if (advancedExpanded_) {
+        const int advancedLabelWidth =
+            Scale(
+                app_.SettingsData().language ==
+                        Language::ZhCN
+                    ? 86
+                    : 118);
+        const int advancedFieldLeft =
+            margin +
+            advancedLabelWidth;
+        const int advancedFieldWidth =
+            contentWidth -
+            advancedLabelWidth;
+        const int advancedRowAdvance =
+            controlRowHeight +
+            Scale(6);
+
         MoveWindow(
             argumentsLabel_,
             margin,
-            y,
-            contentWidth,
+            rowTextTop(y),
+            advancedLabelWidth,
             labelHeight,
             TRUE);
-        y += Scale(22);
-
         MoveWindow(
             arguments_,
-            margin,
-            y,
-            contentWidth,
-            fieldHeight,
+            advancedFieldLeft,
+            editTop(y),
+            advancedFieldWidth,
+            editHeight,
             TRUE);
-        y += Scale(44);
+        y += advancedRowAdvance;
+
+        const int workdirButtonWidth =
+            Scale(68);
+        const int workdirEditWidth =
+            advancedFieldWidth -
+            workdirButtonWidth -
+            gap;
 
         MoveWindow(
             workdirLabel_,
             margin,
-            y,
-            contentWidth,
+            rowTextTop(y),
+            advancedLabelWidth,
             labelHeight,
             TRUE);
-        y += Scale(22);
-
-        const int workdirButtonWidth =
-            Scale(68);
         MoveWindow(
             workdir_,
-            margin,
-            y,
-            contentWidth -
-                workdirButtonWidth -
-                gap,
-            fieldHeight,
+            advancedFieldLeft,
+            editTop(y),
+            workdirEditWidth,
+            editHeight,
             TRUE);
         MoveWindow(
             browseWorkdir_,
@@ -1419,50 +1511,48 @@ void ShortcutEditorDialog::Layout() {
                 workdirButtonWidth,
             y,
             workdirButtonWidth,
-            fieldHeight,
+            controlRowHeight,
             TRUE);
-        y += Scale(44);
-
-        MoveWindow(
-            iconLabel_,
-            margin,
-            y,
-            contentWidth,
-            labelHeight,
-            TRUE);
-        y += Scale(22);
+        y += advancedRowAdvance;
 
         const int iconButtonWidth =
             Scale(68);
         const int iconEditWidth =
-            contentWidth -
+            advancedFieldWidth -
             iconButtonWidth -
             gap;
 
         MoveWindow(
-            icon_,
+            iconLabel_,
             margin,
-            y,
+            rowTextTop(y),
+            advancedLabelWidth,
+            labelHeight,
+            TRUE);
+        MoveWindow(
+            icon_,
+            advancedFieldLeft,
+            editTop(y),
             iconEditWidth,
-            fieldHeight,
+            editHeight,
             TRUE);
         MoveWindow(
             browseIcon_,
-            margin +
-                iconEditWidth +
-                gap,
+            client.right -
+                margin -
+                iconButtonWidth,
             y,
             iconButtonWidth,
-            fieldHeight,
+            controlRowHeight,
             TRUE);
-        y += Scale(44);
+        y += advancedRowAdvance;
 
         MoveWindow(
             admin_,
-            margin,
+            advancedFieldLeft,
             y,
-            contentWidth,
-            Scale(28),
+            advancedFieldWidth,
+            Scale(26),
             TRUE);
     }
 
@@ -1472,12 +1562,12 @@ void ShortcutEditorDialog::Layout() {
         Scale(32);
     const int buttonY =
         client.bottom -
-        Scale(20) -
+        Scale(18) -
         buttonHeight;
 
     footerSeparatorY_ =
         buttonY -
-        Scale(14);
+        Scale(12);
 
     MoveWindow(
         test_,

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.14
+
+- Reduced Shortcut Editor collapsed/expanded geometry to match the real content instead of preserving large blank vertical bands.
+- Derived native single-line Edit height from the active Body font metrics, reusing the proven Shortcut Manager search-field strategy so text/caret and borders stay visually balanced across DPI.
+- Kept native single-line Win32 Edit controls, IME, tab navigation and keyboard behavior; no multiline or custom-painted Edit replacement was introduced.
+- Added restrained native Edit left/right text margins for cleaner typed text and cue-banner spacing.
+- Reworked Advanced from stacked label-then-field blocks into compact label/value rows for Fixed arguments, Working directory and Icon.
+- Aligned Run as administrator with the Advanced value column and kept Working-directory/Icon browse actions on their existing rows.
+- Reduced Runtime-Test expansion to the new compact row rhythm while preserving None/Raw/URL-encoded behavior and the existing redraw hardening.
+- Preserved alpha.3.13 modern IFileOpenDialog pickers, owner-drawn Advanced header, Icon auto semantics, shortcut schema/model and all frozen Settings/Shortcut Manager behavior.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.44`.
+
 ## 0.8.0-alpha.3.13
 
 - Removed the redundant Icon **Auto** button; an empty Icon field already preserves the existing automatic target-icon behavior.
