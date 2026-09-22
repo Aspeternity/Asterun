@@ -42,6 +42,108 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.9":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.9 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.9 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    for token in (
+        "const bool useLastAnchor =",
+        "creationPoint",
+        "MonitorFromPoint(",
+        "creationInfo.rcWork.left",
+        "settings.settingsLastX",
+        "settings.settingsLastY",
+        "GetDpiForWindow(hwnd_)",
+        "PositionForShow();\n\n        ShowWindow(",
+        "SW_SHOWNORMAL",
+        "ShowWindow(\n            hwnd_,\n            SW_SHOWNORMAL);\n\n        PositionForShow();",
+        "RememberSettingsPosition(",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.3.9 Settings first-show contract missing: {token}")
+
+    if "CW_USEDEFAULT,\n        CW_USEDEFAULT," in settings_cpp:
+        fail("v0.8 alpha.3.9 Settings creation must not use CW_USEDEFAULT coordinates")
+
+    if "SWP_SHOWWINDOW" in settings_cpp:
+        fail("v0.8 alpha.3.9 Settings PositionForShow must position only; Show() owns first visibility")
+
+    for token in (
+        "updateReconcileTimer_",
+        "StartUpdateReconcileTimer();",
+        "StopUpdateReconcileTimer();",
+        "HandleUpdateStatusMessage(",
+        "PostThreadMessageW(",
+        "kUpdateStatusMessage",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.9 alpha.3.8 update reconciliation regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.8"',
+        '"0.8.0-alpha.3.9"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.9 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.9 — Settings First-Show Placement Final Fix",
+        "0.8.0.39",
+        "removes `CW_USEDEFAULT`",
+        "post-show correction",
+        "Up to date",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.9 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.9",
+        "0.8.0.39",
+        "Removed `CW_USEDEFAULT`",
+        "post-show position correction",
+        "Up to date",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.9 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.9",
+        "v0.8.0-alpha.3.10",
+        "v0.8.0-alpha.3.11",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.9 Settings first-show placement verified:",
+        "| creation=explicit target-monitor point, no CW_USEDEFAULT",
+        "| display=pre-position + native show + post-show correction",
+        "| Center/Last semantics preserved",
+        "| alpha.3.8 update reconciliation preserved",
+        "| schemas/frozen shortcut behavior unchanged",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.8":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

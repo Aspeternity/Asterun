@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.3.9
+
+- Removed `CW_USEDEFAULT` from Settings top-level window creation after alpha.3.8 real-Windows validation showed native first-show placement could still override the configured location.
+- Created the hidden Settings HWND at an explicit point on the intended monitor so its initial DPI context already matches the Center/Last target monitor.
+- Used the saved Settings position as the creation anchor for **上次位置 / Last position** and the current mouse monitor work area as the creation anchor for **屏幕居中 / Centered**.
+- Changed first display to pre-position hidden → `ShowWindow(SW_SHOWNORMAL)` → post-show position correction, ensuring USER32/default-show and Per-Monitor-DPI negotiation cannot leave Settings at the upper-left cascade position.
+- Kept the post-show correction limited to newly hidden/recreated Settings windows; already visible or minimized windows retain their normal session behavior.
+- Kept alpha.3.8 update-status reconciliation behavior unchanged.
+- Documented that manual update checking is testable without a newer release because a successful check must terminate in Up to date rather than remain in Checking.
+- Preserved alpha.3.7 destroy/recreate lifecycle, Settings schemaVersion 8 and all frozen Shortcut workflow behavior.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.39`.
 ## 0.8.0-alpha.3.8
 
 - Fixed recreated Settings windows ignoring **屏幕居中 / Centered** and **上次位置 / Last position** on tray open.

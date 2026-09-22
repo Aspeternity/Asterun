@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.9 — Settings First-Show Placement Final Fix
+
+Alpha 3.9 is a second, narrower placement fix after real-Windows validation showed that alpha.3.8 could still reopen Settings near USER32's default upper-left cascade position.
+
+The remaining cause was not the Center/Last calculation itself. Settings was still created with `CW_USEDEFAULT` coordinates, so the recreated top-level HWND retained a native first-show placement even though alpha.3.8 combined positioning and visibility. Alpha 3.9 removes `CW_USEDEFAULT` from Settings creation entirely. The hidden HWND is created at an explicit point on the intended monitor: the saved Last-position monitor when valid, otherwise the current mouse monitor. This also gives `GetDpiForWindow` the correct monitor context before the fixed client size is converted to a DPI-aware outer size.
+
+On first display, Settings is positioned once while hidden, shown normally, then positioned once more after USER32 and any Per-Monitor-DPI transition have settled. This post-show correction is intentional and only runs for a newly hidden/recreated Settings window; reopening an already visible or merely minimized window does not recenter it. **屏幕居中 / Centered** and **上次位置 / Last position** keep their existing monitor/work-area semantics.
+
+The alpha.3.8 update-status reconciliation watchdog is unchanged. Manual update checking can be validated even when there is no newer build: a successful check must leave **正在检查更新… / Checking for updates...** and reach the terminal **已是最新版本 / Up to date** state.
+
+No Settings schema, updater endpoint/manifest, Shortcut Manager, Shortcut Editor, Runtime Input, Path Conversion, Provider, Hotkey or search/ranking behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.39`.
 ## v0.8.0-alpha.3.8 — Settings Placement & Update Status Reliability
 
 Alpha 3.8 is a narrow reliability follow-up for two real-Windows regressions exposed by the alpha.3.7 destroy/recreate Settings lifecycle. It does not redesign Settings or start the Shortcut Editor visual pass.
