@@ -1701,63 +1701,45 @@ void SettingsWindow::SetHotkeyRowStatus(
         return;
     }
 
+    const bool atomicUpdate =
+        hwnd_ &&
+        page_ == Page::Hotkeys;
+
+    if (atomicUpdate) {
+        SendMessageW(
+            hwnd_,
+            WM_SETREDRAW,
+            FALSE,
+            0);
+    }
+
     SetWindowTextW(
         row->status,
         std::wstring(status).c_str());
 
+    row->statusVisible =
+        !status.empty();
+
     ShowWindow(
         row->status,
-        status.empty()
-            ? SW_HIDE
-            : SW_SHOW);
+        row->statusVisible
+            ? SW_SHOW
+            : SW_HIDE);
 
-    if (!status.empty() &&
+    if (row->statusVisible &&
         row->reset) {
+        row->resetVisible =
+            false;
         ShowWindow(
             row->reset,
             SW_HIDE);
     }
 
-    if (page_ == Page::Hotkeys) {
-        RelayoutHotkeyPage();
-    }
-}
-
-void SettingsWindow::RelayoutHotkeyPage() {
-    if (!hwnd_ ||
-        page_ != Page::Hotkeys) {
+    if (!atomicUpdate) {
         return;
     }
 
-    SendMessageW(
-        hwnd_,
-        WM_SETREDRAW,
-        FALSE,
-        0);
-
-    for (HWND control :
-         hotkeyControls_) {
-        if (control) {
-            SendMessageW(
-                control,
-                WM_SETREDRAW,
-                FALSE,
-                0);
-        }
-    }
-
     Layout();
-
-    for (HWND control :
-         hotkeyControls_) {
-        if (control) {
-            SendMessageW(
-                control,
-                WM_SETREDRAW,
-                TRUE,
-                0);
-        }
-    }
 
     SendMessageW(
         hwnd_,
@@ -1772,26 +1754,18 @@ void SettingsWindow::RelayoutHotkeyPage() {
         RDW_INVALIDATE |
             RDW_ERASE |
             RDW_ALLCHILDREN |
+            RDW_FRAME |
             RDW_UPDATENOW);
 }
+
 
 bool SettingsWindow::
 HotkeyRowHasAuxiliaryContent(
     const HotkeyRowControls& row) const {
 
-    const auto hasVisibleStyle =
-        [](HWND control) {
-            return control &&
-                (static_cast<DWORD_PTR>(
-                    GetWindowLongPtrW(
-                        control,
-                        GWL_STYLE)) &
-                 WS_VISIBLE) != 0;
-        };
-
     return
-        hasVisibleStyle(row.status) ||
-        hasVisibleStyle(row.reset);
+        row.statusVisible ||
+        row.resetVisible;
 }
 
 int SettingsWindow::HotkeyAuxiliaryHeight(
@@ -1802,15 +1776,7 @@ int SettingsWindow::HotkeyAuxiliaryHeight(
         return 0;
     }
 
-    const bool statusVisible =
-        row.status &&
-        (static_cast<DWORD_PTR>(
-            GetWindowLongPtrW(
-                row.status,
-                GWL_STYLE)) &
-         WS_VISIBLE) != 0;
-
-    if (!statusVisible) {
+    if (!row.statusVisible) {
         return Scale(30);
     }
 
@@ -1910,6 +1876,19 @@ void SettingsWindow::RefreshHotkeyPage(
     bool relayout) {
     if (hotkeyRows_.empty()) {
         return;
+    }
+
+    const bool atomicUpdate =
+        relayout &&
+        hwnd_ &&
+        page_ == Page::Hotkeys;
+
+    if (atomicUpdate) {
+        SendMessageW(
+            hwnd_,
+            WM_SETREDRAW,
+            FALSE,
+            0);
     }
 
     const bool oldSyncing =
@@ -2018,25 +1997,47 @@ void SettingsWindow::RefreshHotkeyPage(
             row.status,
             status.c_str());
 
+        row.statusVisible =
+            showStatus;
+        row.resetVisible =
+            showReset;
+
         ShowWindow(
             row.status,
-            showStatus
+            row.statusVisible
                 ? SW_SHOW
                 : SW_HIDE);
 
         ShowWindow(
             row.reset,
-            showReset
+            row.resetVisible
                 ? SW_SHOW
                 : SW_HIDE);
     }
 
     syncing_ = oldSyncing;
 
-    if (relayout &&
-        page_ == Page::Hotkeys) {
-        RelayoutHotkeyPage();
+    if (!atomicUpdate) {
+        return;
     }
+
+    Layout();
+
+    SendMessageW(
+        hwnd_,
+        WM_SETREDRAW,
+        TRUE,
+        0);
+
+    RedrawWindow(
+        hwnd_,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_ALLCHILDREN |
+            RDW_FRAME |
+            RDW_UPDATENOW);
 }
 
 void SettingsWindow::BeginHotkeyCapture(

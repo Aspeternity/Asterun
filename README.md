@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.13 — Hotkey Atomic Layout Fix
+
+Alpha 2.13 fixes the real-Windows rendering regression exposed by alpha.2.12 when Hotkey rows expand for capture/reset/error auxiliary content.
+
+The root cause was child-level `WM_SETREDRAW(FALSE)`. Win32 can alter a child window's visible style while redraw is disabled, while Hotkey row height was simultaneously derived from `WS_VISIBLE`. Layout therefore sometimes measured an auxiliary control as hidden even though that same control was restored and painted immediately afterward, producing card-height mismatches, overlapping controls, white strips and stale pixels.
+
+Hotkey rows now own explicit `statusVisible/resetVisible` state instead of inferring layout from child-window styles. Refresh/status changes are performed as one parent-level transaction: suspend only the Settings parent, update text and visibility, recompute all geometry, restore parent redraw, then repaint the parent and all children once. Child controls are never individually sent `WM_SETREDRAW`.
+
+Alpha 2.12's capture lifecycle remains intact: outside clicks, navigation, hide/close and deactivation cancel capture, while same-button click cancels and another capture button switches targets.
+
+No persisted schema, Hotkey Registry ID, binding validation, conflict detection, global registration, Provider behavior, updater contract, search/ranking behavior, Everything lifecycle, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.33`.
+
 ## v0.8.0-alpha.2.12 — Hotkey Capture Lifecycle & Redraw Fix
 
 Alpha 2.12 closes two real-Windows bugs in the Settings Hotkeys page without changing any hotkey binding semantics.

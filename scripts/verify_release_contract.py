@@ -42,6 +42,139 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.2.13":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.13 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.13 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "bool resetVisible{false};",
+        "bool statusVisible{false};",
+        "row.statusVisible ||",
+        "row.resetVisible;",
+        "row.statusVisible =\n            showStatus;",
+        "row.resetVisible =\n            showReset;",
+        "row->statusVisible =\n        !status.empty();",
+        "WM_SETREDRAW",
+        "RDW_ALLCHILDREN",
+        "RDW_FRAME",
+        "RDW_UPDATENOW",
+        "CancelHotkeyCapture",
+        "page_ == Page::Hotkeys &&\n        page != Page::Hotkeys",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.13 Hotkey atomic-layout contract missing: {token}")
+
+    if "RelayoutHotkeyPage" in settings_cpp or "RelayoutHotkeyPage" in settings_h:
+        fail("v0.8 alpha.2.13 must remove the alpha.2.12 RelayoutHotkeyPage path")
+
+    if "SendMessageW(\n                control,\n                WM_SETREDRAW" in settings_cpp:
+        fail("v0.8 alpha.2.13 must not toggle WM_SETREDRAW on Hotkey child controls")
+
+    aux_start = settings_cpp.find(
+        "bool SettingsWindow::\nHotkeyRowHasAuxiliaryContent(")
+    aux_end = settings_cpp.find(
+        "\nint SettingsWindow::HotkeyAuxiliaryHeight(",
+        aux_start)
+    if aux_start < 0 or aux_end < 0:
+        fail("v0.8 alpha.2.13 auxiliary-state helper could not be inspected")
+    aux_body = settings_cpp[aux_start:aux_end]
+    if "GetWindowLongPtrW" in aux_body or "WS_VISIBLE" in aux_body:
+        fail("v0.8 alpha.2.13 layout must not infer auxiliary visibility from HWND styles")
+
+    refresh_start = settings_cpp.find(
+        "void SettingsWindow::RefreshHotkeyPage(")
+    refresh_end = settings_cpp.find(
+        "\nvoid SettingsWindow::BeginHotkeyCapture(",
+        refresh_start)
+    if refresh_start < 0 or refresh_end < 0:
+        fail("v0.8 alpha.2.13 RefreshHotkeyPage could not be inspected")
+    refresh_body = settings_cpp[refresh_start:refresh_end]
+    for token in (
+        "atomicUpdate",
+        "WM_SETREDRAW",
+        "ShowWindow(",
+        "Layout();",
+        "RDW_ALLCHILDREN",
+    ):
+        if token not in refresh_body:
+            fail(f"v0.8 alpha.2.13 atomic refresh missing: {token}")
+
+    hotkey_registry = (
+        read("src/core/HotkeyRegistry.hpp") +
+        read("src/core/HotkeyRegistry.cpp")
+    )
+    for token in (
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    ):
+        if token not in hotkey_registry:
+            fail(f"v0.8 alpha.2.13 Hotkey Registry ID changed/missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.12"',
+        '"0.8.0-alpha.2.13"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.13 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.13 — Hotkey Atomic Layout Fix",
+        "0.8.0.33",
+        "statusVisible/resetVisible",
+        "Child controls are never individually sent",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.13 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.13",
+        "0.8.0.33",
+        "Removed child-level",
+        "explicit per-row",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.13 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.13",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.13 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.13 Hotkey atomic-layout contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| auxiliary visibility=explicit state",
+        "| redraw=parent-level atomic transaction",
+        "| child WM_SETREDRAW=removed",
+        "| alpha.2.12 capture lifecycle preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.12":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

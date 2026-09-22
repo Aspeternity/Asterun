@@ -194,11 +194,12 @@ private:
         HWND enabled{};
         HWND reset{};
         HWND status{};
+        bool resetVisible{false};
+        bool statusVisible{false};
     };
 
     void RefreshHotkeyPage(
         bool relayout = true);
-    void RelayoutHotkeyPage();
     void BeginHotkeyCapture(
         std::string_view actionId);
     void CancelHotkeyCapture(

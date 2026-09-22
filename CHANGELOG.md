@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.2.13
+
+- Fixed the alpha.2.12 Hotkey rendering regression that produced white strips, stale pixels, clipping and overlapping controls after entering capture mode.
+- Removed child-level `WM_SETREDRAW` from dynamic Hotkey layout updates.
+- Added explicit per-row `statusVisible/resetVisible` layout state instead of deriving auxiliary height from `WS_VISIBLE`.
+- Made Hotkey refresh/status changes atomic at the Settings-parent level: text/visibility changes, layout and final parent+child redraw now happen in one transaction.
+- Preserved the alpha.2.12 capture-cancel lifecycle and all Hotkey Registry/binding/validation/conflict/global-registration behavior.
+- Kept normal Hotkey density, auxiliary styling, Settings schemaVersion 8 and all unrelated Settings pages unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.33`.
+
 ## 0.8.0-alpha.2.12
 
 - Added a unified Hotkey capture-cancel lifecycle instead of letting capture persist indefinitely.
