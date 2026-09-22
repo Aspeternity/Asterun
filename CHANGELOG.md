@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0-alpha.3.4
+
+- Enforced Shortcut Manager column limits during Header tracking instead of repairing widths only after drag completion.
+- Kept Keywords / Name / Type user-resizable with minimum logical widths of 72 / 96 / 72.
+- Kept Target as the locked elastic fourth column with a 120-logical-pixel minimum.
+- Clamped only the column currently being dragged when a resize would consume Target's minimum space.
+- Recomputed Target from the Header's exact client width so all four real columns always fill the visible Header.
+- Added HDS_FULLDRAG and handled ANSI + Unicode HDN_ITEMCHANGING / HDN_TRACK / HDN_ITEMCHANGED / HDN_ENDTRACK notifications.
+- Routed Header resize constraints through both Manager WM_NOTIFY and the ListView subclass path for real-Windows notification compatibility.
+- Guarded programmatic width normalization against recursive Header notifications.
+- Prevented manual resizing from collapsing a column to zero or recreating a pseudo-fifth blank Header area / stale selected-row paint.
+- Preserved every alpha.3.3 search, reopen, 24px row, free-resize/maximize and frozen v0.7 behavior.
+- Kept Shortcut Editor and Path Conversion internals unchanged.
+- Kept Settings schemaVersion 8; updated Windows fixed FileVersion/ProductVersion to `0.8.0.34`.
+
 ## 0.8.0-alpha.3.3
 
 - Split Shortcut Manager state into persistent-in-process geometry and transient interaction state.

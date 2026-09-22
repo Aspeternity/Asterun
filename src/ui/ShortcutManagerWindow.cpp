@@ -293,6 +293,21 @@ void ShortcutManagerWindow::CreateControls() {
         LVS_EX_FULLROWSELECT |
             LVS_EX_DOUBLEBUFFER);
 
+    if (HWND header =
+            ListView_GetHeader(
+                list_)) {
+        const LONG_PTR style =
+            GetWindowLongPtrW(
+                header,
+                GWL_STYLE);
+
+        SetWindowLongPtrW(
+            header,
+            GWL_STYLE,
+            style |
+                HDS_FULLDRAG);
+    }
+
     const auto& palette =
         ui::kApplicationPalette;
 
@@ -1046,22 +1061,42 @@ RebuildRowHeightImageList() {
 
 void ShortcutManagerWindow::
 UpdateColumnWidths(
-    int resizedColumn) {
-    if (!list_) {
+    int resizedColumn,
+    int proposedWidth) {
+    if (!list_ ||
+        adjustingColumnWidths_) {
         return;
     }
 
+    HWND header =
+        ListView_GetHeader(
+            list_);
+
     RECT client{};
-    GetClientRect(
-        list_,
-        &client);
+
+    if (header) {
+        GetClientRect(
+            header,
+            &client);
+    } else {
+        GetClientRect(
+            list_,
+            &client);
+    }
 
     const int contentWidth =
         std::max(
-            Scale(360),
+            1,
             static_cast<int>(
                 client.right -
                 client.left));
+
+    const std::array<int, 3>
+        minimums{
+            Scale(72),
+            Scale(96),
+            Scale(72),
+        };
 
     const int minimumTarget =
         Scale(120);
@@ -1081,20 +1116,24 @@ UpdateColumnWidths(
              index < 3;
              ++index) {
             widths[
-                static_cast<std::size_t>(
-                    index)] =
+                static_cast<
+                    std::size_t>(
+                        index)] =
                 ListView_GetColumnWidth(
                     list_,
                     index);
         }
     }
 
-    const std::array<int, 3>
-        minimums{
-            Scale(72),
-            Scale(96),
-            Scale(72),
-        };
+    if (resizedColumn >= 0 &&
+        resizedColumn < 3 &&
+        proposedWidth >= 0) {
+        widths[
+            static_cast<
+                std::size_t>(
+                    resizedColumn)] =
+            proposedWidth;
+    }
 
     for (std::size_t index = 0;
          index < widths.size();
@@ -1105,74 +1144,100 @@ UpdateColumnWidths(
                 widths[index]);
     }
 
+    const int minimumFirstThree =
+        minimums[0] +
+        minimums[1] +
+        minimums[2];
+
     const int firstThreeLimit =
         std::max(
-            minimums[0] +
-                minimums[1] +
-                minimums[2],
+            minimumFirstThree,
             contentWidth -
                 minimumTarget);
 
-    int firstThreeTotal =
-        widths[0] +
-        widths[1] +
-        widths[2];
+    if (resizedColumn >= 0 &&
+        resizedColumn < 3) {
+        const int otherWidth =
+            widths[
+                static_cast<
+                    std::size_t>(
+                        (resizedColumn +
+                         1) % 3)] +
+            widths[
+                static_cast<
+                    std::size_t>(
+                        (resizedColumn +
+                         2) % 3)];
 
-    if (firstThreeTotal >
-        firstThreeLimit) {
-        int excess =
-            firstThreeTotal -
-            firstThreeLimit;
+        const int maximum =
+            std::max(
+                minimums[
+                    static_cast<
+                        std::size_t>(
+                            resizedColumn)],
+                firstThreeLimit -
+                    otherWidth);
 
-        const auto shrink =
-            [&](int index) {
+        widths[
+            static_cast<
+                std::size_t>(
+                    resizedColumn)] =
+            std::clamp(
+                widths[
+                    static_cast<
+                        std::size_t>(
+                            resizedColumn)],
+                minimums[
+                    static_cast<
+                        std::size_t>(
+                            resizedColumn)],
+                maximum);
+    } else {
+        int firstThreeTotal =
+            widths[0] +
+            widths[1] +
+            widths[2];
+
+        if (firstThreeTotal >
+            firstThreeLimit) {
+            int excess =
+                firstThreeTotal -
+                firstThreeLimit;
+
+            for (int index :
+                 std::array<int, 3>{
+                     1,
+                     0,
+                     2}) {
                 if (excess <= 0) {
-                    return;
+                    break;
                 }
+
+                const auto position =
+                    static_cast<
+                        std::size_t>(
+                            index);
 
                 const int capacity =
                     std::max(
                         0,
-                        widths[
-                            static_cast<
-                                std::size_t>(
-                                    index)] -
+                        widths[position] -
                             minimums[
-                                static_cast<
-                                    std::size_t>(
-                                        index)]);
+                                position]);
 
                 const int amount =
                     std::min(
                         excess,
                         capacity);
 
-                widths[
-                    static_cast<
-                        std::size_t>(
-                            index)] -=
+                widths[position] -=
                     amount;
                 excess -= amount;
-            };
-
-        if (resizedColumn >= 0 &&
-            resizedColumn < 3) {
-            shrink(resizedColumn);
-        }
-
-        for (int index :
-             std::array<int, 3>{
-                 1,
-                 0,
-                 2}) {
-            if (index !=
-                resizedColumn) {
-                shrink(index);
             }
         }
     }
 
-    firstThreeTotal =
+    const int firstThreeTotal =
         widths[0] +
         widths[1] +
         widths[2];
@@ -1183,22 +1248,183 @@ UpdateColumnWidths(
             contentWidth -
                 firstThreeTotal);
 
+    adjustingColumnWidths_ =
+        true;
+
     for (int index = 0;
          index < 3;
          ++index) {
-        ListView_SetColumnWidth(
-            list_,
-            index,
+        const int width =
             widths[
                 static_cast<
                     std::size_t>(
-                        index)]);
+                        index)];
+
+        if (ListView_GetColumnWidth(
+                list_,
+                index) != width) {
+            ListView_SetColumnWidth(
+                list_,
+                index,
+                width);
+        }
     }
 
-    ListView_SetColumnWidth(
-        list_,
-        3,
-        target);
+    if (ListView_GetColumnWidth(
+            list_,
+            3) != target) {
+        ListView_SetColumnWidth(
+            list_,
+            3,
+            target);
+    }
+
+    adjustingColumnWidths_ =
+        false;
+}
+
+bool ShortcutManagerWindow::
+HandleHeaderNotification(
+    LPARAM lParam,
+    LRESULT& result) {
+    if (!list_ ||
+        adjustingColumnWidths_) {
+        return false;
+    }
+
+    auto* notification =
+        reinterpret_cast<NMHDR*>(
+            lParam);
+
+    if (!notification) {
+        return false;
+    }
+
+    const int code =
+        static_cast<int>(
+            notification->code);
+
+    const bool beginTrack =
+        code == HDN_BEGINTRACKA ||
+        code == HDN_BEGINTRACKW;
+    const bool itemChanging =
+        code == HDN_ITEMCHANGINGA ||
+        code == HDN_ITEMCHANGINGW;
+    const bool track =
+        code == HDN_TRACKA ||
+        code == HDN_TRACKW;
+    const bool itemChanged =
+        code == HDN_ITEMCHANGEDA ||
+        code == HDN_ITEMCHANGEDW;
+    const bool endTrack =
+        code == HDN_ENDTRACKA ||
+        code == HDN_ENDTRACKW;
+    const bool dividerDoubleClick =
+        code == HDN_DIVIDERDBLCLICKA ||
+        code == HDN_DIVIDERDBLCLICKW;
+
+    if (!beginTrack &&
+        !itemChanging &&
+        !track &&
+        !itemChanged &&
+        !endTrack &&
+        !dividerDoubleClick) {
+        return false;
+    }
+
+    HWND headerWindow =
+        ListView_GetHeader(
+            list_);
+
+    if (notification->hwndFrom !=
+            headerWindow &&
+        notification->idFrom !=
+            kIdList) {
+        return false;
+    }
+
+    auto* header =
+        reinterpret_cast<
+            NMHEADERW*>(
+                lParam);
+
+    if (!header ||
+        header->iItem < 0 ||
+        header->iItem > 3) {
+        return false;
+    }
+
+    const int column =
+        header->iItem;
+
+    if (column == 3 &&
+        (beginTrack ||
+         itemChanging ||
+         track ||
+         dividerDoubleClick)) {
+        result = TRUE;
+        return true;
+    }
+
+    if (column >= 0 &&
+        column < 3) {
+        if (itemChanging &&
+            header->pitem &&
+            (header->pitem->mask &
+             HDI_WIDTH) != 0) {
+            customColumnWidths_ =
+                true;
+
+            UpdateColumnWidths(
+                column,
+                header->pitem->cxy);
+
+            // The clamped width has already been committed by
+            // UpdateColumnWidths(). Reject the raw Header proposal so it
+            // cannot collapse a column or steal space from Target.
+            result = TRUE;
+            return true;
+        }
+
+        if (track &&
+            header->pitem &&
+            (header->pitem->mask &
+             HDI_WIDTH) != 0) {
+            customColumnWidths_ =
+                true;
+
+            UpdateColumnWidths(
+                column,
+                header->pitem->cxy);
+
+            result = FALSE;
+            return true;
+        }
+
+        if (itemChanged ||
+            endTrack ||
+            dividerDoubleClick) {
+            customColumnWidths_ =
+                true;
+
+            UpdateColumnWidths(
+                column);
+
+            RedrawWindow(
+                list_,
+                nullptr,
+                nullptr,
+                RDW_INVALIDATE |
+                    RDW_ERASE |
+                    RDW_ALLCHILDREN |
+                    RDW_UPDATENOW);
+
+            result = FALSE;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void ShortcutManagerWindow::
@@ -2032,66 +2258,13 @@ ChildSubclassProc(
     if (self &&
         hwnd == self->list_ &&
         message == WM_NOTIFY) {
-        const auto* notification =
-            reinterpret_cast<NMHDR*>(
-                lParam);
+        LRESULT headerResult = 0;
 
-        if (notification &&
-            notification->hwndFrom ==
-                ListView_GetHeader(
-                    self->list_)) {
-            const auto* header =
-                reinterpret_cast<
-                    NMHEADERW*>(
-                        lParam);
-
-            if ((notification->code ==
-                     HDN_BEGINTRACKW ||
-                 notification->code ==
-                     HDN_DIVIDERDBLCLICKW) &&
-                header &&
-                header->iItem == 3) {
-                // Target is the elastic final column. Keeping its right edge
-                // fixed prevents a user drag from creating a pseudo fifth
-                // header area.
-                return TRUE;
-            }
-
-            if ((notification->code ==
-                     HDN_ENDTRACKW ||
-                 notification->code ==
-                     HDN_DIVIDERDBLCLICKW) &&
-                header &&
-                header->iItem >= 0 &&
-                header->iItem < 3) {
-                const int column =
-                    header->iItem;
-
-                const LRESULT result =
-                    DefSubclassProc(
-                        hwnd,
-                        message,
-                        wParam,
-                        lParam);
-
-                self->
-                    customColumnWidths_ =
-                        true;
-                self->
-                    UpdateColumnWidths(
-                        column);
-
-                RedrawWindow(
-                    self->list_,
-                    nullptr,
-                    nullptr,
-                    RDW_INVALIDATE |
-                        RDW_ERASE |
-                        RDW_ALLCHILDREN |
-                        RDW_UPDATENOW);
-
-                return result;
-            }
+        if (self->
+                HandleHeaderNotification(
+                    lParam,
+                    headerResult)) {
+            return headerResult;
         }
     }
 
@@ -2389,6 +2562,14 @@ LRESULT ShortcutManagerWindow::HandleMessage(
         break;
 
     case WM_NOTIFY: {
+        LRESULT headerResult = 0;
+
+        if (HandleHeaderNotification(
+                lParam,
+                headerResult)) {
+            return headerResult;
+        }
+
         const auto* header =
             reinterpret_cast<NMHDR*>(
                 lParam);

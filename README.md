@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.4 — Shortcut Manager Column Resize Hardening
+
+Alpha 3.4 is a narrow follow-up for the remaining real-Windows ListView header-resize bug. All alpha.3.3 reopen/search/density behavior remains unchanged.
+
+Header resizing is now constrained while the drag is in progress instead of being repaired only after mouse release. Keywords / Name / Type keep user-resizable dividers, but each column has an enforced logical minimum and the dragged column alone is clamped when the remaining Target width would fall below its 120-logical-pixel minimum. Target remains the locked elastic fourth column and is recomputed from the Header's exact client width on every accepted drag step.
+
+The Header path handles ANSI and Unicode HDN notifications, uses HDS_FULLDRAG for live updates, and routes the same constraint logic through both the ListView subclass path and the Manager WM_NOTIFY path. Programmatic normalization is guarded against recursive Header notifications. Because the four real column widths always sum to the Header client width, manual resizing can no longer expose a pseudo-fifth header region or leave selected-row paint outside the real Target column.
+
+No search, reopen-state, row-density, window-resize, shortcut persistence, context action, Shortcut Editor, Path Conversion, Runtime Input, Provider, Hotkey, updater or Shortcut TSV v3 behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.34`.
+
 ## v0.8.0-alpha.3.3 — Shortcut Manager Final Polish
 
 Alpha 3.3 closes the Shortcut Manager phase with the remaining real-Windows reopen, column-resize and search-edit fixes. Shortcut Editor and Path Conversion internals remain unchanged.

@@ -42,6 +42,136 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.4":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.4 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.4 must keep provider-cache schemaVersion 2")
+
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+
+    for token in (
+        "HDS_FULLDRAG",
+        "adjustingColumnWidths_",
+        "HandleHeaderNotification",
+        "HDN_ITEMCHANGINGA",
+        "HDN_ITEMCHANGINGW",
+        "HDN_TRACKA",
+        "HDN_TRACKW",
+        "HDN_ITEMCHANGEDA",
+        "HDN_ITEMCHANGEDW",
+        "HDN_ENDTRACKA",
+        "HDN_ENDTRACKW",
+        "HDN_DIVIDERDBLCLICKA",
+        "HDN_DIVIDERDBLCLICKW",
+        "minimumTarget",
+        "Scale(72)",
+        "Scale(96)",
+        "Scale(120)",
+        "std::clamp",
+        "GetClientRect(\n            header,",
+        "notification->idFrom !=",
+        "UpdateColumnWidths(\n                column,\n                header->pitem->cxy)",
+        "result = TRUE;",
+        "Scale(24)",
+        "ResetTransientState",
+        "EM_GETRECT",
+        "BeginDeferWindowPos(7)",
+        "SWP_NOCOPYBITS",
+    ):
+        if token not in manager_cpp and token not in manager_h:
+            fail(f"v0.8 alpha.3.4 column hardening missing: {token}")
+
+    for token in (
+        "selected = 0;",
+        "Scale(30)",
+        "EM_SETCUEBANNER",
+        "LVS_EX_GRIDLINES",
+        "kIdClose",
+        "close_",
+    ):
+        if token in manager_cpp or token in manager_h:
+            fail(f"v0.8 alpha.3.4 obsolete Manager behavior returned: {token}")
+
+    if manager_cpp.count("ListView_InsertColumn(") != 1:
+        fail("v0.8 alpha.3.4 must keep exactly the four-column creation helper")
+
+    for token in (
+        "addColumn(\n        0,",
+        "addColumn(\n        1,",
+        "addColumn(\n        2,",
+        "addColumn(\n        3,",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.4 four-column contract missing: {token}")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    path_converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    if "RuntimeInputMode" not in editor_cpp or "Advanced" not in editor_cpp:
+        fail("v0.8 alpha.3.4 must not rewrite Shortcut Editor behavior")
+    if "ShortcutPathConverterDialog::Show" not in path_converter_cpp:
+        fail("v0.8 alpha.3.4 must keep Path Conversion implementation")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.3"',
+        '"0.8.0-alpha.3.4"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.4 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.4 — Shortcut Manager Column Resize Hardening",
+        "0.8.0.34",
+        "constrained while the drag is in progress",
+        "exact client width",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.4 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.4",
+        "0.8.0.34",
+        "HDN_ITEMCHANGING",
+        "pseudo-fifth",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.4 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.4",
+        "v0.8.0-alpha.3.5",
+        "v0.8.0-alpha.3.6",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.4 Shortcut Manager column hardening verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| Header=ANSI+Unicode live constraints",
+        "| first3=min-width/user-resizable",
+        "| Target=120px-min/locked/elastic",
+        "| four columns=exact Header fill",
+        "| alpha.3.3 search/reopen/rows preserved",
+        "| Editor/Path Conversion untouched",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.3":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,
