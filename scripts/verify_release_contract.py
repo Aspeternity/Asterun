@@ -42,6 +42,109 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.11":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.11 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.11 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    about_start = settings_cpp.find("void SettingsWindow::ShowAbout()")
+    show_start = settings_cpp.find("void SettingsWindow::Show()", about_start)
+    if about_start < 0 or show_start < 0:
+        fail("v0.8 alpha.3.11 ShowAbout/Show definitions were not found")
+    about_body = settings_cpp[about_start:show_start]
+
+    for token in (
+        "Show();",
+        "ShowPage(Page::About);",
+        "if (!hwnd_ ||",
+        "!IsWindow(hwnd_)",
+    ):
+        if token not in about_body:
+            fail(f"v0.8 alpha.3.11 About show path missing: {token}")
+
+    if about_body.find("Show();") > about_body.find("ShowPage(Page::About);"):
+        fail("v0.8 alpha.3.11 About must run shared Show() before selecting Page::About")
+
+    for token in (
+        "ShowWindow(\n        hwnd_,\n        SW_HIDE);",
+        "PositionForShow();\n\n        ShowWindow(\n            hwnd_,\n            SW_SHOWNORMAL);",
+        "DestroyWindow(hwnd_);",
+        "RememberSettingsPosition(",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.3.11 Settings placement/lifecycle regression: {token}")
+
+    for token in (
+        "updateReconcileTimer_",
+        "StartUpdateReconcileTimer();",
+        "StopUpdateReconcileTimer();",
+        "HandleUpdateStatusMessage(",
+        "kUpdateStatusMessage",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.11 update reconciliation regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.10"',
+        '"0.8.0-alpha.3.11"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.11 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.11 — About Entry Placement Fix",
+        "0.8.0.41",
+        "ShowAbout()",
+        "calls the exact same `Show()` routine",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.11 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.11",
+        "0.8.0.41",
+        "Changed About to run `Show()` first",
+        "Page::About",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.11 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.11",
+        "v0.8.0-alpha.3.12",
+        "v0.8.0-alpha.3.13",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.11 About placement path verified:",
+        "| tray Settings/About share top-level Show lifecycle",
+        "| About page switch occurs after Show()",
+        "| alpha.3.10 centering/Last placement preserved",
+        "| destroy-on-close and update reconciliation preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.10":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

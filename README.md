@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.11 — About Entry Placement Fix
+
+Alpha 3.11 closes the remaining Settings-placement regression specific to the tray **关于… / About...** entry.
+
+Real-Windows validation of alpha.3.10 proved that the generic Settings centering path is correct: tray **设置… / Settings...** opens centered and **上次位置 / Last position** is preserved. The remaining defect was isolated to `SettingsWindow::ShowAbout()`. Unlike the normal Settings entry, About changed the hidden Settings HWND to the About page *before* running the shared top-level `Show()` path. That made About the only entry route that mutated the recreated hidden window before the first visible Settings show.
+
+Alpha 3.11 removes that path divergence. `ShowAbout()` now calls the exact same `Show()` routine used by tray Settings first, so creation, hidden first-show consumption, `PositionForShow()`, restore behavior and foreground activation all complete identically. Only after the top-level window has been shown in its configured position does it switch to `Page::About`. This keeps **屏幕居中 / Centered** and **上次位置 / Last position** behavior identical between tray Settings and tray About.
+
+No Settings lifecycle rollback is involved: closing still destroys the Settings HWND, and alpha.3.10's restored hidden first `ShowWindow(SW_HIDE)` remains in place. The alpha.3.8 update-status reconciliation watchdog is also unchanged.
+
+No Settings schema, updater endpoint/manifest, Shortcut Manager, Shortcut Editor, Runtime Input, Path Conversion, Provider, Hotkey or search/ranking behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.41`.
 ## v0.8.0-alpha.3.10 — Settings Placement Regression Fix
 
 Alpha 3.10 is a targeted correction after real-Windows testing showed that the previous alpha.3.8/3.9 placement changes still did not restore **屏幕居中 / Centered** when Settings was recreated from the tray.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.3.11
+
+- Fixed tray **关于… / About...** opening the shared Settings window at the upper-left while tray **设置… / Settings...** already centered correctly.
+- Audited the two entry paths and isolated the difference to `SettingsWindow::ShowAbout()`: it selected `Page::About` before invoking the shared top-level `Show()` lifecycle.
+- Changed About to run `Show()` first, so Settings creation, hidden first-show consumption, `PositionForShow()`, minimize restore and foreground activation are now identical to the normal Settings entry.
+- Switched to `Page::About` only after the top-level window is shown, removing the last entry-specific placement path.
+- Preserved alpha.3.10's `SW_HIDE` first-show consumption, destroy-on-close lifecycle, Last-position persistence and alpha.3.8 update-status reconciliation watchdog.
+- Preserved Settings schemaVersion 8 and all frozen Shortcut workflow behavior.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.41`.
 ## 0.8.0-alpha.3.10
 
 - Re-audited Settings placement against the last known-good alpha.3.6 implementation instead of continuing to layer placement workarounds.

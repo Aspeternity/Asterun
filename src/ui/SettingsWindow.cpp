@@ -6392,12 +6392,18 @@ void SettingsWindow::RefreshUpdateStatus() {
 }
 
 void SettingsWindow::ShowAbout() {
-    if (!EnsureCreated()) {
+    // Route About through the exact same top-level show/placement path as
+    // Settings first. Changing the hidden window to About before its first
+    // visible ShowWindow produced a path-specific USER32 placement regression
+    // even after the generic Settings centering lifecycle was fixed.
+    Show();
+
+    if (!hwnd_ ||
+        !IsWindow(hwnd_)) {
         return;
     }
 
     ShowPage(Page::About);
-    Show();
 }
 
 void SettingsWindow::Show() {
