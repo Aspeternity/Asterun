@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include <commctrl.h>
 
 #include <string>
 #include <string_view>
@@ -39,15 +40,25 @@ private:
     static constexpr UINT
         kIdFilter = 52106;
     static constexpr UINT
-        kIdClose = 52107;
-    static constexpr UINT
         kIdList = 52120;
+
+    static constexpr UINT_PTR
+        kChildSubclassId = 1;
 
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
         UINT message,
         WPARAM wParam,
         LPARAM lParam);
+
+    static LRESULT CALLBACK
+    ChildSubclassProc(
+        HWND hwnd,
+        UINT message,
+        WPARAM wParam,
+        LPARAM lParam,
+        UINT_PTR subclassId,
+        DWORD_PTR refData);
 
     LRESULT HandleMessage(
         UINT message,
@@ -56,6 +67,17 @@ private:
 
     void CreateControls();
     void Layout();
+    void RecreateFonts();
+    void RebuildRowHeightImageList();
+    void UpdateColumnWidths();
+    void UpdateEmptyText();
+    void DrawActionButton(
+        const DRAWITEMSTRUCT& item);
+    LRESULT HandleListCustomDraw(
+        NMLVCUSTOMDRAW* draw);
+    [[nodiscard]] bool HandleChildKeyDown(
+        HWND source,
+        WPARAM key);
 
     [[nodiscard]] std::wstring
     SelectedId() const;
@@ -87,10 +109,11 @@ private:
     HWND delete_{};
     HWND test_{};
     HWND pathConversion_{};
-    HWND close_{};
     HWND filter_{};
     HWND list_{};
     HFONT font_{};
+    HFONT semiboldFont_{};
+    HIMAGELIST rowHeightImageList_{};
     UINT dpi_{96};
     std::vector<std::wstring>
         visibleIds_;

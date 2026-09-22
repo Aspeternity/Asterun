@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.1 — Shortcut Manager Visual Consolidation
+
+Alpha 3.1 starts the Shortcut Manager / Editor consolidation with the Manager only. Existing shortcut persistence, editing, testing, context actions, Path Conversion and v0.7 command semantics are unchanged.
+
+The Manager keeps the native resizable Win32 ListView and its dense four-column information model, but reorganizes the workflow around a top search row with one primary **新建快捷项 / New shortcut** action, the shortcut list in the center, and a bottom action row. The low-value Close button is removed; **路径转换 / Path conversion** is separated as a collection-level tool on the lower left, while **测试 / Test**, **编辑 / Edit** and **删除 / Delete** stay grouped on the lower right as selected-item actions.
+
+The list drops heavy grid lines, uses a compact 30-logical-pixel row rhythm, restrained row separators and the shared application selection palette. The Target column now expands with the window while Keywords / Name / Type keep compact fixed widths. Empty and filtered-empty states use concise native ListView text instead of decorative cards.
+
+Manager controls now use the shared UiTheme / UiMetrics / UiTypography foundation, owner-drawn primary/secondary/danger buttons, per-monitor DPI resource rebuilds and a minimum useful window size. Keyboard workflow adds **Ctrl+F** search, **Ctrl+N** new shortcut, **Ctrl+Enter** test and **Esc** clear-search/close behavior while preserving Enter edit, Delete delete, double-click edit and the existing context menu.
+
+Shortcut Editor and Path Conversion internals are intentionally untouched in this release. No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything lifecycle, Runtime Input, Path Conversion, Context Action or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.31`.
+
 ## v0.8.0-alpha.2.14 — Hotkey Inline Reset Polish
 
 Alpha 2.14 removes the last unnecessary height expansion caused by modified Hotkey bindings.

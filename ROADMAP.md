@@ -192,7 +192,9 @@ In progress:
 - v0.8.0-alpha.2.12 closes Hotkey capture lifecycle: outside interaction/navigation/hide/deactivation cancel transient capture sessions
 - v0.8.0-alpha.2.13 fixes the remaining Hotkey rendering regression by making auxiliary layout state explicit and committing text/visibility/layout through one parent-level redraw transaction
 - v0.8.0-alpha.2.14 moves per-item Reset inline beside the capture control so modified bindings no longer expand rows or create fixed-viewport overflow; only transient/error status uses auxiliary height
-- Shortcut Manager / Editor visual consolidation follows in v0.8.0-alpha.3
+- v0.8.0-alpha.3.1 starts Shortcut workflow consolidation with the native resizable Shortcut Manager: search/New hierarchy, dense ListView polish, selected-item action grouping, empty states, keyboard workflow and DPI hardening
+- v0.8.0-alpha.3.2 follows with Shortcut Editor visual consolidation without changing Runtime Input / Path Conversion / Advanced Options semantics
+- v0.8.0-alpha.3.3 is reserved for real-Windows Shortcut workflow polish plus Path Conversion visual integration only
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

@@ -42,6 +42,136 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.1 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.1 must keep provider-cache schemaVersion 2")
+
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+
+    for token in (
+        'T(L"新建快捷项",',
+        'T(L"搜索快捷项",',
+        'T(L"路径转换…",',
+        "BS_OWNERDRAW",
+        "ui::kApplicationPalette",
+        "kStandardControlHeightLogical",
+        "LVS_EX_FULLROWSELECT",
+        "LVS_EX_DOUBLEBUFFER",
+        "Scale(30)",
+        "CDDS_ITEMPOSTPAINT",
+        "palette.separator",
+        "LVM_SETEMPTYTEXT",
+        'T(L"没有匹配的快捷项",',
+        'T(L"还没有快捷项",',
+        "SetWindowSubclass",
+        "kChildSubclassId",
+        "key == L'F'",
+        "key == L'N'",
+        "key == VK_RETURN",
+        "key == VK_ESCAPE",
+        "WM_DPICHANGED",
+        "Scale(720)",
+        "Scale(480)",
+        "UpdateColumnWidths",
+        "RebuildRowHeightImageList",
+        "BodySemibold",
+    ):
+        if token not in manager_cpp and token not in manager_h:
+            fail(f"v0.8 alpha.3.1 Shortcut Manager contract missing: {token}")
+
+    for token in (
+        "kIdClose",
+        "close_",
+        "LVS_EX_GRIDLINES",
+        'T(L"筛选快捷项：快捷词、名称或目标",',
+    ):
+        if token in manager_cpp or token in manager_h:
+            fail(f"v0.8 alpha.3.1 obsolete Shortcut Manager surface returned: {token}")
+
+    if manager_cpp.find("MoveWindow(\n        pathConversion_") < 0 or \
+       manager_cpp.find("MoveWindow(\n        delete_") < 0 or \
+       manager_cpp.find("MoveWindow(\n        edit_") < 0 or \
+       manager_cpp.find("MoveWindow(\n        test_") < 0:
+        fail("v0.8 alpha.3.1 bottom Shortcut Manager action layout is incomplete")
+
+    hotkey_registry = (
+        read("src/core/HotkeyRegistry.hpp") +
+        read("src/core/HotkeyRegistry.cpp")
+    )
+    for token in (
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    ):
+        if token not in hotkey_registry:
+            fail(f"v0.8 alpha.3.1 Hotkey Registry ID changed/missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.14"',
+        '"0.8.0-alpha.3"',
+        '"0.8.0-alpha.3.1"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.1 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.1 — Shortcut Manager Visual Consolidation",
+        "0.8.0.31",
+        "Ctrl+F",
+        "native resizable Win32 ListView",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.1 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.1",
+        "0.8.0.31",
+        "Removed the redundant Close button",
+        "Shortcut Editor and Path Conversion internals unchanged",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.1 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.1",
+        "v0.8.0-alpha.3.2",
+        "v0.8.0-alpha.3.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.1 Shortcut Manager contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| layout=search/new + dense list + split bottom actions",
+        "| close button=removed",
+        "| list=30px/no-grid/shared palette",
+        "| empty states=native concise",
+        "| keyboard=Ctrl+F/Ctrl+N/Ctrl+Enter/Esc",
+        "| DPI=PerMonitorV2 resources rebuilt",
+        "| Editor/Path Conversion semantics untouched",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.14":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

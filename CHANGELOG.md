@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0-alpha.3.1
+
+- Reorganized Shortcut Manager into a top search + primary New action, central dense ListView, and bottom action row.
+- Removed the redundant Close button; native window close and Esc remain available.
+- Moved Path Conversion to the lower-left collection-tool position and grouped Test / Edit / Delete on the lower-right as selected-item actions.
+- Replaced the long filter cue with concise **搜索快捷项 / Search shortcuts**.
+- Kept the native four-column table while shortening the Target heading and making the Target column absorb remaining window width.
+- Removed heavy ListView grid lines, added 30-logical-pixel rows, restrained separators and shared application selection colors.
+- Added concise native empty states for no shortcuts and no search matches.
+- Added shared owner-drawn primary/secondary/danger button styling and shared UiTheme / UiMetrics / UiTypography usage.
+- Added Per-Monitor-V2 DPI font/row resource rebuilding and a 720×480 logical minimum useful window size.
+- Added Ctrl+F search, Ctrl+N new shortcut, Ctrl+Enter test, and Esc clear-search/close keyboard behavior.
+- Preserved double-click/Enter edit, Delete delete, context actions, shortcut persistence, Path Conversion behavior and all frozen v0.7 contracts.
+- Kept Shortcut Editor and Path Conversion internals unchanged for the later alpha.3.2 / alpha.3.3 passes.
+- Kept Settings schemaVersion 8; updated Windows fixed FileVersion/ProductVersion to `0.8.0.31`.
+
 ## 0.8.0-alpha.2.14
 
 - Moved per-item **恢复默认 / Reset** from the auxiliary row to the main Hotkey row immediately left of the capture control.
