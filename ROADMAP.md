@@ -189,6 +189,7 @@ In progress:
 - v0.8.0-alpha.2.9 closes About alignment: version/GitHub metadata and update status/action rows share explicit visual centers without changing behavior
 - v0.8.0-alpha.2.10 closes Hotkey-page typography/density: body-font action labels, 54px normal rows, conditional auxiliary expansion and Settings-consistent separators without changing hotkey behavior
 - v0.8.0-alpha.2.11 polishes Hotkey auxiliary states: lightweight per-item Reset links, right-column helper text, measured expansion and separator-safe padding while preserving all hotkey behavior
+- v0.8.0-alpha.2.12 closes Hotkey dynamic-state bugs: capture is cancelled on outside interaction/navigation/hide/deactivation and dynamic row geometry uses a full parent+child erase/redraw transaction
 - Shortcut Manager / Editor visual consolidation follows in v0.8.0-alpha.3
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

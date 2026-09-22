@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.2.12
+
+- Added a unified Hotkey capture-cancel lifecycle instead of letting capture persist indefinitely.
+- Clicking the active capture button now cancels capture; clicking another capture button switches directly to that action.
+- Clicking elsewhere in Settings, leaving the Hotkeys page, deactivating Settings, or closing/hiding Settings now cancels capture.
+- Reopening Settings always starts with no active Hotkey capture session.
+- Replaced partial parent invalidation after dynamic Hotkey row changes with a full parent + child erase/redraw transaction.
+- Removed stale white strips, clipped child controls and residual pixels caused by auxiliary-row expansion/collapse.
+- Preserved 54px normal Hotkey rows, auxiliary-state styling and every existing Hotkey Registry/binding/validation/conflict/global-registration contract.
+- Kept Settings schemaVersion 8 and all other Settings pages unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.32`.
+
 ## 0.8.0-alpha.2.11
 
 - Replaced the bordered per-item **恢复默认 / Reset** button with a lightweight owner-drawn text action and hand cursor.

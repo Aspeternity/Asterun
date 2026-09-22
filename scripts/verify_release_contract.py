@@ -42,6 +42,133 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.2.12":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.12 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.12 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "CancelHotkeyCapture",
+        "RelayoutHotkeyPage",
+        "RefreshHotkeyPage(\n    bool relayout)",
+        "WM_SETREDRAW",
+        "RDW_ALLCHILDREN",
+        "RDW_ERASE",
+        "RDW_UPDATENOW",
+        "for (HWND control :\n         hotkeyControls_)",
+        "page_ == Page::Hotkeys &&\n        page != Page::Hotkeys",
+        "RefreshHotkeyPage(false)",
+        "case WM_ACTIVATE:",
+        "WA_INACTIVE",
+        "case WM_NCLBUTTONDOWN:",
+        "case WM_PARENTNOTIFY:",
+        "WindowFromPoint",
+        "isHotkeyCaptureWindow",
+        "CancelHotkeyCapture(false);\n        CommitPendingProviderChanges();",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.12 Hotkey lifecycle/redraw contract missing: {token}")
+
+    begin_capture_start = settings_cpp.find(
+        "void SettingsWindow::BeginHotkeyCapture(")
+    begin_capture_end = settings_cpp.find(
+        "\nvoid SettingsWindow::CancelHotkeyCapture(",
+        begin_capture_start)
+    if begin_capture_start < 0 or begin_capture_end < 0:
+        fail("v0.8 alpha.2.12 BeginHotkeyCapture could not be inspected")
+    begin_capture = settings_cpp[begin_capture_start:begin_capture_end]
+    for token in (
+        "capturingHotkeyActionId_ ==",
+        "CancelHotkeyCapture();",
+        "capturingHotkeyActionId_ =",
+    ):
+        if token not in begin_capture:
+            fail(f"v0.8 alpha.2.12 capture-toggle/switch contract missing: {token}")
+
+    show_start = settings_cpp.find("void SettingsWindow::Show()")
+    show_end = settings_cpp.find(
+        "\nLRESULT CALLBACK SettingsWindow::WindowProc",
+        show_start)
+    if show_start < 0 or show_end < 0:
+        fail("v0.8 alpha.2.12 SettingsWindow::Show could not be inspected")
+    if "CancelHotkeyCapture(false);" not in settings_cpp[show_start:show_end]:
+        fail("v0.8 alpha.2.12 reopening Settings must clear capture state")
+
+    hotkey_registry = (
+        read("src/core/HotkeyRegistry.hpp") +
+        read("src/core/HotkeyRegistry.cpp")
+    )
+    for token in (
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    ):
+        if token not in hotkey_registry:
+            fail(f"v0.8 alpha.2.12 Hotkey Registry ID changed/missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.11"',
+        '"0.8.0-alpha.2.12"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.12 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.12 — Hotkey Capture Lifecycle & Redraw Fix",
+        "0.8.0.32",
+        "explicit transient session",
+        "full redraw transaction",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.12 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.12",
+        "0.8.0.32",
+        "unified Hotkey capture-cancel lifecycle",
+        "full parent + child erase/redraw transaction",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.12 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.12",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.12 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.12 Hotkey capture/redraw contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| capture=session-scoped",
+        "| outside/navigation/hide/deactivate=cancel",
+        "| dynamic layout=parent+child full redraw",
+        "| Hotkey IDs/behavior unchanged",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.11":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

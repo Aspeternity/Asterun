@@ -196,9 +196,13 @@ private:
         HWND status{};
     };
 
-    void RefreshHotkeyPage();
+    void RefreshHotkeyPage(
+        bool relayout = true);
+    void RelayoutHotkeyPage();
     void BeginHotkeyCapture(
         std::string_view actionId);
+    void CancelHotkeyCapture(
+        bool refresh = true);
     void ApplyCapturedHotkey(
         UINT virtualKey);
     void ToggleHotkeyActionEnabled(

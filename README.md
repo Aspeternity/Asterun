@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.12 — Hotkey Capture Lifecycle & Redraw Fix
+
+Alpha 2.12 closes two real-Windows bugs in the Settings Hotkeys page without changing any hotkey binding semantics.
+
+Hotkey capture is now an explicit transient session. Clicking the same capture control cancels it; clicking another capture control switches the session to that action; clicking elsewhere in Settings, leaving the Hotkeys page, closing/hiding Settings, or deactivating the Settings window cancels capture. Reopening Settings therefore always starts from a non-capture state. Escape and successful capture keep their existing behavior.
+
+Dynamic Hotkey row expansion/collapse now uses a full redraw transaction. After auxiliary state changes, Settings suspends redraw, recomputes layout, then invalidates/erases the parent and all child controls synchronously. This removes stale child-window pixels, white strips and clipped text previously visible after capture/status rows changed height.
+
+No persisted schema, Hotkey Registry ID, binding validation, conflict detection, global registration, Provider behavior, updater contract, search/ranking behavior, Everything lifecycle, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.32`.
+
 ## v0.8.0-alpha.2.11 — Hotkey Auxiliary State Polish
 
 Alpha 2.11 refines the Hotkey page's temporary/secondary states without changing capture, validation, conflict detection, registration or reset behavior.

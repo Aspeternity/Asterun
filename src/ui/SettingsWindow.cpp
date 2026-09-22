@@ -1719,12 +1719,60 @@ void SettingsWindow::SetHotkeyRowStatus(
     }
 
     if (page_ == Page::Hotkeys) {
-        Layout();
-        InvalidateRect(
-            hwnd_,
-            nullptr,
-            FALSE);
+        RelayoutHotkeyPage();
     }
+}
+
+void SettingsWindow::RelayoutHotkeyPage() {
+    if (!hwnd_ ||
+        page_ != Page::Hotkeys) {
+        return;
+    }
+
+    SendMessageW(
+        hwnd_,
+        WM_SETREDRAW,
+        FALSE,
+        0);
+
+    for (HWND control :
+         hotkeyControls_) {
+        if (control) {
+            SendMessageW(
+                control,
+                WM_SETREDRAW,
+                FALSE,
+                0);
+        }
+    }
+
+    Layout();
+
+    for (HWND control :
+         hotkeyControls_) {
+        if (control) {
+            SendMessageW(
+                control,
+                WM_SETREDRAW,
+                TRUE,
+                0);
+        }
+    }
+
+    SendMessageW(
+        hwnd_,
+        WM_SETREDRAW,
+        TRUE,
+        0);
+
+    RedrawWindow(
+        hwnd_,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
 }
 
 bool SettingsWindow::
@@ -1858,7 +1906,8 @@ int SettingsWindow::HotkeyGroupHeight(
     return height;
 }
 
-void SettingsWindow::RefreshHotkeyPage() {
+void SettingsWindow::RefreshHotkeyPage(
+    bool relayout) {
     if (hotkeyRows_.empty()) {
         return;
     }
@@ -1984,12 +2033,9 @@ void SettingsWindow::RefreshHotkeyPage() {
 
     syncing_ = oldSyncing;
 
-    if (page_ == Page::Hotkeys) {
-        Layout();
-        InvalidateRect(
-            hwnd_,
-            nullptr,
-            FALSE);
+    if (relayout &&
+        page_ == Page::Hotkeys) {
+        RelayoutHotkeyPage();
     }
 }
 
@@ -1999,11 +2045,32 @@ void SettingsWindow::BeginHotkeyCapture(
         return;
     }
 
+    if (capturingHotkeyActionId_ ==
+        actionId) {
+        CancelHotkeyCapture();
+        return;
+    }
+
     capturingHotkeyActionId_ =
         std::string(actionId);
 
     RefreshHotkeyPage();
     SetFocus(hwnd_);
+}
+
+void SettingsWindow::CancelHotkeyCapture(
+    bool refresh) {
+    if (capturingHotkeyActionId_
+            .empty()) {
+        return;
+    }
+
+    capturingHotkeyActionId_
+        .clear();
+
+    if (refresh) {
+        RefreshHotkeyPage();
+    }
 }
 
 void SettingsWindow::ApplyCapturedHotkey(
@@ -2017,9 +2084,7 @@ void SettingsWindow::ApplyCapturedHotkey(
         capturingHotkeyActionId_;
 
     if (virtualKey == VK_ESCAPE) {
-        capturingHotkeyActionId_
-            .clear();
-        RefreshHotkeyPage();
+        CancelHotkeyCapture();
         return;
     }
 
@@ -2125,10 +2190,7 @@ void SettingsWindow::ApplyCapturedHotkey(
         return;
     }
 
-    capturingHotkeyActionId_
-        .clear();
-
-    RefreshHotkeyPage();
+    CancelHotkeyCapture();
 }
 
 void SettingsWindow::ToggleHotkeyActionEnabled(
@@ -2230,8 +2292,7 @@ void SettingsWindow::ResetHotkeyAction(
 
     if (capturingHotkeyActionId_ ==
         actionId) {
-        capturingHotkeyActionId_
-            .clear();
+        CancelHotkeyCapture(false);
     }
 
     RefreshHotkeyPage();
@@ -2264,8 +2325,7 @@ void SettingsWindow::ResetAllHotkeys() {
         return;
     }
 
-    capturingHotkeyActionId_
-        .clear();
+    CancelHotkeyCapture(false);
     RefreshHotkeyPage();
 }
 
@@ -2601,6 +2661,11 @@ void SettingsWindow::UpdatePageHeader() {
 
 
 void SettingsWindow::ShowPage(Page page) {
+    if (page_ == Page::Hotkeys &&
+        page != Page::Hotkeys) {
+        CancelHotkeyCapture(false);
+    }
+
     if (page_ == Page::Providers &&
         page != Page::Providers) {
         KillTimer(
@@ -2669,7 +2734,7 @@ void SettingsWindow::ShowPage(Page page) {
     }
 
     if (page == Page::Hotkeys) {
-        RefreshHotkeyPage();
+        RefreshHotkeyPage(false);
     } else if (
         page == Page::Providers) {
         SetTimer(
@@ -6249,6 +6314,8 @@ void SettingsWindow::ShowAbout() {
 void SettingsWindow::Show() {
     if (!hwnd_) return;
 
+    CancelHotkeyCapture(false);
+
     // Retry a binding that previously failed, but never tear down a
     // working hotkey merely because the Settings window was opened.
     app_.RepairGlobalHotkey(false);
@@ -6323,6 +6390,24 @@ LRESULT SettingsWindow::HandleMessage(
     WPARAM wParam,
     LPARAM lParam) {
 
+    const auto isHotkeyCaptureWindow =
+        [&](HWND control) {
+            if (!control) {
+                return false;
+            }
+
+            const UINT id =
+                static_cast<UINT>(
+                    GetDlgCtrlID(
+                        control));
+
+            return
+                id >= kIdHotkeyCaptureBase &&
+                id <
+                    kIdHotkeyCaptureBase +
+                        hotkeyRows_.size();
+        };
+
     const auto dismissComboFocus =
         [&]() {
             const HWND focused =
@@ -6379,6 +6464,11 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:
         dismissComboFocus();
+
+        if (!capturingHotkeyActionId_
+                 .empty()) {
+            CancelHotkeyCapture();
+        }
         break;
 
     case WM_PARENTNOTIFY:
@@ -6392,6 +6482,42 @@ LRESULT SettingsWindow::HandleMessage(
             // focused. Any click elsewhere inside Settings should dismiss that
             // focus first; the clicked child can then take focus normally.
             dismissComboFocus();
+
+            if (!capturingHotkeyActionId_
+                     .empty()) {
+                POINT point{};
+                GetCursorPos(
+                    &point);
+
+                const HWND clicked =
+                    WindowFromPoint(
+                        point);
+
+                if (LOWORD(wParam) !=
+                        WM_LBUTTONDOWN ||
+                    !isHotkeyCaptureWindow(
+                        clicked)) {
+                    CancelHotkeyCapture();
+                }
+            }
+        }
+        break;
+
+    case WM_NCLBUTTONDOWN:
+    case WM_NCRBUTTONDOWN:
+    case WM_NCMBUTTONDOWN:
+        if (!capturingHotkeyActionId_
+                 .empty()) {
+            CancelHotkeyCapture();
+        }
+        break;
+
+    case WM_ACTIVATE:
+        if (LOWORD(wParam) ==
+                WA_INACTIVE &&
+            !capturingHotkeyActionId_
+                 .empty()) {
+            CancelHotkeyCapture();
         }
         break;
 
@@ -7438,6 +7564,7 @@ LRESULT SettingsWindow::HandleMessage(
     }
 
     case WM_CLOSE:
+        CancelHotkeyCapture(false);
         CommitPendingProviderChanges();
 
         KillTimer(
