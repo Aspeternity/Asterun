@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.7 — Window Lifecycle & Confirmation Polish
+
+Alpha 3.7 is a focused lifecycle follow-up after the Shortcut Manager naming pass. It does not redesign Settings, Shortcut Manager or Shortcut Editor.
+
+Closing Settings now destroys its native top-level window instead of leaving a hidden control tree resident. Reopening Settings recreates a clean window and returns to **常规 / General**; calling Settings again while the same window is still open keeps the current page. The recreation path explicitly clears transient Hotkey/provider/page state and releases Settings-owned fonts and brushes.
+
+Shortcut Manager now uses the same close-to-destroy rule, including Esc with an empty search box. Before destruction it captures the normal window placement and any user-adjusted first-three-column widths, so reopening still preserves Manager geometry/column preferences while resetting search, selection, focus and scroll state exactly as before. Shortcut Editor and Path Conversion were audited and already use stack-scoped modal objects that destroy their HWNDs on close.
+
+Shortcut deletion confirmation no longer exposes `commands.json`. It now asks whether to delete the named shortcut and states that the action cannot be undone. No shortcut persistence format, Provider, Hotkey, Runtime Input, Path Conversion, updater/uninstaller or search/ranking behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.37`.
+
 ## v0.8.0-alpha.3.6 — Shortcut Workflow Naming Polish
 
 Alpha 3.6 is a narrow naming and mode-identity pass before the Shortcut Editor visual consolidation. No Manager layout, Header resize, search, row-density or shortcut execution behavior changes.

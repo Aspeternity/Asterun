@@ -157,6 +157,9 @@ private:
         WPARAM wParam,
         LPARAM lParam);
 
+    bool EnsureCreated();
+    void ResetWindowInstanceState();
+    void ReleaseWindowResources();
     void CreateControls();
     void CreateGeneralPage();
     void CreateHotkeyPage();

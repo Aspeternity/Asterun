@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <commctrl.h>
 
+#include <array>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -82,6 +83,9 @@ private:
         LPARAM lParam,
         LRESULT& result);
     void UpdateEmptyText();
+    void CaptureWindowState();
+    void ReleaseWindowResources();
+    void CloseWindow();
     void ResetTransientState(
         std::wstring_view preferredId);
     void DrawActionButton(
@@ -135,6 +139,12 @@ private:
     int trackedColumn_{-1};
     int trackedColumnWidth_{-1};
     bool suppressFilterRefresh_{false};
+    WINDOWPLACEMENT savedWindowPlacement_{
+        sizeof(WINDOWPLACEMENT)};
+    bool savedWindowPlacementValid_{false};
+    std::array<int, 3>
+        savedColumnWidthsLogical_{};
+    bool savedColumnWidthsValid_{false};
     std::vector<std::wstring>
         visibleIds_;
 };

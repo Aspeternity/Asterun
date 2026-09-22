@@ -83,13 +83,12 @@ SettingsWindow::SettingsWindow(App& app, HINSTANCE instance)
     : app_(app), instance_(instance) {}
 
 SettingsWindow::~SettingsWindow() {
-    if (normalFont_) DeleteObject(normalFont_);
-    if (titleFont_) DeleteObject(titleFont_);
-    if (appNameFont_) DeleteObject(appNameFont_);
-    if (sectionFont_) DeleteObject(sectionFont_);
-    if (backgroundBrush_) DeleteObject(backgroundBrush_);
-    if (sidebarBrush_) DeleteObject(sidebarBrush_);
-    if (cardBrush_) DeleteObject(cardBrush_);
+    if (hwnd_ &&
+        IsWindow(hwnd_)) {
+        DestroyWindow(hwnd_);
+    }
+
+    ReleaseWindowResources();
 }
 
 const wchar_t* SettingsWindow::T(
@@ -105,7 +104,90 @@ int SettingsWindow::Scale(int value) const {
         dpi_);
 }
 
+bool SettingsWindow::EnsureCreated() {
+    if (hwnd_ &&
+        IsWindow(hwnd_)) {
+        return true;
+    }
+
+    if (Create()) {
+        return true;
+    }
+
+    MessageBoxW(
+        nullptr,
+        T(L"无法创建设置窗口。",
+          L"Could not create the Settings window."),
+        L"ALTRun Next",
+        MB_OK | MB_ICONERROR);
+    return false;
+}
+
+void SettingsWindow::
+ResetWindowInstanceState() {
+    page_ = Page::General;
+    syncing_ = false;
+    generalScrollOffset_ = 0;
+    capturingHotkeyActionId_.clear();
+    pendingProviderStates_.clear();
+    providerCommitInProgress_ = false;
+
+    hotkeyRows_.clear();
+    generalControls_.clear();
+    hotkeyControls_.clear();
+    appearanceControls_.clear();
+    providerControls_.clear();
+    dataControls_.clear();
+    aboutControls_.clear();
+
+    // These controls are touched by asynchronous App callbacks. Clear them
+    // as soon as the HWND is gone so a recycled native handle is never used.
+    providerStatus_ = nullptr;
+    dataStatus_ = nullptr;
+    updateStatus_ = nullptr;
+    updateAction_ = nullptr;
+}
+
+void SettingsWindow::
+ReleaseWindowResources() {
+    if (normalFont_) {
+        DeleteObject(normalFont_);
+        normalFont_ = nullptr;
+    }
+    if (titleFont_) {
+        DeleteObject(titleFont_);
+        titleFont_ = nullptr;
+    }
+    if (appNameFont_) {
+        DeleteObject(appNameFont_);
+        appNameFont_ = nullptr;
+    }
+    if (sectionFont_) {
+        DeleteObject(sectionFont_);
+        sectionFont_ = nullptr;
+    }
+    if (backgroundBrush_) {
+        DeleteObject(backgroundBrush_);
+        backgroundBrush_ = nullptr;
+    }
+    if (sidebarBrush_) {
+        DeleteObject(sidebarBrush_);
+        sidebarBrush_ = nullptr;
+    }
+    if (cardBrush_) {
+        DeleteObject(cardBrush_);
+        cardBrush_ = nullptr;
+    }
+}
+
 bool SettingsWindow::Create() {
+    if (hwnd_ &&
+        IsWindow(hwnd_)) {
+        return true;
+    }
+
+    ResetWindowInstanceState();
+    ReleaseWindowResources();
     INITCOMMONCONTROLSEX controls{
         sizeof(controls),
         ICC_STANDARD_CLASSES | ICC_WIN95_CLASSES
@@ -203,7 +285,6 @@ bool SettingsWindow::Create() {
     RefreshFromSettings();
     ShowPage(Page::General);
     Layout();
-    ShowWindow(hwnd_, SW_HIDE);
 
     return true;
 }
@@ -6301,13 +6382,18 @@ void SettingsWindow::RefreshUpdateStatus() {
 }
 
 void SettingsWindow::ShowAbout() {
-    if (!hwnd_) return;
+    if (!EnsureCreated()) {
+        return;
+    }
+
     ShowPage(Page::About);
     Show();
 }
 
 void SettingsWindow::Show() {
-    if (!hwnd_) return;
+    if (!EnsureCreated()) {
+        return;
+    }
 
     CancelHotkeyCapture(false);
 
@@ -7569,10 +7655,7 @@ LRESULT SettingsWindow::HandleMessage(
             hwnd_,
             kProviderCommitTimerId);
 
-        ShowWindow(
-            hwnd_,
-            SW_HIDE);
-
+        DestroyWindow(hwnd_);
         return 0;
 
     case WM_DESTROY:
@@ -7582,8 +7665,23 @@ LRESULT SettingsWindow::HandleMessage(
         KillTimer(
             hwnd_,
             kProviderCommitTimerId);
-        hwnd_ = nullptr;
         return 0;
+
+    case WM_NCDESTROY: {
+        const HWND destroyedWindow =
+            hwnd_;
+        const LRESULT result =
+            DefWindowProcW(
+                destroyedWindow,
+                message,
+                wParam,
+                lParam);
+
+        hwnd_ = nullptr;
+        ResetWindowInstanceState();
+        ReleaseWindowResources();
+        return result;
+    }
 
     default:
         break;

@@ -89,6 +89,72 @@ ShortcutManagerWindow::
         DestroyWindow(hwnd_);
     }
 
+    ReleaseWindowResources();
+}
+
+const wchar_t*
+ShortcutManagerWindow::T(
+    const wchar_t* zh,
+    const wchar_t* en) const {
+    return app_.SettingsData().language ==
+            Language::ZhCN
+        ? zh
+        : en;
+}
+
+int ShortcutManagerWindow::Scale(
+    int value) const {
+    return ui::Scale(
+        value,
+        dpi_);
+}
+
+void ShortcutManagerWindow::
+CaptureWindowState() {
+    if (!hwnd_ ||
+        !IsWindow(hwnd_)) {
+        return;
+    }
+
+    WINDOWPLACEMENT placement{
+        sizeof(WINDOWPLACEMENT)};
+
+    if (GetWindowPlacement(
+            hwnd_,
+            &placement)) {
+        savedWindowPlacement_ =
+            placement;
+        savedWindowPlacementValid_ =
+            true;
+    }
+
+    savedColumnWidthsValid_ =
+        false;
+
+    if (list_ &&
+        customColumnWidths_) {
+        for (int index = 0;
+             index < 3;
+             ++index) {
+            savedColumnWidthsLogical_[
+                static_cast<std::size_t>(
+                    index)] =
+                MulDiv(
+                    ListView_GetColumnWidth(
+                        list_,
+                        index),
+                    96,
+                    static_cast<int>(
+                        dpi_));
+        }
+
+        savedColumnWidthsValid_ =
+            true;
+    }
+}
+
+void ShortcutManagerWindow::
+ReleaseWindowResources() {
     if (rowHeightImageList_) {
         ImageList_Destroy(
             rowHeightImageList_);
@@ -111,23 +177,33 @@ ShortcutManagerWindow::
             headerFont_);
         headerFont_ = nullptr;
     }
+
+    add_ = nullptr;
+    edit_ = nullptr;
+    delete_ = nullptr;
+    test_ = nullptr;
+    pathConversion_ = nullptr;
+    filter_ = nullptr;
+    list_ = nullptr;
+
+    customColumnWidths_ = false;
+    adjustingColumnWidths_ = false;
+    columnTracking_ = false;
+    trackedColumn_ = -1;
+    trackedColumnWidth_ = -1;
+    suppressFilterRefresh_ = false;
+    visibleIds_.clear();
 }
 
-const wchar_t*
-ShortcutManagerWindow::T(
-    const wchar_t* zh,
-    const wchar_t* en) const {
-    return app_.SettingsData().language ==
-            Language::ZhCN
-        ? zh
-        : en;
-}
+void ShortcutManagerWindow::
+CloseWindow() {
+    if (!hwnd_ ||
+        !IsWindow(hwnd_)) {
+        return;
+    }
 
-int ShortcutManagerWindow::Scale(
-    int value) const {
-    return ui::Scale(
-        value,
-        dpi_);
+    CaptureWindowState();
+    DestroyWindow(hwnd_);
 }
 
 bool ShortcutManagerWindow::Create() {
@@ -184,22 +260,57 @@ bool ShortcutManagerWindow::Create() {
 
     dpi_ = GetDpiForWindow(hwnd_);
 
-    SetWindowPos(
-        hwnd_,
-        nullptr,
-        0,
-        0,
-        Scale(900),
-        Scale(560),
-        SWP_NOMOVE |
-            SWP_NOZORDER |
-            SWP_NOACTIVATE);
+    if (savedWindowPlacementValid_) {
+        WINDOWPLACEMENT placement =
+            savedWindowPlacement_;
+        placement.length =
+            sizeof(WINDOWPLACEMENT);
+        placement.flags = 0;
+        placement.showCmd = SW_HIDE;
+
+        SetWindowPlacement(
+            hwnd_,
+            &placement);
+        dpi_ = GetDpiForWindow(hwnd_);
+    } else {
+        SetWindowPos(
+            hwnd_,
+            nullptr,
+            0,
+            0,
+            Scale(900),
+            Scale(560),
+            SWP_NOMOVE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE);
+    }
 
     CreateControls();
+
+    if (savedColumnWidthsValid_) {
+        customColumnWidths_ = true;
+
+        for (int index = 0;
+             index < 3;
+             ++index) {
+            ListView_SetColumnWidth(
+                list_,
+                index,
+                Scale(
+                    savedColumnWidthsLogical_[
+                        static_cast<
+                            std::size_t>(
+                                index)]));
+        }
+    }
+
     ApplyLanguage();
     Layout();
     Refresh();
-    CenterOnCursorMonitor();
+
+    if (!savedWindowPlacementValid_) {
+        CenterOnCursorMonitor();
+    }
 
     return true;
 }
@@ -2081,9 +2192,7 @@ HandleChildKeyDown(
                 L"");
             SetFocus(filter_);
         } else {
-            ShowWindow(
-                hwnd_,
-                SW_HIDE);
+            CloseWindow();
         }
         return true;
     }
@@ -2174,8 +2283,8 @@ void ShortcutManagerWindow::DeleteSelected() {
     }
 
     std::wstring message =
-        T(L"确定删除快捷项“",
-          L"Delete shortcut \"");
+        T(L"确定要删除“",
+          L"Delete \"");
 
     message +=
         command->title.empty()
@@ -2183,8 +2292,8 @@ void ShortcutManagerWindow::DeleteSelected() {
             : command->title;
 
     message +=
-        T(L"”吗？\n\n此操作会立即写入 commands.json。",
-          L"\"?\n\nThe change will be written to commands.json immediately.");
+        T(L"”吗？\n\n删除后无法撤销。",
+          L"\"?\n\nThis action cannot be undone.");
 
     if (MessageBoxW(
             hwnd_,
@@ -2914,12 +3023,26 @@ LRESULT ShortcutManagerWindow::HandleMessage(
     }
 
     case WM_CLOSE:
-        ShowWindow(hwnd_, SW_HIDE);
+        CloseWindow();
         return 0;
 
     case WM_DESTROY:
-        hwnd_ = nullptr;
         return 0;
+
+    case WM_NCDESTROY: {
+        const HWND destroyedWindow =
+            hwnd_;
+        const LRESULT result =
+            DefWindowProcW(
+                destroyedWindow,
+                message,
+                wParam,
+                lParam);
+
+        hwnd_ = nullptr;
+        ReleaseWindowResources();
+        return result;
+    }
 
     default:
         break;

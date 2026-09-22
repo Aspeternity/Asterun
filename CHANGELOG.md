@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.3.7
+
+- Changed Settings close semantics from hiding the top-level window to destroying it and recreating it on demand.
+- Reopening Settings after a real close now starts on **常规 / General** instead of preserving the previous page; re-invoking Settings while it is still open keeps the current page.
+- Added explicit Settings instance-state/resource cleanup so Hotkey rows, page-control vectors, fonts, brushes and async callback handles do not accumulate across reopen cycles.
+- Changed Shortcut Manager close/Esc semantics from hiding the top-level window to destroying it and recreating it on demand.
+- Preserved Shortcut Manager position/size and user-adjusted first-three-column widths across the new destroy/recreate lifecycle while continuing to clear search, selection, focus and scroll context on reopen.
+- Kept Shortcut Editor and Path Conversion as short-lived modal windows; both already destroy their HWNDs when closed, so no lifecycle change was required there.
+- Simplified shortcut deletion confirmation to **确定要删除“名称”吗？ / Delete “Name”?** plus **删除后无法撤销 / This action cannot be undone**, removing the internal commands.json implementation detail.
+- Preserved Shortcut Manager layout, Header drag behavior, context-menu structure, 24px rows, Runtime Input, Path Conversion and all frozen v0.7 behavior.
+- Kept Settings schemaVersion 8; updated Windows fixed FileVersion/ProductVersion to `0.8.0.37`.
+
 ## 0.8.0-alpha.3.6
 
 - Simplified selected-item Shortcut Manager context-menu labels to **编辑… / Edit...**, **测试 / Test**, **打开所在目录 / Open containing folder**, **复制目标 / Copy target**, and **删除 / Delete**.

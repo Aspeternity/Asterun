@@ -42,6 +42,132 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.7":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.7 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.7 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+
+    for token in (
+        "bool EnsureCreated();",
+        "void ResetWindowInstanceState();",
+        "void ReleaseWindowResources();",
+        "DestroyWindow(hwnd_);",
+        "ShowPage(Page::General);",
+        "case WM_NCDESTROY:",
+        "ResetWindowInstanceState();\n        ReleaseWindowResources();",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.3.7 Settings lifecycle contract missing: {token}")
+
+    if "case WM_CLOSE:\n        ShowWindow(" in settings_cpp:
+        fail("v0.8 alpha.3.7 Settings must destroy, not hide, on close")
+
+    for token in (
+        "void CaptureWindowState();",
+        "void ReleaseWindowResources();",
+        "void CloseWindow();",
+        "savedWindowPlacement_",
+        "savedColumnWidthsLogical_",
+        "savedColumnWidthsValid_",
+        "CaptureWindowState();\n    DestroyWindow(hwnd_);",
+        "case WM_NCDESTROY:",
+        "CloseWindow();",
+        "ResetTransientState",
+        'T(L"确定要删除“",',
+        'T(L"”吗？\\n\\n删除后无法撤销。",',
+        'L"\\\"?\\n\\nThis action cannot be undone."',
+    ):
+        if token not in manager_cpp and token not in manager_h:
+            fail(f"v0.8 alpha.3.7 Manager lifecycle/confirmation contract missing: {token}")
+
+    if "commands.json immediately" in manager_cpp or "立即写入 commands.json" in manager_cpp:
+        fail("v0.8 alpha.3.7 delete confirmation leaked commands.json implementation details")
+
+    if "case WM_CLOSE:\n        ShowWindow(hwnd_, SW_HIDE);" in manager_cpp:
+        fail("v0.8 alpha.3.7 Shortcut Manager must destroy, not hide, on close")
+
+    for token in (
+        "case WM_CLOSE:\n        DestroyWindow(hwnd_);",
+        "ShortcutEditorDialog::~ShortcutEditorDialog()",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.7 Shortcut Editor destroy lifecycle missing: {token}")
+
+    for token in (
+        "case WM_CLOSE:\n        DestroyWindow(hwnd_);",
+        "ShortcutPathConverterDialog::~ShortcutPathConverterDialog()",
+    ):
+        if token not in converter_cpp:
+            fail(f"v0.8 alpha.3.7 Path Conversion destroy lifecycle missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.6"',
+        '"0.8.0-alpha.3.7"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.7 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.7 — Window Lifecycle & Confirmation Polish",
+        "0.8.0.37",
+        "returns to **常规 / General**",
+        "destroy their HWNDs on close",
+        "commands.json",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.7 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.7",
+        "0.8.0.37",
+        "destroying it and recreating it on demand",
+        "删除后无法撤销",
+        "user-adjusted first-three-column widths",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.7 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.7",
+        "v0.8.0-alpha.3.8",
+        "v0.8.0-alpha.3.9",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.7 Window lifecycle polish verified:",
+        "| settings close=destroy/recreate + General reset",
+        "| Manager close=destroy/recreate + geometry/column preservation",
+        "| Editor/Path Conversion=already short-lived",
+        "| delete confirmation=no commands.json implementation detail",
+        "| frozen shortcut/runtime behavior preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.6":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,
