@@ -203,7 +203,7 @@ In progress:
 - v0.8.0-alpha.3.9 explored explicit creation-monitor anchoring after the first placement regression remained visible on real Windows
 - v0.8.0-alpha.3.10 fixes the root lifecycle regression by restoring alpha.3.6's hidden first ShowWindow call while keeping destroy-on-close
 - v0.8.0-alpha.3.11 closes the remaining tray About entry-path placement divergence so Settings/About share one top-level show lifecycle
-- v0.8.0-alpha.3.12 follows with Shortcut Editor visual consolidation without changing Runtime Input / Path Conversion / Advanced Options semantics
+- v0.8.0-alpha.3.12 consolidates Shortcut Editor layout/visual hierarchy while keeping shortcut model, Runtime Input and Advanced semantics frozen
 - v0.8.0-alpha.3.13 is reserved for final real-Windows Shortcut workflow polish plus Path Conversion visual integration only
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

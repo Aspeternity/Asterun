@@ -42,6 +42,130 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.12":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.12 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.12 must keep provider-cache schemaVersion 2")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+
+    for token in (
+        '#include "UiTheme.hpp"',
+        "constexpr int kEditorWidthLogical = 720;",
+        "constexpr int kCollapsedHeightLogical = 472;",
+        "constexpr int kExpandedHeightLogical = 648;",
+        "constexpr int kRuntimeTestExtraHeightLogical = 52;",
+        "WS_BORDER |\n                    ES_AUTOHSCROLL",
+        "ui::UiFontRole::BodySemibold",
+        "ui::kApplicationPalette",
+        "Name and Keywords share the first row",
+        "runtimeSeparatorY_ = y;",
+        "footerSeparatorY_ =",
+        "void ShortcutEditorDialog::DrawEditorChrome(",
+        "HandleButtonCustomDraw(",
+        "control == save_",
+        "palette.accent",
+        "control == keywordHint_ ||",
+        "RefreshDynamicLayout();",
+        "RDW_ALLCHILDREN",
+    ):
+        if token not in editor_cpp and token not in editor_h:
+            fail(f"v0.8 alpha.3.12 Shortcut Editor visual contract missing: {token}")
+
+    if "WS_EX_CLIENTEDGE" in editor_cpp:
+        fail("v0.8 alpha.3.12 Shortcut Editor must keep the consolidated flat native Edit presentation")
+
+    for token in (
+        'T(L"工作目录",',
+        'T(L"留空时自动使用目标所在目录",',
+        'T(L"图标",',
+        'T(L"留空时自动跟随目标",',
+        'T(L"多个快捷词用逗号分隔，第一个优先级最高。",',
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.12 Shortcut Editor labeling contract missing: {token}")
+
+    # Behavior boundaries: alpha.3.12 is presentation-only.
+    for token in (
+        "ParseShortcutKeywords(",
+        "SuggestShortcutTitle(",
+        "InferShortcutCommandType(",
+        "CanAcceptRuntimeInput(",
+        "HasRuntimeInputPlaceholder(",
+        "RuntimeInputMode::Raw",
+        "RuntimeInputMode::UrlEncoded",
+        "app_.CreateUserCommand(",
+        "app_.UpdateUserCommand(",
+        "app_.TestCommand(",
+        "BrowseTargetFile()",
+        "BrowseTargetFolder()",
+        "BrowseWorkingDirectory()",
+        "BrowseIcon()",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.12 frozen Shortcut Editor behavior missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.11"',
+        '"0.8.0-alpha.3.12"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.12 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.12 — Shortcut Editor Visual Consolidation",
+        "0.8.0.42",
+        "Name** and **快捷词 / Keywords** share the first row",
+        "Advanced",
+        "Save is the only accent primary action",
+        "presentation-only",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.12 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.12",
+        "0.8.0.42",
+        "Name and Keywords now share the first row",
+        "single accent primary action",
+        "commands schemaVersion 2",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.12 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.12",
+        "v0.8.0-alpha.3.13",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.12 Shortcut Editor visual consolidation verified:",
+        "| 720px compact native form + Name/Keywords first row",
+        "| Target full-width + compact type/runtime sections",
+        "| Advanced collapsible header + compact native fields",
+        "| palette/typography/footer + Save primary",
+        "| shortcut/runtime/path behavior frozen",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.11":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

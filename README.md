@@ -23,6 +23,19 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.12 — Shortcut Editor Visual Consolidation
+
+Alpha 3.12 is a presentation-only consolidation of the native Shortcut Editor. It keeps the existing shortcut model and execution semantics intact while bringing the editor into the same restrained application visual language as Settings and Shortcut Manager.
+
+The editor is now slightly wider and materially more compact vertically. **名称 / Name** and **快捷词 / Keywords** share the first row, with Keywords retaining the comma-separated alias hint. **目标 / Target** remains a full-width path-sensitive row with the existing File/Folder actions. Target type is presented as a compact metadata row, followed by a lightly separated **运行时输入 / Runtime input** section. Test input continues to appear only for Raw/URL-encoded runtime modes.
+
+**高级选项 / Advanced** is now a full-width collapsible header rather than a small isolated button. Its existing contents remain in the same semantic order: Fixed arguments, Working directory, Icon, then Run as administrator. Working-directory and icon auto behavior are expressed through native edit cue text instead of long labels.
+
+The editor now uses `ui::kApplicationPalette`, Body/BodySemibold typography, flat native bordered Edit controls, muted helper text, subtle runtime/footer separators, and a restrained bottom action bar. Test and Cancel stay secondary; Save is the only accent primary action. Native Edit/ComboBox behavior, tab navigation, IME behavior, file/folder/icon pickers and the modal message loop are deliberately retained rather than replaced by a custom form framework.
+
+Dynamic behavior is unchanged: Runtime Input still uses None/Raw/URL-encoded modes, `{input}` placement rules are unchanged, the Runtime Test row and Advanced section still resize through the existing `RefreshDynamicLayout()` path, and the previously hardened redraw logic remains in place.
+
+No shortcut schema/model, commands.json format, keyword/alias parsing, automatic Name suggestion, target-type inference, Runtime Input semantics, Test execution, Working Directory, Icon auto behavior, administrator launch, Shortcut Manager, Path Conversion, Provider, Hotkey or search/ranking behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.42`.
 ## v0.8.0-alpha.3.11 — About Entry Placement Fix
 
 Alpha 3.11 closes the remaining Settings-placement regression specific to the tray **关于… / About...** entry.

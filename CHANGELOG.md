@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.12
+
+- Consolidated Shortcut Editor presentation without changing shortcut data or execution semantics.
+- Increased editor width to 720 logical px while reducing the Advanced-expanded height; Name and Keywords now share the first row.
+- Kept Target full-width and converted Target type into a compact metadata row.
+- Added a light separator before Runtime Input while preserving the existing None/Raw/URL-encoded behavior and conditional Test input row.
+- Changed Advanced into a full-width collapsible header with a subtle continuation line; kept Fixed arguments → Working directory → Icon → Administrator ordering.
+- Simplified Working directory and Icon labels and moved their automatic/default guidance into native cue banners.
+- Replaced `WS_EX_CLIENTEDGE` Edit fields with flat native `WS_BORDER` fields; native Edit/ComboBox semantics remain intact.
+- Applied `ui::kApplicationPalette`, Body/BodySemibold typography, muted helper text and a subtle bottom action surface.
+- Kept Test/Cancel secondary and made Save the single accent primary action through native Button custom draw, retaining the existing control IDs and command handling.
+- Preserved `RefreshDynamicLayout()` / `ResizeForContent()` behavior and the hardened whole-window redraw path used by Runtime/Advanced toggles.
+- Preserved Settings schemaVersion 8, commands schemaVersion 2 and all frozen Shortcut workflow semantics.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.42`.
 ## 0.8.0-alpha.3.11
 
 - Fixed tray **关于… / About...** opening the shared Settings window at the upper-left while tray **设置… / Settings...** already centered correctly.

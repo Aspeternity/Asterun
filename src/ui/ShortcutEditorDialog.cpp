@@ -1,6 +1,7 @@
 #include "ShortcutEditorDialog.hpp"
 
 #include "UiMetrics.hpp"
+#include "UiTheme.hpp"
 #include "UiTypography.hpp"
 
 #include "../app/App.hpp"
@@ -22,12 +23,12 @@ namespace {
 constexpr wchar_t kShortcutEditorClass[] =
     L"ALTRunNext.ShortcutEditor";
 
-constexpr int kEditorWidthLogical = 660;
-constexpr int kCollapsedHeightLogical = 470;
-constexpr int kExpandedHeightLogical = 700;
-constexpr int kRuntimeTestExtraHeightLogical = 44;
-constexpr int kTypeDropdownHeightLogical = 170;
-constexpr int kRuntimeInputDropdownHeightLogical = 120;
+constexpr int kEditorWidthLogical = 720;
+constexpr int kCollapsedHeightLogical = 472;
+constexpr int kExpandedHeightLogical = 648;
+constexpr int kRuntimeTestExtraHeightLogical = 52;
+constexpr int kTypeDropdownHeightLogical = 150;
+constexpr int kRuntimeInputDropdownHeightLogical = 110;
 
 constexpr UINT kIdName = 53101;
 constexpr UINT kIdKeyword = 53102;
@@ -140,6 +141,21 @@ ShortcutEditorDialog::~ShortcutEditorDialog() {
         DeleteObject(font_);
         font_ = nullptr;
     }
+
+    if (semiboldFont_) {
+        DeleteObject(semiboldFont_);
+        semiboldFont_ = nullptr;
+    }
+
+    if (backgroundBrush_) {
+        DeleteObject(backgroundBrush_);
+        backgroundBrush_ = nullptr;
+    }
+
+    if (footerBrush_) {
+        DeleteObject(footerBrush_);
+        footerBrush_ = nullptr;
+    }
 }
 
 bool ShortcutEditorDialog::Show(
@@ -231,9 +247,7 @@ bool ShortcutEditorDialog::Create(
         LoadCursorW(nullptr, IDC_ARROW);
     wc.hIcon =
         LoadIconW(nullptr, IDI_APPLICATION);
-    wc.hbrBackground =
-        reinterpret_cast<HBRUSH>(
-            COLOR_WINDOW + 1);
+    wc.hbrBackground = nullptr;
 
     if (!RegisterClassExW(&wc) &&
         GetLastError() !=
@@ -387,12 +401,13 @@ void ShortcutEditorDialog::CreateControls() {
         [&](HWND& control,
             UINT id) {
             control = CreateWindowExW(
-                WS_EX_CLIENTEDGE,
+                0,
                 L"EDIT",
                 L"",
                 WS_CHILD |
                     WS_VISIBLE |
                     WS_TABSTOP |
+                    WS_BORDER |
                     ES_AUTOHSCROLL,
                 0,
                 0,
@@ -547,6 +562,22 @@ void ShortcutEditorDialog::CreateControls() {
                 ui::UiFontRole::Body),
             dpi_);
 
+    semiboldFont_ =
+        ui::CreateFontHandle(
+            ui::ApplicationFontSpec(
+                app_.SettingsData().language,
+                ui::UiFontRole::BodySemibold),
+            dpi_);
+
+    backgroundBrush_ =
+        CreateSolidBrush(
+            ui::kApplicationPalette
+                .windowBackground);
+    footerBrush_ =
+        CreateSolidBrush(
+            ui::kApplicationPalette
+                .bottomBackground);
+
     const HWND allControls[] = {
         keywordLabel_,
         keyword_,
@@ -587,6 +618,29 @@ void ShortcutEditorDialog::CreateControls() {
             WM_SETFONT,
             reinterpret_cast<WPARAM>(
                 font_),
+            TRUE);
+    }
+
+    const HWND emphasizedControls[] = {
+        keywordLabel_,
+        nameLabel_,
+        targetLabel_,
+        typeLabel_,
+        runtimeInputLabel_,
+        testInputLabel_,
+        argumentsLabel_,
+        workdirLabel_,
+        iconLabel_,
+        admin_,
+    };
+
+    for (HWND control :
+         emphasizedControls) {
+        SendMessageW(
+            control,
+            WM_SETFONT,
+            reinterpret_cast<WPARAM>(
+                semiboldFont_),
             TRUE);
     }
 }
@@ -736,23 +790,30 @@ void ShortcutEditorDialog::ApplyLanguage() {
           L"Fixed arguments"));
     SetWindowTextW(
         workdirLabel_,
-        T(L"工作目录（留空自动使用目标所在目录）",
-          L"Working directory (blank = target directory)"));
+        T(L"工作目录",
+          L"Working directory"));
+    SendMessageW(
+        workdir_,
+        EM_SETCUEBANNER,
+        TRUE,
+        reinterpret_cast<LPARAM>(
+            T(L"留空时自动使用目标所在目录",
+              L"Blank = target directory")));
     SetWindowTextW(
         browseWorkdir_,
         T(L"选择...",
           L"Browse..."));
     SetWindowTextW(
         iconLabel_,
-        T(L"图标（留空 = 自动跟随目标）",
-          L"Icon (blank = follow target)"));
+        T(L"图标",
+          L"Icon"));
     SendMessageW(
         icon_,
         EM_SETCUEBANNER,
         TRUE,
         reinterpret_cast<LPARAM>(
-            T(L"自动",
-              L"Auto")));
+            T(L"留空时自动跟随目标",
+              L"Blank = follow target")));
     SetWindowTextW(
         browseIcon_,
         T(L"选择...",
@@ -809,11 +870,12 @@ void ShortcutEditorDialog::Layout() {
     RECT client{};
     GetClientRect(hwnd_, &client);
 
-    const int margin = Scale(22);
-    const int labelHeight = Scale(20);
+    const int margin = Scale(24);
+    const int labelHeight = Scale(18);
     const int fieldHeight = Scale(30);
-    const int smallHeight = Scale(18);
+    const int hintHeight = Scale(18);
     const int gap = Scale(8);
+    const int columnGap = Scale(18);
     const int fileButtonWidth = Scale(62);
     const int folderButtonWidth = Scale(78);
     const int contentWidth =
@@ -821,38 +883,33 @@ void ShortcutEditorDialog::Layout() {
 
     int y = Scale(18);
 
-    MoveWindow(
-        keywordLabel_,
-        margin,
-        y,
-        contentWidth,
-        labelHeight,
-        TRUE);
-    y += Scale(22);
-
-    MoveWindow(
-        keyword_,
-        margin,
-        y,
-        contentWidth,
-        fieldHeight,
-        TRUE);
-    y += Scale(34);
-
-    MoveWindow(
-        keywordHint_,
-        margin,
-        y,
-        contentWidth,
-        smallHeight,
-        TRUE);
-    y += Scale(30);
+    // Basic identity stays compact: Name and Keywords share the first row.
+    const int nameWidth =
+        std::max(
+            Scale(220),
+            (contentWidth -
+             columnGap) * 42 / 100);
+    const int keywordLeft =
+        margin +
+        nameWidth +
+        columnGap;
+    const int keywordWidth =
+        contentWidth -
+        nameWidth -
+        columnGap;
 
     MoveWindow(
         nameLabel_,
         margin,
         y,
-        contentWidth,
+        nameWidth,
+        labelHeight,
+        TRUE);
+    MoveWindow(
+        keywordLabel_,
+        keywordLeft,
+        y,
+        keywordWidth,
         labelHeight,
         TRUE);
     y += Scale(22);
@@ -861,11 +918,29 @@ void ShortcutEditorDialog::Layout() {
         name_,
         margin,
         y,
-        contentWidth,
+        nameWidth,
         fieldHeight,
         TRUE);
-    y += Scale(44);
+    MoveWindow(
+        keyword_,
+        keywordLeft,
+        y,
+        keywordWidth,
+        fieldHeight,
+        TRUE);
+    y += Scale(34);
 
+    MoveWindow(
+        keywordHint_,
+        keywordLeft,
+        y,
+        keywordWidth,
+        hintHeight,
+        TRUE);
+    y += Scale(28);
+
+    // Target remains the widest row because file paths/URLs are the most
+    // space-sensitive values in the editor.
     MoveWindow(
         targetLabel_,
         margin,
@@ -910,21 +985,22 @@ void ShortcutEditorDialog::Layout() {
         TRUE);
     y += Scale(44);
 
-    const int typeLabelWidth =
-        Scale(82);
+    const int metadataLabelWidth =
+        Scale(86);
     const int typeWidth =
-        Scale(180);
+        Scale(164);
 
     MoveWindow(
         typeLabel_,
         margin,
-        y + Scale(4),
-        typeLabelWidth,
+        y + Scale(5),
+        metadataLabelWidth,
         labelHeight,
         TRUE);
     MoveWindow(
         type_,
-        margin + typeLabelWidth,
+        margin +
+            metadataLabelWidth,
         y,
         typeWidth,
         Scale(
@@ -933,33 +1009,35 @@ void ShortcutEditorDialog::Layout() {
     MoveWindow(
         typeHint_,
         margin +
-            typeLabelWidth +
+            metadataLabelWidth +
             typeWidth +
             gap,
-        y + Scale(4),
+        y + Scale(5),
         contentWidth -
-            typeLabelWidth -
+            metadataLabelWidth -
             typeWidth -
             gap,
         labelHeight,
         TRUE);
     y += Scale(42);
 
-    const int runtimeLabelWidth =
-        Scale(82);
+    runtimeSeparatorY_ = y;
+    y += Scale(18);
+
     const int runtimeWidth =
-        Scale(200);
+        Scale(190);
 
     MoveWindow(
         runtimeInputLabel_,
         margin,
-        y + Scale(4),
-        runtimeLabelWidth,
+        y + Scale(5),
+        metadataLabelWidth,
         labelHeight,
         TRUE);
     MoveWindow(
         runtimeInput_,
-        margin + runtimeLabelWidth,
+        margin +
+            metadataLabelWidth,
         y,
         runtimeWidth,
         Scale(
@@ -968,36 +1046,34 @@ void ShortcutEditorDialog::Layout() {
     MoveWindow(
         runtimeInputHint_,
         margin +
-            runtimeLabelWidth +
+            metadataLabelWidth +
             runtimeWidth +
             gap,
-        y + Scale(4),
+        y + Scale(1),
         contentWidth -
-            runtimeLabelWidth -
+            metadataLabelWidth -
             runtimeWidth -
             gap,
         Scale(34),
         TRUE);
-    y += Scale(48);
+    y += Scale(44);
 
     if (SelectedRuntimeInputMode() !=
         RuntimeInputMode::None) {
-        const int testLabelWidth =
-            Scale(82);
-
         MoveWindow(
             testInputLabel_,
             margin,
-            y + Scale(4),
-            testLabelWidth,
+            y + Scale(5),
+            metadataLabelWidth,
             labelHeight,
             TRUE);
         MoveWindow(
             testInput_,
-            margin + testLabelWidth,
+            margin +
+                metadataLabelWidth,
             y,
             contentWidth -
-                testLabelWidth,
+                metadataLabelWidth,
             fieldHeight,
             TRUE);
         y += Scale(
@@ -1008,8 +1084,8 @@ void ShortcutEditorDialog::Layout() {
         advancedToggle_,
         margin,
         y,
-        Scale(132),
-        Scale(28),
+        contentWidth,
+        Scale(32),
         TRUE);
     y += Scale(40);
 
@@ -1042,7 +1118,7 @@ void ShortcutEditorDialog::Layout() {
         y += Scale(22);
 
         const int workdirButtonWidth =
-            Scale(66);
+            Scale(68);
         MoveWindow(
             workdir_,
             margin,
@@ -1073,7 +1149,7 @@ void ShortcutEditorDialog::Layout() {
         y += Scale(22);
 
         const int iconButtonWidth =
-            Scale(66);
+            Scale(68);
         const int autoButtonWidth =
             Scale(54);
         const int iconEditWidth =
@@ -1121,13 +1197,17 @@ void ShortcutEditorDialog::Layout() {
     }
 
     const int buttonWidth =
-        Scale(92);
+        Scale(88);
     const int buttonHeight =
         Scale(32);
     const int buttonY =
         client.bottom -
-        margin -
+        Scale(20) -
         buttonHeight;
+
+    footerSeparatorY_ =
+        buttonY -
+        Scale(14);
 
     MoveWindow(
         test_,
@@ -1155,6 +1235,395 @@ void ShortcutEditorDialog::Layout() {
         buttonWidth,
         buttonHeight,
         TRUE);
+
+    InvalidateRect(
+        hwnd_,
+        nullptr,
+        FALSE);
+}
+
+void ShortcutEditorDialog::DrawEditorChrome(
+    HDC dc) const {
+    if (!dc ||
+        !hwnd_) {
+        return;
+    }
+
+    RECT client{};
+    GetClientRect(hwnd_, &client);
+
+    const auto& palette =
+        ui::kApplicationPalette;
+
+    HBRUSH windowBrush =
+        backgroundBrush_
+            ? backgroundBrush_
+            : GetSysColorBrush(
+                  COLOR_WINDOW);
+
+    FillRect(
+        dc,
+        &client,
+        windowBrush);
+
+    if (footerSeparatorY_ > 0) {
+        RECT footer{
+            client.left,
+            footerSeparatorY_ + 1,
+            client.right,
+            client.bottom,
+        };
+
+        HBRUSH footerBrush =
+            footerBrush_
+                ? footerBrush_
+                : windowBrush;
+        FillRect(
+            dc,
+            &footer,
+            footerBrush);
+    }
+
+    HPEN separatorPen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            palette.separator);
+    HGDIOBJ oldPen =
+        SelectObject(
+            dc,
+            separatorPen);
+
+    const int margin =
+        Scale(24);
+
+    if (runtimeSeparatorY_ > 0) {
+        MoveToEx(
+            dc,
+            margin,
+            runtimeSeparatorY_,
+            nullptr);
+        LineTo(
+            dc,
+            client.right - margin,
+            runtimeSeparatorY_);
+    }
+
+    if (footerSeparatorY_ > 0) {
+        MoveToEx(
+            dc,
+            0,
+            footerSeparatorY_,
+            nullptr);
+        LineTo(
+            dc,
+            client.right,
+            footerSeparatorY_);
+    }
+
+    SelectObject(
+        dc,
+        oldPen);
+    DeleteObject(
+        separatorPen);
+}
+
+LRESULT ShortcutEditorDialog::
+HandleButtonCustomDraw(
+    LPARAM lParam) {
+    auto* draw =
+        reinterpret_cast<NMCUSTOMDRAW*>(
+            lParam);
+
+    if (!draw ||
+        draw->dwDrawStage !=
+            CDDS_PREPAINT) {
+        return CDRF_DODEFAULT;
+    }
+
+    const HWND control =
+        draw->hdr.hwndFrom;
+
+    const bool advanced =
+        control == advancedToggle_;
+    const bool action =
+        control == test_ ||
+        control == save_ ||
+        control == cancel_;
+
+    if (!advanced &&
+        !action) {
+        return CDRF_DODEFAULT;
+    }
+
+    const auto& palette =
+        ui::kApplicationPalette;
+    const bool disabled =
+        (draw->uItemState &
+         CDIS_DISABLED) != 0;
+    const bool pressed =
+        (draw->uItemState &
+         CDIS_SELECTED) != 0;
+    const bool hot =
+        (draw->uItemState &
+         CDIS_HOT) != 0;
+    const bool focused =
+        (draw->uItemState &
+         CDIS_FOCUS) != 0;
+
+    RECT rect =
+        draw->rc;
+
+    if (advanced) {
+        HBRUSH background =
+            CreateSolidBrush(
+                pressed || hot
+                    ? palette.accentBackground
+                    : palette.windowBackground);
+        FillRect(
+            draw->hdc,
+            &rect,
+            background);
+        DeleteObject(
+            background);
+
+        wchar_t text[128]{};
+        GetWindowTextW(
+            control,
+            text,
+            static_cast<int>(
+                std::size(text)));
+
+        SetBkMode(
+            draw->hdc,
+            TRANSPARENT);
+        SetTextColor(
+            draw->hdc,
+            disabled
+                ? palette.mutedText
+                : palette.text);
+
+        HGDIOBJ oldFont =
+            SelectObject(
+                draw->hdc,
+                semiboldFont_
+                    ? semiboldFont_
+                    : font_);
+
+        RECT textRect =
+            rect;
+        textRect.left += Scale(2);
+        textRect.right -= Scale(2);
+
+        DrawTextW(
+            draw->hdc,
+            text,
+            -1,
+            &textRect,
+            DT_LEFT |
+                DT_VCENTER |
+                DT_SINGLELINE |
+                DT_NOPREFIX);
+
+        SIZE extent{};
+        GetTextExtentPoint32W(
+            draw->hdc,
+            text,
+            GetWindowTextLengthW(
+                control),
+            &extent);
+
+        HPEN linePen =
+            CreatePen(
+                PS_SOLID,
+                1,
+                palette.separator);
+        HGDIOBJ oldPen =
+            SelectObject(
+                draw->hdc,
+                linePen);
+
+        const int lineY =
+            (rect.top +
+             rect.bottom) / 2;
+        const int lineStart =
+            std::min(
+                rect.right,
+                rect.left +
+                    Scale(2) +
+                    extent.cx +
+                    Scale(12));
+
+        MoveToEx(
+            draw->hdc,
+            lineStart,
+            lineY,
+            nullptr);
+        LineTo(
+            draw->hdc,
+            rect.right,
+            lineY);
+
+        SelectObject(
+            draw->hdc,
+            oldPen);
+        DeleteObject(
+            linePen);
+        SelectObject(
+            draw->hdc,
+            oldFont);
+
+        if (focused) {
+            RECT focus =
+                rect;
+            InflateRect(
+                &focus,
+                -Scale(2),
+                -Scale(2));
+            DrawFocusRect(
+                draw->hdc,
+                &focus);
+        }
+
+        return CDRF_SKIPDEFAULT;
+    }
+
+    const bool primary =
+        control == save_;
+
+    COLORREF fillColor =
+        primary
+            ? palette.accent
+            : palette.controlBackground;
+    COLORREF borderColor =
+        primary
+            ? palette.accent
+            : palette.frame;
+    COLORREF textColor =
+        primary
+            ? RGB(255, 255, 255)
+            : palette.text;
+
+    if (disabled) {
+        fillColor =
+            palette.controlBackground;
+        borderColor =
+            palette.frame;
+        textColor =
+            palette.mutedText;
+    } else if (pressed) {
+        fillColor =
+            primary
+                ? RGB(0, 102, 184)
+                : palette.pressedBackground;
+    } else if (hot &&
+               !primary) {
+        fillColor =
+            palette.accentBackground;
+    }
+
+    HBRUSH parentFill =
+        footerBrush_
+            ? footerBrush_
+            : backgroundBrush_;
+    if (parentFill) {
+        FillRect(
+            draw->hdc,
+            &rect,
+            parentFill);
+    }
+
+    RECT surface =
+        rect;
+    InflateRect(
+        &surface,
+        -1,
+        -1);
+
+    HBRUSH fill =
+        CreateSolidBrush(
+            fillColor);
+    HPEN border =
+        CreatePen(
+            PS_SOLID,
+            1,
+            borderColor);
+
+    HGDIOBJ oldBrush =
+        SelectObject(
+            draw->hdc,
+            fill);
+    HGDIOBJ oldPen =
+        SelectObject(
+            draw->hdc,
+            border);
+
+    RoundRect(
+        draw->hdc,
+        surface.left,
+        surface.top,
+        surface.right,
+        surface.bottom,
+        Scale(6),
+        Scale(6));
+
+    SelectObject(
+        draw->hdc,
+        oldBrush);
+    SelectObject(
+        draw->hdc,
+        oldPen);
+    DeleteObject(fill);
+    DeleteObject(border);
+
+    wchar_t text[128]{};
+    GetWindowTextW(
+        control,
+        text,
+        static_cast<int>(
+            std::size(text)));
+
+    SetBkMode(
+        draw->hdc,
+        TRANSPARENT);
+    SetTextColor(
+        draw->hdc,
+        textColor);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            draw->hdc,
+            primary && semiboldFont_
+                ? semiboldFont_
+                : font_);
+
+    DrawTextW(
+        draw->hdc,
+        text,
+        -1,
+        &surface,
+        DT_CENTER |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_NOPREFIX);
+
+    SelectObject(
+        draw->hdc,
+        oldFont);
+
+    if (focused) {
+        RECT focus =
+            surface;
+        InflateRect(
+            &focus,
+            -Scale(3),
+            -Scale(3));
+        DrawFocusRect(
+            draw->hdc,
+            &focus);
+    }
+
+    return CDRF_SKIPDEFAULT;
 }
 
 void ShortcutEditorDialog::ResizeForContent() {
@@ -2163,6 +2632,70 @@ LRESULT ShortcutEditorDialog::HandleMessage(
     case WM_SIZE:
         Layout();
         return 0;
+
+    case WM_ERASEBKGND:
+        DrawEditorChrome(
+            reinterpret_cast<HDC>(
+                wParam));
+        return TRUE;
+
+    case WM_PAINT: {
+        PAINTSTRUCT paint{};
+        HDC dc =
+            BeginPaint(
+                hwnd_,
+                &paint);
+        DrawEditorChrome(dc);
+        EndPaint(
+            hwnd_,
+            &paint);
+        return 0;
+    }
+
+    case WM_CTLCOLORSTATIC: {
+        HDC dc =
+            reinterpret_cast<HDC>(
+                wParam);
+        HWND control =
+            reinterpret_cast<HWND>(
+                lParam);
+
+        const bool hint =
+            control == keywordHint_ ||
+            control == typeHint_ ||
+            control == runtimeInputHint_;
+
+        SetBkMode(
+            dc,
+            TRANSPARENT);
+        SetTextColor(
+            dc,
+            hint
+                ? ui::kApplicationPalette
+                      .mutedText
+                : ui::kApplicationPalette
+                      .text);
+
+        return reinterpret_cast<LRESULT>(
+            backgroundBrush_
+                ? backgroundBrush_
+                : GetSysColorBrush(
+                      COLOR_WINDOW));
+    }
+
+    case WM_NOTIFY: {
+        const auto* header =
+            reinterpret_cast<NMHDR*>(
+                lParam);
+
+        if (header &&
+            header->code ==
+                NM_CUSTOMDRAW) {
+            return HandleButtonCustomDraw(
+                lParam);
+        }
+        break;
+    }
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {

@@ -52,6 +52,10 @@ private:
     void ApplyLanguage();
     void UpdateWindowTitle();
     void Layout();
+    void DrawEditorChrome(
+        HDC dc) const;
+    LRESULT HandleButtonCustomDraw(
+        LPARAM lParam);
     void ResizeForContent();
     void RefreshDynamicLayout();
     void UpdateAdvancedVisibility();
@@ -134,7 +138,12 @@ private:
     HWND cancel_{};
 
     HFONT font_{};
+    HFONT semiboldFont_{};
+    HBRUSH backgroundBrush_{};
+    HBRUSH footerBrush_{};
     UINT dpi_{96};
+    int runtimeSeparatorY_{0};
+    int footerSeparatorY_{0};
     bool changed_{false};
     bool closed_{false};
     bool advancedExpanded_{false};
