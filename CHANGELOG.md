@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.20
+
+- Escalated the remaining rare Settings upper-left flash from USER32 placement handling to DWM presentation handling after alpha.3.19 removed all real monitor-origin Settings birth rectangles.
+- Added `DWMWA_TRANSITIONS_FORCEDISABLED` for the Settings top-level HWND so DWM does not animate show/hide from a cached/default representation.
+- Added an explicit `DWMWA_CLOAK` first-frame barrier: position while hidden, cloak, `SW_SHOW`, synchronously redraw client/non-client/children, `DwmFlush()`, uncloak, then flush once more.
+- The first DWM frame that can reach the user is therefore the complete Settings frame at the final Center/Last rectangle.
+- Mirrored the barrier during close: capture current RECT, cloak + `DwmFlush()`, then `SWP_HIDEWINDOW`, persist position and destroy the hidden HWND.
+- Kept cloak acquisition explicit to Show/Close rather than permanently cloaking from Create, avoiding a failure mode where an unsuccessful uncloak could leave Settings invisible.
+- Reused the existing `dwmapi` link; no new runtime dependency was added.
+- Preserved alpha.3.19 birth-rect/DPI behavior, alpha.3.18 `SW_SHOW` semantics, alpha.3.16 update-status repaint reliability and all frozen shortcut/search behavior.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.50`.
+
 ## 0.8.0-alpha.3.19
 
 - Audited the full Settings Create/Show/Move/Close path after upper-left flashing remained visible through alpha.3.18.

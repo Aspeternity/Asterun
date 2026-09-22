@@ -10,6 +10,7 @@
 
 #include <commctrl.h>
 #include <commdlg.h>
+#include <dwmapi.h>
 #include <shellapi.h>
 #include <shlobj.h>
 
@@ -43,6 +44,44 @@ struct SettingsCreationGeometry {
     RECT outer{};
     UINT dpi{96};
 };
+
+[[nodiscard]] bool SetSettingsDwmCloak(
+    HWND hwnd,
+    bool cloaked) {
+
+    const BOOL value =
+        cloaked
+            ? TRUE
+            : FALSE;
+
+    return SUCCEEDED(
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_CLOAK,
+            &value,
+            sizeof(value)));
+}
+
+void ConfigureSettingsDwmPresentation(
+    HWND hwnd) {
+
+    // Settings is a short-lived utility window whose placement is entirely
+    // controlled by the app. Disable DWM show/hide transitions so Desktop
+    // Window Manager cannot animate from a cached/default representation.
+    const BOOL disableTransitions =
+        TRUE;
+
+    DwmSetWindowAttribute(
+        hwnd,
+        DWMWA_TRANSITIONS_FORCEDISABLED,
+        &disableTransitions,
+        sizeof(disableTransitions));
+
+    // Cloaking itself is acquired only by Show()/Close(). Keeping a hidden
+    // HWND permanently cloaked from Create() would make a rare uncloak API
+    // failure leave Settings invisible. The show path therefore treats cloak
+    // acquisition as an explicit, checked presentation barrier.
+}
 
 [[nodiscard]] UINT ProbeMonitorDpi(
     HINSTANCE instance,
@@ -469,6 +508,9 @@ bool SettingsWindow::Create() {
         this);
 
     if (!hwnd_) return false;
+
+    ConfigureSettingsDwmPresentation(
+        hwnd_);
 
     dpi_ = GetDpiForWindow(hwnd_);
 
@@ -6691,14 +6733,44 @@ void SettingsWindow::Show() {
     }
 
     if (!IsWindowVisible(hwnd_)) {
-        // PositionForShow owns the rectangle. SW_SHOW displays the window in
-        // its *current* size and position; unlike SW_SHOWNORMAL it does not
-        // ask USER32 to restore an older normal/restore placement.
+        // Build the first visible Settings frame behind a DWM cloak. This
+        // creates a compositor barrier: any stale redirect surface or native
+        // transition frame stays invisible until the final rectangle and all
+        // child/non-client painting are complete.
         PositionForShow();
+
+        const bool cloaked =
+            SetSettingsDwmCloak(
+                hwnd_,
+                true);
 
         ShowWindow(
             hwnd_,
             SW_SHOW);
+
+        RedrawWindow(
+            hwnd_,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_ERASE |
+                RDW_FRAME |
+                RDW_ALLCHILDREN |
+                RDW_UPDATENOW);
+
+        if (cloaked) {
+            // Submit the fully-painted cloaked frame first, then expose that
+            // exact representation. On Windows 10/11 this prevents a cached
+            // monitor-origin/default frame from being presented for a single
+            // compositor refresh.
+            DwmFlush();
+
+            SetSettingsDwmCloak(
+                hwnd_,
+                false);
+
+            DwmFlush();
+        }
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,
@@ -7943,10 +8015,20 @@ LRESULT SettingsWindow::HandleMessage(
                 hwnd_,
                 &closingRect);
 
-        // Make close visually atomic. Any USER32/DWM placement bookkeeping
-        // performed while DestroyWindow tears down the top-level HWND now
-        // happens after the window is already invisible, so a stale normal
-        // placement can never flash the window back to Center.
+        // Remove the window from DWM composition before changing USER32
+        // visibility or destroying the HWND. This closes the same compositor
+        // race as the first-frame barrier above: even if DWM still has an
+        // older redirect surface cached, it is cloaked before teardown can
+        // expose that representation.
+        const bool cloaked =
+            SetSettingsDwmCloak(
+                hwnd_,
+                true);
+
+        if (cloaked) {
+            DwmFlush();
+        }
+
         SetWindowPos(
             hwnd_,
             nullptr,

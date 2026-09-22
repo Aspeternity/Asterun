@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.20 — Settings DWM First-Frame Barrier
+
+Alpha 3.20 moves the remaining Settings flash fix from USER32 placement logic to the Desktop Window Manager composition layer.
+
+By alpha.3.19 the real Settings HWND is born directly at its final Center/Last rectangle with the correct target-monitor DPI-aware outer size, and the open/close paths no longer use `SW_SHOWNORMAL`. Real-Windows validation nevertheless still observed a rare upper-left flash. With no remaining real Settings placement at the monitor origin, the failure is treated as a compositor transition/redirection-surface race rather than another positioning bug.
+
+Settings now disables its own DWM transitions through `DWMWA_TRANSITIONS_FORCEDISABLED`. On first show, the window is explicitly cloaked with `DWMWA_CLOAK`, positioned, shown logically with `SW_SHOW`, synchronously paints client + child + non-client content, flushes DWM while still cloaked, and only then uncloaks and flushes again. The first user-visible DWM frame is therefore the fully-painted frame at the final Settings rectangle.
+
+The close path mirrors the same barrier in reverse: capture the real visible rectangle, cloak the Settings HWND, flush DWM, then hide with `SWP_HIDEWINDOW`, persist the captured position and destroy the hidden HWND. Any cached DWM redirect surface or teardown transition remains invisible.
+
+These changes are scoped to Settings only. Shortcut Manager, Shortcut Editor, Launcher, update-check logic, window-placement semantics and schemas are unchanged. The project already linked `dwmapi`, so no new runtime dependency is introduced. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.50`.
+
 ## v0.8.0-alpha.3.19 — Settings Birth-Rect Synchronization
 
 Alpha 3.19 removes the last real upper-left placement from the Settings HWND lifecycle instead of trying to mask it later with ShowWindow ordering.
