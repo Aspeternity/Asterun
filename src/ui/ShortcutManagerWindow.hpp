@@ -69,6 +69,11 @@ private:
     void Layout();
     void RecreateFonts();
     void RebuildRowHeightImageList();
+    void CenterOnCursorMonitor();
+    [[nodiscard]] int
+    ClampTrackedColumnWidth(
+        int column,
+        int proposedWidth) const;
     void UpdateColumnWidths(
         int resizedColumn = -1,
         int proposedWidth = -1);
@@ -126,6 +131,9 @@ private:
     UINT dpi_{96};
     bool customColumnWidths_{false};
     bool adjustingColumnWidths_{false};
+    bool columnTracking_{false};
+    int trackedColumn_{-1};
+    int trackedColumnWidth_{-1};
     bool suppressFilterRefresh_{false};
     std::vector<std::wstring>
         visibleIds_;

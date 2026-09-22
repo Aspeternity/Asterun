@@ -199,6 +199,7 @@ bool ShortcutManagerWindow::Create() {
     ApplyLanguage();
     Layout();
     Refresh();
+    CenterOnCursorMonitor();
 
     return true;
 }
@@ -292,21 +293,6 @@ void ShortcutManagerWindow::CreateControls() {
         list_,
         LVS_EX_FULLROWSELECT |
             LVS_EX_DOUBLEBUFFER);
-
-    if (HWND header =
-            ListView_GetHeader(
-                list_)) {
-        const LONG_PTR style =
-            GetWindowLongPtrW(
-                header,
-                GWL_STYLE);
-
-        SetWindowLongPtrW(
-            header,
-            GWL_STYLE,
-            style |
-                HDS_FULLDRAG);
-    }
 
     const auto& palette =
         ui::kApplicationPalette;
@@ -1060,6 +1046,210 @@ RebuildRowHeightImageList() {
 }
 
 void ShortcutManagerWindow::
+CenterOnCursorMonitor() {
+    if (!hwnd_) {
+        return;
+    }
+
+    POINT cursor{};
+    if (!GetCursorPos(
+            &cursor)) {
+        return;
+    }
+
+    const HMONITOR monitor =
+        MonitorFromPoint(
+            cursor,
+            MONITOR_DEFAULTTONEAREST);
+
+    if (!monitor) {
+        return;
+    }
+
+    MONITORINFO info{};
+    info.cbSize =
+        sizeof(info);
+
+    if (!GetMonitorInfoW(
+            monitor,
+            &info)) {
+        return;
+    }
+
+    RECT windowRect{};
+    if (!GetWindowRect(
+            hwnd_,
+            &windowRect)) {
+        return;
+    }
+
+    const int width =
+        windowRect.right -
+        windowRect.left;
+    const int height =
+        windowRect.bottom -
+        windowRect.top;
+
+    const int workWidth =
+        info.rcWork.right -
+        info.rcWork.left;
+    const int workHeight =
+        info.rcWork.bottom -
+        info.rcWork.top;
+
+    const int x =
+        info.rcWork.left +
+        std::max(
+            0,
+            (workWidth -
+             width) / 2);
+
+    const int y =
+        info.rcWork.top +
+        std::max(
+            0,
+            (workHeight -
+             height) / 2);
+
+    SetWindowPos(
+        hwnd_,
+        nullptr,
+        x,
+        y,
+        0,
+        0,
+        SWP_NOSIZE |
+            SWP_NOZORDER |
+            SWP_NOACTIVATE);
+
+    // Moving to a monitor with a different DPI can resize the hidden window
+    // through WM_DPICHANGED. Recenter once with that settled physical size.
+    RECT settled{};
+    if (GetWindowRect(
+            hwnd_,
+            &settled)) {
+        const int settledWidth =
+            settled.right -
+            settled.left;
+        const int settledHeight =
+            settled.bottom -
+            settled.top;
+
+        const int settledX =
+            info.rcWork.left +
+            std::max(
+                0,
+                (workWidth -
+                 settledWidth) / 2);
+        const int settledY =
+            info.rcWork.top +
+            std::max(
+                0,
+                (workHeight -
+                 settledHeight) / 2);
+
+        if (settled.left !=
+                settledX ||
+            settled.top !=
+                settledY) {
+            SetWindowPos(
+                hwnd_,
+                nullptr,
+                settledX,
+                settledY,
+                0,
+                0,
+                SWP_NOSIZE |
+                    SWP_NOZORDER |
+                    SWP_NOACTIVATE);
+        }
+    }
+}
+
+int ShortcutManagerWindow::
+ClampTrackedColumnWidth(
+    int column,
+    int proposedWidth) const {
+    if (!list_ ||
+        column < 0 ||
+        column >= 3) {
+        return proposedWidth;
+    }
+
+    HWND header =
+        ListView_GetHeader(
+            list_);
+
+    RECT client{};
+
+    if (header) {
+        GetClientRect(
+            header,
+            &client);
+    } else {
+        GetClientRect(
+            list_,
+            &client);
+    }
+
+    const int contentWidth =
+        std::max(
+            1,
+            static_cast<int>(
+                client.right -
+                client.left));
+
+    const std::array<int, 3>
+        minimums{
+            Scale(72),
+            Scale(96),
+            Scale(72),
+        };
+
+    const int minimumTarget =
+        Scale(120);
+
+    int otherWidth = 0;
+
+    for (int index = 0;
+         index < 3;
+         ++index) {
+        if (index == column) {
+            continue;
+        }
+
+        otherWidth +=
+            std::max(
+                minimums[
+                    static_cast<
+                        std::size_t>(
+                            index)],
+                ListView_GetColumnWidth(
+                    list_,
+                    index));
+    }
+
+    const int maximum =
+        std::max(
+            minimums[
+                static_cast<
+                    std::size_t>(
+                        column)],
+            contentWidth -
+                minimumTarget -
+                otherWidth);
+
+    return std::clamp(
+        proposedWidth,
+        minimums[
+            static_cast<
+                std::size_t>(
+                    column)],
+        maximum);
+}
+
+
+void ShortcutManagerWindow::
 UpdateColumnWidths(
     int resizedColumn,
     int proposedWidth) {
@@ -1251,6 +1441,22 @@ UpdateColumnWidths(
     adjustingColumnWidths_ =
         true;
 
+    const int currentTarget =
+        ListView_GetColumnWidth(
+            list_,
+            3);
+
+    // When the dragged column grows, shrink Target first so the temporary
+    // sum never exceeds the Header client width and cannot flash a horizontal
+    // scrollbar. When the dragged column shrinks, grow Target after the first
+    // three columns are committed.
+    if (target < currentTarget) {
+        ListView_SetColumnWidth(
+            list_,
+            3,
+            target);
+    }
+
     for (int index = 0;
          index < 3;
          ++index) {
@@ -1270,9 +1476,8 @@ UpdateColumnWidths(
         }
     }
 
-    if (ListView_GetColumnWidth(
-            list_,
-            3) != target) {
+    if (target >= currentTarget &&
+        currentTarget != target) {
         ListView_SetColumnWidth(
             list_,
             3,
@@ -1357,71 +1562,146 @@ HandleHeaderNotification(
     const int column =
         header->iItem;
 
-    if (column == 3 &&
-        (beginTrack ||
-         itemChanging ||
-         track ||
-         dividerDoubleClick)) {
-        result = TRUE;
-        return true;
-    }
-
-    if (column >= 0 &&
-        column < 3) {
-        if (itemChanging &&
-            header->pitem &&
-            (header->pitem->mask &
-             HDI_WIDTH) != 0) {
-            customColumnWidths_ =
-                true;
-
-            UpdateColumnWidths(
-                column,
-                header->pitem->cxy);
-
-            // The clamped width has already been committed by
-            // UpdateColumnWidths(). Reject the raw Header proposal so it
-            // cannot collapse a column or steal space from Target.
+    if (column == 3) {
+        if (beginTrack ||
+            itemChanging ||
+            track ||
+            dividerDoubleClick) {
             result = TRUE;
             return true;
         }
 
-        if (track &&
-            header->pitem &&
-            (header->pitem->mask &
-             HDI_WIDTH) != 0) {
-            customColumnWidths_ =
-                true;
+        return false;
+    }
 
-            UpdateColumnWidths(
+    if (column < 0 ||
+        column >= 3) {
+        return false;
+    }
+
+    if (beginTrack) {
+        columnTracking_ = true;
+        trackedColumn_ = column;
+        trackedColumnWidth_ =
+            ListView_GetColumnWidth(
+                list_,
+                column);
+        result = FALSE;
+        return true;
+    }
+
+    if (track &&
+        columnTracking_ &&
+        trackedColumn_ == column &&
+        header->pitem &&
+        (header->pitem->mask &
+         HDI_WIDTH) != 0) {
+        const int clamped =
+            ClampTrackedColumnWidth(
                 column,
                 header->pitem->cxy);
 
-            result = FALSE;
+        header->pitem->cxy =
+            clamped;
+        trackedColumnWidth_ =
+            clamped;
+
+        // With HDS_FULLDRAG disabled, returning FALSE lets the Header move
+        // only its tracking guide. No ListView column is resized here.
+        result = FALSE;
+        return true;
+    }
+
+    if (itemChanging &&
+        header->pitem &&
+        (header->pitem->mask &
+         HDI_WIDTH) != 0) {
+        const int clamped =
+            ClampTrackedColumnWidth(
+                column,
+                header->pitem->cxy);
+
+        header->pitem->cxy =
+            clamped;
+
+        if (columnTracking_ &&
+            trackedColumn_ == column) {
+            trackedColumnWidth_ =
+                clamped;
+
+            // Reject the Header's final native resize. HDN_ENDTRACK commits
+            // the dragged column and elastic Target together in one step.
+            result = TRUE;
             return true;
         }
 
-        if (itemChanged ||
-            endTrack ||
-            dividerDoubleClick) {
-            customColumnWidths_ =
-                true;
+        // Divider auto-size is not a drag. Apply the constrained result once
+        // and reject the native one-column commit so Target remains elastic.
+        customColumnWidths_ =
+            true;
+        UpdateColumnWidths(
+            column,
+            clamped);
 
-            UpdateColumnWidths(
-                column);
+        result = TRUE;
+        return true;
+    }
 
-            RedrawWindow(
-                list_,
-                nullptr,
-                nullptr,
-                RDW_INVALIDATE |
-                    RDW_ERASE |
-                    RDW_ALLCHILDREN |
-                    RDW_UPDATENOW);
+    if (endTrack &&
+        columnTracking_ &&
+        trackedColumn_ == column) {
+        int finalWidth =
+            trackedColumnWidth_;
 
-            result = FALSE;
-            return true;
+        if (header->pitem &&
+            (header->pitem->mask &
+             HDI_WIDTH) != 0) {
+            finalWidth =
+                ClampTrackedColumnWidth(
+                    column,
+                    header->pitem->cxy);
         }
+
+        columnTracking_ =
+            false;
+        trackedColumn_ = -1;
+        trackedColumnWidth_ = -1;
+        customColumnWidths_ =
+            true;
+
+        UpdateColumnWidths(
+            column,
+            finalWidth);
+
+        RedrawWindow(
+            list_,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_ERASE |
+                RDW_ALLCHILDREN |
+                RDW_UPDATENOW);
+
+        result = FALSE;
+        return true;
+    }
+
+    if (dividerDoubleClick) {
+        // Let the native Header calculate the desired auto-size. Its
+        // subsequent HDN_ITEMCHANGING is intercepted above and committed
+        // together with the elastic Target.
+        result = FALSE;
+        return false;
+    }
+
+    if (itemChanged &&
+        !columnTracking_) {
+        customColumnWidths_ =
+            true;
+        UpdateColumnWidths(
+            column);
+        result = FALSE;
+        return true;
     }
 
     return false;

@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.5 — Shortcut Manager Interaction Polish
+
+Alpha 3.5 removes the last visible interaction artifacts from Shortcut Manager column resizing and fixes first-open placement. All alpha.3.4 column limits and alpha.3.3 search/reopen/density behavior remain unchanged.
+
+The Header no longer uses HDS_FULLDRAG. While the mouse is held, the native Header moves only its tracking guide; Keywords / Name / Type are clamped to their existing logical minimum/maximum ranges without resizing the ListView on every pointer movement. The final dragged width is committed once on HDN_ENDTRACK, together with the elastic Target column. This avoids repeated row/header repaint work while dragging large shortcut collections.
+
+Column commits are ordered so Target shrinks before a growing source column and expands after a shrinking source column. The temporary sum therefore never exceeds the Header client width, eliminating the transient horizontal-scrollbar flash while preserving the exact four-column fill.
+
+On the first creation of Shortcut Manager, the window is centered in the work area of the monitor containing the current mouse pointer. The centering pass is repeated with the settled physical size after a cross-DPI WM_DPICHANGED adjustment. Subsequent hide/reopen behavior remains unchanged: the current-process position and size are preserved while search/selection/scroll interaction state is reset.
+
+No row-density, search-edit, selection, keyboard, shortcut persistence, context action, Shortcut Editor, Path Conversion, Runtime Input, Provider, Hotkey, updater or Shortcut TSV v3 behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.35`.
+
 ## v0.8.0-alpha.3.4 — Shortcut Manager Column Resize Hardening
 
 Alpha 3.4 is a narrow follow-up for the remaining real-Windows ListView header-resize bug. All alpha.3.3 reopen/search/density behavior remains unchanged.

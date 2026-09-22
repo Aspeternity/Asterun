@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.5
+
+- Removed HDS_FULLDRAG from Shortcut Manager so Header drags use the native tracking guide instead of continuously resizing/repainting the ListView.
+- Kept live drag limits by clamping the tracking-guide width without committing ListView columns on every HDN_TRACK.
+- Rejected the Header's final one-column native resize and committed the dragged column plus elastic Target once on HDN_ENDTRACK.
+- Ordered column commits so Target shrinks first when a source column grows, preventing temporary horizontal overflow and scrollbar flashing.
+- Preserved the alpha.3.4 minimum widths and locked elastic Target behavior.
+- Centered the first-created Shortcut Manager in the current mouse monitor's work area.
+- Added a second center pass after cross-DPI movement so the final DPI-adjusted physical window size remains centered.
+- Preserved subsequent in-process position/size reuse and the alpha.3.3 transient-state reset contract.
+- Preserved 24px rows, search behavior, selection styling, keyboard workflow, Resize ghosting fix and all frozen v0.7 functionality.
+- Kept Shortcut Editor and Path Conversion internals unchanged.
+- Kept Settings schemaVersion 8; updated Windows fixed FileVersion/ProductVersion to `0.8.0.35`.
+
 ## 0.8.0-alpha.3.4
 
 - Enforced Shortcut Manager column limits during Header tracking instead of repairing widths only after drag completion.

@@ -195,9 +195,10 @@ In progress:
 - v0.8.0-alpha.3.1 starts Shortcut workflow consolidation with the native resizable Shortcut Manager: search/New hierarchy, dense ListView polish, selected-item action grouping, empty states, keyboard workflow and DPI hardening
 - v0.8.0-alpha.3.2 closes the first Shortcut Manager real-Windows pass: 24px dense rows, restrained selection, non-accent New action and atomic resize redraw
 - v0.8.0-alpha.3.3 closes Shortcut Manager reopen-state and search-edit issues while exposing the remaining native Header drag edge case
-- v0.8.0-alpha.3.4 hardens live four-column Header resizing with minimum widths and an always-elastic Target column
-- v0.8.0-alpha.3.5 follows with Shortcut Editor visual consolidation without changing Runtime Input / Path Conversion / Advanced Options semantics
-- v0.8.0-alpha.3.6 is reserved for final real-Windows Shortcut workflow polish plus Path Conversion visual integration only
+- v0.8.0-alpha.3.4 hardens four-column Header limits with minimum widths and an always-elastic Target column
+- v0.8.0-alpha.3.5 closes Shortcut Manager interaction polish: guide-only Header dragging, overflow-safe one-shot commits and first-open mouse-monitor centering
+- v0.8.0-alpha.3.6 follows with Shortcut Editor visual consolidation without changing Runtime Input / Path Conversion / Advanced Options semantics
+- v0.8.0-alpha.3.7 is reserved for final real-Windows Shortcut workflow polish plus Path Conversion visual integration only
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

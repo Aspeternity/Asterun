@@ -42,6 +42,139 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.5":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.5 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.5 must keep provider-cache schemaVersion 2")
+
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+
+    for token in (
+        "CenterOnCursorMonitor",
+        "GetCursorPos",
+        "MonitorFromPoint",
+        "MONITOR_DEFAULTTONEAREST",
+        "GetMonitorInfoW",
+        "info.rcWork",
+        "ClampTrackedColumnWidth",
+        "columnTracking_",
+        "trackedColumn_",
+        "trackedColumnWidth_",
+        "HDN_BEGINTRACKA",
+        "HDN_BEGINTRACKW",
+        "HDN_TRACKA",
+        "HDN_TRACKW",
+        "HDN_ENDTRACKA",
+        "HDN_ENDTRACKW",
+        "header->pitem->cxy =",
+        "Reject the Header's final native resize",
+        "currentTarget",
+        "target < currentTarget",
+        "target >= currentTarget",
+        "Scale(72)",
+        "Scale(96)",
+        "Scale(120)",
+        "Scale(24)",
+        "ResetTransientState",
+        "EM_GETRECT",
+        "BeginDeferWindowPos(7)",
+        "SWP_NOCOPYBITS",
+    ):
+        if token not in manager_cpp and token not in manager_h:
+            fail(f"v0.8 alpha.3.5 Manager interaction polish missing: {token}")
+
+    if "style |\n                HDS_FULLDRAG" in manager_cpp:
+        fail("v0.8 alpha.3.5 must not enable HDS_FULLDRAG")
+
+    track_start = manager_cpp.find("if (track &&")
+    track_end = manager_cpp.find("\n    if (itemChanging &&", track_start)
+    if track_start < 0 or track_end < 0:
+        fail("v0.8 alpha.3.5 HDN_TRACK block could not be inspected")
+    if "UpdateColumnWidths(" in manager_cpp[track_start:track_end]:
+        fail("v0.8 alpha.3.5 HDN_TRACK must not resize ListView columns live")
+
+    for token in (
+        "selected = 0;",
+        "Scale(30)",
+        "EM_SETCUEBANNER",
+        "LVS_EX_GRIDLINES",
+        "kIdClose",
+        "close_",
+    ):
+        if token in manager_cpp or token in manager_h:
+            fail(f"v0.8 alpha.3.5 obsolete Manager behavior returned: {token}")
+
+    if manager_cpp.count("ListView_InsertColumn(") != 1:
+        fail("v0.8 alpha.3.5 must keep exactly the four-column creation helper")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    path_converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    if "RuntimeInputMode" not in editor_cpp or "Advanced" not in editor_cpp:
+        fail("v0.8 alpha.3.5 must not rewrite Shortcut Editor behavior")
+    if "ShortcutPathConverterDialog::Show" not in path_converter_cpp:
+        fail("v0.8 alpha.3.5 must keep Path Conversion implementation")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.4"',
+        '"0.8.0-alpha.3.5"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.5 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.5 — Shortcut Manager Interaction Polish",
+        "0.8.0.35",
+        "tracking guide",
+        "current mouse pointer",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.5 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.5",
+        "0.8.0.35",
+        "Removed HDS_FULLDRAG",
+        "horizontal overflow",
+        "current mouse monitor",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.5 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.5",
+        "v0.8.0-alpha.3.6",
+        "v0.8.0-alpha.3.7",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.5 Shortcut Manager interaction polish verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| Header=guide-only drag/no live ListView resize",
+        "| commit=overflow-safe one-shot",
+        "| first-open=current mouse monitor work-area center",
+        "| reopen/search/24px rows preserved",
+        "| Editor/Path Conversion untouched",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.4":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,
