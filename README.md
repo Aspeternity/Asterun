@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.16 — Settings First-Paint & Update Status Reliability
+
+Alpha 3.16 is a targeted Settings reliability fix for two real-Windows regressions that remained after the destroy/recreate lifecycle work.
+
+The update checker itself was completing correctly, but the About-page status surface is an `SS_OWNERDRAW` static. `RefreshUpdateStatus()` updated its backing text with `SetWindowTextW` while only invalidating the adjacent action button. On affected runs, the existing “正在检查更新... / Checking for updates...” pixels therefore remained on screen even after App state had already reached Available/UpToDate/Failed; recreating Settings forced a full repaint and exposed the correct result. Alpha 3.16 keeps the existing posted notifications and 250 ms reconciliation watchdog, but now synchronously redraws both the owner-drawn status surface and action button whenever update state is reconciled.
+
+Settings first-show placement no longer relies on `CW_USEDEFAULT` plus a synthetic first `ShowWindow(SW_HIDE)` call. A recreated Settings HWND is now created hidden on the monitor that will own the session — saved-position monitor for Last placement, current-cursor monitor for Centered placement — so its initial DPI context is correct without carrying a default upper-left normal placement. The configured final rectangle is then positioned and revealed atomically with `SetWindowPos(... SWP_SHOWWINDOW)`. There is no separate `SW_HIDE` first-show consumption and no subsequent `SW_SHOWNORMAL` step that can expose or restore an upper-left frame.
+
+Centered and Last-position semantics, destroy-on-close behavior, About's shared Show-first entry path, update worker/network behavior, Shortcut Editor alpha.3.15 layout and all frozen shortcut/search functionality remain unchanged. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.46`.
+
 ## v0.8.0-alpha.3.15 — Shortcut Editor Visual Hierarchy & Adaptive Layout
 
 Alpha 3.15 is the visual-hierarchy closeout pass for the native Shortcut Editor after alpha.3.14 established the compact row model and font-derived Edit height. It keeps the shortcut model, Runtime Input semantics and modern Shell pickers unchanged while tightening the relationships between labels, fields and actions seen in real-Windows validation.

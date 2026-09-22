@@ -208,6 +208,66 @@ bool SettingsWindow::Create() {
         return false;
     }
 
+    // Create the hidden HWND on the monitor that will own this Settings
+    // session. Do not use CW_USEDEFAULT: a freshly recreated top-level
+    // window can otherwise retain USER32's upper-left normal placement and
+    // expose one frame there before our configured placement wins.
+    const auto& settings =
+        app_.SettingsData();
+
+    const bool useLastAnchor =
+        settings.settingsPlacement ==
+            "last" &&
+        settings.settingsLastPositionValid;
+
+    POINT creationPoint{};
+
+    if (useLastAnchor) {
+        creationPoint.x =
+            settings.settingsLastX;
+        creationPoint.y =
+            settings.settingsLastY;
+    } else if (!GetCursorPos(
+                   &creationPoint)) {
+        creationPoint = {0, 0};
+    }
+
+    HMONITOR creationMonitor =
+        MonitorFromPoint(
+            creationPoint,
+            MONITOR_DEFAULTTONEAREST);
+
+    MONITORINFO creationInfo{
+        sizeof(creationInfo)};
+
+    if (GetMonitorInfoW(
+            creationMonitor,
+            &creationInfo)) {
+        if (useLastAnchor) {
+            creationPoint.x =
+                std::clamp(
+                    creationPoint.x,
+                    creationInfo.rcWork.left,
+                    std::max(
+                        creationInfo.rcWork.left,
+                        creationInfo.rcWork.right - 1));
+            creationPoint.y =
+                std::clamp(
+                    creationPoint.y,
+                    creationInfo.rcWork.top,
+                    std::max(
+                        creationInfo.rcWork.top,
+                        creationInfo.rcWork.bottom - 1));
+        } else {
+            // Only the monitor/DPI context matters during hidden creation.
+            // The exact centered rectangle is applied atomically when shown.
+            creationPoint.x =
+                creationInfo.rcWork.left;
+            creationPoint.y =
+                creationInfo.rcWork.top;
+        }
+    }
+
     hwnd_ = CreateWindowExW(
         WS_EX_APPWINDOW,
         kSettingsClass,
@@ -217,8 +277,8 @@ bool SettingsWindow::Create() {
             WS_MINIMIZEBOX |
             WS_CLIPCHILDREN |
             WS_VSCROLL,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
+        creationPoint.x,
+        creationPoint.y,
         1080,
         800,
         nullptr,
@@ -286,16 +346,9 @@ bool SettingsWindow::Create() {
     ShowPage(Page::General);
     Layout();
 
-    // This apparently redundant first ShowWindow call is intentional.
-    // In the last known-good alpha.3.6 lifecycle it consumed USER32's
-    // first-show/default-placement state while the HWND was still hidden.
-    // alpha.3.7 removed it when close semantics changed to DestroyWindow,
-    // which made every recreated Settings HWND vulnerable to the native
-    // upper-left cascade overriding our later Center placement.
-    ShowWindow(
-        hwnd_,
-        SW_HIDE);
-
+    // The HWND stays genuinely hidden until Show(). Because creation no
+    // longer uses CW_USEDEFAULT, there is no native first-show/default
+    // placement left to consume with a synthetic SW_HIDE call.
     return true;
 }
 
@@ -6054,7 +6107,8 @@ void SettingsWindow::PositionForShow() {
                 clamped.bottom -
                     clamped.top,
                 SWP_NOZORDER |
-                    SWP_NOACTIVATE);
+                    SWP_NOACTIVATE |
+                    SWP_SHOWWINDOW);
             return;
         }
     }
@@ -6109,7 +6163,8 @@ void SettingsWindow::PositionForShow() {
         width,
         height,
         SWP_NOZORDER |
-            SWP_NOACTIVATE);
+            SWP_NOACTIVATE |
+            SWP_SHOWWINDOW);
 }
 
 void SettingsWindow::OnUpdateStatusChanged() {
@@ -6385,10 +6440,25 @@ void SettingsWindow::RefreshUpdateStatus() {
         updatePrerelease_,
         TRUE);
 
-    InvalidateRect(
+    // updateStatus_ is SS_OWNERDRAW. WM_SETTEXT updates its backing text
+    // but does not reliably repaint the pixels that DrawUpdateStatus owns.
+    // Force the status surface to paint synchronously so completion from the
+    // worker/watchdog cannot leave the visible page stuck on "Checking...".
+    RedrawWindow(
+        updateStatus_,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_UPDATENOW);
+
+    RedrawWindow(
         updateAction_,
         nullptr,
-        TRUE);
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_UPDATENOW);
 }
 
 void SettingsWindow::ShowAbout() {
@@ -6428,14 +6498,11 @@ void SettingsWindow::Show() {
     }
 
     if (!IsWindowVisible(hwnd_)) {
-        // Create() has already consumed USER32's first-show/default-placement
-        // state with SW_HIDE. PositionForShow therefore owns the next visible
-        // placement exactly as it did in the last known-good alpha.3.6 path.
+        // Position and reveal the newly recreated Settings window in one
+        // SetWindowPos(... SWP_SHOWWINDOW) operation. The HWND was created
+        // hidden on the correct monitor, so no default upper-left visible
+        // frame or separate ShowWindow restore placement can intervene.
         PositionForShow();
-
-        ShowWindow(
-            hwnd_,
-            SW_SHOWNORMAL);
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,

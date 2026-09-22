@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.16
+
+- Fixed About occasionally remaining visually stuck on **正在检查更新... / Checking for updates...** after the background update check had already completed.
+- Identified the stale display as an owner-draw repaint bug: `updateStatus_` is `SS_OWNERDRAW`, so changing its text did not reliably repaint the pixels owned by `DrawUpdateStatus()`.
+- Kept the existing update worker, posted status notifications and 250 ms App-owned reconciliation watchdog, but synchronously redraw both the update status surface and action button after every status refresh.
+- Removed Settings creation through `CW_USEDEFAULT`, eliminating the native upper-left normal-placement state from every destroy/recreate cycle.
+- Create the hidden Settings HWND directly on the intended session monitor so `GetDpiForWindow` starts in the correct Per-Monitor-DPI context.
+- Removed the synthetic first `ShowWindow(SW_HIDE)` placement-consumption workaround.
+- Changed first visible Settings display to one atomic `SetWindowPos(... SWP_SHOWWINDOW)` using the already resolved Centered/Last rectangle; no separate `SW_SHOWNORMAL` call remains.
+- Preserved Centered placement, Last-position persistence/clamping, About's shared Show-first path and destroy-on-close semantics.
+- Preserved Settings schemaVersion 8, commands schemaVersion 2, alpha.3.15 Shortcut Editor behavior and all frozen shortcut/search/update-network contracts.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.46`.
+
 ## 0.8.0-alpha.3.15
 
 - Kept Name / Keywords / Target as left-aligned semibold primary labels while demoting inline form labels and Run as administrator to normal Body weight.
