@@ -290,6 +290,8 @@ private:
     void StopManagedEverythingLifecycle();
     void HandleUpdateStatusMessage(
         std::uint64_t generation);
+    void StartUpdateReconcileTimer();
+    void StopUpdateReconcileTimer();
     void InvalidateUpdateCheckForChannelChange();
     bool BeginPreparedUpdate();
     void SignalStartupHealthEvent();
@@ -364,6 +366,7 @@ private:
         updateGeneration_{0};
     std::atomic_bool
         updateWorkerRunning_{false};
+    UINT_PTR updateReconcileTimer_{0};
     bool updateSettingsChangedSinceCheck_{false};
     bool updateInstallWhenReady_{false};
     std::wstring startupHealthEvent_;

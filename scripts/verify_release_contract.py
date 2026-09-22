@@ -42,6 +42,114 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.8":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.8 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.8 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    for token in (
+        "void SettingsWindow::PositionForShow()",
+        "SWP_SHOWWINDOW",
+        "settings.settingsPlacement ==",
+        '"last"',
+        "settings.settingsLastPositionValid",
+        "MonitorFromPoint(",
+        "MONITOR_DEFAULTTONEAREST",
+        "ClampRectToWorkArea",
+        "closingRect",
+        "RememberSettingsPosition(",
+        "else if (IsIconic(hwnd_))",
+        "SW_RESTORE",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.3.8 Settings placement reliability missing: {token}")
+
+    if "ShowWindow(\n        hwnd_,\n        SW_SHOWNORMAL);" in settings_cpp:
+        fail("v0.8 alpha.3.8 must not reapply SW_SHOWNORMAL after first-show positioning")
+
+    for token in (
+        "void StartUpdateReconcileTimer();",
+        "void StopUpdateReconcileTimer();",
+        "updateReconcileTimer_",
+        "void App::StartUpdateReconcileTimer()",
+        "void App::StopUpdateReconcileTimer()",
+        "SetTimer(\n            nullptr,\n            0,\n            250,",
+        "HandleUpdateStatusMessage(\n                updateGeneration_.load());",
+        "StartUpdateReconcileTimer();",
+        "StopUpdateReconcileTimer();",
+        "const bool workerRunning =\n        updateWorkerRunning_.load();",
+        "!status.running &&\n        !workerRunning",
+        "PostThreadMessageW(",
+        "kUpdateStatusMessage",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.8 update reconciliation contract missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.7"',
+        '"0.8.0-alpha.3.8"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.8 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.8 — Settings Placement & Update Status Reliability",
+        "0.8.0.38",
+        "SWP_SHOWWINDOW",
+        "250 ms UI-thread reconciliation timer",
+        "正在检查更新",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.8 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.8",
+        "0.8.0.38",
+        "SetWindowPos(... SWP_SHOWWINDOW)",
+        "250 ms update reconciliation timer",
+        "Checking for updates",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.8 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.8",
+        "v0.8.0-alpha.3.9",
+        "v0.8.0-alpha.3.10",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.8 Settings/update reliability verified:",
+        "| Settings first show=atomic SWP_SHOWWINDOW",
+        "| close=remember actual final position",
+        "| update worker=posted messages + active-only 250ms reconciliation",
+        "| watchdog=terminal-state cleanup",
+        "| schemas/frozen shortcut behavior unchanged",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.7":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

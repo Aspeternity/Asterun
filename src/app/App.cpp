@@ -134,6 +134,7 @@ App::App(
               startupHealthEvent)) {}
 
 App::~App() {
+    StopUpdateReconcileTimer();
     ++updateGeneration_;
 
     if (updateThread_.joinable()) {
@@ -361,6 +362,17 @@ int App::Run() {
                 kProviderChangedMessage &&
             msg.hwnd == nullptr) {
             HandleProviderChangedSignal();
+            continue;
+        }
+
+        if (msg.message == WM_TIMER &&
+            msg.hwnd == nullptr &&
+            updateReconcileTimer_ != 0 &&
+            msg.wParam ==
+                updateReconcileTimer_) {
+
+            HandleUpdateStatusMessage(
+                updateGeneration_.load());
             continue;
         }
 
@@ -1594,6 +1606,33 @@ void App::HandleEverythingBootstrapCompleted(
     }
 }
 
+void App::StartUpdateReconcileTimer() {
+    if (updateReconcileTimer_ != 0) {
+        return;
+    }
+
+    // This is a UI-thread watchdog, not a polling update checker. It exists
+    // only while an update worker is active and reconciles App state if a
+    // posted thread notification is missed by a nested Windows message loop.
+    updateReconcileTimer_ =
+        SetTimer(
+            nullptr,
+            0,
+            250,
+            nullptr);
+}
+
+void App::StopUpdateReconcileTimer() {
+    if (updateReconcileTimer_ == 0) {
+        return;
+    }
+
+    KillTimer(
+        nullptr,
+        updateReconcileTimer_);
+    updateReconcileTimer_ = 0;
+}
+
 void App::HandleUpdateStatusMessage(
     std::uint64_t generation) {
     const std::uint64_t currentGeneration =
@@ -1601,9 +1640,11 @@ void App::HandleUpdateStatusMessage(
 
     if (generation !=
         currentGeneration) {
-        if (!updateWorkerRunning_.load() &&
-            updateThread_.joinable()) {
-            updateThread_.join();
+        if (!updateWorkerRunning_.load()) {
+            if (updateThread_.joinable()) {
+                updateThread_.join();
+            }
+            StopUpdateReconcileTimer();
         }
 
         if (settingsWindow_) {
@@ -1615,10 +1656,15 @@ void App::HandleUpdateStatusMessage(
 
     const auto status =
         UpdateStatus();
+    const bool workerRunning =
+        updateWorkerRunning_.load();
 
     if (!status.running &&
-        updateThread_.joinable()) {
-        updateThread_.join();
+        !workerRunning) {
+        if (updateThread_.joinable()) {
+            updateThread_.join();
+        }
+        StopUpdateReconcileTimer();
     }
 
     if (settingsWindow_) {
@@ -2914,6 +2960,8 @@ bool App::StartUpdateCheck(
                 }
             });
 
+    StartUpdateReconcileTimer();
+
     if (settingsWindow_) {
         settingsWindow_->
             OnUpdateStatusChanged();
@@ -3063,6 +3111,8 @@ bool App::StartUpdateDownloadAndInstall() {
                         0);
                 }
             });
+
+    StartUpdateReconcileTimer();
 
     if (settingsWindow_) {
         settingsWindow_->

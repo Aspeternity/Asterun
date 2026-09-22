@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.8
+
+- Fixed recreated Settings windows ignoring **屏幕居中 / Centered** and **上次位置 / Last position** on tray open.
+- Changed first-show placement to one atomic `SetWindowPos(... SWP_SHOWWINDOW)` operation instead of positioning a hidden `CW_USEDEFAULT` window and then calling `ShowWindow(SW_SHOWNORMAL)`.
+- Preserved current-mouse-monitor centering and work-area clamping for Last position.
+- Recorded the real Settings rectangle again during `WM_CLOSE`, so Last position reflects the previous session even when the user did not finish a drag immediately before closing.
+- Added an App-owned 250 ms update reconciliation timer that exists only while the update worker is active.
+- Kept existing background update work and posted status messages, with the timer acting only as a missed-notification watchdog.
+- Stopped the watchdog as soon as the worker reaches a terminal state and avoided joining a still-running cancelled check when its visible status has already been reset.
+- Fixed About occasionally remaining on **正在检查更新… / Checking for updates...** even though reopening Settings immediately revealed the completed update result.
+- Preserved alpha.3.7 Settings/Manager destroy lifecycle and all frozen Shortcut workflow behavior.
+- Kept Settings schemaVersion 8; updated Windows fixed FileVersion/ProductVersion to `0.8.0.38`.
+
 ## 0.8.0-alpha.3.7
 
 - Changed Settings close semantics from hiding the top-level window to destroying it and recreating it on demand.

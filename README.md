@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.8 — Settings Placement & Update Status Reliability
+
+Alpha 3.8 is a narrow reliability follow-up for two real-Windows regressions exposed by the alpha.3.7 destroy/recreate Settings lifecycle. It does not redesign Settings or start the Shortcut Editor visual pass.
+
+A newly recreated Settings window is now positioned and revealed in one SetWindowPos operation with `SWP_SHOWWINDOW`. The previous hidden-position-then-first-`ShowWindow(SW_SHOWNORMAL)` sequence could let Windows reapply the original `CW_USEDEFAULT` placement, which made tray-opened Settings appear near the upper-left regardless of the selected placement mode. **屏幕居中 / Centered** continues to center on the current mouse monitor work area, while **上次位置 / Last position** is clamped back into a valid work area. Closing Settings also records the actual final window rectangle, so Last position reflects the previous Settings session rather than only the last completed drag.
+
+Update checking keeps the existing background worker and `PostThreadMessageW` notifications, but adds a 250 ms UI-thread reconciliation timer only while an update worker is active. This watchdog reads the already-authoritative App update state through the existing handler, so a missed thread notification can no longer leave About stuck on **正在检查更新… / Checking for updates...** until Settings is reopened. The timer stops as soon as the worker reaches a terminal state, and the handler no longer joins a cancelled worker merely because the visible snapshot was reset to idle.
+
+No update endpoint, manifest format, install flow, shortcut persistence, Provider, Hotkey, Runtime Input, Path Conversion, search/ranking or Settings schema changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.38`.
+
 ## v0.8.0-alpha.3.7 — Window Lifecycle & Confirmation Polish
 
 Alpha 3.7 is a focused lifecycle follow-up after the Shortcut Manager naming pass. It does not redesign Settings, Shortcut Manager or Shortcut Editor.

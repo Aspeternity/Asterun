@@ -6044,7 +6044,8 @@ void SettingsWindow::PositionForShow() {
                 clamped.bottom -
                     clamped.top,
                 SWP_NOZORDER |
-                    SWP_NOACTIVATE);
+                    SWP_NOACTIVATE |
+                    SWP_SHOWWINDOW);
             return;
         }
     }
@@ -6099,7 +6100,8 @@ void SettingsWindow::PositionForShow() {
         width,
         height,
         SWP_NOZORDER |
-            SWP_NOACTIVATE);
+            SWP_NOACTIVATE |
+            SWP_SHOWWINDOW);
 }
 
 void SettingsWindow::OnUpdateStatusChanged() {
@@ -6412,12 +6414,15 @@ void SettingsWindow::Show() {
     }
 
     if (!IsWindowVisible(hwnd_)) {
+        // Position and reveal a newly recreated Settings HWND atomically.
+        // A separate first ShowWindow(SW_SHOWNORMAL) can reapply the
+        // CreateWindow CW_USEDEFAULT placement on some real-Windows paths.
         PositionForShow();
+    } else if (IsIconic(hwnd_)) {
+        ShowWindow(
+            hwnd_,
+            SW_RESTORE);
     }
-
-    ShowWindow(
-        hwnd_,
-        SW_SHOWNORMAL);
 
     SetForegroundWindow(hwnd_);
 }
@@ -7647,6 +7652,20 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_CLOSE:
         CancelHotkeyCapture(false);
         CommitPendingProviderChanges();
+
+        // "Last position" means the position at the end of the previous
+        // Settings session, not only the last completed drag operation.
+        if (!IsIconic(hwnd_) &&
+            !IsZoomed(hwnd_)) {
+            RECT closingRect{};
+            if (GetWindowRect(
+                    hwnd_,
+                    &closingRect)) {
+                app_.RememberSettingsPosition(
+                    closingRect.left,
+                    closingRect.top);
+            }
+        }
 
         KillTimer(
             hwnd_,
