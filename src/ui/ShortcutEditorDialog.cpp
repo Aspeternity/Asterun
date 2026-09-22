@@ -1718,11 +1718,14 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
         RECT focus{
             textRect.left,
             rect.top + Scale(4),
-            std::min(
-                lineStart - Scale(6),
-                textRect.left +
-                    extent.cx +
+            std::min<LONG>(
+                static_cast<LONG>(
+                    lineStart -
                     Scale(6)),
+                textRect.left +
+                    static_cast<LONG>(
+                        extent.cx +
+                        Scale(6))),
             rect.bottom - Scale(4),
         };
 
