@@ -184,7 +184,8 @@ In progress:
 - v0.8.0-alpha.2.4 completes Settings polish with compact selectors, grouped inline Hotkeys, debounced Search-source commits, balanced Data actions and removal of the manual legacy-AltRun import path while preserving automatic migration
 - v0.8.0-alpha.2.5 applies the final Settings alignment hotfix: shorter General selectors, one Hotkey capture baseline, lower-right Reset-all placement and corrected Appearance combo vertical centering
 - v0.8.0-alpha.2.6 clears native ComboBox focus on internal Settings clicks and shortens the two Appearance selectors to 160 logical pixels
-- v0.8.0-alpha.2.7 closes the Settings redesign with a compact About page, opt-in prerelease updates and one state-driven update action while preserving the updater runtime contract
+- v0.8.0-alpha.2.7 introduces the compact About page, opt-in prerelease updates and one state-driven update action
+- v0.8.0-alpha.2.8 completes About interaction polish with a lightweight GitHub link and fully decoupled update preferences: switches only change future automatic/manual check behavior and never trigger a check themselves
 - Shortcut Manager / Editor visual consolidation follows in v0.8.0-alpha.3
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

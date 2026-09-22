@@ -162,6 +162,10 @@ public:
         int y);
     [[nodiscard]] win::UpdateSnapshot
     UpdateStatus() const;
+    [[nodiscard]] bool
+    UpdateSettingsChangedSinceCheck() const;
+    [[nodiscard]] bool
+    UpdateWorkerRunning() const noexcept;
     bool StartUpdateCheck(
         bool force);
     bool StartUpdateDownloadAndInstall();
@@ -286,6 +290,7 @@ private:
     void StopManagedEverythingLifecycle();
     void HandleUpdateStatusMessage(
         std::uint64_t generation);
+    void InvalidateUpdateCheckForChannelChange();
     bool BeginPreparedUpdate();
     void SignalStartupHealthEvent();
     void CaptureActivationContext();
@@ -355,8 +360,11 @@ private:
         updateStatus_;
     std::optional<UpdateManifest>
         updateManifest_;
-    std::uint64_t
+    std::atomic<std::uint64_t>
         updateGeneration_{0};
+    std::atomic_bool
+        updateWorkerRunning_{false};
+    bool updateSettingsChangedSinceCheck_{false};
     bool updateInstallWhenReady_{false};
     std::wstring startupHealthEvent_;
 

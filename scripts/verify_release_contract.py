@@ -42,6 +42,157 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.2.8":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.8 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.8 must keep provider-cache schemaVersion 2")
+
+    settings = json.loads(read("config/settings.example.json"))
+    if settings.get("schemaVersion") != 8:
+        fail("v0.8 alpha.2.8 settings example must remain schemaVersion 8")
+    if settings.get("update") != {"autoCheck": True, "channel": "stable"}:
+        fail("v0.8 alpha.2.8 prerelease updates must remain opt-in/off by default")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    for token in (
+        'T(L"接收预发布版本更新",',
+        'L"GitHub ↗"',
+        "DrawGitHubLink",
+        "IDC_HAND",
+        "UpdateSettingsChangedSinceCheck",
+        "UpdateWorkerRunning",
+        'T(L"尚未按当前设置检查更新。",',
+        "updateAutoCheck_,\n        TRUE",
+        "updatePrerelease_,\n        TRUE",
+        "PageCardRect(\n                    246,\n                    174,\n                    560)",
+        "int versionWidth",
+        "const auto dismissComboFocus =",
+        "std::array<HWND, 6>",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.8 About/update UX contract missing: {token}")
+
+    if 'T(L"再次检查",' in settings_cpp or 'L"Check again"' in settings_cpp:
+        fail("v0.8 alpha.2.8 must keep the manual action labeled Check for updates")
+
+    set_update_start = app_cpp.find("bool App::SetUpdateSettings(")
+    set_update_end = app_cpp.find("\nwin::UpdateSnapshot\nApp::UpdateStatus()", set_update_start)
+    if set_update_start < 0 or set_update_end < 0:
+        fail("v0.8 alpha.2.8 SetUpdateSettings function could not be inspected")
+    set_update_body = app_cpp[set_update_start:set_update_end]
+    if "StartUpdateCheck(" in set_update_body:
+        fail("v0.8 alpha.2.8 update preferences must not directly start an update check")
+    if "previous.updateChannel !=" not in set_update_body or \
+       "InvalidateUpdateCheckForChannelChange();" not in set_update_body:
+        fail("v0.8 alpha.2.8 channel preference must invalidate without executing a check")
+
+    invalidate_start = app_cpp.find("void App::InvalidateUpdateCheckForChannelChange()")
+    invalidate_end = app_cpp.find("\nwin::UpdateSnapshot\nApp::UpdateStatus()", invalidate_start)
+    if invalidate_start < 0 or invalidate_end < 0:
+        fail("v0.8 alpha.2.8 channel invalidation helper could not be inspected")
+    invalidate_body = app_cpp[invalidate_start:invalidate_end]
+    for token in (
+        "updateSettingsChangedSinceCheck_",
+        "updateThread_.request_stop()",
+        "preserveActiveUpdate",
+        "++updateGeneration_",
+    ):
+        if token not in invalidate_body:
+            fail(f"v0.8 alpha.2.8 passive update-settings contract missing: {token}")
+
+    if "previous.updateChannel !=" not in app_cpp or \
+       "settingsStore_.Data()\n            .updateChannel" not in app_cpp:
+        fail("v0.8 alpha.2.8 reset-default update-channel invalidation is missing")
+
+    for token in (
+        "std::atomic<std::uint64_t>",
+        "updateWorkerRunning_",
+        "generation !=",
+        "updateGeneration_.load()",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.2.8 stale-update discard contract missing: {token}")
+
+    for token in (
+        "aboutProjectTitle_",
+        "updateChannelLabel_",
+        "updateChannel_",
+        "kIdUpdateChannel",
+        "updateCheck_",
+        "updateInstall_",
+        "kIdUpdateCheck",
+        "kIdUpdateInstall",
+        "RuntimeDiagnosticsSnapshot",
+        "ProcessMemory",
+        "Page::Diagnostics",
+        "kIdNavDiagnostics",
+        "kIdDataImportLegacy",
+        "dataImportLegacy_",
+    ):
+        if token in settings_cpp or token in settings_h:
+            fail(f"v0.8 alpha.2.8 obsolete/removed Settings surface returned: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.7"',
+        '"0.8.0-alpha.2.8"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.8 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.8 — About UX & Update Semantics",
+        "0.8.0.28",
+        "接收预发布版本更新",
+        "GitHub ↗",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.8 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.8",
+        "0.8.0.28",
+        "Decoupled update preferences",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.8 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.8",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.8 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.8 About/update semantics contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| update switches=passive/non-blocking",
+        "| stale checks discarded",
+        "| GitHub=text link",
+        "| alpha.2.7 updater safety preserved",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.7":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

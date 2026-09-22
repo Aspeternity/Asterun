@@ -1376,7 +1376,7 @@ void SettingsWindow::ApplyLanguage() {
           L"Automatically check for updates"));
     SetWindowTextW(
         updatePrerelease_,
-        T(L"接收预发布版更新",
+        T(L"接收预发布版本更新",
           L"Get prerelease updates"));
     SetWindowTextW(
         updateAction_,
@@ -1384,7 +1384,7 @@ void SettingsWindow::ApplyLanguage() {
           L"Check for updates"));
     SetWindowTextW(
         openGitHub_,
-        L"GitHub");
+        L"GitHub ↗");
 
     ApplyFonts();
     UpdateNavLabels();
@@ -4243,29 +4243,68 @@ void SettingsWindow::Layout() {
             aboutName_,
             contentLeft,
             Scale(108),
-            width - Scale(150),
+            width,
             Scale(42),
             TRUE);
-        MoveWindow(
-            openGitHub_,
-            contentLeft +
-                width -
-                Scale(120),
-            Scale(112),
-            Scale(120),
-            Scale(34),
-            TRUE);
+
+        int versionWidth =
+            Scale(132);
+
+        if (HDC dc = GetDC(hwnd_)) {
+            wchar_t versionText[96]{};
+            GetWindowTextW(
+                aboutVersion_,
+                versionText,
+                static_cast<int>(
+                    std::size(
+                        versionText)));
+
+            HGDIOBJ oldFont =
+                SelectObject(
+                    dc,
+                    normalFont_);
+
+            SIZE size{};
+            if (GetTextExtentPoint32W(
+                    dc,
+                    versionText,
+                    lstrlenW(
+                        versionText),
+                    &size)) {
+                versionWidth =
+                    size.cx;
+            }
+
+            SelectObject(
+                dc,
+                oldFont);
+            ReleaseDC(
+                hwnd_,
+                dc);
+        }
+
         MoveWindow(
             aboutVersion_,
             contentLeft,
-            Scale(150),
-            width,
+            Scale(148),
+            versionWidth + Scale(2),
             Scale(24),
             TRUE);
+
+        MoveWindow(
+            openGitHub_,
+            contentLeft +
+                versionWidth +
+                Scale(14),
+            Scale(147),
+            Scale(82),
+            Scale(26),
+            TRUE);
+
         MoveWindow(
             aboutDescription_,
             contentLeft,
-            Scale(178),
+            Scale(174),
             width,
             Scale(24),
             TRUE);
@@ -4273,13 +4312,13 @@ void SettingsWindow::Layout() {
         MoveWindow(
             updateSectionTitle_,
             contentLeft,
-            Scale(226),
+            Scale(214),
             width,
             Scale(26),
             TRUE);
 
         const int updateTop =
-            Scale(258);
+            Scale(246);
         const int rowHeight =
             Scale(
                 settings_layout::
@@ -5046,6 +5085,119 @@ void SettingsWindow::DrawActionButton(
 
 
 
+void SettingsWindow::DrawGitHubLink(
+    const DRAWITEMSTRUCT& item) {
+
+    RECT rect =
+        item.rcItem;
+
+    HBRUSH background =
+        CreateSolidBrush(
+            kWindowBackground);
+    FillRect(
+        item.hDC,
+        &rect,
+        background);
+    DeleteObject(
+        background);
+
+    const bool disabled =
+        (item.itemState &
+         ODS_DISABLED) != 0;
+    const bool pressed =
+        (item.itemState &
+         ODS_SELECTED) != 0;
+    const bool focused =
+        (item.itemState &
+         ODS_FOCUS) != 0;
+
+    const COLORREF textColor =
+        disabled
+            ? kMuted
+            : pressed
+                ? RGB(0, 99, 177)
+                : kAccent;
+
+    wchar_t buffer[64]{};
+    GetWindowTextW(
+        item.hwndItem,
+        buffer,
+        static_cast<int>(
+            std::size(buffer)));
+
+    SetBkMode(
+        item.hDC,
+        TRANSPARENT);
+    SetTextColor(
+        item.hDC,
+        textColor);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            item.hDC,
+            normalFont_);
+
+    RECT textRect =
+        rect;
+
+    DrawTextW(
+        item.hDC,
+        buffer,
+        -1,
+        &textRect,
+        DT_LEFT |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_NOPREFIX);
+
+    if (focused) {
+        SIZE size{};
+        if (GetTextExtentPoint32W(
+                item.hDC,
+                buffer,
+                lstrlenW(buffer),
+                &size)) {
+            HPEN underline =
+                CreatePen(
+                    PS_SOLID,
+                    1,
+                    kAccent);
+            HGDIOBJ oldPen =
+                SelectObject(
+                    item.hDC,
+                    underline);
+
+            const int y =
+                rect.top +
+                (rect.bottom -
+                 rect.top +
+                 size.cy) / 2;
+
+            MoveToEx(
+                item.hDC,
+                rect.left,
+                y,
+                nullptr);
+            LineTo(
+                item.hDC,
+                rect.left +
+                    size.cx,
+                y);
+
+            SelectObject(
+                item.hDC,
+                oldPen);
+            DeleteObject(
+                underline);
+        }
+    }
+
+    SelectObject(
+        item.hDC,
+        oldFont);
+}
+
+
 void SettingsWindow::DrawGeneralToggle(
     const DRAWITEMSTRUCT& item) {
 
@@ -5161,6 +5313,11 @@ void SettingsWindow::DrawGeneralToggle(
             T(L"自动检查更新",
               L"Automatically check for updates");
         break;
+    case kIdUpdatePrerelease:
+        title =
+            T(L"接收预发布版本更新",
+              L"Get prerelease updates");
+        break;
     default:
         break;
     }
@@ -5235,9 +5392,7 @@ void SettingsWindow::DrawGeneralToggle(
         id ==
             kIdProviderPath ||
         id ==
-            kIdProviderEverything ||
-        id ==
-            kIdUpdateAutoCheck;
+            kIdProviderEverything;
 
     if (!lastRow) {
         HPEN separator =
@@ -5458,6 +5613,10 @@ void SettingsWindow::RefreshUpdateStatus() {
 
     const auto status =
         app_.UpdateStatus();
+    const bool settingsChanged =
+        app_.UpdateSettingsChangedSinceCheck();
+    const bool workerRunning =
+        app_.UpdateWorkerRunning();
 
     std::wstring text;
     const wchar_t* actionText =
@@ -5468,8 +5627,11 @@ void SettingsWindow::RefreshUpdateStatus() {
     switch (status.stage) {
     case win::UpdateStage::Idle:
         text =
-            T(L"尚未检查更新。",
-              L"Updates have not been checked yet.");
+            settingsChanged
+                ? T(L"尚未按当前设置检查更新。",
+                    L"Updates have not been checked with the current settings.")
+                : T(L"尚未检查更新。",
+                    L"Updates have not been checked yet.");
         actionEnabled = true;
         break;
 
@@ -5486,9 +5648,6 @@ void SettingsWindow::RefreshUpdateStatus() {
         text =
             T(L"已是最新版本。",
               L"You're up to date.");
-        actionText =
-            T(L"再次检查",
-              L"Check again");
         actionEnabled = true;
         break;
 
@@ -5502,9 +5661,6 @@ void SettingsWindow::RefreshUpdateStatus() {
         text +=
             T(L"；当前版本较新，不会降级。",
               L"; this build is newer, so no downgrade will be offered.");
-        actionText =
-            T(L"再次检查",
-              L"Check again");
         actionEnabled = true;
         break;
 
@@ -5677,21 +5833,18 @@ void SettingsWindow::RefreshUpdateStatus() {
     EnableWindow(
         updateAction_,
         actionEnabled &&
-                !status.running
+                !status.running &&
+                !workerRunning
             ? TRUE
             : FALSE);
 
     EnableWindow(
         updateAutoCheck_,
-        status.running
-            ? FALSE
-            : TRUE);
+        TRUE);
 
     EnableWindow(
         updatePrerelease_,
-        status.running
-            ? FALSE
-            : TRUE);
+        TRUE);
 
     InvalidateRect(
         updateAction_,
@@ -5807,6 +5960,18 @@ LRESULT SettingsWindow::HandleMessage(
         };
 
     switch (message) {
+    case WM_SETCURSOR:
+        if (reinterpret_cast<HWND>(
+                wParam) ==
+            openGitHub_) {
+            SetCursor(
+                LoadCursorW(
+                    nullptr,
+                    IDC_HAND));
+            return TRUE;
+        }
+        break;
+
     case WM_LBUTTONDOWN:
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:
@@ -6198,6 +6363,13 @@ LRESULT SettingsWindow::HandleMessage(
             return TRUE;
         }
 
+        if (item->CtlID ==
+                kIdOpenGitHub) {
+            DrawGitHubLink(
+                *item);
+            return TRUE;
+        }
+
         if (item->CtlType == ODT_BUTTON) {
             DrawActionButton(
                 *item);
@@ -6546,7 +6718,7 @@ LRESULT SettingsWindow::HandleMessage(
             page_ == Page::About) {
             drawCard(
                 PageCardRect(
-                    258,
+                    246,
                     174,
                     560));
         }

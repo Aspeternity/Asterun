@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.2.8
+
+- Fixed the missing owner-drawn label for **接收预发布版本更新 / Get prerelease updates**.
+- Replaced the bordered GitHub button with a lightweight `GitHub ↗` text link aligned with the version metadata.
+- Tightened the About product block and kept separators between both update settings and the status/action row.
+- Decoupled update preferences from update execution: toggling automatic checks no longer starts a check, and toggling prerelease updates only changes the channel for a future check.
+- Kept both update switches interactive while a check is running.
+- Invalidated and asynchronously cancelled an in-flight check when its prerelease channel changes, discarding stale progress/results without blocking Settings.
+- Changed successful manual-check actions back to the stable **检查更新 / Check for updates** label instead of “Check again”.
+- Added **尚未按当前设置检查更新 / Updates have not been checked with the current settings** after a channel preference change.
+- Preserved Settings schemaVersion 8 and the existing updater download/install, rollback, startup-health and immutable-release contracts.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.28`.
+
 ## 0.8.0-alpha.2.7
 
 - Reworked About into a compact product header plus one 560-logical-pixel Updates card and removed the low-density Project card.

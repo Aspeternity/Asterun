@@ -240,6 +240,8 @@ private:
         const DRAWITEMSTRUCT& item);
     void DrawActionButton(
         const DRAWITEMSTRUCT& item);
+    void DrawGitHubLink(
+        const DRAWITEMSTRUCT& item);
     void DrawHotkeyToggle(
         const DRAWITEMSTRUCT& item,
         std::size_t rowIndex);

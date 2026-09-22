@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.8 — About UX & Update Semantics
+
+Alpha 2.8 is the final About-page interaction pass before the Settings redesign closes.
+
+The About header now keeps GitHub as a lightweight `GitHub ↗` text link beside the version metadata instead of a full secondary button. The product block is slightly tighter vertically, and the two update switches now render their complete labels with a divider between each setting row and the status/action row.
+
+Update preferences are now passive settings. **自动检查更新 / Automatically check for updates** only controls whether startup automation may perform a due check; changing the switch does not immediately start or cancel a check. **接收预发布版本更新 / Get prerelease updates** only selects the channel used by the next automatic or manual check; changing it does not immediately run a new check. If the channel changes while a check is already running, that old check is invalidated asynchronously without blocking either switch, and its stale result is discarded.
+
+The manual action remains **检查更新 / Check for updates** after a successful check rather than changing to “Check again”. Changing the prerelease setting invalidates any completed result and shows that the current settings have not yet been checked. Download/install, rollback, startup-health and immutable-release safety contracts remain unchanged.
+
+No persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything lifecycle, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.28`.
+
 ## v0.8.0-alpha.2.7 — About Page & Update UX Polish
 
 Alpha 2.7 finishes the Settings redesign with a compact About page and a user-facing prerelease preference instead of the previous technical update-channel selector.
