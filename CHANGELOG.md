@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.3.18
+
+- Removed the remaining synthetic Settings `SW_HIDE -> SW_SHOWNORMAL` first-show lifecycle.
+- Confirmed `RememberSettingsPosition()` only persists coordinates and does not move or refresh the Settings HWND; it was not the source of the close flash.
+- Keep hidden Create-time Center/Last positioning through `SetWindowPos`, but no longer call `ShowWindow` during Create.
+- Changed the real Settings open path from `SW_SHOWNORMAL` to `SW_SHOW`, so USER32 displays the already-positioned current rectangle instead of restoring a separate normal/original placement.
+- Made Settings close visually atomic: capture the visible rectangle first, immediately hide the top-level HWND with `SWP_HIDEWINDOW`, then commit pending changes, persist the captured position and destroy the hidden HWND.
+- Prevent USER32/DWM destruction bookkeeping from ever producing a visible final-frame jump back to Center after the user manually moves the window.
+- Preserve Centered placement, Last-position behavior, destroy-on-close, About Show-first ordering, alpha.3.16 update-status repaint reliability and all frozen shortcut/search behavior.
+- Preserve Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.48`.
+
 ## 0.8.0-alpha.3.17
 
 - Fixed the alpha.3.16 regression where **Settings placement = Centered** consistently opened at the selected monitor's upper-left corner.

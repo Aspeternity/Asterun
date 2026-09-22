@@ -347,17 +347,11 @@ bool SettingsWindow::Create() {
     Layout();
 
     // Resolve the real configured rectangle while the HWND is still hidden.
-    // Center mode previously used the monitor's upper-left corner only as a
-    // creation/DPI anchor, then relied on SWP_SHOWWINDOW to replace that
-    // first normal placement. Real Windows validation showed USER32 can keep
-    // the creation point as the first visible normal position. Move the
-    // hidden HWND to its final Center/Last rectangle first, then consume the
-    // first-show state there.
+    // Do not call ShowWindow here. Settings owns its position explicitly via
+    // SetWindowPos, so introducing a synthetic first SW_HIDE/SW_SHOWNORMAL
+    // sequence only creates a second USER32 "normal placement" state that can
+    // diverge from the window's actual rectangle after the user drags it.
     PositionForShow();
-
-    ShowWindow(
-        hwnd_,
-        SW_HIDE);
 
     return true;
 }
@@ -6506,15 +6500,14 @@ void SettingsWindow::Show() {
     }
 
     if (!IsWindowVisible(hwnd_)) {
-        // Create() already consumed USER32's first-show state after moving
-        // the hidden HWND to the configured rectangle. Re-resolve placement
-        // immediately before the real show (important for cursor-monitor
-        // centering), then restore from that already-correct normal position.
+        // PositionForShow owns the rectangle. SW_SHOW displays the window in
+        // its *current* size and position; unlike SW_SHOWNORMAL it does not
+        // ask USER32 to restore an older normal/restore placement.
         PositionForShow();
 
         ShowWindow(
             hwnd_,
-            SW_SHOWNORMAL);
+            SW_SHOW);
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,
@@ -7746,22 +7739,43 @@ LRESULT SettingsWindow::HandleMessage(
         return 0;
     }
 
-    case WM_CLOSE:
+    case WM_CLOSE: {
+        // Capture the real on-screen rectangle before changing visibility.
+        // WM_EXITSIZEMOVE normally persisted the latest drag already, but the
+        // close snapshot also covers programmatic moves and a close that
+        // follows immediately after movement.
+        RECT closingRect{};
+        const bool rememberPosition =
+            !IsIconic(hwnd_) &&
+            !IsZoomed(hwnd_) &&
+            GetWindowRect(
+                hwnd_,
+                &closingRect);
+
+        // Make close visually atomic. Any USER32/DWM placement bookkeeping
+        // performed while DestroyWindow tears down the top-level HWND now
+        // happens after the window is already invisible, so a stale normal
+        // placement can never flash the window back to Center.
+        SetWindowPos(
+            hwnd_,
+            nullptr,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_HIDEWINDOW);
+
         CancelHotkeyCapture(false);
         CommitPendingProviderChanges();
 
-        // "Last position" means the position at the end of the previous
-        // Settings session, not only the last completed drag operation.
-        if (!IsIconic(hwnd_) &&
-            !IsZoomed(hwnd_)) {
-            RECT closingRect{};
-            if (GetWindowRect(
-                    hwnd_,
-                    &closingRect)) {
-                app_.RememberSettingsPosition(
-                    closingRect.left,
-                    closingRect.top);
-            }
+        if (rememberPosition) {
+            app_.RememberSettingsPosition(
+                closingRect.left,
+                closingRect.top);
         }
 
         KillTimer(
@@ -7773,6 +7787,7 @@ LRESULT SettingsWindow::HandleMessage(
 
         DestroyWindow(hwnd_);
         return 0;
+    }
 
     case WM_DESTROY:
         KillTimer(

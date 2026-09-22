@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.18 — Settings Native Show/Close Lifecycle Cleanup
+
+Alpha 3.18 removes the last synthetic first-show workaround from Settings and aligns the window lifecycle with the proven native behavior already used by Shortcut Manager.
+
+Real-Windows validation showed alpha.3.17 could open Centered correctly but, after the user manually dragged the Settings window elsewhere, closing could briefly paint the window back at the centered position before destruction. The settings-position persistence path was not responsible: RememberSettingsPosition only writes coordinates and never repositions or refreshes the Settings HWND. The remaining suspect was the artificial `SW_HIDE -> SW_SHOWNORMAL` lifecycle. Microsoft documents `SW_SHOWNORMAL` as restoring a window to its original size and position, whereas `SW_SHOW` displays the window in its current size and position. Settings already owns its rectangle through `SetWindowPos`, so asking USER32 to restore a separate normal placement is unnecessary and can diverge from the rectangle after a manual drag.
+
+The new lifecycle is deliberately simpler. Create builds and sizes the HWND hidden, resolves Center/Last with `PositionForShow()`, and does not call `ShowWindow` at all. The real open path re-resolves placement and uses `SW_SHOW`, so USER32 displays exactly the rectangle Settings already owns instead of restoring a second placement state.
+
+Closing is now visually atomic: the current visible rectangle is captured first, the top-level HWND is immediately hidden with `SWP_HIDEWINDOW`, and only then are pending settings committed, the last position persisted, timers stopped and `DestroyWindow` called. Any USER32/DWM bookkeeping during destruction therefore occurs while the window is already invisible and cannot produce a final centered flash.
+
+Centered placement, Last-position persistence, destroy-on-close, About Show-first routing, alpha.3.16 update-status repaint reliability, and all frozen Shortcut Editor/Manager/search behavior remain unchanged. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.48`.
+
 ## v0.8.0-alpha.3.17 — Settings Center Placement Finalization
 
 Alpha 3.17 corrects the Center-placement regression exposed by real-Windows validation of alpha.3.16. Last-position mode already behaved correctly, while Center mode consistently opened at the upper-left corner of the selected monitor.
