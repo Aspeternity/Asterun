@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0-alpha.3.15
+
+- Kept Name / Keywords / Target as left-aligned semibold primary labels while demoting inline form labels and Run as administrator to normal Body weight.
+- Right-aligned Target type, Runtime input, Test input, Fixed arguments, Working directory and Icon inside one language-aware fixed label column with a deliberate 12-logical-pixel gap before controls.
+- Aligned all Runtime/Advanced value controls to the same vertical field origin, including the administrator checkbox.
+- Matched File / Folder / Working-directory / Icon browse-button height and vertical position to the native font-derived Edit field height.
+- Converted editor browse actions plus Test / Save / Cancel to lightweight owner-drawn buttons; Save is the single accent primary action while the others remain restrained secondary actions.
+- Preserved Enter-to-save behavior for native Edit and closed ComboBox controls after changing Save from native default-pushbutton painting to owner-drawn presentation.
+- Replaced fixed collapsed/expanded editor-height constants with visible-content measurement plus a fixed 24-logical-pixel gap before the footer.
+- Kept Runtime Test and Advanced dynamic resize/redraw hardening while removing the remaining collapsed-state dead space.
+- Slightly softened helper-text color without shrinking typography.
+- Preserved alpha.3.14 native Edit sizing, alpha.3.13 modern IFileOpenDialog pickers, shortcut schemas and all frozen Settings/Shortcut Manager behavior.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.45`.
+
 ## 0.8.0-alpha.3.14
 
 - Reduced Shortcut Editor collapsed/expanded geometry to match the real content instead of preserving large blank vertical bands.

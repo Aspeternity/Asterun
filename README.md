@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.15 — Shortcut Editor Visual Hierarchy & Adaptive Layout
+
+Alpha 3.15 is the visual-hierarchy closeout pass for the native Shortcut Editor after alpha.3.14 established the compact row model and font-derived Edit height. It keeps the shortcut model, Runtime Input semantics and modern Shell pickers unchanged while tightening the relationships between labels, fields and actions seen in real-Windows validation.
+
+Primary stacked labels — **名称 / Name**, **快捷词 / Keywords**, and **目标 / Target** — remain left aligned and semibold. Inline form labels — Target type, Runtime input, Test input, Fixed arguments, Working directory and Icon — now share one fixed label column, use normal Body weight, and right-align toward the value column with a deliberate 12-logical-pixel gap. Advanced fields therefore read as one compact form instead of several unrelated left-aligned text blocks; the administrator checkbox aligns with the same value column.
+
+In-form browse actions now match the native Edit field height and vertical position. File, Folder and Choose actions use the same restrained owner-drawn secondary-button surface as Shortcut Manager, while the bottom action row keeps Test/Cancel secondary and makes Save the single accent primary action. The editor preserves its previous Enter-to-save workflow for native Edit and closed ComboBox controls even though Save is now owner-drawn.
+
+Window height is no longer selected from separate collapsed/expanded constants. The editor measures the currently visible content rhythm — including Runtime Test and Advanced state — and reserves a fixed 24-logical-pixel content-to-footer gap before the footer separator/actions. This removes the remaining collapsed-state dead space while keeping all four dynamic combinations stable. Helper text is also slightly de-emphasized without reducing font size.
+
+No shortcut schema/model, commands.json format, target inference, icon-auto semantics, Runtime Input behavior, Settings placement/lifecycle, Shortcut Manager behavior or modern picker flow changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.45`.
+
 ## v0.8.0-alpha.3.14 — Shortcut Editor Density & Native Edit Alignment
 
 Alpha 3.14 is a focused real-Windows density pass on the Shortcut Editor after alpha.3.13 validated the modern Shell pickers and owner-drawn Advanced header. It keeps those parts frozen and targets the two remaining desktop-validation issues: excessive vertical whitespace and native single-line Edit fields whose border was substantially taller than their text/caret.

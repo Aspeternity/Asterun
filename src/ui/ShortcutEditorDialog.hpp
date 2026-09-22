@@ -56,6 +56,10 @@ private:
         HDC dc) const;
     void DrawAdvancedHeader(
         const DRAWITEMSTRUCT& draw) const;
+    void DrawActionButton(
+        const DRAWITEMSTRUCT& draw) const;
+    [[nodiscard]] int
+    DesiredClientHeight() const;
     void ResizeForContent();
     void RefreshDynamicLayout();
     void UpdateAdvancedVisibility();
