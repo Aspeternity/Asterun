@@ -30,6 +30,239 @@ namespace {
 constexpr wchar_t kSettingsClass[] = L"ALTRunNext.Settings";
 constexpr wchar_t kSettingsTitle[] = L"ALTRun Next Settings";
 
+constexpr DWORD kSettingsWindowExStyle =
+    WS_EX_APPWINDOW;
+constexpr DWORD kSettingsWindowStyle =
+    WS_CAPTION |
+    WS_SYSMENU |
+    WS_MINIMIZEBOX |
+    WS_CLIPCHILDREN |
+    WS_VSCROLL;
+
+struct SettingsCreationGeometry {
+    RECT outer{};
+    UINT dpi{96};
+};
+
+[[nodiscard]] UINT ProbeMonitorDpi(
+    HINSTANCE instance,
+    const MONITORINFO& info) {
+
+    const int monitorWidth =
+        info.rcMonitor.right -
+        info.rcMonitor.left;
+    const int monitorHeight =
+        info.rcMonitor.bottom -
+        info.rcMonitor.top;
+
+    const int x =
+        info.rcMonitor.left +
+        std::max(
+            0,
+            monitorWidth / 2);
+    const int y =
+        info.rcMonitor.top +
+        std::max(
+            0,
+            monitorHeight / 2);
+
+    // GetDpiForWindow is the DPI-aware API Microsoft recommends for a
+    // PerMonitorV2 thread, but the real Settings HWND must not be created at
+    // a temporary monitor-origin position just to discover its DPI. Use a
+    // never-visible tool-window probe on the target monitor, read its DPI,
+    // then destroy it before the real Settings HWND exists.
+    HWND probe =
+        CreateWindowExW(
+            WS_EX_TOOLWINDOW |
+                WS_EX_NOACTIVATE,
+            L"STATIC",
+            L"",
+            WS_POPUP,
+            x,
+            y,
+            1,
+            1,
+            nullptr,
+            nullptr,
+            instance,
+            nullptr);
+
+    if (!probe) {
+        return 96;
+    }
+
+    const UINT dpi =
+        GetDpiForWindow(probe);
+
+    DestroyWindow(probe);
+
+    return dpi != 0
+        ? dpi
+        : 96;
+}
+
+[[nodiscard]]
+SettingsCreationGeometry
+ResolveSettingsCreationGeometry(
+    const Settings& settings,
+    HINSTANCE instance) {
+
+    const bool useLast =
+        settings.settingsPlacement ==
+            "last" &&
+        settings.settingsLastPositionValid;
+
+    POINT anchor{};
+
+    if (useLast) {
+        anchor.x =
+            settings.settingsLastX;
+        anchor.y =
+            settings.settingsLastY;
+    } else if (!GetCursorPos(
+                   &anchor)) {
+        anchor = {0, 0};
+    }
+
+    const HMONITOR monitor =
+        MonitorFromPoint(
+            anchor,
+            MONITOR_DEFAULTTONEAREST);
+
+    MONITORINFO info{
+        sizeof(info)};
+
+    if (!monitor ||
+        !GetMonitorInfoW(
+            monitor,
+            &info)) {
+        SettingsCreationGeometry fallback;
+
+        RECT outer{
+            0,
+            0,
+            ui::Scale(
+                ui::kSettingsClientWidthLogical,
+                fallback.dpi),
+            ui::Scale(
+                ui::kSettingsClientHeightLogical,
+                fallback.dpi),
+        };
+
+        AdjustWindowRectExForDpi(
+            &outer,
+            kSettingsWindowStyle,
+            FALSE,
+            kSettingsWindowExStyle,
+            fallback.dpi);
+
+        fallback.outer = {
+            anchor.x,
+            anchor.y,
+            anchor.x +
+                (outer.right -
+                 outer.left),
+            anchor.y +
+                (outer.bottom -
+                 outer.top),
+        };
+        return fallback;
+    }
+
+    SettingsCreationGeometry geometry;
+    geometry.dpi =
+        ProbeMonitorDpi(
+            instance,
+            info);
+
+    RECT outer{
+        0,
+        0,
+        ui::Scale(
+            ui::kSettingsClientWidthLogical,
+            geometry.dpi),
+        ui::Scale(
+            ui::kSettingsClientHeightLogical,
+            geometry.dpi),
+    };
+
+    AdjustWindowRectExForDpi(
+        &outer,
+        kSettingsWindowStyle,
+        FALSE,
+        kSettingsWindowExStyle,
+        geometry.dpi);
+
+    const int width =
+        std::min(
+            outer.right -
+                outer.left,
+            info.rcWork.right -
+                info.rcWork.left);
+    const int height =
+        std::min(
+            outer.bottom -
+                outer.top,
+            info.rcWork.bottom -
+                info.rcWork.top);
+
+    if (useLast) {
+        const auto clamped =
+            settings_layout::
+                ClampRectToWorkArea(
+                    {
+                        settings.settingsLastX,
+                        settings.settingsLastY,
+                        settings.settingsLastX +
+                            width,
+                        settings.settingsLastY +
+                            height,
+                    },
+                    {
+                        info.rcWork.left,
+                        info.rcWork.top,
+                        info.rcWork.right,
+                        info.rcWork.bottom,
+                    });
+
+        geometry.outer = {
+            clamped.left,
+            clamped.top,
+            clamped.right,
+            clamped.bottom,
+        };
+    } else {
+        const int workWidth =
+            info.rcWork.right -
+            info.rcWork.left;
+        const int workHeight =
+            info.rcWork.bottom -
+            info.rcWork.top;
+
+        const int x =
+            info.rcWork.left +
+            std::max(
+                0,
+                (workWidth -
+                 width) / 2);
+        const int y =
+            info.rcWork.top +
+            std::max(
+                0,
+                (workHeight -
+                 height) / 2);
+
+        geometry.outer = {
+            x,
+            y,
+            x + width,
+            y + height,
+        };
+    }
+
+    return geometry;
+}
+
 constexpr const auto& kPalette =
     ui::kApplicationPalette;
 constexpr COLORREF kWindowBackground =
@@ -208,79 +441,28 @@ bool SettingsWindow::Create() {
         return false;
     }
 
-    // Create the hidden HWND on the monitor that will own this Settings
-    // session. Do not use CW_USEDEFAULT: a freshly recreated top-level
-    // window can otherwise retain USER32's upper-left normal placement and
-    // expose one frame there before our configured placement wins.
-    const auto& settings =
-        app_.SettingsData();
-
-    const bool useLastAnchor =
-        settings.settingsPlacement ==
-            "last" &&
-        settings.settingsLastPositionValid;
-
-    POINT creationPoint{};
-
-    if (useLastAnchor) {
-        creationPoint.x =
-            settings.settingsLastX;
-        creationPoint.y =
-            settings.settingsLastY;
-    } else if (!GetCursorPos(
-                   &creationPoint)) {
-        creationPoint = {0, 0};
-    }
-
-    HMONITOR creationMonitor =
-        MonitorFromPoint(
-            creationPoint,
-            MONITOR_DEFAULTTONEAREST);
-
-    MONITORINFO creationInfo{
-        sizeof(creationInfo)};
-
-    if (GetMonitorInfoW(
-            creationMonitor,
-            &creationInfo)) {
-        if (useLastAnchor) {
-            creationPoint.x =
-                std::clamp(
-                    creationPoint.x,
-                    creationInfo.rcWork.left,
-                    std::max(
-                        creationInfo.rcWork.left,
-                        creationInfo.rcWork.right - 1));
-            creationPoint.y =
-                std::clamp(
-                    creationPoint.y,
-                    creationInfo.rcWork.top,
-                    std::max(
-                        creationInfo.rcWork.top,
-                        creationInfo.rcWork.bottom - 1));
-        } else {
-            // Only the monitor/DPI context matters during hidden creation.
-            // The exact centered rectangle is applied atomically when shown.
-            creationPoint.x =
-                creationInfo.rcWork.left;
-            creationPoint.y =
-                creationInfo.rcWork.top;
-        }
-    }
+    // Resolve the target monitor, target DPI, exact fixed-client outer size
+    // and final Center/Last rectangle *before* the real Settings HWND exists.
+    // This is deliberate: older revisions created the real HWND at the
+    // monitor work-area origin and moved it while hidden. USER32/DWM could
+    // still retain that birth rectangle for a first/last transition frame.
+    // The real Settings HWND now has no upper-left intermediate placement.
+    const auto creation =
+        ResolveSettingsCreationGeometry(
+            app_.SettingsData(),
+            instance_);
 
     hwnd_ = CreateWindowExW(
-        WS_EX_APPWINDOW,
+        kSettingsWindowExStyle,
         kSettingsClass,
         kSettingsTitle,
-        WS_CAPTION |
-            WS_SYSMENU |
-            WS_MINIMIZEBOX |
-            WS_CLIPCHILDREN |
-            WS_VSCROLL,
-        creationPoint.x,
-        creationPoint.y,
-        1080,
-        800,
+        kSettingsWindowStyle,
+        creation.outer.left,
+        creation.outer.top,
+        creation.outer.right -
+            creation.outer.left,
+        creation.outer.bottom -
+            creation.outer.top,
         nullptr,
         nullptr,
         instance_,
@@ -301,34 +483,45 @@ bool SettingsWindow::Create() {
             ui::kSettingsClientHeightLogical),
     };
 
-    const DWORD windowStyle =
-        static_cast<DWORD>(
-            GetWindowLongPtrW(
-                hwnd_,
-                GWL_STYLE));
-    const DWORD windowExStyle =
-        static_cast<DWORD>(
-            GetWindowLongPtrW(
-                hwnd_,
-                GWL_EXSTYLE));
-
     AdjustWindowRectExForDpi(
         &desiredWindow,
-        windowStyle,
+        kSettingsWindowStyle,
         FALSE,
-        windowExStyle,
+        kSettingsWindowExStyle,
         dpi_);
 
-    SetWindowPos(
-        hwnd_,
-        nullptr,
-        0,
-        0,
+    const int desiredOuterWidth =
         desiredWindow.right -
-            desiredWindow.left,
+        desiredWindow.left;
+    const int desiredOuterHeight =
         desiredWindow.bottom -
-            desiredWindow.top,
-        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        desiredWindow.top;
+
+    RECT createdRect{};
+    GetWindowRect(
+        hwnd_,
+        &createdRect);
+
+    if ((createdRect.right -
+         createdRect.left) !=
+            desiredOuterWidth ||
+        (createdRect.bottom -
+         createdRect.top) !=
+            desiredOuterHeight) {
+        // Probe DPI and actual HWND DPI should normally match. If Windows
+        // resolves a different DPI context, correct only the hidden size;
+        // PositionForShow below will recenter/clamp with that settled size.
+        SetWindowPos(
+            hwnd_,
+            nullptr,
+            0,
+            0,
+            desiredOuterWidth,
+            desiredOuterHeight,
+            SWP_NOMOVE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE);
+    }
 
     ShowScrollBar(
         hwnd_,
@@ -346,11 +539,9 @@ bool SettingsWindow::Create() {
     ShowPage(Page::General);
     Layout();
 
-    // Resolve the real configured rectangle while the HWND is still hidden.
-    // Do not call ShowWindow here. Settings owns its position explicitly via
-    // SetWindowPos, so introducing a synthetic first SW_HIDE/SW_SHOWNORMAL
-    // sequence only creates a second USER32 "normal placement" state that can
-    // diverge from the window's actual rectangle after the user drags it.
+    // The real HWND was already born at the intended rectangle. Re-resolve
+    // once after actual GetDpiForWindow/outer-size settlement in case Windows
+    // adjusted the DPI context, but keep the window hidden until Show().
     PositionForShow();
 
     return true;

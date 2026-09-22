@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.19
+
+- Audited the full Settings Create/Show/Move/Close path after upper-left flashing remained visible through alpha.3.18.
+- Identified the remaining upper-left state: the real Settings HWND itself was still born at `rcWork.left/top` and only moved to Center/Last while hidden.
+- Added a never-visible 1x1 tool-window DPI probe on the selected target monitor so the real Settings HWND no longer needs a temporary creation position to discover PerMonitorV2 DPI.
+- Compute the fixed 820x620 logical client area's exact DPI-aware outer size before creating the real Settings window.
+- Compute and clamp the final Center/Last rectangle before real HWND creation.
+- Create the actual Settings HWND directly at that final rectangle, eliminating the monitor-origin birth rectangle from USER32/DWM placement state.
+- Verify actual HWND DPI and outer size after creation and only perform hidden correction if Windows resolved a different DPI context.
+- Keep `PositionForShow()` as a final hidden/current-position clamp, while preserving alpha.3.18 `SW_SHOW` semantics and hide-before-destroy closing.
+- Preserve alpha.3.16 update-status repaint reliability, destroy-on-close, About Show-first ordering and all frozen shortcut/search behavior.
+- Preserve Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.49`.
+
 ## 0.8.0-alpha.3.18
 
 - Removed the remaining synthetic Settings `SW_HIDE -> SW_SHOWNORMAL` first-show lifecycle.

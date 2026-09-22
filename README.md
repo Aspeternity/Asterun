@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.19 — Settings Birth-Rect Synchronization
+
+Alpha 3.19 removes the last real upper-left placement from the Settings HWND lifecycle instead of trying to mask it later with ShowWindow ordering.
+
+The audit found that alpha.3.18 still created the actual Settings top-level HWND at the target monitor work-area origin. It was hidden and immediately moved to Center/Last afterwards, but that monitor-origin rectangle still existed as the window's creation/normal-transition state. This differs from the stable Shortcut Manager path, which restores complete native placement state. It also explains why an upper-left frame could survive several later fixes even though the visible SetWindowPos/Show/close sequence looked correct.
+
+The real Settings HWND is now created only after its target monitor, DPI, fixed-client outer size and final Center/Last rectangle are known. A never-visible 1x1 `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE` probe is created on the target monitor solely to obtain that monitor's DPI through `GetDpiForWindow`, then destroyed before the Settings HWND exists. The actual Settings top-level window is created with `CreateWindowExW` directly at its final rectangle with the exact DPI-aware outer size for the 820x620 logical client area.
+
+After creation, Settings verifies the actual HWND DPI/outer size and performs only hidden correction if Windows resolved a different DPI context. `PositionForShow()` still provides final Center/Last clamping, but there is no longer any real Settings HWND whose birth rectangle is the monitor upper-left corner.
+
+Alpha.3.18's `SW_SHOW` current-rectangle semantics and hide-before-destroy close path remain unchanged, as do the alpha.3.16 owner-draw update-status repaint fix, destroy-on-close behavior, About Show-first routing and all frozen Shortcut Editor/Manager/search behavior. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.49`.
+
 ## v0.8.0-alpha.3.18 — Settings Native Show/Close Lifecycle Cleanup
 
 Alpha 3.18 removes the last synthetic first-show workaround from Settings and aligns the window lifecycle with the proven native behavior already used by Shortcut Manager.
