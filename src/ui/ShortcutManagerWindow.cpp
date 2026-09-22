@@ -105,6 +105,12 @@ ShortcutManagerWindow::
             semiboldFont_);
         semiboldFont_ = nullptr;
     }
+
+    if (headerFont_) {
+        DeleteObject(
+            headerFont_);
+        headerFont_ = nullptr;
+    }
 }
 
 const wchar_t*
@@ -165,8 +171,8 @@ bool ShortcutManagerWindow::Create() {
             WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        980,
-        650,
+        900,
+        560,
         nullptr,
         nullptr,
         instance_,
@@ -183,8 +189,8 @@ bool ShortcutManagerWindow::Create() {
         nullptr,
         0,
         0,
-        Scale(980),
-        Scale(650),
+        Scale(900),
+        Scale(560),
         SWP_NOMOVE |
             SWP_NOZORDER |
             SWP_NOACTIVATE);
@@ -224,12 +230,13 @@ void ShortcutManagerWindow::CreateControls() {
     // Create controls in visual/tab order:
     // search -> new -> list -> global tool -> selected-item actions.
     filter_ = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
+        0,
         L"EDIT",
         L"",
         WS_CHILD |
             WS_VISIBLE |
             WS_TABSTOP |
+            WS_BORDER |
             ES_AUTOHSCROLL,
         0,
         0,
@@ -247,12 +254,13 @@ void ShortcutManagerWindow::CreateControls() {
         kIdAdd);
 
     list_ = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
+        0,
         WC_LISTVIEWW,
         L"",
         WS_CHILD |
             WS_VISIBLE |
             WS_TABSTOP |
+            WS_BORDER |
             LVS_REPORT |
             LVS_SINGLESEL |
             LVS_SHOWSELALWAYS,
@@ -394,13 +402,10 @@ void ShortcutManagerWindow::ApplyLanguage() {
         T(L"路径转换…",
           L"Path conversion…"));
 
-    SendMessageW(
+    InvalidateRect(
         filter_,
-        EM_SETCUEBANNER,
-        TRUE,
-        reinterpret_cast<LPARAM>(
-            T(L"搜索快捷项",
-              L"Search shortcuts")));
+        nullptr,
+        TRUE);
 
     const std::array<const wchar_t*, 4>
         labels{
@@ -626,7 +631,7 @@ void ShortcutManagerWindow::Layout() {
         &client);
 
     const int margin =
-        Scale(18);
+        Scale(16);
     const int gap =
         Scale(10);
     const int buttonHeight =
@@ -635,7 +640,7 @@ void ShortcutManagerWindow::Layout() {
                 kStandardControlHeightLogical);
 
     const int newButtonWidth =
-        Scale(120);
+        Scale(112);
     const int topY =
         margin;
 
@@ -653,28 +658,10 @@ void ShortcutManagerWindow::Layout() {
                 newButtonWidth -
                 gap);
 
-    MoveWindow(
-        filter_,
-        margin,
-        topY,
-        filterWidth,
-        buttonHeight,
-        TRUE);
-
-    MoveWindow(
-        add_,
-        margin +
-            filterWidth +
-            gap,
-        topY,
-        newButtonWidth,
-        buttonHeight,
-        TRUE);
-
     const int listY =
         topY +
         buttonHeight +
-        Scale(12);
+        Scale(10);
 
     const int bottomButtonY =
         client.bottom -
@@ -683,73 +670,127 @@ void ShortcutManagerWindow::Layout() {
 
     const int listBottom =
         bottomButtonY -
-        Scale(12);
+        Scale(10);
 
-    MoveWindow(
+    const int listHeight =
+        std::max(
+            Scale(120),
+            listBottom -
+                listY);
+
+    const int pathButtonWidth =
+        Scale(108);
+    const int actionWidth =
+        Scale(80);
+    const int actionGap =
+        Scale(8);
+
+    int deleteX =
+        client.right -
+        margin -
+        actionWidth;
+    const int editX =
+        deleteX -
+        actionGap -
+        actionWidth;
+    const int testX =
+        editX -
+        actionGap -
+        actionWidth;
+
+    HDWP defer =
+        BeginDeferWindowPos(7);
+
+    const auto move =
+        [&](HWND control,
+            int x,
+            int y,
+            int width,
+            int height) {
+            if (!defer ||
+                !control) {
+                return;
+            }
+
+            defer =
+                DeferWindowPos(
+                    defer,
+                    control,
+                    nullptr,
+                    x,
+                    y,
+                    width,
+                    height,
+                    SWP_NOZORDER |
+                        SWP_NOACTIVATE |
+                        SWP_NOCOPYBITS);
+        };
+
+    move(
+        filter_,
+        margin,
+        topY,
+        filterWidth,
+        buttonHeight);
+
+    move(
+        add_,
+        margin +
+            filterWidth +
+            gap,
+        topY,
+        newButtonWidth,
+        buttonHeight);
+
+    move(
         list_,
         margin,
         listY,
         availableWidth,
-        std::max(
-            Scale(120),
-            listBottom -
-                listY),
-        TRUE);
+        listHeight);
 
-    const int pathButtonWidth =
-        Scale(116);
-
-    MoveWindow(
+    move(
         pathConversion_,
         margin,
         bottomButtonY,
         pathButtonWidth,
-        buttonHeight,
-        TRUE);
+        buttonHeight);
 
-    const int actionWidth =
-        Scale(84);
-    const int actionGap =
-        Scale(8);
-
-    int actionX =
-        client.right -
-        margin -
-        actionWidth;
-
-    MoveWindow(
-        delete_,
-        actionX,
-        bottomButtonY,
-        actionWidth,
-        buttonHeight,
-        TRUE);
-
-    actionX -=
-        actionWidth +
-        actionGap;
-
-    MoveWindow(
-        edit_,
-        actionX,
-        bottomButtonY,
-        actionWidth,
-        buttonHeight,
-        TRUE);
-
-    actionX -=
-        actionWidth +
-        actionGap;
-
-    MoveWindow(
+    move(
         test_,
-        actionX,
+        testX,
         bottomButtonY,
         actionWidth,
-        buttonHeight,
-        TRUE);
+        buttonHeight);
+
+    move(
+        edit_,
+        editX,
+        bottomButtonY,
+        actionWidth,
+        buttonHeight);
+
+    move(
+        delete_,
+        deleteX,
+        bottomButtonY,
+        actionWidth,
+        buttonHeight);
+
+    if (defer) {
+        EndDeferWindowPos(defer);
+    }
 
     UpdateColumnWidths();
+
+    RedrawWindow(
+        hwnd_,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
 }
 
 void ShortcutManagerWindow::RecreateFonts() {
@@ -765,18 +806,42 @@ void ShortcutManagerWindow::RecreateFonts() {
         semiboldFont_ = nullptr;
     }
 
+    if (headerFont_) {
+        DeleteObject(
+            headerFont_);
+        headerFont_ = nullptr;
+    }
+
+    const auto language =
+        app_.SettingsData().language;
+
     font_ =
         ui::CreateFontHandle(
             ui::ApplicationFontSpec(
-                app_.SettingsData().language,
+                language,
                 ui::UiFontRole::Body),
             dpi_);
 
     semiboldFont_ =
         ui::CreateFontHandle(
             ui::ApplicationFontSpec(
-                app_.SettingsData().language,
+                language,
                 ui::UiFontRole::BodySemibold),
+            dpi_);
+
+    auto headerSpec =
+        ui::ApplicationFontSpec(
+            language,
+            ui::UiFontRole::Body);
+
+    headerSpec.pointSize =
+        std::max(
+            8,
+            headerSpec.pointSize - 1);
+
+    headerFont_ =
+        ui::CreateFontHandle(
+            headerSpec,
             dpi_);
 
     for (HWND control :
@@ -806,7 +871,9 @@ void ShortcutManagerWindow::RecreateFonts() {
                 header,
                 WM_SETFONT,
                 reinterpret_cast<WPARAM>(
-                    font_),
+                    headerFont_
+                        ? headerFont_
+                        : font_),
                 TRUE);
         }
     }
@@ -829,10 +896,13 @@ RebuildRowHeightImageList() {
             nullptr;
     }
 
+    const int rowHeight =
+        Scale(24);
+
     rowHeightImageList_ =
         ImageList_Create(
             1,
-            Scale(30),
+            rowHeight,
             ILC_COLOR32,
             1,
             1);
@@ -844,7 +914,7 @@ RebuildRowHeightImageList() {
     HBITMAP spacer =
         CreateBitmap(
             1,
-            Scale(30),
+            rowHeight,
             1,
             32,
             nullptr);
@@ -874,24 +944,30 @@ UpdateColumnWidths() {
         list_,
         &client);
 
-    const int keywords =
-        Scale(210);
-    const int name =
-        Scale(180);
-    const int type =
-        Scale(90);
-    const int minimumTarget =
-        Scale(220);
+    int contentWidth =
+        client.right -
+        client.left;
 
+    contentWidth =
+        std::max(
+            Scale(360),
+            contentWidth);
+
+    // Four real columns only. The final Target column always consumes the
+    // exact remainder so resize never exposes a fake fifth header cell.
+    const int keywords =
+        contentWidth * 22 / 100;
+    const int name =
+        contentWidth * 26 / 100;
+    const int type =
+        contentWidth * 12 / 100;
     const int target =
         std::max(
-            minimumTarget,
-            static_cast<int>(
-                client.right) -
+            1,
+            contentWidth -
                 keywords -
                 name -
-                type -
-                Scale(4));
+                type);
 
     ListView_SetColumnWidth(
         list_,
@@ -948,8 +1024,6 @@ DrawActionButton(
             GetDlgCtrlID(
                 item.hwndItem));
 
-    const bool primary =
-        id == kIdAdd;
     const bool danger =
         id == kIdDelete;
     const bool disabled =
@@ -960,40 +1034,25 @@ DrawActionButton(
          ODS_SELECTED) != 0;
 
     COLORREF fillColor =
-        palette.controlBackground;
+        pressed && !disabled
+            ? palette.pressedBackground
+            : palette.controlBackground;
     COLORREF borderColor =
         palette.frame;
     COLORREF textColor =
-        palette.text;
+        disabled
+            ? palette.mutedText
+            : danger
+                ? RGB(190, 45, 45)
+                : palette.text;
 
-    if (primary) {
+    if (danger &&
+        pressed &&
+        !disabled) {
         fillColor =
-            disabled
-                ? RGB(196, 205, 214)
-                : pressed
-                    ? RGB(0, 99, 177)
-                    : palette.accent;
+            RGB(255, 244, 244);
         borderColor =
-            fillColor;
-        textColor =
-            RGB(255, 255, 255);
-    } else if (danger) {
-        textColor =
-            disabled
-                ? palette.mutedText
-                : RGB(190, 45, 45);
-        borderColor =
-            disabled
-                ? palette.frame
-                : RGB(226, 185, 185);
-        fillColor =
-            pressed && !disabled
-                ? RGB(255, 244, 244)
-                : palette.controlBackground;
-    } else if (pressed &&
-               !disabled) {
-        fillColor =
-            palette.pressedBackground;
+            RGB(226, 185, 185);
     }
 
     RECT rect =
@@ -1069,9 +1128,7 @@ DrawActionButton(
     HGDIOBJ oldFont =
         SelectObject(
             item.hDC,
-            primary && semiboldFont_
-                ? semiboldFont_
-                : font_);
+            font_);
 
     RECT textRect =
         surface;
@@ -1116,73 +1173,149 @@ HandleListCustomDraw(
         return CDRF_DODEFAULT;
     }
 
+    if (draw->nmcd.dwDrawStage !=
+        CDDS_PREPAINT &&
+        draw->nmcd.dwDrawStage !=
+            CDDS_ITEMPREPAINT) {
+        return CDRF_DODEFAULT;
+    }
+
+    if (draw->nmcd.dwDrawStage ==
+        CDDS_PREPAINT) {
+        return CDRF_NOTIFYITEMDRAW;
+    }
+
     const auto& palette =
         ui::kApplicationPalette;
+    const int itemIndex =
+        static_cast<int>(
+            draw->nmcd.dwItemSpec);
 
-    switch (draw->nmcd.dwDrawStage) {
-    case CDDS_PREPAINT:
-        return CDRF_NOTIFYITEMDRAW;
-
-    case CDDS_ITEMPREPAINT: {
-        const bool selected =
-            (draw->nmcd.uItemState &
-             CDIS_SELECTED) != 0;
-
-        draw->clrText =
-            selected
-                ? palette.selectionText
-                : palette.text;
-        draw->clrTextBk =
-            selected
-                ? palette.selectionBackground
-                : palette.controlBackground;
-
-        return CDRF_NOTIFYPOSTPAINT;
+    RECT row{};
+    if (!ListView_GetItemRect(
+            list_,
+            itemIndex,
+            &row,
+            LVIR_BOUNDS)) {
+        return CDRF_DODEFAULT;
     }
 
-    case CDDS_ITEMPOSTPAINT: {
-        RECT row{};
-        const int itemIndex =
-            static_cast<int>(
-                draw->nmcd.dwItemSpec);
+    RECT client{};
+    GetClientRect(
+        list_,
+        &client);
+    row.right =
+        client.right;
 
-        if (ListView_GetItemRect(
+    const bool selected =
+        (ListView_GetItemState(
+             list_,
+             itemIndex,
+             LVIS_SELECTED) &
+         LVIS_SELECTED) != 0;
+
+    const COLORREF backgroundColor =
+        selected
+            ? palette.selectionBackground
+            : palette.controlBackground;
+
+    HBRUSH background =
+        CreateSolidBrush(
+            backgroundColor);
+    FillRect(
+        draw->nmcd.hdc,
+        &row,
+        background);
+    DeleteObject(
+        background);
+
+    SetBkMode(
+        draw->nmcd.hdc,
+        TRANSPARENT);
+    SetTextColor(
+        draw->nmcd.hdc,
+        selected
+            ? palette.selectionText
+            : palette.text);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            draw->nmcd.hdc,
+            font_);
+
+    int x =
+        row.left;
+
+    for (int column = 0;
+         column < 4;
+         ++column) {
+        const int width =
+            ListView_GetColumnWidth(
                 list_,
-                itemIndex,
-                &row,
-                LVIR_BOUNDS)) {
-            HPEN separator =
-                CreatePen(
-                    PS_SOLID,
-                    1,
-                    palette.separator);
-            HGDIOBJ oldPen =
-                SelectObject(
-                    draw->nmcd.hdc,
-                    separator);
+                column);
 
-            MoveToEx(
-                draw->nmcd.hdc,
-                row.left,
-                row.bottom - 1,
-                nullptr);
-            LineTo(
-                draw->nmcd.hdc,
-                row.right,
-                row.bottom - 1);
+        RECT cell{
+            x + Scale(6),
+            row.top,
+            x +
+                width -
+                Scale(6),
+            row.bottom,
+        };
 
-            SelectObject(
-                draw->nmcd.hdc,
-                oldPen);
-            DeleteObject(separator);
-        }
+        wchar_t text[1024]{};
+        ListView_GetItemText(
+            list_,
+            itemIndex,
+            column,
+            text,
+            static_cast<int>(
+                std::size(text)));
 
-        return CDRF_DODEFAULT;
+        DrawTextW(
+            draw->nmcd.hdc,
+            text,
+            -1,
+            &cell,
+            DT_LEFT |
+                DT_VCENTER |
+                DT_SINGLELINE |
+                DT_END_ELLIPSIS |
+                DT_NOPREFIX);
+
+        x += width;
     }
 
-    default:
-        return CDRF_DODEFAULT;
-    }
+    SelectObject(
+        draw->nmcd.hdc,
+        oldFont);
+
+    HPEN separator =
+        CreatePen(
+            PS_SOLID,
+            1,
+            palette.separator);
+    HGDIOBJ oldPen =
+        SelectObject(
+            draw->nmcd.hdc,
+            separator);
+
+    MoveToEx(
+        draw->nmcd.hdc,
+        row.left,
+        row.bottom - 1,
+        nullptr);
+    LineTo(
+        draw->nmcd.hdc,
+        row.right,
+        row.bottom - 1);
+
+    SelectObject(
+        draw->nmcd.hdc,
+        oldPen);
+    DeleteObject(separator);
+
+    return CDRF_SKIPDEFAULT;
 }
 
 bool ShortcutManagerWindow::
@@ -1680,6 +1813,79 @@ ChildSubclassProc(
             hwnd,
             wParam)) {
         return 0;
+    }
+
+    if (self &&
+        hwnd == self->filter_) {
+        if (message == WM_SETFOCUS ||
+            message == WM_KILLFOCUS ||
+            message == WM_SETTEXT) {
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                TRUE);
+        }
+
+        if (message == WM_PAINT) {
+            const LRESULT result =
+                DefSubclassProc(
+                    hwnd,
+                    message,
+                    wParam,
+                    lParam);
+
+            if (WindowText(hwnd).empty()) {
+                HDC dc =
+                    GetDC(hwnd);
+
+                if (dc) {
+                    RECT rect{};
+                    GetClientRect(
+                        hwnd,
+                        &rect);
+
+                    rect.left +=
+                        self->Scale(10);
+                    rect.right -=
+                        self->Scale(8);
+
+                    SetBkMode(
+                        dc,
+                        TRANSPARENT);
+                    SetTextColor(
+                        dc,
+                        ui::
+                            kApplicationPalette
+                                .mutedText);
+
+                    HGDIOBJ oldFont =
+                        SelectObject(
+                            dc,
+                            self->font_);
+
+                    DrawTextW(
+                        dc,
+                        self->T(
+                            L"搜索快捷项",
+                            L"Search shortcuts"),
+                        -1,
+                        &rect,
+                        DT_LEFT |
+                            DT_VCENTER |
+                            DT_SINGLELINE |
+                            DT_NOPREFIX);
+
+                    SelectObject(
+                        dc,
+                        oldFont);
+                    ReleaseDC(
+                        hwnd,
+                        dc);
+                }
+            }
+
+            return result;
+        }
     }
 
     if (message == WM_NCDESTROY) {

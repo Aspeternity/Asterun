@@ -113,6 +113,7 @@ private:
     HWND list_{};
     HFONT font_{};
     HFONT semiboldFont_{};
+    HFONT headerFont_{};
     HIMAGELIST rowHeightImageList_{};
     UINT dpi_{96};
     std::vector<std::wstring>

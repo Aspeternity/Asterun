@@ -42,6 +42,155 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.2 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.2 must keep provider-cache schemaVersion 2")
+
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+
+    for token in (
+        "Scale(900)",
+        "Scale(560)",
+        "Scale(720)",
+        "Scale(480)",
+        "BeginDeferWindowPos(7)",
+        "DeferWindowPos(",
+        "SWP_NOCOPYBITS",
+        "RDW_ALLCHILDREN",
+        "RDW_UPDATENOW",
+        "Scale(24)",
+        "headerSpec.pointSize - 1",
+        "contentWidth * 22 / 100",
+        "contentWidth * 26 / 100",
+        "contentWidth * 12 / 100",
+        "contentWidth -",
+        "CDRF_SKIPDEFAULT",
+        "palette.selectionBackground",
+        "palette.controlBackground",
+        "Search shortcuts",
+        "hwnd == self->filter_",
+        "message == WM_PAINT",
+        "WS_BORDER",
+    ):
+        if token not in manager_cpp and token not in manager_h:
+            fail(f"v0.8 alpha.3.2 Shortcut Manager polish missing: {token}")
+
+    for token in (
+        "Scale(980)",
+        "Scale(650)",
+        "Scale(30)",
+        "WS_EX_CLIENTEDGE",
+        "EM_SETCUEBANNER",
+        "const bool primary",
+        "palette.accent;",
+        "LVS_EX_GRIDLINES",
+        "kIdClose",
+        "close_",
+    ):
+        if token in manager_cpp or token in manager_h:
+            fail(f"v0.8 alpha.3.2 obsolete Manager behavior returned: {token}")
+
+    if manager_cpp.count("ListView_InsertColumn(") != 1:
+        fail("v0.8 alpha.3.2 column creation helper changed unexpectedly")
+    for token in (
+        "addColumn(\n        0,",
+        "addColumn(\n        1,",
+        "addColumn(\n        2,",
+        "addColumn(\n        3,",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.2 four-column contract missing: {token}")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    path_converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    for token in (
+        "RuntimeInputMode",
+        "Advanced",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.2 Shortcut Editor baseline missing: {token}")
+    if "ShortcutPathConverterDialog::Show" not in path_converter_cpp:
+        fail("v0.8 alpha.3.2 Path Conversion implementation missing")
+
+    hotkey_registry = (
+        read("src/core/HotkeyRegistry.hpp") +
+        read("src/core/HotkeyRegistry.cpp")
+    )
+    for token in (
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    ):
+        if token not in hotkey_registry:
+            fail(f"v0.8 alpha.3.2 Hotkey Registry ID changed/missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.1"',
+        '"0.8.0-alpha.3.2"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.2 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.2 — Shortcut Manager Real-world Polish",
+        "0.8.0.32",
+        "DeferWindowPos",
+        "24 logical pixels",
+        "exactly four columns",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.2 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.2",
+        "0.8.0.32",
+        "24 logical pixels",
+        "pseudo-fifth header area",
+        "custom-drawn",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.2 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.2",
+        "v0.8.0-alpha.3.3",
+        "v0.8.0-alpha.3.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.2 Shortcut Manager polish verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| default=900x560 resizable",
+        "| rows=24px",
+        "| columns=4 exact-fill",
+        "| resize=deferred/no-copybits/full-redraw",
+        "| selection=custom light accent",
+        "| search=custom placeholder",
+        "| Editor/Path Conversion semantics untouched",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

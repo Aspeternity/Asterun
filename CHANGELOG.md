@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.0-alpha.3.2
+
+- Fixed repeated Shortcut Manager resize artifacts by batching child moves with DeferWindowPos / SWP_NOCOPYBITS and redrawing the parent plus all children once per layout pass.
+- Reduced the default Manager size from 980×650 to 900×560 logical pixels while keeping free resize, maximize and the 720×480 minimum.
+- Reduced shortcut row height from 30 to 24 logical pixels for large collections.
+- Replaced the inconsistent native selection rendering with explicit white normal rows and one restrained light-blue selected row.
+- Made the table exactly four responsive columns: 22% Keywords, 26% Name, 12% Type and the exact remaining width for Target.
+- Removed the empty right-side pseudo-fifth header area and normal-layout horizontal overflow.
+- Added a slightly smaller shared header font for denser table rhythm.
+- Replaced the unreliable native cue banner with a custom-drawn **搜索快捷项 / Search shortcuts** placeholder.
+- Changed the search field from a recessed client-edge surface to a compact thin-border edit.
+- Demoted New from a solid accent CTA to the standard restrained white Manager action surface.
+- Kept Delete semantic-red text but removed its permanent red outline.
+- Preserved all alpha.3.1 keyboard/context actions and every frozen v0.7 functional contract.
+- Kept Shortcut Editor and Path Conversion internals unchanged.
+- Kept Settings schemaVersion 8; updated Windows fixed FileVersion/ProductVersion to `0.8.0.32`.
+
 ## 0.8.0-alpha.3.1
 
 - Reorganized Shortcut Manager into a top search + primary New action, central dense ListView, and bottom action row.
