@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.11 — Hotkey Auxiliary State Polish
+
+Alpha 2.11 refines the Hotkey page's temporary/secondary states without changing capture, validation, conflict detection, registration or reset behavior.
+
+Per-item **恢复默认 / Reset** is now an owner-drawn lightweight text action with no bordered button surface and a hand cursor, aligned directly below the shortcut capture column. Capture and validation/registration messages use the same right-side auxiliary column instead of stretching across the left action-label area. Auxiliary content is padded away from row separators, so text no longer sits on or overlaps a border line.
+
+Rows now measure status text at the actual right-side auxiliary width and expand only as much as needed, with bounded padding for wrapped error messages. Auxiliary states have a strict priority: capture/error status hides the per-item Reset link until that status clears, preventing stacked controls in the same row. Normal rows remain 54 logical pixels and the validated capture/switch alignment stays unchanged. The Reset-all button remains lower-right with a slightly tighter gap to the compact launcher card.
+
+No persisted schema, Hotkey Registry ID, capture/conflict/global-registration behavior, Provider behavior, updater contract, search/ranking behavior, Everything lifecycle, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.31`.
+
 ## v0.8.0-alpha.2.10 — Hotkey Typography & Density Polish
 
 Alpha 2.10 closes the remaining visual mismatch on the Settings Hotkeys page without changing any Hotkey Registry ID or execution behavior.

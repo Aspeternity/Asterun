@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.2.11
+
+- Replaced the bordered per-item **恢复默认 / Reset** button with a lightweight owner-drawn text action and hand cursor.
+- Moved capture/validation/registration messages into the shortcut-control column below the capture button instead of the action-label area.
+- Added explicit top/bottom padding inside auxiliary rows so helper text no longer touches or crosses row separators.
+- Measured wrapped status text at the actual right-side auxiliary width and expanded only the active row as needed.
+- Gave capture/error status priority over per-item Reset so auxiliary controls never stack in the same row.
+- Kept normal Hotkey rows at 54 logical pixels and preserved capture-button/switch alignment.
+- Tightened the Reset-all button's gap below the launcher card without changing its lower-right placement.
+- Preserved Settings schemaVersion 8 and every frozen Hotkey Registry/capture/conflict/global-registration contract.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.31`.
+
 ## 0.8.0-alpha.2.10
 
 - Changed Hotkey action labels from section-title typography to the normal Settings body font while preserving section-title typography for group headings.

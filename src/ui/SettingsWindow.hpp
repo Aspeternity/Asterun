@@ -223,6 +223,9 @@ private:
     HotkeyRowHasAuxiliaryContent(
         const HotkeyRowControls& row) const;
     [[nodiscard]] int
+    HotkeyAuxiliaryHeight(
+        const HotkeyRowControls& row) const;
+    [[nodiscard]] int
     HotkeyRowHeight(
         const HotkeyRowControls& row) const;
     [[nodiscard]] int
@@ -248,6 +251,8 @@ private:
     void DrawNavigationButton(
         const DRAWITEMSTRUCT& item);
     void DrawActionButton(
+        const DRAWITEMSTRUCT& item);
+    void DrawHotkeyResetLink(
         const DRAWITEMSTRUCT& item);
     void DrawGitHubLink(
         const DRAWITEMSTRUCT& item);

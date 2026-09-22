@@ -42,6 +42,112 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.2.11":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.11 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.11 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "HotkeyAuxiliaryHeight",
+        "DrawHotkeyResetLink",
+        "Scale(224)",
+        "textHeight +\n                Scale(10)",
+        "modified &&\n            !showStatus",
+        'T(L"按下新组合键，Esc 取消",',
+        "const int auxiliaryWidth =",
+        "captureX,\n                auxiliaryTop +\n                    Scale(4)",
+        "row.reset,\n                captureX",
+        "kIdHotkeyResetBase",
+        "IDC_HAND",
+        "launcherCardBottom +\n                Scale(14)",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.11 Hotkey auxiliary contract missing: {token}")
+
+    if "Scale(54)" not in settings_cpp[
+        settings_cpp.find("if (page_ == Page::Hotkeys) {",
+                          settings_cpp.find("void SettingsWindow::Layout()")):
+        settings_cpp.find("if (page_ == Page::Providers) {",
+                          settings_cpp.find("void SettingsWindow::Layout()"))
+    ]:
+        fail("v0.8 alpha.2.11 must keep 54px normal Hotkey rows")
+
+    hotkey_registry = (
+        read("src/core/HotkeyRegistry.hpp") +
+        read("src/core/HotkeyRegistry.cpp")
+    )
+    for token in (
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    ):
+        if token not in hotkey_registry:
+            fail(f"v0.8 alpha.2.11 Hotkey Registry ID changed/missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.10"',
+        '"0.8.0-alpha.2.11"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.11 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.11 — Hotkey Auxiliary State Polish",
+        "0.8.0.31",
+        "lightweight text action",
+        "right-side auxiliary column",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.11 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.11",
+        "0.8.0.31",
+        "owner-drawn text action",
+        "capture/error status priority",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.11 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.11",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.11 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.11 Hotkey auxiliary-state contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| per-item Reset=lightweight link",
+        "| helper text=right auxiliary column",
+        "| separator-safe measured expansion",
+        "| auxiliary priority=status before reset",
+        "| hotkey behavior/IDs unchanged",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.10":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

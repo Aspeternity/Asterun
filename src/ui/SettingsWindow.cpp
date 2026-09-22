@@ -1711,6 +1711,13 @@ void SettingsWindow::SetHotkeyRowStatus(
             ? SW_HIDE
             : SW_SHOW);
 
+    if (!status.empty() &&
+        row->reset) {
+        ShowWindow(
+            row->reset,
+            SW_HIDE);
+    }
+
     if (page_ == Page::Hotkeys) {
         Layout();
         InvalidateRect(
@@ -1739,18 +1746,88 @@ HotkeyRowHasAuxiliaryContent(
         hasVisibleStyle(row.reset);
 }
 
+int SettingsWindow::HotkeyAuxiliaryHeight(
+    const HotkeyRowControls& row) const {
+
+    if (!HotkeyRowHasAuxiliaryContent(
+            row)) {
+        return 0;
+    }
+
+    const bool statusVisible =
+        row.status &&
+        (static_cast<DWORD_PTR>(
+            GetWindowLongPtrW(
+                row.status,
+                GWL_STYLE)) &
+         WS_VISIBLE) != 0;
+
+    if (!statusVisible) {
+        return Scale(30);
+    }
+
+    wchar_t buffer[512]{};
+    GetWindowTextW(
+        row.status,
+        buffer,
+        static_cast<int>(
+            std::size(buffer)));
+
+    int textHeight =
+        Scale(20);
+
+    if (HDC dc = GetDC(hwnd_)) {
+        HGDIOBJ oldFont =
+            SelectObject(
+                dc,
+                normalFont_);
+
+        RECT measured{
+            0,
+            0,
+            Scale(224),
+            0,
+        };
+
+        DrawTextW(
+            dc,
+            buffer,
+            -1,
+            &measured,
+            DT_LEFT |
+                DT_WORDBREAK |
+                DT_CALCRECT |
+                DT_NOPREFIX);
+
+        textHeight =
+            std::max(
+                textHeight,
+                static_cast<int>(
+                    measured.bottom -
+                    measured.top));
+
+        SelectObject(
+            dc,
+            oldFont);
+        ReleaseDC(
+            hwnd_,
+            dc);
+    }
+
+    return std::min(
+        Scale(72),
+        std::max(
+            Scale(30),
+            textHeight +
+                Scale(10)));
+}
+
 int SettingsWindow::HotkeyRowHeight(
     const HotkeyRowControls& row) const {
 
-    const int baseHeight =
-        Scale(54);
-    const int auxiliaryHeight =
-        Scale(18);
-
-    return baseHeight +
-        (HotkeyRowHasAuxiliaryContent(row)
-             ? auxiliaryHeight
-             : 0);
+    return
+        Scale(54) +
+        HotkeyAuxiliaryHeight(row);
 }
 
 int SettingsWindow::HotkeyGroupHeight(
@@ -1856,19 +1933,12 @@ void SettingsWindow::RefreshHotkeyPage() {
             T(L"恢复默认",
               L"Reset"));
 
-        ShowWindow(
-            row.reset,
-            page_ == Page::Hotkeys &&
-                    modified
-                ? SW_SHOW
-                : SW_HIDE);
-
         std::wstring status;
 
         if (capturing) {
             status =
-                T(L"按下新的组合键；Esc 取消。",
-                  L"Press a new key combination; Esc cancels.");
+                T(L"按下新组合键，Esc 取消",
+                  L"Press a new shortcut; Esc cancels");
         } else if (
             binding.enabled &&
             action->scope ==
@@ -1884,14 +1954,30 @@ void SettingsWindow::RefreshHotkeyPage() {
                         row.actionId));
         }
 
+        const bool showStatus =
+            page_ == Page::Hotkeys &&
+            !status.empty();
+
+        // Auxiliary states have a strict priority so a row never stacks
+        // capture/error copy and the per-item Reset action at the same time.
+        const bool showReset =
+            page_ == Page::Hotkeys &&
+            modified &&
+            !showStatus;
+
         SetWindowTextW(
             row.status,
             status.c_str());
 
         ShowWindow(
             row.status,
-            page_ == Page::Hotkeys &&
-                    !status.empty()
+            showStatus
+                ? SW_SHOW
+                : SW_HIDE);
+
+        ShowWindow(
+            row.reset,
+            showReset
                 ? SW_SHOW
                 : SW_HIDE);
     }
@@ -3852,8 +3938,6 @@ void SettingsWindow::Layout() {
             contentLeft + width;
         const int baseRowHeight =
             Scale(54);
-        const int auxiliaryHeight =
-            Scale(18);
         const int captureWidth =
             Scale(166);
         const int toggleWidth =
@@ -3969,42 +4053,35 @@ void SettingsWindow::Layout() {
                     TRUE);
             }
 
-            const bool resetVisible =
-                row.reset &&
-                (static_cast<DWORD_PTR>(
-                    GetWindowLongPtrW(
-                        row.reset,
-                        GWL_STYLE)) &
-                 WS_VISIBLE) != 0;
-
             const int auxiliaryTop =
                 top +
                 baseRowHeight;
-            const int statusRight =
-                resetVisible
-                    ? captureX -
-                        Scale(12)
-                    : cardRight -
-                        inner;
+            const int auxiliaryHeight =
+                HotkeyAuxiliaryHeight(row);
+            const int auxiliaryWidth =
+                cardRight -
+                inner -
+                captureX;
 
             MoveWindow(
                 row.status,
-                cardLeft + inner,
-                auxiliaryTop,
+                captureX,
+                auxiliaryTop +
+                    Scale(4),
+                auxiliaryWidth,
                 std::max(
-                    Scale(160),
-                    statusRight -
-                        cardLeft -
-                        inner),
-                auxiliaryHeight,
+                    Scale(22),
+                    auxiliaryHeight -
+                        Scale(8)),
                 TRUE);
 
             MoveWindow(
                 row.reset,
                 captureX,
-                auxiliaryTop,
-                Scale(78),
-                auxiliaryHeight,
+                auxiliaryTop +
+                    Scale(2),
+                Scale(84),
+                Scale(26),
                 TRUE);
 
             if (global) {
@@ -4030,7 +4107,7 @@ void SettingsWindow::Layout() {
                 inner -
                 resetAllWidth,
             launcherCardBottom +
-                Scale(16),
+                Scale(14),
             resetAllWidth,
             Scale(34),
             TRUE);
@@ -5042,6 +5119,119 @@ void SettingsWindow::DrawHotkeyToggle(
         binding.enabled,
         pressed || focused);
 }
+
+void SettingsWindow::DrawHotkeyResetLink(
+    const DRAWITEMSTRUCT& item) {
+
+    RECT rect =
+        item.rcItem;
+
+    HBRUSH background =
+        CreateSolidBrush(
+            kCardBackground);
+    FillRect(
+        item.hDC,
+        &rect,
+        background);
+    DeleteObject(
+        background);
+
+    const bool disabled =
+        (item.itemState &
+         ODS_DISABLED) != 0;
+    const bool pressed =
+        (item.itemState &
+         ODS_SELECTED) != 0;
+    const bool focused =
+        (item.itemState &
+         ODS_FOCUS) != 0;
+
+    const COLORREF textColor =
+        disabled
+            ? RGB(155, 162, 171)
+            : pressed
+                ? RGB(0, 99, 177)
+                : kAccent;
+
+    wchar_t buffer[64]{};
+    GetWindowTextW(
+        item.hwndItem,
+        buffer,
+        static_cast<int>(
+            std::size(buffer)));
+
+    SetBkMode(
+        item.hDC,
+        TRANSPARENT);
+    SetTextColor(
+        item.hDC,
+        textColor);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            item.hDC,
+            normalFont_);
+
+    RECT textRect =
+        rect;
+
+    DrawTextW(
+        item.hDC,
+        buffer,
+        -1,
+        &textRect,
+        DT_LEFT |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_NOPREFIX);
+
+    if (focused) {
+        SIZE size{};
+        if (GetTextExtentPoint32W(
+                item.hDC,
+                buffer,
+                lstrlenW(buffer),
+                &size)) {
+            HPEN underline =
+                CreatePen(
+                    PS_SOLID,
+                    1,
+                    kAccent);
+            HGDIOBJ oldPen =
+                SelectObject(
+                    item.hDC,
+                    underline);
+
+            const int y =
+                rect.top +
+                (rect.bottom -
+                 rect.top +
+                 size.cy) / 2;
+
+            MoveToEx(
+                item.hDC,
+                rect.left,
+                y,
+                nullptr);
+            LineTo(
+                item.hDC,
+                rect.left +
+                    size.cx,
+                y);
+
+            SelectObject(
+                item.hDC,
+                oldPen);
+            DeleteObject(
+                underline);
+        }
+    }
+
+    SelectObject(
+        item.hDC,
+        oldFont);
+}
+
 
 void SettingsWindow::DrawActionButton(
     const DRAWITEMSTRUCT& item) {
@@ -6158,10 +6348,24 @@ LRESULT SettingsWindow::HandleMessage(
         };
 
     switch (message) {
-    case WM_SETCURSOR:
-        if (reinterpret_cast<HWND>(
-                wParam) ==
-            openGitHub_) {
+    case WM_SETCURSOR: {
+        const HWND cursorWindow =
+            reinterpret_cast<HWND>(
+                wParam);
+        const UINT cursorId =
+            cursorWindow
+                ? static_cast<UINT>(
+                      GetDlgCtrlID(
+                          cursorWindow))
+                : 0;
+
+        if (cursorWindow ==
+                openGitHub_ ||
+            (cursorId >=
+                 kIdHotkeyResetBase &&
+             cursorId <
+                 kIdHotkeyResetBase +
+                     hotkeyRows_.size())) {
             SetCursor(
                 LoadCursorW(
                     nullptr,
@@ -6169,6 +6373,7 @@ LRESULT SettingsWindow::HandleMessage(
             return TRUE;
         }
         break;
+    }
 
     case WM_LBUTTONDOWN:
     case WM_RBUTTONDOWN:
@@ -6557,6 +6762,16 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdUpdateAutoCheck ||
             item->CtlID == kIdUpdatePrerelease) {
             DrawGeneralToggle(
+                *item);
+            return TRUE;
+        }
+
+        if (item->CtlID >=
+                kIdHotkeyResetBase &&
+            item->CtlID <
+                kIdHotkeyResetBase +
+                    hotkeyRows_.size()) {
+            DrawHotkeyResetLink(
                 *item);
             return TRUE;
         }
