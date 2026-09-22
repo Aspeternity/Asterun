@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.13
+
+- Removed the redundant Icon **Auto** button; an empty Icon field already preserves the existing automatic target-icon behavior.
+- Expanded the Icon edit field into the freed space and kept only the native **Choose…** action.
+- Added modern Windows `IFileOpenDialog` selection for Target files, Target folders, Working directory and Icon sources.
+- Used `FOS_PICKFOLDERS` for modern folder selection, replacing the old tree browser during normal Windows 10/11 operation.
+- Added localized chooser titles and localized file-filter labels for Chinese/English UI.
+- Seeded modern chooser navigation from the current field, or from Target when Working directory/Icon is blank.
+- Retained `GetOpenFileNameW` / `SHBrowseForFolderW` as compatibility fallbacks only when the modern shell dialog is unavailable.
+- Changed Advanced from a native full-width pushbutton appearance to an owner-drawn lightweight section header with a continuation divider.
+- Removed the ineffective alpha.3.12 Button `NM_CUSTOMDRAW` path; regular action buttons remain native and Advanced owns only its explicit `WM_DRAWITEM` presentation.
+- Preserved alpha.3.12 compact layout, Runtime Input dynamic resizing, Advanced semantics and all shortcut execution behavior.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.43`.
 ## 0.8.0-alpha.3.12
 
 - Consolidated Shortcut Editor presentation without changing shortcut data or execution semantics.

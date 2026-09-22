@@ -42,6 +42,130 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.13":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.13 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.13 must keep provider-cache schemaVersion 2")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+
+    for token in (
+        "#include <shobjidl.h>",
+        "enum class PickerResult",
+        "class ScopedComApartment",
+        "CLSID_FileOpenDialog",
+        "FOS_FORCEFILESYSTEM",
+        "FOS_PICKFOLDERS",
+        "SIGDN_FILESYSPATH",
+        "SeedShellDialogFromPath(",
+        "PickFileModern(",
+        "PickFolderModern(",
+        'T(L"选择目标文件",',
+        'T(L"选择目标文件夹",',
+        'T(L"选择工作目录",',
+        'T(L"选择图标来源",',
+        'T(L"程序和快捷方式",',
+        'T(L"图标来源",',
+        "SHBrowseForFolderW(",
+        "GetOpenFileNameW(",
+        "BS_OWNERDRAW",
+        "void ShortcutEditorDialog::DrawAdvancedHeader(",
+        "case WM_DRAWITEM:",
+        "kIdAdvancedToggle",
+    ):
+        if token not in editor_cpp and token not in editor_h:
+            fail(f"v0.8 alpha.3.13 Shortcut Editor polish contract missing: {token}")
+
+    for forbidden in (
+        "kIdResetIcon",
+        "resetIcon_",
+        "ResetIcon()",
+        "HandleButtonCustomDraw(",
+        'T(L"自动",\n          L"Auto")',
+    ):
+        if forbidden in editor_cpp or forbidden in editor_h:
+            fail(f"v0.8 alpha.3.13 obsolete Shortcut Editor UI remains: {forbidden}")
+
+    # Behavior boundaries remain frozen after the visual/picker polish.
+    for token in (
+        "ParseShortcutKeywords(",
+        "SuggestShortcutTitle(",
+        "InferShortcutCommandType(",
+        "CanAcceptRuntimeInput(",
+        "HasRuntimeInputPlaceholder(",
+        "RuntimeInputMode::Raw",
+        "RuntimeInputMode::UrlEncoded",
+        "app_.CreateUserCommand(",
+        "app_.UpdateUserCommand(",
+        "app_.TestCommand(",
+        "RefreshDynamicLayout();",
+        "RDW_ALLCHILDREN",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.13 frozen Shortcut behavior missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.12"',
+        '"0.8.0-alpha.3.13"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.13 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.13 — Shortcut Editor Native Polish & Modern Pickers",
+        "0.8.0.43",
+        "IFileOpenDialog",
+        "FOS_PICKFOLDERS",
+        "Auto** button is removed",
+        "owner-drawn section header",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.13 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.13",
+        "0.8.0.43",
+        "redundant Icon **Auto** button",
+        "`IFileOpenDialog`",
+        "`FOS_PICKFOLDERS`",
+        "owner-drawn lightweight section header",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.13 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.13",
+        "v0.8.0-alpha.3.14",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.13 Shortcut Editor native polish verified:",
+        "| Icon Auto redundancy removed",
+        "| file/folder/icon/workdir prefer IFileOpenDialog",
+        "| modern folder picker uses FOS_PICKFOLDERS + legacy fallback",
+        "| Advanced=owner-drawn section header",
+        "| shortcut/runtime behavior frozen",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.12":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

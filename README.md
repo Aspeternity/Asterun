@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.13 — Shortcut Editor Native Polish & Modern Pickers
+
+Alpha 3.13 is the real-Windows polish pass following the alpha.3.12 Shortcut Editor visual consolidation. It keeps the compact form structure and shortcut/runtime semantics unchanged, while removing two pieces of UI that still felt visibly legacy in desktop validation.
+
+The redundant **图标 / Icon → 自动 / Auto** button is removed. An empty Icon field already means “follow the target icon automatically”, so the extra button only cleared the field and duplicated an existing state. The Icon row is now simply the wider native edit plus **选择… / Choose…**; clearing the field manually returns to automatic target-icon behavior.
+
+Target-file, target-folder, Working-directory and Icon browsing now prefer the modern Windows `IFileOpenDialog`. Folder selection uses `FOS_PICKFOLDERS`, replacing the old tree-style `SHBrowseForFolderW` experience on normal Windows 10/11 systems. The dialogs use scenario-specific localized titles and localized filter names, seed their initial folder from the current field/target when possible, and still keep the existing legacy common-dialog/folder-browser code as a compatibility fallback if the modern shell dialog cannot be created.
+
+The **高级选项 / Advanced** row is now a real owner-drawn section header instead of a full-width native pushbutton. It keeps keyboard focus and button behavior, but paints as a lightweight text header with a continuation divider and a compact focus indication, avoiding the large gray button treatment seen in alpha.3.12 real-machine screenshots. The rest of the editor stays native: Edit/ComboBox controls, file semantics, modal message loop, IME and tab navigation are not replaced by a custom UI framework.
+
+No shortcut schema/model, commands.json format, keyword/alias parsing, automatic Name suggestion, target-type inference, Runtime Input semantics, Test execution, Working Directory semantics, Icon auto semantics, administrator launch, Shortcut Manager, Path Conversion, Provider, Hotkey or search/ranking behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.43`.
 ## v0.8.0-alpha.3.12 — Shortcut Editor Visual Consolidation
 
 Alpha 3.12 is a presentation-only consolidation of the native Shortcut Editor. It keeps the existing shortcut model and execution semantics intact while bringing the editor into the same restrained application visual language as Settings and Shortcut Manager.

@@ -54,8 +54,8 @@ private:
     void Layout();
     void DrawEditorChrome(
         HDC dc) const;
-    LRESULT HandleButtonCustomDraw(
-        LPARAM lParam);
+    void DrawAdvancedHeader(
+        const DRAWITEMSTRUCT& draw) const;
     void ResizeForContent();
     void RefreshDynamicLayout();
     void UpdateAdvancedVisibility();
@@ -78,7 +78,6 @@ private:
     void BrowseTargetFolder();
     void BrowseWorkingDirectory();
     void BrowseIcon();
-    void ResetIcon();
 
     [[nodiscard]] Command
     CollectCommand() const;
@@ -131,7 +130,6 @@ private:
     HWND iconLabel_{};
     HWND icon_{};
     HWND browseIcon_{};
-    HWND resetIcon_{};
     HWND admin_{};
     HWND test_{};
     HWND save_{};

@@ -10,7 +10,9 @@
 
 #include <commctrl.h>
 #include <commdlg.h>
+#include <objbase.h>
 #include <shlobj.h>
+#include <shobjidl.h>
 
 #include <algorithm>
 #include <array>
@@ -47,7 +49,6 @@ constexpr UINT kIdAdvancedToggle = 53117;
 constexpr UINT kIdRuntimeInput = 53118;
 constexpr UINT kIdIcon = 53119;
 constexpr UINT kIdBrowseIcon = 53120;
-constexpr UINT kIdResetIcon = 53121;
 constexpr UINT kIdTestInput = 53122;
 
 [[nodiscard]] std::wstring
@@ -119,6 +120,296 @@ void SetChecked(
             ? BST_CHECKED
             : BST_UNCHECKED,
         0);
+}
+
+enum class PickerResult {
+    Selected,
+    Cancelled,
+    Unavailable,
+};
+
+class ScopedComApartment {
+public:
+    ScopedComApartment()
+        : result_(
+              CoInitializeEx(
+                  nullptr,
+                  COINIT_APARTMENTTHREADED |
+                      COINIT_DISABLE_OLE1DDE)),
+          uninitialize_(
+              SUCCEEDED(result_)) {}
+
+    ~ScopedComApartment() {
+        if (uninitialize_) {
+            CoUninitialize();
+        }
+    }
+
+    [[nodiscard]] bool Ready() const {
+        return SUCCEEDED(result_) ||
+            result_ ==
+                RPC_E_CHANGED_MODE;
+    }
+
+private:
+    HRESULT result_{};
+    bool uninitialize_{false};
+};
+
+void SeedShellDialogFromPath(
+    IFileDialog* dialog,
+    std::wstring_view currentValue,
+    bool folderPicker) {
+    if (!dialog) {
+        return;
+    }
+
+    const std::wstring current =
+        TrimWide(currentValue);
+
+    if (current.empty()) {
+        return;
+    }
+
+    std::filesystem::path path(
+        current);
+
+    const DWORD attributes =
+        GetFileAttributesW(
+            current.c_str());
+
+    const bool isDirectory =
+        attributes !=
+            INVALID_FILE_ATTRIBUTES &&
+        (attributes &
+         FILE_ATTRIBUTE_DIRECTORY) != 0;
+
+    std::filesystem::path folder =
+        isDirectory
+            ? path
+            : path.parent_path();
+
+    if (!folder.empty()) {
+        IShellItem* folderItem =
+            nullptr;
+
+        if (SUCCEEDED(
+                SHCreateItemFromParsingName(
+                    folder.c_str(),
+                    nullptr,
+                    IID_PPV_ARGS(
+                        &folderItem))) &&
+            folderItem) {
+            dialog->SetFolder(
+                folderItem);
+            folderItem->Release();
+        }
+    }
+
+    if (!folderPicker &&
+        !isDirectory &&
+        !path.filename().empty()) {
+        dialog->SetFileName(
+            path.filename().c_str());
+    }
+}
+
+PickerResult PickFileModern(
+    HWND owner,
+    const wchar_t* title,
+    const COMDLG_FILTERSPEC* filters,
+    UINT filterCount,
+    std::wstring_view currentValue,
+    std::wstring& selectedPath) {
+    ScopedComApartment apartment;
+    if (!apartment.Ready()) {
+        return PickerResult::Unavailable;
+    }
+
+    IFileOpenDialog* dialog =
+        nullptr;
+
+    const HRESULT createResult =
+        CoCreateInstance(
+            CLSID_FileOpenDialog,
+            nullptr,
+            CLSCTX_INPROC_SERVER,
+            IID_PPV_ARGS(&dialog));
+
+    if (FAILED(createResult) ||
+        !dialog) {
+        return PickerResult::Unavailable;
+    }
+
+    DWORD options = 0;
+    if (SUCCEEDED(
+            dialog->GetOptions(
+                &options))) {
+        dialog->SetOptions(
+            options |
+            FOS_FORCEFILESYSTEM |
+            FOS_FILEMUSTEXIST |
+            FOS_PATHMUSTEXIST |
+            FOS_NOCHANGEDIR);
+    }
+
+    if (title &&
+        *title) {
+        dialog->SetTitle(title);
+    }
+
+    if (filters &&
+        filterCount > 0) {
+        dialog->SetFileTypes(
+            filterCount,
+            filters);
+        dialog->SetFileTypeIndex(1);
+    }
+
+    SeedShellDialogFromPath(
+        dialog,
+        currentValue,
+        false);
+
+    const HRESULT showResult =
+        dialog->Show(owner);
+
+    if (showResult ==
+        HRESULT_FROM_WIN32(
+            ERROR_CANCELLED)) {
+        dialog->Release();
+        return PickerResult::Cancelled;
+    }
+
+    if (FAILED(showResult)) {
+        dialog->Release();
+        return PickerResult::Unavailable;
+    }
+
+    IShellItem* item =
+        nullptr;
+    const HRESULT result =
+        dialog->GetResult(
+            &item);
+
+    if (FAILED(result) ||
+        !item) {
+        dialog->Release();
+        return PickerResult::Unavailable;
+    }
+
+    PWSTR path = nullptr;
+    const HRESULT pathResult =
+        item->GetDisplayName(
+            SIGDN_FILESYSPATH,
+            &path);
+
+    if (SUCCEEDED(pathResult) &&
+        path) {
+        selectedPath.assign(path);
+    }
+
+    CoTaskMemFree(path);
+    item->Release();
+    dialog->Release();
+
+    return selectedPath.empty()
+        ? PickerResult::Unavailable
+        : PickerResult::Selected;
+}
+
+PickerResult PickFolderModern(
+    HWND owner,
+    const wchar_t* title,
+    std::wstring_view currentValue,
+    std::wstring& selectedPath) {
+    ScopedComApartment apartment;
+    if (!apartment.Ready()) {
+        return PickerResult::Unavailable;
+    }
+
+    IFileOpenDialog* dialog =
+        nullptr;
+
+    const HRESULT createResult =
+        CoCreateInstance(
+            CLSID_FileOpenDialog,
+            nullptr,
+            CLSCTX_INPROC_SERVER,
+            IID_PPV_ARGS(&dialog));
+
+    if (FAILED(createResult) ||
+        !dialog) {
+        return PickerResult::Unavailable;
+    }
+
+    DWORD options = 0;
+    if (SUCCEEDED(
+            dialog->GetOptions(
+                &options))) {
+        dialog->SetOptions(
+            options |
+            FOS_PICKFOLDERS |
+            FOS_FORCEFILESYSTEM |
+            FOS_PATHMUSTEXIST |
+            FOS_NOCHANGEDIR);
+    }
+
+    if (title &&
+        *title) {
+        dialog->SetTitle(title);
+    }
+
+    SeedShellDialogFromPath(
+        dialog,
+        currentValue,
+        true);
+
+    const HRESULT showResult =
+        dialog->Show(owner);
+
+    if (showResult ==
+        HRESULT_FROM_WIN32(
+            ERROR_CANCELLED)) {
+        dialog->Release();
+        return PickerResult::Cancelled;
+    }
+
+    if (FAILED(showResult)) {
+        dialog->Release();
+        return PickerResult::Unavailable;
+    }
+
+    IShellItem* item =
+        nullptr;
+    const HRESULT result =
+        dialog->GetResult(
+            &item);
+
+    if (FAILED(result) ||
+        !item) {
+        dialog->Release();
+        return PickerResult::Unavailable;
+    }
+
+    PWSTR path = nullptr;
+    const HRESULT pathResult =
+        item->GetDisplayName(
+            SIGDN_FILESYSPATH,
+            &path);
+
+    if (SUCCEEDED(pathResult) &&
+        path) {
+        selectedPath.assign(path);
+    }
+
+    CoTaskMemFree(path);
+    item->Release();
+    dialog->Release();
+
+    return selectedPath.empty()
+        ? PickerResult::Unavailable
+        : PickerResult::Selected;
 }
 
 } // namespace
@@ -513,7 +804,8 @@ void ShortcutEditorDialog::CreateControls() {
 
     makeButton(
         advancedToggle_,
-        kIdAdvancedToggle);
+        kIdAdvancedToggle,
+        BS_OWNERDRAW);
 
     makeStatic(argumentsLabel_);
     makeEdit(
@@ -535,9 +827,6 @@ void ShortcutEditorDialog::CreateControls() {
     makeButton(
         browseIcon_,
         kIdBrowseIcon);
-    makeButton(
-        resetIcon_,
-        kIdResetIcon);
 
     makeButton(
         admin_,
@@ -605,7 +894,6 @@ void ShortcutEditorDialog::CreateControls() {
         iconLabel_,
         icon_,
         browseIcon_,
-        resetIcon_,
         admin_,
         test_,
         save_,
@@ -666,12 +954,12 @@ void ShortcutEditorDialog::ApplyLanguage() {
           L"Target *"));
     SetWindowTextW(
         browseFile_,
-        T(L"文件...",
-          L"File..."));
+        T(L"文件…",
+          L"File…"));
     SetWindowTextW(
         browseFolder_,
-        T(L"文件夹...",
-          L"Folder..."));
+        T(L"文件夹…",
+          L"Folder…"));
     SetWindowTextW(
         typeLabel_,
         T(L"目标类型",
@@ -801,8 +1089,8 @@ void ShortcutEditorDialog::ApplyLanguage() {
               L"Blank = target directory")));
     SetWindowTextW(
         browseWorkdir_,
-        T(L"选择...",
-          L"Browse..."));
+        T(L"选择…",
+          L"Browse…"));
     SetWindowTextW(
         iconLabel_,
         T(L"图标",
@@ -816,12 +1104,8 @@ void ShortcutEditorDialog::ApplyLanguage() {
               L"Blank = follow target")));
     SetWindowTextW(
         browseIcon_,
-        T(L"选择...",
-          L"Choose..."));
-    SetWindowTextW(
-        resetIcon_,
-        T(L"自动",
-          L"Auto"));
+        T(L"选择…",
+          L"Choose…"));
 
     SetWindowTextW(
         admin_,
@@ -1150,13 +1434,10 @@ void ShortcutEditorDialog::Layout() {
 
         const int iconButtonWidth =
             Scale(68);
-        const int autoButtonWidth =
-            Scale(54);
         const int iconEditWidth =
             contentWidth -
             iconButtonWidth -
-            autoButtonWidth -
-            gap * 2;
+            gap;
 
         MoveWindow(
             icon_,
@@ -1172,17 +1453,6 @@ void ShortcutEditorDialog::Layout() {
                 gap,
             y,
             iconButtonWidth,
-            fieldHeight,
-            TRUE);
-        MoveWindow(
-            resetIcon_,
-            margin +
-                iconEditWidth +
-                gap +
-                iconButtonWidth +
-                gap,
-            y,
-            autoButtonWidth,
             fieldHeight,
             TRUE);
         y += Scale(44);
@@ -1328,302 +1598,145 @@ void ShortcutEditorDialog::DrawEditorChrome(
         separatorPen);
 }
 
-LRESULT ShortcutEditorDialog::
-HandleButtonCustomDraw(
-    LPARAM lParam) {
-    auto* draw =
-        reinterpret_cast<NMCUSTOMDRAW*>(
-            lParam);
-
-    if (!draw ||
-        draw->dwDrawStage !=
-            CDDS_PREPAINT) {
-        return CDRF_DODEFAULT;
+void ShortcutEditorDialog::DrawAdvancedHeader(
+    const DRAWITEMSTRUCT& draw) const {
+    if (!hwnd_ ||
+        draw.hwndItem !=
+            advancedToggle_) {
+        return;
     }
-
-    const HWND control =
-        draw->hdr.hwndFrom;
-
-    const bool advanced =
-        control == advancedToggle_;
-    const bool action =
-        control == test_ ||
-        control == save_ ||
-        control == cancel_;
-
-    if (!advanced &&
-        !action) {
-        return CDRF_DODEFAULT;
-    }
-
-    const auto& palette =
-        ui::kApplicationPalette;
-    const bool disabled =
-        (draw->uItemState &
-         CDIS_DISABLED) != 0;
-    const bool pressed =
-        (draw->uItemState &
-         CDIS_SELECTED) != 0;
-    const bool hot =
-        (draw->uItemState &
-         CDIS_HOT) != 0;
-    const bool focused =
-        (draw->uItemState &
-         CDIS_FOCUS) != 0;
 
     RECT rect =
-        draw->rc;
+        draw.rcItem;
+    const auto& palette =
+        ui::kApplicationPalette;
 
-    if (advanced) {
-        HBRUSH background =
-            CreateSolidBrush(
-                pressed || hot
-                    ? palette.accentBackground
-                    : palette.windowBackground);
-        FillRect(
-            draw->hdc,
-            &rect,
-            background);
-        DeleteObject(
-            background);
+    const bool pressed =
+        (draw.itemState &
+         ODS_SELECTED) != 0;
+    const bool disabled =
+        (draw.itemState &
+         ODS_DISABLED) != 0;
+    const bool focused =
+        (draw.itemState &
+         ODS_FOCUS) != 0;
 
-        wchar_t text[128]{};
-        GetWindowTextW(
-            control,
-            text,
-            static_cast<int>(
-                _countof(text)));
-
-        SetBkMode(
-            draw->hdc,
-            TRANSPARENT);
-        SetTextColor(
-            draw->hdc,
-            disabled
-                ? palette.mutedText
-                : palette.text);
-
-        HGDIOBJ oldFont =
-            SelectObject(
-                draw->hdc,
-                semiboldFont_
-                    ? semiboldFont_
-                    : font_);
-
-        RECT textRect =
-            rect;
-        textRect.left += Scale(2);
-        textRect.right -= Scale(2);
-
-        DrawTextW(
-            draw->hdc,
-            text,
-            -1,
-            &textRect,
-            DT_LEFT |
-                DT_VCENTER |
-                DT_SINGLELINE |
-                DT_NOPREFIX);
-
-        SIZE extent{};
-        GetTextExtentPoint32W(
-            draw->hdc,
-            text,
-            GetWindowTextLengthW(
-                control),
-            &extent);
-
-        HPEN linePen =
-            CreatePen(
-                PS_SOLID,
-                1,
-                palette.separator);
-        HGDIOBJ oldPen =
-            SelectObject(
-                draw->hdc,
-                linePen);
-
-        const int lineY =
-            (rect.top +
-             rect.bottom) / 2;
-        const int lineStart =
-            std::min(
-                rect.right,
-                rect.left +
-                    Scale(2) +
-                    extent.cx +
-                    Scale(12));
-
-        MoveToEx(
-            draw->hdc,
-            lineStart,
-            lineY,
-            nullptr);
-        LineTo(
-            draw->hdc,
-            rect.right,
-            lineY);
-
-        SelectObject(
-            draw->hdc,
-            oldPen);
-        DeleteObject(
-            linePen);
-        SelectObject(
-            draw->hdc,
-            oldFont);
-
-        if (focused) {
-            RECT focus =
-                rect;
-            InflateRect(
-                &focus,
-                -Scale(2),
-                -Scale(2));
-            DrawFocusRect(
-                draw->hdc,
-                &focus);
-        }
-
-        return CDRF_SKIPDEFAULT;
-    }
-
-    const bool primary =
-        control == save_;
-
-    COLORREF fillColor =
-        primary
-            ? palette.accent
-            : palette.controlBackground;
-    COLORREF borderColor =
-        primary
-            ? palette.accent
-            : palette.frame;
-    COLORREF textColor =
-        primary
-            ? RGB(255, 255, 255)
-            : palette.text;
-
-    if (disabled) {
-        fillColor =
-            palette.controlBackground;
-        borderColor =
-            palette.frame;
-        textColor =
-            palette.mutedText;
-    } else if (pressed) {
-        fillColor =
-            primary
-                ? RGB(0, 102, 184)
-                : palette.pressedBackground;
-    } else if (hot &&
-               !primary) {
-        fillColor =
-            palette.accentBackground;
-    }
-
-    HBRUSH parentFill =
-        footerBrush_
-            ? footerBrush_
-            : backgroundBrush_;
-    if (parentFill) {
-        FillRect(
-            draw->hdc,
-            &rect,
-            parentFill);
-    }
-
-    RECT surface =
-        rect;
-    InflateRect(
-        &surface,
-        -1,
-        -1);
-
-    HBRUSH fill =
+    HBRUSH background =
         CreateSolidBrush(
-            fillColor);
-    HPEN border =
-        CreatePen(
-            PS_SOLID,
-            1,
-            borderColor);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            draw->hdc,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            draw->hdc,
-            border);
-
-    RoundRect(
-        draw->hdc,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        Scale(6),
-        Scale(6));
-
-    SelectObject(
-        draw->hdc,
-        oldBrush);
-    SelectObject(
-        draw->hdc,
-        oldPen);
-    DeleteObject(fill);
-    DeleteObject(border);
+            pressed
+                ? palette.accentBackground
+                : palette.windowBackground);
+    FillRect(
+        draw.hDC,
+        &rect,
+        background);
+    DeleteObject(background);
 
     wchar_t text[128]{};
     GetWindowTextW(
-        control,
+        draw.hwndItem,
         text,
         static_cast<int>(
             _countof(text)));
 
     SetBkMode(
-        draw->hdc,
+        draw.hDC,
         TRANSPARENT);
     SetTextColor(
-        draw->hdc,
-        textColor);
+        draw.hDC,
+        disabled
+            ? palette.mutedText
+            : palette.text);
 
     HGDIOBJ oldFont =
         SelectObject(
-            draw->hdc,
-            primary && semiboldFont_
+            draw.hDC,
+            semiboldFont_
                 ? semiboldFont_
                 : font_);
 
+    RECT textRect =
+        rect;
+    textRect.left += Scale(2);
+    textRect.right -= Scale(2);
+
     DrawTextW(
-        draw->hdc,
+        draw.hDC,
         text,
         -1,
-        &surface,
-        DT_CENTER |
+        &textRect,
+        DT_LEFT |
             DT_VCENTER |
             DT_SINGLELINE |
             DT_NOPREFIX);
 
+    SIZE extent{};
+    GetTextExtentPoint32W(
+        draw.hDC,
+        text,
+        GetWindowTextLengthW(
+            draw.hwndItem),
+        &extent);
+
+    const int lineY =
+        (rect.top +
+         rect.bottom) / 2;
+    const int lineStart =
+        std::min(
+            rect.right,
+            rect.left +
+                Scale(2) +
+                extent.cx +
+                Scale(14));
+
+    HPEN linePen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            palette.separator);
+    HGDIOBJ oldPen =
+        SelectObject(
+            draw.hDC,
+            linePen);
+
+    MoveToEx(
+        draw.hDC,
+        lineStart,
+        lineY,
+        nullptr);
+    LineTo(
+        draw.hDC,
+        rect.right,
+        lineY);
+
     SelectObject(
-        draw->hdc,
-        oldFont);
+        draw.hDC,
+        oldPen);
+    DeleteObject(linePen);
 
     if (focused) {
-        RECT focus =
-            surface;
-        InflateRect(
-            &focus,
-            -Scale(3),
-            -Scale(3));
-        DrawFocusRect(
-            draw->hdc,
-            &focus);
+        RECT focus{
+            textRect.left,
+            rect.top + Scale(4),
+            std::min(
+                lineStart - Scale(6),
+                textRect.left +
+                    extent.cx +
+                    Scale(6)),
+            rect.bottom - Scale(4),
+        };
+
+        if (focus.right >
+            focus.left) {
+            DrawFocusRect(
+                draw.hDC,
+                &focus);
+        }
     }
 
-    return CDRF_SKIPDEFAULT;
+    SelectObject(
+        draw.hDC,
+        oldFont);
 }
 
 void ShortcutEditorDialog::ResizeForContent() {
@@ -1686,7 +1799,6 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
              iconLabel_,
              icon_,
              browseIcon_,
-             resetIcon_,
              admin_}) {
         ShowWindow(
             control,
@@ -2382,11 +2494,61 @@ void ShortcutEditorDialog::Test() {
 }
 
 void ShortcutEditorDialog::BrowseTargetFile() {
+    const std::wstring current =
+        TrimWide(
+            ControlText(target_));
+
+    const COMDLG_FILTERSPEC filters[] = {
+        {
+            T(L"程序和快捷方式",
+              L"Programs and shortcuts"),
+            L"*.exe;*.lnk;*.bat;*.cmd;*.com;*.ps1;*.url",
+        },
+        {
+            T(L"所有文件",
+              L"All files"),
+            L"*.*",
+        },
+    };
+
+    std::wstring selected;
+    const PickerResult modern =
+        PickFileModern(
+            hwnd_,
+            T(L"选择目标文件",
+              L"Choose target file"),
+            filters,
+            static_cast<UINT>(
+                _countof(filters)),
+            current,
+            selected);
+
+    if (modern ==
+        PickerResult::Cancelled) {
+        return;
+    }
+
+    if (modern ==
+        PickerResult::Selected) {
+        SetWindowTextW(
+            target_,
+            selected.c_str());
+
+        SendMessageW(
+            type_,
+            CB_SETCURSEL,
+            0,
+            0);
+
+        UpdateTypeState();
+        MaybeAutoFillName();
+        return;
+    }
+
+    // Compatibility fallback for systems where the modern shell dialog is
+    // unavailable or COM cannot provide it in the current apartment.
     std::array<wchar_t, 32768>
         file{};
-
-    const auto current =
-        ControlText(target_);
 
     if (!current.empty() &&
         current.size() <
@@ -2397,9 +2559,11 @@ void ShortcutEditorDialog::BrowseTargetFile() {
             file.begin());
     }
 
-    const wchar_t filter[] =
-        L"Programs and shortcuts\0*.exe;*.lnk;*.bat;*.cmd;*.com;*.ps1;*.url\0"
-        L"All files\0*.*\0\0";
+    const wchar_t* filter =
+        app_.SettingsData().language ==
+                Language::ZhCN
+            ? L"程序和快捷方式\0*.exe;*.lnk;*.bat;*.cmd;*.com;*.ps1;*.url\0所有文件\0*.*\0\0"
+            : L"Programs and shortcuts\0*.exe;*.lnk;*.bat;*.cmd;*.com;*.ps1;*.url\0All files\0*.*\0\0";
 
     OPENFILENAMEW open{};
     open.lStructSize =
@@ -2414,6 +2578,9 @@ void ShortcutEditorDialog::BrowseTargetFile() {
     open.lpstrFilter =
         filter;
     open.nFilterIndex = 1;
+    open.lpstrTitle =
+        T(L"选择目标文件",
+          L"Choose target file");
     open.Flags =
         OFN_FILEMUSTEXIST |
         OFN_PATHMUSTEXIST |
@@ -2440,6 +2607,41 @@ void ShortcutEditorDialog::BrowseTargetFile() {
 }
 
 void ShortcutEditorDialog::BrowseTargetFolder() {
+    const std::wstring current =
+        TrimWide(
+            ControlText(target_));
+
+    std::wstring selected;
+    const PickerResult modern =
+        PickFolderModern(
+            hwnd_,
+            T(L"选择目标文件夹",
+              L"Choose target folder"),
+            current,
+            selected);
+
+    if (modern ==
+        PickerResult::Cancelled) {
+        return;
+    }
+
+    if (modern ==
+        PickerResult::Selected) {
+        SetWindowTextW(
+            target_,
+            selected.c_str());
+
+        SendMessageW(
+            type_,
+            CB_SETCURSEL,
+            0,
+            0);
+
+        UpdateTypeState();
+        MaybeAutoFillName();
+        return;
+    }
+
     BROWSEINFOW browse{};
     browse.hwndOwner =
         hwnd_;
@@ -2484,6 +2686,38 @@ void ShortcutEditorDialog::BrowseTargetFolder() {
 
 void ShortcutEditorDialog::
 BrowseWorkingDirectory() {
+    std::wstring current =
+        TrimWide(
+            ControlText(workdir_));
+
+    if (current.empty()) {
+        current =
+            TrimWide(
+                ControlText(target_));
+    }
+
+    std::wstring selected;
+    const PickerResult modern =
+        PickFolderModern(
+            hwnd_,
+            T(L"选择工作目录",
+              L"Choose working directory"),
+            current,
+            selected);
+
+    if (modern ==
+        PickerResult::Cancelled) {
+        return;
+    }
+
+    if (modern ==
+        PickerResult::Selected) {
+        SetWindowTextW(
+            workdir_,
+            selected.c_str());
+        return;
+    }
+
     BROWSEINFOW browse{};
     browse.hwndOwner =
         hwnd_;
@@ -2518,12 +2752,56 @@ BrowseWorkingDirectory() {
 }
 
 void ShortcutEditorDialog::BrowseIcon() {
-    std::array<wchar_t, 32768>
-        file{};
-
-    const std::wstring current =
+    std::wstring current =
         TrimWide(
             ControlText(icon_));
+
+    if (current.empty()) {
+        current =
+            TrimWide(
+                ControlText(target_));
+    }
+
+    const COMDLG_FILTERSPEC filters[] = {
+        {
+            T(L"图标来源",
+              L"Icon sources"),
+            L"*.ico;*.exe;*.dll;*.lnk",
+        },
+        {
+            T(L"所有文件",
+              L"All files"),
+            L"*.*",
+        },
+    };
+
+    std::wstring selected;
+    const PickerResult modern =
+        PickFileModern(
+            hwnd_,
+            T(L"选择图标来源",
+              L"Choose icon source"),
+            filters,
+            static_cast<UINT>(
+                _countof(filters)),
+            current,
+            selected);
+
+    if (modern ==
+        PickerResult::Cancelled) {
+        return;
+    }
+
+    if (modern ==
+        PickerResult::Selected) {
+        SetWindowTextW(
+            icon_,
+            selected.c_str());
+        return;
+    }
+
+    std::array<wchar_t, 32768>
+        file{};
 
     if (!current.empty() &&
         current.size() <
@@ -2534,9 +2812,11 @@ void ShortcutEditorDialog::BrowseIcon() {
             file.begin());
     }
 
-    const wchar_t filter[] =
-        L"Icon sources\0*.ico;*.exe;*.dll;*.lnk\0"
-        L"All files\0*.*\0\0";
+    const wchar_t* filter =
+        app_.SettingsData().language ==
+                Language::ZhCN
+            ? L"图标来源\0*.ico;*.exe;*.dll;*.lnk\0所有文件\0*.*\0\0"
+            : L"Icon sources\0*.ico;*.exe;*.dll;*.lnk\0All files\0*.*\0\0";
 
     OPENFILENAMEW open{};
     open.lStructSize =
@@ -2551,6 +2831,9 @@ void ShortcutEditorDialog::BrowseIcon() {
     open.lpstrFilter =
         filter;
     open.nFilterIndex = 1;
+    open.lpstrTitle =
+        T(L"选择图标来源",
+          L"Choose icon source");
     open.Flags =
         OFN_FILEMUSTEXIST |
         OFN_PATHMUSTEXIST |
@@ -2565,13 +2848,6 @@ void ShortcutEditorDialog::BrowseIcon() {
     SetWindowTextW(
         icon_,
         file.data());
-}
-
-void ShortcutEditorDialog::ResetIcon() {
-    SetWindowTextW(
-        icon_,
-        L"");
-    SetFocus(icon_);
 }
 
 LRESULT CALLBACK
@@ -2683,19 +2959,22 @@ LRESULT ShortcutEditorDialog::HandleMessage(
                       COLOR_WINDOW));
     }
 
-    case WM_NOTIFY: {
-        const auto* header =
-            reinterpret_cast<NMHDR*>(
-                lParam);
+    case WM_DRAWITEM:
+        if (static_cast<UINT>(
+                wParam) ==
+                kIdAdvancedToggle) {
+            const auto* draw =
+                reinterpret_cast<
+                    DRAWITEMSTRUCT*>(
+                    lParam);
 
-        if (header &&
-            header->code ==
-                NM_CUSTOMDRAW) {
-            return HandleButtonCustomDraw(
-                lParam);
+            if (draw) {
+                DrawAdvancedHeader(
+                    *draw);
+                return TRUE;
+            }
         }
         break;
-    }
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
@@ -2770,13 +3049,6 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseIcon();
-            }
-            return 0;
-
-        case kIdResetIcon:
-            if (HIWORD(wParam) ==
-                BN_CLICKED) {
-                ResetIcon();
             }
             return 0;
 
