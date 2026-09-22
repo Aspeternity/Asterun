@@ -42,6 +42,120 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.2.10":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.2.10 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.2.10 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+
+    for token in (
+        "HotkeyRowHasAuxiliaryContent",
+        "HotkeyRowHeight",
+        "HotkeyGroupHeight",
+        "const int baseRowHeight =\n            Scale(54);",
+        "const int auxiliaryHeight =\n            Scale(18);",
+        "normalFont_",
+        "drawGroupSeparators",
+        "rowTop +=\n                            HotkeyRowHeight(row);",
+        "const bool resetVisible",
+        "Layout();\n        InvalidateRect(",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.2.10 Hotkey density contract missing: {token}")
+
+    hotkey_font_block = settings_cpp[
+        settings_cpp.find("for (const auto& row :\n         hotkeyRows_) {",
+                          settings_cpp.find("void SettingsWindow::ApplyFonts()")):
+        settings_cpp.find("for (HWND control :\n         std::array<HWND, 13>",
+                          settings_cpp.find("void SettingsWindow::ApplyFonts()"))
+    ]
+    if "sectionFont_" in hotkey_font_block:
+        fail("v0.8 alpha.2.10 Hotkey action labels must not use section-title typography")
+    if "normalFont_" not in hotkey_font_block:
+        fail("v0.8 alpha.2.10 Hotkey rows must use normal Settings typography")
+
+    hotkey_registry = (
+        read("src/core/HotkeyRegistry.hpp") +
+        read("src/core/HotkeyRegistry.cpp")
+    )
+    for token in (
+        "launcher.activate",
+        "launcher.activateSecondary",
+        "launcher.openSettings",
+        "result.navigateCurrentFileManager",
+        "result.copySelectedTarget",
+    ):
+        if token not in hotkey_registry:
+            fail(f"v0.8 alpha.2.10 Hotkey Registry ID changed/missing: {token}")
+
+    if "Scale(72)" in settings_cpp[
+        settings_cpp.find("if (page_ == Page::Hotkeys) {",
+                          settings_cpp.find("void SettingsWindow::Layout()")):
+        settings_cpp.find("if (page_ == Page::Providers) {",
+                          settings_cpp.find("void SettingsWindow::Layout()"))
+    ]:
+        fail("v0.8 alpha.2.10 Hotkey layout must not retain the old fixed 72px row height")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.2.9"',
+        '"0.8.0-alpha.2.10"',
+        '"0.8.0-alpha.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.2.10 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.2.10 — Hotkey Typography & Density Polish",
+        "0.8.0.30",
+        "54 logical pixels",
+        "18 logical pixels",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.2.10 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.2.10",
+        "0.8.0.30",
+        "conditional",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.2.10 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.2.10",
+        "v0.8.0-alpha.3",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.2.10 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.2.10 Hotkey typography/density contract verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| action labels=body typography",
+        "| normal row=54",
+        "| auxiliary expansion=18",
+        "| separators=Settings-consistent",
+        "| hotkey behavior/IDs unchanged",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.2.9":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

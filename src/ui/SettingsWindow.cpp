@@ -973,7 +973,7 @@ void SettingsWindow::ApplyFonts() {
                 row.title,
                 WM_SETFONT,
                 reinterpret_cast<WPARAM>(
-                    sectionFont_),
+                    normalFont_),
                 TRUE);
         }
     }
@@ -1710,6 +1710,75 @@ void SettingsWindow::SetHotkeyRowStatus(
         status.empty()
             ? SW_HIDE
             : SW_SHOW);
+
+    if (page_ == Page::Hotkeys) {
+        Layout();
+        InvalidateRect(
+            hwnd_,
+            nullptr,
+            FALSE);
+    }
+}
+
+bool SettingsWindow::
+HotkeyRowHasAuxiliaryContent(
+    const HotkeyRowControls& row) const {
+
+    const auto hasVisibleStyle =
+        [](HWND control) {
+            return control &&
+                (static_cast<DWORD_PTR>(
+                    GetWindowLongPtrW(
+                        control,
+                        GWL_STYLE)) &
+                 WS_VISIBLE) != 0;
+        };
+
+    return
+        hasVisibleStyle(row.status) ||
+        hasVisibleStyle(row.reset);
+}
+
+int SettingsWindow::HotkeyRowHeight(
+    const HotkeyRowControls& row) const {
+
+    const int baseHeight =
+        Scale(54);
+    const int auxiliaryHeight =
+        Scale(18);
+
+    return baseHeight +
+        (HotkeyRowHasAuxiliaryContent(row)
+             ? auxiliaryHeight
+             : 0);
+}
+
+int SettingsWindow::HotkeyGroupHeight(
+    bool global) const {
+
+    int height = 0;
+
+    for (const auto& row :
+         hotkeyRows_) {
+        const auto* action =
+            FindHotkeyAction(
+                row.actionId);
+
+        if (!action) {
+            continue;
+        }
+
+        const bool rowGlobal =
+            action->scope ==
+                HotkeyScope::Global;
+
+        if (rowGlobal == global) {
+            height +=
+                HotkeyRowHeight(row);
+        }
+    }
+
+    return height;
 }
 
 void SettingsWindow::RefreshHotkeyPage() {
@@ -1828,6 +1897,14 @@ void SettingsWindow::RefreshHotkeyPage() {
     }
 
     syncing_ = oldSyncing;
+
+    if (page_ == Page::Hotkeys) {
+        Layout();
+        InvalidateRect(
+            hwnd_,
+            nullptr,
+            FALSE);
+    }
 }
 
 void SettingsWindow::BeginHotkeyCapture(
@@ -3773,8 +3850,10 @@ void SettingsWindow::Layout() {
             contentLeft;
         const int cardRight =
             contentLeft + width;
-        const int rowHeight =
-            Scale(72);
+        const int baseRowHeight =
+            Scale(54);
+        const int auxiliaryHeight =
+            Scale(18);
         const int captureWidth =
             Scale(166);
         const int toggleWidth =
@@ -3784,29 +3863,15 @@ void SettingsWindow::Layout() {
         const int inner =
             Scale(18);
 
-        const std::size_t globalCount =
-            static_cast<std::size_t>(
-                std::count_if(
-                    hotkeyRows_.begin(),
-                    hotkeyRows_.end(),
-                    [](const HotkeyRowControls& row) {
-                        const auto* action =
-                            FindHotkeyAction(
-                                row.actionId);
-                        return action &&
-                            action->scope ==
-                                HotkeyScope::Global;
-                    }));
-
         const int globalTitleTop =
             Scale(108);
         const int globalCardTop =
             Scale(140);
+        const int globalHeight =
+            HotkeyGroupHeight(true);
         const int globalCardBottom =
             globalCardTop +
-            static_cast<int>(
-                globalCount) *
-                rowHeight;
+            globalHeight;
         const int launcherTitleTop =
             globalCardBottom +
             Scale(22);
@@ -3830,8 +3895,10 @@ void SettingsWindow::Layout() {
             Scale(26),
             TRUE);
 
-        std::size_t globalIndex = 0;
-        std::size_t launcherIndex = 0;
+        int globalTop =
+            globalCardTop;
+        int launcherTop =
+            launcherCardTop;
 
         for (auto& row :
              hotkeyRows_) {
@@ -3846,19 +3913,12 @@ void SettingsWindow::Layout() {
             const bool global =
                 action->scope ==
                     HotkeyScope::Global;
-
-            const std::size_t groupIndex =
-                global
-                    ? globalIndex++
-                    : launcherIndex++;
-
             const int top =
-                (global
-                    ? globalCardTop
-                    : launcherCardTop) +
-                static_cast<int>(
-                    groupIndex) *
-                    rowHeight;
+                global
+                    ? globalTop
+                    : launcherTop;
+            const int rowHeight =
+                HotkeyRowHeight(row);
 
             const int toggleX =
                 cardRight -
@@ -3875,20 +3935,24 @@ void SettingsWindow::Layout() {
             MoveWindow(
                 row.title,
                 cardLeft + inner,
-                top + Scale(11),
+                top +
+                    (baseRowHeight -
+                     Scale(24)) / 2,
                 std::max(
                     Scale(150),
                     captureX -
                         cardLeft -
                         inner -
                         Scale(14)),
-                Scale(28),
+                Scale(24),
                 TRUE);
 
             MoveWindow(
                 row.capture,
                 captureX,
-                top + Scale(10),
+                top +
+                    (baseRowHeight -
+                     Scale(34)) / 2,
                 captureWidth,
                 Scale(34),
                 TRUE);
@@ -3897,39 +3961,65 @@ void SettingsWindow::Layout() {
                 MoveWindow(
                     row.enabled,
                     toggleX,
-                    top + Scale(11),
+                    top +
+                        (baseRowHeight -
+                         Scale(32)) / 2,
                     toggleWidth,
                     Scale(32),
                     TRUE);
             }
 
+            const bool resetVisible =
+                row.reset &&
+                (static_cast<DWORD_PTR>(
+                    GetWindowLongPtrW(
+                        row.reset,
+                        GWL_STYLE)) &
+                 WS_VISIBLE) != 0;
+
+            const int auxiliaryTop =
+                top +
+                baseRowHeight;
+            const int statusRight =
+                resetVisible
+                    ? captureX -
+                        Scale(12)
+                    : cardRight -
+                        inner;
+
             MoveWindow(
                 row.status,
                 cardLeft + inner,
-                top + Scale(46),
+                auxiliaryTop,
                 std::max(
                     Scale(160),
-                    captureX -
+                    statusRight -
                         cardLeft -
-                        inner -
-                        Scale(12)),
-                Scale(20),
+                        inner),
+                auxiliaryHeight,
                 TRUE);
 
             MoveWindow(
                 row.reset,
                 captureX,
-                top + Scale(47),
+                auxiliaryTop,
                 Scale(78),
-                Scale(20),
+                auxiliaryHeight,
                 TRUE);
+
+            if (global) {
+                globalTop +=
+                    rowHeight;
+            } else {
+                launcherTop +=
+                    rowHeight;
+            }
+
         }
 
         const int launcherCardBottom =
             launcherCardTop +
-            static_cast<int>(
-                launcherIndex) *
-                rowHeight;
+            HotkeyGroupHeight(false);
 
         const int resetAllWidth =
             Scale(184);
@@ -6740,57 +6830,125 @@ LRESULT SettingsWindow::HandleMessage(
                 Scale(
                     settings_layout::
                         kContentRightInsetLogical);
-            const int rowHeight =
-                Scale(72);
-            const int globalCount =
-                static_cast<int>(
-                    std::count_if(
-                        hotkeyRows_.begin(),
-                        hotkeyRows_.end(),
-                        [](const HotkeyRowControls& row) {
-                            const auto* action =
-                                FindHotkeyAction(
-                                    row.actionId);
-                            return action &&
-                                action->scope ==
-                                    HotkeyScope::Global;
-                        }));
-            const int launcherCount =
-                static_cast<int>(
-                    hotkeyRows_.size()) -
-                globalCount;
+            const int cardRight =
+                contentLeft +
+                std::min(
+                    contentRight -
+                        contentLeft,
+                    Scale(560));
+            const int globalTop =
+                Scale(140);
             const int globalHeight =
-                globalCount *
-                rowHeight;
+                HotkeyGroupHeight(true);
             const int launcherTop =
-                Scale(140) +
+                globalTop +
                 globalHeight +
                 Scale(54);
+            const int launcherHeight =
+                HotkeyGroupHeight(false);
 
             drawCard({
                 contentLeft,
-                Scale(140),
-                contentLeft +
-                    std::min(
-                        contentRight -
-                            contentLeft,
-                        Scale(560)),
-                Scale(140) +
+                globalTop,
+                cardRight,
+                globalTop +
                     globalHeight,
             });
 
             drawCard({
                 contentLeft,
                 launcherTop,
-                contentLeft +
-                    std::min(
-                        contentRight -
-                            contentLeft,
-                        Scale(560)),
+                cardRight,
                 launcherTop +
-                    launcherCount *
-                        rowHeight,
+                    launcherHeight,
             });
+
+            const auto drawGroupSeparators =
+                [&](bool global,
+                    int groupTop) {
+                    int rowTop =
+                        groupTop;
+                    int remaining = 0;
+
+                    for (const auto& row :
+                         hotkeyRows_) {
+                        const auto* action =
+                            FindHotkeyAction(
+                                row.actionId);
+
+                        if (!action) {
+                            continue;
+                        }
+
+                        const bool rowGlobal =
+                            action->scope ==
+                                HotkeyScope::Global;
+
+                        if (rowGlobal == global) {
+                            ++remaining;
+                        }
+                    }
+
+                    HPEN separator =
+                        CreatePen(
+                            PS_SOLID,
+                            1,
+                            kBorder);
+                    HGDIOBJ oldPen =
+                        SelectObject(
+                            dc,
+                            separator);
+
+                    for (const auto& row :
+                         hotkeyRows_) {
+                        const auto* action =
+                            FindHotkeyAction(
+                                row.actionId);
+
+                        if (!action) {
+                            continue;
+                        }
+
+                        const bool rowGlobal =
+                            action->scope ==
+                                HotkeyScope::Global;
+
+                        if (rowGlobal != global) {
+                            continue;
+                        }
+
+                        rowTop +=
+                            HotkeyRowHeight(row);
+                        --remaining;
+
+                        if (remaining > 0) {
+                            MoveToEx(
+                                dc,
+                                contentLeft +
+                                    Scale(18),
+                                rowTop,
+                                nullptr);
+                            LineTo(
+                                dc,
+                                cardRight -
+                                    Scale(18),
+                                rowTop);
+                        }
+                    }
+
+                    SelectObject(
+                        dc,
+                        oldPen);
+                    DeleteObject(
+                        separator);
+                };
+
+            drawGroupSeparators(
+                true,
+                globalTop);
+            drawGroupSeparators(
+                false,
+                launcherTop);
         } else if (
             page_ == Page::Providers) {
             drawCard(

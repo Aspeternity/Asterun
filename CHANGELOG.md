@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.2.10
+
+- Changed Hotkey action labels from section-title typography to the normal Settings body font while preserving section-title typography for group headings.
+- Reduced normal Hotkey rows from 72 to 54 logical pixels and centered action labels, capture buttons and switches on the same row axis.
+- Preserved the empty switch column for required actions so all five capture buttons remain aligned.
+- Made per-row status and Reset space conditional; rows expand by 18 logical pixels only when auxiliary content is visible.
+- Recomputed Hotkey card geometry immediately when capture/status/reset visibility changes.
+- Added inset row separators matching the visual treatment used by other Settings cards.
+- Kept Reset-all on the lower-right edge and preserved all Hotkey Registry IDs, capture/validation/conflict/global-registration behavior and Settings schemaVersion 8.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.30`.
+
 ## 0.8.0-alpha.2.9
 
 - Aligned the `GitHub ↗` lightweight link and version text on one shared 24-logical-pixel metadata row.

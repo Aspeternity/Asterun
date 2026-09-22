@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.10 — Hotkey Typography & Density Polish
+
+Alpha 2.10 closes the remaining visual mismatch on the Settings Hotkeys page without changing any Hotkey Registry ID or execution behavior.
+
+Hotkey action names now use the same normal body font as other Settings rows while the Global / Launcher group headings keep the section-title font. Normal shortcut rows shrink from 72 to 54 logical pixels and align the action label, capture button and optional switch on one shared row center. The switch column remains reserved for required actions so all five capture controls keep the previously validated vertical baseline.
+
+Per-row Reset and validation/registration status no longer reserve permanent empty space. A row expands by 18 logical pixels only while auxiliary content is actually visible, and the cards recompute their height immediately as capture, validation or reset state changes. Row separators use the same inset/border treatment as the Search Sources page. The Reset-all button remains lower-right and follows the compact launcher card.
+
+No persisted schema, Hotkey Registry ID, global-registration behavior, capture validation, Provider behavior, updater contract, search/ranking behavior, Everything lifecycle, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.30`.
+
 ## v0.8.0-alpha.2.9 — About Alignment Polish
 
 Alpha 2.9 is a narrow visual-alignment closeout for the About page. It does not change the alpha.2.8 update semantics.

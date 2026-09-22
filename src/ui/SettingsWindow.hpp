@@ -219,6 +219,15 @@ private:
     void SetHotkeyRowStatus(
         std::string_view actionId,
         std::wstring_view status);
+    [[nodiscard]] bool
+    HotkeyRowHasAuxiliaryContent(
+        const HotkeyRowControls& row) const;
+    [[nodiscard]] int
+    HotkeyRowHeight(
+        const HotkeyRowControls& row) const;
+    [[nodiscard]] int
+    HotkeyGroupHeight(
+        bool global) const;
     [[nodiscard]] std::wstring
     HotkeyActionLabel(
         std::string_view actionId) const;
