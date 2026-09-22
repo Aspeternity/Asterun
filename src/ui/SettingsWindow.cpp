@@ -778,7 +778,11 @@ void SettingsWindow::CreateAboutPage() {
         CreateStatic(
             L"ALTRun Next");
     aboutVersion_ =
-        CreateStatic(L"");
+        CreateStatic(
+            L"",
+            SS_LEFT |
+                SS_CENTERIMAGE |
+                SS_NOPREFIX);
     aboutDescription_ =
         CreateStatic(
             L"",
@@ -799,7 +803,8 @@ void SettingsWindow::CreateAboutPage() {
     updateStatus_ =
         CreateStatic(
             L"",
-            SS_LEFT | SS_NOPREFIX);
+            SS_OWNERDRAW |
+                SS_NOPREFIX);
 
     updateAction_ =
         CreateButton(
@@ -4283,12 +4288,17 @@ void SettingsWindow::Layout() {
                 dc);
         }
 
+        const int versionRowTop =
+            Scale(148);
+        const int versionRowHeight =
+            Scale(24);
+
         MoveWindow(
             aboutVersion_,
             contentLeft,
-            Scale(148),
+            versionRowTop,
             versionWidth + Scale(2),
-            Scale(24),
+            versionRowHeight,
             TRUE);
 
         MoveWindow(
@@ -4296,9 +4306,9 @@ void SettingsWindow::Layout() {
             contentLeft +
                 versionWidth +
                 Scale(14),
-            Scale(147),
+            versionRowTop,
             Scale(82),
-            Scale(26),
+            versionRowHeight,
             TRUE);
 
         MoveWindow(
@@ -4341,16 +4351,26 @@ void SettingsWindow::Layout() {
             rowHeight,
             TRUE);
 
+        const int statusRowTop =
+            updateTop +
+            rowHeight * 2;
+        const int actionHeight =
+            Scale(34);
+        const int statusHeight =
+            Scale(42);
+        const int rowCenterOffset =
+            Scale(32);
+
         MoveWindow(
             updateStatus_,
             contentLeft + inner,
-            updateTop +
-                rowHeight * 2 +
-                Scale(14),
+            statusRowTop +
+                rowCenterOffset -
+                statusHeight / 2,
             width -
                 inner * 3 -
                 actionWidth,
-            Scale(42),
+            statusHeight,
             TRUE);
 
         MoveWindow(
@@ -4359,11 +4379,11 @@ void SettingsWindow::Layout() {
                 width -
                 inner -
                 actionWidth,
-            updateTop +
-                rowHeight * 2 +
-                Scale(15),
+            statusRowTop +
+                rowCenterOffset -
+                actionHeight / 2,
             actionWidth,
-            Scale(34),
+            actionHeight,
             TRUE);
     }
 }
@@ -5191,6 +5211,94 @@ void SettingsWindow::DrawGitHubLink(
                 underline);
         }
     }
+
+    SelectObject(
+        item.hDC,
+        oldFont);
+}
+
+
+void SettingsWindow::DrawUpdateStatus(
+    const DRAWITEMSTRUCT& item) {
+
+    RECT rect =
+        item.rcItem;
+
+    HBRUSH background =
+        CreateSolidBrush(
+            kCardBackground);
+    FillRect(
+        item.hDC,
+        &rect,
+        background);
+    DeleteObject(
+        background);
+
+    wchar_t buffer[512]{};
+    GetWindowTextW(
+        item.hwndItem,
+        buffer,
+        static_cast<int>(
+            std::size(buffer)));
+
+    SetBkMode(
+        item.hDC,
+        TRANSPARENT);
+    SetTextColor(
+        item.hDC,
+        kMuted);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            item.hDC,
+            normalFont_);
+
+    RECT measured{
+        0,
+        0,
+        rect.right -
+            rect.left,
+        0,
+    };
+
+    DrawTextW(
+        item.hDC,
+        buffer,
+        -1,
+        &measured,
+        DT_LEFT |
+            DT_WORDBREAK |
+            DT_CALCRECT |
+            DT_NOPREFIX);
+
+    const int textHeight =
+        measured.bottom -
+        measured.top;
+    const int availableHeight =
+        rect.bottom -
+        rect.top;
+    const int top =
+        rect.top +
+        std::max(
+            0,
+            (availableHeight -
+             textHeight) / 2);
+
+    RECT textRect{
+        rect.left,
+        top,
+        rect.right,
+        rect.bottom,
+    };
+
+    DrawTextW(
+        item.hDC,
+        buffer,
+        -1,
+        &textRect,
+        DT_LEFT |
+            DT_WORDBREAK |
+            DT_NOPREFIX);
 
     SelectObject(
         item.hDC,
@@ -6366,6 +6474,13 @@ LRESULT SettingsWindow::HandleMessage(
         if (item->CtlID ==
                 kIdOpenGitHub) {
             DrawGitHubLink(
+                *item);
+            return TRUE;
+        }
+
+        if (item->hwndItem ==
+                updateStatus_) {
+            DrawUpdateStatus(
                 *item);
             return TRUE;
         }

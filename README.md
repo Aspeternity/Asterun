@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.2.9 — About Alignment Polish
+
+Alpha 2.9 is a narrow visual-alignment closeout for the About page. It does not change the alpha.2.8 update semantics.
+
+The version text and lightweight `GitHub ↗` entry now share one 24-logical-pixel metadata row and the version STATIC is vertically centered in that row, removing the previous baseline mismatch. The update status is owner-drawn within a 42-logical-pixel area whose center is shared exactly with the 34-logical-pixel update action button; wrapped status/error text remains supported while the normal one-line state aligns visually with the button label.
+
+No update behavior, persisted schema, Provider ID/default, Hotkey Registry ID, search/ranking behavior, Everything lifecycle, Runtime Input, Path Conversion or Shortcut TSV v3 contract changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.29`.
+
 ## v0.8.0-alpha.2.8 — About UX & Update Semantics
 
 Alpha 2.8 is the final About-page interaction pass before the Settings redesign closes.

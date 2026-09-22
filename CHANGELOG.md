@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.2.9
+
+- Aligned the `GitHub ↗` lightweight link and version text on one shared 24-logical-pixel metadata row.
+- Vertically centered the version STATIC so its baseline matches the owner-drawn GitHub link.
+- Owner-drew the update-status text and centered its 42-logical-pixel region on the same axis as the 34-logical-pixel update action button.
+- Preserved word wrapping for longer update/error status messages while fixing the normal one-line status alignment.
+- Kept all alpha.2.8 update-setting and update-execution semantics unchanged.
+- Kept Settings schemaVersion 8 and all frozen v0.7/v0.8 functional contracts unchanged.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.29`.
+
 ## 0.8.0-alpha.2.8
 
 - Fixed the missing owner-drawn label for **接收预发布版本更新 / Get prerelease updates**.

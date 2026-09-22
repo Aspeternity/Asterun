@@ -186,6 +186,7 @@ In progress:
 - v0.8.0-alpha.2.6 clears native ComboBox focus on internal Settings clicks and shortens the two Appearance selectors to 160 logical pixels
 - v0.8.0-alpha.2.7 introduces the compact About page, opt-in prerelease updates and one state-driven update action
 - v0.8.0-alpha.2.8 completes About interaction polish with a lightweight GitHub link and fully decoupled update preferences: switches only change future automatic/manual check behavior and never trigger a check themselves
+- v0.8.0-alpha.2.9 is the final About alignment closeout: version/GitHub metadata and update status/action rows share explicit visual centers without changing behavior
 - Shortcut Manager / Editor visual consolidation follows in v0.8.0-alpha.3
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
