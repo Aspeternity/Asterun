@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.3.10
+
+- Re-audited Settings placement against the last known-good alpha.3.6 implementation instead of continuing to layer placement workarounds.
+- Identified the alpha.3.7 regression point: removing the end-of-Create `ShowWindow(hwnd_, SW_HIDE)` also removed the call that consumed USER32's native first-show/default-placement state.
+- Restored that hidden first `ShowWindow` call while retaining alpha.3.7's destroy-on-close lifecycle.
+- Removed the alpha.3.9 explicit creation-monitor anchor and returned Settings creation coordinates to the proven `CW_USEDEFAULT` path.
+- Restored first visible open to `PositionForShow()` followed by a single `ShowWindow(SW_SHOWNORMAL)`, with no post-show position pass.
+- Kept **上次位置 / Last position** saving on close and all Center/Last work-area clamping logic unchanged.
+- Kept alpha.3.8 update-status reconciliation behavior unchanged.
+- Preserved Settings schemaVersion 8 and all frozen Shortcut workflow behavior.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.40`.
 ## 0.8.0-alpha.3.9
 
 - Removed `CW_USEDEFAULT` from Settings top-level window creation after alpha.3.8 real-Windows validation showed native first-show placement could still override the configured location.

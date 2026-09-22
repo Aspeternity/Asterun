@@ -42,6 +42,107 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.10":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.10 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.10 must keep provider-cache schemaVersion 2")
+
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    for token in (
+        "CW_USEDEFAULT,\n        CW_USEDEFAULT,",
+        "ShowPage(Page::General);\n    Layout();\n\n    // This apparently redundant first ShowWindow call is intentional.",
+        "ShowWindow(\n        hwnd_,\n        SW_HIDE);",
+        "PositionForShow();\n\n        ShowWindow(\n            hwnd_,\n            SW_SHOWNORMAL);",
+        "RememberSettingsPosition(",
+        "DestroyWindow(hwnd_);",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.3.10 Settings lifecycle/placement contract missing: {token}")
+
+    forbidden = (
+        "const bool useLastAnchor =",
+        "creationPoint",
+        "SWP_SHOWWINDOW",
+        "SW_SHOWNORMAL);\n\n        PositionForShow();",
+    )
+    for token in forbidden:
+        if token in settings_cpp:
+            fail(f"v0.8 alpha.3.10 obsolete placement workaround still present: {token}")
+
+    for token in (
+        "updateReconcileTimer_",
+        "StartUpdateReconcileTimer();",
+        "StopUpdateReconcileTimer();",
+        "HandleUpdateStatusMessage(",
+        "PostThreadMessageW(",
+        "kUpdateStatusMessage",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.10 alpha.3.8 update reconciliation regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.9"',
+        '"0.8.0-alpha.3.10"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.10 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.10 — Settings Placement Regression Fix",
+        "0.8.0.40",
+        "last known-good alpha.3.6",
+        "ShowWindow(hwnd_, SW_HIDE)",
+        "Up to date",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.10 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.10",
+        "0.8.0.40",
+        "last known-good alpha.3.6",
+        "ShowWindow(hwnd_, SW_HIDE)",
+        "single `ShowWindow(SW_SHOWNORMAL)`",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.10 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.10",
+        "v0.8.0-alpha.3.11",
+        "v0.8.0-alpha.3.12",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.10 Settings placement regression contract verified:",
+        "| root regression=alpha.3.7 removed hidden first ShowWindow",
+        "| Create=proven CW_USEDEFAULT + SW_HIDE consumption",
+        "| visible open=PositionForShow + single SW_SHOWNORMAL",
+        "| destroy-on-close and update reconciliation preserved",
+        "| schemas/frozen shortcut behavior unchanged",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.9":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.10 — Settings Placement Regression Fix
+
+Alpha 3.10 is a targeted correction after real-Windows testing showed that the previous alpha.3.8/3.9 placement changes still did not restore **屏幕居中 / Centered** when Settings was recreated from the tray.
+
+The regression was traced by diffing the last known-good alpha.3.6 Settings lifecycle against alpha.3.7+. The important difference was not the center-coordinate calculation: alpha.3.7 removed the apparently redundant `ShowWindow(hwnd_, SW_HIDE)` call at the end of `SettingsWindow::Create()`. In alpha.3.6 that first `ShowWindow` call consumed USER32's first-show/default-placement state while the HWND was still invisible. Once it was removed, every destroy/recreate cycle left a fresh native first-show placement pending, which could overwrite our centered position with Windows' upper-left cascade. **上次位置 / Last position** often appeared correct because its explicit saved coordinates masked the regression.
+
+Alpha 3.10 therefore removes the alpha.3.9 explicit creation-anchor workaround and restores the proven alpha.3.6 first-show sequence while keeping alpha.3.7's destroy-on-close lifecycle: create with the normal `CW_USEDEFAULT` coordinates, finish constructing/layouting the hidden window, call `ShowWindow(SW_HIDE)` once to consume the native first-show state, then on the real open call `PositionForShow()` followed by `ShowWindow(SW_SHOWNORMAL)`. There is no second post-show reposition pass.
+
+The alpha.3.8 update-status reconciliation watchdog remains unchanged. Manual update checking is valid even when no newer version exists: a successful check must leave **正在检查更新… / Checking for updates...** and end in **已是最新版本 / Up to date**.
+
+No Settings schema, updater endpoint/manifest, Shortcut Manager, Shortcut Editor, Runtime Input, Path Conversion, Provider, Hotkey or search/ranking behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.40`.
 ## v0.8.0-alpha.3.9 — Settings First-Show Placement Final Fix
 
 Alpha 3.9 is a second, narrower placement fix after real-Windows validation showed that alpha.3.8 could still reopen Settings near USER32's default upper-left cascade position.

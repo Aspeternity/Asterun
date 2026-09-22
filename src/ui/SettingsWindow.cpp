@@ -208,67 +208,6 @@ bool SettingsWindow::Create() {
         return false;
     }
 
-    // Give the hidden top-level window an explicit point on the monitor
-    // that will own this Settings session. Keeping CW_USEDEFAULT here leaves
-    // a first-show placement for USER32 to apply later, which can override
-    // our configured Center/Last placement after the alpha.3.7 recreate.
-    const auto& settings =
-        app_.SettingsData();
-
-    const bool useLastAnchor =
-        settings.settingsPlacement ==
-            "last" &&
-        settings.settingsLastPositionValid;
-
-    POINT creationPoint{};
-
-    if (useLastAnchor) {
-        creationPoint.x =
-            settings.settingsLastX;
-        creationPoint.y =
-            settings.settingsLastY;
-    } else if (!GetCursorPos(
-                   &creationPoint)) {
-        creationPoint = {0, 0};
-    }
-
-    HMONITOR creationMonitor =
-        MonitorFromPoint(
-            creationPoint,
-            MONITOR_DEFAULTTONEAREST);
-
-    MONITORINFO creationInfo{
-        sizeof(creationInfo)};
-
-    if (GetMonitorInfoW(
-            creationMonitor,
-            &creationInfo)) {
-        if (useLastAnchor) {
-            creationPoint.x =
-                std::clamp(
-                    creationPoint.x,
-                    creationInfo.rcWork.left,
-                    std::max(
-                        creationInfo.rcWork.left,
-                        creationInfo.rcWork.right - 1));
-            creationPoint.y =
-                std::clamp(
-                    creationPoint.y,
-                    creationInfo.rcWork.top,
-                    std::max(
-                        creationInfo.rcWork.top,
-                        creationInfo.rcWork.bottom - 1));
-        } else {
-            // The exact center is resolved after the final DPI-aware outer
-            // size is known. This point only establishes the correct monitor
-            // and DPI context for CreateWindowEx/GetDpiForWindow.
-            creationPoint.x =
-                creationInfo.rcWork.left;
-            creationPoint.y =
-                creationInfo.rcWork.top;
-        }
-    }
-
     hwnd_ = CreateWindowExW(
         WS_EX_APPWINDOW,
         kSettingsClass,
@@ -278,8 +217,8 @@ bool SettingsWindow::Create() {
             WS_MINIMIZEBOX |
             WS_CLIPCHILDREN |
             WS_VSCROLL,
-        creationPoint.x,
-        creationPoint.y,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
         1080,
         800,
         nullptr,
@@ -346,6 +285,16 @@ bool SettingsWindow::Create() {
     RefreshFromSettings();
     ShowPage(Page::General);
     Layout();
+
+    // This apparently redundant first ShowWindow call is intentional.
+    // In the last known-good alpha.3.6 lifecycle it consumed USER32's
+    // first-show/default-placement state while the HWND was still hidden.
+    // alpha.3.7 removed it when close semantics changed to DestroyWindow,
+    // which made every recreated Settings HWND vulnerable to the native
+    // upper-left cascade overriding our later Center placement.
+    ShowWindow(
+        hwnd_,
+        SW_HIDE);
 
     return true;
 }
@@ -6473,17 +6422,14 @@ void SettingsWindow::Show() {
     }
 
     if (!IsWindowVisible(hwnd_)) {
-        // Pre-position while hidden, perform the native first show, then
-        // enforce the configured placement once more after USER32/DPI has
-        // settled the window. The explicit creation point above means there
-        // is no pending CW_USEDEFAULT placement left to win this race.
+        // Create() has already consumed USER32's first-show/default-placement
+        // state with SW_HIDE. PositionForShow therefore owns the next visible
+        // placement exactly as it did in the last known-good alpha.3.6 path.
         PositionForShow();
 
         ShowWindow(
             hwnd_,
             SW_SHOWNORMAL);
-
-        PositionForShow();
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,
