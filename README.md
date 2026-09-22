@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.6 — Shortcut Workflow Naming Polish
+
+Alpha 3.6 is a narrow naming and mode-identity pass before the Shortcut Editor visual consolidation. No Manager layout, Header resize, search, row-density or shortcut execution behavior changes.
+
+The Shortcut Manager context menu is reduced to context-appropriate labels. On a selected item the menu is now **编辑… / Edit...**, **测试 / Test**, **打开所在目录 / Open containing folder**, **复制目标 / Copy target**, and **删除 / Delete**, with the existing separators and Edit kept as the default action. The file-system action remains conditional, and blank-area right-click continues to expose only **新建快捷项… / New shortcut...**.
+
+Shortcut Editor now owns an explicit mode-title update path. Language refreshes, new-item initialization and existing-command loading all synchronize the title from the actual mode, so new flows show **新建快捷项 / New shortcut** and edit flows show **编辑快捷项 / Edit shortcut**. This fixes the previous initialization-order bug where ApplyLanguage ran before LoadCommand and edit windows could retain the New title.
+
+No Shortcut Editor form layout, Runtime Input, Advanced Options, Path Conversion, shortcut persistence, Provider, Hotkey, updater or Shortcut TSV v3 behavior changes. Settings remains schemaVersion 8. Windows fixed FileVersion/ProductVersion is `0.8.0.36`.
+
 ## v0.8.0-alpha.3.5 — Shortcut Manager Interaction Polish
 
 Alpha 3.5 removes the last visible interaction artifacts from Shortcut Manager column resizing and fixes first-open placement. All alpha.3.4 column limits and alpha.3.3 search/reopen/density behavior remain unchanged.

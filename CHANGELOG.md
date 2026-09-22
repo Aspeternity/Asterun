@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.6
+
+- Simplified selected-item Shortcut Manager context-menu labels to **编辑… / Edit...**, **测试 / Test**, **打开所在目录 / Open containing folder**, **复制目标 / Copy target**, and **删除 / Delete**.
+- Kept Edit as the context-menu default action and preserved the existing functional grouping/separators.
+- Kept blank-area right-click limited to **新建快捷项… / New shortcut...**.
+- Renamed the Explorer action from the implementation-oriented **在资源管理器中定位** wording to the user-facing **打开所在目录**.
+- Updated the corresponding failure message to match the new action wording.
+- Added an explicit Shortcut Editor mode-title helper shared by language refresh and mode initialization.
+- Fixed edit dialogs retaining the **新建快捷项 / New shortcut** title because ApplyLanguage previously ran before LoadCommand.
+- Ensured new flows show **新建快捷项 / New shortcut** and existing-command flows show **编辑快捷项 / Edit shortcut**.
+- Preserved Shortcut Manager layout/resize/search/24px rows and all alpha.3.5 interaction behavior.
+- Kept Shortcut Editor form layout, Runtime Input, Advanced Options and Path Conversion behavior unchanged.
+- Kept Settings schemaVersion 8; updated Windows fixed FileVersion/ProductVersion to `0.8.0.36`.
+
 ## 0.8.0-alpha.3.5
 
 - Removed HDS_FULLDRAG from Shortcut Manager so Header drags use the native tracking guide instead of continuously resizing/repainting the ListView.

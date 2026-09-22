@@ -50,6 +50,7 @@ private:
 
     void CreateControls();
     void ApplyLanguage();
+    void UpdateWindowTitle();
     void Layout();
     void ResizeForContent();
     void RefreshDynamicLayout();

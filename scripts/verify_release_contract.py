@@ -42,6 +42,122 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.6":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.6 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.6 must keep provider-cache schemaVersion 2")
+
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+
+    for token in (
+        'T(L"新建快捷项…",',
+        'T(L"编辑…",',
+        'T(L"测试",',
+        'T(L"打开所在目录",',
+        'T(L"复制目标",',
+        'T(L"删除",',
+        "SetMenuDefaultItem(\n            menu,\n            kShortcutContextEdit,",
+        "kShortcutContextLocate",
+        "kShortcutContextCopy",
+        "kShortcutContextDelete",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.6 context-menu contract missing: {token}")
+
+    for token in (
+        'T(L"编辑快捷项...",',
+        'T(L"在资源管理器中定位",',
+    ):
+        if token in manager_cpp:
+            fail(f"v0.8 alpha.3.6 obsolete context-menu wording returned: {token}")
+
+    for token in (
+        "void UpdateWindowTitle();",
+        "void ShortcutEditorDialog::\nUpdateWindowTitle()",
+        'T(L"新建快捷项",',
+        'T(L"编辑快捷项",',
+        "commandId_ = it->id;\n    UpdateWindowTitle();",
+        "commandId_.clear();\n    UpdateWindowTitle();",
+        "void ShortcutEditorDialog::ApplyLanguage() {\n    UpdateWindowTitle();",
+    ):
+        if token not in editor_cpp and token not in editor_h:
+            fail(f"v0.8 alpha.3.6 editor mode-title contract missing: {token}")
+
+    if "ApplyLanguage();\n\n    if (commandId.empty())" not in editor_cpp:
+        fail("v0.8 alpha.3.6 editor initialization baseline changed unexpectedly")
+
+    for token in (
+        "RuntimeInputMode",
+        "UpdateAdvancedVisibility",
+        "ShortcutPathConverterDialog",
+    ):
+        combined = editor_cpp + manager_cpp
+        if token not in combined:
+            fail(f"v0.8 alpha.3.6 frozen shortcut workflow token missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.5"',
+        '"0.8.0-alpha.3.6"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.6 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.6 — Shortcut Workflow Naming Polish",
+        "0.8.0.36",
+        "编辑… / Edit...",
+        "打开所在目录 / Open containing folder",
+        "mode-title",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.6 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.6",
+        "0.8.0.36",
+        "ApplyLanguage previously ran before LoadCommand",
+        "新建快捷项 / New shortcut",
+        "编辑快捷项 / Edit shortcut",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.6 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.6",
+        "v0.8.0-alpha.3.7",
+        "v0.8.0-alpha.3.8",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.6 Shortcut workflow naming polish verified:",
+        "| settings=8 commands=2 usage=1 provider-cache=2",
+        "| context menu=Edit/Test/Open containing folder/Copy target/Delete",
+        "| blank context=New shortcut only",
+        "| editor title=explicit New/Edit mode",
+        "| Manager layout/interactions unchanged",
+        "| Editor form/Runtime Input/Advanced/Path Conversion unchanged",
+    )
+    raise SystemExit(0)
+
 if version == "0.8.0-alpha.3.5":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

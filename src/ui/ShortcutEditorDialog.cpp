@@ -592,13 +592,7 @@ void ShortcutEditorDialog::CreateControls() {
 }
 
 void ShortcutEditorDialog::ApplyLanguage() {
-    SetWindowTextW(
-        hwnd_,
-        commandId_.empty()
-            ? T(L"新建快捷项",
-                L"New shortcut")
-            : T(L"编辑快捷项",
-                L"Edit shortcut"));
+    UpdateWindowTitle();
 
     SetWindowTextW(
         keywordLabel_,
@@ -790,6 +784,22 @@ void ShortcutEditorDialog::ApplyLanguage() {
     UpdateRuntimeInputHint();
     UpdateRuntimeTestVisibility();
 }
+
+void ShortcutEditorDialog::
+UpdateWindowTitle() {
+    if (!hwnd_) {
+        return;
+    }
+
+    SetWindowTextW(
+        hwnd_,
+        commandId_.empty()
+            ? T(L"新建快捷项",
+                L"New shortcut")
+            : T(L"编辑快捷项",
+                L"Edit shortcut"));
+}
+
 
 void ShortcutEditorDialog::Layout() {
     if (!hwnd_) {
@@ -1472,6 +1482,7 @@ void ShortcutEditorDialog::LoadCommand(
     }
 
     commandId_ = it->id;
+    UpdateWindowTitle();
 
     const std::wstring keywordText =
         FormatShortcutKeywords(
@@ -1562,6 +1573,7 @@ void ShortcutEditorDialog::LoadCommand(
 void ShortcutEditorDialog::BeginNew(
     const Command* seed) {
     commandId_.clear();
+    UpdateWindowTitle();
 
     const Command empty;
     const Command& initial =

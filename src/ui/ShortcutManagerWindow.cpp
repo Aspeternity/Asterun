@@ -2248,8 +2248,8 @@ void ShortcutManagerWindow::LocateSelected() {
                 CommandType::Folder)) {
         MessageBoxW(
             hwnd_,
-            T(L"无法在资源管理器中定位此目标。目标可能已移动、删除，或不是文件系统路径。",
-              L"Could not show this target in File Explorer. It may have moved, been deleted, or may not be a filesystem path."),
+            T(L"无法打开目标所在目录。目标可能已移动、删除，或不是文件系统路径。",
+              L"Could not open the target location. It may have moved, been deleted, or may not be a filesystem path."),
             L"ALTRun Next",
             MB_OK |
                 MB_ICONINFORMATION);
@@ -2393,7 +2393,7 @@ void ShortcutManagerWindow::ShowContextMenu(
             menu,
             MF_STRING,
             kShortcutContextAdd,
-            T(L"新建快捷项...",
+            T(L"新建快捷项…",
               L"New shortcut..."));
 
         SetMenuDefaultItem(
@@ -2413,8 +2413,8 @@ void ShortcutManagerWindow::ShowContextMenu(
             menu,
             MF_STRING,
             kShortcutContextEdit,
-            T(L"编辑快捷项...",
-              L"Edit shortcut..."));
+            T(L"编辑…",
+              L"Edit..."));
         SetMenuDefaultItem(
             menu,
             kShortcutContextEdit,
@@ -2444,8 +2444,8 @@ void ShortcutManagerWindow::ShowContextMenu(
                     menu,
                     MF_STRING,
                     kShortcutContextLocate,
-                    T(L"在资源管理器中定位",
-                      L"Show in File Explorer"));
+                    T(L"打开所在目录",
+                      L"Open containing folder"));
             }
 
             if (!command->target.empty()) {
@@ -2467,8 +2467,8 @@ void ShortcutManagerWindow::ShowContextMenu(
             menu,
             MF_STRING,
             kShortcutContextDelete,
-            T(L"删除快捷项",
-              L"Delete shortcut"));
+            T(L"删除",
+              L"Delete"));
     }
 
     SetForegroundWindow(hwnd_);
