@@ -9,7 +9,7 @@
 - Replaced the Classic Hint STATIC with a disabled read-only right-aligned Edit and added a dedicated read-only Classic command Edit; Modern keeps its existing preview control.
 - Changed Classic font creation from point-size approximation to exact original LOGFONT heights **-16/-13 @ 96 DPI**, SimSun, ANSI_CHARSET, normal weight and DEFAULT_QUALITY.
 - Restored original Classic colors: clYellow title, clRed input, clNavy list text, clGray command text, clWindow list background and clMoneyGreen Edit surfaces.
-- With result icons off, Classic now renders one fixed-format row string matching the original ` %d|%-25s| %s` layout using one GDI text run and Windows system selection colors. The optional icon-enabled layout remains an ALTRun Next enhancement.
+- With result icons off, Classic now renders one fixed-format row string matching the original ` %d|%-25s| %s` layout using one `ExtTextOutW` GDI text run and Windows system selection colors. The optional icon-enabled layout remains an ALTRun Next enhancement.
 - Preserved Modern Compact, search/ranking/providers/Everything, context actions, alpha.3.40 rapid-click behavior, alpha.3.36 updater hardening and shared top-level presentation.
 - Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.74`.
 
