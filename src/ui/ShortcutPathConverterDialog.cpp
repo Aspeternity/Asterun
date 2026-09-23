@@ -1706,11 +1706,14 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
             rect.right -= Scale(24);
 
             const int centerY =
-                rect.top +
+                static_cast<int>(
+                    rect.top) +
                 std::max(
                     0,
-                    (rect.bottom -
-                     rect.top) / 2);
+                    (static_cast<int>(
+                         rect.bottom) -
+                     static_cast<int>(
+                         rect.top)) / 2);
 
             RECT titleRect{
                 rect.left,
