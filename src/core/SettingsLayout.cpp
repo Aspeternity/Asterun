@@ -81,7 +81,7 @@ GeneralLayoutMetrics BuildGeneralLayout(
         placementTop +
         scale(
             ui::kSettingsComboRowLogical) *
-            3;
+            4;
 
     const int noteTop =
         placementBottom;

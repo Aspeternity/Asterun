@@ -96,9 +96,26 @@ std::string NormalizeSettingsPlacement(
         TrimAscii(
             std::move(value)));
 
-    return value == "last"
-        ? "last"
-        : "center";
+    if (value == "top" ||
+        value == "last") {
+        return value;
+    }
+
+    return "center";
+}
+
+std::string NormalizeShortcutManagerPlacement(
+    std::string value) {
+    value = LowerAscii(
+        TrimAscii(
+            std::move(value)));
+
+    if (value == "top" ||
+        value == "last") {
+        return value;
+    }
+
+    return "center";
 }
 
 void SyncLegacyHotkeyMirrors(
@@ -386,6 +403,13 @@ bool SettingsStore::LoadJson() {
                         settings_
                             .settingsPlacement));
 
+            settings_.shortcutManagerPlacement =
+                NormalizeShortcutManagerPlacement(
+                    placement.value(
+                        "shortcutManagerMode",
+                        settings_
+                            .shortcutManagerPlacement));
+
             settings_.launcherLastPositionValid =
                 placement.value(
                     "launcherLastValid",
@@ -410,6 +434,19 @@ bool SettingsStore::LoadJson() {
             settings_.settingsLastY =
                 placement.value(
                     "settingsLastY",
+                    0);
+
+            settings_.shortcutManagerLastPositionValid =
+                placement.value(
+                    "shortcutManagerLastValid",
+                    false);
+            settings_.shortcutManagerLastX =
+                placement.value(
+                    "shortcutManagerLastX",
+                    0);
+            settings_.shortcutManagerLastY =
+                placement.value(
+                    "shortcutManagerLastY",
                     0);
         }
 
@@ -913,6 +950,9 @@ bool SettingsStore::Save() const {
             {"settingsMode",
              NormalizeSettingsPlacement(
                  settings_.settingsPlacement)},
+            {"shortcutManagerMode",
+             NormalizeShortcutManagerPlacement(
+                 settings_.shortcutManagerPlacement)},
             {"launcherLastValid",
              settings_.launcherLastPositionValid},
             {"launcherLastX",
@@ -924,7 +964,13 @@ bool SettingsStore::Save() const {
             {"settingsLastX",
              settings_.settingsLastX},
             {"settingsLastY",
-             settings_.settingsLastY}
+             settings_.settingsLastY},
+            {"shortcutManagerLastValid",
+             settings_.shortcutManagerLastPositionValid},
+            {"shortcutManagerLastX",
+             settings_.shortcutManagerLastX},
+            {"shortcutManagerLastY",
+             settings_.shortcutManagerLastY}
         }},
         {"providers",
          std::move(providersJson)},
@@ -1224,7 +1270,8 @@ bool SettingsStore::SetUpdateSettings(
 
 bool SettingsStore::SetWindowPlacement(
     std::string launcherPlacement,
-    std::string settingsPlacement) {
+    std::string settingsPlacement,
+    std::string shortcutManagerPlacement) {
 
     if (readOnlyDueToNewerSchema_) {
         return false;
@@ -1238,11 +1285,17 @@ bool SettingsStore::SetWindowPlacement(
         NormalizeSettingsPlacement(
             std::move(
                 settingsPlacement));
+    shortcutManagerPlacement =
+        NormalizeShortcutManagerPlacement(
+            std::move(
+                shortcutManagerPlacement));
 
     if (settings_.launcherPlacement ==
             launcherPlacement &&
         settings_.settingsPlacement ==
-            settingsPlacement) {
+            settingsPlacement &&
+        settings_.shortcutManagerPlacement ==
+            shortcutManagerPlacement) {
         return true;
     }
 
@@ -1255,6 +1308,9 @@ bool SettingsStore::SetWindowPlacement(
     settings_.settingsPlacement =
         std::move(
             settingsPlacement);
+    settings_.shortcutManagerPlacement =
+        std::move(
+            shortcutManagerPlacement);
 
     if (!Save()) {
         settings_ = previous;
@@ -1315,6 +1371,36 @@ bool SettingsStore::RememberSettingsPosition(
         true;
     settings_.settingsLastX = x;
     settings_.settingsLastY = y;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::RememberShortcutManagerPosition(
+    int x,
+    int y) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    if (settings_.shortcutManagerLastPositionValid &&
+        settings_.shortcutManagerLastX == x &&
+        settings_.shortcutManagerLastY == y) {
+        return true;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.shortcutManagerLastPositionValid =
+        true;
+    settings_.shortcutManagerLastX = x;
+    settings_.shortcutManagerLastY = y;
 
     if (!Save()) {
         settings_ = previous;

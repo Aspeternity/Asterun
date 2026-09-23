@@ -76,6 +76,8 @@ private:
         kIdLauncherPlacement = 51107;
     static constexpr UINT
         kIdSettingsPlacement = 51108;
+    static constexpr UINT
+        kIdShortcutManagerPlacement = 51109;
 
     static constexpr UINT
         kIdWildcardMatching = 51130;
@@ -369,6 +371,9 @@ private:
     HWND settingsPlacementLabel_{};
     HWND settingsPlacementDescription_{};
     HWND settingsPlacement_{};
+    HWND shortcutManagerPlacementLabel_{};
+    HWND shortcutManagerPlacementDescription_{};
+    HWND shortcutManagerPlacement_{};
     HWND generalNote_{};
 
     HWND appearanceLauncherTitle_{};

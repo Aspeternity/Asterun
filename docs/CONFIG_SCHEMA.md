@@ -11,16 +11,18 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. As of v0.7.0-alpha.9:
+Each document carries its own schema version. As of v0.8.0-alpha.3.28:
 
 ```text
-settings.json       schemaVersion 7
+settings.json       schemaVersion 9
 commands.json       schemaVersion 2
 usage.json          schemaVersion 1
 provider-cache.json schemaVersion 2
 ```
 
 Schema versions are intentionally independent so adding launcher preferences does not force unrelated command or usage migrations.
+
+v0.8.0-alpha.3.28 upgrades **settings.json to schemaVersion 9** for unified window placement. `windowPlacement.settingsMode` now accepts `top`, `center` and `last`; the new `shortcutManagerMode` uses the same values and defaults to `center`. Shortcut Manager persists only its last X/Y coordinates (`shortcutManagerLastValid/X/Y`) for the optional `last` mode. Its window size is deliberately not persisted: every newly opened Manager starts from the 720 × 480 logical default, while manual resizing remains available for that open instance. Schema-8 documents migrate atomically to schema 9, preserving Launcher/Settings placement and receiving the centered Shortcut Manager default. Older binaries see schema 9 as newer and remain read-only under the existing downgrade-protection contract.
 
 v0.6.0-alpha.2 introduces only runtime Windows Activation Context and Explorer navigation state. The captured foreground HWND, Explorer view/browser handles and current folder are **session-only** and are never written to settings.json, commands.json, usage.json or provider-cache.json. No schema migration is performed.
 

@@ -42,6 +42,227 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.28":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.28 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.28 must keep provider-cache schemaVersion 2")
+
+    settings_h = read("src/core/Settings.hpp")
+    settings_cpp = read("src/core/Settings.cpp")
+    app_h = read("src/app/App.hpp")
+    app_cpp = read("src/app/App.cpp")
+    settings_window_h = read("src/ui/SettingsWindow.hpp")
+    settings_window_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_layout_cpp = read("src/core/SettingsLayout.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+
+    for token in (
+        'std::string shortcutManagerPlacement{"center"}',
+        "shortcutManagerLastPositionValid",
+        "shortcutManagerLastX",
+        "shortcutManagerLastY",
+        "RememberShortcutManagerPosition(",
+    ):
+        if token not in settings_h:
+            fail(f"v0.8 alpha.3.28 Settings model missing: {token}")
+
+    for token in (
+        "NormalizeShortcutManagerPlacement(",
+        '"shortcutManagerMode"',
+        '"shortcutManagerLastValid"',
+        '"shortcutManagerLastX"',
+        '"shortcutManagerLastY"',
+        "RememberShortcutManagerPosition(",
+        'value == "top"',
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.3.28 Settings persistence missing: {token}")
+
+    for token in (
+        "kIdShortcutManagerPlacement = 51109",
+        "shortcutManagerPlacementLabel_",
+        "shortcutManagerPlacementDescription_",
+        "shortcutManagerPlacement_",
+    ):
+        if token not in settings_window_h:
+            fail(f"v0.8 alpha.3.28 Settings UI declaration missing: {token}")
+
+    for token in (
+        'T(L"启动器显示器"',
+        'T(L"启动器窗口位置"',
+        'T(L"设置窗口位置"',
+        'T(L"快捷项管理窗口位置"',
+        'T(L"靠近屏幕顶部"',
+        "std::pair<HWND, HWND>,\n            4>",
+        "kIdShortcutManagerPlacement",
+        "shortcutManagerPlacementIndex",
+        "placementMode(",
+        'settings.settingsPlacement ==\n            "top"',
+    ):
+        if token not in settings_window_cpp:
+            fail(f"v0.8 alpha.3.28 unified placement UI missing: {token}")
+
+    if "ui::kSettingsComboRowLogical) *\n            4" not in settings_layout_cpp:
+        fail("v0.8 alpha.3.28 General placement card must reserve four rows")
+
+    for token in (
+        "ApplyConfiguredPlacement()",
+        "shortcutManagerPlacement",
+        "shortcutManagerLastPositionValid",
+        "RememberShortcutManagerPosition(",
+        "720 x 480 logical baseline",
+        "Scale(kDefaultWidthLogical)",
+        "Scale(kDefaultHeightLogical)",
+        '==\n                "top"',
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.28 Manager placement lifecycle missing: {token}")
+
+    for forbidden in (
+        "savedWindowPlacement_",
+        "savedWindowPlacementValid_",
+        "CaptureWindowState()",
+        "SetWindowPlacement(\n            hwnd_",
+    ):
+        if forbidden in manager_cpp or forbidden in manager_h:
+            fail(f"v0.8 alpha.3.28 Manager must not restore previous window size/state: {forbidden}")
+
+    for token in (
+        "SetWindowPlacementSettings(",
+        "RememberShortcutManagerPosition(",
+    ):
+        if token not in app_h or token not in app_cpp:
+            fail(f"v0.8 alpha.3.28 App placement bridge missing: {token}")
+
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    for token in (
+        "settings-schema8-window-placement.json",
+        "MigratedFromSchemaVersion() ==\n        8",
+        '"shortcutManagerMode"',
+        '"center"',
+        "shortcutManagerLastValid",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.3.28 schema-8 migration coverage missing: {token}")
+
+    manager_tokens = (
+        "kKeywordColumnPercent = 16",
+        "kNameColumnPercent = 24",
+        "kTypeColumnPercent = 14",
+        "kKeywordColumnMinimumLogical = 107",
+        "kNameColumnMinimumLogical = 161",
+        "kTypeColumnMinimumLogical = 94",
+        "kTargetColumnMinimumLogical = 180",
+        "ApplyLanguage() changes only HDI_TEXT",
+    )
+    for token in manager_tokens:
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.28 must preserve Manager column closeout: {token}")
+
+    for token in (
+        "Deliberately do not draw ODS_FOCUS here",
+        "BCM_GETIDEALSIZE",
+        "SM_CXMENUCHECK",
+        "kEditorWidthLogical = 590",
+        "kAdvancedRightInsetLogical = 18",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.28 must preserve Editor closeout: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp and token not in settings_window_cpp:
+            fail(f"v0.8 alpha.3.28 must preserve updater hardening: {token}")
+
+    if "WinHttpQueryDataAvailable(" in update_cpp:
+        fail("v0.8 alpha.3.28 must not regress to QueryDataAvailable update reads")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.27"',
+        '"0.8.0-alpha.3.28"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.28 update ordering/default coverage missing: {token}")
+
+    example = read("config/settings.example.json")
+    docs = read("docs/CONFIG_SCHEMA.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        '"schemaVersion": 9',
+        '"shortcutManagerMode": "center"',
+        '"shortcutManagerLastValid": false',
+    ):
+        if token not in example:
+            fail(f"v0.8 alpha.3.28 settings example missing: {token}")
+
+    for token in (
+        "settings.json       schemaVersion 9",
+        "v0.8.0-alpha.3.28 upgrades **settings.json to schemaVersion 9**",
+        "shortcutManagerMode",
+        "720 × 480 logical default",
+    ):
+        if token not in docs:
+            fail(f"v0.8 alpha.3.28 config schema docs missing: {token}")
+
+    for token in (
+        "## v0.8.0-alpha.3.28 — Unified Window Placement",
+        "0.8.0.58",
+        "720×480 logical",
+        "settings.json advances from schemaVersion 8 to schemaVersion 9",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.28 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.28",
+        "0.8.0.58",
+        "schemaVersion 9",
+        "启动器显示器 / 启动器窗口位置 / 设置窗口位置 / 快捷项管理窗口位置",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.28 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.28",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.28 unified window placement verified:",
+        "| settings schema=9",
+        "| Launcher/Settings/Manager modes=top|center|last",
+        "| Manager size resets to 720x480 logical on every recreate",
+        "| Manager last mode persists X/Y only",
+        "| placement copy/layout unified",
+        "| Manager columns + Editor + updater hardening preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.27":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

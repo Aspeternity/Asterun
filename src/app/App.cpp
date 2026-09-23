@@ -3248,13 +3248,16 @@ void App::SetGeneralSettings(
 
 bool App::SetWindowPlacementSettings(
     std::string launcherPlacement,
-    std::string settingsPlacement) {
+    std::string settingsPlacement,
+    std::string shortcutManagerPlacement) {
 
     if (!settingsStore_.SetWindowPlacement(
             std::move(
                 launcherPlacement),
             std::move(
-                settingsPlacement))) {
+                settingsPlacement),
+            std::move(
+                shortcutManagerPlacement))) {
         return false;
     }
 
@@ -3284,6 +3287,15 @@ void App::RememberSettingsPosition(
     int y) {
     settingsStore_.
         RememberSettingsPosition(
+            x,
+            y);
+}
+
+void App::RememberShortcutManagerPosition(
+    int x,
+    int y) {
+    settingsStore_.
+        RememberShortcutManagerPosition(
             x,
             y);
 }

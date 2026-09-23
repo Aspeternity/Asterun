@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "general": {
     "startWithWindows": false,
     "showOnStartup": false,
@@ -82,11 +82,15 @@
   "windowPlacement": {
     "launcherMode": "top",
     "settingsMode": "center",
+    "shortcutManagerMode": "center",
     "launcherLastValid": false,
     "launcherLastX": 0,
     "launcherLastY": 0,
     "settingsLastValid": false,
     "settingsLastX": 0,
-    "settingsLastY": 0
+    "settingsLastY": 0,
+    "shortcutManagerLastValid": false,
+    "shortcutManagerLastX": 0,
+    "shortcutManagerLastY": 0
   }
 }

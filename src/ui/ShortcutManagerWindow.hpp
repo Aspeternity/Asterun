@@ -70,7 +70,7 @@ private:
     void Layout();
     void RecreateFonts();
     void RebuildRowHeightImageList();
-    void CenterOnCursorMonitor();
+    void ApplyConfiguredPlacement();
     [[nodiscard]] int
     ClampTrackedColumnWidth(
         int column,
@@ -83,7 +83,6 @@ private:
         LPARAM lParam,
         LRESULT& result);
     void UpdateEmptyText();
-    void CaptureWindowState();
     void ReleaseWindowResources();
     void CloseWindow();
     void ResetTransientState(
@@ -139,9 +138,6 @@ private:
     int trackedColumn_{-1};
     int trackedColumnWidth_{-1};
     bool suppressFilterRefresh_{false};
-    WINDOWPLACEMENT savedWindowPlacement_{
-        sizeof(WINDOWPLACEMENT)};
-    bool savedWindowPlacementValid_{false};
     std::vector<std::wstring>
         visibleIds_;
 };

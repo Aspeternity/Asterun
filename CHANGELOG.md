@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.28
+
+- Unified the General -> Window placement vocabulary and behavior across Launcher, Settings and Shortcut Manager.
+- Renamed the Chinese labels to **启动器显示器 / 启动器窗口位置 / 设置窗口位置 / 快捷项管理窗口位置** and standardized all position choices to **靠近屏幕顶部 / 屏幕居中 / 上次位置**.
+- Added the missing **靠近屏幕顶部** mode to Settings and added all three placement modes to Shortcut Manager.
+- Shortcut Manager no longer preserves its previous window size. Every newly opened Manager starts at the 720×480 logical default, while manual resizing remains available for the current open instance.
+- Shortcut Manager **上次位置** persists only X/Y coordinates through SettingsStore; size/maximized state are deliberately excluded. Top/center placement uses the monitor containing the mouse; last-position placement uses the monitor nearest the saved coordinates and clamps the default-size window into the work area.
+- Removed Shortcut Manager's local `WINDOWPLACEMENT` cache entirely and added `shortcutManagerMode/LastValid/LastX/LastY` to the persisted `windowPlacement` object.
+- Settings window top placement uses the same near-top vertical rule as Launcher while preserving its existing center/last monitor-selection and work-area clamping behavior.
+- Expanded the General Window placement card from three to four rows and kept ComboBox focus-dismiss behavior consistent for the new control.
+- Upgraded settings.json from schemaVersion 8 to **schemaVersion 9**. Schema-8 files migrate atomically, preserve existing Launcher/Settings placement, and receive `shortcutManagerMode: "center"` with no valid last position.
+- Preserved Shortcut Manager's validated 16/24/14/46 columns and 107/161/94/180 logical minimums, alpha.3.26 Editor interaction fixes and alpha.3.23 update hardening.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.58`.
+
 ## 0.8.0-alpha.3.27
 
 - Corrected Shortcut Manager column lifecycle after real-Windows validation of alpha.3.26.

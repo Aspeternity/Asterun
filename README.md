@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.28 — Unified Window Placement
+
+Alpha 3.28 closes the Settings/Shortcut Manager placement model before Launcher UX work begins.
+
+The General -> **Window placement** card now uses one vocabulary across all top-level windows: **启动器显示器**, **启动器窗口位置**, **设置窗口位置** and **快捷项管理窗口位置**. Every position ComboBox uses the same three choices: **靠近屏幕顶部**, **屏幕居中** and **上次位置**. Settings gains the missing top mode, and Shortcut Manager gains its own independent placement preference. Launcher keeps its separate target-monitor selector because it is the frequently hotkey-invoked primary window; Settings and Shortcut Manager resolve top/center on the monitor containing the mouse.
+
+Shortcut Manager now separates **size** from **position** completely. A newly opened Manager always starts at the published **720×480 logical** default even if the previous instance was temporarily enlarged to inspect a long path. Manual resizing is still unrestricted for that open instance. When **上次位置** is selected, only the last X/Y coordinates are persisted; reopening restores those coordinates with a fresh default-size window and clamps it into the nearest monitor work area. The old local `WINDOWPLACEMENT` cache has been removed.
+
+Settings top placement follows the same near-top vertical rule already used by Launcher, while Settings center/last behavior remains work-area safe. The placement card expands to four rows without changing the rest of the General-page hierarchy.
+
+Because Shortcut Manager placement is now persisted user configuration, **settings.json advances from schemaVersion 8 to schemaVersion 9**. Existing schema-8 documents migrate atomically, preserving Launcher and Settings placement and receiving a centered Shortcut Manager default with no valid last position. Commands remain schemaVersion 2, usage schemaVersion 1 and provider-cache schemaVersion 2. Windows fixed FileVersion/ProductVersion is `0.8.0.58`.
+
 ## v0.8.0-alpha.3.27 — Shortcut Manager Column Lifecycle Closeout
 
 Alpha 3.27 closes the remaining Shortcut Manager column-state issue exposed by real-Windows reopen testing.

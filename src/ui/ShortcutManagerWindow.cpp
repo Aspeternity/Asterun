@@ -127,30 +127,6 @@ int ShortcutManagerWindow::Scale(
 }
 
 void ShortcutManagerWindow::
-CaptureWindowState() {
-    if (!hwnd_ ||
-        !IsWindow(hwnd_)) {
-        return;
-    }
-
-    WINDOWPLACEMENT placement{
-        sizeof(WINDOWPLACEMENT)};
-
-    if (GetWindowPlacement(
-            hwnd_,
-            &placement)) {
-        savedWindowPlacement_ =
-            placement;
-        savedWindowPlacementValid_ =
-            true;
-    }
-
-    // Column widths are intentionally session-local to the visible Manager
-    // instance. Closing and reopening the tool window returns to the validated
-    // default balance instead of carrying arbitrary drag experiments forward.
-}
-
-void ShortcutManagerWindow::
 ReleaseWindowResources() {
     if (rowHeightImageList_) {
         ImageList_Destroy(
@@ -199,7 +175,6 @@ CloseWindow() {
         return;
     }
 
-    CaptureWindowState();
     DestroyWindow(hwnd_);
 }
 
@@ -257,30 +232,19 @@ bool ShortcutManagerWindow::Create() {
 
     dpi_ = GetDpiForWindow(hwnd_);
 
-    if (savedWindowPlacementValid_) {
-        WINDOWPLACEMENT placement =
-            savedWindowPlacement_;
-        placement.length =
-            sizeof(WINDOWPLACEMENT);
-        placement.flags = 0;
-        placement.showCmd = SW_HIDE;
-
-        SetWindowPlacement(
-            hwnd_,
-            &placement);
-        dpi_ = GetDpiForWindow(hwnd_);
-    } else {
-        SetWindowPos(
-            hwnd_,
-            nullptr,
-            0,
-            0,
-            Scale(kDefaultWidthLogical),
-            Scale(kDefaultHeightLogical),
-            SWP_NOMOVE |
-                SWP_NOZORDER |
-                SWP_NOACTIVATE);
-    }
+    // Window size is deliberately ephemeral. Every new Manager instance starts
+    // from the published 720 x 480 logical baseline regardless of how large a
+    // previous instance was resized for one-off inspection.
+    SetWindowPos(
+        hwnd_,
+        nullptr,
+        0,
+        0,
+        Scale(kDefaultWidthLogical),
+        Scale(kDefaultHeightLogical),
+        SWP_NOMOVE |
+            SWP_NOZORDER |
+            SWP_NOACTIVATE);
 
     CreateControls();
 
@@ -292,10 +256,7 @@ bool ShortcutManagerWindow::Create() {
     ApplyLanguage();
     Layout();
     Refresh();
-
-    if (!savedWindowPlacementValid_) {
-        CenterOnCursorMonitor();
-    }
+    ApplyConfiguredPlacement();
 
     return true;
 }
@@ -1142,20 +1103,34 @@ RebuildRowHeightImageList() {
 }
 
 void ShortcutManagerWindow::
-CenterOnCursorMonitor() {
+ApplyConfiguredPlacement() {
     if (!hwnd_) {
         return;
     }
 
-    POINT cursor{};
-    if (!GetCursorPos(
-            &cursor)) {
-        return;
+    const auto& settings =
+        app_.SettingsData();
+
+    const bool useLast =
+        settings.shortcutManagerPlacement ==
+            "last" &&
+        settings.shortcutManagerLastPositionValid;
+
+    POINT anchor{};
+
+    if (useLast) {
+        anchor.x =
+            settings.shortcutManagerLastX;
+        anchor.y =
+            settings.shortcutManagerLastY;
+    } else if (!GetCursorPos(
+                   &anchor)) {
+        anchor = {0, 0};
     }
 
     const HMONITOR monitor =
         MonitorFromPoint(
-            cursor,
+            anchor,
             MONITOR_DEFAULTTONEAREST);
 
     if (!monitor) {
@@ -1172,6 +1147,74 @@ CenterOnCursorMonitor() {
         return;
     }
 
+    const auto resolvePosition =
+        [&](int width,
+            int height) {
+            POINT result{};
+
+            const int workWidth =
+                info.rcWork.right -
+                info.rcWork.left;
+            const int workHeight =
+                info.rcWork.bottom -
+                info.rcWork.top;
+
+            if (useLast) {
+                result.x =
+                    std::clamp(
+                        settings.shortcutManagerLastX,
+                        info.rcWork.left,
+                        info.rcWork.right -
+                            std::min(
+                                width,
+                                workWidth));
+                result.y =
+                    std::clamp(
+                        settings.shortcutManagerLastY,
+                        info.rcWork.top,
+                        info.rcWork.bottom -
+                            std::min(
+                                height,
+                                workHeight));
+                return result;
+            }
+
+            result.x =
+                info.rcWork.left +
+                std::max(
+                    0,
+                    (workWidth -
+                     width) / 2);
+
+            if (settings.shortcutManagerPlacement ==
+                "top") {
+                const int preferredY =
+                    info.rcWork.top +
+                    std::max(
+                        Scale(45),
+                        (workHeight -
+                         height) / 5);
+
+                result.y =
+                    std::clamp(
+                        preferredY,
+                        info.rcWork.top,
+                        info.rcWork.bottom -
+                            std::min(
+                                height,
+                                workHeight));
+            } else {
+                result.y =
+                    info.rcWork.top +
+                    std::max(
+                        0,
+                        (workHeight -
+                         height) / 2);
+            }
+
+            return result;
+        };
+
     RECT windowRect{};
     if (!GetWindowRect(
             hwnd_,
@@ -1179,86 +1222,48 @@ CenterOnCursorMonitor() {
         return;
     }
 
-    const int width =
-        windowRect.right -
-        windowRect.left;
-    const int height =
-        windowRect.bottom -
-        windowRect.top;
-
-    const int workWidth =
-        info.rcWork.right -
-        info.rcWork.left;
-    const int workHeight =
-        info.rcWork.bottom -
-        info.rcWork.top;
-
-    const int x =
-        info.rcWork.left +
-        std::max(
-            0,
-            (workWidth -
-             width) / 2);
-
-    const int y =
-        info.rcWork.top +
-        std::max(
-            0,
-            (workHeight -
-             height) / 2);
+    POINT position =
+        resolvePosition(
+            windowRect.right -
+                windowRect.left,
+            windowRect.bottom -
+                windowRect.top);
 
     SetWindowPos(
         hwnd_,
         nullptr,
-        x,
-        y,
+        position.x,
+        position.y,
         0,
         0,
         SWP_NOSIZE |
             SWP_NOZORDER |
             SWP_NOACTIVATE);
 
-    // Moving to a monitor with a different DPI can resize the hidden window
-    // through WM_DPICHANGED. Recenter once with that settled physical size.
+    // A move to another monitor may synchronously apply a new per-monitor DPI.
+    // Re-resolve once using the settled physical size while keeping the logical
+    // 720 x 480 default that WM_DPICHANGED selected.
     RECT settled{};
     if (GetWindowRect(
             hwnd_,
             &settled)) {
-        const int settledWidth =
-            settled.right -
-            settled.left;
-        const int settledHeight =
-            settled.bottom -
-            settled.top;
+        position =
+            resolvePosition(
+                settled.right -
+                    settled.left,
+                settled.bottom -
+                    settled.top);
 
-        const int settledX =
-            info.rcWork.left +
-            std::max(
-                0,
-                (workWidth -
-                 settledWidth) / 2);
-        const int settledY =
-            info.rcWork.top +
-            std::max(
-                0,
-                (workHeight -
-                 settledHeight) / 2);
-
-        if (settled.left !=
-                settledX ||
-            settled.top !=
-                settledY) {
-            SetWindowPos(
-                hwnd_,
-                nullptr,
-                settledX,
-                settledY,
-                0,
-                0,
-                SWP_NOSIZE |
-                    SWP_NOZORDER |
-                    SWP_NOACTIVATE);
-        }
+        SetWindowPos(
+            hwnd_,
+            nullptr,
+            position.x,
+            position.y,
+            0,
+            0,
+            SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE);
     }
 }
 
@@ -2863,6 +2868,18 @@ LRESULT ShortcutManagerWindow::HandleMessage(
     case WM_SIZE:
         Layout();
         return 0;
+
+    case WM_EXITSIZEMOVE: {
+        RECT rect{};
+        if (GetWindowRect(
+                hwnd_,
+                &rect)) {
+            app_.RememberShortcutManagerPosition(
+                rect.left,
+                rect.top);
+        }
+        return 0;
+    }
 
     case WM_ERASEBKGND: {
         RECT rect{};

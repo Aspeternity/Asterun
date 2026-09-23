@@ -34,12 +34,16 @@ struct Settings {
     std::string popupMonitor{"cursor"};
     std::string launcherPlacement{"top"};
     std::string settingsPlacement{"center"};
+    std::string shortcutManagerPlacement{"center"};
     bool launcherLastPositionValid{false};
     int launcherLastX{0};
     int launcherLastY{0};
     bool settingsLastPositionValid{false};
     int settingsLastX{0};
     int settingsLastY{0};
+    bool shortcutManagerLastPositionValid{false};
+    int shortcutManagerLastX{0};
+    int shortcutManagerLastY{0};
 
     std::vector<std::string>
         hotkeyModifiers{"alt"};
@@ -110,11 +114,15 @@ public:
         UpdateChannel channel);
     bool SetWindowPlacement(
         std::string launcherPlacement,
-        std::string settingsPlacement);
+        std::string settingsPlacement,
+        std::string shortcutManagerPlacement);
     bool RememberLauncherPosition(
         int x,
         int y);
     bool RememberSettingsPosition(
+        int x,
+        int y);
+    bool RememberShortcutManagerPosition(
         int x,
         int y);
     bool ResetDefaults();

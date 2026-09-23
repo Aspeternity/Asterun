@@ -306,6 +306,18 @@ int main() {
     assert(
         !featureSettings.Data()
              .executeSingleResultImmediately);
+    assert(
+        featureSettings.Data()
+            .launcherPlacement ==
+        "top");
+    assert(
+        featureSettings.Data()
+            .settingsPlacement ==
+        "center");
+    assert(
+        featureSettings.Data()
+            .shortcutManagerPlacement ==
+        "center");
 
     assert(featureSettings.SetStartWithWindows(true));
     assert(featureSettings.Data().startWithWindows);
@@ -395,6 +407,20 @@ int main() {
         true,
         false));
 
+    assert(featureSettings.SetWindowPlacement(
+        "last",
+        "top",
+        "last"));
+    assert(featureSettings.RememberLauncherPosition(
+        111,
+        222));
+    assert(featureSettings.RememberSettingsPosition(
+        333,
+        444));
+    assert(featureSettings.RememberShortcutManagerPosition(
+        555,
+        666));
+
     assert(providers::IsEnabled(
         featureSettings.Data().providerEnabled,
         providers::kStartMenu));
@@ -458,6 +484,115 @@ int main() {
     assert(
         providerSettingsReloaded.Data()
             .executeSingleResultImmediately);
+    assert(
+        providerSettingsReloaded.Data()
+            .launcherPlacement ==
+        "last");
+    assert(
+        providerSettingsReloaded.Data()
+            .settingsPlacement ==
+        "top");
+    assert(
+        providerSettingsReloaded.Data()
+            .shortcutManagerPlacement ==
+        "last");
+    assert(
+        providerSettingsReloaded.Data()
+            .launcherLastPositionValid);
+    assert(
+        providerSettingsReloaded.Data()
+            .launcherLastX == 111);
+    assert(
+        providerSettingsReloaded.Data()
+            .launcherLastY == 222);
+    assert(
+        providerSettingsReloaded.Data()
+            .settingsLastPositionValid);
+    assert(
+        providerSettingsReloaded.Data()
+            .settingsLastX == 333);
+    assert(
+        providerSettingsReloaded.Data()
+            .settingsLastY == 444);
+    assert(
+        providerSettingsReloaded.Data()
+            .shortcutManagerLastPositionValid);
+    assert(
+        providerSettingsReloaded.Data()
+            .shortcutManagerLastX == 555);
+    assert(
+        providerSettingsReloaded.Data()
+            .shortcutManagerLastY == 666);
+
+    // schema-8 window-placement settings migrate to schema 9. Existing
+    // launcher/settings choices survive; Shortcut Manager receives the new
+    // centered default and an invalid last-position marker.
+    const auto schema8PlacementPath =
+        data /
+        "settings-schema8-window-placement.json";
+
+    WriteText(
+        schema8PlacementPath,
+        "{\n"
+        "  \"schemaVersion\": 8,\n"
+        "  \"windowPlacement\": {\n"
+        "    \"launcherMode\": \"last\",\n"
+        "    \"settingsMode\": \"last\",\n"
+        "    \"launcherLastValid\": true,\n"
+        "    \"launcherLastX\": 10,\n"
+        "    \"launcherLastY\": 20,\n"
+        "    \"settingsLastValid\": true,\n"
+        "    \"settingsLastX\": 30,\n"
+        "    \"settingsLastY\": 40\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore schema8Placement(
+        schema8PlacementPath);
+    schema8Placement.Load();
+
+    assert(
+        schema8Placement
+            .WasMigratedFromOlderSchema());
+    assert(
+        schema8Placement
+            .MigratedFromSchemaVersion() ==
+        8);
+    assert(
+        schema8Placement.Data()
+            .launcherPlacement ==
+        "last");
+    assert(
+        schema8Placement.Data()
+            .settingsPlacement ==
+        "last");
+    assert(
+        schema8Placement.Data()
+            .shortcutManagerPlacement ==
+        "center");
+    assert(
+        !schema8Placement.Data()
+             .shortcutManagerLastPositionValid);
+
+    const auto migratedPlacementJson =
+        config::LoadJsonWithBackup(
+            schema8PlacementPath,
+            config::kSettingsSchemaVersion);
+    assert(migratedPlacementJson.value);
+    assert(
+        migratedPlacementJson.schemaVersion ==
+        config::kSettingsSchemaVersion);
+    assert(
+        (*migratedPlacementJson.value)
+            ["windowPlacement"]
+            ["shortcutManagerMode"]
+            .get<std::string>() ==
+        "center");
+    assert(
+        !(*migratedPlacementJson.value)
+             ["windowPlacement"]
+             ["shortcutManagerLastValid"]
+             .get<bool>());
 
     // Every provider toggle combination must survive a save/reload cycle.
     const std::array<std::string_view, 5>

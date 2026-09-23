@@ -153,11 +153,15 @@ public:
         UpdateChannel channel);
     bool SetWindowPlacementSettings(
         std::string launcherPlacement,
-        std::string settingsPlacement);
+        std::string settingsPlacement,
+        std::string shortcutManagerPlacement);
     void RememberLauncherPosition(
         int x,
         int y);
     void RememberSettingsPosition(
+        int x,
+        int y);
+    void RememberShortcutManagerPosition(
         int x,
         int y);
     [[nodiscard]] win::UpdateSnapshot

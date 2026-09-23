@@ -284,12 +284,34 @@ ResolveSettingsCreationGeometry(
                 0,
                 (workWidth -
                  width) / 2);
-        const int y =
+
+        int y =
             info.rcWork.top +
             std::max(
                 0,
                 (workHeight -
                  height) / 2);
+
+        if (settings.settingsPlacement ==
+            "top") {
+            const int preferredY =
+                info.rcWork.top +
+                std::max(
+                    ui::Scale(
+                        45,
+                        geometry.dpi),
+                    (workHeight -
+                     height) / 5);
+
+            y =
+                std::clamp(
+                    preferredY,
+                    info.rcWork.top,
+                    info.rcWork.bottom -
+                        std::min(
+                            height,
+                            workHeight));
+        }
 
         geometry.outer = {
             x,
@@ -847,6 +869,29 @@ void SettingsWindow::CreateGeneralPage() {
             instance_,
             nullptr);
 
+    shortcutManagerPlacementLabel_ =
+        CreateStatic(L"");
+    shortcutManagerPlacementDescription_ =
+        CreateStatic(
+            L"",
+            SS_LEFT | SS_NOPREFIX);
+    shortcutManagerPlacement_ =
+        CreateWindowExW(
+            0,
+            L"COMBOBOX",
+            L"",
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP |
+                CBS_DROPDOWNLIST |
+                WS_VSCROLL,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    kIdShortcutManagerPlacement)),
+            instance_,
+            nullptr);
+
     generalNote_ =
         CreateStatic(
             L"",
@@ -878,6 +923,9 @@ void SettingsWindow::CreateGeneralPage() {
         settingsPlacementLabel_,
         settingsPlacementDescription_,
         settingsPlacement_,
+        shortcutManagerPlacementLabel_,
+        shortcutManagerPlacementDescription_,
+        shortcutManagerPlacement_,
         generalNote_,
     };
 }
@@ -1286,6 +1334,9 @@ void SettingsWindow::ApplyFonts() {
         settingsPlacementLabel_,
         settingsPlacementDescription_,
         settingsPlacement_,
+        shortcutManagerPlacementLabel_,
+        shortcutManagerPlacementDescription_,
+        shortcutManagerPlacement_,
         generalNote_,
         hotkeyResetAll_,
         providerStartMenu_,
@@ -1512,7 +1563,7 @@ void SettingsWindow::ApplyLanguage() {
           L"Window placement"));
     SetWindowTextW(
         popupMonitorLabel_,
-        T(L"Launcher 目标显示器",
+        T(L"启动器显示器",
           L"Launcher monitor"));
     SetWindowTextW(
         popupMonitorDescription_,
@@ -1525,13 +1576,13 @@ void SettingsWindow::ApplyLanguage() {
         popupMonitor_,
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
-            T(L"当前鼠标所在显示器",
+            T(L"鼠标所在显示器",
               L"Monitor containing the mouse")));
     SendMessageW(
         popupMonitor_,
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
-            T(L"当前活动窗口所在显示器",
+            T(L"活动窗口所在显示器",
               L"Monitor containing the active window")));
     SendMessageW(
         popupMonitor_,
@@ -1542,8 +1593,8 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         launcherPlacementLabel_,
-        T(L"Launcher 出现位置",
-          L"Launcher position"));
+        T(L"启动器窗口位置",
+          L"Launcher window position"));
     SetWindowTextW(
         launcherPlacementDescription_,
         L"");
@@ -1555,7 +1606,7 @@ void SettingsWindow::ApplyLanguage() {
         launcherPlacement_,
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
-            T(L"靠近屏幕上方",
+            T(L"靠近屏幕顶部",
               L"Near top of screen")));
     SendMessageW(
         launcherPlacement_,
@@ -1572,7 +1623,7 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         settingsPlacementLabel_,
-        T(L"设置窗口出现位置",
+        T(L"设置窗口位置",
           L"Settings window position"));
     SetWindowTextW(
         settingsPlacementDescription_,
@@ -1585,10 +1636,46 @@ void SettingsWindow::ApplyLanguage() {
         settingsPlacement_,
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
+            T(L"靠近屏幕顶部",
+              L"Near top of screen")));
+    SendMessageW(
+        settingsPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
             T(L"屏幕居中",
               L"Center on screen")));
     SendMessageW(
         settingsPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"上次位置",
+              L"Last position")));
+
+    SetWindowTextW(
+        shortcutManagerPlacementLabel_,
+        T(L"快捷项管理窗口位置",
+          L"Shortcut Manager window position"));
+    SetWindowTextW(
+        shortcutManagerPlacementDescription_,
+        L"");
+
+    SendMessageW(
+        shortcutManagerPlacement_,
+        CB_RESETCONTENT, 0, 0);
+    SendMessageW(
+        shortcutManagerPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"靠近屏幕顶部",
+              L"Near top of screen")));
+    SendMessageW(
+        shortcutManagerPlacement_,
+        CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(
+            T(L"屏幕居中",
+              L"Center on screen")));
+    SendMessageW(
+        shortcutManagerPlacement_,
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
             T(L"上次位置",
@@ -1830,13 +1917,36 @@ void SettingsWindow::RefreshFromSettings() {
         launcherPlacementIndex,
         0);
 
+    int settingsPlacementIndex = 0;
+    if (settings.settingsPlacement ==
+        "center") {
+        settingsPlacementIndex = 1;
+    } else if (
+        settings.settingsPlacement ==
+        "last") {
+        settingsPlacementIndex = 2;
+    }
+
     SendMessageW(
         settingsPlacement_,
         CB_SETCURSEL,
-        settings.settingsPlacement ==
-                "last"
-            ? 1
-            : 0,
+        settingsPlacementIndex,
+        0);
+
+    int shortcutManagerPlacementIndex = 0;
+    if (settings.shortcutManagerPlacement ==
+        "center") {
+        shortcutManagerPlacementIndex = 1;
+    } else if (
+        settings.shortcutManagerPlacement ==
+        "last") {
+        shortcutManagerPlacementIndex = 2;
+    }
+
+    SendMessageW(
+        shortcutManagerPlacement_,
+        CB_SETCURSEL,
+        shortcutManagerPlacementIndex,
         0);
 
     SendMessageW(
@@ -3711,24 +3821,32 @@ void SettingsWindow::ApplyWindowPlacementControls() {
                 0,
                 0));
 
-    std::string launcherMode =
-        "top";
+    const int shortcutManagerIndex =
+        static_cast<int>(
+            SendMessageW(
+                shortcutManagerPlacement_,
+                CB_GETCURSEL,
+                0,
+                0));
 
-    if (launcherIndex == 1) {
-        launcherMode = "center";
-    } else if (launcherIndex == 2) {
-        launcherMode = "last";
-    }
-
-    const std::string settingsMode =
-        settingsIndex == 1
-            ? "last"
-            : "center";
+    const auto placementMode =
+        [](int index) {
+            if (index == 1) {
+                return std::string("center");
+            }
+            if (index == 2) {
+                return std::string("last");
+            }
+            return std::string("top");
+        };
 
     if (!app_.SetWindowPlacementSettings(
-            std::move(
-                launcherMode),
-            settingsMode)) {
+            placementMode(
+                launcherIndex),
+            placementMode(
+                settingsIndex),
+            placementMode(
+                shortcutManagerIndex))) {
         MessageBoxW(
             hwnd_,
             T(L"无法保存窗口位置设置。",
@@ -4311,7 +4429,7 @@ void SettingsWindow::Layout() {
 
         const std::array<
             std::pair<HWND, HWND>,
-            3>
+            4>
             placementRows{{
                 {
                     popupMonitorLabel_,
@@ -4324,6 +4442,10 @@ void SettingsWindow::Layout() {
                 {
                     settingsPlacementLabel_,
                     settingsPlacement_,
+                },
+                {
+                    shortcutManagerPlacementLabel_,
+                    shortcutManagerPlacement_,
                 },
             }};
 
@@ -6865,11 +6987,12 @@ LRESULT SettingsWindow::HandleMessage(
             }
 
             for (HWND combo :
-                 std::array<HWND, 6>{
+                 std::array<HWND, 7>{
                      numericQuickLaunchOrder_,
                      popupMonitor_,
                      launcherPlacement_,
                      settingsPlacement_,
+                     shortcutManagerPlacement_,
                      uiStyle_,
                      language_}) {
                 if (focused == combo) {
@@ -7173,6 +7296,7 @@ LRESULT SettingsWindow::HandleMessage(
 
         case kIdLauncherPlacement:
         case kIdSettingsPlacement:
+        case kIdShortcutManagerPlacement:
             if (notify == CBN_SELCHANGE) {
                 ApplyWindowPlacementControls();
             }
@@ -7850,6 +7974,8 @@ LRESULT SettingsWindow::HandleMessage(
                 launcherPlacementLabel_ ||
             control ==
                 settingsPlacementLabel_ ||
+            control ==
+                shortcutManagerPlacementLabel_ ||
             hotkeyCardStatic ||
             control == providerStatus_ ||
             control == uiStyleLabel_ ||
@@ -7879,6 +8005,8 @@ LRESULT SettingsWindow::HandleMessage(
                 launcherPlacementDescription_ ||
             control ==
                 settingsPlacementDescription_ ||
+            control ==
+                shortcutManagerPlacementDescription_ ||
             control == generalNote_ ||
             hotkeyMutedStatic ||
             control == providerStatus_ ||
