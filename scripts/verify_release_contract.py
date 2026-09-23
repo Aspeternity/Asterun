@@ -42,6 +42,182 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.32":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.32 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.32 must keep provider-cache schemaVersion 2")
+
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    presentation_cpp = read("src/ui/TopLevelWindowPresentation.cpp")
+    app_cpp = read("src/app/App.cpp")
+    settings_window_cpp = read("src/ui/SettingsWindow.cpp")
+
+    for token in (
+        "#include <uxtheme.h>",
+        "#include <vssym32.h>",
+        "BP_RADIOBUTTON",
+        "RBS_CHECKEDNORMAL",
+        "RBS_UNCHECKEDNORMAL",
+        "DrawThemeBackground(",
+        "DrawFrameControl(",
+        "DrawActionButton(",
+        "HandleHeaderCustomDraw(",
+        "SetWindowTheme(",
+        'L"Explorer"',
+        "listHeight * 44 / 100",
+        "BS_OWNERDRAW",
+        "kIdRescan",
+        "kIdApply",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.32 Path Conversion visual polish missing: {token}")
+
+    for token in (
+        "void DrawActionButton(",
+        "HandleHeaderCustomDraw(",
+    ):
+        if token not in path_h:
+            fail(f"v0.8 alpha.3.32 Path Conversion declaration missing: {token}")
+
+    if "WS_EX_CLIENTEDGE,\n        WC_LISTVIEWW" in path_cpp:
+        fail("v0.8 alpha.3.32 Path Conversion must remove the sunken ListView client edge")
+
+    # Keep alpha.3.31 layout, interaction and conversion behavior frozen.
+    for token in (
+        "kDefaultWidthLogical = 960",
+        "kDefaultHeightLogical = 560",
+        "kMinimumWidthLogical = 820",
+        "kMinimumHeightLogical = 480",
+        "kFieldColumnPercent = 13",
+        "kCurrentColumnPercent = 36",
+        "kConvertedColumnPercent = 39",
+        "kFieldColumnMinimumLogical = 100",
+        "kCurrentColumnMinimumLogical = 180",
+        "kConvertedColumnMinimumLogical = 180",
+        "kStatusColumnMinimumLogical = 100",
+        'T(L"转换方式"',
+        'T(L"转换后路径"',
+        "SelectedFieldCount() const",
+        "UpdateSelectionState(",
+        "UpdateColumnWidths(",
+        "HandleHeaderNotification(",
+        'T(L"当前没有可转换的路径"',
+        'T(L"已应用 "',
+        "LVN_ITEMCHANGED",
+        "VK_ESCAPE",
+        "VK_LEFT",
+        "VK_RIGHT",
+        "WM_GETMINMAXINFO",
+        "ApplyUserCommandPathUpdates(",
+        "win::MakePortablePath(",
+        "win::ExpandPortablePath(",
+        "ResolveOwnedPopupGeometry(",
+        "RevealFullyPainted(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.32 frozen Path Conversion behavior missing: {token}")
+
+    for forbidden in (
+        "kIdClose",
+        "close_",
+        "LVS_EX_GRIDLINES",
+        'T(L"所选路径已应用。"',
+        'T(L"没有选中要应用的路径转换。"',
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.32 obsolete Path Conversion interaction returned: {forbidden}")
+
+    for token in (
+        "DWMWA_CLOAK",
+        "DWMWA_TRANSITIONS_FORCEDISABLED",
+        "DwmFlush();",
+    ):
+        if token not in presentation_cpp:
+            fail(f"v0.8 alpha.3.32 must preserve alpha.3.30 presentation barrier: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp and token not in settings_window_cpp:
+            fail(f"v0.8 alpha.3.32 must preserve updater hardening: {token}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.32 must preserve schema-9 runtime smoke coverage: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.31"',
+        '"0.8.0-alpha.3.32"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.32 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.32 — Path Conversion Visual Polish",
+        "0.8.0.62",
+        "BP_RADIOBUTTON",
+        "WS_EX_CLIENTEDGE",
+        "44% of the result-area height",
+        "960×560 / 820×480 logical pixels",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.32 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.32",
+        "0.8.0.62",
+        "BP_RADIOBUTTON",
+        "WS_EX_CLIENTEDGE",
+        "44%",
+        "应用所选",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.32 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.32",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.32 Path Conversion visual polish verified:",
+        "| themed DPI-crisp radio glyph",
+        "| flat secondary/primary action buttons",
+        "| flat custom ListView header + no client edge",
+        "| empty state balanced at 44%",
+        "| alpha.3.31 behavior/columns + schema9/presentation/updater preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.31":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

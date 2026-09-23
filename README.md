@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.32 — Path Conversion Visual Polish
+
+Alpha 3.32 is the real-Windows visual closeout pass for Path Conversion. It intentionally leaves conversion logic, responsive column rules and the alpha.3.31 interaction model unchanged.
+
+The mode-card selector now uses the Windows themed radio renderer (`BP_RADIOBUTTON`) instead of two hand-drawn GDI ellipses. The checked/unchecked glyph is rendered with native hot/pressed/disabled states on the current DPI grid, eliminating the blurred selected dot visible in alpha.3.31 screenshots while retaining the custom card shell.
+
+**重新扫描** and **应用所选** now use flat owner-drawn buttons consistent with the rest of ALTRun Next. Rescan stays a neutral secondary action; Apply becomes the single accent primary action when at least one field is checked and falls back to a subdued disabled surface at zero selections.
+
+The result surface is also quieter: the old sunken `WS_EX_CLIENTEDGE` frame is removed, Explorer theming is applied to the ListView, and its Header is custom-drawn with flat card/separator colors. Header hit-testing and the alpha.3.31 resize policy are unchanged: Field/Current/Converted remain manually adjustable and Status remains protected/elastic. The empty-state block is moved slightly upward to 44% of the result-area height for better visual balance.
+
+Default/minimum geometry remains **960×560 / 820×480 logical pixels**. Conversion scope, missing-path defaults, live counts, non-blocking apply confirmation, X/Alt+F4/Escape close behavior, settings schemaVersion 9 and shared first-frame presentation are all preserved. Windows fixed FileVersion/ProductVersion is `0.8.0.62`.
+
 ## v0.8.0-alpha.3.31 — Path Conversion UX Redesign
 
 Alpha 3.31 turns Path Conversion from an oversized utility table into a denser, clearer workflow without changing what is actually converted.

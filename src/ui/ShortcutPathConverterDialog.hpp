@@ -80,6 +80,10 @@ private:
     SelectedFieldCount() const;
     void DrawModeCard(
         const DRAWITEMSTRUCT& draw) const;
+    void DrawActionButton(
+        const DRAWITEMSTRUCT& draw) const;
+    LRESULT HandleHeaderCustomDraw(
+        NMCUSTOMDRAW* draw);
 
     void InsertGroupHeader(
         std::wstring_view title);

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.3.32
+
+- Polished Path Conversion after real-Windows alpha.3.31 review without changing conversion semantics or column behavior.
+- Replaced the hand-drawn nested GDI radio circles in the **便携化 / 展开** cards with the Windows themed `BP_RADIOBUTTON` renderer. Checked/unchecked/hot/pressed/disabled states now snap to the native DPI pixel grid, removing the visibly soft selected dot.
+- Converted **重新扫描** and **应用所选** to the same flat owner-drawn button language used elsewhere in ALTRun Next. Rescan remains secondary; Apply uses the accent fill when enabled and a quiet neutral disabled state.
+- Removed the old `WS_EX_CLIENTEDGE` sunken ListView frame and applied Explorer common-control theming for cleaner rows/checkboxes.
+- Added a flat custom-drawn ListView header using the application card/separator palette while keeping all alpha.3.31 column-resize constraints and the elastic Status column unchanged.
+- Shifted the empty-state message slightly upward to 44% of the result region height so it reads as content rather than a mathematically centered placeholder.
+- Preserved the 960×560 default / 820×480 minimum geometry, mode-card layout, live selection count, non-blocking apply success feedback, Escape/X close behavior and alpha.3.30 first-frame presentation policy.
+- Preserved settings schemaVersion 9 and all updater hardening.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.62`.
+
 ## 0.8.0-alpha.3.31
 
 - Redesigned the Path Conversion window around a compact tool-workflow instead of the previous oversized table/dialog layout.

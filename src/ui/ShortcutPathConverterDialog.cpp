@@ -11,6 +11,8 @@
 #include "../platform/WinUtil.hpp"
 
 #include <commctrl.h>
+#include <uxtheme.h>
+#include <vssym32.h>
 
 #include <algorithm>
 #include <array>
@@ -366,12 +368,12 @@ void ShortcutPathConverterDialog::CreateControls() {
         rescan_,
         L"",
         kIdRescan,
-        BS_PUSHBUTTON);
+        BS_OWNERDRAW);
 
     makeStatic(rule_);
 
     list_ = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
+        0,
         WC_LISTVIEWW,
         L"",
         WS_CHILD |
@@ -396,6 +398,20 @@ void ShortcutPathConverterDialog::CreateControls() {
             LVS_EX_DOUBLEBUFFER |
             LVS_EX_CHECKBOXES);
 
+    SetWindowTheme(
+        list_,
+        L"Explorer",
+        nullptr);
+
+    if (HWND header =
+            ListView_GetHeader(
+                list_)) {
+        SetWindowTheme(
+            header,
+            L"Explorer",
+            nullptr);
+    }
+
     ListView_SetBkColor(
         list_,
         ui::kApplicationPalette
@@ -414,7 +430,7 @@ void ShortcutPathConverterDialog::CreateControls() {
         apply_,
         L"",
         kIdApply,
-        BS_DEFPUSHBUTTON);
+        BS_OWNERDRAW);
 
     const auto language =
         app_.SettingsData().language;
@@ -676,89 +692,92 @@ void ShortcutPathConverterDialog::DrawModeCard(
     DeleteObject(pen);
     DeleteObject(fill);
 
-    const int radioCenterX =
+    // Use the Windows theme renderer for the small radio glyph instead of
+    // hand-drawing nested GDI ellipses. The themed glyph snaps to the current
+    // DPI's native pixel grid and avoids the soft/blurred dot seen in
+    // real-Windows alpha.3.31 validation.
+    const int radioSize =
+        Scale(16);
+    const int radioLeft =
         surface.left +
-        Scale(18);
-    const int radioCenterY =
+        Scale(10);
+    const int radioTop =
         surface.top +
-        Scale(20);
-    const int radioRadius =
-        Scale(6);
+        Scale(12);
 
-    HBRUSH radioFill =
-        CreateSolidBrush(
-            palette.controlBackground);
-    HPEN radioPen =
-        CreatePen(
-            PS_SOLID,
-            1,
+    RECT radioRect{
+        radioLeft,
+        radioTop,
+        radioLeft + radioSize,
+        radioTop + radioSize,
+    };
+
+    const bool disabled =
+        (draw.itemState &
+         ODS_DISABLED) != 0;
+    const bool hot =
+        (draw.itemState &
+         ODS_HOTLIGHT) != 0 ||
+        focused;
+
+    int radioState =
+        selected
+            ? RBS_CHECKEDNORMAL
+            : RBS_UNCHECKEDNORMAL;
+
+    if (disabled) {
+        radioState =
             selected
-                ? palette.accent
-                : palette.mutedText);
+                ? RBS_CHECKEDDISABLED
+                : RBS_UNCHECKEDDISABLED;
+    } else if (pressed) {
+        radioState =
+            selected
+                ? RBS_CHECKEDPRESSED
+                : RBS_UNCHECKEDPRESSED;
+    } else if (hot) {
+        radioState =
+            selected
+                ? RBS_CHECKEDHOT
+                : RBS_UNCHECKEDHOT;
+    }
 
-    oldBrush =
-        SelectObject(
+    HTHEME buttonTheme =
+        OpenThemeData(
+            draw.hwndItem,
+            L"BUTTON");
+
+    if (buttonTheme) {
+        DrawThemeBackground(
+            buttonTheme,
             draw.hDC,
-            radioFill);
-    oldPen =
-        SelectObject(
+            BP_RADIOBUTTON,
+            radioState,
+            &radioRect,
+            nullptr);
+        CloseThemeData(
+            buttonTheme);
+    } else {
+        UINT state =
+            DFCS_BUTTONRADIO;
+
+        if (selected) {
+            state |= DFCS_CHECKED;
+        }
+
+        if (pressed) {
+            state |= DFCS_PUSHED;
+        }
+
+        if (disabled) {
+            state |= DFCS_INACTIVE;
+        }
+
+        DrawFrameControl(
             draw.hDC,
-            radioPen);
-
-    Ellipse(
-        draw.hDC,
-        radioCenterX -
-            radioRadius,
-        radioCenterY -
-            radioRadius,
-        radioCenterX +
-            radioRadius,
-        radioCenterY +
-            radioRadius);
-
-    SelectObject(
-        draw.hDC,
-        oldPen);
-    SelectObject(
-        draw.hDC,
-        oldBrush);
-    DeleteObject(radioPen);
-    DeleteObject(radioFill);
-
-    if (selected) {
-        const int innerRadius =
-            Scale(3);
-        HBRUSH dot =
-            CreateSolidBrush(
-                palette.accent);
-        oldBrush =
-            SelectObject(
-                draw.hDC,
-                dot);
-        oldPen =
-            SelectObject(
-                draw.hDC,
-                GetStockObject(
-                    NULL_PEN));
-
-        Ellipse(
-            draw.hDC,
-            radioCenterX -
-                innerRadius,
-            radioCenterY -
-                innerRadius,
-            radioCenterX +
-                innerRadius,
-            radioCenterY +
-                innerRadius);
-
-        SelectObject(
-            draw.hDC,
-            oldPen);
-        SelectObject(
-            draw.hDC,
-            oldBrush);
-        DeleteObject(dot);
+            &radioRect,
+            DFC_BUTTON,
+            state);
     }
 
     SetBkMode(
@@ -766,7 +785,7 @@ void ShortcutPathConverterDialog::DrawModeCard(
         TRANSPARENT);
 
     RECT titleRect{
-        surface.left + Scale(34),
+        surface.left + Scale(36),
         surface.top + Scale(8),
         surface.right - Scale(10),
         surface.top + Scale(28),
@@ -831,6 +850,302 @@ void ShortcutPathConverterDialog::DrawModeCard(
     SelectObject(
         draw.hDC,
         oldFont);
+}
+
+void ShortcutPathConverterDialog::DrawActionButton(
+    const DRAWITEMSTRUCT& draw) const {
+    if (!draw.hwndItem) {
+        return;
+    }
+
+    const auto& palette =
+        ui::kApplicationPalette;
+
+    const bool primary =
+        draw.CtlID == kIdApply;
+    const bool disabled =
+        (draw.itemState &
+         ODS_DISABLED) != 0;
+    const bool pressed =
+        (draw.itemState &
+         ODS_SELECTED) != 0;
+    const bool focused =
+        (draw.itemState &
+         ODS_FOCUS) != 0;
+    const bool hot =
+        (draw.itemState &
+         ODS_HOTLIGHT) != 0;
+
+    COLORREF fillColor =
+        palette.controlBackground;
+    COLORREF borderColor =
+        palette.frame;
+    COLORREF textColor =
+        disabled
+            ? palette.mutedText
+            : palette.text;
+
+    if (primary) {
+        if (disabled) {
+            fillColor =
+                palette.cardBackground;
+            borderColor =
+                palette.separator;
+        } else {
+            fillColor =
+                pressed
+                    ? RGB(0, 96, 170)
+                    : palette.accent;
+            borderColor =
+                fillColor;
+            textColor =
+                RGB(255, 255, 255);
+        }
+    } else if (pressed) {
+        fillColor =
+            palette.pressedBackground;
+    } else if (hot) {
+        fillColor =
+            palette.cardBackground;
+    }
+
+    if (focused &&
+        !primary) {
+        borderColor =
+            palette.accent;
+    }
+
+    RECT rect =
+        draw.rcItem;
+
+    HBRUSH outer =
+        CreateSolidBrush(
+            palette.windowBackground);
+    FillRect(
+        draw.hDC,
+        &rect,
+        outer);
+    DeleteObject(
+        outer);
+
+    RECT surface =
+        rect;
+    InflateRect(
+        &surface,
+        -1,
+        -1);
+
+    HBRUSH fill =
+        CreateSolidBrush(
+            fillColor);
+    HPEN pen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            borderColor);
+
+    HGDIOBJ oldBrush =
+        SelectObject(
+            draw.hDC,
+            fill);
+    HGDIOBJ oldPen =
+        SelectObject(
+            draw.hDC,
+            pen);
+
+    RoundRect(
+        draw.hDC,
+        surface.left,
+        surface.top,
+        surface.right,
+        surface.bottom,
+        Scale(6),
+        Scale(6));
+
+    SelectObject(
+        draw.hDC,
+        oldPen);
+    SelectObject(
+        draw.hDC,
+        oldBrush);
+    DeleteObject(
+        pen);
+    DeleteObject(
+        fill);
+
+    wchar_t text[128]{};
+    GetWindowTextW(
+        draw.hwndItem,
+        text,
+        static_cast<int>(
+            std::size(text)));
+
+    SetBkMode(
+        draw.hDC,
+        TRANSPARENT);
+    SetTextColor(
+        draw.hDC,
+        textColor);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            draw.hDC,
+            font_);
+
+    RECT textRect =
+        surface;
+    InflateRect(
+        &textRect,
+        -Scale(10),
+        0);
+
+    DrawTextW(
+        draw.hDC,
+        text,
+        -1,
+        &textRect,
+        DT_CENTER |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        draw.hDC,
+        oldFont);
+}
+
+LRESULT ShortcutPathConverterDialog::
+HandleHeaderCustomDraw(
+    NMCUSTOMDRAW* draw) {
+    if (!draw ||
+        !list_ ||
+        draw->hdr.hwndFrom !=
+            ListView_GetHeader(
+                list_)) {
+        return CDRF_DODEFAULT;
+    }
+
+    const auto& palette =
+        ui::kApplicationPalette;
+
+    if (draw->dwDrawStage ==
+        CDDS_PREPAINT) {
+        return CDRF_NOTIFYITEMDRAW;
+    }
+
+    if (draw->dwDrawStage !=
+        CDDS_ITEMPREPAINT) {
+        return CDRF_DODEFAULT;
+    }
+
+    RECT rect =
+        draw->rc;
+
+    HBRUSH background =
+        CreateSolidBrush(
+            (draw->uItemState &
+             (CDIS_SELECTED |
+              CDIS_HOT)) != 0
+                ? palette.pressedBackground
+                : palette.cardBackground);
+
+    FillRect(
+        draw->hdc,
+        &rect,
+        background);
+    DeleteObject(
+        background);
+
+    std::array<wchar_t, 128>
+        text{};
+
+    HDITEMW item{};
+    item.mask =
+        HDI_TEXT;
+    item.pszText =
+        text.data();
+    item.cchTextMax =
+        static_cast<int>(
+            text.size());
+
+    Header_GetItem(
+        draw->hdr.hwndFrom,
+        static_cast<int>(
+            draw->dwItemSpec),
+        &item);
+
+    SetBkMode(
+        draw->hdc,
+        TRANSPARENT);
+    SetTextColor(
+        draw->hdc,
+        palette.text);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            draw->hdc,
+            font_);
+
+    RECT textRect =
+        rect;
+    textRect.left +=
+        Scale(8);
+    textRect.right -=
+        Scale(8);
+
+    DrawTextW(
+        draw->hdc,
+        text.data(),
+        -1,
+        &textRect,
+        DT_LEFT |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        draw->hdc,
+        oldFont);
+
+    HPEN separator =
+        CreatePen(
+            PS_SOLID,
+            1,
+            palette.separator);
+    HGDIOBJ oldPen =
+        SelectObject(
+            draw->hdc,
+            separator);
+
+    MoveToEx(
+        draw->hdc,
+        rect.left,
+        rect.bottom - 1,
+        nullptr);
+    LineTo(
+        draw->hdc,
+        rect.right,
+        rect.bottom - 1);
+
+    MoveToEx(
+        draw->hdc,
+        rect.right - 1,
+        rect.top + Scale(4),
+        nullptr);
+    LineTo(
+        draw->hdc,
+        rect.right - 1,
+        rect.bottom - Scale(4));
+
+    SelectObject(
+        draw->hdc,
+        oldPen);
+    DeleteObject(
+        separator);
+
+    return CDRF_SKIPDEFAULT;
 }
 
 void ShortcutPathConverterDialog::Layout() {
@@ -1037,6 +1352,11 @@ UpdateSelectionState(
         selected > 0
             ? TRUE
             : FALSE);
+
+    InvalidateRect(
+        apply_,
+        nullptr,
+        TRUE);
 
     std::wstring text;
 
@@ -1705,15 +2025,18 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
             rect.left += Scale(24);
             rect.right -= Scale(24);
 
+            const int listHeight =
+                static_cast<int>(
+                    rect.bottom) -
+                static_cast<int>(
+                    rect.top);
+
             const int centerY =
                 static_cast<int>(
                     rect.top) +
                 std::max(
                     0,
-                    (static_cast<int>(
-                         rect.bottom) -
-                     static_cast<int>(
-                         rect.top)) / 2);
+                    listHeight * 44 / 100);
 
             RECT titleRect{
                 rect.left,
@@ -2230,6 +2553,16 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
                 *draw);
             return TRUE;
         }
+
+        if (draw &&
+            (draw->CtlID ==
+                 kIdRescan ||
+             draw->CtlID ==
+                 kIdApply)) {
+            DrawActionButton(
+                *draw);
+            return TRUE;
+        }
         break;
     }
 
@@ -2260,6 +2593,22 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
     }
 
     case WM_NOTIFY: {
+        const auto* notification =
+            reinterpret_cast<NMHDR*>(
+                lParam);
+
+        if (notification &&
+            notification->code ==
+                NM_CUSTOMDRAW &&
+            notification->hwndFrom ==
+                ListView_GetHeader(
+                    list_)) {
+            return HandleHeaderCustomDraw(
+                reinterpret_cast<
+                    NMCUSTOMDRAW*>(
+                        lParam));
+        }
+
         LRESULT headerResult = 0;
         if (HandleHeaderNotification(
                 lParam,
