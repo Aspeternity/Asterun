@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.22
+
+- Changed Shortcut Manager's fresh-session default size from 900x560 to 720x480 logical pixels, matching the already-validated minimum resize geometry.
+- Centralized Shortcut Manager default/minimum width and height constants so creation, DPI scaling and `WM_GETMINMAXINFO` cannot drift independently.
+- Preserved captured Shortcut Manager window placement: user-resized/repositioned sessions still reopen at their saved in-process placement rather than being reset to 720x480.
+- Unified Shortcut Editor Target type and Runtime input ComboBox widths at 190 logical pixels so the controls and their explanatory hint columns align.
+- Reused the Settings ComboBox focus-dismissal behavior in Shortcut Editor: clicks on dialog background, child controls or non-client chrome dismiss lingering Target type/Runtime input focus before normal click handling continues.
+- Kept native ComboBox keyboard navigation and selection behavior intact; no custom replacement controls were introduced.
+- Reduced Advanced focus styling from accent text + underline to neutral text + short accent underline while retaining native Button keyboard semantics.
+- Tightened Shortcut Editor footer rhythm to 16 logical pixels content gap, 10 separator gap and 16 bottom margin, keeping the 32-pixel footer buttons and adaptive-height algorithm.
+- Preserved Runtime Input, Test Input, modern file/folder/icon pickers, path conversion, shortcut execution, column dragging and all schemas.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.52`.
+
 ## 0.8.0-alpha.3.21
 
 - Performed the final real-Windows visual-density pass for Shortcut Editor across collapsed, Advanced-expanded and Runtime Input + Advanced states.

@@ -30,6 +30,11 @@ namespace {
 constexpr wchar_t kShortcutManagerClass[] =
     L"ALTRunNext.ShortcutManager";
 
+constexpr int kDefaultWidthLogical = 720;
+constexpr int kDefaultHeightLogical = 480;
+constexpr int kMinimumWidthLogical = 720;
+constexpr int kMinimumHeightLogical = 480;
+
 enum ShortcutContextMenuId : UINT {
     kShortcutContextAdd = 52201,
     kShortcutContextEdit = 52202,
@@ -247,8 +252,8 @@ bool ShortcutManagerWindow::Create() {
             WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        900,
-        560,
+        kDefaultWidthLogical,
+        kDefaultHeightLogical,
         nullptr,
         nullptr,
         instance_,
@@ -278,8 +283,8 @@ bool ShortcutManagerWindow::Create() {
             nullptr,
             0,
             0,
-            Scale(900),
-            Scale(560),
+            Scale(kDefaultWidthLogical),
+            Scale(kDefaultHeightLogical),
             SWP_NOMOVE |
                 SWP_NOZORDER |
                 SWP_NOACTIVATE);
@@ -2819,9 +2824,9 @@ LRESULT ShortcutManagerWindow::HandleMessage(
 
         if (info) {
             info->ptMinTrackSize.x =
-                Scale(720);
+                Scale(kMinimumWidthLogical);
             info->ptMinTrackSize.y =
-                Scale(480);
+                Scale(kMinimumHeightLogical);
         }
         return 0;
     }

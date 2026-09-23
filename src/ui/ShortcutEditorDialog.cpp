@@ -32,10 +32,11 @@ constexpr int kTypeDropdownHeightLogical = 150;
 constexpr int kRuntimeInputDropdownHeightLogical = 110;
 constexpr int kControlRowHeightLogical = 28;
 constexpr int kFooterButtonHeightLogical = 32;
-constexpr int kFooterBottomMarginLogical = 18;
-constexpr int kFooterSeparatorGapLogical = 12;
-constexpr int kContentFooterGapLogical = 24;
+constexpr int kFooterBottomMarginLogical = 16;
+constexpr int kFooterSeparatorGapLogical = 10;
+constexpr int kContentFooterGapLogical = 16;
 constexpr int kAdminTopGapLogical = 4;
+constexpr int kInlineComboWidthLogical = 190;
 
 constexpr COLORREF kEditorHintText =
     RGB(112, 119, 128);
@@ -1419,7 +1420,7 @@ void ShortcutEditorDialog::Layout() {
         margin -
         formFieldLeft;
     const int typeWidth =
-        Scale(164);
+        Scale(kInlineComboWidthLogical);
 
     MoveWindow(
         typeLabel_,
@@ -1458,7 +1459,7 @@ void ShortcutEditorDialog::Layout() {
     y += Scale(14);
 
     const int runtimeWidth =
-        Scale(190);
+        Scale(kInlineComboWidthLogical);
 
     MoveWindow(
         runtimeInputLabel_,
@@ -1799,9 +1800,7 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
         draw.hDC,
         disabled
             ? palette.mutedText
-            : focused
-                ? palette.accent
-                : palette.text);
+            : palette.text);
 
     HGDIOBJ oldFont =
         SelectObject(
@@ -3355,7 +3354,47 @@ LRESULT ShortcutEditorDialog::HandleMessage(
     UINT message,
     WPARAM wParam,
     LPARAM lParam) {
+
+    const auto dismissComboFocus =
+        [&]() {
+            const HWND focused =
+                GetFocus();
+
+            if (focused == type_ ||
+                focused == runtimeInput_) {
+                SetFocus(hwnd_);
+            }
+        };
+
     switch (message) {
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+        // Match Settings: clicking the dialog surface should dismiss the
+        // persistent native ComboBox selection/focus highlight.
+        dismissComboFocus();
+        break;
+
+    case WM_PARENTNOTIFY:
+        if (LOWORD(wParam) ==
+                WM_LBUTTONDOWN ||
+            LOWORD(wParam) ==
+                WM_RBUTTONDOWN ||
+            LOWORD(wParam) ==
+                WM_MBUTTONDOWN) {
+            // Child-control clicks also count as leaving a ComboBox. The
+            // clicked child can then acquire focus through normal Win32
+            // processing.
+            dismissComboFocus();
+        }
+        break;
+
+    case WM_NCLBUTTONDOWN:
+    case WM_NCRBUTTONDOWN:
+    case WM_NCMBUTTONDOWN:
+        dismissComboFocus();
+        break;
+
     case WM_SIZE:
         Layout();
         return 0;

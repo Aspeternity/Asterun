@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.22 — Shortcut Manager Compact Default & Editor Interaction Polish
+
+Alpha 3.22 finishes the latest real-Windows Shortcut workflow pass without changing shortcut execution or schemas.
+
+Shortcut Manager now opens at the same compact geometry already proven by manual resizing: the fresh-session default is 720x480 logical pixels, matching the existing minimum track size. The manager still preserves its established session window-placement behavior, so a user who resizes or moves it continues to reopen at that captured placement instead of being forced back to the compact default. Default/minimum geometry is now expressed through shared constants rather than repeated literal sizes.
+
+Shortcut Editor's two inline ComboBox rows now share one 190-logical-pixel value width. **目标类型 / Target type** and **运行时输入 / Runtime input** therefore align their controls and right-hand explanatory text to the same vertical column. The Advanced keyboard-focus treatment is reduced again: section text remains neutral while only a short accent underline indicates focus, preserving native Button Tab/Space/click semantics without a link-like blue title.
+
+The editor also adopts the already-validated Settings ComboBox focus rule. If Target type or Runtime input still owns keyboard focus after a selection, clicking the dialog background, another child control, or the non-client/title area moves focus away before normal click processing continues. This removes the persistent native selection highlight without replacing ComboBox controls or weakening keyboard navigation.
+
+Vertical footer rhythm is slightly tighter: content-to-footer gap is 16 logical pixels, separator gap 10, and bottom margin 16, while the 32-pixel action buttons and adaptive content-height model remain unchanged. Native Edit/ComboBox controls, IME, Runtime Input/Test Input logic, modern pickers, path conversion, saved manager placement, column dragging and shortcut schemas are unchanged. Settings remains schemaVersion 8 and commands remains schemaVersion 2. Windows fixed FileVersion/ProductVersion is `0.8.0.52`.
+
 ## v0.8.0-alpha.3.21 — Shortcut Editor Final Visual Polish
 
 Alpha 3.21 returns to the Shortcut Editor after the Settings reliability work and performs the final compact-layout pass based on real-Windows screenshots of the collapsed, Advanced-expanded and Runtime Input + Advanced states.
