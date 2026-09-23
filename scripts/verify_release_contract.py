@@ -42,6 +42,133 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.23":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.23 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.23 must keep provider-cache schemaVersion 2")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    for token in (
+        "kEditorWidthLogical = 620",
+        "kInlineComboMinWidthLogical = 150",
+        "kInlineComboMaxWidthLogical = 175",
+        "Scale(200)",
+        "* 36 / 100",
+        "GetTextExtentPoint32W(",
+        "GetSystemMetricsForDpi(",
+        "const int runtimeWidth =\n        typeWidth;",
+        "int y = Scale(16);",
+        "y += Scale(12);",
+        "kControlRowHeightLogical = 28",
+        "EM_SETMARGINS",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.23 compact Editor contract missing: {token}")
+
+    if "kInlineComboWidthLogical = 190" in editor_cpp:
+        fail("v0.8 alpha.3.23 must not restore the fixed 190px ComboBox width")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    update_h = read("src/platform/UpdateManager.hpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+
+    for token in (
+        "std::atomic<HINTERNET>",
+        "std::stop_callback",
+        "handles.request.Close();",
+        "if (!WinHttpSetTimeouts(",
+        "WinHttpReadData(",
+        "IsNetworkTimeout(",
+        "CheckTimedOut",
+    ):
+        if token not in update_cpp and token not in update_h:
+            fail(f"v0.8 alpha.3.23 update transport hardening missing: {token}")
+
+    if "WinHttpQueryDataAvailable(" in update_cpp:
+        fail("v0.8 alpha.3.23 updater must use bounded direct reads instead of QueryDataAvailable")
+
+    for token in (
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "updateWorkerStartedTick_",
+        "GetTickCount64()",
+        "++updateGeneration_;",
+        "updateThread_.request_stop();",
+        "beginPreparedUpdate",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.23 App update-state hardening missing: {token}")
+
+    for token in (
+        "case win::UpdateFailure::CheckTimedOut:",
+        "检查更新超时，请重试",
+        "update check timed out; try again",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.3.23 timeout UX missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.22"',
+        '"0.8.0-alpha.3.23"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.23 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.23 — Shortcut Editor Compact Width & Update Check Hardening",
+        "0.8.0.53",
+        "GetTextExtentPoint32W",
+        "60-second App watchdog",
+        "WinHttpQueryDataAvailable",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.23 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.23",
+        "0.8.0.53",
+        "CheckTimedOut",
+        "60-second App watchdog",
+        "UI/worker data race",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.23 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.23",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.23 compact Editor/update hardening verified:",
+        "| Editor=620 logical + measured shared ComboBox width",
+        "| updater=interruptible WinHTTP direct reads",
+        "| check watchdog=60s generation-safe cancellation",
+        "| ReadyToInstall handoff=mutex synchronized",
+        "| schemas/frozen shortcut behavior unchanged",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.13":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

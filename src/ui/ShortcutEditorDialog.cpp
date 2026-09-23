@@ -25,7 +25,7 @@ namespace {
 constexpr wchar_t kShortcutEditorClass[] =
     L"ALTRunNext.ShortcutEditor";
 
-constexpr int kEditorWidthLogical = 680;
+constexpr int kEditorWidthLogical = 620;
 constexpr int kInitialEditorHeightLogical = 420;
 constexpr int kRuntimeTestExtraHeightLogical = 42;
 constexpr int kTypeDropdownHeightLogical = 150;
@@ -36,7 +36,8 @@ constexpr int kFooterBottomMarginLogical = 16;
 constexpr int kFooterSeparatorGapLogical = 10;
 constexpr int kContentFooterGapLogical = 16;
 constexpr int kAdminTopGapLogical = 4;
-constexpr int kInlineComboWidthLogical = 190;
+constexpr int kInlineComboMinWidthLogical = 150;
+constexpr int kInlineComboMaxWidthLogical = 175;
 
 constexpr COLORREF kEditorHintText =
     RGB(112, 119, 128);
@@ -1293,14 +1294,14 @@ void ShortcutEditorDialog::Layout() {
                      labelHeight) / 2);
         };
 
-    int y = Scale(18);
+    int y = Scale(16);
 
     // Primary fields keep the familiar stacked-label layout.
     const int nameWidth =
         std::max(
-            Scale(220),
+            Scale(200),
             (contentWidth -
-             columnGap) * 38 / 100);
+             columnGap) * 36 / 100);
     const int keywordLeft =
         margin +
         nameWidth +
@@ -1324,7 +1325,7 @@ void ShortcutEditorDialog::Layout() {
         keywordWidth,
         labelHeight,
         TRUE);
-    y += Scale(22);
+    y += Scale(20);
 
     const int identityEditTop =
         editTop(y);
@@ -1362,7 +1363,7 @@ void ShortcutEditorDialog::Layout() {
         contentWidth,
         labelHeight,
         TRUE);
-    y += Scale(22);
+    y += Scale(20);
 
     const int targetWidth =
         contentWidth -
@@ -1419,8 +1420,122 @@ void ShortcutEditorDialog::Layout() {
         client.right -
         margin -
         formFieldLeft;
-    const int typeWidth =
-        Scale(kInlineComboWidthLogical);
+    int typeWidth =
+        Scale(kInlineComboMinWidthLogical);
+
+    // Fit both native ComboBox controls to the widest localized item while
+    // preserving one shared value-column width. This keeps Target type and
+    // Runtime input aligned without hard-coding per-language pixel widths.
+    HDC comboDc =
+        GetDC(hwnd_);
+
+    if (comboDc) {
+        HGDIOBJ oldFont = nullptr;
+
+        if (font_) {
+            oldFont =
+                SelectObject(
+                    comboDc,
+                    font_);
+        }
+
+        const auto measureComboText =
+            [&](HWND combo) {
+                int widest = 0;
+
+                if (!combo) {
+                    return widest;
+                }
+
+                const LRESULT count =
+                    SendMessageW(
+                        combo,
+                        CB_GETCOUNT,
+                        0,
+                        0);
+
+                for (LRESULT index = 0;
+                     index < count;
+                     ++index) {
+                    const LRESULT length =
+                        SendMessageW(
+                            combo,
+                            CB_GETLBTEXTLEN,
+                            static_cast<WPARAM>(
+                                index),
+                            0);
+
+                    if (length <= 0 ||
+                        length == CB_ERR) {
+                        continue;
+                    }
+
+                    std::wstring item(
+                        static_cast<std::size_t>(
+                            length) +
+                            1,
+                        L'\0');
+
+                    if (SendMessageW(
+                            combo,
+                            CB_GETLBTEXT,
+                            static_cast<WPARAM>(
+                                index),
+                            reinterpret_cast<LPARAM>(
+                                item.data())) ==
+                        CB_ERR) {
+                        continue;
+                    }
+
+                    SIZE size{};
+
+                    if (GetTextExtentPoint32W(
+                            comboDc,
+                            item.c_str(),
+                            static_cast<int>(
+                                length),
+                            &size)) {
+                        widest =
+                            std::max(
+                                widest,
+                                size.cx);
+                    }
+                }
+
+                return widest;
+            };
+
+        const int widestItem =
+            std::max(
+                measureComboText(type_),
+                measureComboText(
+                    runtimeInput_));
+
+        const int nativeChrome =
+            GetSystemMetricsForDpi(
+                SM_CXVSCROLL,
+                dpi_) +
+            Scale(20);
+
+        typeWidth =
+            std::clamp(
+                widestItem +
+                    nativeChrome,
+                Scale(
+                    kInlineComboMinWidthLogical),
+                Scale(
+                    kInlineComboMaxWidthLogical));
+
+        if (oldFont) {
+            SelectObject(
+                comboDc,
+                oldFont);
+        }
+
+        ReleaseDC(
+            hwnd_,
+            comboDc);
+    }
 
     MoveWindow(
         typeLabel_,
@@ -1456,10 +1571,10 @@ void ShortcutEditorDialog::Layout() {
         Scale(6);
 
     runtimeSeparatorY_ = y;
-    y += Scale(14);
+    y += Scale(12);
 
     const int runtimeWidth =
-        Scale(kInlineComboWidthLogical);
+        typeWidth;
 
     MoveWindow(
         runtimeInputLabel_,
@@ -2101,21 +2216,21 @@ DesiredClientHeight() const {
     const int controlRowHeight =
         Scale(kControlRowHeightLogical);
 
-    int y = Scale(18);
+    int y = Scale(16);
 
-    y += Scale(22);
+    y += Scale(20);
     y += controlRowHeight +
         Scale(2);
     y += Scale(24);
 
-    y += Scale(22);
+    y += Scale(20);
     y += controlRowHeight +
         Scale(8);
 
     y += controlRowHeight +
         Scale(6);
 
-    y += Scale(14);
+    y += Scale(12);
     y += controlRowHeight +
         Scale(6);
 

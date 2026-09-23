@@ -205,7 +205,9 @@ In progress:
 - v0.8.0-alpha.3.11 closes the remaining tray About entry-path placement divergence so Settings/About share one top-level show lifecycle
 - v0.8.0-alpha.3.12 consolidates Shortcut Editor layout/visual hierarchy while keeping shortcut model, Runtime Input and Advanced semantics frozen
 - v0.8.0-alpha.3.13 polishes the Editor after real-Windows review: removes redundant Icon Auto, modernizes native file/folder pickers and refines the Advanced section header
-- v0.8.0-alpha.3.14 is reserved for final real-Windows Shortcut workflow polish plus Path Conversion visual integration only
+- v0.8.0-alpha.3.14 through alpha.3.22 continue real-Windows Settings/Shortcut workflow stabilization and compact visual refinement without schema changes
+- v0.8.0-alpha.3.23 closes Shortcut Editor compact-width/content-fit controls and hardens update-check cancellation/timeouts after the recurring Checking-state report
+- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.23 real-Windows validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

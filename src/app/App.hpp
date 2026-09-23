@@ -366,6 +366,8 @@ private:
         updateGeneration_{0};
     std::atomic_bool
         updateWorkerRunning_{false};
+    std::atomic<std::uint64_t>
+        updateWorkerStartedTick_{0};
     UINT_PTR updateReconcileTimer_{0};
     bool updateSettingsChangedSinceCheck_{false};
     bool updateInstallWhenReady_{false};

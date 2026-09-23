@@ -6575,6 +6575,11 @@ void SettingsWindow::RefreshUpdateStatus() {
                 T(L"无法获取更新清单",
                   L"could not fetch the update manifest");
             break;
+        case win::UpdateFailure::CheckTimedOut:
+            text +=
+                T(L"检查更新超时，请重试",
+                  L"update check timed out; try again");
+            break;
         case win::UpdateFailure::StableManifestUnavailable:
             text +=
                 T(L"最新稳定版未提供应用内更新清单，请从 GitHub 手动更新",
@@ -6637,7 +6642,10 @@ void SettingsWindow::RefreshUpdateStatus() {
             break;
         }
 
-        if (status.nativeError != 0) {
+        if (status.nativeError != 0 &&
+            status.failure !=
+                win::UpdateFailure::
+                    CheckTimedOut) {
             text +=
                 T(L"  ·  系统错误 ",
                   L"  ·  native error ");

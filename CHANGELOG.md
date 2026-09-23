@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.23
+
+- Reduced Shortcut Editor width from 680 to 620 logical pixels for the final compact horizontal-density pass.
+- Changed Name/Keywords from 38:62 with a 220-pixel Name minimum to 36:64 with a 200-pixel minimum.
+- Replaced the fixed 190-pixel Target type / Runtime input ComboBox width with localized content measurement using the active UI font, native drop-arrow width and a 150–175 logical-pixel clamp; both rows still share one aligned width.
+- Tightened only the Editor's top/section spacing by 8 logical pixels overall while preserving native Edit font-metric height, 28-pixel control rows, IME, Runtime Input, Advanced expansion, modern pickers and adaptive footer behavior.
+- Audited the recurring About-page **正在检查更新... / Checking for updates...** stall beyond the earlier notification/repaint fixes: a synchronous WinHTTP worker could still remain the authoritative Checking state when the network operation itself stopped progressing.
+- Made WinHTTP request handles cancellation-safe, validate timeout/redirect option setup, and replace `WinHttpQueryDataAvailable` body loops with fixed-size interruptible `WinHttpReadData` reads.
+- Added explicit CheckTimedOut handling plus a 60-second App watchdog that invalidates the old update generation before requesting cancellation, so late worker results cannot overwrite the timeout state.
+- Fixed the Ready-to-Install handoff flag to be read/consumed under the update mutex, removing a UI/worker data race found during the updater audit.
+- Preserved the 250 ms reconciliation watchdog and synchronous owner-draw repaint as delivery/presentation defenses rather than relying on them as network timeouts.
+- Preserved Settings schemaVersion 8, commands schemaVersion 2, Shortcut Manager 720×480 default/minimum geometry and all frozen shortcut execution semantics.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.53`.
+
 ## 0.8.0-alpha.3.22
 
 - Changed Shortcut Manager's fresh-session default size from 900x560 to 720x480 logical pixels, matching the already-validated minimum resize geometry.

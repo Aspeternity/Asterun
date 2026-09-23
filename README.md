@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.23 — Shortcut Editor Compact Width & Update Check Hardening
+
+Alpha 3.23 closes the final Shortcut Editor horizontal-density pass and hardens the update checker against a second class of real-Windows **正在检查更新... / Checking for updates...** stalls.
+
+Shortcut Editor is reduced from 680 to 620 logical pixels. Name/Keywords now use a 36:64 split with a 200-pixel Name minimum, and the two inline native ComboBox controls no longer reserve a fixed 190 pixels. Their localized items are measured with the active UI font via `GetTextExtentPoint32W`; text width, native drop-arrow chrome and padding are combined, clamped to 150–175 logical pixels, and the wider result is shared by Target type and Runtime input so both rows remain aligned in Chinese and English. The existing native Edit height calculation, IME behavior, Runtime Input, modern pickers, Advanced expansion and adaptive footer remain unchanged. Top/section rhythm is tightened by only 8 logical pixels overall.
+
+The update audit found that alpha.3.8's 250 ms reconciliation timer and alpha.3.16's synchronous owner-draw repaint fixed missed delivery and stale pixels, but did not bound the underlying synchronous WinHTTP worker. If a request itself stopped making progress, App state could legitimately remain in `Checking`, so every repaint correctly kept showing the same state. WinHTTP request handles are now safely closeable from a stop callback, timeout/redirect setup failures are no longer ignored, manifest/package bodies use bounded fixed-size `WinHttpReadData` loops instead of `WinHttpQueryDataAvailable`, and native timeout errors map to an explicit retryable CheckTimedOut state. A 60-second App watchdog invalidates the old generation and requests cancellation, preventing a late worker result from overwriting the timeout state. The Ready-to-Install handoff flag is also consumed under the update mutex, removing a previously unsynchronized UI/worker access.
+
+Settings schema remains 8 and commands schema remains 2. Shortcut Manager stays at the validated 720×480 minimum/default geometry. Windows fixed FileVersion/ProductVersion is `0.8.0.53`.
+
 ## v0.8.0-alpha.3.22 — Shortcut Manager Compact Default & Editor Interaction Polish
 
 Alpha 3.22 finishes the latest real-Windows Shortcut workflow pass without changing shortcut execution or schemas.

@@ -30,6 +30,10 @@ namespace altrun {
 
 namespace {
 
+constexpr std::uint64_t
+    kUpdateCheckWatchdogMs =
+        60ULL * 1000ULL;
+
 [[nodiscard]] std::string_view
 ProviderIdForCommand(
     CommandSource source) {
@@ -1644,6 +1648,9 @@ void App::HandleUpdateStatusMessage(
             if (updateThread_.joinable()) {
                 updateThread_.join();
             }
+
+            updateWorkerStartedTick_.store(
+                0);
             StopUpdateReconcileTimer();
         }
 
@@ -1654,9 +1661,82 @@ void App::HandleUpdateStatusMessage(
         return;
     }
 
-    const auto status =
+    auto status =
         UpdateStatus();
-    const bool workerRunning =
+    bool workerRunning =
+        updateWorkerRunning_.load();
+
+    // Reconciliation/repaint can only mirror App state. If synchronous
+    // WinHTTP itself stops progressing, bound Checking and invalidate the old
+    // generation before requesting cancellation.
+    if (status.stage ==
+            win::UpdateStage::Checking &&
+        status.running &&
+        workerRunning) {
+        const std::uint64_t started =
+            updateWorkerStartedTick_.load();
+        const std::uint64_t now =
+            static_cast<std::uint64_t>(
+                GetTickCount64());
+
+        if (started != 0 &&
+            now >= started &&
+            now - started >=
+                kUpdateCheckWatchdogMs) {
+            bool committedTimeout =
+                false;
+
+            {
+                std::scoped_lock lock(
+                    updateMutex_);
+
+                if (generation ==
+                        updateGeneration_
+                            .load() &&
+                    updateStatus_.stage ==
+                        win::UpdateStage::
+                            Checking &&
+                    updateStatus_.running &&
+                    updateWorkerRunning_
+                        .load()) {
+                    ++updateGeneration_;
+
+                    updateStatus_.stage =
+                        win::UpdateStage::
+                            Failed;
+                    updateStatus_.failure =
+                        win::UpdateFailure::
+                            CheckTimedOut;
+                    updateStatus_.nativeError =
+                        ERROR_TIMEOUT;
+                    updateStatus_.running =
+                        false;
+                    updateManifest_.reset();
+                    updateInstallWhenReady_ =
+                        false;
+                    committedTimeout = true;
+                }
+            }
+
+            if (committedTimeout) {
+                if (updateThread_.joinable()) {
+                    updateThread_.request_stop();
+                }
+
+                if (settingsWindow_) {
+                    settingsWindow_->
+                        OnUpdateStatusChanged();
+                }
+
+                // Keep the timer until the cancelled worker has unwound; the
+                // stale-generation path then joins it and stops reconciliation.
+                return;
+            }
+        }
+    }
+
+    status = UpdateStatus();
+    workerRunning =
         updateWorkerRunning_.load();
 
     if (!status.running &&
@@ -1664,7 +1744,28 @@ void App::HandleUpdateStatusMessage(
         if (updateThread_.joinable()) {
             updateThread_.join();
         }
+
+        updateWorkerStartedTick_.store(
+            0);
         StopUpdateReconcileTimer();
+    }
+
+    bool beginPreparedUpdate = false;
+
+    {
+        std::scoped_lock lock(
+            updateMutex_);
+
+        if (updateStatus_.stage ==
+                win::UpdateStage::
+                    ReadyToInstall &&
+            updateInstallWhenReady_) {
+            // Worker-side writes use the same mutex; consume the handoff flag
+            // atomically with the stage check instead of racing from the UI.
+            updateInstallWhenReady_ =
+                false;
+            beginPreparedUpdate = true;
+        }
     }
 
     if (settingsWindow_) {
@@ -1672,12 +1773,7 @@ void App::HandleUpdateStatusMessage(
             OnUpdateStatusChanged();
     }
 
-    if (status.stage ==
-            win::UpdateStage::
-                ReadyToInstall &&
-        updateInstallWhenReady_) {
-        updateInstallWhenReady_ =
-            false;
+    if (beginPreparedUpdate) {
         BeginPreparedUpdate();
     }
 }
@@ -2878,6 +2974,9 @@ bool App::StartUpdateCheck(
             false;
     }
 
+    updateWorkerStartedTick_.store(
+        static_cast<std::uint64_t>(
+            GetTickCount64()));
     updateWorkerRunning_.store(true);
 
     updateThread_ =
@@ -2949,6 +3048,8 @@ bool App::StartUpdateCheck(
 
                 updateWorkerRunning_.store(
                     false);
+                updateWorkerStartedTick_.store(
+                    0);
 
                 if (targetThread != 0) {
                     PostThreadMessageW(
@@ -3021,6 +3122,9 @@ bool App::StartUpdateDownloadAndInstall() {
             true;
     }
 
+    updateWorkerStartedTick_.store(
+        static_cast<std::uint64_t>(
+            GetTickCount64()));
     updateWorkerRunning_.store(true);
 
     updateThread_ =
@@ -3101,6 +3205,8 @@ bool App::StartUpdateDownloadAndInstall() {
 
                 updateWorkerRunning_.store(
                     false);
+                updateWorkerStartedTick_.store(
+                    0);
 
                 if (targetThread != 0) {
                     PostThreadMessageW(

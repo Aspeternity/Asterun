@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -44,17 +45,49 @@ constexpr wchar_t
         L"https://api.github.com/repos/Aspeternity/ALTRunNext/releases/latest";
 
 struct InternetHandle {
-    HINTERNET value{nullptr};
+    std::atomic<HINTERNET>
+        value{nullptr};
+
     ~InternetHandle() {
-        if (value) {
-            WinHttpCloseHandle(value);
-        }
+        Close();
     }
+
     InternetHandle() = default;
     InternetHandle(
         const InternetHandle&) = delete;
     InternetHandle& operator=(
         const InternetHandle&) = delete;
+
+    void Reset(
+        HINTERNET next) noexcept {
+        const HINTERNET previous =
+            value.exchange(
+                next,
+                std::memory_order_acq_rel);
+
+        if (previous) {
+            WinHttpCloseHandle(
+                previous);
+        }
+    }
+
+    [[nodiscard]] HINTERNET
+    Get() const noexcept {
+        return value.load(
+            std::memory_order_acquire);
+    }
+
+    void Close() noexcept {
+        const HINTERNET handle =
+            value.exchange(
+                nullptr,
+                std::memory_order_acq_rel);
+
+        if (handle) {
+            WinHttpCloseHandle(
+                handle);
+        }
+    }
 };
 
 template <typename T>
@@ -133,6 +166,14 @@ Fail(
 }
 
 [[nodiscard]] bool
+IsNetworkTimeout(
+    std::uint32_t error) {
+    return
+        error == ERROR_TIMEOUT ||
+        error == ERROR_WINHTTP_TIMEOUT;
+}
+
+[[nodiscard]] bool
 CrackHttpsUrl(
     std::wstring_view url,
     std::wstring& host,
@@ -200,7 +241,8 @@ OpenRequest(
     std::wstring_view url,
     HttpRequest& handles,
     std::uint64_t& contentLength,
-    std::uint32_t& nativeError) {
+    std::uint32_t& nativeError,
+    std::stop_token stopToken) {
     std::wstring host;
     std::wstring object;
     INTERNET_PORT port = 0;
@@ -215,45 +257,58 @@ OpenRequest(
         return false;
     }
 
-    handles.session.value =
+    const HINTERNET session =
         WinHttpOpen(
-            L"ALTRunNext Update/0.7",
+            L"ALTRunNext Update/0.8",
             WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
             WINHTTP_NO_PROXY_NAME,
             WINHTTP_NO_PROXY_BYPASS,
             0);
 
-    if (!handles.session.value) {
+    handles.session.Reset(
+        session);
+
+    if (!session) {
         nativeError =
             static_cast<std::uint32_t>(
                 GetLastError());
         return false;
     }
 
-    WinHttpSetTimeouts(
-        handles.session.value,
-        5000,
-        5000,
-        15000,
-        15000);
+    // Per-operation bounds plus the App-level absolute check watchdog prevent
+    // a pathological synchronous request from remaining Checking forever.
+    if (!WinHttpSetTimeouts(
+            session,
+            5000,
+            5000,
+            15000,
+            15000)) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
 
-    handles.connection.value =
+    const HINTERNET connection =
         WinHttpConnect(
-            handles.session.value,
+            session,
             host.c_str(),
             port,
             0);
 
-    if (!handles.connection.value) {
+    handles.connection.Reset(
+        connection);
+
+    if (!connection) {
         nativeError =
             static_cast<std::uint32_t>(
                 GetLastError());
         return false;
     }
 
-    handles.request.value =
+    const HINTERNET request =
         WinHttpOpenRequest(
-            handles.connection.value,
+            connection,
             L"GET",
             object.c_str(),
             nullptr,
@@ -261,7 +316,10 @@ OpenRequest(
             WINHTTP_DEFAULT_ACCEPT_TYPES,
             WINHTTP_FLAG_SECURE);
 
-    if (!handles.request.value) {
+    handles.request.Reset(
+        request);
+
+    if (!request) {
         nativeError =
             static_cast<std::uint32_t>(
                 GetLastError());
@@ -271,26 +329,62 @@ OpenRequest(
     DWORD redirectPolicy =
         WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
 
-    WinHttpSetOption(
-        handles.request.value,
-        WINHTTP_OPTION_REDIRECT_POLICY,
-        &redirectPolicy,
-        sizeof(redirectPolicy));
+    if (!WinHttpSetOption(
+            request,
+            WINHTTP_OPTION_REDIRECT_POLICY,
+            &redirectPolicy,
+            sizeof(redirectPolicy))) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                GetLastError());
+        return false;
+    }
+
+    // request_stop() can now abort a blocked synchronous WinHTTP operation.
+    std::stop_callback cancelOnStop{
+        stopToken,
+        [&handles]() {
+            handles.request.Close();
+        }};
+
+    if (stopToken.stop_requested()) {
+        nativeError =
+            ERROR_CANCELLED;
+        return false;
+    }
 
     if (!WinHttpSendRequest(
-            handles.request.value,
+            request,
             WINHTTP_NO_ADDITIONAL_HEADERS,
             0,
             WINHTTP_NO_REQUEST_DATA,
             0,
             0,
-            0) ||
-        !WinHttpReceiveResponse(
-            handles.request.value,
+            0)) {
+        nativeError =
+            stopToken.stop_requested()
+                ? ERROR_CANCELLED
+                : static_cast<
+                      std::uint32_t>(
+                      GetLastError());
+        return false;
+    }
+
+    if (!WinHttpReceiveResponse(
+            request,
             nullptr)) {
         nativeError =
-            static_cast<std::uint32_t>(
-                GetLastError());
+            stopToken.stop_requested()
+                ? ERROR_CANCELLED
+                : static_cast<
+                      std::uint32_t>(
+                      GetLastError());
+        return false;
+    }
+
+    if (stopToken.stop_requested()) {
+        nativeError =
+            ERROR_CANCELLED;
         return false;
     }
 
@@ -299,21 +393,25 @@ OpenRequest(
         sizeof(status);
 
     if (!WinHttpQueryHeaders(
-            handles.request.value,
+            request,
             WINHTTP_QUERY_STATUS_CODE |
                 WINHTTP_QUERY_FLAG_NUMBER,
             WINHTTP_HEADER_NAME_BY_INDEX,
             &status,
             &statusBytes,
-            WINHTTP_NO_HEADER_INDEX) ||
-        status < 200 ||
-        status >= 300) {
+            WINHTTP_NO_HEADER_INDEX)) {
         nativeError =
-            status >= 400
-                ? status
+            stopToken.stop_requested()
+                ? ERROR_CANCELLED
                 : static_cast<
                       std::uint32_t>(
                       GetLastError());
+        return false;
+    }
+
+    if (status < 200 ||
+        status >= 300) {
+        nativeError = status;
         return false;
     }
 
@@ -322,7 +420,7 @@ OpenRequest(
         sizeof(length);
 
     if (WinHttpQueryHeaders(
-            handles.request.value,
+            request,
             WINHTTP_QUERY_CONTENT_LENGTH |
                 WINHTTP_QUERY_FLAG_NUMBER,
             WINHTTP_HEADER_NAME_BY_INDEX,
@@ -332,6 +430,12 @@ OpenRequest(
         contentLength = length;
     } else {
         contentLength = 0;
+    }
+
+    if (stopToken.stop_requested()) {
+        nativeError =
+            ERROR_CANCELLED;
+        return false;
     }
 
     nativeError = 0;
@@ -351,7 +455,8 @@ DownloadText(
             url,
             handles,
             contentLength,
-            nativeError) ||
+            nativeError,
+            stopToken) ||
         contentLength >
             kMaximumManifestBytes) {
         if (contentLength >
@@ -362,7 +467,24 @@ DownloadText(
         return false;
     }
 
+    std::stop_callback cancelOnStop{
+        stopToken,
+        [&handles]() {
+            handles.request.Close();
+        }};
+
+    if (stopToken.stop_requested()) {
+        nativeError =
+            ERROR_CANCELLED;
+        return false;
+    }
+
     output.clear();
+
+    // Fixed-size direct reads stay under the receive timeout and remain
+    // interruptible through the request handle above.
+    std::array<char, 16 * 1024>
+        buffer{};
 
     for (;;) {
         if (stopToken.stop_requested()) {
@@ -371,50 +493,50 @@ DownloadText(
             return false;
         }
 
-        DWORD available = 0;
+        const HINTERNET request =
+            handles.request.Get();
 
-        if (!WinHttpQueryDataAvailable(
-                handles.request.value,
-                &available)) {
+        if (!request) {
             nativeError =
-                static_cast<std::uint32_t>(
-                    GetLastError());
+                stopToken.stop_requested()
+                    ? ERROR_CANCELLED
+                    : ERROR_INVALID_HANDLE;
             return false;
         }
 
-        if (available == 0) {
+        DWORD read = 0;
+
+        if (!WinHttpReadData(
+                request,
+                buffer.data(),
+                static_cast<DWORD>(
+                    buffer.size()),
+                &read)) {
+            nativeError =
+                stopToken.stop_requested()
+                    ? ERROR_CANCELLED
+                    : static_cast<
+                          std::uint32_t>(
+                          GetLastError());
+            return false;
+        }
+
+        if (read == 0) {
             break;
         }
 
         if (output.size() +
-                available >
+                read >
             kMaximumManifestBytes) {
             nativeError =
                 ERROR_FILE_TOO_LARGE;
             return false;
         }
 
-        const std::size_t oldSize =
-            output.size();
-        output.resize(
-            oldSize + available);
-
-        DWORD read = 0;
-
-        if (!WinHttpReadData(
-                handles.request.value,
-                output.data() +
-                    oldSize,
-                available,
-                &read)) {
-            nativeError =
-                static_cast<std::uint32_t>(
-                    GetLastError());
-            return false;
-        }
-
-        output.resize(
-            oldSize + read);
+        output.append(
+            buffer.data(),
+            static_cast<std::size_t>(
+                read));
     }
 
     nativeError = 0;
@@ -473,7 +595,8 @@ DownloadFile(
             url,
             handles,
             contentLength,
-            nativeError) ||
+            nativeError,
+            stopToken) ||
         contentLength >
             kMaximumPackageBytes) {
         if (contentLength >
@@ -481,6 +604,18 @@ DownloadFile(
             nativeError =
                 ERROR_FILE_TOO_LARGE;
         }
+        return false;
+    }
+
+    std::stop_callback cancelOnStop{
+        stopToken,
+        [&handles]() {
+            handles.request.Close();
+        }};
+
+    if (stopToken.stop_requested()) {
+        nativeError =
+            ERROR_CANCELLED;
         return false;
     }
 
@@ -503,7 +638,8 @@ DownloadFile(
         UpdateStage::Downloading,
         progress);
 
-    std::vector<char> buffer;
+    std::array<char, 64 * 1024>
+        buffer{};
 
     for (;;) {
         if (stopToken.stop_requested()) {
@@ -512,40 +648,43 @@ DownloadFile(
             return false;
         }
 
-        DWORD available = 0;
+        const HINTERNET request =
+            handles.request.Get();
 
-        if (!WinHttpQueryDataAvailable(
-                handles.request.value,
-                &available)) {
+        if (!request) {
             nativeError =
-                static_cast<std::uint32_t>(
-                    GetLastError());
+                stopToken.stop_requested()
+                    ? ERROR_CANCELLED
+                    : ERROR_INVALID_HANDLE;
             return false;
         }
 
-        if (available == 0) {
+        DWORD read = 0;
+
+        if (!WinHttpReadData(
+                request,
+                buffer.data(),
+                static_cast<DWORD>(
+                    buffer.size()),
+                &read)) {
+            nativeError =
+                stopToken.stop_requested()
+                    ? ERROR_CANCELLED
+                    : static_cast<
+                          std::uint32_t>(
+                          GetLastError());
+            return false;
+        }
+
+        if (read == 0) {
             break;
         }
 
         if (snapshot.downloadedBytes +
-                available >
+                read >
             kMaximumPackageBytes) {
             nativeError =
                 ERROR_FILE_TOO_LARGE;
-            return false;
-        }
-
-        buffer.resize(available);
-        DWORD read = 0;
-
-        if (!WinHttpReadData(
-                handles.request.value,
-                buffer.data(),
-                available,
-                &read)) {
-            nativeError =
-                static_cast<std::uint32_t>(
-                    GetLastError());
             return false;
         }
 
@@ -1293,8 +1432,12 @@ CheckForUpdate(
                 stopToken.stop_requested()
                     ? UpdateFailure::
                           Cancelled
-                    : UpdateFailure::
-                          ManifestDownloadFailed,
+                    : IsNetworkTimeout(
+                          nativeError)
+                        ? UpdateFailure::
+                              CheckTimedOut
+                        : UpdateFailure::
+                              ManifestDownloadFailed,
                 nativeError,
                 progress);
         return result;

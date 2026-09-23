@@ -29,6 +29,7 @@ enum class UpdateFailure {
     None,
     Cancelled,
     ManifestDownloadFailed,
+    CheckTimedOut,
     StableManifestUnavailable,
     ManifestInvalid,
     UnsupportedArchitecture,
