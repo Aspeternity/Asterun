@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.4.5 — Classic+ Rendering & Column Hardening
+
+Alpha.4.5 is the first deliberate Classic+ pass: it keeps the original authorized skin, 420×250 geometry, 16-pixel row density, SimSun metrics and classic interaction model, but stops carrying forward original rendering limitations that hurt readability or break under modern result data.
+
+Classic global layered opacity is raised from **240 to 255** while retaining the original black color key, embedded BG.jpg, borderless window and 12-logical-pixel round region. This preserves the original skin while restoring full-fidelity Navy text, white result surfaces, MoneyGreen controls, system selection blue and sharper glyph/text contrast.
+
+The Classic operation Hint is no longer a raw 14-pixel Win32 Edit pretending to be the Delphi/VCL TEdit. It is now a dedicated **owner-drawn overlay** using the original **-13 SimSun** typography, right alignment, true vertical centering and ellipsis. Its left edge dynamically follows the measured query text plus a safety gap; when the remaining width becomes too small the Hint hides instead of covering the user's input.
+
+Classic result rows no longer emulate columns with the original `%-25s| %s` string padding. Both icon-off and icon-on Classic rendering use fixed logical separators at **23 px** and **230 px** with three clipped text rectangles. Shortcut and display-name text use single-line vertical centering and `DT_END_ELLIPSIS`, so long English names, Chinese text and mixed Unicode can never push the separators out of alignment. Separators are true one-physical-pixel GDI lines, Navy when idle and system highlight text color when selected.
+
+Modern Compact, search/ranking/providers/Everything, result icon loading, context actions, updater, top-level presentation and the original authorized BG/Logo/Close assets are unchanged. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.75`.
+
 ## v0.8.0-alpha.4.4 — Classic Source-Parity Foundation
 
 Alpha.4.4 changes the Classic development method: instead of approximating the old launcher from screenshots, ALTRun Next now treats the authorized original ALTRun source/DFM as the visual baseline and keeps ALTRun Next's modern internals underneath it.

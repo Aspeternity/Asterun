@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.4.5
+
+- Started the Classic+ phase: retain original ALTRun visual identity where it is beneficial, but remove legacy rendering behavior that reduces readability or breaks with modern result data.
+- Raised Classic layered alpha from **240 to 255** while retaining the black color key, original BG.jpg, borderless 420×250 client and 12-logical-pixel round region. Classic colors now render at full fidelity instead of being globally washed out.
+- Replaced the clipped 14px raw Win32 Hint Edit with an owner-drawn Classic Hint overlay. It uses the original -13 SimSun font, right alignment, vertical centering and ellipsis.
+- Added query-aware Hint avoidance: measure the actual input text width, move the Hint right with an 8-logical-pixel gap, and hide it when less than 104 logical pixels remain.
+- Replaced the original `%-25s| %s` row-string emulation with fixed Classic columns at logical x=23 and x=230. Long shortcut/name text is clipped per column with `DT_END_ELLIPSIS`, so Chinese, English and mixed-width text cannot move the separators.
+- Unified Classic icon-off and icon-on row geometry around the same fixed columns. Optional result icons consume space only inside the shortcut column.
+- Rendered Classic separators as real one-physical-pixel GDI lines: Navy normally and system highlight-text color on the selected row.
+- Preserved the original authorized BG/Logo/Close assets, -16/-13 SimSun metrics, 16px×10-row density, Modern Compact, providers/Everything, context actions, updater and shared window-presentation architecture.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.75`.
+
 ## 0.8.0-alpha.4.4
 
 - Switched Classic refinement to a source-parity foundation based directly on the authorized original ALTRun DFM/source instead of screenshot-driven procedural approximations.

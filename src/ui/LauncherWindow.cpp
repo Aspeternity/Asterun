@@ -335,41 +335,6 @@ LoadClassicJpegResource(
     return bitmap;
 }
 
-[[nodiscard]] std::wstring
-ClassicResultLine(
-    std::wstring_view number,
-    std::wstring_view shortcutText,
-    std::wstring_view nameText) {
-    std::wstring line;
-    line.reserve(
-        32 +
-        shortcutText.size() +
-        nameText.size());
-
-    line.push_back(L' ');
-    line.append(
-        number.empty()
-            ? std::wstring_view(L" ")
-            : number.substr(0, 1));
-    line.push_back(L'|');
-    line.append(shortcutText);
-
-    constexpr std::size_t
-        kClassicShortcutFieldWidth = 25;
-
-    if (shortcutText.size() <
-        kClassicShortcutFieldWidth) {
-        line.append(
-            kClassicShortcutFieldWidth -
-                shortcutText.size(),
-            L' ');
-    }
-
-    line.append(L"| ");
-    line.append(nameText);
-
-    return line;
-}
 
 } // namespace
 
@@ -547,12 +512,11 @@ void LauncherWindow::CreateChildren() {
 
     hint_ = CreateWindowExW(
         0,
-        L"EDIT",
+        L"STATIC",
         L"",
         WS_CHILD | WS_VISIBLE |
-            ES_RIGHT |
-            ES_AUTOHSCROLL |
-            ES_READONLY,
+            SS_OWNERDRAW |
+            SS_NOPREFIX,
         0, 0, 0, 0,
         hwnd_,
         reinterpret_cast<HMENU>(1004),
@@ -600,10 +564,6 @@ void LauncherWindow::CreateChildren() {
         reinterpret_cast<HMENU>(1005),
         instance_,
         nullptr);
-
-    EnableWindow(
-        hint_,
-        FALSE);
 
     SetWindowLongPtrW(edit_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
     oldEditProc_ = reinterpret_cast<WNDPROC>(
@@ -859,7 +819,7 @@ void LauncherWindow::UpdateWindowChrome() {
     SetLayeredWindowAttributes(
         hwnd_,
         RGB(0, 0, 0),
-        240,
+        255,
         LWA_ALPHA |
             LWA_COLORKEY);
 
@@ -1110,13 +1070,7 @@ void LauncherWindow::Layout() {
         DpiScale(22),
         TRUE);
 
-    MoveWindow(
-        hint_,
-        DpiScale(82),
-        DpiScale(35),
-        DpiScale(328),
-        DpiScale(14),
-        TRUE);
+    UpdateClassicHintLayout();
 
     MoveWindow(
         list_,
@@ -1551,7 +1505,129 @@ void LauncherWindow::UpdateHint() {
 
     SetWindowTextW(
         hint_,
-        IsModern() ? L"" : app_.Text(TextId::ClassicHint).data());
+        IsModern()
+            ? L""
+            : app_.Text(
+                  TextId::ClassicHint)
+                  .data());
+
+    UpdateClassicHintLayout();
+
+    if (!IsModern()) {
+        InvalidateRect(
+            hint_,
+            nullptr,
+            TRUE);
+    }
+}
+
+void LauncherWindow::UpdateClassicHintLayout() {
+    if (!hint_ || !edit_) {
+        return;
+    }
+
+    if (IsModern()) {
+        ShowWindow(
+            hint_,
+            SW_HIDE);
+        return;
+    }
+
+    constexpr int
+        kHintOriginalLeftLogical = 82;
+    constexpr int
+        kHintTopLogical = 35;
+    constexpr int
+        kHintRightLogical = 410;
+    constexpr int
+        kHintHeightLogical = 14;
+    constexpr int
+        kHintGapLogical = 8;
+    constexpr int
+        kHintMinWidthLogical = 104;
+
+    const std::wstring query =
+        CurrentQuery();
+
+    SIZE querySize{};
+
+    if (!query.empty()) {
+        HDC dc =
+            GetDC(edit_);
+
+        if (dc) {
+            HGDIOBJ oldFont =
+                SelectObject(
+                    dc,
+                    normalFont_);
+
+            GetTextExtentPoint32W(
+                dc,
+                query.c_str(),
+                static_cast<int>(
+                    query.size()),
+                &querySize);
+
+            SelectObject(
+                dc,
+                oldFont);
+            ReleaseDC(
+                edit_,
+                dc);
+        }
+    }
+
+    const LRESULT margins =
+        SendMessageW(
+            edit_,
+            EM_GETMARGINS,
+            0,
+            0);
+
+    const int editLeft =
+        DpiScale(8);
+    const int leftMargin =
+        std::max(
+            static_cast<int>(
+                LOWORD(margins)),
+            DpiScale(2));
+
+    const int desiredLeft =
+        std::max(
+            DpiScale(
+                kHintOriginalLeftLogical),
+            editLeft +
+                leftMargin +
+                querySize.cx +
+                DpiScale(
+                    kHintGapLogical));
+
+    const int right =
+        DpiScale(
+            kHintRightLogical);
+    const int minWidth =
+        DpiScale(
+            kHintMinWidthLogical);
+
+    if (desiredLeft >
+        right - minWidth) {
+        ShowWindow(
+            hint_,
+            SW_HIDE);
+        return;
+    }
+
+    SetWindowPos(
+        hint_,
+        HWND_TOP,
+        desiredLeft,
+        DpiScale(
+            kHintTopLogical),
+        right - desiredLeft,
+        DpiScale(
+            kHintHeightLogical),
+        SWP_NOACTIVATE |
+            SWP_SHOWWINDOW);
 }
 
 std::wstring LauncherWindow::CurrentQuery() const {
@@ -3157,6 +3233,8 @@ LRESULT LauncherWindow::HandleMessage(
                     0);
             }
 
+            UpdateClassicHintLayout();
+
             // IME composition can emit intermediate EN_CHANGE events.
             // Search may update live, but single-result auto execution must
             // wait until composition is committed.
@@ -3305,19 +3383,6 @@ LRESULT LauncherWindow::HandleMessage(
                 wParam);
 
         if (!IsModern() &&
-            control == hint_) {
-            SetTextColor(
-                dc,
-                GetSysColor(
-                    COLOR_GRAYTEXT));
-            SetBkColor(
-                dc,
-                palette.accentBackground);
-            return reinterpret_cast<LRESULT>(
-                accentBrush_);
-        }
-
-        if (!IsModern() &&
             control ==
                 classicPreview_) {
             SetTextColor(
@@ -3346,7 +3411,73 @@ LRESULT LauncherWindow::HandleMessage(
     }
 
     case WM_DRAWITEM: {
-        const auto* item = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+        const auto* item =
+            reinterpret_cast<DRAWITEMSTRUCT*>(
+                lParam);
+
+        if (item->CtlID == 1004 &&
+            !IsModern()) {
+            FillRect(
+                item->hDC,
+                &item->rcItem,
+                accentBrush_);
+
+            const int length =
+                GetWindowTextLengthW(
+                    hint_);
+            std::wstring hintText(
+                static_cast<std::size_t>(
+                    length) + 1,
+                L'\0');
+
+            if (length > 0) {
+                GetWindowTextW(
+                    hint_,
+                    hintText.data(),
+                    length + 1);
+            }
+
+            hintText.resize(
+                static_cast<std::size_t>(
+                    length));
+
+            RECT textRect =
+                item->rcItem;
+            textRect.left +=
+                DpiScale(2);
+            textRect.right -=
+                DpiScale(2);
+
+            HGDIOBJ oldFont =
+                SelectObject(
+                    item->hDC,
+                    auxiliaryFont_);
+
+            SetBkMode(
+                item->hDC,
+                TRANSPARENT);
+            SetTextColor(
+                item->hDC,
+                RGB(128, 128, 128));
+
+            DrawTextW(
+                item->hDC,
+                hintText.c_str(),
+                -1,
+                &textRect,
+                DT_SINGLELINE |
+                    DT_RIGHT |
+                    DT_VCENTER |
+                    DT_END_ELLIPSIS |
+                    DT_NOPREFIX);
+
+            SelectObject(
+                item->hDC,
+                oldFont);
+
+            return TRUE;
+        }
+
         if (item->CtlID != 1002 ||
             item->itemID == static_cast<UINT>(-1) ||
             item->itemID >= results_.size()) {
@@ -3493,73 +3624,41 @@ LRESULT LauncherWindow::HandleMessage(
             return TRUE;
         }
 
-        if (!app_.SettingsData()
-                 .showResultIcons) {
-            const std::wstring number =
-                ResultNumberLabel(
-                    item->itemID);
-            const std::wstring line =
-                ClassicResultLine(
-                    number,
-                    primary,
-                    result.subtitle);
-
-            HGDIOBJ oldFont =
-                SelectObject(
-                    item->hDC,
-                    normalFont_);
-            const UINT oldAlign =
-                GetTextAlign(
-                    item->hDC);
-
-            SetTextAlign(
-                item->hDC,
-                TA_LEFT |
-                    TA_TOP |
-                    TA_NOUPDATECP);
-            SetTextColor(
-                item->hDC,
-                selected
-                    ? GetSysColor(
-                          COLOR_HIGHLIGHTTEXT)
-                    : RGB(0, 0, 128));
-
-            ExtTextOutW(
-                item->hDC,
-                item->rcItem.left,
-                item->rcItem.top,
-                ETO_CLIPPED,
-                &item->rcItem,
-                line.c_str(),
-                static_cast<UINT>(
-                    line.size()),
-                nullptr);
-
-            SetTextAlign(
-                item->hDC,
-                oldAlign);
-            SelectObject(
-                item->hDC,
-                oldFont);
-
-            return TRUE;
-        }
-
-        constexpr int hotkeyColumnLogical = 23;
-        constexpr int shortcutColumnLogical = 230;
-
-        RECT numberRect = item->rcItem;
-        numberRect.right =
-            item->rcItem.left +
-            DpiScale(
-                hotkeyColumnLogical);
+        constexpr int
+            numberColumnLogical = 23;
+        constexpr int
+            shortcutColumnLogical = 230;
+        constexpr int
+            textInsetLogical = 4;
 
         const bool showIcons =
             app_.SettingsData()
                 .showResultIcons;
 
+        const int firstX =
+            item->rcItem.left +
+            DpiScale(
+                numberColumnLogical);
+        const int secondX =
+            item->rcItem.left +
+            DpiScale(
+                shortcutColumnLogical);
+
+        RECT numberRect =
+            item->rcItem;
+        numberRect.right =
+            firstX;
+
         RECT keywordRect =
             item->rcItem;
+        keywordRect.left =
+            firstX +
+            DpiScale(
+                textInsetLogical);
+        keywordRect.right =
+            secondX -
+            DpiScale(
+                textInsetLogical);
 
         if (showIcons) {
             constexpr int
@@ -3568,7 +3667,7 @@ LRESULT LauncherWindow::HandleMessage(
             RECT iconRect =
                 item->rcItem;
             iconRect.left =
-                numberRect.right +
+                firstX +
                 DpiScale(1);
             iconRect.right =
                 iconRect.left +
@@ -3605,71 +3704,113 @@ LRESULT LauncherWindow::HandleMessage(
             keywordRect.left =
                 iconRect.right +
                 DpiScale(2);
-        } else {
-            keywordRect.left =
-                numberRect.right +
-                DpiScale(3);
         }
 
-        keywordRect.right =
-            item->rcItem.left +
+        RECT titleRect =
+            item->rcItem;
+        titleRect.left =
+            secondX +
             DpiScale(
-                shortcutColumnLogical) -
-            DpiScale(4);
-
-        RECT titleRect = item->rcItem;
-        titleRect.left = item->rcItem.left + DpiScale(shortcutColumnLogical) + DpiScale(8);
-        titleRect.right -= DpiScale(4);
+                textInsetLogical);
+        titleRect.right -=
+            DpiScale(
+                textInsetLogical);
 
         const std::wstring number =
             ResultNumberLabel(
                 item->itemID);
 
-        const auto oldFont = SelectObject(item->hDC, normalFont_);
-        const COLORREF fg =
-            selected ? palette.selectionText : palette.text;
+        HGDIOBJ oldFont =
+            SelectObject(
+                item->hDC,
+                normalFont_);
 
-        SetTextColor(item->hDC, fg);
+        const COLORREF foreground =
+            selected
+                ? GetSysColor(
+                      COLOR_HIGHLIGHTTEXT)
+                : RGB(0, 0, 128);
+
+        SetTextColor(
+            item->hDC,
+            foreground);
+
+        constexpr UINT
+            classicTextFlags =
+                DT_SINGLELINE |
+                DT_VCENTER |
+                DT_END_ELLIPSIS |
+                DT_NOPREFIX;
 
         DrawTextW(
             item->hDC,
             number.c_str(),
             -1,
             &numberRect,
-            DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+            DT_SINGLELINE |
+                DT_CENTER |
+                DT_VCENTER |
+                DT_NOPREFIX);
 
         DrawTextW(
             item->hDC,
             primary.c_str(),
             -1,
             &keywordRect,
-            DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+            classicTextFlags);
 
         DrawTextW(
             item->hDC,
             result.subtitle.c_str(),
             -1,
             &titleRect,
-            DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+            classicTextFlags);
 
-        const COLORREF separatorColor =
-            selected ? RGB(195, 226, 248) : palette.separator;
+        const COLORREF
+            separatorColor =
+                selected
+                    ? GetSysColor(
+                          COLOR_HIGHLIGHTTEXT)
+                    : RGB(0, 0, 128);
 
-        HPEN separator = CreatePen(PS_SOLID, 1, separatorColor);
-        HGDIOBJ oldPen = SelectObject(item->hDC, separator);
+        HPEN separator =
+            CreatePen(
+                PS_SOLID,
+                1,
+                separatorColor);
+        HGDIOBJ oldPen =
+            SelectObject(
+                item->hDC,
+                separator);
 
-        const int firstX = item->rcItem.left + DpiScale(hotkeyColumnLogical);
-        const int secondX = item->rcItem.left + DpiScale(shortcutColumnLogical);
+        MoveToEx(
+            item->hDC,
+            firstX,
+            item->rcItem.top,
+            nullptr);
+        LineTo(
+            item->hDC,
+            firstX,
+            item->rcItem.bottom);
 
-        MoveToEx(item->hDC, firstX, item->rcItem.top, nullptr);
-        LineTo(item->hDC, firstX, item->rcItem.bottom);
+        MoveToEx(
+            item->hDC,
+            secondX,
+            item->rcItem.top,
+            nullptr);
+        LineTo(
+            item->hDC,
+            secondX,
+            item->rcItem.bottom);
 
-        MoveToEx(item->hDC, secondX, item->rcItem.top, nullptr);
-        LineTo(item->hDC, secondX, item->rcItem.bottom);
-
-        SelectObject(item->hDC, oldPen);
-        DeleteObject(separator);
-        SelectObject(item->hDC, oldFont);
+        SelectObject(
+            item->hDC,
+            oldPen);
+        DeleteObject(
+            separator);
+        SelectObject(
+            item->hDC,
+            oldFont);
 
         return TRUE;
     }

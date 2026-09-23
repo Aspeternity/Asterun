@@ -76,6 +76,7 @@ private:
     void PaintClassicLogo(HDC dc, int x, int y);
     void PaintClassicClose(HDC dc, const RECT& rect);
     void UpdateHint();
+    void UpdateClassicHintLayout();
     void UpdatePreview();
 
     struct ResultIconCacheEntry {

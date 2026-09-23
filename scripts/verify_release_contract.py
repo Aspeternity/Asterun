@@ -42,6 +42,243 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.5":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.5 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.5 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    resources = read("src/resources.rc")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    # Classic+ color fidelity: preserve the original black color key/skin,
+    # but do not wash the whole launcher through the legacy 240 alpha.
+    for token in (
+        "SetLayeredWindowAttributes(",
+        "RGB(0, 0, 0)",
+        "        255,",
+        "LWA_ALPHA",
+        "LWA_COLORKEY",
+        "PaintClassicBackground(",
+        "IDR_CLASSIC_BACKGROUND",
+        "DpiScale(420)",
+        "DpiScale(250)",
+        "DpiScale(12)",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.5 Classic color/skin contract missing: {token}")
+
+    if "        240,\n        LWA_ALPHA" in launcher:
+        fail("v0.8 alpha.4.5 must not globally fade Classic through alpha 240")
+
+    # The Hint is a real owner-drawn overlay, not a tiny raw Win32 Edit.
+    for token in (
+        'L"STATIC"',
+        "SS_OWNERDRAW",
+        "void LauncherWindow::UpdateClassicHintLayout()",
+        "kHintOriginalLeftLogical = 82",
+        "kHintTopLogical = 35",
+        "kHintRightLogical = 410",
+        "kHintHeightLogical = 14",
+        "kHintGapLogical = 8",
+        "kHintMinWidthLogical = 104",
+        "GetTextExtentPoint32W(",
+        "EM_GETMARGINS",
+        "HWND_TOP",
+        "SWP_SHOWWINDOW",
+        "item->CtlID == 1004",
+        "DT_RIGHT",
+        "DT_VCENTER",
+        "DT_END_ELLIPSIS",
+        "RGB(128, 128, 128)",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.5 Hint overlay contract missing: {token}")
+
+    if "void UpdateClassicHintLayout();" not in launcher_h:
+        fail("v0.8 alpha.4.5 Hint overlay declaration is missing")
+
+    # Harden Classic rows with actual fixed columns. String-padding must not
+    # be allowed to move visual separators for long/CJK result text.
+    for token in (
+        "numberColumnLogical = 23",
+        "shortcutColumnLogical = 230",
+        "textInsetLogical = 4",
+        "classicTextFlags",
+        "DT_END_ELLIPSIS",
+        "DT_NOPREFIX",
+        "GetSysColor(\n                      COLOR_HIGHLIGHTTEXT)",
+        "CreatePen(\n                PS_SOLID,\n                1,",
+        "MoveToEx(",
+        "LineTo(",
+        "showResultIcons",
+        "iconColumnLogical = 18",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.5 fixed-column rendering contract missing: {token}")
+
+    for forbidden in (
+        "ClassicResultLine(",
+        "kClassicShortcutFieldWidth = 25",
+        'line.append(L"| ");',
+        "ExtTextOutW(",
+    ):
+        if forbidden in launcher:
+            fail(f"v0.8 alpha.4.5 legacy string-column path survived: {forbidden}")
+
+    # Preserve the alpha.4.4 source-parity baseline underneath Classic+.
+    for token in (
+        "kClassicLauncherPrimaryLogicalHeight96 = -16",
+        "kClassicLauncherAuxiliaryLogicalHeight96 = -13",
+        'L"SimSun"',
+        "ANSI_CHARSET",
+        "DEFAULT_QUALITY",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.5 Classic font baseline regressed: {token}")
+
+    for token in (
+        'IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"',
+        'IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"',
+        'IDR_CLASSIC_BACKGROUND RCDATA "resources/classic_bg.jpg"',
+        "FILEVERSION 0,8,0,75",
+        "PRODUCTVERSION 0,8,0,75",
+        "0.8.0-alpha.4.5",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.4.5 resource/version contract missing: {token}")
+
+    for token in (
+        "kClassicLauncherMetrics{\n        420,\n        16,\n        10,",
+        "kModernCompactLauncherMetrics{\n        620,\n        32,\n        9,",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.5 launcher metrics regressed: {token}")
+
+    # Mature alpha.3 foundations and Modern Compact stay frozen.
+    for token in (
+        "const int margin =\n            DpiScale(12);",
+        "const int inputHeight =\n            DpiScale(36);",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.5 Modern/performance contract regressed: {token}")
+
+    for token in ("NM_CLICK", "NM_DBLCLK", "ToggleResultRowSelection("):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.5 Path Conversion rapid-click regression: {token}")
+
+    for token in ("BN_CLICKED", "BN_DOUBLECLICKED", "toggleActivated", "ToggleAdvanced();"):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.5 Shortcut Editor rapid-click regression: {token}")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.5 updater architecture regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.4.4"',
+        '"0.8.0-alpha.4.5"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.5 update ordering/default coverage missing: {token}")
+
+    version_script = read("scripts/verify_version.py")
+    package_script = read("scripts/verify_package.ps1")
+    for token in (
+        "revision = 70 + (channel_number - 4) * 100 + channel_patch",
+        "revision = 10000 + channel_number",
+        "revision = 20000 + channel_number",
+        "revision = 30000",
+    ):
+        if token not in version_script:
+            fail(f"v0.8 alpha.4.5 Python fixed-version mapping missing: {token}")
+    for token in (
+        "(($channelNumber - 4) * 100)",
+        "$revision = 10000 + $channelNumber",
+        "$revision = 20000 + $channelNumber",
+        "$revision = 30000",
+    ):
+        if token not in package_script:
+            fail(f"v0.8 alpha.4.5 package fixed-version mapping missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "Classic+ Rendering & Column Hardening",
+        "0.8.0.75",
+        "240 to 255",
+        "owner-drawn overlay",
+        "23 px",
+        "230 px",
+        "DT_END_ELLIPSIS",
+        "104 logical pixels",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.5 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.4.5",
+        "0.8.0.75",
+        "240 to 255",
+        "owner-drawn Classic Hint overlay",
+        "x=23",
+        "x=230",
+        "DT_END_ELLIPSIS",
+        "one-physical-pixel",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.5 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.5",
+        "Classic+",
+        "full-opacity Classic color fidelity",
+        "fixed 23/230 logical result columns",
+        "Modern Compact refinement follows",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.5 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.5 Classic+ rendering verified:",
+        "| full-fidelity Classic alpha255",
+        "| owner-drawn query-aware Hint",
+        "| fixed 23/230 result columns",
+        "| per-column ellipsis + 1px separators",
+        "| Modern/search/providers/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.4":
     import hashlib
 
