@@ -191,7 +191,7 @@ if version == "0.8.0-alpha.3.29":
         "0.8.0.59",
         "ResolveWindowOrigin()",
         "CW_USEDEFAULT",
-        "DWM first-frame barrier",
+        "first-frame DWM barrier",
     ):
         if token not in readme:
             fail(f"v0.8 alpha.3.29 README contract missing: {token}")
