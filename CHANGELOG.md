@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.3.34
+
+- Reworked the Path Conversion mode selector again after alpha.3.33 real-Windows validation still showed a soft/unclear ring and center dot.
+- Removed the previous hard-edged integer disk/ring raster. The selector now uses discrete DPI buckets with hand-tuned physical-pixel diameters and a **4×4 subpixel coverage raster** written directly into the final device HDC.
+- The selector is never rendered as a Windows theme glyph and is never bitmap-scaled. Ring and center-dot coverage are blended against the actual card fill color per destination pixel, preserving a clean 1:1 final raster at 100/125/150/175/200% class DPI ranges.
+- DPI buckets currently resolve to 15/17/19/21/23 physical pixels with progressively tuned ring widths and 5/6/7/8/9 pixel center-dot targets.
+- Focused or selected cards use the accent ring; disabled cards use subdued separator/muted colors. Card border, header, row density, buttons and all alpha.3.31 conversion behavior remain unchanged.
+- Preserved the 960×560 default / 820×480 minimum geometry, settings schemaVersion 9, shared first-frame presentation and updater hardening.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.64`.
+
 ## 0.8.0-alpha.3.33
 
 - Closed the remaining Path Conversion visual issues reported from real-Windows alpha.3.32 testing.

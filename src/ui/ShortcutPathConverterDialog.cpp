@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <iterator>
 #include <optional>
 
@@ -48,94 +49,213 @@ constexpr int kResultRowHeightLogical = 24;
 constexpr LPARAM kGroupHeaderItemParam =
     static_cast<LPARAM>(-1);
 
-void FillCrispDisk(
-    HDC dc,
-    int left,
-    int top,
-    int diameter,
-    COLORREF color) {
-    if (!dc ||
-        diameter <= 0) {
-        return;
+struct SelectorRasterTemplate {
+    int diameter{};
+    double ringThickness{};
+    int dotDiameter{};
+};
+
+[[nodiscard]] SelectorRasterTemplate
+SelectorTemplateForDpi(
+    UINT dpi) noexcept {
+    // Hand-tuned physical-pixel templates. The selected template is rendered
+    // directly into the destination HDC; no theme glyph or bitmap scaling is
+    // involved after this point.
+    if (dpi <= 108) {
+        return {15, 1.35, 5};
     }
 
-    HBRUSH brush =
-        CreateSolidBrush(
-            color);
-
-    if (!brush) {
-        return;
+    if (dpi <= 132) {
+        return {17, 1.45, 6};
     }
 
-    const int radius2 =
-        diameter - 1;
-    const int radiusSquared =
-        radius2 * radius2;
+    if (dpi <= 156) {
+        return {19, 1.60, 7};
+    }
 
-    for (int y = 0;
-         y < diameter;
-         ++y) {
-        const int dy =
-            2 * y -
-            radius2;
-        int first = diameter;
-        int last = -1;
+    if (dpi <= 180) {
+        return {21, 1.75, 8};
+    }
 
-        for (int x = 0;
-             x < diameter;
-             ++x) {
-            const int dx =
-                2 * x -
-                radius2;
+    return {23, 1.90, 9};
+}
+
+[[nodiscard]] COLORREF BlendSelectorPixel(
+    COLORREF background,
+    COLORREF foreground,
+    double coverage) noexcept {
+    coverage =
+        std::clamp(
+            coverage,
+            0.0,
+            1.0);
+
+    const auto blendChannel =
+        [coverage](
+            int backgroundValue,
+            int foregroundValue) {
+            return static_cast<int>(
+                std::lround(
+                    static_cast<double>(
+                        backgroundValue) *
+                        (1.0 - coverage) +
+                    static_cast<double>(
+                        foregroundValue) *
+                        coverage));
+        };
+
+    return RGB(
+        blendChannel(
+            GetRValue(background),
+            GetRValue(foreground)),
+        blendChannel(
+            GetGValue(background),
+            GetGValue(foreground)),
+        blendChannel(
+            GetBValue(background),
+            GetBValue(foreground)));
+}
+
+[[nodiscard]] double CircleCoverage(
+    int pixelX,
+    int pixelY,
+    double center,
+    double radius) noexcept {
+    constexpr int kSamplesPerAxis = 4;
+    constexpr int kSampleCount =
+        kSamplesPerAxis *
+        kSamplesPerAxis;
+
+    int inside = 0;
+
+    for (int sampleY = 0;
+         sampleY < kSamplesPerAxis;
+         ++sampleY) {
+        for (int sampleX = 0;
+             sampleX < kSamplesPerAxis;
+             ++sampleX) {
+            const double x =
+                static_cast<double>(
+                    pixelX) +
+                (static_cast<double>(
+                     sampleX) +
+                 0.5) /
+                    kSamplesPerAxis;
+            const double y =
+                static_cast<double>(
+                    pixelY) +
+                (static_cast<double>(
+                     sampleY) +
+                 0.5) /
+                    kSamplesPerAxis;
+
+            const double dx =
+                x - center;
+            const double dy =
+                y - center;
 
             if (dx * dx +
                     dy * dy <=
-                radiusSquared) {
-                first =
-                    std::min(
-                        first,
-                        x);
-                last =
-                    std::max(
-                        last,
-                        x);
+                radius * radius) {
+                ++inside;
             }
         }
-
-        if (last >= first) {
-            RECT row{
-                left + first,
-                top + y,
-                left + last + 1,
-                top + y + 1,
-            };
-
-            FillRect(
-                dc,
-                &row,
-                brush);
-        }
     }
 
-    DeleteObject(
-        brush);
+    return static_cast<double>(
+               inside) /
+        static_cast<double>(
+            kSampleCount);
 }
 
-[[nodiscard]] int OddPixelSize(
-    int value,
-    int minimum) noexcept {
-    value =
-        std::max(
-            value,
-            minimum);
-
-    if ((value & 1) == 0) {
-        --value;
+void DrawSelectorRaster(
+    HDC dc,
+    int left,
+    int top,
+    const SelectorRasterTemplate& raster,
+    bool selected,
+    COLORREF background,
+    COLORREF ringColor,
+    COLORREF dotColor) {
+    if (!dc ||
+        raster.diameter <= 0) {
+        return;
     }
 
-    return std::max(
-        value,
-        minimum | 1);
+    const double center =
+        static_cast<double>(
+            raster.diameter) /
+        2.0;
+    const double outerRadius =
+        static_cast<double>(
+            raster.diameter) /
+            2.0 -
+        0.5;
+    const double innerRadius =
+        std::max(
+            0.0,
+            outerRadius -
+                raster.ringThickness);
+    const double dotRadius =
+        static_cast<double>(
+            raster.dotDiameter) /
+            2.0;
+
+    for (int y = 0;
+         y < raster.diameter;
+         ++y) {
+        for (int x = 0;
+             x < raster.diameter;
+             ++x) {
+            const double outerCoverage =
+                CircleCoverage(
+                    x,
+                    y,
+                    center,
+                    outerRadius);
+            const double innerCoverage =
+                CircleCoverage(
+                    x,
+                    y,
+                    center,
+                    innerRadius);
+            const double ringCoverage =
+                std::clamp(
+                    outerCoverage -
+                        innerCoverage,
+                    0.0,
+                    1.0);
+
+            COLORREF color =
+                BlendSelectorPixel(
+                    background,
+                    ringColor,
+                    ringCoverage);
+
+            if (selected) {
+                const double dotCoverage =
+                    CircleCoverage(
+                        x,
+                        y,
+                        center,
+                        dotRadius);
+
+                color =
+                    BlendSelectorPixel(
+                        color,
+                        dotColor,
+                        dotCoverage);
+            }
+
+            if (color != background) {
+                SetPixelV(
+                    dc,
+                    left + x,
+                    top + y,
+                    color);
+            }
+        }
+    }
 }
 
 } // namespace
@@ -802,21 +922,16 @@ void ShortcutPathConverterDialog::DrawModeCard(
     DeleteObject(pen);
     DeleteObject(fill);
 
-    // Draw the selector as a tiny integer-raster ring instead of relying on
-    // themed/GDI ellipses. Every span is filled on the final device-pixel grid,
-    // so the outline and center dot stay sharp at fractional Windows DPI.
+    // The selector uses discrete DPI templates and a 4x4 coverage raster
+    // written directly to final device pixels. This keeps the ring and center
+    // dot smooth without any second scaling/interpolation pass.
     const bool disabled =
         (draw.itemState &
          ODS_DISABLED) != 0;
 
-    const int radioSize =
-        OddPixelSize(
-            Scale(13),
-            11);
-    const int ringThickness =
-        std::max(
-            1,
-            Scale(1));
+    const SelectorRasterTemplate selector =
+        SelectorTemplateForDpi(
+            dpi_);
     const int radioLeft =
         surface.left +
         Scale(12);
@@ -827,55 +942,23 @@ void ShortcutPathConverterDialog::DrawModeCard(
     const COLORREF ringColor =
         disabled
             ? palette.separator
-            : selected
+            : selected || focused
                 ? palette.accent
                 : palette.mutedText;
+    const COLORREF dotColor =
+        disabled
+            ? palette.mutedText
+            : palette.accent;
 
-    FillCrispDisk(
+    DrawSelectorRaster(
         draw.hDC,
         radioLeft,
         radioTop,
-        radioSize,
-        ringColor);
-
-    const int innerSize =
-        std::max(
-            1,
-            radioSize -
-                ringThickness * 2);
-
-    FillCrispDisk(
-        draw.hDC,
-        radioLeft +
-            ringThickness,
-        radioTop +
-            ringThickness,
-        innerSize,
-        fillColor);
-
-    if (selected) {
-        const int dotSize =
-            OddPixelSize(
-                Scale(5),
-                5);
-        const int dotLeft =
-            radioLeft +
-            (radioSize -
-             dotSize) / 2;
-        const int dotTop =
-            radioTop +
-            (radioSize -
-             dotSize) / 2;
-
-        FillCrispDisk(
-            draw.hDC,
-            dotLeft,
-            dotTop,
-            dotSize,
-            disabled
-                ? palette.mutedText
-                : palette.accent);
-    }
+        selector,
+        selected,
+        fillColor,
+        ringColor,
+        dotColor);
 
     SetBkMode(
         draw.hDC,

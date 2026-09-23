@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.34 — Path Conversion Selector Final Fix
+
+Alpha 3.34 is a narrowly scoped correction for the remaining mode-selector clarity issue reported in real-Windows alpha.3.33 testing.
+
+The previous selector used hard-edged integer disk/ring fills, which removed blur but still produced a visually rough/unclear small circle on the actual desktop. The new selector keeps the 1:1 device-pixel rule but changes how those final pixels are generated: each DPI bucket has a hand-tuned physical size, and every destination pixel receives **4×4 subpixel coverage** for the outer ring, inner cutout and selected center dot. Coverage is blended directly against the current card background, so there is no intermediate bitmap, theme glyph, stretch or second interpolation pass.
+
+The DPI buckets use 15/17/19/21/23 physical-pixel selector diameters with progressively tuned ring widths and center-dot sizes. This keeps the control visually stable across common 100/125/150/175/200% Windows scale ranges while allowing the edge pixels to be anti-aliased instead of jagged.
+
+No other Path Conversion UI or behavior is changed in this release: mode-card border/background, flat action buttons, softened Header, 24 logical-pixel result-row baseline, responsive columns, live status, conversion semantics and close behavior remain frozen. Window geometry remains **960×560 / 820×480 logical pixels**; settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.64`.
+
 ## v0.8.0-alpha.3.33 — Path Conversion Visual Closeout
 
 Alpha 3.33 is the final real-Windows visual closeout for Path Conversion before returning to Launcher UX work.
