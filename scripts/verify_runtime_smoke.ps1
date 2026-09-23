@@ -125,15 +125,17 @@ try {
         Get-Content $settingsPath -Raw |
         ConvertFrom-Json
 
-    if ($migratedSettings.schemaVersion -ne 8) {
-        throw "Packaged runtime did not migrate schema-2 settings to schema 8."
+    if ($migratedSettings.schemaVersion -ne 9) {
+        throw "Packaged runtime did not migrate schema-2 settings to schema 9."
     }
 
     if ($migratedSettings.windowPlacement.launcherMode -ne "top" -or
         $migratedSettings.windowPlacement.settingsMode -ne "center" -or
+        $migratedSettings.windowPlacement.shortcutManagerMode -ne "center" -or
         $migratedSettings.windowPlacement.launcherLastValid -ne $false -or
-        $migratedSettings.windowPlacement.settingsLastValid -ne $false) {
-        throw "Packaged runtime migration must default window placement to launcher=top/settings=center with no remembered positions."
+        $migratedSettings.windowPlacement.settingsLastValid -ne $false -or
+        $migratedSettings.windowPlacement.shortcutManagerLastValid -ne $false) {
+        throw "Packaged runtime migration must default window placement to launcher=top/settings=center/shortcutManager=center with no remembered positions."
     }
 
     if ($migratedSettings.behavior.pinyinSearch -ne $true) {

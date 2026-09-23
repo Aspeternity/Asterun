@@ -203,6 +203,16 @@ if version == "0.8.0-alpha.3.28":
         if token not in update_tests:
             fail(f"v0.8 alpha.3.28 update ordering/default coverage missing: {token}")
 
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+        "launcher=top/settings=center/shortcutManager=center",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.28 runtime smoke schema-9 coverage missing: {token}")
+
     example = read("config/settings.example.json")
     docs = read("docs/CONFIG_SCHEMA.md")
     readme = read("README.md")
