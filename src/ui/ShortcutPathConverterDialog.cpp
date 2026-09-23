@@ -2,6 +2,7 @@
 
 #include "TopLevelWindowPresentation.hpp"
 #include "UiMetrics.hpp"
+#include "UiTheme.hpp"
 #include "UiTypography.hpp"
 
 #include "../app/App.hpp"
@@ -28,7 +29,19 @@ constexpr UINT kIdAbsolute = 54102;
 constexpr UINT kIdRescan = 54103;
 constexpr UINT kIdList = 54104;
 constexpr UINT kIdApply = 54105;
-constexpr UINT kIdClose = 54106;
+
+constexpr int kDefaultWidthLogical = 960;
+constexpr int kDefaultHeightLogical = 560;
+constexpr int kMinimumWidthLogical = 820;
+constexpr int kMinimumHeightLogical = 480;
+
+constexpr int kFieldColumnPercent = 13;
+constexpr int kCurrentColumnPercent = 36;
+constexpr int kConvertedColumnPercent = 39;
+constexpr int kFieldColumnMinimumLogical = 100;
+constexpr int kCurrentColumnMinimumLogical = 180;
+constexpr int kConvertedColumnMinimumLogical = 180;
+constexpr int kStatusColumnMinimumLogical = 100;
 
 constexpr LPARAM kGroupHeaderItemParam =
     static_cast<LPARAM>(-1);
@@ -146,8 +159,8 @@ bool ShortcutPathConverterDialog::Create() {
             ResolveOwnedPopupGeometry(
                 owner_,
                 instance_,
-                1100,
-                650);
+                kDefaultWidthLogical,
+                kDefaultHeightLogical);
 
     hwnd_ = CreateWindowExW(
         WS_EX_DLGMODALFRAME |
@@ -227,6 +240,46 @@ bool ShortcutPathConverterDialog::RunModal() {
             break;
         }
 
+        if (msg.message == WM_KEYDOWN &&
+            (msg.wParam == VK_LEFT ||
+             msg.wParam == VK_RIGHT) &&
+            (msg.hwnd == portable_ ||
+             msg.hwnd == absolute_)) {
+            const Mode requested =
+                msg.wParam == VK_LEFT
+                    ? Mode::Portable
+                    : Mode::Absolute;
+
+            if (mode_ != requested) {
+                mode_ = requested;
+                InvalidateRect(
+                    portable_,
+                    nullptr,
+                    TRUE);
+                InvalidateRect(
+                    absolute_,
+                    nullptr,
+                    TRUE);
+                Scan();
+            }
+
+            SetFocus(
+                mode_ == Mode::Portable
+                    ? portable_
+                    : absolute_);
+            continue;
+        }
+
+        if (msg.message == WM_KEYDOWN &&
+            msg.wParam == VK_ESCAPE &&
+            (msg.hwnd == hwnd_ ||
+             IsChild(
+                 hwnd_,
+                 msg.hwnd))) {
+            CloseWindow();
+            continue;
+        }
+
         if (!IsDialogMessageW(
                 hwnd_,
                 &msg)) {
@@ -273,24 +326,49 @@ void ShortcutPathConverterDialog::CreateControls() {
                 nullptr);
         };
 
+    const auto makeStatic =
+        [&](HWND& target,
+            DWORD style = SS_LEFT |
+                SS_NOPREFIX) {
+            target = CreateWindowExW(
+                0,
+                L"STATIC",
+                L"",
+                WS_CHILD |
+                    WS_VISIBLE |
+                    style,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                nullptr,
+                instance_,
+                nullptr);
+        };
+
+    makeStatic(modeTitle_);
+
     makeButton(
         portable_,
         L"",
         kIdPortable,
-        BS_AUTORADIOBUTTON |
+        BS_OWNERDRAW |
             WS_GROUP);
 
     makeButton(
         absolute_,
         L"",
         kIdAbsolute,
-        BS_AUTORADIOBUTTON);
+        BS_OWNERDRAW);
 
     makeButton(
         rescan_,
         L"",
         kIdRescan,
         BS_PUSHBUTTON);
+
+    makeStatic(rule_);
 
     list_ = CreateWindowExW(
         WS_EX_CLIENTEDGE,
@@ -315,37 +393,28 @@ void ShortcutPathConverterDialog::CreateControls() {
     ListView_SetExtendedListViewStyle(
         list_,
         LVS_EX_FULLROWSELECT |
-            LVS_EX_GRIDLINES |
             LVS_EX_DOUBLEBUFFER |
             LVS_EX_CHECKBOXES);
 
-    note_ = CreateWindowExW(
-        0,
-        L"STATIC",
-        L"",
-        WS_CHILD |
-            WS_VISIBLE |
-            SS_LEFT,
-        0,
-        0,
-        0,
-        0,
-        hwnd_,
-        nullptr,
-        instance_,
-        nullptr);
+    ListView_SetBkColor(
+        list_,
+        ui::kApplicationPalette
+            .controlBackground);
+    ListView_SetTextBkColor(
+        list_,
+        ui::kApplicationPalette
+            .controlBackground);
+    ListView_SetTextColor(
+        list_,
+        ui::kApplicationPalette.text);
+
+    makeStatic(status_);
 
     makeButton(
         apply_,
         L"",
         kIdApply,
         BS_DEFPUSHBUTTON);
-
-    makeButton(
-        close_,
-        L"",
-        kIdClose,
-        BS_PUSHBUTTON);
 
     const auto language =
         app_.SettingsData().language;
@@ -365,14 +434,15 @@ void ShortcutPathConverterDialog::CreateControls() {
             dpi_);
 
     for (HWND control :
-         std::array<HWND, 7>{
+         std::array<HWND, 8>{
+             modeTitle_,
              portable_,
              absolute_,
              rescan_,
+             rule_,
              list_,
-             note_,
-             apply_,
-             close_}) {
+             status_,
+             apply_}) {
         SendMessageW(
             control,
             WM_SETFONT,
@@ -382,25 +452,33 @@ void ShortcutPathConverterDialog::CreateControls() {
     }
 
     SendMessageW(
-        portable_,
-        BM_SETCHECK,
-        BST_CHECKED,
-        0);
+        modeTitle_,
+        WM_SETFONT,
+        reinterpret_cast<WPARAM>(
+            groupFont_),
+        TRUE);
+
+    EnableWindow(
+        apply_,
+        FALSE);
 
     const std::array<int, 4> widths{
-        155,
-        350,
-        350,
-        130,
+        120,
+        320,
+        330,
+        110,
     };
 
     const std::array<const wchar_t*, 4>
         initialLabels{
             T(L"字段", L"Field"),
             T(L"当前路径", L"Current path"),
-            T(L"转换后", L"Converted"),
+            T(L"转换后路径", L"Converted path"),
             T(L"状态", L"Status"),
         };
+
+    adjustingColumnWidths_ =
+        true;
 
     for (int index = 0;
          index <
@@ -430,6 +508,9 @@ void ShortcutPathConverterDialog::CreateControls() {
             index,
             &column);
     }
+
+    adjustingColumnWidths_ =
+        false;
 }
 
 void ShortcutPathConverterDialog::ApplyLanguage() {
@@ -439,32 +520,38 @@ void ShortcutPathConverterDialog::ApplyLanguage() {
           L"ALTRun Next Path Conversion"));
 
     SetWindowTextW(
+        modeTitle_,
+        T(L"转换方式",
+          L"Conversion mode"));
+
+    SetWindowTextW(
         portable_,
-        T(L"便携化（绝对路径 → 相对路径 / 环境变量）",
-          L"Portable (absolute → relative / environment variable)"));
+        T(L"便携化\n绝对路径 → 相对路径 / 环境变量",
+          L"Portable\nAbsolute → relative / environment variable"));
 
     SetWindowTextW(
         absolute_,
-        T(L"展开（相对路径 / 环境变量 → 当前机器绝对路径）",
-          L"Expand (relative / environment variable → absolute)"));
+        T(L"展开\n相对路径 / 环境变量 → 当前机器绝对路径",
+          L"Expand\nRelative / environment variable → absolute"));
 
     SetWindowTextW(
         rescan_,
         T(L"重新扫描", L"Rescan"));
 
     SetWindowTextW(
-        apply_,
-        T(L"应用所选", L"Apply selected"));
+        rule_,
+        T(L"仅转换目标、工作目录和自定义图标；参数、URL、UNC 路径和裸命令保持不变。",
+          L"Only Target, Working Directory and custom icons are converted; arguments, URLs, UNC paths and bare commands stay unchanged."));
 
     SetWindowTextW(
-        close_,
-        T(L"关闭", L"Close"));
+        apply_,
+        T(L"应用所选", L"Apply selected"));
 
     const std::array<const wchar_t*, 4>
         labels{
             T(L"字段", L"Field"),
             T(L"当前路径", L"Current path"),
-            T(L"转换后", L"Converted"),
+            T(L"转换后路径", L"Converted path"),
             T(L"状态", L"Status"),
         };
 
@@ -486,6 +573,264 @@ void ShortcutPathConverterDialog::ApplyLanguage() {
             index,
             &column);
     }
+
+    InvalidateRect(
+        portable_,
+        nullptr,
+        TRUE);
+    InvalidateRect(
+        absolute_,
+        nullptr,
+        TRUE);
+}
+
+void ShortcutPathConverterDialog::DrawModeCard(
+    const DRAWITEMSTRUCT& draw) const {
+    if (!draw.hwndItem) {
+        return;
+    }
+
+    const auto& palette =
+        ui::kApplicationPalette;
+
+    const bool portable =
+        draw.CtlID == kIdPortable;
+    const bool selected =
+        portable
+            ? mode_ == Mode::Portable
+            : mode_ == Mode::Absolute;
+    const bool pressed =
+        (draw.itemState &
+         ODS_SELECTED) != 0;
+    const bool focused =
+        (draw.itemState &
+         ODS_FOCUS) != 0;
+
+    RECT rect = draw.rcItem;
+
+    HBRUSH outer =
+        CreateSolidBrush(
+            palette.windowBackground);
+    FillRect(
+        draw.hDC,
+        &rect,
+        outer);
+    DeleteObject(outer);
+
+    RECT surface = rect;
+    InflateRect(
+        &surface,
+        -1,
+        -1);
+
+    COLORREF fillColor =
+        selected
+            ? palette.selectionBackground
+            : palette.cardBackground;
+
+    if (pressed) {
+        fillColor =
+            palette.pressedBackground;
+    }
+
+    const COLORREF borderColor =
+        selected || focused
+            ? palette.accent
+            : palette.frame;
+
+    HBRUSH fill =
+        CreateSolidBrush(
+            fillColor);
+    HPEN pen =
+        CreatePen(
+            PS_SOLID,
+            selected || focused
+                ? Scale(2)
+                : 1,
+            borderColor);
+
+    HGDIOBJ oldBrush =
+        SelectObject(
+            draw.hDC,
+            fill);
+    HGDIOBJ oldPen =
+        SelectObject(
+            draw.hDC,
+            pen);
+
+    RoundRect(
+        draw.hDC,
+        surface.left,
+        surface.top,
+        surface.right,
+        surface.bottom,
+        Scale(8),
+        Scale(8));
+
+    SelectObject(
+        draw.hDC,
+        oldPen);
+    SelectObject(
+        draw.hDC,
+        oldBrush);
+    DeleteObject(pen);
+    DeleteObject(fill);
+
+    const int radioCenterX =
+        surface.left +
+        Scale(18);
+    const int radioCenterY =
+        surface.top +
+        Scale(20);
+    const int radioRadius =
+        Scale(6);
+
+    HBRUSH radioFill =
+        CreateSolidBrush(
+            palette.controlBackground);
+    HPEN radioPen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            selected
+                ? palette.accent
+                : palette.mutedText);
+
+    oldBrush =
+        SelectObject(
+            draw.hDC,
+            radioFill);
+    oldPen =
+        SelectObject(
+            draw.hDC,
+            radioPen);
+
+    Ellipse(
+        draw.hDC,
+        radioCenterX -
+            radioRadius,
+        radioCenterY -
+            radioRadius,
+        radioCenterX +
+            radioRadius,
+        radioCenterY +
+            radioRadius);
+
+    SelectObject(
+        draw.hDC,
+        oldPen);
+    SelectObject(
+        draw.hDC,
+        oldBrush);
+    DeleteObject(radioPen);
+    DeleteObject(radioFill);
+
+    if (selected) {
+        const int innerRadius =
+            Scale(3);
+        HBRUSH dot =
+            CreateSolidBrush(
+                palette.accent);
+        oldBrush =
+            SelectObject(
+                draw.hDC,
+                dot);
+        oldPen =
+            SelectObject(
+                draw.hDC,
+                GetStockObject(
+                    NULL_PEN));
+
+        Ellipse(
+            draw.hDC,
+            radioCenterX -
+                innerRadius,
+            radioCenterY -
+                innerRadius,
+            radioCenterX +
+                innerRadius,
+            radioCenterY +
+                innerRadius);
+
+        SelectObject(
+            draw.hDC,
+            oldPen);
+        SelectObject(
+            draw.hDC,
+            oldBrush);
+        DeleteObject(dot);
+    }
+
+    SetBkMode(
+        draw.hDC,
+        TRANSPARENT);
+
+    RECT titleRect{
+        surface.left + Scale(34),
+        surface.top + Scale(8),
+        surface.right - Scale(10),
+        surface.top + Scale(28),
+    };
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            draw.hDC,
+            groupFont_
+                ? groupFont_
+                : font_);
+
+    SetTextColor(
+        draw.hDC,
+        palette.text);
+
+    DrawTextW(
+        draw.hDC,
+        portable
+            ? T(L"便携化",
+                L"Portable")
+            : T(L"展开",
+                L"Expand"),
+        -1,
+        &titleRect,
+        DT_LEFT |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_END_ELLIPSIS);
+
+    SelectObject(
+        draw.hDC,
+        font_
+            ? font_
+            : oldFont);
+
+    RECT descriptionRect{
+        titleRect.left,
+        surface.top + Scale(29),
+        titleRect.right,
+        surface.bottom - Scale(7),
+    };
+
+    SetTextColor(
+        draw.hDC,
+        palette.mutedText);
+
+    DrawTextW(
+        draw.hDC,
+        portable
+            ? T(L"绝对路径 → 相对路径 / 环境变量",
+                L"Absolute → relative / environment variable")
+            : T(L"相对路径 / 环境变量 → 当前机器绝对路径",
+                L"Relative / environment variable → absolute"),
+        -1,
+        &descriptionRect,
+        DT_LEFT |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_END_ELLIPSIS);
+
+    SelectObject(
+        draw.hDC,
+        oldFont);
 }
 
 void ShortcutPathConverterDialog::Layout() {
@@ -494,31 +839,70 @@ void ShortcutPathConverterDialog::Layout() {
     }
 
     RECT client{};
-    GetClientRect(hwnd_, &client);
+    GetClientRect(
+        hwnd_,
+        &client);
 
-    const int margin = Scale(18);
-    const int gap = Scale(10);
-    const int radioHeight = Scale(30);
-    const int rescanWidth = Scale(110);
-    const int buttonWidth = Scale(120);
+    const int margin = Scale(20);
+    const int gap = Scale(12);
+    const int titleHeight = Scale(20);
+    const int cardHeight = Scale(62);
+    const int ruleHeight = Scale(20);
+    const int rescanWidth = Scale(104);
+    const int buttonWidth = Scale(122);
     const int buttonHeight = Scale(34);
+    const int footerHeight = Scale(58);
 
-    int y = margin;
+    int y = Scale(18);
+
+    MoveWindow(
+        modeTitle_,
+        margin,
+        y,
+        std::max(
+            1,
+            static_cast<int>(
+                client.right) -
+                margin * 2),
+        titleHeight,
+        TRUE);
+
+    y += Scale(28);
+
+    const int cardsRight =
+        static_cast<int>(
+            client.right) -
+        margin -
+        rescanWidth -
+        gap;
+
+    const int cardsWidth =
+        std::max(
+            Scale(440),
+            cardsRight -
+                margin);
+
+    const int cardWidth =
+        std::max(
+            Scale(210),
+            (cardsWidth - gap) / 2);
 
     MoveWindow(
         portable_,
         margin,
         y,
-        Scale(390),
-        radioHeight,
+        cardWidth,
+        cardHeight,
         TRUE);
 
     MoveWindow(
         absolute_,
-        margin + Scale(405),
+        margin +
+            cardWidth +
+            gap,
         y,
-        Scale(430),
-        radioHeight,
+        cardWidth,
+        cardHeight,
         TRUE);
 
     MoveWindow(
@@ -527,80 +911,601 @@ void ShortcutPathConverterDialog::Layout() {
             client.right) -
             margin -
             rescanWidth,
-        y,
+        y +
+            std::max(
+                0,
+                (cardHeight -
+                 buttonHeight) / 2),
         rescanWidth,
         buttonHeight,
         TRUE);
 
-    y += Scale(48);
+    y += cardHeight +
+        Scale(10);
 
-    const int bottomArea =
-        Scale(86);
+    MoveWindow(
+        rule_,
+        margin,
+        y,
+        std::max(
+            1,
+            static_cast<int>(
+                client.right) -
+                margin * 2),
+        ruleHeight,
+        TRUE);
+
+    y += ruleHeight +
+        Scale(10);
 
     MoveWindow(
         list_,
         margin,
         y,
-        std::max<int>(
+        std::max(
             1,
             static_cast<int>(
                 client.right) -
                 margin * 2),
-        std::max<int>(
+        std::max(
             1,
             static_cast<int>(
                 client.bottom) -
                 y -
-                bottomArea),
+                footerHeight),
         TRUE);
 
-    const int noteY =
+    const int footerY =
         static_cast<int>(
             client.bottom) -
-        Scale(72);
-
-    MoveWindow(
-        note_,
-        margin,
-        noteY,
-        std::max<int>(
-            1,
-            static_cast<int>(
-                client.right) -
-                margin * 2 -
-                buttonWidth * 2 -
-                gap * 2),
-        Scale(52),
-        TRUE);
+        margin -
+        buttonHeight;
 
     MoveWindow(
         apply_,
         static_cast<int>(
             client.right) -
             margin -
-            buttonWidth * 2 -
-            gap,
-        static_cast<int>(
-            client.bottom) -
-            margin -
-            buttonHeight,
+            buttonWidth,
+        footerY,
         buttonWidth,
         buttonHeight,
         TRUE);
 
     MoveWindow(
-        close_,
-        static_cast<int>(
-            client.right) -
-            margin -
-            buttonWidth,
-        static_cast<int>(
-            client.bottom) -
-            margin -
-            buttonHeight,
-        buttonWidth,
-        buttonHeight,
+        status_,
+        margin,
+        footerY +
+            std::max(
+                0,
+                (buttonHeight -
+                 Scale(20)) / 2),
+        std::max(
+            1,
+            static_cast<int>(
+                client.right) -
+                margin * 2 -
+                buttonWidth -
+                gap),
+        Scale(20),
         TRUE);
+
+    UpdateColumnWidths();
+}
+
+std::size_t
+ShortcutPathConverterDialog::
+SelectedFieldCount() const {
+    if (!list_) {
+        return 0;
+    }
+
+    std::size_t count = 0;
+    const int itemCount =
+        ListView_GetItemCount(
+            list_);
+
+    for (int itemIndex = 0;
+         itemIndex < itemCount;
+         ++itemIndex) {
+        if (RowIndexForListItem(
+                itemIndex) &&
+            ListView_GetCheckState(
+                list_,
+                itemIndex)) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+void ShortcutPathConverterDialog::
+UpdateSelectionState(
+    std::optional<std::size_t>
+        appliedFieldCount) {
+    if (!status_ ||
+        !apply_) {
+        return;
+    }
+
+    const std::size_t selected =
+        SelectedFieldCount();
+
+    EnableWindow(
+        apply_,
+        selected > 0
+            ? TRUE
+            : FALSE);
+
+    std::wstring text;
+
+    if (appliedFieldCount) {
+        text =
+            T(L"已应用 ",
+              L"Applied ");
+        text +=
+            std::to_wstring(
+                *appliedFieldCount);
+        text +=
+            T(L" 个路径转换",
+              L" path conversions");
+    } else {
+        text =
+            std::to_wstring(
+                convertibleShortcutCount_);
+        text +=
+            T(L" 个快捷项 · ",
+              L" shortcuts · ");
+        text +=
+            std::to_wstring(
+                rows_.size());
+        text +=
+            T(L" 个可转换字段 · 已选择 ",
+              L" convertible fields · ");
+        text +=
+            std::to_wstring(
+                selected);
+        text +=
+            T(L" 项",
+              L" selected");
+    }
+
+    SetWindowTextW(
+        status_,
+        text.c_str());
+}
+
+void ShortcutPathConverterDialog::
+UpdateColumnWidths(
+    int resizedColumn) {
+    if (!list_) {
+        return;
+    }
+
+    HWND header =
+        ListView_GetHeader(
+            list_);
+
+    RECT headerRect{};
+    RECT listRect{};
+
+    int contentWidth = 0;
+
+    if (header &&
+        GetClientRect(
+            header,
+            &headerRect)) {
+        contentWidth =
+            headerRect.right -
+            headerRect.left;
+    }
+
+    if (contentWidth <= 0 &&
+        GetClientRect(
+            list_,
+            &listRect)) {
+        contentWidth =
+            listRect.right -
+            listRect.left;
+    }
+
+    if (contentWidth <= 0) {
+        return;
+    }
+
+    const std::array<int, 4>
+        minimums{
+            Scale(
+                kFieldColumnMinimumLogical),
+            Scale(
+                kCurrentColumnMinimumLogical),
+            Scale(
+                kConvertedColumnMinimumLogical),
+            Scale(
+                kStatusColumnMinimumLogical),
+        };
+
+    std::array<int, 3> widths{};
+
+    if (!customColumnWidths_) {
+        widths[0] =
+            std::max(
+                minimums[0],
+                contentWidth *
+                    kFieldColumnPercent /
+                    100);
+        widths[1] =
+            std::max(
+                minimums[1],
+                contentWidth *
+                    kCurrentColumnPercent /
+                    100);
+        widths[2] =
+            std::max(
+                minimums[2],
+                contentWidth *
+                    kConvertedColumnPercent /
+                    100);
+    } else {
+        for (int index = 0;
+             index < 3;
+             ++index) {
+            widths[
+                static_cast<
+                    std::size_t>(
+                        index)] =
+                std::max(
+                    minimums[
+                        static_cast<
+                            std::size_t>(
+                                index)],
+                    ListView_GetColumnWidth(
+                        list_,
+                        index));
+        }
+    }
+
+    const int minimumFirstThree =
+        minimums[0] +
+        minimums[1] +
+        minimums[2];
+
+    const int firstThreeLimit =
+        std::max(
+            minimumFirstThree,
+            contentWidth -
+                minimums[3]);
+
+    if (resizedColumn >= 0 &&
+        resizedColumn < 3) {
+        int otherWidth = 0;
+
+        for (int index = 0;
+             index < 3;
+             ++index) {
+            if (index !=
+                resizedColumn) {
+                otherWidth +=
+                    widths[
+                        static_cast<
+                            std::size_t>(
+                                index)];
+            }
+        }
+
+        const int maximum =
+            std::max(
+                minimums[
+                    static_cast<
+                        std::size_t>(
+                            resizedColumn)],
+                firstThreeLimit -
+                    otherWidth);
+
+        widths[
+            static_cast<
+                std::size_t>(
+                    resizedColumn)] =
+            std::clamp(
+                widths[
+                    static_cast<
+                        std::size_t>(
+                            resizedColumn)],
+                minimums[
+                    static_cast<
+                        std::size_t>(
+                            resizedColumn)],
+                maximum);
+    } else {
+        int total =
+            widths[0] +
+            widths[1] +
+            widths[2];
+
+        if (total >
+            firstThreeLimit) {
+            int excess =
+                total -
+                firstThreeLimit;
+
+            for (int index :
+                 std::array<int, 3>{
+                     2,
+                     1,
+                     0}) {
+                if (excess <= 0) {
+                    break;
+                }
+
+                const auto position =
+                    static_cast<
+                        std::size_t>(
+                            index);
+
+                const int capacity =
+                    std::max(
+                        0,
+                        widths[position] -
+                            minimums[position]);
+
+                const int amount =
+                    std::min(
+                        excess,
+                        capacity);
+
+                widths[position] -=
+                    amount;
+                excess -= amount;
+            }
+        }
+    }
+
+    const int statusWidth =
+        std::max(
+            1,
+            contentWidth -
+                widths[0] -
+                widths[1] -
+                widths[2]);
+
+    adjustingColumnWidths_ =
+        true;
+
+    const int currentStatus =
+        ListView_GetColumnWidth(
+            list_,
+            3);
+
+    if (statusWidth <
+        currentStatus) {
+        ListView_SetColumnWidth(
+            list_,
+            3,
+            statusWidth);
+    }
+
+    for (int index = 0;
+         index < 3;
+         ++index) {
+        const int width =
+            widths[
+                static_cast<
+                    std::size_t>(
+                        index)];
+
+        if (ListView_GetColumnWidth(
+                list_,
+                index) !=
+            width) {
+            ListView_SetColumnWidth(
+                list_,
+                index,
+                width);
+        }
+    }
+
+    if (statusWidth >=
+            currentStatus &&
+        currentStatus !=
+            statusWidth) {
+        ListView_SetColumnWidth(
+            list_,
+            3,
+            statusWidth);
+    }
+
+    adjustingColumnWidths_ =
+        false;
+}
+
+bool ShortcutPathConverterDialog::
+HandleHeaderNotification(
+    LPARAM lParam,
+    LRESULT& result) {
+    if (!list_ ||
+        adjustingColumnWidths_) {
+        return false;
+    }
+
+    auto* notification =
+        reinterpret_cast<NMHDR*>(
+            lParam);
+
+    if (!notification) {
+        return false;
+    }
+
+    HWND headerWindow =
+        ListView_GetHeader(
+            list_);
+
+    if (notification->hwndFrom !=
+        headerWindow) {
+        return false;
+    }
+
+    const int code =
+        static_cast<int>(
+            notification->code);
+
+    const bool beginTrack =
+        code == HDN_BEGINTRACKA ||
+        code == HDN_BEGINTRACKW;
+    const bool itemChanging =
+        code == HDN_ITEMCHANGINGA ||
+        code == HDN_ITEMCHANGINGW;
+    const bool track =
+        code == HDN_TRACKA ||
+        code == HDN_TRACKW;
+    const bool itemChanged =
+        code == HDN_ITEMCHANGEDA ||
+        code == HDN_ITEMCHANGEDW;
+    const bool endTrack =
+        code == HDN_ENDTRACKA ||
+        code == HDN_ENDTRACKW;
+    const bool dividerDoubleClick =
+        code == HDN_DIVIDERDBLCLICKA ||
+        code == HDN_DIVIDERDBLCLICKW;
+
+    if (!beginTrack &&
+        !itemChanging &&
+        !track &&
+        !itemChanged &&
+        !endTrack &&
+        !dividerDoubleClick) {
+        return false;
+    }
+
+    auto* header =
+        reinterpret_cast<NMHEADERW*>(
+            lParam);
+
+    if (!header ||
+        header->iItem < 0 ||
+        header->iItem > 3) {
+        return false;
+    }
+
+    const int column =
+        header->iItem;
+
+    const bool widthChange =
+        header->pitem &&
+        (header->pitem->mask &
+         HDI_WIDTH) != 0;
+
+    if (column == 3 &&
+        (beginTrack ||
+         track ||
+         endTrack ||
+         dividerDoubleClick ||
+         ((itemChanging ||
+           itemChanged) &&
+          widthChange))) {
+        result = TRUE;
+        return true;
+    }
+
+    if (dividerDoubleClick) {
+        result = TRUE;
+        return true;
+    }
+
+    if (beginTrack) {
+        customColumnWidths_ =
+            true;
+        result = FALSE;
+        return true;
+    }
+
+    if ((itemChanging ||
+         track) &&
+        header->pitem &&
+        (header->pitem->mask &
+         HDI_WIDTH) != 0) {
+        customColumnWidths_ =
+            true;
+
+        const std::array<int, 4>
+            minimums{
+                Scale(
+                    kFieldColumnMinimumLogical),
+                Scale(
+                    kCurrentColumnMinimumLogical),
+                Scale(
+                    kConvertedColumnMinimumLogical),
+                Scale(
+                    kStatusColumnMinimumLogical),
+            };
+
+        HWND listHeader =
+            ListView_GetHeader(
+                list_);
+        RECT client{};
+        GetClientRect(
+            listHeader,
+            &client);
+
+        int otherWidth = 0;
+        for (int index = 0;
+             index < 3;
+             ++index) {
+            if (index != column) {
+                otherWidth +=
+                    ListView_GetColumnWidth(
+                        list_,
+                        index);
+            }
+        }
+
+        const int maximum =
+            std::max(
+                minimums[
+                    static_cast<
+                        std::size_t>(
+                            column)],
+                static_cast<int>(
+                    client.right -
+                    client.left) -
+                    minimums[3] -
+                    otherWidth);
+
+        header->pitem->cxy =
+            std::clamp(
+                header->pitem->cxy,
+                minimums[
+                    static_cast<
+                        std::size_t>(
+                            column)],
+                maximum);
+
+        result = FALSE;
+        return true;
+    }
+
+    if (itemChanged &&
+        header->pitem &&
+        (header->pitem->mask &
+         HDI_WIDTH) != 0) {
+        customColumnWidths_ =
+            true;
+        UpdateColumnWidths(
+            column);
+        result = FALSE;
+        return true;
+    }
+
+    if (endTrack) {
+        customColumnWidths_ =
+            true;
+        UpdateColumnWidths(
+            column);
+        result = FALSE;
+        return true;
+    }
+
+    return false;
 }
 
 void ShortcutPathConverterDialog::InsertGroupHeader(
@@ -780,9 +1685,103 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
         return CDRF_DODEFAULT;
     }
 
+    const auto& palette =
+        ui::kApplicationPalette;
+
     switch (draw->nmcd.dwDrawStage) {
     case CDDS_PREPAINT:
-        return CDRF_NOTIFYITEMDRAW;
+        return CDRF_NOTIFYITEMDRAW |
+            CDRF_NOTIFYPOSTPAINT;
+
+    case CDDS_POSTPAINT:
+        if (!rows_.empty()) {
+            return CDRF_DODEFAULT;
+        } else {
+            RECT rect{};
+            GetClientRect(
+                list_,
+                &rect);
+
+            rect.left += Scale(24);
+            rect.right -= Scale(24);
+
+            const int centerY =
+                rect.top +
+                std::max(
+                    0,
+                    (rect.bottom -
+                     rect.top) / 2);
+
+            RECT titleRect{
+                rect.left,
+                centerY - Scale(28),
+                rect.right,
+                centerY - Scale(4),
+            };
+
+            RECT detailRect{
+                rect.left,
+                centerY + Scale(2),
+                rect.right,
+                centerY + Scale(28),
+            };
+
+            SetBkMode(
+                draw->nmcd.hdc,
+                TRANSPARENT);
+
+            HGDIOBJ oldFont =
+                SelectObject(
+                    draw->nmcd.hdc,
+                    groupFont_
+                        ? groupFont_
+                        : font_);
+
+            SetTextColor(
+                draw->nmcd.hdc,
+                palette.text);
+
+            DrawTextW(
+                draw->nmcd.hdc,
+                T(L"当前没有可转换的路径",
+                  L"No convertible paths"),
+                -1,
+                &titleRect,
+                DT_CENTER |
+                    DT_VCENTER |
+                    DT_SINGLELINE |
+                    DT_END_ELLIPSIS);
+
+            SelectObject(
+                draw->nmcd.hdc,
+                font_
+                    ? font_
+                    : oldFont);
+
+            SetTextColor(
+                draw->nmcd.hdc,
+                palette.mutedText);
+
+            DrawTextW(
+                draw->nmcd.hdc,
+                mode_ == Mode::Portable
+                    ? T(L"没有发现需要进行便携化转换的快捷项",
+                        L"No shortcuts currently need portable-path conversion")
+                    : T(L"没有发现需要展开为绝对路径的快捷项",
+                        L"No shortcuts currently need expansion to absolute paths"),
+                -1,
+                &detailRect,
+                DT_CENTER |
+                    DT_VCENTER |
+                    DT_SINGLELINE |
+                    DT_END_ELLIPSIS);
+
+            SelectObject(
+                draw->nmcd.hdc,
+                oldFont);
+
+            return CDRF_DODEFAULT;
+        }
 
     case CDDS_ITEMPREPAINT: {
         const int itemIndex =
@@ -810,11 +1809,14 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
         rect.left = client.left;
         rect.right = client.right;
 
+        HBRUSH background =
+            CreateSolidBrush(
+                palette.cardBackground);
         FillRect(
             draw->nmcd.hdc,
             &rect,
-            GetSysColorBrush(
-                COLOR_3DFACE));
+            background);
+        DeleteObject(background);
 
         std::array<wchar_t, 512>
             title{};
@@ -836,8 +1838,7 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
             TRANSPARENT);
         SetTextColor(
             draw->nmcd.hdc,
-            GetSysColor(
-                COLOR_BTNTEXT));
+            palette.text);
 
         HGDIOBJ previousFont =
             SelectObject(
@@ -864,8 +1865,7 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
             CreatePen(
                 PS_SOLID,
                 1,
-                GetSysColor(
-                    COLOR_3DSHADOW));
+                palette.separator);
 
         HGDIOBJ previousPen =
             SelectObject(
@@ -896,12 +1896,16 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
     }
 }
 
-void ShortcutPathConverterDialog::Scan() {
+void ShortcutPathConverterDialog::Scan(
+    std::optional<std::size_t>
+        appliedFieldCount) {
     if (!list_) {
         return;
     }
 
-    ListView_DeleteAllItems(list_);
+    rebuildingList_ = true;
+    ListView_DeleteAllItems(
+        list_);
     rows_.clear();
 
     std::size_t convertibleShortcutCount = 0;
@@ -1022,51 +2026,37 @@ void ShortcutPathConverterDialog::Scan() {
             groupTitle = command.id;
         }
 
-        InsertGroupHeader(groupTitle);
+        InsertGroupHeader(
+            groupTitle);
 
-        for (auto& row : commandRows) {
+        for (auto& row :
+             commandRows) {
             InsertPreviewRow(
                 std::move(row));
         }
     }
 
-    std::wstring note =
-        T(L"处理目标、工作目录和自定义图标；Arguments、URL、UNC 与裸命令保持不变。找到 ",
-          L"Target, Working Directory and custom icon paths are handled; Arguments, URL, UNC and bare commands stay unchanged. Found ");
+    convertibleShortcutCount_ =
+        convertibleShortcutCount;
+    rebuildingList_ = false;
 
-    note +=
-        std::to_wstring(
-            convertibleShortcutCount);
+    UpdateSelectionState(
+        appliedFieldCount);
 
-    note +=
-        T(L" 个快捷项，共 ",
-          L" shortcuts with ");
-
-    note +=
-        std::to_wstring(
-            rows_.size());
-
-    note +=
-        T(L" 个可转换字段。不存在的路径默认不勾选。",
-          L" convertible fields. Missing paths are unchecked by default.");
-
-    SetWindowTextW(
-        note_,
-        note.c_str());
-
-    EnableWindow(
-        apply_,
-        rows_.empty()
-            ? FALSE
-            : TRUE);
+    InvalidateRect(
+        list_,
+        nullptr,
+        FALSE);
 }
 
 void ShortcutPathConverterDialog::ApplySelected() {
     std::vector<UserCommandPathUpdate>
         updates;
+    std::size_t selectedFieldCount = 0;
 
     const int itemCount =
-        ListView_GetItemCount(list_);
+        ListView_GetItemCount(
+            list_);
 
     for (int itemIndex = 0;
          itemIndex < itemCount;
@@ -1081,6 +2071,8 @@ void ShortcutPathConverterDialog::ApplySelected() {
                 itemIndex)) {
             continue;
         }
+
+        ++selectedFieldCount;
 
         const Row& row =
             rows_[*rowIndex];
@@ -1122,14 +2114,7 @@ void ShortcutPathConverterDialog::ApplySelected() {
     }
 
     if (updates.empty()) {
-        MessageBoxW(
-            hwnd_,
-            T(L"没有选中要应用的路径转换。",
-              L"No path conversions are selected."),
-            T(L"路径转换",
-              L"Path Conversion"),
-            MB_OK |
-                MB_ICONINFORMATION);
+        UpdateSelectionState();
         return;
     }
 
@@ -1148,16 +2133,8 @@ void ShortcutPathConverterDialog::ApplySelected() {
 
     changed_ = true;
 
-    MessageBoxW(
-        hwnd_,
-        T(L"所选路径已应用。",
-          L"Selected path conversions were applied."),
-        T(L"路径转换",
-          L"Path Conversion"),
-        MB_OK |
-            MB_ICONINFORMATION);
-
-    Scan();
+    Scan(
+        selectedFieldCount);
 }
 
 LRESULT CALLBACK
@@ -1215,11 +2192,78 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
     WPARAM wParam,
     LPARAM lParam) {
     switch (message) {
+    case WM_GETMINMAXINFO: {
+        auto* minMax =
+            reinterpret_cast<MINMAXINFO*>(
+                lParam);
+
+        if (minMax) {
+            minMax->ptMinTrackSize.x =
+                Scale(
+                    kMinimumWidthLogical);
+            minMax->ptMinTrackSize.y =
+                Scale(
+                    kMinimumHeightLogical);
+        }
+        return 0;
+    }
+
     case WM_SIZE:
         Layout();
         return 0;
 
+    case WM_DRAWITEM: {
+        const auto* draw =
+            reinterpret_cast<
+                DRAWITEMSTRUCT*>(
+                    lParam);
+
+        if (draw &&
+            (draw->CtlID ==
+                 kIdPortable ||
+             draw->CtlID ==
+                 kIdAbsolute)) {
+            DrawModeCard(
+                *draw);
+            return TRUE;
+        }
+        break;
+    }
+
+    case WM_CTLCOLORSTATIC: {
+        HDC dc =
+            reinterpret_cast<HDC>(
+                wParam);
+        HWND control =
+            reinterpret_cast<HWND>(
+                lParam);
+
+        SetBkMode(
+            dc,
+            TRANSPARENT);
+
+        SetTextColor(
+            dc,
+            control == rule_ ||
+                    control == status_
+                ? ui::kApplicationPalette
+                      .mutedText
+                : ui::kApplicationPalette
+                      .text);
+
+        return reinterpret_cast<LRESULT>(
+            GetSysColorBrush(
+                COLOR_WINDOW));
+    }
+
     case WM_NOTIFY: {
+        LRESULT headerResult = 0;
+        if (HandleHeaderNotification(
+                lParam,
+                headerResult)) {
+            return headerResult;
+        }
+
         const auto* header =
             reinterpret_cast<NMHDR*>(
                 lParam);
@@ -1260,6 +2304,28 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
             }
         }
 
+        if (header->code ==
+                LVN_ITEMCHANGED &&
+            !rebuildingList_) {
+            const auto* change =
+                reinterpret_cast<
+                    NMLISTVIEW*>(
+                        lParam);
+
+            if (!IsGroupHeaderItem(
+                    change->iItem)) {
+                const UINT changedState =
+                    change->uNewState ^
+                    change->uOldState;
+
+                if ((changedState &
+                     LVIS_STATEIMAGEMASK) !=
+                    0) {
+                    UpdateSelectionState();
+                }
+            }
+        }
+
         return 0;
     }
 
@@ -1267,16 +2333,34 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
         switch (LOWORD(wParam)) {
         case kIdPortable:
             if (HIWORD(wParam) ==
-                BN_CLICKED) {
+                    BN_CLICKED &&
+                mode_ != Mode::Portable) {
                 mode_ = Mode::Portable;
+                InvalidateRect(
+                    portable_,
+                    nullptr,
+                    TRUE);
+                InvalidateRect(
+                    absolute_,
+                    nullptr,
+                    TRUE);
                 Scan();
             }
             return 0;
 
         case kIdAbsolute:
             if (HIWORD(wParam) ==
-                BN_CLICKED) {
+                    BN_CLICKED &&
+                mode_ != Mode::Absolute) {
                 mode_ = Mode::Absolute;
+                InvalidateRect(
+                    portable_,
+                    nullptr,
+                    TRUE);
+                InvalidateRect(
+                    absolute_,
+                    nullptr,
+                    TRUE);
                 Scan();
             }
             return 0;
@@ -1292,13 +2376,6 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 ApplySelected();
-            }
-            return 0;
-
-        case kIdClose:
-            if (HIWORD(wParam) ==
-                BN_CLICKED) {
-                CloseWindow();
             }
             return 0;
 
@@ -1326,5 +2403,6 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
         wParam,
         lParam);
 }
+
 
 } // namespace altrun

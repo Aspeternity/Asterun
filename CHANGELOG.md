@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0-alpha.3.31
+
+- Redesigned the Path Conversion window around a compact tool-workflow instead of the previous oversized table/dialog layout.
+- Reduced the default window from 1100×650 to **960×560 logical pixels** and added an **820×480 logical** minimum while keeping manual resizing available for the current session.
+- Replaced the two stretched native radio rows with two full-width owner-drawn mode cards: **便携化** and **展开**, each with a semibold title, subdued direction hint, whole-card click target, Tab/Space activation and Left/Right keyboard switching.
+- Moved the fixed conversion rule into a dedicated muted helper line under the mode cards and kept **重新扫描** as a secondary action.
+- Renamed the third result column from **转换后** to **转换后路径** and replaced the fixed 155/350/350/130 widths with responsive Field/Current/Converted/Status balancing. The first three columns remain user-draggable while Status stays elastic and protected from direct resize.
+- Removed ListView gridlines and lightened shortcut group headers to match the rest of the application surface.
+- Added a real empty state inside the result list with mode-specific guidance when no paths need conversion.
+- Added live bottom status text: shortcut count, convertible-field count and selected-field count. **应用所选** now disables when nothing is checked and updates immediately when checkboxes change.
+- Removed the redundant bottom-right **关闭** button. The window closes through the title-bar X, Alt+F4 or Escape.
+- Removed the success MessageBox after applying conversions. Successful writes now rescan immediately and show non-blocking **已应用 N 个路径转换** feedback in the status line; write failures still use the existing error dialog.
+- Preserved conversion scope and semantics: Target, Working Directory and custom icons are eligible; arguments, URLs, UNC paths and bare commands remain unchanged, and missing paths remain unchecked by default.
+- Preserved the alpha.3.30 shared top-level first-frame presentation policy and settings schemaVersion 9.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.61`.
+
 ## 0.8.0-alpha.3.30
 
 - Audited every ALTRun Next-owned user-visible top-level window instead of patching the newly reported Shortcut Editor flash in isolation.

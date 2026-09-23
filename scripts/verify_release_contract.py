@@ -42,6 +42,175 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.31":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.31 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.31 must keep provider-cache schemaVersion 2")
+
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    presentation_cpp = read("src/ui/TopLevelWindowPresentation.cpp")
+    app_cpp = read("src/app/App.cpp")
+
+    for token in (
+        "kDefaultWidthLogical = 960",
+        "kDefaultHeightLogical = 560",
+        "kMinimumWidthLogical = 820",
+        "kMinimumHeightLogical = 480",
+        "kFieldColumnPercent = 13",
+        "kCurrentColumnPercent = 36",
+        "kConvertedColumnPercent = 39",
+        "kFieldColumnMinimumLogical = 100",
+        "kCurrentColumnMinimumLogical = 180",
+        "kConvertedColumnMinimumLogical = 180",
+        "kStatusColumnMinimumLogical = 100",
+        "BS_OWNERDRAW",
+        'T(L"转换方式"',
+        'T(L"转换后路径"',
+        'T(L"仅转换目标、工作目录和自定义图标；参数、URL、UNC 路径和裸命令保持不变。"',
+        "DrawModeCard(",
+        "SelectedFieldCount() const",
+        "UpdateSelectionState(",
+        "UpdateColumnWidths(",
+        "HandleHeaderNotification(",
+        'T(L"当前没有可转换的路径"',
+        'T(L"没有发现需要进行便携化转换的快捷项"',
+        'T(L"没有发现需要展开为绝对路径的快捷项"',
+        'T(L"已应用 "',
+        "LVN_ITEMCHANGED",
+        "VK_ESCAPE",
+        "VK_LEFT",
+        "VK_RIGHT",
+        "WM_GETMINMAXINFO",
+        "ResolveOwnedPopupGeometry(",
+        "RevealFullyPainted(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.31 Path Conversion redesign missing: {token}")
+
+    for token in (
+        "modeTitle_",
+        "rule_",
+        "status_",
+        "rebuildingList_",
+        "customColumnWidths_",
+        "adjustingColumnWidths_",
+        "convertibleShortcutCount_",
+    ):
+        if token not in path_h:
+            fail(f"v0.8 alpha.3.31 Path Conversion state declaration missing: {token}")
+
+    for forbidden in (
+        "kIdClose",
+        "close_",
+        "LVS_EX_GRIDLINES",
+        'T(L"所选路径已应用。"',
+        'T(L"没有选中要应用的路径转换。"',
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.31 Path Conversion obsolete interaction remains: {forbidden}")
+
+    for token in (
+        "window_presentation::",
+        "HideForDestroy(",
+        "RevealFullyPainted(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.31 must preserve shared top-level presentation: {token}")
+
+    for token in (
+        "DWMWA_CLOAK",
+        "DWMWA_TRANSITIONS_FORCEDISABLED",
+        "DwmFlush();",
+    ):
+        if token not in presentation_cpp:
+            fail(f"v0.8 alpha.3.31 must preserve alpha.3.30 presentation barrier: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp:
+            fail(f"v0.8 alpha.3.31 must preserve updater hardening: {token}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.31 must preserve schema-9 runtime smoke coverage: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.30"',
+        '"0.8.0-alpha.3.31"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.31 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.31 — Path Conversion UX Redesign",
+        "0.8.0.61",
+        "960×560 logical pixels",
+        "820×480 logical",
+        "便携化",
+        "转换后路径",
+        "应用所选",
+        "Escape",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.31 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.31",
+        "0.8.0.61",
+        "960×560",
+        "820×480",
+        "已应用 N 个路径转换",
+        "关闭",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.31 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.31",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.31 Path Conversion UX redesign verified:",
+        "| compact 960x560 default / 820x480 minimum",
+        "| mode cards + keyboard switching",
+        "| responsive columns + protected Status",
+        "| explicit empty state + live selection/apply status",
+        "| no redundant Close button / success modal",
+        "| shared top-level presentation + schema9 preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.30":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

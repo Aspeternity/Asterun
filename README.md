@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.31 — Path Conversion UX Redesign
+
+Alpha 3.31 turns Path Conversion from an oversized utility table into a denser, clearer workflow without changing what is actually converted.
+
+The default window is now **960×560 logical pixels** with an **820×480 logical** minimum. The two conversion directions are presented as compact owner-drawn cards: **便携化** (absolute → relative/environment variable) and **展开** (relative/environment variable → current-machine absolute). Each card is clickable across its whole surface, retains Tab/Space keyboard activation and supports Left/Right switching. **重新扫描** stays secondary, while the fixed conversion rule is separated into a muted helper line rather than being mixed into live result status.
+
+The result list now uses **字段 / 当前路径 / 转换后路径 / 状态**. Field, Current and Converted use responsive default proportions with logical minimums; Status fills the remaining width and cannot be dragged narrower independently. User drags of the first three columns remain valid during the open dialog. Gridlines are removed, group headers are lighter, and an empty result set renders an explicit centered state instead of a blank white table.
+
+The footer is simplified to live status plus a single **应用所选** action. The redundant **关闭** button is removed; X, Alt+F4 and Escape close the window. The Apply button is enabled only when at least one convertible field is checked, and the footer reports shortcut count, convertible fields and current selection. A successful apply no longer interrupts with a confirmation MessageBox: the list rescans immediately and the footer reports **已应用 N 个路径转换**. Error dialogs remain blocking so write failures cannot be missed.
+
+Conversion semantics remain unchanged: Target, Working Directory and custom icon paths are handled; arguments, URLs, UNC paths and bare commands stay untouched, and missing paths start unchecked. Settings schema remains **9**, and the alpha.3.30 shared top-level first-frame presentation lifecycle is preserved. Windows fixed FileVersion/ProductVersion is `0.8.0.61`.
+
 ## v0.8.0-alpha.3.30 — Systematic Top-Level Window Presentation
 
 Alpha 3.30 responds to the Shortcut Editor upper-left flash by auditing the full custom top-level window surface rather than adding another window-specific workaround.

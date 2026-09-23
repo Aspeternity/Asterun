@@ -214,7 +214,8 @@ In progress:
 - v0.8.0-alpha.3.28 unifies Launcher/Settings/Shortcut Manager placement, makes Manager size ephemeral, persists Manager last-position coordinates only, and advances Settings schema to 9
 - v0.8.0-alpha.3.29 hardens the unified placement implementation after real-Windows validation: shared top/center geometry plus pre-resolved/cloaked Shortcut Manager first-frame presentation
 - v0.8.0-alpha.3.30 systemically closes custom top-level HWND presentation: one shared first-frame/teardown policy across Launcher, Settings, Manager, Editor and Path Conversion, with no real custom window born at CW_USEDEFAULT
-- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.30 real-Windows validation
+- v0.8.0-alpha.3.31 redesigns Path Conversion: compact mode cards, responsive path columns, explicit empty state, live selection/apply feedback and no redundant Close action
+- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.31 real-Windows validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 
