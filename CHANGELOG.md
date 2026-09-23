@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.4.7
+
+- Kept Classic as a visual skin while continuing to modernize the runtime implementation for low overhead and maintainability.
+- Added `src/resources/classic_bg.bmp`, a deterministic **444×357 / 24-bit** BMP materialized from the authorized original `classic_bg.jpg`; the runtime crop/appearance remains the same as alpha.4.6.
+- Switched the Classic background resource from JPEG `RCDATA` to native Windows `BITMAP` and load it through `LoadImageW(..., LR_CREATEDIBSECTION)`.
+- Removed the runtime JPEG/GDI+ decode path: `LoadClassicJpegResource`, resource-to-HGLOBAL copy, `IStream`, `CreateStreamOnHGlobal`, GDI+ startup/shutdown and the `gdiplus` linker dependency are gone.
+- Kept `objbase.h` and `ole32` because the result-icon worker still uses COM independently of Classic skin loading.
+- Cached the Classic background dimensions and one reusable memory DC at launcher creation; background, Logo and Close blits no longer allocate/delete their own compatible DC during each paint.
+- Removed Classic per-row GDI allocation churn: system brushes paint white/highlight backgrounds directly, and the fixed x=23/x=230 separators use the stock `DC_BRUSH` with exact 1px `FillRect` rectangles instead of a freshly created HPEN per row.
+- Left Modern Compact drawing behavior unchanged while preserving all alpha.4.6 Classic geometry, typography, command path ellipsis and fixed columns.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.77`.
+
 ## 0.8.0-alpha.4.6
 
 - Kept Classic+ as an interpretation of ALTRun rather than a literal port: retain the useful visual identity while preferring simpler current Win32 code and lower maintenance cost.

@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.4.7 — Classic Lean Render Path
+
+Alpha.4.7 treats Classic strictly as a visual skin over the ALTRun Next runtime: keep the proven compact visual language, but move fixed assets and repaint work onto the leanest native Win32 path instead of carrying legacy decoding/allocation machinery.
+
+The authorized Classic background keeps its original **444×357** decoded pixel content and the same 420×250 client crop seen in alpha.4.6, but runtime JPEG decoding is gone. A deterministic **24-bit BMP** materialized from the authorized `classic_bg.jpg` is embedded as a normal `BITMAP` resource and loaded with `LoadImageW(..., LR_CREATEDIBSECTION)`, exactly like the Classic Logo and Close glyphs. The original JPEG remains in the source tree only as the provenance/master asset.
+
+Launcher startup no longer contains `LoadClassicJpegResource`, `GlobalAlloc`, `IStream`, `CreateStreamOnHGlobal` or any GDI+ startup/shutdown path, and the ALTRunNext executable no longer links `gdiplus`. The existing `objbase.h`/COM dependency remains because the asynchronous result-icon worker still legitimately uses `CoInitializeEx`.
+
+Classic bitmap painting now caches the background dimensions and a single memory DC once at launcher creation. Background, Logo and Close painting reuse that DC instead of creating/deleting separate compatible DCs on every WM_PAINT.
+
+Classic result-row repainting is also allocation-hardened. Idle/selected backgrounds use Windows system brushes directly, while the two fixed 1-physical-pixel separators use the stock `DC_BRUSH` plus `FillRect`. The Classic branch therefore no longer allocates a temporary row brush or separator pen for every item repaint. Modern Compact rendering is visually and structurally unchanged.
+
+No search, ranking, provider, Everything, updater, context-action, result-icon scheduling or Classic geometry behavior changes in this release. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.77`.
+
 ## v0.8.0-alpha.4.6 — Classic Input Cleanup & Bottom Bar Hardening
 
 Alpha.4.6 reinforces the Classic+ direction: ALTRun Next borrows the strongest parts of the old launcher's visual language, but does not preserve obsolete UI machinery when a simpler native implementation is cleaner, faster and easier to maintain.

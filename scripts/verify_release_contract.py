@@ -42,6 +42,324 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.7":
+    import hashlib
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.7 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.7 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    resources = read("src/resources.rc")
+    resource_ids = read("src/ResourceIds.h")
+    cmake = read("CMakeLists.txt")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    # Keep the author-approved JPEG as the immutable master/provenance asset,
+    # but use a deterministic pre-decoded BMP in the runtime resource table.
+    expected_assets = {
+        "src/resources/classic_bg.jpg": (
+            74289,
+            "daf552e9f948335575ae2701ca7ce0308c7c288c",
+        ),
+        "src/resources/classic_bg.bmp": (
+            475578,
+            "bbced49d20184051cf8ad48b153b022cecfecd50",
+        ),
+        "src/resources/classic_shortcut.bmp": (
+            2554,
+            "eee00956b449975f05e63a38e4da4ea29e01c240",
+        ),
+        "src/resources/classic_close.bmp": (
+            1954,
+            "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        ),
+    }
+    for path, (expected_size, expected_sha) in expected_assets.items():
+        data = (ROOT / path).read_bytes()
+        if len(data) != expected_size:
+            fail(
+                f"v0.8 alpha.4.7 {path} size={len(data)}, "
+                f"expected {expected_size}"
+            )
+        if git_blob_sha(path) != expected_sha:
+            fail(
+                f"v0.8 alpha.4.7 {path} changed from the "
+                "authorized/generated asset contract"
+            )
+
+    bmp = (ROOT / "src/resources/classic_bg.bmp").read_bytes()
+    if bmp[:2] != b"BM":
+        fail("v0.8 alpha.4.7 Classic runtime background is not BMP")
+    width = int.from_bytes(bmp[18:22], "little", signed=True)
+    height = int.from_bytes(bmp[22:26], "little", signed=True)
+    bpp = int.from_bytes(bmp[28:30], "little")
+    if (width, height, bpp) != (444, 357, 24):
+        fail(
+            "v0.8 alpha.4.7 Classic runtime BMP must remain "
+            "444x357x24"
+        )
+
+    for token in (
+        "#define IDB_CLASSIC_SHORTCUT 201",
+        "#define IDB_CLASSIC_CLOSE 202",
+        "#define IDB_CLASSIC_BACKGROUND 203",
+    ):
+        if token not in resource_ids:
+            fail(f"v0.8 alpha.4.7 resource ID missing: {token}")
+
+    for token in (
+        'IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"',
+        'IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"',
+        'IDB_CLASSIC_BACKGROUND BITMAP "resources/classic_bg.bmp"',
+        "FILEVERSION 0,8,0,77",
+        "PRODUCTVERSION 0,8,0,77",
+        "0.8.0-alpha.4.7",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.4.7 resource/version contract missing: {token}")
+
+    for forbidden in (
+        'RCDATA "resources/classic_bg.jpg"',
+        "IDR_CLASSIC_BACKGROUND",
+    ):
+        if forbidden in resources or forbidden in resource_ids:
+            fail(f"v0.8 alpha.4.7 old JPEG runtime resource survived: {forbidden}")
+
+    # Runtime skin loading must be native RT_BITMAP only. Keep objbase/COM for
+    # the independent async result-icon worker, but remove Classic GDI+ decode.
+    for token in (
+        "IDB_CLASSIC_BACKGROUND",
+        "LoadImageW(",
+        "LR_CREATEDIBSECTION",
+        "classicBackgroundSize_",
+        "classicBitmapDc_",
+        "CreateCompatibleDC(nullptr)",
+        "PaintClassicBackground(",
+        "StretchBlt(",
+        "#include <objbase.h>",
+        "CoInitializeEx(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.7 native bitmap path missing: {token}")
+
+    for forbidden in (
+        "#include <gdiplus.h>",
+        "Gdiplus::",
+        "LoadClassicJpegResource(",
+        "CreateStreamOnHGlobal(",
+        "GlobalAlloc(",
+        "GlobalLock(",
+        "GlobalFree(",
+        "std::memcpy(",
+        "CreateCompatibleDC(dc)",
+    ):
+        if forbidden in launcher:
+            fail(f"v0.8 alpha.4.7 runtime decode/allocation path survived: {forbidden}")
+
+    if "\n        gdiplus\n" in cmake:
+        fail("v0.8 alpha.4.7 ALTRunNext must not link GDI+")
+
+    # Classic repainting should not allocate a brush/pen for every result row.
+    for token in (
+        "GetSysColorBrush(",
+        "GetStockObject(",
+        "DC_BRUSH",
+        "SetDCBrushColor(",
+        "RECT firstSeparator{",
+        "RECT secondSeparator{",
+        "FillRect(\n            item->hDC,\n            &firstSeparator",
+        "FillRect(\n            item->hDC,\n            &secondSeparator",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.7 lean Classic repaint missing: {token}")
+
+    for forbidden in (
+        "HPEN separator =\n            CreatePen(",
+        "HDC source = CreateCompatibleDC(dc);",
+    ):
+        if forbidden in launcher:
+            fail(f"v0.8 alpha.4.7 per-paint Classic GDI churn survived: {forbidden}")
+
+    # Preserve the real-Windows alpha.4.6 visual/interaction closeout.
+    for token in (
+        "MoveWindow(\n        edit_,\n        DpiScale(8),\n        DpiScale(30),\n        DpiScale(404),\n        DpiScale(22)",
+        "MoveWindow(\n        list_,\n        DpiScale(8),\n        DpiScale(56),\n        DpiScale(404),\n        DpiScale(164)",
+        "MoveWindow(\n        classicPreview_,\n        DpiScale(8),\n        DpiScale(226),\n        DpiScale(404),\n        DpiScale(16)",
+        "numberColumnLogical = 23",
+        "shortcutColumnLogical = 230",
+        "DT_END_ELLIPSIS",
+        "DT_PATH_ELLIPSIS",
+        "        255,\n        LWA_ALPHA",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.7 alpha.4.6 visual baseline regressed: {token}")
+
+    for forbidden in (
+        "hint_",
+        "UpdateHint",
+        "UpdateClassicHintLayout",
+        "TextId::ClassicHint",
+    ):
+        if forbidden in launcher or forbidden in launcher_h:
+            fail(f"v0.8 alpha.4.7 deleted Hint code returned: {forbidden}")
+
+    for token in (
+        "kClassicLauncherPrimaryLogicalHeight96 = -16",
+        "kClassicLauncherAuxiliaryLogicalHeight96 = -13",
+        'L"SimSun"',
+        "ANSI_CHARSET",
+        "DEFAULT_QUALITY",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.7 Classic font baseline regressed: {token}")
+
+    for token in (
+        "kClassicLauncherMetrics{\n        420,\n        16,\n        10,",
+        "kModernCompactLauncherMetrics{\n        620,\n        32,\n        9,",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.7 launcher metrics regressed: {token}")
+
+    # Modern Compact and mature alpha.3 architecture stay frozen.
+    for token in (
+        "const int margin =\n            DpiScale(12);",
+        "const int inputHeight =\n            DpiScale(36);",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.7 Modern/performance contract regressed: {token}")
+
+    for token in ("NM_CLICK", "NM_DBLCLK", "ToggleResultRowSelection("):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.7 Path Conversion rapid-click regression: {token}")
+
+    for token in ("BN_CLICKED", "BN_DOUBLECLICKED", "toggleActivated", "ToggleAdvanced();"):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.7 Shortcut Editor rapid-click regression: {token}")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.7 updater architecture regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.4.6"',
+        '"0.8.0-alpha.4.7"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.7 update ordering/default coverage missing: {token}")
+
+    version_script = read("scripts/verify_version.py")
+    package_script = read("scripts/verify_package.ps1")
+    for token in (
+        "revision = 70 + (channel_number - 4) * 100 + channel_patch",
+        "revision = 10000 + channel_number",
+        "revision = 20000 + channel_number",
+        "revision = 30000",
+    ):
+        if token not in version_script:
+            fail(f"v0.8 alpha.4.7 Python fixed-version mapping missing: {token}")
+    for token in (
+        "(($channelNumber - 4) * 100)",
+        "$revision = 10000 + $channelNumber",
+        "$revision = 20000 + $channelNumber",
+        "$revision = 30000",
+    ):
+        if token not in package_script:
+            fail(f"v0.8 alpha.4.7 package fixed-version mapping missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    notices = read("THIRD_PARTY_NOTICES.md")
+
+    for token in (
+        "Classic Lean Render Path",
+        "0.8.0.77",
+        "444×357",
+        "24-bit BMP",
+        "runtime JPEG decoding is gone",
+        "single memory DC",
+        "system brushes",
+        "DC_BRUSH",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.7 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.4.7",
+        "0.8.0.77",
+        "444×357 / 24-bit",
+        "LoadImageW",
+        "gdiplus",
+        "reusable memory DC",
+        "system brushes",
+        "DC_BRUSH",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.7 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.7",
+        "lean visual skin",
+        "no runtime GDI+ JPEG decode",
+        "allocation-free Classic row backgrounds/separators",
+        "Modern Compact refinement follows",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.7 roadmap missing: {token}")
+
+    for token in (
+        "classic_bg.jpg",
+        "classic_bg.bmp",
+        "source/provenance asset",
+        "native runtime loading",
+    ):
+        if token not in notices:
+            fail(f"v0.8 alpha.4.7 provenance notice missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.7 Classic lean render path verified:",
+        "| pre-decoded 444x357x24 BMP",
+        "| no runtime GDI+ JPEG decode",
+        "| one cached bitmap DC",
+        "| zero per-row Classic brush/pen allocation",
+        "| Modern/search/providers/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.6":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

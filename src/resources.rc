@@ -3,11 +3,11 @@
 
 IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"
 IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"
-IDR_CLASSIC_BACKGROUND RCDATA "resources/classic_bg.jpg"
+IDB_CLASSIC_BACKGROUND BITMAP "resources/classic_bg.bmp"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,8,0,76
- PRODUCTVERSION 0,8,0,76
+ FILEVERSION 0,8,0,77
+ PRODUCTVERSION 0,8,0,77
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -24,11 +24,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Aspeternity\0"
             VALUE "FileDescription", "ALTRun Next - classic lightweight launcher\0"
-            VALUE "FileVersion", "0.8.0-alpha.4.6\0"
+            VALUE "FileVersion", "0.8.0-alpha.4.7\0"
             VALUE "InternalName", "ALTRunNext\0"
             VALUE "OriginalFilename", "ALTRunNext.exe\0"
             VALUE "ProductName", "ALTRun Next\0"
-            VALUE "ProductVersion", "0.8.0-alpha.4.6\0"
+            VALUE "ProductVersion", "0.8.0-alpha.4.7\0"
         END
     END
     BLOCK "VarFileInfo"

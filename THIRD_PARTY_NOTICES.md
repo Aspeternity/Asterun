@@ -4,7 +4,7 @@
 
 ALTRun Next includes the original Classic background and two bitmap glyphs extracted from the original ALTRun repository:
 
-- `Form/frmALTRun.dfm` → `imgBackground.Picture.Data` (original `BG.jpg` JPEG payload)
+- `Form/frmALTRun.dfm` → `imgBackground.Picture.Data` (original `BG.jpg` JPEG payload; retained as `classic_bg.jpg` source/provenance asset and materialized to `classic_bg.bmp` for native runtime loading)
 - `Form/frmALTRun.dfm` → `btnShortCut.Glyph.Data`
 - `Form/frmALTRun.dfm` → `btnClose.Glyph.Data`
 

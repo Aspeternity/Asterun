@@ -19,12 +19,10 @@
 #include <shellapi.h>
 #include <uxtheme.h>
 #include <objbase.h>
-#include <gdiplus.h>
 
 #include <algorithm>
 #include <array>
 #include <cwctype>
-#include <cstring>
 #include <filesystem>
 #include <iterator>
 #include <limits>
@@ -189,27 +187,33 @@ constexpr int kClassicGlyphSourceSize = 25;
 
 void PaintClassicBitmapGlyph(
     HDC dc,
+    HDC source,
     HBITMAP bitmap,
     const RECT& clip,
     int x,
     int y,
     int size) {
-    if (!bitmap || size <= 0) return;
-
-    HDC source = CreateCompatibleDC(dc);
-    if (!source) return;
+    if (!source ||
+        !bitmap ||
+        size <= 0) {
+        return;
+    }
 
     HGDIOBJ oldBitmap =
         SelectObject(source, bitmap);
 
-    const int saved = SaveDC(dc);
+    const int saved =
+        SaveDC(dc);
+
     IntersectClipRect(
         dc,
         clip.left,
         clip.top,
         clip.right,
         clip.bottom);
-    SetStretchBltMode(dc, COLORONCOLOR);
+    SetStretchBltMode(
+        dc,
+        COLORONCOLOR);
 
     TransparentBlt(
         dc,
@@ -224,116 +228,14 @@ void PaintClassicBitmapGlyph(
         kClassicGlyphSourceSize,
         RGB(0, 0, 0));
 
-    RestoreDC(dc, saved);
-    SelectObject(source, oldBitmap);
-    DeleteDC(source);
-}
-
-[[nodiscard]] HBITMAP
-LoadClassicJpegResource(
-    HINSTANCE instance,
-    UINT resourceId) {
-    const HRSRC resource =
-        FindResourceW(
-            instance,
-            MAKEINTRESOURCEW(resourceId),
-            RT_RCDATA);
-
-    if (!resource) {
-        return nullptr;
-    }
-
-    const DWORD size =
-        SizeofResource(
-            instance,
-            resource);
-
-    const HGLOBAL loaded =
-        LoadResource(
-            instance,
-            resource);
-
-    const void* source =
-        loaded
-            ? LockResource(loaded)
-            : nullptr;
-
-    if (!source || size == 0) {
-        return nullptr;
-    }
-
-    HGLOBAL memory =
-        GlobalAlloc(
-            GMEM_MOVEABLE,
-            size);
-
-    if (!memory) {
-        return nullptr;
-    }
-
-    void* destination =
-        GlobalLock(memory);
-
-    if (!destination) {
-        GlobalFree(memory);
-        return nullptr;
-    }
-
-    std::memcpy(
-        destination,
+    RestoreDC(
+        dc,
+        saved);
+    SelectObject(
         source,
-        size);
-    GlobalUnlock(memory);
-
-    IStream* stream = nullptr;
-
-    if (FAILED(
-            CreateStreamOnHGlobal(
-                memory,
-                TRUE,
-                &stream))) {
-        GlobalFree(memory);
-        return nullptr;
-    }
-
-    ULONG_PTR token = 0;
-    Gdiplus::GdiplusStartupInput
-        startupInput;
-
-    if (Gdiplus::GdiplusStartup(
-            &token,
-            &startupInput,
-            nullptr) !=
-        Gdiplus::Ok) {
-        stream->Release();
-        return nullptr;
-    }
-
-    HBITMAP bitmap = nullptr;
-
-    {
-        Gdiplus::Bitmap image(
-            stream,
-            FALSE);
-
-        if (image.GetLastStatus() ==
-            Gdiplus::Ok) {
-            image.GetHBITMAP(
-                Gdiplus::Color(
-                    255,
-                    0,
-                    0,
-                    0),
-                &bitmap);
-        }
-    }
-
-    Gdiplus::GdiplusShutdown(
-        token);
-    stream->Release();
-
-    return bitmap;
+        oldBitmap);
 }
+
 
 
 } // namespace
@@ -385,6 +287,7 @@ LauncherWindow::~LauncherWindow() {
     if (controlBrush_) DeleteObject(controlBrush_);
     if (accentBrush_) DeleteObject(accentBrush_);
     if (bottomBrush_) DeleteObject(bottomBrush_);
+    if (classicBitmapDc_) DeleteDC(classicBitmapDc_);
     if (classicShortcutBitmap_) DeleteObject(classicShortcutBitmap_);
     if (classicCloseBitmap_) DeleteObject(classicCloseBitmap_);
     if (classicBackgroundBitmap_) DeleteObject(classicBackgroundBitmap_);
@@ -419,13 +322,38 @@ bool LauncherWindow::Create() {
                 0,
                 LR_CREATEDIBSECTION));
     classicBackgroundBitmap_ =
-        LoadClassicJpegResource(
-            instance_,
-            IDR_CLASSIC_BACKGROUND);
+        static_cast<HBITMAP>(
+            LoadImageW(
+                instance_,
+                MAKEINTRESOURCEW(
+                    IDB_CLASSIC_BACKGROUND),
+                IMAGE_BITMAP,
+                0,
+                0,
+                LR_CREATEDIBSECTION));
+
+    BITMAP classicBackgroundInfo{};
 
     if (!classicShortcutBitmap_ ||
         !classicCloseBitmap_ ||
-        !classicBackgroundBitmap_) {
+        !classicBackgroundBitmap_ ||
+        GetObjectW(
+            classicBackgroundBitmap_,
+            sizeof(classicBackgroundInfo),
+            &classicBackgroundInfo) !=
+            sizeof(classicBackgroundInfo)) {
+        return false;
+    }
+
+    classicBackgroundSize_ = {
+        classicBackgroundInfo.bmWidth,
+        classicBackgroundInfo.bmHeight,
+    };
+
+    classicBitmapDc_ =
+        CreateCompatibleDC(nullptr);
+
+    if (!classicBitmapDc_) {
         return false;
     }
 
@@ -1226,6 +1154,7 @@ void LauncherWindow::PaintClassicLogo(
 
     PaintClassicBitmapGlyph(
         dc,
+        classicBitmapDc_,
         classicShortcutBitmap_,
         clip,
         x,
@@ -1252,6 +1181,7 @@ void LauncherWindow::PaintClassicClose(
 
     PaintClassicBitmapGlyph(
         dc,
+        classicBitmapDc_,
         classicCloseBitmap_,
         rect,
         x,
@@ -1262,31 +1192,10 @@ void LauncherWindow::PaintClassicClose(
 void LauncherWindow::PaintClassicBackground(
     HDC dc,
     const RECT& client) {
-    if (!classicBackgroundBitmap_) {
-        FillRect(
-            dc,
-            &client,
-            windowBrush_);
-        return;
-    }
-
-    BITMAP bitmap{};
-    if (GetObjectW(
-            classicBackgroundBitmap_,
-            sizeof(bitmap),
-            &bitmap) !=
-        sizeof(bitmap)) {
-        FillRect(
-            dc,
-            &client,
-            windowBrush_);
-        return;
-    }
-
-    HDC source =
-        CreateCompatibleDC(dc);
-
-    if (!source) {
+    if (!classicBackgroundBitmap_ ||
+        !classicBitmapDc_ ||
+        classicBackgroundSize_.cx <= 0 ||
+        classicBackgroundSize_.cy <= 0) {
         FillRect(
             dc,
             &client,
@@ -1296,7 +1205,7 @@ void LauncherWindow::PaintClassicBackground(
 
     HGDIOBJ oldBitmap =
         SelectObject(
-            source,
+            classicBitmapDc_,
             classicBackgroundBitmap_);
 
     SetStretchBltMode(
@@ -1308,20 +1217,19 @@ void LauncherWindow::PaintClassicBackground(
         0,
         0,
         DpiScale(
-            bitmap.bmWidth),
+            classicBackgroundSize_.cx),
         DpiScale(
-            bitmap.bmHeight),
-        source,
+            classicBackgroundSize_.cy),
+        classicBitmapDc_,
         0,
         0,
-        bitmap.bmWidth,
-        bitmap.bmHeight,
+        classicBackgroundSize_.cx,
+        classicBackgroundSize_.cy,
         SRCCOPY);
 
     SelectObject(
-        source,
+        classicBitmapDc_,
         oldBitmap);
-    DeleteDC(source);
 }
 
 void LauncherWindow::PaintClassicTitleBar(
@@ -3314,11 +3222,29 @@ LRESULT LauncherWindow::HandleMessage(
                     : GetSysColor(
                           COLOR_WINDOW);
 
-        HBRUSH brush = CreateSolidBrush(background);
-        FillRect(item->hDC, &item->rcItem, brush);
-        DeleteObject(brush);
+        if (IsModern()) {
+            HBRUSH brush =
+                CreateSolidBrush(
+                    background);
+            FillRect(
+                item->hDC,
+                &item->rcItem,
+                brush);
+            DeleteObject(
+                brush);
+        } else {
+            FillRect(
+                item->hDC,
+                &item->rcItem,
+                GetSysColorBrush(
+                    selected
+                        ? COLOR_HIGHLIGHT
+                        : COLOR_WINDOW));
+        }
 
-        SetBkMode(item->hDC, TRANSPARENT);
+        SetBkMode(
+            item->hDC,
+            TRANSPARENT);
 
         const auto& result =
             results_[item->itemID];
@@ -3589,41 +3515,44 @@ LRESULT LauncherWindow::HandleMessage(
                           COLOR_HIGHLIGHTTEXT)
                     : RGB(0, 0, 128);
 
-        HPEN separator =
-            CreatePen(
-                PS_SOLID,
-                1,
-                separatorColor);
-        HGDIOBJ oldPen =
-            SelectObject(
+        HBRUSH separatorBrush =
+            static_cast<HBRUSH>(
+                GetStockObject(
+                    DC_BRUSH));
+        const COLORREF oldDcBrushColor =
+            SetDCBrushColor(
                 item->hDC,
-                separator);
+                separatorColor);
 
-        MoveToEx(
-            item->hDC,
+        RECT firstSeparator{
             firstX,
             item->rcItem.top,
-            nullptr);
-        LineTo(
-            item->hDC,
-            firstX,
-            item->rcItem.bottom);
-
-        MoveToEx(
-            item->hDC,
+            firstX + 1,
+            item->rcItem.bottom,
+        };
+        RECT secondSeparator{
             secondX,
             item->rcItem.top,
-            nullptr);
-        LineTo(
-            item->hDC,
-            secondX,
-            item->rcItem.bottom);
+            secondX + 1,
+            item->rcItem.bottom,
+        };
 
-        SelectObject(
+        FillRect(
             item->hDC,
-            oldPen);
-        DeleteObject(
-            separator);
+            &firstSeparator,
+            separatorBrush);
+        FillRect(
+            item->hDC,
+            &secondSeparator,
+            separatorBrush);
+
+        if (oldDcBrushColor !=
+            CLR_INVALID) {
+            SetDCBrushColor(
+                item->hDC,
+                oldDcBrushColor);
+        }
+
         SelectObject(
             item->hDC,
             oldFont);

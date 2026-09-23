@@ -162,6 +162,8 @@ private:
     HBITMAP classicShortcutBitmap_{};
     HBITMAP classicCloseBitmap_{};
     HBITMAP classicBackgroundBitmap_{};
+    HDC classicBitmapDc_{};
+    SIZE classicBackgroundSize_{};
     std::unordered_map<
         std::wstring,
         ResultIconCacheEntry>
