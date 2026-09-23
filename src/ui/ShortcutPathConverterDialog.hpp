@@ -97,6 +97,9 @@ private:
         int itemIndex) const;
     LRESULT HandleListCustomDraw(
         NMLVCUSTOMDRAW* draw);
+    void DrawResultCheckbox(
+        HDC dc,
+        int itemIndex) const;
 
     [[nodiscard]] const wchar_t* T(
         const wchar_t* zh,
@@ -121,6 +124,7 @@ private:
 
     HFONT font_{};
     HFONT groupFont_{};
+    HIMAGELIST checkboxStateImageList_{};
     UINT dpi_{96};
     Mode mode_{Mode::Portable};
     bool changed_{false};

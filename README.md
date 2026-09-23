@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.37 — Path Conversion Checkbox Visual & Alignment Final Fix
+
+Alpha 3.37 replaces the last visually inconsistent control in Path Conversion: the legacy Win32 ListView checkbox. Real-Windows alpha.3.35 validation showed that simply returning row height to native Explorer metrics moved the checkbox from visibly low to visibly high, and the old gray system state image still looked out of place beside the modern selector cards and flat actions.
+
+The ListView still owns checkbox state, click hit-testing, Space-key toggling, `LVIS_STATEIMAGEMASK` and `LVN_ITEMCHANGED`. Its two state images are replaced with transparent DPI-sized slots, while the visible checkbox is drawn after the normal row paint. This keeps the proven native interaction model without exposing the legacy checkbox artwork.
+
+The visible checkbox uses the same physical-pixel size buckets as the validated alpha.3.34 mode selector: 15 / 17 / 19 / 21 / 23 px. A white flat body, rounded corners, restrained gray unchecked border, accent-blue checked border and accent-blue checkmark are rasterized with fixed 4×4 coverage supersampling directly into the final HDC. The box is positioned from the real ListView row center and label rectangle rather than a hard-coded vertical offset, so checkbox and text share the row's actual visual center at fractional DPI.
+
+Path Conversion geometry, 13/36/39/remainder columns, conversion semantics, group headers, empty state and the alpha.3.34 selector remain frozen. The alpha.3.36 message-only HWND updater hardening is also unchanged. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.67`.
+
 ## v0.8.0-alpha.3.36 — Update Status Dispatch Hardening
 
 Alpha 3.36 is a systemic updater-status reliability fix after real-Windows testing again reproduced an About page stuck on **正在检查更新... / Checking for updates...** even though closing and reopening Settings immediately showed the completed result.

@@ -42,6 +42,238 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.37":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.37 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.37 must keep provider-cache schemaVersion 2")
+
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    update_cpp = read("src/platform/UpdateManager.cpp")
+
+    # The validated mode selector remains frozen.
+    for token in (
+        "struct SelectorRasterTemplate",
+        "SelectorTemplateForDpi(",
+        "CircleCoverage(",
+        "DrawSelectorRaster(",
+        "kSamplesPerAxis = 4",
+        "return {15, 1.35, 5}",
+        "return {17, 1.45, 6}",
+        "return {19, 1.60, 7}",
+        "return {21, 1.75, 8}",
+        "return {23, 1.90, 9}",
+        "SetPixelV(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.37 validated selector regressed: {token}")
+
+    # Modern checkbox visual: native state/interaction, transparent state
+    # images, and our own device-pixel raster tied to the real row center.
+    for token in (
+        "struct CheckboxRasterTemplate",
+        "CheckboxTemplateForDpi(",
+        "BlendCheckboxPixel(",
+        "PointInsideRoundedRect(",
+        "RoundedRectCoverage(",
+        "DistanceSquaredToSegment(",
+        "CheckmarkCoverage(",
+        "DrawCheckboxRaster(",
+        "CreateTransparentCheckboxStateImageList(",
+        "kCheckboxSamplesPerAxis = 4",
+        "return {15, 3.0, 1.35, 1.8, 4}",
+        "return {17, 3.5, 1.45, 2.0, 4}",
+        "return {19, 4.0, 1.60, 2.2, 5}",
+        "return {21, 4.5, 1.75, 2.4, 5}",
+        "return {23, 5.0, 1.90, 2.6, 6}",
+        "checkboxStateImageList_",
+        "LVS_EX_CHECKBOXES",
+        "LVSIL_STATE",
+        "DrawResultCheckbox(",
+        "CDDS_ITEMPOSTPAINT",
+        "LVIR_BOUNDS",
+        "LVIR_LABEL",
+        "ListView_GetCheckState(",
+        "LVIS_STATEIMAGEMASK",
+        "LVN_ITEMCHANGED",
+        "std::lround(",
+        "palette.accent",
+    ):
+        if token not in path_cpp and token not in path_h:
+            fail(f"v0.8 alpha.3.37 modern checkbox contract missing: {token}")
+
+    for forbidden in (
+        "kResultRowHeightLogical",
+        "rowHeightImageList_",
+        'T(L"    目标"',
+        'L"    Target"',
+        'T(L"    工作目录"',
+        'L"    Working directory"',
+        'T(L"    自定义图标"',
+        'L"    Custom icon"',
+        "BP_CHECKBOX",
+        "CBS_CHECKEDNORMAL",
+        "CBS_UNCHECKEDNORMAL",
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.37 legacy checkbox/row layout returned: {forbidden}")
+
+    # Freeze the rest of Path Conversion geometry and behavior.
+    for token in (
+        "kDefaultWidthLogical = 960",
+        "kDefaultHeightLogical = 560",
+        "kMinimumWidthLogical = 820",
+        "kMinimumHeightLogical = 480",
+        "kFieldColumnPercent = 13",
+        "kCurrentColumnPercent = 36",
+        "kConvertedColumnPercent = 39",
+        "kFieldColumnMinimumLogical = 100",
+        "kCurrentColumnMinimumLogical = 180",
+        "kConvertedColumnMinimumLogical = 180",
+        "kStatusColumnMinimumLogical = 100",
+        'T(L"目标"',
+        'T(L"工作目录"',
+        'T(L"自定义图标"',
+        "SelectedFieldCount() const",
+        "UpdateSelectionState(",
+        "UpdateColumnWidths(",
+        "HandleHeaderNotification(",
+        "HandleHeaderCustomDraw(",
+        'T(L"当前没有可转换的路径"',
+        'T(L"已应用 "',
+        "listHeight * 44 / 100",
+        "VK_ESCAPE",
+        "VK_LEFT",
+        "VK_RIGHT",
+        "WM_GETMINMAXINFO",
+        "ApplyUserCommandPathUpdates(",
+        "win::MakePortablePath(",
+        "win::ExpandPortablePath(",
+        "ResolveOwnedPopupGeometry(",
+        "RevealFullyPainted(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.37 frozen Path Conversion behavior missing: {token}")
+
+    # Preserve the alpha.3.36 systemic updater fix unchanged.
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "DestroyUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "PostMessageW(",
+        "kUpdateReconcileTimerId",
+        "HandleUpdateStatusMessage(",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.37 updater dispatcher regressed: {token}")
+
+    for token in (
+        "kUpdateStatusTimerId = 0x51692",
+        "SyncUpdateStatusTimer()",
+        "RefreshUpdateStatus();\n                SyncUpdateStatusTimer();",
+        "RDW_UPDATENOW",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.3.37 Settings updater reconciliation regressed: {token}")
+
+    for token in (
+        "kUpdateCheckWatchdogMs =\n        60ULL * 1000ULL",
+        "CheckTimedOut",
+        "updateWorkerStartedTick_",
+        "request_stop()",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.3.37 updater watchdog/cancellation regressed: {token}")
+
+    for token in (
+        "WinHttpSetTimeouts(",
+        "5000,",
+        "15000,",
+        "std::stop_callback",
+        "handles.request.Close();",
+        "WinHttpReadData(",
+    ):
+        if token not in update_cpp:
+            fail(f"v0.8 alpha.3.37 WinHTTP hardening regressed: {token}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.37 must preserve schema-9 runtime smoke coverage: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.36"',
+        '"0.8.0-alpha.3.37"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.37 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.37 — Path Conversion Checkbox Visual & Alignment Final Fix",
+        "0.8.0.67",
+        "transparent DPI-sized slots",
+        "15 / 17 / 19 / 21 / 23 px",
+        "actual visual center",
+        "message-only HWND updater hardening",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.37 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.37",
+        "0.8.0.67",
+        "transparent `LVSIL_STATE` images",
+        "4×4 supersampled",
+        "actual ListView row rectangle",
+        "alpha.3.36 updater dispatch hardening",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.37 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.37",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3.37 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.37 Path Conversion checkbox verified:",
+        "| native checkbox state/hit-testing preserved",
+        "| transparent state images + modern 4x4 device-pixel visual",
+        "| row-center/label-rect alignment",
+        "| selector/columns/behavior frozen",
+        "| alpha.3.36 updater hardening preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.36":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

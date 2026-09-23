@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.3.37
+
+- Replaced the visually inconsistent legacy ListView checkbox artwork in Path Conversion with a modern ALTRun Next checkbox while keeping native ListView checkbox state and interaction semantics.
+- Installed transparent `LVSIL_STATE` images behind `LVS_EX_CHECKBOXES`; click hit-testing, Space toggling, `LVIS_STATEIMAGEMASK`, `ListView_GetCheckState` and `LVN_ITEMCHANGED` remain native.
+- Added DPI-bucketed 15/17/19/21/23 px checkbox templates matching the validated mode-selector scale.
+- Added 4×4 supersampled rounded-rectangle and checkmark coverage rendering directly to final device pixels.
+- Centers each checkbox from the actual ListView row rectangle and positions it relative to the actual label rectangle; no fixed vertical nudge or fake row-height image list is used.
+- Preserved alpha.3.34 selector rendering, alpha.3.35 no-leading-space row labels, alpha.3.36 updater dispatch hardening, settings schemaVersion 9 and all Path Conversion behavior/column rules.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.67`.
+
 ## 0.8.0-alpha.3.36
 
 - Systemically fixed the updater UI state getting stuck on **Checking for updates...** while the background App state had already completed.

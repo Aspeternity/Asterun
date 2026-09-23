@@ -257,6 +257,504 @@ void DrawSelectorRaster(
     }
 }
 
+struct CheckboxRasterTemplate {
+    int size{};
+    double cornerRadius{};
+    double borderThickness{};
+    double checkThickness{};
+    int textGap{};
+};
+
+[[nodiscard]] CheckboxRasterTemplate
+CheckboxTemplateForDpi(
+    UINT dpi) noexcept {
+    // Match the validated selector's physical-pixel scale so the square and
+    // round selection controls belong to one visual system.
+    if (dpi <= 108) {
+        return {15, 3.0, 1.35, 1.8, 4};
+    }
+
+    if (dpi <= 132) {
+        return {17, 3.5, 1.45, 2.0, 4};
+    }
+
+    if (dpi <= 156) {
+        return {19, 4.0, 1.60, 2.2, 5};
+    }
+
+    if (dpi <= 180) {
+        return {21, 4.5, 1.75, 2.4, 5};
+    }
+
+    return {23, 5.0, 1.90, 2.6, 6};
+}
+
+[[nodiscard]] COLORREF BlendCheckboxPixel(
+    COLORREF background,
+    COLORREF foreground,
+    double coverage) noexcept {
+    coverage =
+        std::clamp(
+            coverage,
+            0.0,
+            1.0);
+
+    const auto blendChannel =
+        [coverage](
+            int backgroundValue,
+            int foregroundValue) {
+            return static_cast<int>(
+                std::lround(
+                    static_cast<double>(
+                        backgroundValue) *
+                        (1.0 - coverage) +
+                    static_cast<double>(
+                        foregroundValue) *
+                        coverage));
+        };
+
+    return RGB(
+        blendChannel(
+            GetRValue(background),
+            GetRValue(foreground)),
+        blendChannel(
+            GetGValue(background),
+            GetGValue(foreground)),
+        blendChannel(
+            GetBValue(background),
+            GetBValue(foreground)));
+}
+
+[[nodiscard]] bool PointInsideRoundedRect(
+    double x,
+    double y,
+    double left,
+    double top,
+    double right,
+    double bottom,
+    double radius) noexcept {
+    if (x < left ||
+        x > right ||
+        y < top ||
+        y > bottom) {
+        return false;
+    }
+
+    radius =
+        std::clamp(
+            radius,
+            0.0,
+            std::min(
+                (right - left) / 2.0,
+                (bottom - top) / 2.0));
+
+    if (radius <= 0.0) {
+        return true;
+    }
+
+    const double nearestX =
+        std::clamp(
+            x,
+            left + radius,
+            right - radius);
+    const double nearestY =
+        std::clamp(
+            y,
+            top + radius,
+            bottom - radius);
+
+    const double dx =
+        x - nearestX;
+    const double dy =
+        y - nearestY;
+
+    return dx * dx +
+            dy * dy <=
+        radius * radius;
+}
+
+[[nodiscard]] double RoundedRectCoverage(
+    int pixelX,
+    int pixelY,
+    int size,
+    double inset,
+    double radius) noexcept {
+    constexpr int
+        kCheckboxSamplesPerAxis = 4;
+    constexpr int kSampleCount =
+        kCheckboxSamplesPerAxis *
+        kCheckboxSamplesPerAxis;
+
+    const double left = inset;
+    const double top = inset;
+    const double right =
+        static_cast<double>(size) -
+        inset;
+    const double bottom =
+        static_cast<double>(size) -
+        inset;
+
+    if (right <= left ||
+        bottom <= top) {
+        return 0.0;
+    }
+
+    int inside = 0;
+
+    for (int sampleY = 0;
+         sampleY <
+            kCheckboxSamplesPerAxis;
+         ++sampleY) {
+        for (int sampleX = 0;
+             sampleX <
+                kCheckboxSamplesPerAxis;
+             ++sampleX) {
+            const double x =
+                static_cast<double>(
+                    pixelX) +
+                (static_cast<double>(
+                     sampleX) +
+                 0.5) /
+                    kCheckboxSamplesPerAxis;
+            const double y =
+                static_cast<double>(
+                    pixelY) +
+                (static_cast<double>(
+                     sampleY) +
+                 0.5) /
+                    kCheckboxSamplesPerAxis;
+
+            if (PointInsideRoundedRect(
+                    x,
+                    y,
+                    left,
+                    top,
+                    right,
+                    bottom,
+                    radius)) {
+                ++inside;
+            }
+        }
+    }
+
+    return static_cast<double>(
+               inside) /
+        static_cast<double>(
+            kSampleCount);
+}
+
+[[nodiscard]] double DistanceSquaredToSegment(
+    double px,
+    double py,
+    double ax,
+    double ay,
+    double bx,
+    double by) noexcept {
+    const double abx = bx - ax;
+    const double aby = by - ay;
+    const double lengthSquared =
+        abx * abx +
+        aby * aby;
+
+    if (lengthSquared <= 0.0) {
+        const double dx = px - ax;
+        const double dy = py - ay;
+        return dx * dx +
+            dy * dy;
+    }
+
+    const double projection =
+        std::clamp(
+            ((px - ax) * abx +
+             (py - ay) * aby) /
+                lengthSquared,
+            0.0,
+            1.0);
+
+    const double closestX =
+        ax + projection * abx;
+    const double closestY =
+        ay + projection * aby;
+    const double dx =
+        px - closestX;
+    const double dy =
+        py - closestY;
+
+    return dx * dx +
+        dy * dy;
+}
+
+[[nodiscard]] double CheckmarkCoverage(
+    int pixelX,
+    int pixelY,
+    int size,
+    double thickness) noexcept {
+    constexpr int
+        kCheckboxSamplesPerAxis = 4;
+    constexpr int kSampleCount =
+        kCheckboxSamplesPerAxis *
+        kCheckboxSamplesPerAxis;
+
+    const double scale =
+        static_cast<double>(size);
+    const double x1 = scale * 0.25;
+    const double y1 = scale * 0.52;
+    const double x2 = scale * 0.43;
+    const double y2 = scale * 0.68;
+    const double x3 = scale * 0.75;
+    const double y3 = scale * 0.34;
+    const double radius =
+        thickness / 2.0;
+    const double radiusSquared =
+        radius * radius;
+
+    int inside = 0;
+
+    for (int sampleY = 0;
+         sampleY <
+            kCheckboxSamplesPerAxis;
+         ++sampleY) {
+        for (int sampleX = 0;
+             sampleX <
+                kCheckboxSamplesPerAxis;
+             ++sampleX) {
+            const double x =
+                static_cast<double>(
+                    pixelX) +
+                (static_cast<double>(
+                     sampleX) +
+                 0.5) /
+                    kCheckboxSamplesPerAxis;
+            const double y =
+                static_cast<double>(
+                    pixelY) +
+                (static_cast<double>(
+                     sampleY) +
+                 0.5) /
+                    kCheckboxSamplesPerAxis;
+
+            const double first =
+                DistanceSquaredToSegment(
+                    x,
+                    y,
+                    x1,
+                    y1,
+                    x2,
+                    y2);
+            const double second =
+                DistanceSquaredToSegment(
+                    x,
+                    y,
+                    x2,
+                    y2,
+                    x3,
+                    y3);
+
+            if (std::min(
+                    first,
+                    second) <=
+                radiusSquared) {
+                ++inside;
+            }
+        }
+    }
+
+    return static_cast<double>(
+               inside) /
+        static_cast<double>(
+            kSampleCount);
+}
+
+void DrawCheckboxRaster(
+    HDC dc,
+    int left,
+    int top,
+    const CheckboxRasterTemplate& raster,
+    bool checked,
+    COLORREF background,
+    COLORREF fillColor,
+    COLORREF borderColor,
+    COLORREF checkColor) {
+    if (!dc ||
+        raster.size <= 0) {
+        return;
+    }
+
+    const double innerInset =
+        0.5 +
+        raster.borderThickness;
+    const double innerRadius =
+        std::max(
+            0.0,
+            raster.cornerRadius -
+                raster.borderThickness);
+
+    for (int y = 0;
+         y < raster.size;
+         ++y) {
+        for (int x = 0;
+             x < raster.size;
+             ++x) {
+            const double outerCoverage =
+                RoundedRectCoverage(
+                    x,
+                    y,
+                    raster.size,
+                    0.5,
+                    raster.cornerRadius);
+            const double innerCoverage =
+                RoundedRectCoverage(
+                    x,
+                    y,
+                    raster.size,
+                    innerInset,
+                    innerRadius);
+            const double borderCoverage =
+                std::clamp(
+                    outerCoverage -
+                        innerCoverage,
+                    0.0,
+                    1.0);
+
+            COLORREF color =
+                BlendCheckboxPixel(
+                    background,
+                    fillColor,
+                    outerCoverage);
+
+            color =
+                BlendCheckboxPixel(
+                    color,
+                    borderColor,
+                    borderCoverage);
+
+            if (checked) {
+                const double checkCoverage =
+                    CheckmarkCoverage(
+                        x,
+                        y,
+                        raster.size,
+                        raster.checkThickness);
+
+                color =
+                    BlendCheckboxPixel(
+                        color,
+                        checkColor,
+                        checkCoverage);
+            }
+
+            if (color != background) {
+                SetPixelV(
+                    dc,
+                    left + x,
+                    top + y,
+                    color);
+            }
+        }
+    }
+}
+
+[[nodiscard]] HIMAGELIST
+CreateTransparentCheckboxStateImageList(
+    int size) {
+    if (size <= 0) {
+        return nullptr;
+    }
+
+    HIMAGELIST images =
+        ImageList_Create(
+            size,
+            size,
+            ILC_COLOR32 |
+                ILC_MASK,
+            2,
+            0);
+
+    if (!images) {
+        return nullptr;
+    }
+
+    HDC screen =
+        GetDC(nullptr);
+    if (!screen) {
+        ImageList_Destroy(images);
+        return nullptr;
+    }
+
+    HDC memory =
+        CreateCompatibleDC(screen);
+    HBITMAP bitmap =
+        CreateCompatibleBitmap(
+            screen,
+            size,
+            size);
+
+    ReleaseDC(
+        nullptr,
+        screen);
+
+    if (!memory ||
+        !bitmap) {
+        if (memory) {
+            DeleteDC(memory);
+        }
+        if (bitmap) {
+            DeleteObject(bitmap);
+        }
+        ImageList_Destroy(images);
+        return nullptr;
+    }
+
+    HGDIOBJ oldBitmap =
+        SelectObject(
+            memory,
+            bitmap);
+    const COLORREF maskColor =
+        RGB(255, 0, 255);
+    HBRUSH maskBrush =
+        CreateSolidBrush(
+            maskColor);
+    RECT rect{
+        0,
+        0,
+        size,
+        size,
+    };
+    FillRect(
+        memory,
+        &rect,
+        maskBrush);
+    DeleteObject(maskBrush);
+    SelectObject(
+        memory,
+        oldBitmap);
+    DeleteDC(memory);
+
+    const int unchecked =
+        ImageList_AddMasked(
+            images,
+            bitmap,
+            maskColor);
+    const int checked =
+        ImageList_AddMasked(
+            images,
+            bitmap,
+            maskColor);
+
+    DeleteObject(bitmap);
+
+    if (unchecked < 0 ||
+        checked < 0) {
+        ImageList_Destroy(images);
+        return nullptr;
+    }
+
+    ImageList_SetBkColor(
+        images,
+        CLR_NONE);
+    return images;
+}
+
 } // namespace
 
 ShortcutPathConverterDialog::
@@ -282,6 +780,12 @@ ShortcutPathConverterDialog::
         groupFont_ = nullptr;
     }
 
+    if (checkboxStateImageList_) {
+        ImageList_Destroy(
+            checkboxStateImageList_);
+        checkboxStateImageList_ =
+            nullptr;
+    }
 }
 
 void ShortcutPathConverterDialog::
@@ -607,6 +1111,29 @@ void ShortcutPathConverterDialog::CreateControls() {
         LVS_EX_FULLROWSELECT |
             LVS_EX_DOUBLEBUFFER |
             LVS_EX_CHECKBOXES);
+
+    const auto checkboxRaster =
+        CheckboxTemplateForDpi(
+            dpi_);
+
+    checkboxStateImageList_ =
+        CreateTransparentCheckboxStateImageList(
+            checkboxRaster.size);
+
+    if (checkboxStateImageList_) {
+        HIMAGELIST nativeStateImages =
+            ListView_SetImageList(
+                list_,
+                checkboxStateImageList_,
+                LVSIL_STATE);
+
+        if (nativeStateImages &&
+            nativeStateImages !=
+                checkboxStateImageList_) {
+            ImageList_Destroy(
+                nativeStateImages);
+        }
+    }
 
     SetWindowTheme(
         list_,
@@ -2161,6 +2688,108 @@ ShortcutPathConverterDialog::RowIndexForListItem(
     return rowIndex;
 }
 
+void ShortcutPathConverterDialog::DrawResultCheckbox(
+    HDC dc,
+    int itemIndex) const {
+    if (!dc ||
+        !list_ ||
+        !checkboxStateImageList_ ||
+        itemIndex < 0 ||
+        IsGroupHeaderItem(
+            itemIndex)) {
+        return;
+    }
+
+    RECT rowRect{};
+    RECT labelRect{};
+
+    if (!ListView_GetItemRect(
+            list_,
+            itemIndex,
+            &rowRect,
+            LVIR_BOUNDS) ||
+        !ListView_GetItemRect(
+            list_,
+            itemIndex,
+            &labelRect,
+            LVIR_LABEL)) {
+        return;
+    }
+
+    const CheckboxRasterTemplate raster =
+        CheckboxTemplateForDpi(
+            dpi_);
+
+    const double rowCenter =
+        (static_cast<double>(
+             rowRect.top) +
+         static_cast<double>(
+             rowRect.bottom)) /
+        2.0;
+
+    const int top =
+        static_cast<int>(
+            std::lround(
+                rowCenter -
+                static_cast<double>(
+                    raster.size) /
+                    2.0));
+
+    const int left =
+        labelRect.left -
+        raster.textGap -
+        raster.size;
+
+    if (left < rowRect.left ||
+        top < rowRect.top ||
+        top + raster.size >
+            rowRect.bottom) {
+        return;
+    }
+
+    COLORREF background =
+        GetPixel(
+            dc,
+            left +
+                raster.size / 2,
+            static_cast<int>(
+                std::lround(
+                    rowCenter)));
+
+    if (background ==
+        CLR_INVALID) {
+        background =
+            ui::kApplicationPalette
+                .controlBackground;
+    }
+
+    const auto& palette =
+        ui::kApplicationPalette;
+    const bool checked =
+        ListView_GetCheckState(
+            list_,
+            itemIndex) != FALSE;
+
+    const COLORREF uncheckedBorder =
+        BlendCheckboxPixel(
+            palette.controlBackground,
+            palette.mutedText,
+            0.58);
+
+    DrawCheckboxRaster(
+        dc,
+        left,
+        top,
+        raster,
+        checked,
+        background,
+        palette.controlBackground,
+        checked
+            ? palette.accent
+            : uncheckedBorder,
+        palette.accent);
+}
+
 LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
     NMLVCUSTOMDRAW* draw) {
     if (!draw) {
@@ -2278,7 +2907,7 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
 
         if (!IsGroupHeaderItem(
                 itemIndex)) {
-            return CDRF_DODEFAULT;
+            return CDRF_NOTIFYPOSTPAINT;
         }
 
         RECT rect{};
@@ -2377,6 +3006,21 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
         DeleteObject(separator);
 
         return CDRF_SKIPDEFAULT;
+    }
+
+    case CDDS_ITEMPOSTPAINT: {
+        const int itemIndex =
+            static_cast<int>(
+                draw->nmcd.dwItemSpec);
+
+        if (!IsGroupHeaderItem(
+                itemIndex)) {
+            DrawResultCheckbox(
+                draw->nmcd.hdc,
+                itemIndex);
+        }
+
+        return CDRF_DODEFAULT;
     }
 
     default:
