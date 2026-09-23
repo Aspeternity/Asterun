@@ -1418,9 +1418,10 @@ void LauncherWindow::PaintClassicTitleBar(
         DpiScale(33),
         0,
         close.left,
-        std::min(
+        std::min<LONG>(
             client.bottom,
-            DpiScale(33)),
+            static_cast<LONG>(
+                DpiScale(33))),
     };
 
     HGDIOBJ oldFont =
