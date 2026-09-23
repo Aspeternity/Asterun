@@ -271,55 +271,32 @@ ResolveSettingsCreationGeometry(
             clamped.bottom,
         };
     } else {
-        const int workWidth =
-            info.rcWork.right -
-            info.rcWork.left;
-        const int workHeight =
-            info.rcWork.bottom -
-            info.rcWork.top;
-
-        const int x =
-            info.rcWork.left +
-            std::max(
-                0,
-                (workWidth -
-                 width) / 2);
-
-        int y =
-            info.rcWork.top +
-            std::max(
-                0,
-                (workHeight -
-                 height) / 2);
-
-        if (settings.settingsPlacement ==
-            "top") {
-            const int preferredY =
-                info.rcWork.top +
-                std::max(
+        const auto origin =
+            settings_layout::
+                ResolveWindowOrigin(
+                    {
+                        static_cast<int>(
+                            info.rcWork.left),
+                        static_cast<int>(
+                            info.rcWork.top),
+                        static_cast<int>(
+                            info.rcWork.right),
+                        static_cast<int>(
+                            info.rcWork.bottom),
+                    },
+                    width,
+                    height,
+                    settings.settingsPlacement ==
+                        "top",
                     ui::Scale(
                         45,
-                        geometry.dpi),
-                    (workHeight -
-                     height) / 5);
-
-            y =
-                std::clamp(
-                    preferredY,
-                    static_cast<int>(
-                        info.rcWork.top),
-                    static_cast<int>(
-                        info.rcWork.bottom) -
-                        std::min(
-                            height,
-                            workHeight));
-        }
+                        geometry.dpi));
 
         geometry.outer = {
-            x,
-            y,
-            x + width,
-            y + height,
+            origin.x,
+            origin.y,
+            origin.x + width,
+            origin.y + height,
         };
     }
 
@@ -6504,22 +6481,30 @@ void SettingsWindow::PositionForShow() {
             requestedHeight,
             workHeight);
 
-    const int x =
-        info.rcWork.left +
-        std::max(
-            0,
-            (workWidth - width) / 2);
-    const int y =
-        info.rcWork.top +
-        std::max(
-            0,
-            (workHeight - height) / 2);
+    const auto origin =
+        settings_layout::
+            ResolveWindowOrigin(
+                {
+                    static_cast<int>(
+                        info.rcWork.left),
+                    static_cast<int>(
+                        info.rcWork.top),
+                    static_cast<int>(
+                        info.rcWork.right),
+                    static_cast<int>(
+                        info.rcWork.bottom),
+                },
+                width,
+                height,
+                settings.settingsPlacement ==
+                    "top",
+                Scale(45));
 
     SetWindowPos(
         hwnd_,
         nullptr,
-        x,
-        y,
+        origin.x,
+        origin.y,
         width,
         height,
         SWP_NOZORDER |

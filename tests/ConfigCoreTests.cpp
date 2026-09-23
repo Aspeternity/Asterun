@@ -2,6 +2,7 @@
 #include "core/ProviderCache.hpp"
 #include "core/ProviderFingerprint.hpp"
 #include "core/Settings.hpp"
+#include "core/SettingsLayout.hpp"
 #include "core/UsageStore.hpp"
 #include "core/UserCommandStore.hpp"
 
@@ -45,6 +46,48 @@ std::string ReadText(
 } // namespace
 
 int main() {
+    {
+        const settings_layout::Rect work{
+            0,
+            0,
+            1920,
+            1040,
+        };
+
+        const auto centered =
+            settings_layout::
+                ResolveWindowOrigin(
+                    work,
+                    820,
+                    620,
+                    false,
+                    45);
+        assert(centered.x == 550);
+        assert(centered.y == 210);
+
+        const auto nearTop =
+            settings_layout::
+                ResolveWindowOrigin(
+                    work,
+                    820,
+                    620,
+                    true,
+                    45);
+        assert(nearTop.x == 550);
+        assert(nearTop.y == 84);
+
+        const auto constrained =
+            settings_layout::
+                ResolveWindowOrigin(
+                    {100, 50, 700, 450},
+                    720,
+                    480,
+                    true,
+                    45);
+        assert(constrained.x == 100);
+        assert(constrained.y == 50);
+    }
+
     const auto fingerprintA =
         fingerprint::Hash(
             std::wstring_view(

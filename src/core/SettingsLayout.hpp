@@ -32,6 +32,11 @@ struct Rect {
     int bottom{};
 };
 
+struct Point {
+    int x{};
+    int y{};
+};
+
 struct GeneralLayoutMetrics {
     Rect behavior{};
     Rect search{};
@@ -62,5 +67,12 @@ BuildGeneralLayout(
 [[nodiscard]] Rect ClampRectToWorkArea(
     Rect requested,
     Rect workArea) noexcept;
+
+[[nodiscard]] Point ResolveWindowOrigin(
+    Rect workArea,
+    int requestedWidth,
+    int requestedHeight,
+    bool nearTop,
+    int nearTopOffset) noexcept;
 
 } // namespace altrun::settings_layout

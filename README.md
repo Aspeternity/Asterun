@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.29 — Window Placement & Presentation Hardening
+
+Alpha 3.29 is a real-Windows corrective pass over the unified placement work in alpha.3.28.
+
+The Settings **靠近屏幕顶部** bug came from two independent placement implementations. The pre-creation geometry resolver correctly handled `top`, but `PositionForShow()` later treated every non-`last` mode as centered and moved the still-hidden Settings window back to the middle immediately before DWM reveal. Alpha 3.29 removes that divergence: both creation and show-time placement use the shared, unit-tested `settings_layout::ResolveWindowOrigin()` helper for near-top/center geometry, while `ClampRectToWorkArea()` remains the single last-position clamp.
+
+Shortcut Manager's occasional upper-left flash from the tray is hardened at the HWND/compositor boundary rather than patched after the fact. The Manager no longer creates its real top-level HWND with `CW_USEDEFAULT` and then moves it while hidden. Before `CreateWindowExW`, ALTRun Next now resolves the configured monitor, probes that monitor's DPI without exposing a real Manager window, calculates the 720×480 logical default size, and computes the final top/center/last rectangle. The real HWND is born directly at that final rectangle.
+
+The Manager also adopts the proven Settings first-frame DWM barrier: window transitions are forced off; first show happens while DWM-cloaked; the complete frame and child tree are synchronously painted and flushed before uncloak; close cloaks before hide/destroy. Creation-time and show-time Manager placement share `ResolveShortcutManagerRect()`, so there is no alternate geometry path that can regress independently.
+
+Settings schema remains **9**, commands schema remains 2, usage schema remains 1 and provider-cache schema remains 2. Manager default-size/reset behavior and the validated 16/24/14/46 column policy are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.59`.
+
 ## v0.8.0-alpha.3.28 — Unified Window Placement
 
 Alpha 3.28 closes the Settings/Shortcut Manager placement model before Launcher UX work begins.

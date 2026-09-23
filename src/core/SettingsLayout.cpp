@@ -140,6 +140,82 @@ int MaxScrollOffset(
             clientHeight);
 }
 
+Point ResolveWindowOrigin(
+    Rect workArea,
+    int requestedWidth,
+    int requestedHeight,
+    bool nearTop,
+    int nearTopOffset) noexcept {
+
+    const int workWidth =
+        std::max(
+            0,
+            workArea.right -
+                workArea.left);
+    const int workHeight =
+        std::max(
+            0,
+            workArea.bottom -
+                workArea.top);
+
+    if (workWidth == 0 ||
+        workHeight == 0) {
+        return {
+            workArea.left,
+            workArea.top,
+        };
+    }
+
+    const int width =
+        std::min(
+            std::max(
+                0,
+                requestedWidth),
+            workWidth);
+    const int height =
+        std::min(
+            std::max(
+                0,
+                requestedHeight),
+            workHeight);
+
+    const int x =
+        workArea.left +
+        std::max(
+            0,
+            (workWidth -
+             width) / 2);
+
+    if (!nearTop) {
+        return {
+            x,
+            workArea.top +
+                std::max(
+                    0,
+                    (workHeight -
+                     height) / 2),
+        };
+    }
+
+    const int preferredY =
+        workArea.top +
+        std::max(
+            std::max(
+                0,
+                nearTopOffset),
+            (workHeight -
+             height) / 5);
+
+    return {
+        x,
+        std::clamp(
+            preferredY,
+            workArea.top,
+            workArea.bottom -
+                height),
+    };
+}
+
 Rect ClampRectToWorkArea(
     Rect requested,
     Rect workArea) noexcept {

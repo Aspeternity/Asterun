@@ -212,7 +212,8 @@ In progress:
 - v0.8.0-alpha.3.26 corrects the real-Windows interaction/state regressions: direct native Advanced clicks with no dotted renderer focus, content-fit administrator checkbox hit area, and width-only Header custom-state detection so 16/24/14/46 is actually applied
 - v0.8.0-alpha.3.27 closes Manager column lifecycle: validated default-width minima plus reset-to-default on Manager reopen instead of persisting temporary drag widths
 - v0.8.0-alpha.3.28 unifies Launcher/Settings/Shortcut Manager placement, makes Manager size ephemeral, persists Manager last-position coordinates only, and advances Settings schema to 9
-- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.28 real-Windows validation
+- v0.8.0-alpha.3.29 hardens the unified placement implementation after real-Windows validation: shared top/center geometry plus pre-resolved/cloaked Shortcut Manager first-frame presentation
+- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.29 real-Windows validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

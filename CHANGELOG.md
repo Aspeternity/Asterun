@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.3.29
+
+- Fixed Settings **靠近屏幕顶部** placement not taking effect after real-Windows validation of alpha.3.28.
+- Root cause: Settings creation geometry already understood `top`, but the later hidden `PositionForShow()` pass still hard-coded every non-`last` mode to center and overwrote the correct pre-creation top rectangle immediately before reveal.
+- Added a shared, unit-tested `settings_layout::ResolveWindowOrigin()` path for near-top/center geometry and routed both Settings creation and Settings show-time placement through it, preventing the two placement paths from drifting again.
+- Systemically hardened Shortcut Manager first-frame presentation for tray launches. The real Manager HWND is no longer born at `CW_USEDEFAULT` and moved later; target monitor, target DPI, default 720×480 logical size and final top/center/last rectangle are resolved before `CreateWindowExW`.
+- Added the same DWM first-frame barrier already proven by Settings: show/hide transitions are disabled, first reveal is cloaked until the final frame is painted/flushed, and close cloaks before hide/destroy. This prevents a cached/default upper-left birth rectangle from leaking into one compositor frame.
+- Shortcut Manager creation and later show-time repositioning now share `ResolveShortcutManagerRect()`, which in turn uses the same `ResolveWindowOrigin()` and `ClampRectToWorkArea()` primitives as Settings.
+- Added core placement-math coverage for center, near-top and work-area-constrained cases so future UI refactors cannot silently turn `top` back into center.
+- Preserved schemaVersion 9, Manager reset-to-default sizing, Manager column closeout, Shortcut Editor closeout and updater hardening.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.59`.
+
 ## 0.8.0-alpha.3.28
 
 - Unified the General -> Window placement vocabulary and behavior across Launcher, Settings and Shortcut Manager.

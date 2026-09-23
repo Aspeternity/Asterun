@@ -9,10 +9,12 @@
 #include "../core/Command.hpp"
 #include "../core/ContextActions.hpp"
 #include "../core/ShortcutEditorModel.hpp"
+#include "../core/SettingsLayout.hpp"
 #include "../platform/ShellActions.hpp"
 #include "../platform/WinClipboard.hpp"
 
 #include <commctrl.h>
+#include <dwmapi.h>
 #include <windowsx.h>
 
 #include <algorithm>
@@ -46,6 +48,246 @@ constexpr int kKeywordColumnMinimumLogical = 107;
 constexpr int kNameColumnMinimumLogical = 161;
 constexpr int kTypeColumnMinimumLogical = 94;
 constexpr int kTargetColumnMinimumLogical = 180;
+
+constexpr DWORD kShortcutManagerWindowExStyle =
+    WS_EX_APPWINDOW;
+constexpr DWORD kShortcutManagerWindowStyle =
+    WS_OVERLAPPEDWINDOW |
+    WS_CLIPCHILDREN;
+
+struct ShortcutManagerCreationGeometry {
+    RECT outer{};
+    UINT dpi{96};
+};
+
+[[nodiscard]] bool SetShortcutManagerDwmCloak(
+    HWND hwnd,
+    bool cloaked) {
+
+    const BOOL value =
+        cloaked
+            ? TRUE
+            : FALSE;
+
+    return SUCCEEDED(
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_CLOAK,
+            &value,
+            sizeof(value)));
+}
+
+void ConfigureShortcutManagerDwmPresentation(
+    HWND hwnd) {
+
+    const BOOL disableTransitions =
+        TRUE;
+
+    DwmSetWindowAttribute(
+        hwnd,
+        DWMWA_TRANSITIONS_FORCEDISABLED,
+        &disableTransitions,
+        sizeof(disableTransitions));
+}
+
+[[nodiscard]] UINT ProbeShortcutManagerMonitorDpi(
+    HINSTANCE instance,
+    const MONITORINFO& info) {
+
+    const int monitorWidth =
+        info.rcMonitor.right -
+        info.rcMonitor.left;
+    const int monitorHeight =
+        info.rcMonitor.bottom -
+        info.rcMonitor.top;
+
+    const int x =
+        info.rcMonitor.left +
+        std::max(
+            0,
+            monitorWidth / 2);
+    const int y =
+        info.rcMonitor.top +
+        std::max(
+            0,
+            monitorHeight / 2);
+
+    HWND probe =
+        CreateWindowExW(
+            WS_EX_TOOLWINDOW |
+                WS_EX_NOACTIVATE,
+            L"STATIC",
+            L"",
+            WS_POPUP,
+            x,
+            y,
+            1,
+            1,
+            nullptr,
+            nullptr,
+            instance,
+            nullptr);
+
+    if (!probe) {
+        return 96;
+    }
+
+    const UINT dpi =
+        GetDpiForWindow(probe);
+
+    DestroyWindow(probe);
+
+    return dpi != 0
+        ? dpi
+        : 96;
+}
+
+[[nodiscard]] HMONITOR
+ResolveShortcutManagerMonitor(
+    const Settings& settings) {
+
+    POINT anchor{};
+
+    if (settings.shortcutManagerPlacement ==
+            "last" &&
+        settings.shortcutManagerLastPositionValid) {
+        anchor.x =
+            settings.shortcutManagerLastX;
+        anchor.y =
+            settings.shortcutManagerLastY;
+    } else if (!GetCursorPos(
+                   &anchor)) {
+        anchor = {0, 0};
+    }
+
+    return MonitorFromPoint(
+        anchor,
+        MONITOR_DEFAULTTONEAREST);
+}
+
+[[nodiscard]] settings_layout::Rect
+ResolveShortcutManagerRect(
+    const Settings& settings,
+    const MONITORINFO& info,
+    int width,
+    int height,
+    UINT dpi) {
+
+    const settings_layout::Rect work{
+        static_cast<int>(
+            info.rcWork.left),
+        static_cast<int>(
+            info.rcWork.top),
+        static_cast<int>(
+            info.rcWork.right),
+        static_cast<int>(
+            info.rcWork.bottom),
+    };
+
+    if (settings.shortcutManagerPlacement ==
+            "last" &&
+        settings.shortcutManagerLastPositionValid) {
+        return settings_layout::
+            ClampRectToWorkArea(
+                {
+                    settings.shortcutManagerLastX,
+                    settings.shortcutManagerLastY,
+                    settings.shortcutManagerLastX +
+                        width,
+                    settings.shortcutManagerLastY +
+                        height,
+                },
+                work);
+    }
+
+    const auto origin =
+        settings_layout::
+            ResolveWindowOrigin(
+                work,
+                width,
+                height,
+                settings.shortcutManagerPlacement ==
+                    "top",
+                ui::Scale(
+                    45,
+                    dpi));
+
+    return {
+        origin.x,
+        origin.y,
+        origin.x + width,
+        origin.y + height,
+    };
+}
+
+[[nodiscard]] ShortcutManagerCreationGeometry
+ResolveShortcutManagerCreationGeometry(
+    const Settings& settings,
+    HINSTANCE instance) {
+
+    ShortcutManagerCreationGeometry geometry;
+
+    const HMONITOR monitor =
+        ResolveShortcutManagerMonitor(
+            settings);
+
+    MONITORINFO info{
+        sizeof(info)};
+
+    if (!monitor ||
+        !GetMonitorInfoW(
+            monitor,
+            &info)) {
+        geometry.outer = {
+            0,
+            0,
+            kDefaultWidthLogical,
+            kDefaultHeightLogical,
+        };
+        return geometry;
+    }
+
+    geometry.dpi =
+        ProbeShortcutManagerMonitorDpi(
+            instance,
+            info);
+
+    const int workWidth =
+        info.rcWork.right -
+        info.rcWork.left;
+    const int workHeight =
+        info.rcWork.bottom -
+        info.rcWork.top;
+
+    const int width =
+        std::min(
+            ui::Scale(
+                kDefaultWidthLogical,
+                geometry.dpi),
+            workWidth);
+    const int height =
+        std::min(
+            ui::Scale(
+                kDefaultHeightLogical,
+                geometry.dpi),
+            workHeight);
+
+    const auto resolved =
+        ResolveShortcutManagerRect(
+            settings,
+            info,
+            width,
+            height,
+            geometry.dpi);
+
+    geometry.outer = {
+        resolved.left,
+        resolved.top,
+        resolved.right,
+        resolved.bottom,
+    };
+    return geometry;
+}
 
 enum ShortcutContextMenuId : UINT {
     kShortcutContextAdd = 52201,
@@ -175,6 +417,28 @@ CloseWindow() {
         return;
     }
 
+    const bool cloaked =
+        SetShortcutManagerDwmCloak(
+            hwnd_,
+            true);
+
+    if (cloaked) {
+        DwmFlush();
+    }
+
+    SetWindowPos(
+        hwnd_,
+        nullptr,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE |
+            SWP_NOSIZE |
+            SWP_NOZORDER |
+            SWP_NOACTIVATE |
+            SWP_HIDEWINDOW);
+
     DestroyWindow(hwnd_);
 }
 
@@ -211,16 +475,26 @@ bool ShortcutManagerWindow::Create() {
         return false;
     }
 
+    // Resolve monitor, DPI, default size and final position before the real
+    // HWND exists. Creating at CW_USEDEFAULT and moving the hidden window later
+    // allowed USER32/DWM to expose a one-frame upper-left birth rectangle when
+    // Shortcut Manager was opened from the tray.
+    const auto creation =
+        ResolveShortcutManagerCreationGeometry(
+            app_.SettingsData(),
+            instance_);
+
     hwnd_ = CreateWindowExW(
-        WS_EX_APPWINDOW,
+        kShortcutManagerWindowExStyle,
         kShortcutManagerClass,
         L"",
-        WS_OVERLAPPEDWINDOW |
-            WS_CLIPCHILDREN,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        kDefaultWidthLogical,
-        kDefaultHeightLogical,
+        kShortcutManagerWindowStyle,
+        creation.outer.left,
+        creation.outer.top,
+        creation.outer.right -
+            creation.outer.left,
+        creation.outer.bottom -
+            creation.outer.top,
         nullptr,
         nullptr,
         instance_,
@@ -230,21 +504,40 @@ bool ShortcutManagerWindow::Create() {
         return false;
     }
 
+    ConfigureShortcutManagerDwmPresentation(
+        hwnd_);
+
     dpi_ = GetDpiForWindow(hwnd_);
 
-    // Window size is deliberately ephemeral. Every new Manager instance starts
-    // from the published 720 x 480 logical baseline regardless of how large a
-    // previous instance was resized for one-off inspection.
-    SetWindowPos(
+    // Keep the logical default size even if USER32 settled the HWND on a
+    // different per-monitor DPI than the pre-creation probe predicted.
+    const int desiredWidth =
+        Scale(kDefaultWidthLogical);
+    const int desiredHeight =
+        Scale(kDefaultHeightLogical);
+
+    RECT createdRect{};
+    GetWindowRect(
         hwnd_,
-        nullptr,
-        0,
-        0,
-        Scale(kDefaultWidthLogical),
-        Scale(kDefaultHeightLogical),
-        SWP_NOMOVE |
-            SWP_NOZORDER |
-            SWP_NOACTIVATE);
+        &createdRect);
+
+    if ((createdRect.right -
+         createdRect.left) !=
+            desiredWidth ||
+        (createdRect.bottom -
+         createdRect.top) !=
+            desiredHeight) {
+        SetWindowPos(
+            hwnd_,
+            nullptr,
+            0,
+            0,
+            desiredWidth,
+            desiredHeight,
+            SWP_NOMOVE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE);
+    }
 
     CreateControls();
 
@@ -519,8 +812,46 @@ void ShortcutManagerWindow::Show(
         Refresh(preferredId);
     }
 
-    ShowWindow(hwnd_, SW_SHOW);
-    ShowWindow(hwnd_, SW_RESTORE);
+    if (!IsWindowVisible(hwnd_)) {
+        // Re-resolve after all hidden layout/DPI work, then expose only a
+        // fully-painted final frame. This mirrors the Settings first-frame
+        // compositor barrier and removes tray-open upper-left flashes.
+        ApplyConfiguredPlacement();
+
+        const bool cloaked =
+            SetShortcutManagerDwmCloak(
+                hwnd_,
+                true);
+
+        ShowWindow(
+            hwnd_,
+            SW_SHOW);
+
+        RedrawWindow(
+            hwnd_,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_ERASE |
+                RDW_FRAME |
+                RDW_ALLCHILDREN |
+                RDW_UPDATENOW);
+
+        if (cloaked) {
+            DwmFlush();
+
+            SetShortcutManagerDwmCloak(
+                hwnd_,
+                false);
+
+            DwmFlush();
+        }
+    } else if (IsIconic(hwnd_)) {
+        ShowWindow(
+            hwnd_,
+            SW_RESTORE);
+    }
+
     SetForegroundWindow(hwnd_);
 }
 
@@ -1111,115 +1442,19 @@ ApplyConfiguredPlacement() {
     const auto& settings =
         app_.SettingsData();
 
-    const bool useLast =
-        settings.shortcutManagerPlacement ==
-            "last" &&
-        settings.shortcutManagerLastPositionValid;
-
-    POINT anchor{};
-
-    if (useLast) {
-        anchor.x =
-            settings.shortcutManagerLastX;
-        anchor.y =
-            settings.shortcutManagerLastY;
-    } else if (!GetCursorPos(
-                   &anchor)) {
-        anchor = {0, 0};
-    }
-
     const HMONITOR monitor =
-        MonitorFromPoint(
-            anchor,
-            MONITOR_DEFAULTTONEAREST);
+        ResolveShortcutManagerMonitor(
+            settings);
 
-    if (!monitor) {
-        return;
-    }
+    MONITORINFO info{
+        sizeof(info)};
 
-    MONITORINFO info{};
-    info.cbSize =
-        sizeof(info);
-
-    if (!GetMonitorInfoW(
+    if (!monitor ||
+        !GetMonitorInfoW(
             monitor,
             &info)) {
         return;
     }
-
-    const auto resolvePosition =
-        [&](int width,
-            int height) {
-            POINT result{};
-
-            const int workWidth =
-                info.rcWork.right -
-                info.rcWork.left;
-            const int workHeight =
-                info.rcWork.bottom -
-                info.rcWork.top;
-
-            if (useLast) {
-                result.x =
-                    std::clamp(
-                        settings.shortcutManagerLastX,
-                        static_cast<int>(
-                            info.rcWork.left),
-                        static_cast<int>(
-                            info.rcWork.right) -
-                            std::min(
-                                width,
-                                workWidth));
-                result.y =
-                    std::clamp(
-                        settings.shortcutManagerLastY,
-                        static_cast<int>(
-                            info.rcWork.top),
-                        static_cast<int>(
-                            info.rcWork.bottom) -
-                            std::min(
-                                height,
-                                workHeight));
-                return result;
-            }
-
-            result.x =
-                info.rcWork.left +
-                std::max(
-                    0,
-                    (workWidth -
-                     width) / 2);
-
-            if (settings.shortcutManagerPlacement ==
-                "top") {
-                const int preferredY =
-                    info.rcWork.top +
-                    std::max(
-                        Scale(45),
-                        (workHeight -
-                         height) / 5);
-
-                result.y =
-                    std::clamp(
-                        preferredY,
-                        static_cast<int>(
-                            info.rcWork.top),
-                        static_cast<int>(
-                            info.rcWork.bottom) -
-                            std::min(
-                                height,
-                                workHeight));
-            } else {
-                result.y =
-                    info.rcWork.top +
-                    std::max(
-                        0,
-                        (workHeight -
-                         height) / 2);
-            }
-
-            return result;
-        };
 
     RECT windowRect{};
     if (!GetWindowRect(
@@ -1228,49 +1463,79 @@ ApplyConfiguredPlacement() {
         return;
     }
 
-    POINT position =
-        resolvePosition(
-            windowRect.right -
-                windowRect.left,
-            windowRect.bottom -
-                windowRect.top);
+    const int width =
+        windowRect.right -
+        windowRect.left;
+    const int height =
+        windowRect.bottom -
+        windowRect.top;
+
+    auto resolved =
+        ResolveShortcutManagerRect(
+            settings,
+            info,
+            width,
+            height,
+            dpi_);
 
     SetWindowPos(
         hwnd_,
         nullptr,
-        position.x,
-        position.y,
-        0,
-        0,
-        SWP_NOSIZE |
-            SWP_NOZORDER |
+        resolved.left,
+        resolved.top,
+        resolved.right -
+            resolved.left,
+        resolved.bottom -
+            resolved.top,
+        SWP_NOZORDER |
             SWP_NOACTIVATE);
 
-    // A move to another monitor may synchronously apply a new per-monitor DPI.
-    // Re-resolve once using the settled physical size while keeping the logical
-    // 720 x 480 default that WM_DPICHANGED selected.
+    // Moving to a different monitor can synchronously switch per-monitor DPI.
+    // Re-run the same resolver once with the settled physical size; no
+    // alternate placement implementation is allowed to drift from creation.
     RECT settled{};
-    if (GetWindowRect(
+    if (!GetWindowRect(
             hwnd_,
             &settled)) {
-        position =
-            resolvePosition(
-                settled.right -
-                    settled.left,
-                settled.bottom -
-                    settled.top);
-
-        SetWindowPos(
-            hwnd_,
-            nullptr,
-            position.x,
-            position.y,
-            0,
-            0,
-            SWP_NOSIZE |
-                SWP_NOZORDER |
-                SWP_NOACTIVATE);
+        return;
     }
+
+    const HMONITOR settledMonitor =
+        MonitorFromRect(
+            &settled,
+            MONITOR_DEFAULTTONEAREST);
+    MONITORINFO settledInfo{
+        sizeof(settledInfo)};
+
+    if (!settledMonitor ||
+        !GetMonitorInfoW(
+            settledMonitor,
+            &settledInfo)) {
+        return;
+    }
+
+    resolved =
+        ResolveShortcutManagerRect(
+            settings,
+            settledInfo,
+            settled.right -
+                settled.left,
+            settled.bottom -
+                settled.top,
+            GetDpiForWindow(
+                hwnd_));
+
+    SetWindowPos(
+        hwnd_,
+        nullptr,
+        resolved.left,
+        resolved.top,
+        resolved.right -
+            resolved.left,
+        resolved.bottom -
+            resolved.top,
+        SWP_NOZORDER |
+            SWP_NOACTIVATE);
 }
 
 int ShortcutManagerWindow::

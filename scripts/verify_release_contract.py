@@ -42,6 +42,188 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.29":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.29 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.29 must keep provider-cache schemaVersion 2")
+
+    layout_h = read("src/core/SettingsLayout.hpp")
+    layout_cpp = read("src/core/SettingsLayout.cpp")
+    settings_window_cpp = read("src/ui/SettingsWindow.cpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    app_cpp = read("src/app/App.cpp")
+
+    for token in (
+        "struct Point",
+        "ResolveWindowOrigin(",
+        "bool nearTop",
+        "int nearTopOffset",
+    ):
+        if token not in layout_h:
+            fail(f"v0.8 alpha.3.29 shared placement declaration missing: {token}")
+
+    for token in (
+        "Point ResolveWindowOrigin(",
+        "if (!nearTop)",
+        "(workHeight -\n             height) / 5",
+        "std::clamp(",
+    ):
+        if token not in layout_cpp:
+            fail(f"v0.8 alpha.3.29 shared placement implementation missing: {token}")
+
+    if settings_window_cpp.count("ResolveWindowOrigin(") < 2:
+        fail("v0.8 alpha.3.29 Settings creation/show paths must both use ResolveWindowOrigin")
+
+    for token in (
+        'settings.settingsPlacement ==\n                        "top"',
+        'settings.settingsPlacement ==\n                    "top"',
+        "PositionForShow()",
+    ):
+        if token not in settings_window_cpp:
+            fail(f"v0.8 alpha.3.29 Settings top placement repair missing: {token}")
+
+    for token in (
+        "ResolveShortcutManagerCreationGeometry(",
+        "ResolveShortcutManagerMonitor(",
+        "ResolveShortcutManagerRect(",
+        "ProbeShortcutManagerMonitorDpi(",
+        "DWMWA_CLOAK",
+        "DWMWA_TRANSITIONS_FORCEDISABLED",
+        "DwmFlush();",
+        "fully-painted final frame",
+        "Creating at CW_USEDEFAULT",
+        "ResolveWindowOrigin(",
+        "ClampRectToWorkArea(",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.29 Manager first-frame hardening missing: {token}")
+
+    if "CW_USEDEFAULT,\n        CW_USEDEFAULT" in manager_cpp:
+        fail("v0.8 alpha.3.29 real Shortcut Manager HWND must not be born at CW_USEDEFAULT")
+
+    for forbidden in (
+        "savedWindowPlacement_",
+        "savedWindowPlacementValid_",
+        "CaptureWindowState()",
+    ):
+        if forbidden in manager_cpp or forbidden in manager_h:
+            fail(f"v0.8 alpha.3.29 must preserve ephemeral Manager sizing: {forbidden}")
+
+    for token in (
+        '#include "core/SettingsLayout.hpp"',
+        "ResolveWindowOrigin(",
+        "centered.y == 210",
+        "nearTop.y == 84",
+        "constrained.y == 50",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.3.29 placement-math coverage missing: {token}")
+
+    for token in (
+        "kKeywordColumnPercent = 16",
+        "kNameColumnPercent = 24",
+        "kTypeColumnPercent = 14",
+        "kKeywordColumnMinimumLogical = 107",
+        "kNameColumnMinimumLogical = 161",
+        "kTypeColumnMinimumLogical = 94",
+        "kTargetColumnMinimumLogical = 180",
+        "RememberShortcutManagerPosition(",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.29 must preserve Manager column/placement closeout: {token}")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    for token in (
+        "Deliberately do not draw ODS_FOCUS here",
+        "BCM_GETIDEALSIZE",
+        "kEditorWidthLogical = 590",
+        "kAdvancedRightInsetLogical = 18",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.29 must preserve Editor closeout: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp and token not in settings_window_cpp:
+            fail(f"v0.8 alpha.3.29 must preserve updater hardening: {token}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.29 must preserve schema-9 runtime smoke coverage: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.28"',
+        '"0.8.0-alpha.3.29"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.29 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.29 — Window Placement & Presentation Hardening",
+        "0.8.0.59",
+        "ResolveWindowOrigin()",
+        "CW_USEDEFAULT",
+        "DWM first-frame barrier",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.29 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.29",
+        "0.8.0.59",
+        "PositionForShow()",
+        "ResolveWindowOrigin()",
+        "DWMWA_CLOAK",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.29 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.29",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.29 placement/presentation hardening verified:",
+        "| shared top/center resolver is unit-tested",
+        "| Settings create/show both use shared resolver",
+        "| Manager HWND is born at final monitor/DPI/rect",
+        "| Manager first show/close use DWM cloak barrier",
+        "| Manager size/columns + schema9 + Editor/updater closeouts preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.28":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,
