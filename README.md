@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.33 — Path Conversion Visual Closeout
+
+Alpha 3.33 is the final real-Windows visual closeout for Path Conversion before returning to Launcher UX work.
+
+The mode selector no longer uses either GDI ellipses or the Windows `BP_RADIOBUTTON` theme glyph. Instead, ALTRun Next draws a compact integer-raster ring directly on the final device-pixel grid. The ring diameter is DPI-aware but forced to an odd physical pixel count; the inner cutout and selected dot are rendered with the same pixel-span method. This removes the blurred dot from alpha.3.31 and the thick/soft themed ring visible in alpha.3.32.
+
+Mode-card emphasis is also reduced: selected/focused cards now keep a **1-pixel accent border** rather than the heavier scaled border. The existing light selection fill remains, so the card still reads clearly without stacking multiple strong blue accents.
+
+The result table receives only restrained polish. Header background/separators are lighter and vertical dividers are shorter, while the responsive Field/Current/Converted/Status widths and drag rules are unchanged. Report rows get a **24 logical-pixel** height baseline through a tiny ListView small-image-list, adding a little breathing room between shortcut group titles and field rows without increasing font size.
+
+The alpha.3.32 flat Rescan/Apply buttons, Explorer ListView theme, empty-state position, live counts and non-blocking apply feedback remain unchanged. Window geometry remains **960×560 / 820×480 logical pixels**, settings schema remains **9**, and the shared top-level first-frame presentation lifecycle is preserved. Windows fixed FileVersion/ProductVersion is `0.8.0.63`.
+
 ## v0.8.0-alpha.3.32 — Path Conversion Visual Polish
 
 Alpha 3.32 is the real-Windows visual closeout pass for Path Conversion. It intentionally leaves conversion logic, responsive column rules and the alpha.3.31 interaction model unchanged.

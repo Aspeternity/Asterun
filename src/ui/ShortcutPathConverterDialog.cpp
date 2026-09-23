@@ -12,7 +12,6 @@
 
 #include <commctrl.h>
 #include <uxtheme.h>
-#include <vssym32.h>
 
 #include <algorithm>
 #include <array>
@@ -44,9 +43,100 @@ constexpr int kFieldColumnMinimumLogical = 100;
 constexpr int kCurrentColumnMinimumLogical = 180;
 constexpr int kConvertedColumnMinimumLogical = 180;
 constexpr int kStatusColumnMinimumLogical = 100;
+constexpr int kResultRowHeightLogical = 24;
 
 constexpr LPARAM kGroupHeaderItemParam =
     static_cast<LPARAM>(-1);
+
+void FillCrispDisk(
+    HDC dc,
+    int left,
+    int top,
+    int diameter,
+    COLORREF color) {
+    if (!dc ||
+        diameter <= 0) {
+        return;
+    }
+
+    HBRUSH brush =
+        CreateSolidBrush(
+            color);
+
+    if (!brush) {
+        return;
+    }
+
+    const int radius2 =
+        diameter - 1;
+    const int radiusSquared =
+        radius2 * radius2;
+
+    for (int y = 0;
+         y < diameter;
+         ++y) {
+        const int dy =
+            2 * y -
+            radius2;
+        int first = diameter;
+        int last = -1;
+
+        for (int x = 0;
+             x < diameter;
+             ++x) {
+            const int dx =
+                2 * x -
+                radius2;
+
+            if (dx * dx +
+                    dy * dy <=
+                radiusSquared) {
+                first =
+                    std::min(
+                        first,
+                        x);
+                last =
+                    std::max(
+                        last,
+                        x);
+            }
+        }
+
+        if (last >= first) {
+            RECT row{
+                left + first,
+                top + y,
+                left + last + 1,
+                top + y + 1,
+            };
+
+            FillRect(
+                dc,
+                &row,
+                brush);
+        }
+    }
+
+    DeleteObject(
+        brush);
+}
+
+[[nodiscard]] int OddPixelSize(
+    int value,
+    int minimum) noexcept {
+    value =
+        std::max(
+            value,
+            minimum);
+
+    if ((value & 1) == 0) {
+        --value;
+    }
+
+    return std::max(
+        value,
+        minimum | 1);
+}
 
 } // namespace
 
@@ -71,6 +161,12 @@ ShortcutPathConverterDialog::
     if (groupFont_) {
         DeleteObject(groupFont_);
         groupFont_ = nullptr;
+    }
+
+    if (rowHeightImageList_) {
+        ImageList_Destroy(
+            rowHeightImageList_);
+        rowHeightImageList_ = nullptr;
     }
 }
 
@@ -398,6 +494,22 @@ void ShortcutPathConverterDialog::CreateControls() {
             LVS_EX_DOUBLEBUFFER |
             LVS_EX_CHECKBOXES);
 
+    rowHeightImageList_ =
+        ImageList_Create(
+            1,
+            Scale(
+                kResultRowHeightLogical),
+            ILC_COLOR32,
+            1,
+            1);
+
+    if (rowHeightImageList_) {
+        ListView_SetImageList(
+            list_,
+            rowHeightImageList_,
+            LVSIL_SMALL);
+    }
+
     SetWindowTheme(
         list_,
         L"Explorer",
@@ -660,9 +772,7 @@ void ShortcutPathConverterDialog::DrawModeCard(
     HPEN pen =
         CreatePen(
             PS_SOLID,
-            selected || focused
-                ? Scale(2)
-                : 1,
+            1,
             borderColor);
 
     HGDIOBJ oldBrush =
@@ -692,92 +802,79 @@ void ShortcutPathConverterDialog::DrawModeCard(
     DeleteObject(pen);
     DeleteObject(fill);
 
-    // Use the Windows theme renderer for the small radio glyph instead of
-    // hand-drawing nested GDI ellipses. The themed glyph snaps to the current
-    // DPI's native pixel grid and avoids the soft/blurred dot seen in
-    // real-Windows alpha.3.31 validation.
+    // Draw the selector as a tiny integer-raster ring instead of relying on
+    // themed/GDI ellipses. Every span is filled on the final device-pixel grid,
+    // so the outline and center dot stay sharp at fractional Windows DPI.
+    const bool disabled =
+        (draw.itemState &
+         ODS_DISABLED) != 0;
+
     const int radioSize =
-        Scale(16);
+        OddPixelSize(
+            Scale(13),
+            11);
+    const int ringThickness =
+        std::max(
+            1,
+            Scale(1));
     const int radioLeft =
         surface.left +
-        Scale(10);
+        Scale(12);
     const int radioTop =
         surface.top +
         Scale(12);
 
-    RECT radioRect{
+    const COLORREF ringColor =
+        disabled
+            ? palette.separator
+            : selected
+                ? palette.accent
+                : palette.mutedText;
+
+    FillCrispDisk(
+        draw.hDC,
         radioLeft,
         radioTop,
-        radioLeft + radioSize,
-        radioTop + radioSize,
-    };
+        radioSize,
+        ringColor);
 
-    const bool disabled =
-        (draw.itemState &
-         ODS_DISABLED) != 0;
-    const bool hot =
-        (draw.itemState &
-         ODS_HOTLIGHT) != 0 ||
-        focused;
+    const int innerSize =
+        std::max(
+            1,
+            radioSize -
+                ringThickness * 2);
 
-    int radioState =
-        selected
-            ? RBS_CHECKEDNORMAL
-            : RBS_UNCHECKEDNORMAL;
+    FillCrispDisk(
+        draw.hDC,
+        radioLeft +
+            ringThickness,
+        radioTop +
+            ringThickness,
+        innerSize,
+        fillColor);
 
-    if (disabled) {
-        radioState =
-            selected
-                ? RBS_CHECKEDDISABLED
-                : RBS_UNCHECKEDDISABLED;
-    } else if (pressed) {
-        radioState =
-            selected
-                ? RBS_CHECKEDPRESSED
-                : RBS_UNCHECKEDPRESSED;
-    } else if (hot) {
-        radioState =
-            selected
-                ? RBS_CHECKEDHOT
-                : RBS_UNCHECKEDHOT;
-    }
+    if (selected) {
+        const int dotSize =
+            OddPixelSize(
+                Scale(5),
+                5);
+        const int dotLeft =
+            radioLeft +
+            (radioSize -
+             dotSize) / 2;
+        const int dotTop =
+            radioTop +
+            (radioSize -
+             dotSize) / 2;
 
-    HTHEME buttonTheme =
-        OpenThemeData(
-            draw.hwndItem,
-            L"BUTTON");
-
-    if (buttonTheme) {
-        DrawThemeBackground(
-            buttonTheme,
+        FillCrispDisk(
             draw.hDC,
-            BP_RADIOBUTTON,
-            radioState,
-            &radioRect,
-            nullptr);
-        CloseThemeData(
-            buttonTheme);
-    } else {
-        UINT state =
-            DFCS_BUTTONRADIO;
-
-        if (selected) {
-            state |= DFCS_CHECKED;
-        }
-
-        if (pressed) {
-            state |= DFCS_PUSHED;
-        }
-
-        if (disabled) {
-            state |= DFCS_INACTIVE;
-        }
-
-        DrawFrameControl(
-            draw.hDC,
-            &radioRect,
-            DFC_BUTTON,
-            state);
+            dotLeft,
+            dotTop,
+            dotSize,
+            disabled
+                ? palette.mutedText
+                : palette.accent);
     }
 
     SetBkMode(
@@ -785,7 +882,7 @@ void ShortcutPathConverterDialog::DrawModeCard(
         TRANSPARENT);
 
     RECT titleRect{
-        surface.left + Scale(36),
+        surface.left + Scale(34),
         surface.top + Scale(8),
         surface.right - Scale(10),
         surface.top + Scale(28),
@@ -1028,6 +1125,10 @@ HandleHeaderCustomDraw(
 
     const auto& palette =
         ui::kApplicationPalette;
+    const COLORREF headerBackground =
+        RGB(250, 251, 252);
+    const COLORREF headerSeparator =
+        RGB(236, 239, 243);
 
     if (draw->dwDrawStage ==
         CDDS_PREPAINT) {
@@ -1047,8 +1148,8 @@ HandleHeaderCustomDraw(
             (draw->uItemState &
              (CDIS_SELECTED |
               CDIS_HOT)) != 0
-                ? palette.pressedBackground
-                : palette.cardBackground);
+                ? palette.cardBackground
+                : headerBackground);
 
     FillRect(
         draw->hdc,
@@ -1113,7 +1214,7 @@ HandleHeaderCustomDraw(
         CreatePen(
             PS_SOLID,
             1,
-            palette.separator);
+            headerSeparator);
     HGDIOBJ oldPen =
         SelectObject(
             draw->hdc,
@@ -1132,12 +1233,12 @@ HandleHeaderCustomDraw(
     MoveToEx(
         draw->hdc,
         rect.right - 1,
-        rect.top + Scale(4),
+        rect.top + Scale(6),
         nullptr);
     LineTo(
         draw->hdc,
         rect.right - 1,
-        rect.bottom - Scale(4));
+        rect.bottom - Scale(6));
 
     SelectObject(
         draw->hdc,

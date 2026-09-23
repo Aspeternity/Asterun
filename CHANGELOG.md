@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.3.33
+
+- Closed the remaining Path Conversion visual issues reported from real-Windows alpha.3.32 testing.
+- Replaced the Windows-themed radio glyph with an ALTRun Next-owned integer-raster selector. The outer ring, inner cutout and selected center dot are filled directly on final device pixels, with odd pixel diameters and DPI-aware dimensions. This avoids both the soft GDI ellipse from alpha.3.31 and the chunky themed radio seen in alpha.3.32.
+- Reduced the selected/focused mode-card border to a consistent **1 physical pixel** while keeping the existing selection background and accent color.
+- Softened the custom result Header further with a lighter background, lighter separators and shorter vertical dividers; column widths and drag constraints are unchanged.
+- Increased report-row breathing room slightly using a dedicated **24 logical-pixel** small-image-list row baseline, improving separation between shortcut group headers and their field rows without changing text size.
+- Kept the alpha.3.32 flat Rescan/Apply buttons, Explorer ListView theme, empty-state position and all alpha.3.31 conversion interactions unchanged.
+- Preserved the 960×560 default / 820×480 minimum window geometry, settings schemaVersion 9, shared first-frame presentation and updater hardening.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.63`.
+
 ## 0.8.0-alpha.3.32
 
 - Polished Path Conversion after real-Windows alpha.3.31 review without changing conversion semantics or column behavior.

@@ -215,8 +215,9 @@ In progress:
 - v0.8.0-alpha.3.29 hardens the unified placement implementation after real-Windows validation: shared top/center geometry plus pre-resolved/cloaked Shortcut Manager first-frame presentation
 - v0.8.0-alpha.3.30 systemically closes custom top-level HWND presentation: one shared first-frame/teardown policy across Launcher, Settings, Manager, Editor and Path Conversion, with no real custom window born at CW_USEDEFAULT
 - v0.8.0-alpha.3.31 redesigns Path Conversion: compact mode cards, responsive path columns, explicit empty state, live selection/apply feedback and no redundant Close action
-- v0.8.0-alpha.3.32 closes Path Conversion visual polish after real-Windows review: crisp themed radio glyphs, flat action buttons/header, lighter result frame and balanced empty state with behavior frozen
-- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.32 real-Windows validation
+- v0.8.0-alpha.3.32 closes the first Path Conversion visual-polish pass with flat buttons/header, lighter result framing and a balanced empty state
+- v0.8.0-alpha.3.33 performs the final Path Conversion visual closeout after real-Windows review: pixel-raster selector, 1px card emphasis, softer Header separators and slightly roomier result rows with behavior frozen
+- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.33 real-Windows validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

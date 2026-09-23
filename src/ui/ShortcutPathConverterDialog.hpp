@@ -121,6 +121,7 @@ private:
 
     HFONT font_{};
     HFONT groupFont_{};
+    HIMAGELIST rowHeightImageList_{};
     UINT dpi_{96};
     Mode mode_{Mode::Portable};
     bool changed_{false};
