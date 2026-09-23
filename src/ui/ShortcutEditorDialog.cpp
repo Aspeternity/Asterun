@@ -1498,7 +1498,8 @@ void ShortcutEditorDialog::Layout() {
                         widest =
                             std::max(
                                 widest,
-                                size.cx);
+                                static_cast<int>(
+                                    size.cx));
                     }
                 }
 
