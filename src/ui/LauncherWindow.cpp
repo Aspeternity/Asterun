@@ -1598,7 +1598,8 @@ void LauncherWindow::UpdateClassicHintLayout() {
                 kHintOriginalLeftLogical),
             editLeft +
                 leftMargin +
-                querySize.cx +
+                static_cast<int>(
+                    querySize.cx) +
                 DpiScale(
                     kHintGapLogical));
 
