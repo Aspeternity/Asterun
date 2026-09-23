@@ -1950,6 +1950,7 @@ void SettingsWindow::RefreshFromSettings() {
 
     RefreshHotkeyPage();
     RefreshUpdateStatus();
+    SyncUpdateStatusTimer();
 
     for (HWND control :
          std::array<HWND, 18>{
@@ -3091,6 +3092,13 @@ void SettingsWindow::ShowPage(Page page) {
             kProviderStatusTimerId);
     }
 
+    if (page_ == Page::About &&
+        page != Page::About) {
+        KillTimer(
+            hwnd_,
+            kUpdateStatusTimerId);
+    }
+
     if (page != page_ &&
         page == Page::General) {
         generalScrollOffset_ = 0;
@@ -3164,6 +3172,10 @@ void SettingsWindow::ShowPage(Page page) {
     } else if (
         page == Page::Data) {
         RefreshDataCompatibilityStatus();
+    } else if (
+        page == Page::About) {
+        RefreshUpdateStatus();
+        SyncUpdateStatusTimer();
     }
 
     UpdateNavLabels();
@@ -6475,6 +6487,33 @@ void SettingsWindow::PositionForShow() {
 
 void SettingsWindow::OnUpdateStatusChanged() {
     RefreshUpdateStatus();
+    SyncUpdateStatusTimer();
+}
+
+void SettingsWindow::SyncUpdateStatusTimer() {
+    if (!hwnd_ ||
+        !IsWindow(hwnd_)) {
+        return;
+    }
+
+    const auto status =
+        app_.UpdateStatus();
+    const bool active =
+        status.running ||
+        app_.UpdateWorkerRunning();
+
+    if (page_ == Page::About &&
+        active) {
+        SetTimer(
+            hwnd_,
+            kUpdateStatusTimerId,
+            250,
+            nullptr);
+    } else {
+        KillTimer(
+            hwnd_,
+            kUpdateStatusTimerId);
+    }
 }
 
 void SettingsWindow::TogglePrereleaseUpdates() {
@@ -7013,6 +7052,19 @@ LRESULT SettingsWindow::HandleMessage(
         break;
 
     case WM_TIMER:
+        if (wParam ==
+            kUpdateStatusTimerId) {
+            if (page_ == Page::About) {
+                RefreshUpdateStatus();
+                SyncUpdateStatusTimer();
+            } else {
+                KillTimer(
+                    hwnd_,
+                    kUpdateStatusTimerId);
+            }
+            return 0;
+        }
+
         if (wParam ==
             kProviderCommitTimerId) {
             CommitPendingProviderChanges();
@@ -8093,6 +8145,9 @@ LRESULT SettingsWindow::HandleMessage(
         KillTimer(
             hwnd_,
             kProviderCommitTimerId);
+        KillTimer(
+            hwnd_,
+            kUpdateStatusTimerId);
 
         DestroyWindow(hwnd_);
         return 0;
@@ -8105,6 +8160,9 @@ LRESULT SettingsWindow::HandleMessage(
         KillTimer(
             hwnd_,
             kProviderCommitTimerId);
+        KillTimer(
+            hwnd_,
+            kUpdateStatusTimerId);
         return 0;
 
     case WM_NCDESTROY: {

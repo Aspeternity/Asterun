@@ -147,6 +147,8 @@ private:
         kProviderStatusTimerId = 0x51690;
     static constexpr UINT_PTR
         kProviderCommitTimerId = 0x51691;
+    static constexpr UINT_PTR
+        kUpdateStatusTimerId = 0x51692;
 
     static LRESULT CALLBACK WindowProc(
         HWND hwnd,
@@ -182,6 +184,7 @@ private:
     void RecheckEverything();
     void RefreshDataCompatibilityStatus();
     void RefreshUpdateStatus();
+    void SyncUpdateStatusTimer();
     void TogglePrereleaseUpdates();
 
     void ToggleGeneralSetting(

@@ -219,7 +219,8 @@ In progress:
 - v0.8.0-alpha.3.33 performs the Path Conversion visual closeout pass with pixel-raster selector, 1px card emphasis, softer Header separators and slightly roomier result rows
 - v0.8.0-alpha.3.34 replaces the still-unclear selector with DPI-bucketed 4×4 coverage antialiasing rendered directly to final device pixels
 - v0.8.0-alpha.3.35 closes Path Conversion result-row alignment by returning row height/checkbox placement to native Explorer ListView metrics and removing redundant field-label indentation; the validated alpha.3.34 selector stays frozen
-- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.35 real-Windows validation
+- v0.8.0-alpha.3.36 systemically hardens update-status delivery with a message-only HWND dispatcher plus active-only Settings self-reconciliation, removing the shared thread-message loss mode
+- v0.8.0-alpha.4 follows after alpha.3.36 real-Windows updater validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

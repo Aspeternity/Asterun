@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.3.36
+
+- Systemically fixed the updater UI state getting stuck on **Checking for updates...** while the background App state had already completed.
+- Replaced updater progress/completion's primary `PostThreadMessageW` delivery with an App-lifetime `HWND_MESSAGE` dispatcher and window-targeted `PostMessageW`.
+- Moved the 250 ms active-update reconciliation watchdog from a `SetTimer(nullptr, ...)` thread timer to the same message-only HWND, eliminating the shared nested-message-loop loss mode.
+- Added an About-page HWND timer that exists only while an update worker/status is active; it independently re-reads App state, refreshes the owner-drawn status/action controls, and stops on terminal state, page leave, or Settings destruction.
+- Preserved the 60-second absolute check watchdog, WinHTTP 5/5/15/15-second operation bounds, stop-token request cancellation, generation guards, synchronous status redraw and safe download/hash/staging/install flow.
+- Preserved alpha.3.35 Path Conversion native checkbox/text alignment and the alpha.3.34 coverage selector unchanged.
+- Kept settings schemaVersion 9; updated Windows fixed FileVersion/ProductVersion to `0.8.0.66`.
+
 ## 0.8.0-alpha.3.35
 
 - Fixed the Path Conversion result-row checkbox/text misalignment reported in real-Windows alpha.3.34 validation.

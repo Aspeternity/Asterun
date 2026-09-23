@@ -34,6 +34,14 @@ constexpr std::uint64_t
     kUpdateCheckWatchdogMs =
         60ULL * 1000ULL;
 
+constexpr wchar_t
+    kUpdateDispatchClass[] =
+        L"ALTRunNext.UpdateDispatch";
+
+constexpr UINT_PTR
+    kUpdateReconcileTimerId =
+        0xA175;
+
 [[nodiscard]] std::string_view
 ProviderIdForCommand(
     CommandSource source) {
@@ -146,6 +154,8 @@ App::~App() {
         updateThread_.join();
     }
 
+    DestroyUpdateDispatchWindow();
+
     StopManagedEverythingLifecycle();
 
     if (providerDebounceTimer_ != 0) {
@@ -239,6 +249,11 @@ int App::Run() {
             MB_ICONINFORMATION | MB_OK);
         return 0;
     }
+
+    // Update notifications use a message-only HWND so nested Windows message
+    // loops dispatch them normally. A thread-message fallback remains only
+    // for the exceptional case where this invisible dispatcher cannot exist.
+    CreateUpdateDispatchWindow();
 
     if (!dataDirectoryWritable_) {
         MessageBoxW(
@@ -371,6 +386,7 @@ int App::Run() {
 
         if (msg.message == WM_TIMER &&
             msg.hwnd == nullptr &&
+            updateDispatchWindow_ == nullptr &&
             updateReconcileTimer_ != 0 &&
             msg.wParam ==
                 updateReconcileTimer_) {
@@ -1610,14 +1626,173 @@ void App::HandleEverythingBootstrapCompleted(
     }
 }
 
+LRESULT CALLBACK
+App::UpdateDispatchWindowProc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam) {
+    App* self =
+        reinterpret_cast<App*>(
+            GetWindowLongPtrW(
+                hwnd,
+                GWLP_USERDATA));
+
+    if (message == WM_NCCREATE) {
+        const auto* create =
+            reinterpret_cast<
+                CREATESTRUCTW*>(
+                    lParam);
+
+        self =
+            static_cast<App*>(
+                create->lpCreateParams);
+
+        SetWindowLongPtrW(
+            hwnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(
+                self));
+    }
+
+    if (self) {
+        if (message ==
+                kUpdateStatusMessage) {
+            self->HandleUpdateStatusMessage(
+                static_cast<std::uint64_t>(
+                    wParam));
+            return 0;
+        }
+
+        if (message == WM_TIMER &&
+            wParam ==
+                kUpdateReconcileTimerId) {
+            self->HandleUpdateStatusMessage(
+                self->updateGeneration_
+                    .load());
+            return 0;
+        }
+
+        if (message == WM_NCDESTROY &&
+            self->updateDispatchWindow_ ==
+                hwnd) {
+            self->updateDispatchWindow_ =
+                nullptr;
+        }
+    }
+
+    return DefWindowProcW(
+        hwnd,
+        message,
+        wParam,
+        lParam);
+}
+
+bool App::CreateUpdateDispatchWindow() {
+    if (updateDispatchWindow_ &&
+        IsWindow(
+            updateDispatchWindow_)) {
+        return true;
+    }
+
+    WNDCLASSEXW wc{};
+    wc.cbSize = sizeof(wc);
+    wc.hInstance = instance_;
+    wc.lpfnWndProc =
+        UpdateDispatchWindowProc;
+    wc.lpszClassName =
+        kUpdateDispatchClass;
+
+    if (!RegisterClassExW(&wc) &&
+        GetLastError() !=
+            ERROR_CLASS_ALREADY_EXISTS) {
+        return false;
+    }
+
+    updateDispatchWindow_ =
+        CreateWindowExW(
+            0,
+            kUpdateDispatchClass,
+            L"",
+            0,
+            0,
+            0,
+            0,
+            0,
+            HWND_MESSAGE,
+            nullptr,
+            instance_,
+            this);
+
+    return updateDispatchWindow_ !=
+        nullptr;
+}
+
+void App::DestroyUpdateDispatchWindow() {
+    StopUpdateReconcileTimer();
+
+    if (updateDispatchWindow_ &&
+        IsWindow(
+            updateDispatchWindow_)) {
+        const HWND window =
+            updateDispatchWindow_;
+        updateDispatchWindow_ =
+            nullptr;
+        DestroyWindow(window);
+    } else {
+        updateDispatchWindow_ =
+            nullptr;
+    }
+}
+
+void App::PostUpdateStatusNotification(
+    std::uint64_t generation) {
+    const HWND dispatcher =
+        updateDispatchWindow_;
+
+    if (dispatcher &&
+        IsWindow(dispatcher) &&
+        PostMessageW(
+            dispatcher,
+            kUpdateStatusMessage,
+            static_cast<WPARAM>(
+                generation),
+            0)) {
+        return;
+    }
+
+    // Last-resort fallback for dispatcher creation/post failure. Normal
+    // update delivery never depends on this lossy thread-message path.
+    if (uiThreadId_ != 0) {
+        PostThreadMessageW(
+            uiThreadId_,
+            kUpdateStatusMessage,
+            static_cast<WPARAM>(
+                generation),
+            0);
+    }
+}
+
 void App::StartUpdateReconcileTimer() {
     if (updateReconcileTimer_ != 0) {
         return;
     }
 
-    // This is a UI-thread watchdog, not a polling update checker. It exists
-    // only while an update worker is active and reconciles App state if a
-    // posted thread notification is missed by a nested Windows message loop.
+    // Window-targeted WM_TIMER survives nested Windows message loops that can
+    // consume hwnd==nullptr thread messages before App::Run() sees them.
+    if (updateDispatchWindow_ &&
+        IsWindow(
+            updateDispatchWindow_)) {
+        updateReconcileTimer_ =
+            SetTimer(
+                updateDispatchWindow_,
+                kUpdateReconcileTimerId,
+                250,
+                nullptr);
+        return;
+    }
+
+    // Exceptional fallback only if the message-only window could not exist.
     updateReconcileTimer_ =
         SetTimer(
             nullptr,
@@ -1631,9 +1806,18 @@ void App::StopUpdateReconcileTimer() {
         return;
     }
 
-    KillTimer(
-        nullptr,
-        updateReconcileTimer_);
+    if (updateDispatchWindow_ &&
+        IsWindow(
+            updateDispatchWindow_)) {
+        KillTimer(
+            updateDispatchWindow_,
+            kUpdateReconcileTimerId);
+    } else {
+        KillTimer(
+            nullptr,
+            updateReconcileTimer_);
+    }
+
     updateReconcileTimer_ = 0;
 }
 
@@ -2953,8 +3137,6 @@ bool App::StartUpdateCheck(
     const auto channel =
         settingsStore_.Data()
             .updateChannel;
-    const DWORD targetThread =
-        uiThreadId_;
     const std::uint64_t generation =
         ++updateGeneration_;
 
@@ -2983,12 +3165,10 @@ bool App::StartUpdateCheck(
         std::jthread(
             [this,
              channel,
-             targetThread,
              generation](
                 std::stop_token stopToken) {
                 const auto progress =
                     [this,
-                     targetThread,
                      generation](
                         const win::
                             UpdateSnapshot&
@@ -3013,14 +3193,8 @@ bool App::StartUpdateCheck(
                                 snapshot;
                         }
 
-                        if (targetThread != 0) {
-                            PostThreadMessageW(
-                                targetThread,
-                                kUpdateStatusMessage,
-                                static_cast<WPARAM>(
-                                    generation),
-                                0);
-                        }
+                        PostUpdateStatusNotification(
+                            generation);
                     };
 
                 const auto result =
@@ -3051,14 +3225,8 @@ bool App::StartUpdateCheck(
                 updateWorkerStartedTick_.store(
                     0);
 
-                if (targetThread != 0) {
-                    PostThreadMessageW(
-                        targetThread,
-                        kUpdateStatusMessage,
-                        static_cast<WPARAM>(
-                            generation),
-                        0);
-                }
+                PostUpdateStatusNotification(
+                    generation);
             });
 
     StartUpdateReconcileTimer();
@@ -3100,8 +3268,6 @@ bool App::StartUpdateDownloadAndInstall() {
     const auto channel =
         settingsStore_.Data()
             .updateChannel;
-    const DWORD targetThread =
-        uiThreadId_;
     const std::uint64_t generation =
         ++updateGeneration_;
 
@@ -3133,12 +3299,10 @@ bool App::StartUpdateDownloadAndInstall() {
              channel,
              manifest =
                  std::move(manifest),
-             targetThread,
              generation](
                 std::stop_token stopToken) {
                 const auto progress =
                     [this,
-                     targetThread,
                      generation](
                         const win::
                             UpdateSnapshot&
@@ -3163,14 +3327,8 @@ bool App::StartUpdateDownloadAndInstall() {
                                 snapshot;
                         }
 
-                        if (targetThread != 0) {
-                            PostThreadMessageW(
-                                targetThread,
-                                kUpdateStatusMessage,
-                                static_cast<WPARAM>(
-                                    generation),
-                                0);
-                        }
+                        PostUpdateStatusNotification(
+                            generation);
                     };
 
                 const auto result =
@@ -3208,14 +3366,8 @@ bool App::StartUpdateDownloadAndInstall() {
                 updateWorkerStartedTick_.store(
                     0);
 
-                if (targetThread != 0) {
-                    PostThreadMessageW(
-                        targetThread,
-                        kUpdateStatusMessage,
-                        static_cast<WPARAM>(
-                            generation),
-                        0);
-                }
+                PostUpdateStatusNotification(
+                    generation);
             });
 
     StartUpdateReconcileTimer();

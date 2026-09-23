@@ -42,6 +42,171 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.36":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.36 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.36 must keep provider-cache schemaVersion 2")
+
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "DestroyUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "PostMessageW(",
+        "kUpdateReconcileTimerId",
+        "SetTimer(\n                updateDispatchWindow_",
+        "HandleUpdateStatusMessage(",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.36 message-only update dispatcher missing: {token}")
+
+    update_worker_region = app_cpp[
+        app_cpp.index("bool App::StartUpdateCheck("):
+        app_cpp.index("void App::SetGeneralSettings(")
+    ]
+    if "PostThreadMessageW(" in update_worker_region:
+        fail("v0.8 alpha.3.36 update workers must not use PostThreadMessageW directly")
+    if update_worker_region.count("PostUpdateStatusNotification(") < 4:
+        fail("v0.8 alpha.3.36 update worker progress/completion notifications are incomplete")
+
+    for token in (
+        "kUpdateStatusTimerId = 0x51692",
+        "SyncUpdateStatusTimer()",
+        "page_ == Page::About",
+        "SetTimer(\n            hwnd_,\n            kUpdateStatusTimerId,\n            250,",
+        "RefreshUpdateStatus();\n                SyncUpdateStatusTimer();",
+        "KillTimer(\n            hwnd_,\n            kUpdateStatusTimerId)",
+        "RDW_UPDATENOW",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.3.36 Settings update self-reconciliation missing: {token}")
+
+    for token in (
+        "kUpdateCheckWatchdogMs =\n        60ULL * 1000ULL",
+        "CheckTimedOut",
+        "updateWorkerStartedTick_",
+        "request_stop()",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.3.36 App watchdog/cancellation regressed: {token}")
+
+    for token in (
+        "WinHttpSetTimeouts(",
+        "5000,",
+        "15000,",
+        "std::stop_callback",
+        "handles.request.Close();",
+        "WinHttpReadData(",
+    ):
+        if token not in update_cpp:
+            fail(f"v0.8 alpha.3.36 WinHTTP hardening regressed: {token}")
+
+    for token in (
+        "struct SelectorRasterTemplate",
+        "kSamplesPerAxis = 4",
+        "return {15, 1.35, 5}",
+        "return {23, 1.90, 9}",
+        "SetPixelV(",
+        "LVS_EX_CHECKBOXES",
+        'T(L"目标"',
+        'T(L"工作目录"',
+        'T(L"自定义图标"',
+        "kFieldColumnPercent = 13",
+        "kCurrentColumnPercent = 36",
+        "kConvertedColumnPercent = 39",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.36 frozen Path Conversion contract missing: {token}")
+
+    for forbidden in (
+        "kResultRowHeightLogical",
+        "rowHeightImageList_",
+        'T(L"    目标"',
+        'T(L"    工作目录"',
+        'T(L"    自定义图标"',
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.36 Path Conversion row regression returned: {forbidden}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.36 must preserve schema-9 runtime smoke coverage: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.35"',
+        '"0.8.0-alpha.3.36"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.36 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.36 — Update Status Dispatch Hardening",
+        "0.8.0.66",
+        "message-only HWND",
+        "nested Windows message loops",
+        "active-only HWND timer",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.36 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.36",
+        "0.8.0.66",
+        "HWND_MESSAGE",
+        "SetTimer(nullptr, ...)",
+        "About-page HWND timer",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.36 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.36",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3.36 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.36 updater dispatch hardening verified:",
+        "| App message-only HWND owns progress/completion + watchdog",
+        "| update workers no longer directly PostThreadMessage",
+        "| About has active-only HWND self-reconciliation",
+        "| WinHTTP timeout/cancellation + owner-draw repaint preserved",
+        "| schema9 + Path Conversion alpha.3.35 preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.35":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

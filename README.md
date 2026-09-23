@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.36 — Update Status Dispatch Hardening
+
+Alpha 3.36 is a systemic updater-status reliability fix after real-Windows testing again reproduced an About page stuck on **正在检查更新... / Checking for updates...** even though closing and reopening Settings immediately showed the completed result.
+
+The audit found that the previous primary notification and its 250 ms watchdog shared the same failure mode: both were `hwnd == nullptr` thread messages (`PostThreadMessageW` and `SetTimer(nullptr, ...)`). Nested Windows message loops may remove such thread messages without routing them through ALTRun Next's outer `App::Run()` loop. The background worker could therefore reach Available/UpToDate/Failed correctly while the visible Settings instance never received a completion refresh.
+
+Update status delivery now goes through an App-lifetime **message-only HWND** (`HWND_MESSAGE`). Worker progress/completion uses window-targeted `PostMessageW`, and the active-only 250 ms watchdog is also an HWND-targeted timer on that dispatcher. Window messages continue through normal dispatch even inside nested Windows loops. A thread-message path remains only as an exceptional fallback if the invisible dispatcher cannot be created or posted to.
+
+The About page also owns a second, active-only HWND timer while an update operation is running. It reconciles the visible controls directly from authoritative App state and stops automatically at a terminal state or when leaving/destroying About. The existing synchronous owner-draw repaint, 60-second absolute check watchdog, WinHTTP operation timeouts, stop-token cancellation, generation invalidation, safe staging/hash/install pipeline and update-channel semantics are preserved.
+
+No Path Conversion behavior is touched; alpha.3.35 native row alignment and the validated alpha.3.34 DPI-bucketed selector remain frozen. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.66`.
+
 ## v0.8.0-alpha.3.35 — Path Conversion Row Alignment Fix
 
 Alpha 3.35 closes the result-row alignment issue found during real-Windows validation after the selector itself passed in alpha.3.34.

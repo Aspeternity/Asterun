@@ -292,6 +292,16 @@ private:
     void HandleEverythingBootstrapCompleted(
         std::uint64_t generation);
     void StopManagedEverythingLifecycle();
+    static LRESULT CALLBACK
+    UpdateDispatchWindowProc(
+        HWND hwnd,
+        UINT message,
+        WPARAM wParam,
+        LPARAM lParam);
+    bool CreateUpdateDispatchWindow();
+    void DestroyUpdateDispatchWindow();
+    void PostUpdateStatusNotification(
+        std::uint64_t generation);
     void HandleUpdateStatusMessage(
         std::uint64_t generation);
     void StartUpdateReconcileTimer();
@@ -360,6 +370,7 @@ private:
     std::uint64_t
         everythingBootstrapGeneration_{0};
 
+    HWND updateDispatchWindow_{};
     mutable std::mutex
         updateMutex_;
     win::UpdateSnapshot
