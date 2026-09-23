@@ -187,7 +187,7 @@ if version == "0.8.0-alpha.4.8":
         if token not in launcher:
             fail(f"v0.8 alpha.4.8 Launcher DPI wiring missing: {token}")
 
-    launcher_compact = re.sub(r"\\s+", "", launcher)
+    launcher_compact = re.sub(r"\s+", "", launcher)
     if "classicDpiMetrics_.dragHeight" not in launcher_compact:
         fail("v0.8 alpha.4.8 cached Classic drag-height wiring missing")
 
