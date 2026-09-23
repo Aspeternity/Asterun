@@ -510,19 +510,6 @@ void LauncherWindow::CreateChildren() {
         instance_,
         nullptr);
 
-    hint_ = CreateWindowExW(
-        0,
-        L"STATIC",
-        L"",
-        WS_CHILD | WS_VISIBLE |
-            SS_OWNERDRAW |
-            SS_NOPREFIX,
-        0, 0, 0, 0,
-        hwnd_,
-        reinterpret_cast<HMENU>(1004),
-        instance_,
-        nullptr);
-
     list_ = CreateWindowExW(
         0,
         L"LISTBOX",
@@ -554,11 +541,11 @@ void LauncherWindow::CreateChildren() {
 
     classicPreview_ = CreateWindowExW(
         0,
-        L"EDIT",
+        L"STATIC",
         L"",
         WS_CHILD | WS_VISIBLE |
-            ES_AUTOHSCROLL |
-            ES_READONLY,
+            SS_OWNERDRAW |
+            SS_NOPREFIX,
         0, 0, 0, 0,
         hwnd_,
         reinterpret_cast<HMENU>(1005),
@@ -658,7 +645,6 @@ void LauncherWindow::ApplyFonts() {
             dpi_);
 
     SendMessageW(edit_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
-    SendMessageW(hint_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
     SendMessageW(list_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
     SendMessageW(preview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
     SendMessageW(classicPreview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
@@ -667,7 +653,6 @@ void LauncherWindow::ApplyFonts() {
 
 void LauncherWindow::UpdateControlFrames() {
     if (!edit_ ||
-        !hint_ ||
         !list_ ||
         !preview_ ||
         !classicPreview_) {
@@ -712,9 +697,6 @@ void LauncherWindow::UpdateControlFrames() {
             preview_,
             0);
         setFrame(
-            hint_,
-            0);
-        setFrame(
             classicPreview_,
             0);
 
@@ -734,13 +716,11 @@ void LauncherWindow::UpdateControlFrames() {
     }
 
     setFrame(edit_, 0);
-    setFrame(hint_, 0);
     setFrame(list_, 0);
     setFrame(preview_, 0);
     setFrame(classicPreview_, 0);
 
     SetWindowTheme(edit_, L"", L"");
-    SetWindowTheme(hint_, L"", L"");
     SetWindowTheme(list_, L"", L"");
     SetWindowTheme(
         classicPreview_,
@@ -868,11 +848,6 @@ void LauncherWindow::ApplyAppearance() {
     ApplyFonts();
 
     ShowWindow(
-        hint_,
-        IsModern()
-            ? SW_HIDE
-            : SW_SHOWNA);
-    ShowWindow(
         preview_,
         IsModern()
             ? SW_SHOWNA
@@ -885,12 +860,10 @@ void LauncherWindow::ApplyAppearance() {
 
     Layout();
     UpdateWindowChrome();
-    UpdateHint();
     RefreshResults();
 
     InvalidateRect(hwnd_, nullptr, TRUE);
     InvalidateRect(edit_, nullptr, TRUE);
-    InvalidateRect(hint_, nullptr, TRUE);
     InvalidateRect(list_, nullptr, TRUE);
     InvalidateRect(preview_, nullptr, TRUE);
     InvalidateRect(
@@ -931,13 +904,11 @@ void LauncherWindow::ApplyLanguage() {
             IsModern() ? app_.Text(TextId::SearchPlaceholder).data() : L""));
 
     ApplyFonts();
-    UpdateHint();
     UpdatePreview();
     Layout();
 
     InvalidateRect(hwnd_, nullptr, TRUE);
     InvalidateRect(edit_, nullptr, TRUE);
-    InvalidateRect(hint_, nullptr, TRUE);
     InvalidateRect(list_, nullptr, TRUE);
     InvalidateRect(preview_, nullptr, TRUE);
     InvalidateRect(
@@ -1007,13 +978,6 @@ void LauncherWindow::Layout() {
             inputHeight,
             TRUE);
         MoveWindow(
-            hint_,
-            0,
-            0,
-            0,
-            0,
-            FALSE);
-        MoveWindow(
             list_,
             margin,
             margin +
@@ -1070,14 +1034,12 @@ void LauncherWindow::Layout() {
         DpiScale(22),
         TRUE);
 
-    UpdateClassicHintLayout();
-
     MoveWindow(
         list_,
         DpiScale(8),
         DpiScale(56),
         DpiScale(404),
-        DpiScale(160),
+        DpiScale(164),
         TRUE);
 
     MoveWindow(
@@ -1498,137 +1460,6 @@ void LauncherWindow::Hide() {
     if (hwnd_) {
         ShowWindow(hwnd_, SW_HIDE);
     }
-}
-
-void LauncherWindow::UpdateHint() {
-    if (!hint_) return;
-
-    SetWindowTextW(
-        hint_,
-        IsModern()
-            ? L""
-            : app_.Text(
-                  TextId::ClassicHint)
-                  .data());
-
-    UpdateClassicHintLayout();
-
-    if (!IsModern()) {
-        InvalidateRect(
-            hint_,
-            nullptr,
-            TRUE);
-    }
-}
-
-void LauncherWindow::UpdateClassicHintLayout() {
-    if (!hint_ || !edit_) {
-        return;
-    }
-
-    if (IsModern()) {
-        ShowWindow(
-            hint_,
-            SW_HIDE);
-        return;
-    }
-
-    constexpr int
-        kHintOriginalLeftLogical = 82;
-    constexpr int
-        kHintTopLogical = 35;
-    constexpr int
-        kHintRightLogical = 410;
-    constexpr int
-        kHintHeightLogical = 14;
-    constexpr int
-        kHintGapLogical = 8;
-    constexpr int
-        kHintMinWidthLogical = 104;
-
-    const std::wstring query =
-        CurrentQuery();
-
-    SIZE querySize{};
-
-    if (!query.empty()) {
-        HDC dc =
-            GetDC(edit_);
-
-        if (dc) {
-            HGDIOBJ oldFont =
-                SelectObject(
-                    dc,
-                    normalFont_);
-
-            GetTextExtentPoint32W(
-                dc,
-                query.c_str(),
-                static_cast<int>(
-                    query.size()),
-                &querySize);
-
-            SelectObject(
-                dc,
-                oldFont);
-            ReleaseDC(
-                edit_,
-                dc);
-        }
-    }
-
-    const LRESULT margins =
-        SendMessageW(
-            edit_,
-            EM_GETMARGINS,
-            0,
-            0);
-
-    const int editLeft =
-        DpiScale(8);
-    const int leftMargin =
-        std::max(
-            static_cast<int>(
-                LOWORD(margins)),
-            DpiScale(2));
-
-    const int desiredLeft =
-        std::max(
-            DpiScale(
-                kHintOriginalLeftLogical),
-            editLeft +
-                leftMargin +
-                static_cast<int>(
-                    querySize.cx) +
-                DpiScale(
-                    kHintGapLogical));
-
-    const int right =
-        DpiScale(
-            kHintRightLogical);
-    const int minWidth =
-        DpiScale(
-            kHintMinWidthLogical);
-
-    if (desiredLeft >
-        right - minWidth) {
-        ShowWindow(
-            hint_,
-            SW_HIDE);
-        return;
-    }
-
-    SetWindowPos(
-        hint_,
-        HWND_TOP,
-        desiredLeft,
-        DpiScale(
-            kHintTopLogical),
-        right - desiredLeft,
-        DpiScale(
-            kHintHeightLogical),
-        SWP_NOACTIVATE |
-            SWP_SHOWWINDOW);
 }
 
 std::wstring LauncherWindow::CurrentQuery() const {
@@ -3234,9 +3065,7 @@ LRESULT LauncherWindow::HandleMessage(
                     0);
             }
 
-            UpdateClassicHintLayout();
-
-            // IME composition can emit intermediate EN_CHANGE events.
+                    // IME composition can emit intermediate EN_CHANGE events.
             // Search may update live, but single-result auto execution must
             // wait until composition is committed.
             RefreshResults(
@@ -3383,19 +3212,6 @@ LRESULT LauncherWindow::HandleMessage(
             reinterpret_cast<HDC>(
                 wParam);
 
-        if (!IsModern() &&
-            control ==
-                classicPreview_) {
-            SetTextColor(
-                dc,
-                RGB(128, 128, 128));
-            SetBkColor(
-                dc,
-                palette.bottomBackground);
-            return reinterpret_cast<LRESULT>(
-                bottomBrush_);
-        }
-
         if (control ==
             preview_) {
             SetTextColor(
@@ -3416,29 +3232,29 @@ LRESULT LauncherWindow::HandleMessage(
             reinterpret_cast<DRAWITEMSTRUCT*>(
                 lParam);
 
-        if (item->CtlID == 1004 &&
+        if (item->CtlID == 1005 &&
             !IsModern()) {
             FillRect(
                 item->hDC,
                 &item->rcItem,
-                accentBrush_);
+                bottomBrush_);
 
             const int length =
                 GetWindowTextLengthW(
-                    hint_);
-            std::wstring hintText(
+                    classicPreview_);
+            std::wstring commandText(
                 static_cast<std::size_t>(
                     length) + 1,
                 L'\0');
 
             if (length > 0) {
                 GetWindowTextW(
-                    hint_,
-                    hintText.data(),
+                    classicPreview_,
+                    commandText.data(),
                     length + 1);
             }
 
-            hintText.resize(
+            commandText.resize(
                 static_cast<std::size_t>(
                     length));
 
@@ -3463,13 +3279,12 @@ LRESULT LauncherWindow::HandleMessage(
 
             DrawTextW(
                 item->hDC,
-                hintText.c_str(),
+                commandText.c_str(),
                 -1,
                 &textRect,
                 DT_SINGLELINE |
-                    DT_RIGHT |
                     DT_VCENTER |
-                    DT_END_ELLIPSIS |
+                    DT_PATH_ELLIPSIS |
                     DT_NOPREFIX);
 
             SelectObject(

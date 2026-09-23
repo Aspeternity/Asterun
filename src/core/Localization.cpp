@@ -20,8 +20,6 @@ std::wstring_view LocalizedText(TextId id, Language language) {
             : L"Alt+Space is already in use by another application.\n\nALTRun Next will keep running in the tray; hotkey customization will be added next.";
     case TextId::SearchPlaceholder:
         return zh ? L"输入快捷词、程序名或路径…" : L"Type a keyword, app name, or path...";
-    case TextId::ClassicHint:
-        return zh ? L"按下Shift+Tab键显示上一项快捷项" : L"Press Shift+Tab to show the previous item";
     case TextId::CommandPrefix:
         return zh ? L"命令：" : L"Command: ";
     case TextId::TrayShow:

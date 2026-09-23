@@ -42,6 +42,248 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.6":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.6 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.6 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    localization_h = read("src/core/Localization.hpp")
+    localization_cpp = read("src/core/Localization.cpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    resources = read("src/resources.rc")
+    cmake = read("CMakeLists.txt")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    # Hint is intentionally gone, not hidden. Keep this as a hard cleanup
+    # contract so future Classic work cannot quietly rebuild dead overlay code.
+    for forbidden in (
+        "hint_",
+        "UpdateHint",
+        "UpdateClassicHintLayout",
+        "TextId::ClassicHint",
+        "reinterpret_cast<HMENU>(1004)",
+        "item->CtlID == 1004",
+        "kHintOriginalLeftLogical",
+        "kHintMinWidthLogical",
+    ):
+        if forbidden in launcher or forbidden in launcher_h:
+            fail(f"v0.8 alpha.4.6 stale Hint launcher code survived: {forbidden}")
+
+    if "ClassicHint" in localization_h or "ClassicHint" in localization_cpp:
+        fail("v0.8 alpha.4.6 ClassicHint localization entry must be deleted")
+
+    # Input stays deliberately clean and owns the whole Classic strip.
+    for token in (
+        "MoveWindow(\n        edit_,\n        DpiScale(8),\n        DpiScale(30),\n        DpiScale(404),\n        DpiScale(22)",
+        'EM_SETCUEBANNER,\n        TRUE,\n        reinterpret_cast<LPARAM>(\n            IsModern() ? app_.Text(TextId::SearchPlaceholder).data() : L"")',
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.6 clean input contract missing: {token}")
+
+    # Correct the source geometry rather than compensating with another line.
+    for token in (
+        "MoveWindow(\n        list_,\n        DpiScale(8),\n        DpiScale(56),\n        DpiScale(404),\n        DpiScale(164)",
+        "MoveWindow(\n        classicPreview_,\n        DpiScale(8),\n        DpiScale(226),\n        DpiScale(404),\n        DpiScale(16)",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.6 bottom geometry contract missing: {token}")
+
+    if "DpiScale(160),\n        TRUE);\n\n    MoveWindow(\n        preview_" in launcher:
+        fail("v0.8 alpha.4.6 old 160px Classic ListBox geometry survived")
+
+    # Command line is display-only owner draw with native path-aware middle
+    # ellipsis. No extra helper library is needed.
+    for token in (
+        "classicPreview_ = CreateWindowExW(",
+        'L"STATIC"',
+        "SS_OWNERDRAW",
+        "reinterpret_cast<HMENU>(1005)",
+        "item->CtlID == 1005",
+        "bottomBrush_",
+        "auxiliaryFont_",
+        "RGB(128, 128, 128)",
+        "DT_SINGLELINE",
+        "DT_VCENTER",
+        "DT_PATH_ELLIPSIS",
+        "DT_NOPREFIX",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.6 command ellipsis contract missing: {token}")
+
+    for forbidden in (
+        "ES_AUTOHSCROLL |\n            ES_READONLY",
+        "PathCompactPath",
+    ):
+        if forbidden in launcher:
+            fail(f"v0.8 alpha.4.6 old/heavier command path survived: {forbidden}")
+
+    if "shlwapi" in cmake.lower():
+        fail("v0.8 alpha.4.6 must not add shlwapi just for command text compaction")
+
+    # Preserve Classic+ fixed columns and full-fidelity colors.
+    for token in (
+        "numberColumnLogical = 23",
+        "shortcutColumnLogical = 230",
+        "classicTextFlags",
+        "DT_END_ELLIPSIS",
+        "CreatePen(\n                PS_SOLID,\n                1,",
+        "        255,\n        LWA_ALPHA",
+        "IDR_CLASSIC_BACKGROUND",
+        "DpiScale(420)",
+        "DpiScale(250)",
+        "DpiScale(12)",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.6 Classic+ baseline regressed: {token}")
+
+    for token in (
+        "kClassicLauncherPrimaryLogicalHeight96 = -16",
+        "kClassicLauncherAuxiliaryLogicalHeight96 = -13",
+        'L"SimSun"',
+        "ANSI_CHARSET",
+        "DEFAULT_QUALITY",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.6 Classic font baseline regressed: {token}")
+
+    for token in (
+        'IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"',
+        'IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"',
+        'IDR_CLASSIC_BACKGROUND RCDATA "resources/classic_bg.jpg"',
+        "FILEVERSION 0,8,0,76",
+        "PRODUCTVERSION 0,8,0,76",
+        "0.8.0-alpha.4.6",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.4.6 resource/version contract missing: {token}")
+
+    for token in (
+        "kClassicLauncherMetrics{\n        420,\n        16,\n        10,",
+        "kModernCompactLauncherMetrics{\n        620,\n        32,\n        9,",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.6 launcher metrics regressed: {token}")
+
+    # Modern Compact and mature alpha.3 foundations remain frozen.
+    for token in (
+        "const int margin =\n            DpiScale(12);",
+        "const int inputHeight =\n            DpiScale(36);",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.6 Modern/performance contract regressed: {token}")
+
+    for token in ("NM_CLICK", "NM_DBLCLK", "ToggleResultRowSelection("):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.6 Path Conversion rapid-click regression: {token}")
+
+    for token in ("BN_CLICKED", "BN_DOUBLECLICKED", "toggleActivated", "ToggleAdvanced();"):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.6 Shortcut Editor rapid-click regression: {token}")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.6 updater architecture regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.4.5"',
+        '"0.8.0-alpha.4.6"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.6 update ordering/default coverage missing: {token}")
+
+    version_script = read("scripts/verify_version.py")
+    package_script = read("scripts/verify_package.ps1")
+    for token in (
+        "revision = 70 + (channel_number - 4) * 100 + channel_patch",
+        "revision = 10000 + channel_number",
+        "revision = 20000 + channel_number",
+        "revision = 30000",
+    ):
+        if token not in version_script:
+            fail(f"v0.8 alpha.4.6 Python fixed-version mapping missing: {token}")
+    for token in (
+        "(($channelNumber - 4) * 100)",
+        "$revision = 10000 + $channelNumber",
+        "$revision = 20000 + $channelNumber",
+        "$revision = 30000",
+    ):
+        if token not in package_script:
+            fail(f"v0.8 alpha.4.6 package fixed-version mapping missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "Classic Input Cleanup & Bottom Bar Hardening",
+        "0.8.0.76",
+        "removed completely",
+        "160 to 164 logical pixels",
+        "DT_PATH_ELLIPSIS",
+        "No additional text-layout library",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.6 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.4.6",
+        "0.8.0.76",
+        "Hint implementation completely",
+        "404×160 to 404×164",
+        "DT_PATH_ELLIPSIS",
+        "no new runtime library",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.6 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.6",
+        "removes the Classic Hint architecture completely",
+        "404×164",
+        "DT_PATH_ELLIPSIS",
+        "Modern Compact refinement follows",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.6 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.6 Classic cleanup verified:",
+        "| Hint code/localization fully deleted",
+        "| ListBox 404x164",
+        "| owner-drawn command DT_PATH_ELLIPSIS",
+        "| no new helper dependency",
+        "| Modern/search/providers/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.5":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

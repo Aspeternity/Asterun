@@ -13,7 +13,6 @@ enum class TextId {
     CopyTextAction,
     HotkeyBusy,
     SearchPlaceholder,
-    ClassicHint,
     CommandPrefix,
     TrayShow,
     TrayReload,

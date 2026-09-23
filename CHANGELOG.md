@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.4.6
+
+- Kept Classic+ as an interpretation of ALTRun rather than a literal port: retain the useful visual identity while preferring simpler current Win32 code and lower maintenance cost.
+- Removed the Classic Hint implementation completely. Deleted the Hint HWND, creation path, font/frame/theme handling, layout/update code, WM_DRAWITEM branch, control ID 1004 path and `TextId::ClassicHint` localization entry instead of leaving hidden dead code.
+- Corrected the Classic ListBox geometry from **404×160 to 404×164** at y=56. Ten 16px rows remain unchanged; the four extra client pixels restore the intended six-pixel skin band above the command bar.
+- Replaced the Classic read-only command Edit with an owner-drawn STATIC at **8,226 / 404×16**.
+- Rendered the command line with the existing auxiliary font and one native `DrawTextW` call using `DT_PATH_ELLIPSIS`, preserving the path beginning and final component while compacting the middle.
+- Added no new runtime library or shell helper dependency for command compaction; the implementation remains GDI/Win32-only and lightweight.
+- Preserved alpha.4.5 fixed x=23/x=230 result columns, full-opacity Classic colors, original authorized skin/glyph assets, Modern Compact, providers/Everything, updater and shared presentation architecture.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.76`.
+
 ## 0.8.0-alpha.4.5
 
 - Started the Classic+ phase: retain original ALTRun visual identity where it is beneficial, but remove legacy rendering behavior that reduces readability or breaks with modern result data.

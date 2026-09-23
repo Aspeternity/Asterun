@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.4.6 — Classic Input Cleanup & Bottom Bar Hardening
+
+Alpha.4.6 reinforces the Classic+ direction: ALTRun Next borrows the strongest parts of the old launcher's visual language, but does not preserve obsolete UI machinery when a simpler native implementation is cleaner, faster and easier to maintain.
+
+The Classic input strip is now intentionally **clean and text-only**. The alpha.4.5 Hint overlay is removed completely rather than hidden: there is no Hint child HWND, no Hint layout/update path, no owner-draw Hint branch and no `ClassicHint` localization entry left in the launcher code. The search Edit simply owns the full original **8,30 / 404×22** input area.
+
+The Classic result ListBox height is corrected from **160 to 164 logical pixels**, matching the original skin geometry. Ten 16-pixel result rows still occupy 160 pixels; the remaining four pixels stay inside the white ListBox client, leaving only the intended six-pixel skin band before the command bar at y=226. This removes the visually heavy line above `命令=` without changing result density.
+
+The Classic command line is no longer a read-only Edit that hard-clips long paths. It is a lightweight owner-drawn STATIC at **8,226 / 404×16**, using the existing -13 SimSun auxiliary font and MoneyGreen background. A single native `DrawTextW` call with `DT_PATH_ELLIPSIS` keeps the beginning and final path component visible while compacting the middle. No additional text-layout library or runtime dependency is introduced.
+
+Classic keeps the alpha.4.5 fixed 23/230 logical result columns, full-opacity color fidelity, authorized BG/Logo/Close assets and 420×250 shell. Modern Compact, providers, Everything, ranking, result-icon loading, context actions, updater and top-level presentation remain unchanged. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.76`.
+
 ## v0.8.0-alpha.4.5 — Classic+ Rendering & Column Hardening
 
 Alpha.4.5 is the first deliberate Classic+ pass: it keeps the original authorized skin, 420×250 geometry, 16-pixel row density, SimSun metrics and classic interaction model, but stops carrying forward original rendering limitations that hurt readability or break under modern result data.

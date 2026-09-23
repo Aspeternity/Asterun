@@ -75,8 +75,6 @@ private:
     void PaintClassicTitleBar(HDC dc, const RECT& client);
     void PaintClassicLogo(HDC dc, int x, int y);
     void PaintClassicClose(HDC dc, const RECT& rect);
-    void UpdateHint();
-    void UpdateClassicHintLayout();
     void UpdatePreview();
 
     struct ResultIconCacheEntry {
@@ -149,7 +147,6 @@ private:
     HINSTANCE instance_{};
     HWND hwnd_{};
     HWND edit_{};
-    HWND hint_{};
     HWND list_{};
     HWND preview_{};
     HWND classicPreview_{};
