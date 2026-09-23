@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.30 — Systematic Top-Level Window Presentation
+
+Alpha 3.30 responds to the Shortcut Editor upper-left flash by auditing the full custom top-level window surface rather than adding another window-specific workaround.
+
+The audit covers the five ALTRun Next-owned user-visible top-level windows: **Launcher, Settings, Shortcut Manager, Shortcut Editor and Path Conversion**. Settings and Shortcut Manager already had hardened first-frame behavior, while Launcher, Shortcut Editor and Path Conversion still contained legacy `CW_USEDEFAULT` creation paths that could leave a cached/default USER32 birth rectangle for DWM to expose during a later show.
+
+A new shared `TopLevelWindowPresentation` module now owns the common presentation contract: target-monitor DPI probing, owner/work-area centering for owned popups, forced-off DWM show/hide transitions, cloaked first reveal with synchronous full-frame/child painting and flush, and cloak-before-destroy hiding. Settings and Shortcut Manager have been migrated away from their private copies of the DWM barrier so future fixes apply consistently.
+
+Shortcut Editor now starts at a safe owner/monitor-resolved rectangle instead of `CW_USEDEFAULT`. Its content-dependent final height is calculated while hidden, the final window is re-centered, and only the completed frame is revealed. Path Conversion uses the same lifecycle for its fixed logical geometry. Launcher also receives an explicit safe birth rectangle and uses the shared reveal barrier only for its first presentation; repeated launcher invocations remain on the existing low-latency show path.
+
+Windows-owned modal UI such as MessageBox and IFileOpenDialog is intentionally outside this custom HWND policy because its creation/presentation lifecycle is controlled by the OS.
+
+Settings schema remains **9**. Shortcut Manager's default-size reset and 16/24/14/46 column policy, Shortcut Editor behavior and update hardening are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.60`.
+
 ## v0.8.0-alpha.3.29 — Window Placement & Presentation Hardening
 
 Alpha 3.29 is a real-Windows corrective pass over the unified placement work in alpha.3.28.

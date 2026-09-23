@@ -1,5 +1,6 @@
 #include "ShortcutEditorDialog.hpp"
 
+#include "TopLevelWindowPresentation.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
@@ -434,10 +435,7 @@ ShortcutEditorDialog::ShortcutEditorDialog(
       owner_(owner) {}
 
 ShortcutEditorDialog::~ShortcutEditorDialog() {
-    if (hwnd_ &&
-        IsWindow(hwnd_)) {
-        DestroyWindow(hwnd_);
-    }
+    CloseWindow();
 
     if (font_) {
         DeleteObject(font_);
@@ -458,6 +456,18 @@ ShortcutEditorDialog::~ShortcutEditorDialog() {
         DeleteObject(footerBrush_);
         footerBrush_ = nullptr;
     }
+}
+
+void ShortcutEditorDialog::CloseWindow() {
+    if (!hwnd_ ||
+        !IsWindow(hwnd_)) {
+        return;
+    }
+
+    window_presentation::
+        HideForDestroy(
+            hwnd_);
+    DestroyWindow(hwnd_);
 }
 
 bool ShortcutEditorDialog::Show(
@@ -557,6 +567,14 @@ bool ShortcutEditorDialog::Create(
         return false;
     }
 
+    const auto creation =
+        window_presentation::
+            ResolveOwnedPopupGeometry(
+                owner_,
+                instance_,
+                kEditorWidthLogical,
+                kInitialEditorHeightLogical);
+
     hwnd_ = CreateWindowExW(
         WS_EX_DLGMODALFRAME |
             WS_EX_CONTROLPARENT,
@@ -566,10 +584,12 @@ bool ShortcutEditorDialog::Create(
             WS_CAPTION |
             WS_SYSMENU |
             WS_CLIPCHILDREN,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        kEditorWidthLogical,
-        kInitialEditorHeightLogical,
+        creation.outer.left,
+        creation.outer.top,
+        creation.outer.right -
+            creation.outer.left,
+        creation.outer.bottom -
+            creation.outer.top,
         owner_,
         nullptr,
         instance_,
@@ -578,6 +598,9 @@ bool ShortcutEditorDialog::Create(
     if (!hwnd_) {
         return false;
     }
+
+    window_presentation::Configure(
+        hwnd_);
 
     dpi_ = GetDpiForWindow(hwnd_);
 
@@ -594,34 +617,13 @@ bool ShortcutEditorDialog::Create(
     ResizeForContent();
     Layout();
 
-    RECT ownerRect{};
-    RECT rect{};
-    GetWindowRect(hwnd_, &rect);
-
-    if (owner_ &&
-        GetWindowRect(owner_, &ownerRect)) {
-        const int width =
-            rect.right - rect.left;
-        const int height =
-            rect.bottom - rect.top;
-
-        SetWindowPos(
+    // Content-dependent height is resolved while hidden. Re-center the final
+    // physical rectangle through the shared owned-popup policy before any
+    // compositor-visible frame can exist.
+    window_presentation::
+        CenterExistingWindow(
             hwnd_,
-            nullptr,
-            ownerRect.left +
-                ((ownerRect.right -
-                  ownerRect.left -
-                  width) / 2),
-            ownerRect.top +
-                ((ownerRect.bottom -
-                  ownerRect.top -
-                  height) / 2),
-            0,
-            0,
-            SWP_NOSIZE |
-                SWP_NOZORDER |
-                SWP_NOACTIVATE);
-    }
+            owner_);
 
     return true;
 }
@@ -631,7 +633,10 @@ bool ShortcutEditorDialog::RunModal() {
         EnableWindow(owner_, FALSE);
     }
 
-    ShowWindow(hwnd_, SW_SHOW);
+    window_presentation::
+        RevealFullyPainted(
+            hwnd_,
+            SW_SHOW);
     SetForegroundWindow(hwnd_);
     SetFocus(keyword_);
 
@@ -3026,7 +3031,7 @@ bool ShortcutEditorDialog::Save() {
     }
 
     changed_ = true;
-    DestroyWindow(hwnd_);
+    CloseWindow();
     return true;
 }
 
@@ -3732,7 +3737,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         case kIdCancel:
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
-                DestroyWindow(hwnd_);
+                CloseWindow();
             }
             return 0;
 
@@ -3742,7 +3747,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
 
     case WM_CLOSE:
-        DestroyWindow(hwnd_);
+        CloseWindow();
         return 0;
 
     case WM_NCDESTROY:

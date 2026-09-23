@@ -1,5 +1,6 @@
 #include "ShortcutPathConverterDialog.hpp"
 
+#include "TopLevelWindowPresentation.hpp"
 #include "UiMetrics.hpp"
 #include "UiTypography.hpp"
 
@@ -45,10 +46,7 @@ ShortcutPathConverterDialog(
 
 ShortcutPathConverterDialog::
 ~ShortcutPathConverterDialog() {
-    if (hwnd_ &&
-        IsWindow(hwnd_)) {
-        DestroyWindow(hwnd_);
-    }
+    CloseWindow();
 
     if (font_) {
         DeleteObject(font_);
@@ -59,6 +57,19 @@ ShortcutPathConverterDialog::
         DeleteObject(groupFont_);
         groupFont_ = nullptr;
     }
+}
+
+void ShortcutPathConverterDialog::
+CloseWindow() {
+    if (!hwnd_ ||
+        !IsWindow(hwnd_)) {
+        return;
+    }
+
+    window_presentation::
+        HideForDestroy(
+            hwnd_);
+    DestroyWindow(hwnd_);
 }
 
 bool ShortcutPathConverterDialog::Show(
@@ -130,6 +141,14 @@ bool ShortcutPathConverterDialog::Create() {
         return false;
     }
 
+    const auto creation =
+        window_presentation::
+            ResolveOwnedPopupGeometry(
+                owner_,
+                instance_,
+                1100,
+                650);
+
     hwnd_ = CreateWindowExW(
         WS_EX_DLGMODALFRAME |
             WS_EX_CONTROLPARENT,
@@ -140,10 +159,12 @@ bool ShortcutPathConverterDialog::Create() {
             WS_SYSMENU |
             WS_THICKFRAME |
             WS_CLIPCHILDREN,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        1100,
-        650,
+        creation.outer.left,
+        creation.outer.top,
+        creation.outer.right -
+            creation.outer.left,
+        creation.outer.bottom -
+            creation.outer.top,
         owner_,
         nullptr,
         instance_,
@@ -153,52 +174,20 @@ bool ShortcutPathConverterDialog::Create() {
         return false;
     }
 
-    dpi_ = GetDpiForWindow(hwnd_);
+    window_presentation::Configure(
+        hwnd_);
 
-    SetWindowPos(
-        hwnd_,
-        nullptr,
-        0,
-        0,
-        Scale(1100),
-        Scale(650),
-        SWP_NOMOVE |
-            SWP_NOZORDER |
-            SWP_NOACTIVATE);
+    dpi_ = GetDpiForWindow(hwnd_);
 
     CreateControls();
     ApplyLanguage();
     Layout();
     Scan();
 
-    RECT ownerRect{};
-    RECT rect{};
-    GetWindowRect(hwnd_, &rect);
-
-    if (owner_ &&
-        GetWindowRect(owner_, &ownerRect)) {
-        const int width =
-            rect.right - rect.left;
-        const int height =
-            rect.bottom - rect.top;
-
-        SetWindowPos(
+    window_presentation::
+        CenterExistingWindow(
             hwnd_,
-            nullptr,
-            ownerRect.left +
-                ((ownerRect.right -
-                  ownerRect.left -
-                  width) / 2),
-            ownerRect.top +
-                ((ownerRect.bottom -
-                  ownerRect.top -
-                  height) / 2),
-            0,
-            0,
-            SWP_NOSIZE |
-                SWP_NOZORDER |
-                SWP_NOACTIVATE);
-    }
+            owner_);
 
     return true;
 }
@@ -208,7 +197,10 @@ bool ShortcutPathConverterDialog::RunModal() {
         EnableWindow(owner_, FALSE);
     }
 
-    ShowWindow(hwnd_, SW_SHOW);
+    window_presentation::
+        RevealFullyPainted(
+            hwnd_,
+            SW_SHOW);
     SetForegroundWindow(hwnd_);
 
     MSG msg{};
@@ -1306,7 +1298,7 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
         case kIdClose:
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
-                DestroyWindow(hwnd_);
+                CloseWindow();
             }
             return 0;
 
@@ -1316,7 +1308,7 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
         break;
 
     case WM_CLOSE:
-        DestroyWindow(hwnd_);
+        CloseWindow();
         return 0;
 
     case WM_NCDESTROY:

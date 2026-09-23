@@ -42,6 +42,246 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.30":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.30 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.30 must keep provider-cache schemaVersion 2")
+
+    cmake = read("CMakeLists.txt")
+    presentation_h = read("src/ui/TopLevelWindowPresentation.hpp")
+    presentation_cpp = read("src/ui/TopLevelWindowPresentation.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    launcher_cpp = read("src/ui/LauncherWindow.cpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+
+    if "src/ui/TopLevelWindowPresentation.cpp" not in cmake:
+        fail("v0.8 alpha.3.30 must compile shared top-level presentation module")
+
+    for token in (
+        "struct CreationGeometry",
+        "SetCloaked(",
+        "Configure(",
+        "ProbeMonitorDpi(",
+        "ResolveOwnedPopupGeometry(",
+        "CenterExistingWindow(",
+        "RevealFullyPainted(",
+        "HideForDestroy(",
+    ):
+        if token not in presentation_h:
+            fail(f"v0.8 alpha.3.30 presentation declaration missing: {token}")
+
+    for token in (
+        "DWMWA_CLOAK",
+        "DWMWA_TRANSITIONS_FORCEDISABLED",
+        "DwmFlush();",
+        "ResolveOwnerOrCursorMonitor(",
+        "ClampRectToWorkArea(",
+        "ResolveWindowOrigin(",
+        "RDW_ALLCHILDREN",
+        "SWP_HIDEWINDOW",
+    ):
+        if token not in presentation_cpp:
+            fail(f"v0.8 alpha.3.30 presentation implementation missing: {token}")
+
+    custom_windows = {
+        "Launcher": launcher_cpp,
+        "Settings": settings_cpp,
+        "Shortcut Manager": manager_cpp,
+        "Shortcut Editor": editor_cpp,
+        "Path Conversion": path_cpp,
+    }
+
+    for name, source in custom_windows.items():
+        if "window_presentation::Configure(" not in source:
+            fail(f"v0.8 alpha.3.30 {name} must use shared Configure() presentation policy")
+        if "RevealFullyPainted(" not in source:
+            fail(f"v0.8 alpha.3.30 {name} must use shared first-frame reveal policy")
+
+    for name, source in (
+        ("Launcher", launcher_cpp),
+        ("Shortcut Editor", editor_cpp),
+        ("Path Conversion", path_cpp),
+    ):
+        if "CW_USEDEFAULT,\n        CW_USEDEFAULT" in source:
+            fail(f"v0.8 alpha.3.30 {name} real HWND must not be born at CW_USEDEFAULT")
+
+    for token in (
+        "firstRevealPending_{true}",
+    ):
+        if token not in launcher_h:
+            fail(f"v0.8 alpha.3.30 Launcher first-reveal state missing: {token}")
+
+    for token in (
+        "ResolveOwnedPopupGeometry(",
+        "firstRevealPending_ = false",
+        "RevealFullyPainted(",
+    ):
+        if token not in launcher_cpp:
+            fail(f"v0.8 alpha.3.30 Launcher presentation hardening missing: {token}")
+
+    for token in (
+        "void ShortcutEditorDialog::CloseWindow()",
+        "ResolveOwnedPopupGeometry(",
+        "CenterExistingWindow(",
+        "RevealFullyPainted(",
+        "HideForDestroy(",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.30 Shortcut Editor presentation hardening missing: {token}")
+
+    if "void CloseWindow();" not in editor_h:
+        fail("v0.8 alpha.3.30 Shortcut Editor must centralize close/teardown")
+
+    for token in (
+        "CloseWindow()",
+        "ResolveOwnedPopupGeometry(",
+        "CenterExistingWindow(",
+        "RevealFullyPainted(",
+        "HideForDestroy(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.30 Path Conversion presentation hardening missing: {token}")
+
+    if "void CloseWindow();" not in path_h:
+        fail("v0.8 alpha.3.30 Path Conversion must centralize close/teardown")
+
+    for token in (
+        "HideForDestroy(",
+        "RevealFullyPainted(",
+    ):
+        if token not in settings_cpp or token not in manager_cpp:
+            fail(f"v0.8 alpha.3.30 Settings/Manager must share common presentation primitive: {token}")
+
+    for forbidden in (
+        "SetSettingsDwmCloak",
+        "ConfigureSettingsDwmPresentation",
+    ):
+        if forbidden in settings_cpp:
+            fail(f"v0.8 alpha.3.30 Settings must not keep private DWM policy: {forbidden}")
+
+    for forbidden in (
+        "SetShortcutManagerDwmCloak",
+        "ConfigureShortcutManagerDwmPresentation",
+    ):
+        if forbidden in manager_cpp:
+            fail(f"v0.8 alpha.3.30 Manager must not keep private DWM policy: {forbidden}")
+
+    # Keep the placement/column/editor/update closeouts protected.
+    for token in (
+        "ResolveWindowOrigin(",
+        'settings.settingsPlacement ==\n                    "top"',
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.3.30 must preserve Settings placement repair: {token}")
+
+    for token in (
+        "kKeywordColumnPercent = 16",
+        "kNameColumnPercent = 24",
+        "kTypeColumnPercent = 14",
+        "kKeywordColumnMinimumLogical = 107",
+        "kNameColumnMinimumLogical = 161",
+        "kTypeColumnMinimumLogical = 94",
+        "kTargetColumnMinimumLogical = 180",
+        "RememberShortcutManagerPosition(",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.30 must preserve Manager column/placement closeout: {token}")
+
+    for token in (
+        "Deliberately do not draw ODS_FOCUS here",
+        "BCM_GETIDEALSIZE",
+        "kEditorWidthLogical = 590",
+        "kAdvancedRightInsetLogical = 18",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.30 must preserve Editor interaction/layout closeout: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp and token not in settings_cpp:
+            fail(f"v0.8 alpha.3.30 must preserve updater hardening: {token}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.30 must preserve schema-9 runtime smoke coverage: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.29"',
+        '"0.8.0-alpha.3.30"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.30 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.30 — Systematic Top-Level Window Presentation",
+        "0.8.0.60",
+        "Launcher, Settings, Shortcut Manager, Shortcut Editor and Path Conversion",
+        "TopLevelWindowPresentation",
+        "CW_USEDEFAULT",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.30 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.30",
+        "0.8.0.60",
+        "TopLevelWindowPresentation",
+        "Launcher, Settings, Shortcut Manager, Shortcut Editor and Path Conversion",
+        "CW_USEDEFAULT",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.30 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.30",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.30 systematic top-level presentation verified:",
+        "| five custom top-level windows share Configure/Reveal policy",
+        "| Launcher/Editor/Path no CW_USEDEFAULT birth rectangle",
+        "| Editor/Path owner-centered before reveal",
+        "| Settings/Manager private DWM copies removed",
+        "| schema9 + Manager columns + Editor/update closeouts preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.29":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

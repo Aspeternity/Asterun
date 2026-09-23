@@ -194,6 +194,7 @@ if(WIN32)
         src/ui/ShortcutEditorDialog.cpp
         src/ui/ShortcutManagerWindow.cpp
         src/ui/ShortcutPathConverterDialog.cpp
+        src/ui/TopLevelWindowPresentation.cpp
         src/ui/UiTypography.cpp
         src/resources.rc
         src/app.manifest

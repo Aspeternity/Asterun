@@ -9,6 +9,7 @@
 #include "../platform/ShellActions.hpp"
 #include "../platform/WinUtil.hpp"
 #include "ShortcutEditorDialog.hpp"
+#include "TopLevelWindowPresentation.hpp"
 #include "UiTypography.hpp"
 
 #include <windowsx.h>
@@ -259,21 +260,34 @@ bool LauncherWindow::Create() {
         return false;
     }
 
+    const auto creation =
+        window_presentation::
+            ResolveOwnedPopupGeometry(
+                nullptr,
+                instance_,
+                widthLogical_,
+                250);
+
     hwnd_ = CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
         kWindowClass,
         kWindowTitle,
         WS_POPUP | WS_BORDER,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        widthLogical_,
-        250,
+        creation.outer.left,
+        creation.outer.top,
+        creation.outer.right -
+            creation.outer.left,
+        creation.outer.bottom -
+            creation.outer.top,
         nullptr,
         nullptr,
         instance_,
         this);
 
     if (!hwnd_) return false;
+
+    window_presentation::Configure(
+        hwnd_);
 
     dpi_ = GetDpiForWindow(hwnd_);
     CreateChildren();
@@ -282,7 +296,8 @@ bool LauncherWindow::Create() {
     AddTrayIcon();
 
     RefreshResults();
-    ShowWindow(hwnd_, SW_HIDE);
+    Reposition();
+    firstRevealPending_ = true;
     return true;
 }
 
@@ -1232,7 +1247,19 @@ void LauncherWindow::Show() {
     }
 
     Reposition();
-    ShowWindow(hwnd_, SW_SHOWNORMAL);
+
+    if (firstRevealPending_) {
+        window_presentation::
+            RevealFullyPainted(
+                hwnd_,
+                SW_SHOWNORMAL);
+        firstRevealPending_ = false;
+    } else {
+        ShowWindow(
+            hwnd_,
+            SW_SHOWNORMAL);
+    }
+
     SetForegroundWindow(hwnd_);
     SetFocus(edit_);
     SendMessageW(edit_, EM_SETSEL, 0, -1);

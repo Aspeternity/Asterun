@@ -2,6 +2,7 @@
 
 #include "ShortcutEditorDialog.hpp"
 #include "ShortcutPathConverterDialog.hpp"
+#include "TopLevelWindowPresentation.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
@@ -14,7 +15,6 @@
 #include "../platform/WinClipboard.hpp"
 
 #include <commctrl.h>
-#include <dwmapi.h>
 #include <windowsx.h>
 
 #include <algorithm>
@@ -59,36 +59,6 @@ struct ShortcutManagerCreationGeometry {
     RECT outer{};
     UINT dpi{96};
 };
-
-[[nodiscard]] bool SetShortcutManagerDwmCloak(
-    HWND hwnd,
-    bool cloaked) {
-
-    const BOOL value =
-        cloaked
-            ? TRUE
-            : FALSE;
-
-    return SUCCEEDED(
-        DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_CLOAK,
-            &value,
-            sizeof(value)));
-}
-
-void ConfigureShortcutManagerDwmPresentation(
-    HWND hwnd) {
-
-    const BOOL disableTransitions =
-        TRUE;
-
-    DwmSetWindowAttribute(
-        hwnd,
-        DWMWA_TRANSITIONS_FORCEDISABLED,
-        &disableTransitions,
-        sizeof(disableTransitions));
-}
 
 [[nodiscard]] UINT ProbeShortcutManagerMonitorDpi(
     HINSTANCE instance,
@@ -417,27 +387,9 @@ CloseWindow() {
         return;
     }
 
-    const bool cloaked =
-        SetShortcutManagerDwmCloak(
-            hwnd_,
-            true);
-
-    if (cloaked) {
-        DwmFlush();
-    }
-
-    SetWindowPos(
-        hwnd_,
-        nullptr,
-        0,
-        0,
-        0,
-        0,
-        SWP_NOMOVE |
-            SWP_NOSIZE |
-            SWP_NOZORDER |
-            SWP_NOACTIVATE |
-            SWP_HIDEWINDOW);
+    window_presentation::
+        HideForDestroy(
+            hwnd_);
 
     DestroyWindow(hwnd_);
 }
@@ -504,7 +456,7 @@ bool ShortcutManagerWindow::Create() {
         return false;
     }
 
-    ConfigureShortcutManagerDwmPresentation(
+    window_presentation::Configure(
         hwnd_);
 
     dpi_ = GetDpiForWindow(hwnd_);
@@ -818,34 +770,10 @@ void ShortcutManagerWindow::Show(
         // compositor barrier and removes tray-open upper-left flashes.
         ApplyConfiguredPlacement();
 
-        const bool cloaked =
-            SetShortcutManagerDwmCloak(
+        window_presentation::
+            RevealFullyPainted(
                 hwnd_,
-                true);
-
-        ShowWindow(
-            hwnd_,
-            SW_SHOW);
-
-        RedrawWindow(
-            hwnd_,
-            nullptr,
-            nullptr,
-            RDW_INVALIDATE |
-                RDW_ERASE |
-                RDW_FRAME |
-                RDW_ALLCHILDREN |
-                RDW_UPDATENOW);
-
-        if (cloaked) {
-            DwmFlush();
-
-            SetShortcutManagerDwmCloak(
-                hwnd_,
-                false);
-
-            DwmFlush();
-        }
+                SW_SHOW);
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,

@@ -1,5 +1,6 @@
 #include "SettingsWindow.hpp"
 
+#include "TopLevelWindowPresentation.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
 
@@ -10,7 +11,6 @@
 
 #include <commctrl.h>
 #include <commdlg.h>
-#include <dwmapi.h>
 #include <shellapi.h>
 #include <shlobj.h>
 
@@ -44,44 +44,6 @@ struct SettingsCreationGeometry {
     RECT outer{};
     UINT dpi{96};
 };
-
-[[nodiscard]] bool SetSettingsDwmCloak(
-    HWND hwnd,
-    bool cloaked) {
-
-    const BOOL value =
-        cloaked
-            ? TRUE
-            : FALSE;
-
-    return SUCCEEDED(
-        DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_CLOAK,
-            &value,
-            sizeof(value)));
-}
-
-void ConfigureSettingsDwmPresentation(
-    HWND hwnd) {
-
-    // Settings is a short-lived utility window whose placement is entirely
-    // controlled by the app. Disable DWM show/hide transitions so Desktop
-    // Window Manager cannot animate from a cached/default representation.
-    const BOOL disableTransitions =
-        TRUE;
-
-    DwmSetWindowAttribute(
-        hwnd,
-        DWMWA_TRANSITIONS_FORCEDISABLED,
-        &disableTransitions,
-        sizeof(disableTransitions));
-
-    // Cloaking itself is acquired only by Show()/Close(). Keeping a hidden
-    // HWND permanently cloaked from Create() would make a rare uncloak API
-    // failure leave Settings invisible. The show path therefore treats cloak
-    // acquisition as an explicit, checked presentation barrier.
-}
 
 [[nodiscard]] UINT ProbeMonitorDpi(
     HINSTANCE instance,
@@ -510,7 +472,7 @@ bool SettingsWindow::Create() {
 
     if (!hwnd_) return false;
 
-    ConfigureSettingsDwmPresentation(
+    window_presentation::Configure(
         hwnd_);
 
     dpi_ = GetDpiForWindow(hwnd_);
@@ -6856,38 +6818,10 @@ void SettingsWindow::Show() {
         // child/non-client painting are complete.
         PositionForShow();
 
-        const bool cloaked =
-            SetSettingsDwmCloak(
+        window_presentation::
+            RevealFullyPainted(
                 hwnd_,
-                true);
-
-        ShowWindow(
-            hwnd_,
-            SW_SHOW);
-
-        RedrawWindow(
-            hwnd_,
-            nullptr,
-            nullptr,
-            RDW_INVALIDATE |
-                RDW_ERASE |
-                RDW_FRAME |
-                RDW_ALLCHILDREN |
-                RDW_UPDATENOW);
-
-        if (cloaked) {
-            // Submit the fully-painted cloaked frame first, then expose that
-            // exact representation. On Windows 10/11 this prevents a cached
-            // monitor-origin/default frame from being presented for a single
-            // compositor refresh.
-            DwmFlush();
-
-            SetSettingsDwmCloak(
-                hwnd_,
-                false);
-
-            DwmFlush();
-        }
+                SW_SHOW);
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,
@@ -8138,32 +8072,11 @@ LRESULT SettingsWindow::HandleMessage(
                 hwnd_,
                 &closingRect);
 
-        // Remove the window from DWM composition before changing USER32
-        // visibility or destroying the HWND. This closes the same compositor
-        // race as the first-frame barrier above: even if DWM still has an
-        // older redirect surface cached, it is cloaked before teardown can
-        // expose that representation.
-        const bool cloaked =
-            SetSettingsDwmCloak(
-                hwnd_,
-                true);
-
-        if (cloaked) {
-            DwmFlush();
-        }
-
-        SetWindowPos(
-            hwnd_,
-            nullptr,
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE |
-                SWP_NOSIZE |
-                SWP_NOZORDER |
-                SWP_NOACTIVATE |
-                SWP_HIDEWINDOW);
+        // Remove the window from composition before teardown through the
+        // shared top-level presentation policy used by every custom window.
+        window_presentation::
+            HideForDestroy(
+                hwnd_);
 
         CancelHotkeyCapture(false);
         CommitPendingProviderChanges();

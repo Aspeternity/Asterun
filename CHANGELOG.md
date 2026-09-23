@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.3.30
+
+- Audited every ALTRun Next-owned user-visible top-level window instead of patching the newly reported Shortcut Editor flash in isolation.
+- Added a shared `TopLevelWindowPresentation` policy for top-level HWND creation/presentation: monitor-DPI probing, owner/work-area centering, DWM transition suppression, cloaked fully-painted first reveal and cloak-before-destroy teardown.
+- Migrated **Launcher, Settings, Shortcut Manager, Shortcut Editor and Path Conversion** to the shared presentation barrier. The two previously hardened windows no longer keep private DWM implementations that can drift from the rest of the app.
+- Removed legacy `CW_USEDEFAULT` birth rectangles from the real Launcher, Shortcut Editor and Path Conversion HWNDs. Those were the remaining app-owned windows that could cache an upper-left/default USER32 rectangle before being moved.
+- Shortcut Editor now creates at an owner/monitor-resolved safe rectangle, resolves its content-dependent final height while hidden, re-centers the final rectangle, and only then reveals a fully painted cloaked frame.
+- Path Conversion now follows the same owned-popup lifecycle with its final 1100×650 logical geometry resolved before the real HWND is created.
+- Launcher now receives a safe explicit birth rectangle and uses the shared cloak/paint/flush barrier for its first reveal only; subsequent hotkey shows keep the existing lightweight fast path.
+- Settings and Shortcut Manager retain their specialized placement semantics but now use the same shared Configure/Reveal/Hide presentation primitives as the modal windows.
+- Native Windows-owned UI such as MessageBox and IFileOpenDialog remains system-managed; the audit specifically eliminates divergent lifecycle code from all custom top-level ALTRun Next windows.
+- Preserved settings schemaVersion 9, Shortcut Manager size/column rules, Shortcut Editor layout/behavior and updater hardening.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.60`.
+
 ## 0.8.0-alpha.3.29
 
 - Fixed Settings **靠近屏幕顶部** placement not taking effect after real-Windows validation of alpha.3.28.

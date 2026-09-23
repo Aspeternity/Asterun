@@ -60,6 +60,7 @@ private:
         LPARAM lParam);
 
     void CreateControls();
+    void CloseWindow();
     void ApplyLanguage();
     void Layout();
     void Scan();
