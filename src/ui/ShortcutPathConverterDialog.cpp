@@ -44,7 +44,6 @@ constexpr int kFieldColumnMinimumLogical = 100;
 constexpr int kCurrentColumnMinimumLogical = 180;
 constexpr int kConvertedColumnMinimumLogical = 180;
 constexpr int kStatusColumnMinimumLogical = 100;
-constexpr int kResultRowHeightLogical = 24;
 
 constexpr LPARAM kGroupHeaderItemParam =
     static_cast<LPARAM>(-1);
@@ -283,11 +282,6 @@ ShortcutPathConverterDialog::
         groupFont_ = nullptr;
     }
 
-    if (rowHeightImageList_) {
-        ImageList_Destroy(
-            rowHeightImageList_);
-        rowHeightImageList_ = nullptr;
-    }
 }
 
 void ShortcutPathConverterDialog::
@@ -613,22 +607,6 @@ void ShortcutPathConverterDialog::CreateControls() {
         LVS_EX_FULLROWSELECT |
             LVS_EX_DOUBLEBUFFER |
             LVS_EX_CHECKBOXES);
-
-    rowHeightImageList_ =
-        ImageList_Create(
-            1,
-            Scale(
-                kResultRowHeightLogical),
-            ILC_COLOR32,
-            1,
-            1);
-
-    if (rowHeightImageList_) {
-        ListView_SetImageList(
-            list_,
-            rowHeightImageList_,
-            LVSIL_SMALL);
-    }
 
     SetWindowTheme(
         list_,
@@ -2063,18 +2041,18 @@ void ShortcutPathConverterDialog::InsertPreviewRow(
     switch (rows_.back().field) {
     case Field::Target:
         fieldText =
-            T(L"    目标",
-              L"    Target");
+            T(L"目标",
+              L"Target");
         break;
     case Field::WorkingDirectory:
         fieldText =
-            T(L"    工作目录",
-              L"    Working directory");
+            T(L"工作目录",
+              L"Working directory");
         break;
     case Field::Icon:
         fieldText =
-            T(L"    自定义图标",
-              L"    Custom icon");
+            T(L"自定义图标",
+              L"Custom icon");
         break;
     }
 

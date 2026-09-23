@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.3.35
+
+- Fixed the Path Conversion result-row checkbox/text misalignment reported in real-Windows alpha.3.34 validation.
+- Removed the synthetic small-image-list row-height shim that forced a 24 logical-pixel report row. Explorer ListView now owns row height from the active font and native checkbox state-image metrics, keeping checkbox and text vertically centered together across DPI scales.
+- Removed the four leading spaces previously embedded in Target / Working directory / Custom icon labels; the native checkbox state-image slot now supplies the only first-column inset.
+- Kept the alpha.3.34 DPI-bucketed 4×4 coverage mode selector unchanged after it passed real-Windows clarity validation.
+- Preserved window geometry, 13/36/39/remainder columns, Header styling, flat actions, conversion semantics, settings schemaVersion 9, shared first-frame presentation and updater hardening.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.65`.
+
 ## 0.8.0-alpha.3.34
 
 - Reworked the Path Conversion mode selector again after alpha.3.33 real-Windows validation still showed a soft/unclear ring and center dot.

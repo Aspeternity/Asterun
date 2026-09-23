@@ -217,8 +217,9 @@ In progress:
 - v0.8.0-alpha.3.31 redesigns Path Conversion: compact mode cards, responsive path columns, explicit empty state, live selection/apply feedback and no redundant Close action
 - v0.8.0-alpha.3.32 closes the first Path Conversion visual-polish pass with flat buttons/header, lighter result framing and a balanced empty state
 - v0.8.0-alpha.3.33 performs the Path Conversion visual closeout pass with pixel-raster selector, 1px card emphasis, softer Header separators and slightly roomier result rows
-- v0.8.0-alpha.3.34 replaces the still-unclear selector with DPI-bucketed 4×4 coverage antialiasing rendered directly to final device pixels; all other Path Conversion UI/behavior stays frozen
-- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.34 real-Windows validation
+- v0.8.0-alpha.3.34 replaces the still-unclear selector with DPI-bucketed 4×4 coverage antialiasing rendered directly to final device pixels
+- v0.8.0-alpha.3.35 closes Path Conversion result-row alignment by returning row height/checkbox placement to native Explorer ListView metrics and removing redundant field-label indentation; the validated alpha.3.34 selector stays frozen
+- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.35 real-Windows validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

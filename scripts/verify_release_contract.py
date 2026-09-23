@@ -42,6 +42,212 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.35":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.35 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.35 must keep provider-cache schemaVersion 2")
+
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    presentation_cpp = read("src/ui/TopLevelWindowPresentation.cpp")
+    app_cpp = read("src/app/App.cpp")
+    settings_window_cpp = read("src/ui/SettingsWindow.cpp")
+
+    # Keep the alpha.3.34 selector exactly on the final device-pixel coverage path.
+    for token in (
+        "struct SelectorRasterTemplate",
+        "SelectorTemplateForDpi(",
+        "BlendSelectorPixel(",
+        "CircleCoverage(",
+        "DrawSelectorRaster(",
+        "kSamplesPerAxis = 4",
+        "return {15, 1.35, 5}",
+        "return {17, 1.45, 6}",
+        "return {19, 1.60, 7}",
+        "return {21, 1.75, 8}",
+        "return {23, 1.90, 9}",
+        "SetPixelV(",
+        "selected || focused",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.35 validated selector regressed: {token}")
+
+    for forbidden in (
+        "void FillCrispDisk(",
+        "OddPixelSize(",
+        "BP_RADIOBUTTON",
+        "RBS_CHECKEDNORMAL",
+        "RBS_UNCHECKEDNORMAL",
+        "DrawThemeBackground(",
+    ):
+        if forbidden in path_cpp:
+            fail(f"v0.8 alpha.3.35 obsolete selector renderer returned: {forbidden}")
+
+    # Row alignment must be native: no fake small-image-list height and no text padding.
+    for forbidden in (
+        "kResultRowHeightLogical",
+        "rowHeightImageList_",
+        'T(L"    目标"',
+        'L"    Target"',
+        'T(L"    工作目录"',
+        'L"    Working directory"',
+        'T(L"    自定义图标"',
+        'L"    Custom icon"',
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.35 artificial result-row layout remains: {forbidden}")
+
+    for token in (
+        "LVS_EX_CHECKBOXES",
+        'T(L"目标"',
+        'L"Target"',
+        'T(L"工作目录"',
+        'L"Working directory"',
+        'T(L"自定义图标"',
+        'L"Custom icon"',
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.35 native checkbox/field layout missing: {token}")
+
+    # Keep the rest of Path Conversion frozen.
+    for token in (
+        "kDefaultWidthLogical = 960",
+        "kDefaultHeightLogical = 560",
+        "kMinimumWidthLogical = 820",
+        "kMinimumHeightLogical = 480",
+        "kFieldColumnPercent = 13",
+        "kCurrentColumnPercent = 36",
+        "kConvertedColumnPercent = 39",
+        "kFieldColumnMinimumLogical = 100",
+        "kCurrentColumnMinimumLogical = 180",
+        "kConvertedColumnMinimumLogical = 180",
+        "kStatusColumnMinimumLogical = 100",
+        "DrawActionButton(",
+        "HandleHeaderCustomDraw(",
+        "headerBackground =\n        RGB(250, 251, 252)",
+        "headerSeparator =\n        RGB(236, 239, 243)",
+        'T(L"转换方式"',
+        'T(L"转换后路径"',
+        "SelectedFieldCount() const",
+        "UpdateSelectionState(",
+        "UpdateColumnWidths(",
+        "HandleHeaderNotification(",
+        'T(L"当前没有可转换的路径"',
+        'T(L"已应用 "',
+        "listHeight * 44 / 100",
+        "LVN_ITEMCHANGED",
+        "VK_ESCAPE",
+        "VK_LEFT",
+        "VK_RIGHT",
+        "WM_GETMINMAXINFO",
+        "ApplyUserCommandPathUpdates(",
+        "win::MakePortablePath(",
+        "win::ExpandPortablePath(",
+        "ResolveOwnedPopupGeometry(",
+        "RevealFullyPainted(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.35 frozen Path Conversion behavior missing: {token}")
+
+    for forbidden in (
+        "kIdClose",
+        "close_",
+        "LVS_EX_GRIDLINES",
+        'T(L"所选路径已应用。"',
+        'T(L"没有选中要应用的路径转换。"',
+        "WS_EX_CLIENTEDGE,\n        WC_LISTVIEWW",
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.35 obsolete Path Conversion interaction returned: {forbidden}")
+
+    for token in (
+        "DWMWA_CLOAK",
+        "DWMWA_TRANSITIONS_FORCEDISABLED",
+        "DwmFlush();",
+    ):
+        if token not in presentation_cpp:
+            fail(f"v0.8 alpha.3.35 must preserve top-level presentation barrier: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp and token not in settings_window_cpp:
+            fail(f"v0.8 alpha.3.35 must preserve updater hardening: {token}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.35 must preserve schema-9 runtime smoke coverage: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.34"',
+        '"0.8.0-alpha.3.35"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.35 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.35 — Path Conversion Row Alignment Fix",
+        "0.8.0.65",
+        "native Explorer ListView",
+        "four-space indentation",
+        "DPI-bucketed 4×4 coverage selector",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.35 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.35",
+        "0.8.0.65",
+        "small-image-list row-height shim",
+        "native checkbox state-image slot",
+        "alpha.3.34 DPI-bucketed 4×4 coverage mode selector",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.35 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.35",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3.35 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.35 Path Conversion row alignment verified:",
+        "| native Explorer ListView row/checkbox metrics",
+        "| redundant field-label indentation removed",
+        "| alpha.3.34 coverage selector frozen",
+        "| geometry/columns/behavior unchanged",
+        "| schema9/presentation/updater preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.34":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

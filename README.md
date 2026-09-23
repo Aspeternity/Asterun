@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.35 — Path Conversion Row Alignment Fix
+
+Alpha 3.35 closes the result-row alignment issue found during real-Windows validation after the selector itself passed in alpha.3.34.
+
+The report ListView no longer attaches a synthetic 1-pixel small-image list purely to force a 24 logical-pixel row height. At fractional DPI that artificial image metric was not vertically aligned with the native `LVS_EX_CHECKBOXES` state image, so the checkbox could sit visibly lower than the field/path/status text. Result rows now use the native Explorer ListView font/state-image metrics so the checkbox and all four text columns share the same Windows-controlled vertical baseline across DPI scales.
+
+The manual four-space indentation before Target / Working directory / Custom icon has also been removed. The ListView already reserves the state-image slot for the checkbox, so the field text now starts at the native post-checkbox inset instead of receiving a second artificial indent.
+
+The alpha.3.34 DPI-bucketed 4×4 coverage selector is frozen unchanged, as are the 960×560 default / 820×480 minimum window geometry, 13/36/39/remainder column policy, softened Header, flat actions, conversion rules, live counts and close behavior. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.65`.
+
 ## v0.8.0-alpha.3.34 — Path Conversion Selector Final Fix
 
 Alpha 3.34 is a narrowly scoped correction for the remaining mode-selector clarity issue reported in real-Windows alpha.3.33 testing.
