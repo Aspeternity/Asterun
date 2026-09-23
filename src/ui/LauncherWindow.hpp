@@ -71,6 +71,7 @@ private:
     void Layout();
     void Reposition();
     void PaintWindowBackground(HDC dc);
+    void PaintClassicBackground(HDC dc, const RECT& client);
     void PaintClassicTitleBar(HDC dc, const RECT& client);
     void PaintClassicLogo(HDC dc, int x, int y);
     void PaintClassicClose(HDC dc, const RECT& rect);
@@ -150,6 +151,7 @@ private:
     HWND hint_{};
     HWND list_{};
     HWND preview_{};
+    HWND classicPreview_{};
     WNDPROC oldEditProc_{};
     HFONT normalFont_{};
     HFONT auxiliaryFont_{};
@@ -161,6 +163,7 @@ private:
     HBRUSH bottomBrush_{};
     HBITMAP classicShortcutBitmap_{};
     HBITMAP classicCloseBitmap_{};
+    HBITMAP classicBackgroundBitmap_{};
     std::unordered_map<
         std::wstring,
         ResultIconCacheEntry>
@@ -193,7 +196,7 @@ private:
         ui::kClassicLauncherMetrics.rowHeightLogical};
     std::size_t maxResults_{
         ui::kClassicLauncherMetrics.maxResults};
-    std::wstring titleText_{L"[ALTRun]"};
+    std::wstring titleText_{};
     std::uint64_t searchGeneration_{0};
     std::vector<LauncherResult>
         staticResults_;

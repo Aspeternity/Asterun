@@ -46,20 +46,20 @@ inline constexpr UiPalette
 inline constexpr UiPalette
     kClassicLauncherPalette{
         RGB(103, 109, 115),
-        RGB(244, 245, 247),
-        RGB(186, 214, 190),
-        RGB(38, 41, 145),
-        RGB(104, 119, 109),
-        RGB(38, 41, 145),
-        RGB(38, 41, 145),
-        RGB(4, 119, 210),
         RGB(255, 255, 255),
-        RGB(43, 45, 148),
+        RGB(192, 220, 192),
+        RGB(0, 0, 128),
+        RGB(128, 128, 128),
+        RGB(0, 0, 128),
+        RGB(0, 0, 128),
+        RGB(0, 120, 215),
+        RGB(255, 255, 255),
+        RGB(0, 0, 128),
         RGB(91, 97, 104),
         RGB(103, 109, 115),
-        RGB(244, 245, 247),
+        RGB(255, 255, 255),
         RGB(91, 97, 104),
-        RGB(181, 208, 184),
+        RGB(192, 220, 192),
     };
 
 inline constexpr UiPalette

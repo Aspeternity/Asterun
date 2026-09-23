@@ -19,7 +19,9 @@ enum class UiFontRole {
 struct UiFontSpec {
     const wchar_t* face{};
     int pointSize{};
+    int logicalHeight96{};
     int weight{};
+    BYTE charset{DEFAULT_CHARSET};
     DWORD quality{CLEARTYPE_QUALITY};
 };
 

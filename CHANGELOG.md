@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.4.4
+
+- Switched Classic refinement to a source-parity foundation based directly on the authorized original ALTRun DFM/source instead of screenshot-driven procedural approximations.
+- Embedded the exact original 74,289-byte `BG.jpg` from `imgBackground.Picture.Data` and replaced the hand-built Classic title gradient/rails/frame with the real background skin.
+- Restored the original borderless **420×250** Classic client, **240/255** layered alpha, black color key and **12 px logical** round region while retaining ALTRun Next Per-Monitor V2 positioning and first-reveal presentation.
+- Restored DFM control geometry: input 8,30/404×22; Hint 82,35/328×14; list 8,56/404×160; command line 8,226/404×16.
+- Replaced the Classic Hint STATIC with a disabled read-only right-aligned Edit and added a dedicated read-only Classic command Edit; Modern keeps its existing preview control.
+- Changed Classic font creation from point-size approximation to exact original LOGFONT heights **-16/-13 @ 96 DPI**, SimSun, ANSI_CHARSET, normal weight and DEFAULT_QUALITY.
+- Restored original Classic colors: clYellow title, clRed input, clNavy list text, clGray command text, clWindow list background and clMoneyGreen Edit surfaces.
+- With result icons off, Classic now renders one fixed-format row string matching the original ` %d|%-25s| %s` layout using one GDI text run and Windows system selection colors. The optional icon-enabled layout remains an ALTRun Next enhancement.
+- Preserved Modern Compact, search/ranking/providers/Everything, context actions, alpha.3.40 rapid-click behavior, alpha.3.36 updater hardening and shared top-level presentation.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.74`.
+
 ## 0.8.0-alpha.4.3
 
 - Replaced the procedural GDI recreations of the Classic top-left shortcut glyph and top-right close glyph with the original ALTRun fixed-pixel bitmap resources, used with permission from the original author.

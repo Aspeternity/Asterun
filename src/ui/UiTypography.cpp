@@ -5,9 +5,9 @@ namespace altrun::ui {
 namespace {
 
 constexpr int
-    kClassicLauncherPrimaryPointSize = 12;
+    kClassicLauncherPrimaryLogicalHeight96 = -16;
 constexpr int
-    kClassicLauncherAuxiliaryPointSize = 11;
+    kClassicLauncherAuxiliaryLogicalHeight96 = -13;
 constexpr int
     kModernLauncherBodyPointSize = 10;
 constexpr int
@@ -71,7 +71,9 @@ UiFontSpec ApplicationFontSpec(
     return {
         ApplicationFace(language),
         ApplicationPointSize(role),
+        0,
         RoleWeight(role),
+        DEFAULT_CHARSET,
         CLEARTYPE_QUALITY,
     };
 }
@@ -84,38 +86,28 @@ UiFontSpec LauncherFontSpec(
     const bool modern =
         style == UiStyle::ModernCompact;
 
-    const wchar_t* face =
-        modern
-            ? ApplicationFace(language)
-            : language == Language::ZhCN
-                ? L"SimSun"
-                : L"Tahoma";
-
-    const int pointSize =
-        modern
-            ? role == UiFontRole::LauncherTitle
-                ? kModernLauncherTitlePointSize
-                : kModernLauncherBodyPointSize
-            : role == UiFontRole::LauncherAuxiliary
-                ? kClassicLauncherAuxiliaryPointSize
-                : kClassicLauncherPrimaryPointSize;
-
-    const int weight =
-        !modern &&
-        role == UiFontRole::LauncherTitle
-            ? FW_NORMAL
-            : RoleWeight(role);
-
-    const DWORD quality =
-        modern
-            ? CLEARTYPE_QUALITY
-            : DEFAULT_QUALITY;
+    if (!modern) {
+        return {
+            L"SimSun",
+            0,
+            role == UiFontRole::LauncherAuxiliary
+                ? kClassicLauncherAuxiliaryLogicalHeight96
+                : kClassicLauncherPrimaryLogicalHeight96,
+            FW_NORMAL,
+            ANSI_CHARSET,
+            DEFAULT_QUALITY,
+        };
+    }
 
     return {
-        face,
-        pointSize,
-        weight,
-        quality,
+        ApplicationFace(language),
+        role == UiFontRole::LauncherTitle
+            ? kModernLauncherTitlePointSize
+            : kModernLauncherBodyPointSize,
+        0,
+        RoleWeight(role),
+        DEFAULT_CHARSET,
+        CLEARTYPE_QUALITY,
     };
 }
 
@@ -127,11 +119,19 @@ HFONT CreateFontHandle(
         dpi = 96;
     }
 
+    const int height =
+        spec.logicalHeight96 != 0
+            ? MulDiv(
+                  spec.logicalHeight96,
+                  static_cast<int>(dpi),
+                  96)
+            : -MulDiv(
+                  spec.pointSize,
+                  static_cast<int>(dpi),
+                  72);
+
     return CreateFontW(
-        -MulDiv(
-            spec.pointSize,
-            static_cast<int>(dpi),
-            72),
+        height,
         0,
         0,
         0,
@@ -139,7 +139,7 @@ HFONT CreateFontHandle(
         FALSE,
         FALSE,
         FALSE,
-        DEFAULT_CHARSET,
+        spec.charset,
         OUT_DEFAULT_PRECIS,
         CLIP_DEFAULT_PRECIS,
         spec.quality,

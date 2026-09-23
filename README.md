@@ -1,6 +1,6 @@
 # ALTRun Next
 
-ALTRun Next is an independently implemented Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise. Classic mode includes two original launcher glyph bitmaps used with permission from the original author.
+ALTRun Next is an independently implemented Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise. Classic mode includes the original launcher background and two corner glyph assets used with permission from the original author.
 
 ## Downloads
 
@@ -22,6 +22,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.8.0-alpha.4.4 — Classic Source-Parity Foundation
+
+Alpha.4.4 changes the Classic development method: instead of approximating the old launcher from screenshots, ALTRun Next now treats the authorized original ALTRun source/DFM as the visual baseline and keeps ALTRun Next's modern internals underneath it.
+
+Classic now embeds the original authorized `imgBackground.Picture.Data` JPEG from `Form/frmALTRun.dfm` (the same 74,289-byte `BG.jpg` emitted by the original application) and paints that real skin rather than reconstructing its title gradient, rails and frame with procedural GDI. The Classic launcher is borderless at **420×250 logical client pixels**, uses the original **240/255 layered alpha**, black color key and **12-logical-pixel round region**. Per-Monitor V2 placement/presentation remains ALTRun Next's implementation.
+
+The main Classic controls now use the original DFM geometry: search Edit **8,30 / 404×22**, overlaid disabled/right-aligned Hint Edit **82,35 / 328×14**, result list **8,56 / 404×160**, and read-only command Edit **8,226 / 404×16**. The previous 190-pixel search split, 162-pixel list and 18-pixel command strip are removed.
+
+Classic typography now follows the original LOGFONT metrics directly instead of translating through point sizes: **-16 @ 96 DPI** for title/input/list and **-13 @ 96 DPI** for Hint/Command, scaled by monitor DPI. Classic uses SimSun, `ANSI_CHARSET`, normal weight and `DEFAULT_QUALITY`. Original default colors are restored: yellow title, red keyword input, navy result text, gray command text, white result surface and MoneyGreen controls.
+
+When result icons are disabled, Classic rows use the original text-format model — ` %d|%-25s| %s` / one-to-zero numbering — rendered as one GDI text run with system ListBox selection colors instead of separately drawing three columns and separator lines. The optional icon-enabled Classic path remains an ALTRun Next enhancement. Modern Compact, providers, Everything, ranking, context actions, updater and the shared top-level presentation system are unchanged.
+
+The original background and corner glyph assets are included with author permission; provenance is recorded in `THIRD_PARTY_NOTICES.md`. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.74`.
 
 ## v0.8.0-alpha.4.3 — Original Classic Glyphs & Auxiliary Typography
 

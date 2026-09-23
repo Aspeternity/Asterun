@@ -217,6 +217,7 @@ if(WIN32)
         advapi32
         user32
         gdi32
+        gdiplus
         msimg32
         dwmapi
         uxtheme

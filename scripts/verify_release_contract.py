@@ -42,6 +42,313 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.4":
+    import hashlib
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.4 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.4 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    theme = read("src/ui/UiTheme.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    typography_h = read("src/ui/UiTypography.hpp")
+    resources = read("src/resources.rc")
+    resource_ids = read("src/ResourceIds.h")
+    cmake = read("CMakeLists.txt")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    expected_assets = {
+        "src/resources/classic_bg.jpg": (
+            74289,
+            "daf552e9f948335575ae2701ca7ce0308c7c288c",
+        ),
+        "src/resources/classic_shortcut.bmp": (
+            2554,
+            "eee00956b449975f05e63a38e4da4ea29e01c240",
+        ),
+        "src/resources/classic_close.bmp": (
+            1954,
+            "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        ),
+    }
+    for path, (expected_size, expected_sha) in expected_assets.items():
+        data = (ROOT / path).read_bytes()
+        if len(data) != expected_size:
+            fail(
+                f"v0.8 alpha.4.4 {path} size={len(data)}, "
+                f"expected {expected_size}"
+            )
+        if git_blob_sha(path) != expected_sha:
+            fail(
+                f"v0.8 alpha.4.4 {path} no longer matches "
+                "the authorized original asset"
+            )
+
+    bg = (ROOT / "src/resources/classic_bg.jpg").read_bytes()
+    if bg[:2] != b"\xff\xd8" or bg[-2:] != b"\xff\xd9":
+        fail("v0.8 alpha.4.4 Classic BG resource is not the original JPEG payload")
+
+    for token in (
+        "#define IDB_CLASSIC_SHORTCUT 201",
+        "#define IDB_CLASSIC_CLOSE 202",
+        "#define IDR_CLASSIC_BACKGROUND 203",
+    ):
+        if token not in resource_ids:
+            fail(f"v0.8 alpha.4.4 resource ID missing: {token}")
+
+    for token in (
+        'IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"',
+        'IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"',
+        'IDR_CLASSIC_BACKGROUND RCDATA "resources/classic_bg.jpg"',
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.4.4 resource declaration missing: {token}")
+
+    for token in (
+        "kClassicLauncherPrimaryLogicalHeight96 = -16",
+        "kClassicLauncherAuxiliaryLogicalHeight96 = -13",
+        'L"SimSun"',
+        "ANSI_CHARSET",
+        "DEFAULT_QUALITY",
+        "spec.logicalHeight96",
+        "spec.charset",
+        "static_cast<int>(dpi),\n                  96",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.4 exact Classic font contract missing: {token}")
+
+    for token in (
+        "int logicalHeight96{};",
+        "BYTE charset{DEFAULT_CHARSET};",
+    ):
+        if token not in typography_h:
+            fail(f"v0.8 alpha.4.4 UiFontSpec contract missing: {token}")
+
+    for token in (
+        "RGB(255, 255, 255)",
+        "RGB(192, 220, 192)",
+        "RGB(0, 0, 128)",
+        "RGB(128, 128, 128)",
+    ):
+        if token not in theme:
+            fail(f"v0.8 alpha.4.4 original Classic palette missing: {token}")
+
+    for token in (
+        '#include <gdiplus.h>',
+        "LoadClassicJpegResource(",
+        "IDR_CLASSIC_BACKGROUND",
+        "classicBackgroundBitmap_",
+        "PaintClassicBackground(",
+        "StretchBlt(",
+        "DpiScale(420)",
+        "DpiScale(250)",
+        "DpiScale(404)",
+        "DpiScale(22)",
+        "DpiScale(82)",
+        "DpiScale(35)",
+        "DpiScale(328)",
+        "DpiScale(14)",
+        "DpiScale(56)",
+        "DpiScale(160)",
+        "DpiScale(226)",
+        "DpiScale(16)",
+        "ES_RIGHT",
+        "ES_READONLY",
+        "EnableWindow(\n        hint_,\n        FALSE)",
+        "setFrame(list_, 0);",
+        "WS_EX_LAYERED",
+        "SetLayeredWindowAttributes(",
+        "        240,",
+        "LWA_COLORKEY",
+        "DpiScale(12)",
+        "RGB(255, 255, 0)",
+        "RGB(255, 0, 0)",
+        "RGB(0, 0, 128)",
+        "RGB(128, 128, 128)",
+        'L"命令="',
+        'L"CMD="',
+        "ClassicResultLine(",
+        "kClassicShortcutFieldWidth = 25",
+        "ExtTextOutW(",
+        "COLOR_HIGHLIGHT",
+        "COLOR_HIGHLIGHTTEXT",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.4 source-parity launcher contract missing: {token}")
+
+    for forbidden in (
+        "constexpr int bands = 40",
+        "Continuous Classic side rails",
+        "railBands = 32",
+        "inputWidthLogical = 190",
+        "listHeightLogical = 162",
+        "previewHeightLogical = 18",
+        "MixColor(",
+    ):
+        if forbidden in launcher:
+            fail(f"v0.8 alpha.4.4 screenshot-era Classic approximation survived: {forbidden}")
+
+    if "HWND classicPreview_{};" not in launcher_h:
+        fail("v0.8 alpha.4.4 dedicated Classic command Edit is missing")
+    if "HBITMAP classicBackgroundBitmap_{};" not in launcher_h:
+        fail("v0.8 alpha.4.4 embedded Classic background handle is missing")
+    if "std::wstring titleText_{};" not in launcher_h:
+        fail("v0.8 alpha.4.4 Classic title should start empty like original")
+
+    if "gdiplus" not in cmake:
+        fail("v0.8 alpha.4.4 must link GDI+ for embedded JPEG decoding")
+
+    for token in (
+        "kClassicLauncherMetrics{\n        420,\n        16,\n        10,",
+        "kModernCompactLauncherMetrics{\n        620,\n        32,\n        9,",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.4 launcher metrics regressed: {token}")
+
+    # Modern Compact and the mature alpha.3 interaction/update foundations
+    # stay frozen while Classic is rebuilt from the original source baseline.
+    for token in (
+        "const int margin =\n            DpiScale(12);",
+        "const int inputHeight =\n            DpiScale(36);",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "showResultIcons",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.4 Modern/performance contract regressed: {token}")
+
+    for token in ("NM_CLICK", "NM_DBLCLK", "ToggleResultRowSelection("):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.4 Path Conversion rapid-click regression: {token}")
+
+    for token in ("BN_CLICKED", "BN_DOUBLECLICKED", "toggleActivated", "ToggleAdvanced();"):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.4 Shortcut Editor rapid-click regression: {token}")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.4 updater architecture regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.4.3"',
+        '"0.8.0-alpha.4.4"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.4 update ordering/default coverage missing: {token}")
+
+    version_script = read("scripts/verify_version.py")
+    package_script = read("scripts/verify_package.ps1")
+    for token in (
+        "revision = 70 + (channel_number - 4) * 100 + channel_patch",
+        "revision = 10000 + channel_number",
+        "revision = 20000 + channel_number",
+        "revision = 30000",
+    ):
+        if token not in version_script:
+            fail(f"v0.8 alpha.4.4 Python fixed-version mapping missing: {token}")
+    for token in (
+        "(($channelNumber - 4) * 100)",
+        "$revision = 10000 + $channelNumber",
+        "$revision = 20000 + $channelNumber",
+        "$revision = 30000",
+    ):
+        if token not in package_script:
+            fail(f"v0.8 alpha.4.4 package fixed-version mapping missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    notices = read("THIRD_PARTY_NOTICES.md")
+
+    for token in (
+        "Classic Source-Parity Foundation",
+        "0.8.0.74",
+        "74,289-byte",
+        "420×250",
+        "-16 @ 96 DPI",
+        "-13 @ 96 DPI",
+        "240/255",
+        "8,30 / 404×22",
+        "8,56 / 404×160",
+        "8,226 / 404×16",
+        "original background and corner glyph assets",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.4 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.4.4",
+        "0.8.0.74",
+        "420×250",
+        "240/255",
+        "-16/-13",
+        "74,289-byte",
+        "ExtTextOut",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.4 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.4",
+        "source parity",
+        "authorized BG.jpg skin",
+        "Modern Compact refinement follows",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.4 roadmap missing: {token}")
+
+    for token in (
+        "imgBackground.Picture.Data",
+        "original `BG.jpg` JPEG payload",
+        "btnShortCut.Glyph.Data",
+        "btnClose.Glyph.Data",
+        "These three visual assets",
+    ):
+        if token not in notices:
+            fail(f"v0.8 alpha.4.4 provenance notice missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.4 Classic source parity verified:",
+        "| original BG/glyph assets",
+        "| 420x250 borderless + alpha240/radius12",
+        "| DFM control geometry",
+        "| -16/-13 SimSun GDI metrics",
+        "| single-run Classic result text",
+        "| Modern/search/providers/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.3":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

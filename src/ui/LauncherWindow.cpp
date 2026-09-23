@@ -19,10 +19,12 @@
 #include <shellapi.h>
 #include <uxtheme.h>
 #include <objbase.h>
+#include <gdiplus.h>
 
 #include <algorithm>
 #include <array>
 #include <cwctype>
+#include <cstring>
 #include <filesystem>
 #include <iterator>
 #include <limits>
@@ -50,13 +52,6 @@ enum ResultContextMenuId : UINT {
     kResultContextDeleteShortcut = 41007,
     kResultContextRunAsAdministrator = 41008,
 };
-
-COLORREF MixColor(COLORREF a, COLORREF b, int numerator, int denominator) {
-    const int r = GetRValue(a) + (GetRValue(b) - GetRValue(a)) * numerator / denominator;
-    const int g = GetGValue(a) + (GetGValue(b) - GetGValue(a)) * numerator / denominator;
-    const int bl = GetBValue(a) + (GetBValue(b) - GetBValue(a)) * numerator / denominator;
-    return RGB(r, g, bl);
-}
 
 [[nodiscard]] std::wstring
 PrimaryResultText(
@@ -234,6 +229,148 @@ void PaintClassicBitmapGlyph(
     DeleteDC(source);
 }
 
+[[nodiscard]] HBITMAP
+LoadClassicJpegResource(
+    HINSTANCE instance,
+    UINT resourceId) {
+    const HRSRC resource =
+        FindResourceW(
+            instance,
+            MAKEINTRESOURCEW(resourceId),
+            RT_RCDATA);
+
+    if (!resource) {
+        return nullptr;
+    }
+
+    const DWORD size =
+        SizeofResource(
+            instance,
+            resource);
+
+    const HGLOBAL loaded =
+        LoadResource(
+            instance,
+            resource);
+
+    const void* source =
+        loaded
+            ? LockResource(loaded)
+            : nullptr;
+
+    if (!source || size == 0) {
+        return nullptr;
+    }
+
+    HGLOBAL memory =
+        GlobalAlloc(
+            GMEM_MOVEABLE,
+            size);
+
+    if (!memory) {
+        return nullptr;
+    }
+
+    void* destination =
+        GlobalLock(memory);
+
+    if (!destination) {
+        GlobalFree(memory);
+        return nullptr;
+    }
+
+    std::memcpy(
+        destination,
+        source,
+        size);
+    GlobalUnlock(memory);
+
+    IStream* stream = nullptr;
+
+    if (FAILED(
+            CreateStreamOnHGlobal(
+                memory,
+                TRUE,
+                &stream))) {
+        GlobalFree(memory);
+        return nullptr;
+    }
+
+    ULONG_PTR token = 0;
+    Gdiplus::GdiplusStartupInput
+        startupInput;
+
+    if (Gdiplus::GdiplusStartup(
+            &token,
+            &startupInput,
+            nullptr) !=
+        Gdiplus::Ok) {
+        stream->Release();
+        return nullptr;
+    }
+
+    HBITMAP bitmap = nullptr;
+
+    {
+        Gdiplus::Bitmap image(
+            stream,
+            FALSE);
+
+        if (image.GetLastStatus() ==
+            Gdiplus::Ok) {
+            image.GetHBITMAP(
+                Gdiplus::Color(
+                    255,
+                    0,
+                    0,
+                    0),
+                &bitmap);
+        }
+    }
+
+    Gdiplus::GdiplusShutdown(
+        token);
+    stream->Release();
+
+    return bitmap;
+}
+
+[[nodiscard]] std::wstring
+ClassicResultLine(
+    std::wstring_view number,
+    std::wstring_view shortcutText,
+    std::wstring_view nameText) {
+    std::wstring line;
+    line.reserve(
+        32 +
+        shortcutText.size() +
+        nameText.size());
+
+    line.push_back(L' ');
+    line.append(
+        number.empty()
+            ? std::wstring_view(L" ")
+            : number.substr(0, 1));
+    line.push_back(L'|');
+    line.append(shortcutText);
+
+    constexpr std::size_t
+        kClassicShortcutFieldWidth = 25;
+
+    if (shortcutText.size() <
+        kClassicShortcutFieldWidth) {
+        line.append(
+            kClassicShortcutFieldWidth -
+                shortcutText.size(),
+            L' ');
+    }
+
+    line.append(L"| ");
+    line.append(nameText);
+
+    return line;
+}
+
 } // namespace
 
 LauncherWindow::LauncherWindow(App& app, HINSTANCE instance)
@@ -285,6 +422,7 @@ LauncherWindow::~LauncherWindow() {
     if (bottomBrush_) DeleteObject(bottomBrush_);
     if (classicShortcutBitmap_) DeleteObject(classicShortcutBitmap_);
     if (classicCloseBitmap_) DeleteObject(classicCloseBitmap_);
+    if (classicBackgroundBitmap_) DeleteObject(classicBackgroundBitmap_);
 }
 
 bool LauncherWindow::IsModern() const {
@@ -315,9 +453,14 @@ bool LauncherWindow::Create() {
                 0,
                 0,
                 LR_CREATEDIBSECTION));
+    classicBackgroundBitmap_ =
+        LoadClassicJpegResource(
+            instance_,
+            IDR_CLASSIC_BACKGROUND);
 
     if (!classicShortcutBitmap_ ||
-        !classicCloseBitmap_) {
+        !classicCloseBitmap_ ||
+        !classicBackgroundBitmap_) {
         return false;
     }
 
@@ -342,11 +485,26 @@ bool LauncherWindow::Create() {
                 widthLogical_,
                 250);
 
+    DWORD extendedStyle =
+        WS_EX_TOOLWINDOW |
+        WS_EX_TOPMOST;
+
+    if (!IsModern()) {
+        extendedStyle |=
+            WS_EX_LAYERED;
+    }
+
+    const DWORD windowStyle =
+        WS_POPUP |
+        (IsModern()
+            ? WS_BORDER
+            : 0);
+
     hwnd_ = CreateWindowExW(
-        WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+        extendedStyle,
         kWindowClass,
         kWindowTitle,
-        WS_POPUP | WS_BORDER,
+        windowStyle,
         creation.outer.left,
         creation.outer.top,
         creation.outer.right -
@@ -389,9 +547,12 @@ void LauncherWindow::CreateChildren() {
 
     hint_ = CreateWindowExW(
         0,
-        L"STATIC",
+        L"EDIT",
         L"",
-        WS_CHILD | WS_VISIBLE | SS_RIGHT | SS_CENTERIMAGE | SS_NOPREFIX,
+        WS_CHILD | WS_VISIBLE |
+            ES_RIGHT |
+            ES_AUTOHSCROLL |
+            ES_READONLY,
         0, 0, 0, 0,
         hwnd_,
         reinterpret_cast<HMENU>(1004),
@@ -399,10 +560,13 @@ void LauncherWindow::CreateChildren() {
         nullptr);
 
     list_ = CreateWindowExW(
-        WS_EX_STATICEDGE,
+        0,
         L"LISTBOX",
         L"",
-        WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_OWNERDRAWFIXED | LBS_NOINTEGRALHEIGHT,
+        WS_CHILD | WS_VISIBLE | WS_VSCROLL |
+            LBS_NOTIFY |
+            LBS_OWNERDRAWFIXED |
+            LBS_NOINTEGRALHEIGHT,
         0, 0, 0, 0,
         hwnd_,
         reinterpret_cast<HMENU>(1002),
@@ -413,12 +577,33 @@ void LauncherWindow::CreateChildren() {
         0,
         L"STATIC",
         L"",
-        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE | SS_PATHELLIPSIS | SS_NOPREFIX,
+        WS_CHILD | WS_VISIBLE |
+            SS_LEFT |
+            SS_CENTERIMAGE |
+            SS_PATHELLIPSIS |
+            SS_NOPREFIX,
         0, 0, 0, 0,
         hwnd_,
         reinterpret_cast<HMENU>(1003),
         instance_,
         nullptr);
+
+    classicPreview_ = CreateWindowExW(
+        0,
+        L"EDIT",
+        L"",
+        WS_CHILD | WS_VISIBLE |
+            ES_AUTOHSCROLL |
+            ES_READONLY,
+        0, 0, 0, 0,
+        hwnd_,
+        reinterpret_cast<HMENU>(1005),
+        instance_,
+        nullptr);
+
+    EnableWindow(
+        hint_,
+        FALSE);
 
     SetWindowLongPtrW(edit_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
     oldEditProc_ = reinterpret_cast<WNDPROC>(
@@ -516,47 +701,147 @@ void LauncherWindow::ApplyFonts() {
     SendMessageW(hint_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
     SendMessageW(list_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
     SendMessageW(preview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
+    SendMessageW(classicPreview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
     SendMessageW(list_, LB_SETITEMHEIGHT, 0, DpiScale(rowHeightLogical_));
 }
 
 void LauncherWindow::UpdateControlFrames() {
-    if (!edit_ || !list_ || !preview_) return;
+    if (!edit_ ||
+        !hint_ ||
+        !list_ ||
+        !preview_ ||
+        !classicPreview_) {
+        return;
+    }
 
     auto setFrame = [](HWND control, LONG_PTR edge) {
-        LONG_PTR style = GetWindowLongPtrW(control, GWL_EXSTYLE);
-        style &= ~(WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+        LONG_PTR style =
+            GetWindowLongPtrW(
+                control,
+                GWL_EXSTYLE);
+        style &=
+            ~(WS_EX_CLIENTEDGE |
+              WS_EX_STATICEDGE);
         style |= edge;
-        SetWindowLongPtrW(control, GWL_EXSTYLE, style);
+        SetWindowLongPtrW(
+            control,
+            GWL_EXSTYLE,
+            style);
         SetWindowPos(
             control,
             nullptr,
-            0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_FRAMECHANGED);
     };
 
     if (IsModern()) {
-        setFrame(edit_, WS_EX_STATICEDGE);
-        setFrame(list_, WS_EX_STATICEDGE);
-        setFrame(preview_, 0);
+        setFrame(
+            edit_,
+            WS_EX_STATICEDGE);
+        setFrame(
+            list_,
+            WS_EX_STATICEDGE);
+        setFrame(
+            preview_,
+            0);
+        setFrame(
+            hint_,
+            0);
+        setFrame(
+            classicPreview_,
+            0);
 
-        SetWindowTheme(edit_, L"Explorer", nullptr);
-        SetWindowTheme(list_, L"Explorer", nullptr);
-        SetWindowTheme(preview_, L"Explorer", nullptr);
-    } else {
-        setFrame(edit_, 0);
-        setFrame(list_, WS_EX_STATICEDGE);
-        setFrame(preview_, 0);
-
-        SetWindowTheme(edit_, L"", L"");
-        SetWindowTheme(list_, L"", L"");
-        SetWindowTheme(preview_, L"", L"");
+        SetWindowTheme(
+            edit_,
+            L"Explorer",
+            nullptr);
+        SetWindowTheme(
+            list_,
+            L"Explorer",
+            nullptr);
+        SetWindowTheme(
+            preview_,
+            L"Explorer",
+            nullptr);
+        return;
     }
+
+    setFrame(edit_, 0);
+    setFrame(hint_, 0);
+    setFrame(list_, 0);
+    setFrame(preview_, 0);
+    setFrame(classicPreview_, 0);
+
+    SetWindowTheme(edit_, L"", L"");
+    SetWindowTheme(hint_, L"", L"");
+    SetWindowTheme(list_, L"", L"");
+    SetWindowTheme(
+        classicPreview_,
+        L"",
+        L"");
 }
 
 void LauncherWindow::UpdateWindowChrome() {
     if (!hwnd_) return;
 
-    const int preference = IsModern() ? kDwmRound : kDwmDoNotRound;
+    LONG_PTR style =
+        GetWindowLongPtrW(
+            hwnd_,
+            GWL_STYLE);
+    const LONG_PTR wantedStyle =
+        IsModern()
+            ? style | WS_BORDER
+            : style & ~WS_BORDER;
+
+    if (wantedStyle != style) {
+        SetWindowLongPtrW(
+            hwnd_,
+            GWL_STYLE,
+            wantedStyle);
+        SetWindowPos(
+            hwnd_,
+            nullptr,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_FRAMECHANGED);
+    }
+
+    LONG_PTR extendedStyle =
+        GetWindowLongPtrW(
+            hwnd_,
+            GWL_EXSTYLE);
+
+    if (IsModern()) {
+        extendedStyle &=
+            ~WS_EX_LAYERED;
+    } else {
+        extendedStyle |=
+            WS_EX_LAYERED;
+    }
+
+    SetWindowLongPtrW(
+        hwnd_,
+        GWL_EXSTYLE,
+        extendedStyle);
+
+    const int preference =
+        IsModern()
+            ? kDwmRound
+            : kDwmDoNotRound;
+
     DwmSetWindowAttribute(
         hwnd_,
         kDwmWindowCornerPreference,
@@ -564,22 +849,43 @@ void LauncherWindow::UpdateWindowChrome() {
         sizeof(preference));
 
     if (IsModern()) {
-        SetWindowRgn(hwnd_, nullptr, TRUE);
+        SetWindowRgn(
+            hwnd_,
+            nullptr,
+            TRUE);
         return;
     }
 
-    RECT rect{};
-    GetWindowRect(hwnd_, &rect);
-    const int width = rect.right - rect.left;
-    const int height = rect.bottom - rect.top;
-    HRGN region = CreateRoundRectRgn(
-        0, 0,
-        width + 1,
-        height + 1,
-        DpiScale(7),
-        DpiScale(7));
+    SetLayeredWindowAttributes(
+        hwnd_,
+        RGB(0, 0, 0),
+        240,
+        LWA_ALPHA |
+            LWA_COLORKEY);
 
-    if (SetWindowRgn(hwnd_, region, TRUE) == 0) {
+    RECT rect{};
+    GetWindowRect(
+        hwnd_,
+        &rect);
+
+    const int width =
+        rect.right - rect.left;
+    const int height =
+        rect.bottom - rect.top;
+
+    HRGN region =
+        CreateRoundRectRgn(
+            0,
+            0,
+            width,
+            height,
+            DpiScale(12),
+            DpiScale(12));
+
+    if (SetWindowRgn(
+            hwnd_,
+            region,
+            TRUE) == 0) {
         DeleteObject(region);
     }
 }
@@ -601,7 +907,21 @@ void LauncherWindow::ApplyAppearance() {
     UpdateControlFrames();
     ApplyFonts();
 
-    ShowWindow(hint_, IsModern() ? SW_HIDE : SW_SHOWNA);
+    ShowWindow(
+        hint_,
+        IsModern()
+            ? SW_HIDE
+            : SW_SHOWNA);
+    ShowWindow(
+        preview_,
+        IsModern()
+            ? SW_SHOWNA
+            : SW_HIDE);
+    ShowWindow(
+        classicPreview_,
+        IsModern()
+            ? SW_HIDE
+            : SW_SHOWNA);
 
     Layout();
     UpdateWindowChrome();
@@ -613,6 +933,10 @@ void LauncherWindow::ApplyAppearance() {
     InvalidateRect(hint_, nullptr, TRUE);
     InvalidateRect(list_, nullptr, TRUE);
     InvalidateRect(preview_, nullptr, TRUE);
+    InvalidateRect(
+        classicPreview_,
+        nullptr,
+        TRUE);
 
     if (IsWindowVisible(hwnd_)) {
         Reposition();
@@ -656,6 +980,10 @@ void LauncherWindow::ApplyLanguage() {
     InvalidateRect(hint_, nullptr, TRUE);
     InvalidateRect(list_, nullptr, TRUE);
     InvalidateRect(preview_, nullptr, TRUE);
+    InvalidateRect(
+        classicPreview_,
+        nullptr,
+        TRUE);
 }
 
 int LauncherWindow::DpiScale(int value) const {
@@ -671,97 +999,147 @@ void LauncherWindow::Layout() {
     int height = 0;
 
     if (IsModern()) {
-        const int margin = DpiScale(12);
-        const int inputHeight = DpiScale(36);
-        const int gap = DpiScale(8);
-        const int rowHeight = DpiScale(rowHeightLogical_);
-        const int listHeight = rowHeight * static_cast<int>(maxResults_) + DpiScale(2);
-        const int previewHeight = DpiScale(25);
+        const int margin =
+            DpiScale(12);
+        const int inputHeight =
+            DpiScale(36);
+        const int gap =
+            DpiScale(8);
+        const int rowHeight =
+            DpiScale(
+                rowHeightLogical_);
+        const int listHeight =
+            rowHeight *
+                static_cast<int>(
+                    maxResults_) +
+            DpiScale(2);
+        const int previewHeight =
+            DpiScale(25);
 
-        width = DpiScale(widthLogical_);
-        height = margin + inputHeight + gap + listHeight + gap + previewHeight + margin;
+        width =
+            DpiScale(
+                widthLogical_);
+        height =
+            margin +
+            inputHeight +
+            gap +
+            listHeight +
+            gap +
+            previewHeight +
+            margin;
 
         SetWindowPos(
-            hwnd_, nullptr, 0, 0, width, height,
-            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            hwnd_,
+            nullptr,
+            0,
+            0,
+            width,
+            height,
+            SWP_NOMOVE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE);
 
-        MoveWindow(edit_, margin, margin, width - margin * 2, inputHeight, TRUE);
-        MoveWindow(hint_, 0, 0, 0, 0, FALSE);
+        MoveWindow(
+            edit_,
+            margin,
+            margin,
+            width - margin * 2,
+            inputHeight,
+            TRUE);
+        MoveWindow(
+            hint_,
+            0,
+            0,
+            0,
+            0,
+            FALSE);
         MoveWindow(
             list_,
             margin,
-            margin + inputHeight + gap,
+            margin +
+                inputHeight +
+                gap,
             width - margin * 2,
             listHeight,
             TRUE);
         MoveWindow(
             preview_,
-            margin + DpiScale(3),
-            margin + inputHeight + gap + listHeight + gap,
-            width - margin * 2 - DpiScale(6),
+            margin +
+                DpiScale(3),
+            margin +
+                inputHeight +
+                gap +
+                listHeight +
+                gap,
+            width -
+                margin * 2 -
+                DpiScale(6),
             previewHeight,
             TRUE);
+        MoveWindow(
+            classicPreview_,
+            0,
+            0,
+            0,
+            0,
+            FALSE);
         return;
     }
 
-    constexpr int titleHeightLogical = 30;
-    constexpr int leftSideLogical = 7;
-    constexpr int rightSideLogical = 7;
-    constexpr int inputHeightLogical = 22;
-    constexpr int inputWidthLogical = 190;
-    constexpr int listTopGapLogical = 4;
-    constexpr int listHeightLogical = 162;
-    constexpr int bottomGapLogical = 6;
-    constexpr int previewHeightLogical = 18;
-    constexpr int totalHeightLogical = 250;
-
-    width = DpiScale(widthLogical_);
-    height = DpiScale(totalHeightLogical);
+    width =
+        DpiScale(420);
+    height =
+        DpiScale(250);
 
     SetWindowPos(
-        hwnd_, nullptr, 0, 0, width, height,
-        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-
-    const int leftSide = DpiScale(leftSideLogical);
-    const int rightSide = DpiScale(rightSideLogical);
-    const int titleHeight = DpiScale(titleHeightLogical);
-    const int inputHeight = DpiScale(inputHeightLogical);
-    const int inputWidth = DpiScale(inputWidthLogical);
-    const int contentWidth = width - leftSide - rightSide;
-    const int listY = titleHeight + inputHeight + DpiScale(listTopGapLogical);
-    const int listHeight = DpiScale(listHeightLogical);
-    const int previewY = listY + listHeight + DpiScale(bottomGapLogical);
+        hwnd_,
+        nullptr,
+        0,
+        0,
+        width,
+        height,
+        SWP_NOMOVE |
+            SWP_NOZORDER |
+            SWP_NOACTIVATE);
 
     MoveWindow(
         edit_,
-        leftSide,
-        titleHeight,
-        inputWidth,
-        inputHeight,
+        DpiScale(8),
+        DpiScale(30),
+        DpiScale(404),
+        DpiScale(22),
         TRUE);
 
     MoveWindow(
         hint_,
-        leftSide + inputWidth,
-        titleHeight,
-        contentWidth - inputWidth,
-        inputHeight,
+        DpiScale(82),
+        DpiScale(35),
+        DpiScale(328),
+        DpiScale(14),
         TRUE);
 
     MoveWindow(
         list_,
-        leftSide,
-        listY,
-        contentWidth,
-        listHeight,
+        DpiScale(8),
+        DpiScale(56),
+        DpiScale(404),
+        DpiScale(160),
         TRUE);
 
     MoveWindow(
         preview_,
-        leftSide,
-        previewY,
-        contentWidth,
-        DpiScale(previewHeightLogical),
+        0,
+        0,
+        0,
+        0,
+        FALSE);
+
+    MoveWindow(
+        classicPreview_,
+        DpiScale(8),
+        DpiScale(226),
+        DpiScale(404),
+        DpiScale(16),
         TRUE);
 }
 
@@ -965,250 +1343,141 @@ void LauncherWindow::PaintClassicClose(
         glyphSize);
 }
 
-void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
-    // Keep the same gray side rail from the title bar all the way down the
-    // launcher. Previously the gradient reached the outer edge while the
-    // content area was inset, producing a visible color break on both sides.
-    const int leftRail = DpiScale(7);
-    const int rightRail = DpiScale(7);
-    RECT title{
-        client.left + leftRail,
-        client.top,
-        client.right - rightRail,
-        DpiScale(30)
+void LauncherWindow::PaintClassicBackground(
+    HDC dc,
+    const RECT& client) {
+    if (!classicBackgroundBitmap_) {
+        FillRect(
+            dc,
+            &client,
+            windowBrush_);
+        return;
+    }
+
+    BITMAP bitmap{};
+    if (GetObjectW(
+            classicBackgroundBitmap_,
+            sizeof(bitmap),
+            &bitmap) !=
+        sizeof(bitmap)) {
+        FillRect(
+            dc,
+            &client,
+            windowBrush_);
+        return;
+    }
+
+    HDC source =
+        CreateCompatibleDC(dc);
+
+    if (!source) {
+        FillRect(
+            dc,
+            &client,
+            windowBrush_);
+        return;
+    }
+
+    HGDIOBJ oldBitmap =
+        SelectObject(
+            source,
+            classicBackgroundBitmap_);
+
+    SetStretchBltMode(
+        dc,
+        COLORONCOLOR);
+
+    StretchBlt(
+        dc,
+        0,
+        0,
+        DpiScale(
+            bitmap.bmWidth),
+        DpiScale(
+            bitmap.bmHeight),
+        source,
+        0,
+        0,
+        bitmap.bmWidth,
+        bitmap.bmHeight,
+        SRCCOPY);
+
+    SelectObject(
+        source,
+        oldBitmap);
+    DeleteDC(source);
+}
+
+void LauncherWindow::PaintClassicTitleBar(
+    HDC dc,
+    const RECT& client) {
+    const RECT close =
+        ClassicCloseRect();
+
+    RECT textRect{
+        DpiScale(33),
+        0,
+        close.left,
+        std::min(
+            client.bottom,
+            DpiScale(33)),
     };
 
-    constexpr int bands = 40;
-    const COLORREF left = RGB(86, 91, 96);
-    const COLORREF right = RGB(181, 183, 186);
+    HGDIOBJ oldFont =
+        SelectObject(
+            dc,
+            titleFont_);
 
-    for (int i = 0; i < bands; ++i) {
-        RECT band = title;
-        band.left = title.left + (title.right - title.left) * i / bands;
-        band.right = title.left + (title.right - title.left) * (i + 1) / bands;
-
-        HBRUSH brush = CreateSolidBrush(MixColor(left, right, i, bands - 1));
-        FillRect(dc, &band, brush);
-        DeleteObject(brush);
-    }
-
-    for (int y = DpiScale(2); y < title.bottom; y += std::max(2, DpiScale(2))) {
-        const int logicalY = MulDiv(y, 96, static_cast<int>(dpi_));
-        const COLORREF lineColor =
-            (logicalY % 4 == 0) ? RGB(128, 132, 135) : RGB(119, 123, 127);
-        HPEN line = CreatePen(PS_SOLID, 1, lineColor);
-        HGDIOBJ oldPen = SelectObject(dc, line);
-        MoveToEx(dc, title.left, y, nullptr);
-        LineTo(dc, title.right, y);
-        SelectObject(dc, oldPen);
-        DeleteObject(line);
-    }
-
-    RECT textRect = title;
-    textRect.left += DpiScale(38);
-    textRect.right -= DpiScale(38);
-
-    HGDIOBJ oldFont = SelectObject(dc, titleFont_);
-    SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, RGB(232, 247, 37));
+    SetBkMode(
+        dc,
+        TRANSPARENT);
+    SetTextColor(
+        dc,
+        RGB(255, 255, 0));
 
     DrawTextW(
         dc,
         titleText_.c_str(),
         -1,
         &textRect,
-        DT_SINGLELINE | DT_CENTER | DT_VCENTER | DT_END_ELLIPSIS);
+        DT_SINGLELINE |
+            DT_CENTER |
+            DT_VCENTER |
+            DT_END_ELLIPSIS);
 
-    SelectObject(dc, oldFont);
+    SelectObject(
+        dc,
+        oldFont);
 }
 
-void LauncherWindow::PaintWindowBackground(HDC dc) {
+void LauncherWindow::PaintWindowBackground(
+    HDC dc) {
     RECT client{};
-    GetClientRect(hwnd_, &client);
+    GetClientRect(
+        hwnd_,
+        &client);
 
     if (IsModern()) {
-        FillRect(dc, &client, windowBrush_);
+        FillRect(
+            dc,
+            &client,
+            windowBrush_);
         return;
     }
 
-    FillRect(dc, &client, windowBrush_);
-    PaintClassicTitleBar(dc, client);
-
-    const auto palette = CurrentPalette();
-
-    const int classicLeftSide =
-        DpiScale(7);
-    const int classicRightSide =
-        DpiScale(7);
-    const int classicInputTop =
-        DpiScale(30);
-    const int classicInputBottom =
-        classicInputTop +
-        DpiScale(22);
-
-    RECT classicInputStrip{
-        classicLeftSide,
-        classicInputTop,
-        client.right -
-            classicRightSide,
-        classicInputBottom,
-    };
-    FillRect(
+    PaintClassicBackground(
         dc,
-        &classicInputStrip,
-        accentBrush_);
-
-    // Continuous Classic side rails. These intentionally use the same color
-    // above and below the title/content boundary to avoid the visible break
-    // that appeared on the right edge in v0.1.5.
-    const int leftRailWidth = DpiScale(7);
-    const int rightRailWidth = DpiScale(7);
-    RECT leftRail{
-        client.left,
-        client.top,
-        client.left + leftRailWidth,
-        client.bottom
-    };
-    RECT rightRail{
-        client.right - rightRailWidth,
-        client.top,
-        client.right,
-        client.bottom
-    };
-    FillRect(dc, &leftRail, windowBrush_);
-    FillRect(dc, &rightRail, windowBrush_);
-
-    // The two base frame strokes keep the left/top/bottom appearance that
-    // already matched the reference well.
-    HBRUSH border = CreateSolidBrush(RGB(75, 80, 86));
-    FrameRect(dc, &client, border);
-    DeleteObject(border);
-
-    RECT inner = client;
-    InflateRect(&inner, -DpiScale(2), -DpiScale(2));
-    HBRUSH innerBorder = CreateSolidBrush(palette.frame);
-    FrameRect(dc, &inner, innerBorder);
-    DeleteObject(innerBorder);
-
-    // v0.1.9 restores the original full Classic frame width on the right,
-    // but avoids the "solid gray column" look. The old skin behaves like a
-    // beveled frame: its rail gradually darkens toward the bottom, while the
-    // innermost pixels softly inherit the color of the adjacent UI section.
-    const LONG railLeft = client.right - static_cast<LONG>(rightRailWidth);
-    const LONG railRight = client.right;
-    const LONG outerEdge = railRight - 1;
-
-    // Base rail: vertical gray gradient, brighter near the title and darker
-    // near the command strip. This matches the visual weight of the original
-    // skin much better than a single flat gray fill.
-    constexpr int railBands = 32;
-    const COLORREF railTop = RGB(154, 157, 162);
-    const COLORREF railBottom = RGB(106, 109, 113);
-
-    for (int i = 0; i < railBands; ++i) {
-        RECT band{
-            railLeft,
-            client.top + (client.bottom - client.top) * i / railBands,
-            outerEdge,
-            client.top + (client.bottom - client.top) * (i + 1) / railBands
-        };
-        HBRUSH bandBrush = CreateSolidBrush(
-            MixColor(railTop, railBottom, i, railBands - 1));
-        FillRect(dc, &band, bandBrush);
-        DeleteObject(bandBrush);
-    }
-
-    // Blend the innermost part of the rail toward the adjacent section color.
-    // The transition remains full-height and full-width, but because it follows
-    // the title/green/list/command colors it reads as a frame rather than an
-    // unrelated vertical bar.
-    const int innerBlendWidth = std::max(2, DpiScale(2));
-    const int secondBlendWidth = std::max(1, DpiScale(1));
-
-    const int titleBottom = DpiScale(30);
-    const int hintBottom = titleBottom + DpiScale(22);
-    const int listTop = hintBottom + DpiScale(4);
-    const int listBottom = listTop + DpiScale(162);
-    const int commandTop = listBottom + DpiScale(6);
-    const int commandBottom = commandTop + DpiScale(18);
-
-    const int clientTop = static_cast<int>(client.top);
-    const int clientBottom = static_cast<int>(client.bottom);
-
-    auto railColorAtY = [&](int y) -> COLORREF {
-        const int height = std::max<int>(1, clientBottom - clientTop - 1);
-        const int pos = std::clamp<int>(y - clientTop, 0, height);
-        return MixColor(railTop, railBottom, pos, height);
-    };
-
-    auto paintSectionBlend = [&](int top, int bottom, COLORREF adjacent) {
-        top = std::clamp<int>(top, clientTop, clientBottom);
-        bottom = std::clamp<int>(bottom, clientTop, clientBottom);
-        if (bottom <= top) return;
-
-        const int midY = top + (bottom - top) / 2;
-        const COLORREF rail = railColorAtY(midY);
-
-        RECT soft{
-            railLeft,
-            top,
-            std::min<LONG>(railLeft + innerBlendWidth, outerEdge),
-            bottom
-        };
-        HBRUSH softBrush = CreateSolidBrush(MixColor(adjacent, rail, 1, 4));
-        FillRect(dc, &soft, softBrush);
-        DeleteObject(softBrush);
-
-        RECT middle{
-            soft.right,
-            top,
-            std::min<LONG>(soft.right + secondBlendWidth, outerEdge),
-            bottom
-        };
-        if (middle.right > middle.left) {
-            HBRUSH middleBrush = CreateSolidBrush(MixColor(adjacent, rail, 2, 3));
-            FillRect(dc, &middle, middleBrush);
-            DeleteObject(middleBrush);
-        }
-    };
-
-    // Title: use the bright end of the horizontal title gradient as the
-    // neighboring color.
-    paintSectionBlend(client.top, titleBottom, RGB(181, 183, 186));
-
-    // Top input / hint strip.
-    paintSectionBlend(titleBottom, hintBottom, palette.accentBackground);
-
-    // Small separator gap before the list.
-    paintSectionBlend(hintBottom, listTop, RGB(126, 131, 136));
-
-    // Main result surface.
-    paintSectionBlend(listTop, listBottom, palette.controlBackground);
-
-    // Separator gap before the command strip.
-    paintSectionBlend(listBottom, commandTop, RGB(114, 119, 123));
-
-    // Bottom command strip.
-    paintSectionBlend(commandTop, commandBottom, RGB(181, 208, 184));
-
-    // Remaining bottom frame area continues the darker frame tone.
-    paintSectionBlend(commandBottom, client.bottom, RGB(106, 109, 113));
-
-    // One dark outer stroke ties the right side back into the top/bottom frame.
-    RECT outerLine{
-        outerEdge,
-        client.top,
-        railRight,
-        client.bottom
-    };
-    HBRUSH outerBrush = CreateSolidBrush(RGB(75, 80, 86));
-    FillRect(dc, &outerLine, outerBrush);
-    DeleteObject(outerBrush);
-
-    // Corner controls are painted last so the right Classic frame never clips the
-    // close button.
-    PaintClassicLogo(dc, DpiScale(8), DpiScale(2));
-    PaintClassicClose(dc, ClassicCloseRect());
+        client);
+    PaintClassicTitleBar(
+        dc,
+        client);
+    PaintClassicLogo(
+        dc,
+        DpiScale(8),
+        DpiScale(2));
+    PaintClassicClose(
+        dc,
+        ClassicCloseRect());
 }
 
 void LauncherWindow::Toggle() {
@@ -1878,13 +2147,33 @@ void LauncherWindow::RebuildVisibleResults(
 }
 
 void LauncherWindow::UpdatePreview() {
-    if (!preview_) return;
+    if (!preview_ ||
+        !classicPreview_) {
+        return;
+    }
 
-    const LRESULT selected = SendMessageW(list_, LB_GETCURSEL, 0, 0);
-    if (selected == LB_ERR || static_cast<std::size_t>(selected) >= results_.size()) {
-        SetWindowTextW(preview_, L"");
-        titleText_ = L"[ALTRun]";
-        InvalidateRect(hwnd_, nullptr, FALSE);
+    const LRESULT selected =
+        SendMessageW(
+            list_,
+            LB_GETCURSEL,
+            0,
+            0);
+
+    if (selected == LB_ERR ||
+        static_cast<std::size_t>(
+            selected) >=
+            results_.size()) {
+        SetWindowTextW(
+            preview_,
+            L"");
+        SetWindowTextW(
+            classicPreview_,
+            L"");
+        titleText_.clear();
+        InvalidateRect(
+            hwnd_,
+            nullptr,
+            FALSE);
         return;
     }
 
@@ -1896,16 +2185,46 @@ void LauncherWindow::UpdatePreview() {
     const std::wstring primary =
         PrimaryResultText(result);
 
-    titleText_ = L"[";
-    titleText_ += primary;
-    titleText_ += L"]";
+    const std::wstring title =
+        result.subtitle.empty()
+            ? primary
+            : result.subtitle;
+
+    bool bracketTitle =
+        IsFileSystemResult(
+            result);
+
+    if (!bracketTitle &&
+        !result.target.empty()) {
+        bracketTitle =
+            std::filesystem::path(
+                result.target)
+                .has_parent_path();
+    }
+
+    titleText_.clear();
+
+    if (bracketTitle) {
+        titleText_.push_back(L'[');
+    }
+
+    titleText_ += title;
+
+    if (bracketTitle) {
+        titleText_.push_back(L']');
+    }
 
     std::wstring preview;
+
     if (!IsModern() &&
-        !IsFileSystemResult(result)) {
+        !IsFileSystemResult(
+            result)) {
         preview =
-            app_.Text(
-                TextId::CommandPrefix);
+            app_.SettingsData()
+                    .language ==
+                Language::ZhCN
+                ? L"命令="
+                : L"CMD=";
     }
 
     preview +=
@@ -1913,13 +2232,24 @@ void LauncherWindow::UpdatePreview() {
             ? result.target
             : result.detail;
 
-    SetWindowTextW(preview_, preview.c_str());
+    SetWindowTextW(
+        preview_,
+        preview.c_str());
+    SetWindowTextW(
+        classicPreview_,
+        preview.c_str());
 
     if (!IsModern()) {
-        RECT title{};
-        GetClientRect(hwnd_, &title);
-        title.bottom = DpiScale(30);
-        InvalidateRect(hwnd_, &title, FALSE);
+        RECT titleRect{};
+        GetClientRect(
+            hwnd_,
+            &titleRect);
+        titleRect.bottom =
+            DpiScale(33);
+        InvalidateRect(
+            hwnd_,
+            &titleRect,
+            FALSE);
     }
 }
 
@@ -2904,52 +3234,113 @@ LRESULT LauncherWindow::HandleMessage(
         return 1;
 
     case WM_CTLCOLOREDIT: {
-        const auto palette = CurrentPalette();
-        HDC dc = reinterpret_cast<HDC>(wParam);
+        const auto palette =
+            CurrentPalette();
+        const HWND control =
+            reinterpret_cast<HWND>(
+                lParam);
+        HDC dc =
+            reinterpret_cast<HDC>(
+                wParam);
 
-        SetTextColor(dc, IsModern() ? palette.text : RGB(0, 0, 0));
-        SetBkColor(dc, IsModern() ? palette.controlBackground : palette.accentBackground);
+        if (!IsModern()) {
+            SetBkColor(
+                dc,
+                palette.accentBackground);
+
+            SetTextColor(
+                dc,
+                control ==
+                        classicPreview_
+                    ? RGB(128, 128, 128)
+                    : RGB(255, 0, 0));
+
+            return reinterpret_cast<LRESULT>(
+                accentBrush_);
+        }
+
+        SetTextColor(
+            dc,
+            palette.text);
+        SetBkColor(
+            dc,
+            palette.controlBackground);
 
         return reinterpret_cast<LRESULT>(
-            IsModern() ? controlBrush_ : accentBrush_);
+            controlBrush_);
     }
 
     case WM_CTLCOLORLISTBOX: {
-        const auto palette = CurrentPalette();
-        HDC dc = reinterpret_cast<HDC>(wParam);
-        SetTextColor(dc, palette.text);
-        SetBkColor(dc, palette.controlBackground);
-        return reinterpret_cast<LRESULT>(controlBrush_);
+        const auto palette =
+            CurrentPalette();
+        HDC dc =
+            reinterpret_cast<HDC>(
+                wParam);
+
+        SetTextColor(
+            dc,
+            IsModern()
+                ? palette.text
+                : RGB(0, 0, 128));
+        SetBkColor(
+            dc,
+            IsModern()
+                ? palette.controlBackground
+                : GetSysColor(
+                      COLOR_WINDOW));
+
+        return reinterpret_cast<LRESULT>(
+            controlBrush_);
     }
 
     case WM_CTLCOLORSTATIC: {
-        const auto palette = CurrentPalette();
-        const HWND control = reinterpret_cast<HWND>(lParam);
-        HDC dc = reinterpret_cast<HDC>(wParam);
+        const auto palette =
+            CurrentPalette();
+        const HWND control =
+            reinterpret_cast<HWND>(
+                lParam);
+        HDC dc =
+            reinterpret_cast<HDC>(
+                wParam);
 
-        if (control == hint_) {
-            SetTextColor(dc, palette.mutedText);
-
-            if (!IsModern()) {
-                SetBkColor(dc, palette.accentBackground);
-                return reinterpret_cast<LRESULT>(accentBrush_);
-            }
-
-            SetBkColor(dc, palette.windowBackground);
-            return reinterpret_cast<LRESULT>(windowBrush_);
+        if (!IsModern() &&
+            control == hint_) {
+            SetTextColor(
+                dc,
+                GetSysColor(
+                    COLOR_GRAYTEXT));
+            SetBkColor(
+                dc,
+                palette.accentBackground);
+            return reinterpret_cast<LRESULT>(
+                accentBrush_);
         }
 
-        if (control == preview_) {
-            SetTextColor(dc, palette.mutedText);
-
-            if (!IsModern()) {
-                SetBkColor(dc, RGB(181, 208, 184));
-                return reinterpret_cast<LRESULT>(bottomBrush_);
-            }
-
-            SetBkColor(dc, palette.windowBackground);
-            return reinterpret_cast<LRESULT>(windowBrush_);
+        if (!IsModern() &&
+            control ==
+                classicPreview_) {
+            SetTextColor(
+                dc,
+                RGB(128, 128, 128));
+            SetBkColor(
+                dc,
+                palette.bottomBackground);
+            return reinterpret_cast<LRESULT>(
+                bottomBrush_);
         }
+
+        if (control ==
+            preview_) {
+            SetTextColor(
+                dc,
+                palette.mutedText);
+            SetBkColor(
+                dc,
+                palette.windowBackground);
+            return reinterpret_cast<LRESULT>(
+                windowBrush_);
+        }
+
         break;
     }
 
@@ -2965,7 +3356,15 @@ LRESULT LauncherWindow::HandleMessage(
         const bool selected = (item->itemState & ODS_SELECTED) != 0;
 
         const COLORREF background =
-            selected ? palette.selectionBackground : palette.controlBackground;
+            selected
+                ? IsModern()
+                    ? palette.selectionBackground
+                    : GetSysColor(
+                          COLOR_HIGHLIGHT)
+                : IsModern()
+                    ? palette.controlBackground
+                    : GetSysColor(
+                          COLOR_WINDOW);
 
         HBRUSH brush = CreateSolidBrush(background);
         FillRect(item->hDC, &item->rcItem, brush);
@@ -3089,6 +3488,58 @@ LRESULT LauncherWindow::HandleMessage(
                 SelectObject(item->hDC, oldPen);
                 DeleteObject(pen);
             }
+
+            return TRUE;
+        }
+
+        if (!app_.SettingsData()
+                 .showResultIcons) {
+            const std::wstring number =
+                ResultNumberLabel(
+                    item->itemID);
+            const std::wstring line =
+                ClassicResultLine(
+                    number,
+                    primary,
+                    result.subtitle);
+
+            HGDIOBJ oldFont =
+                SelectObject(
+                    item->hDC,
+                    normalFont_);
+            const UINT oldAlign =
+                GetTextAlign(
+                    item->hDC);
+
+            SetTextAlign(
+                item->hDC,
+                TA_LEFT |
+                    TA_TOP |
+                    TA_NOUPDATECP);
+            SetTextColor(
+                item->hDC,
+                selected
+                    ? GetSysColor(
+                          COLOR_HIGHLIGHTTEXT)
+                    : RGB(0, 0, 128));
+
+            ExtTextOutW(
+                item->hDC,
+                item->rcItem.left,
+                item->rcItem.top,
+                ETO_CLIPPED,
+                &item->rcItem,
+                line.c_str(),
+                static_cast<UINT>(
+                    line.size()),
+                nullptr);
+
+            SetTextAlign(
+                item->hDC,
+                oldAlign);
+            SelectObject(
+                item->hDC,
+                oldFont);
 
             return TRUE;
         }

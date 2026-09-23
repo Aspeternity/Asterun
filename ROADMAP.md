@@ -227,6 +227,7 @@ In progress:
 - v0.8.0-alpha.4.1 starts Launcher refinement with Classic typography/readability: 10 pt Classic body text plus a vertically centered 18 px native Edit inside the unchanged 22 px input strip
 - v0.8.0-alpha.4.2 source-matches Classic typography: 12 pt primary input/result/title text, 10 pt auxiliary hint/preview text, DEFAULT_QUALITY Classic GDI rendering and the native Edit restored to the full 22 px strip height
 - v0.8.0-alpha.4.3 uses the original authorized Classic shortcut/close glyph bitmaps, restores their original corner geometry, and raises Hint/Preview auxiliary typography to 11 pt after real-Windows comparison
+- v0.8.0-alpha.4.4 establishes source parity from the original DFM/source: authorized BG.jpg skin, borderless 420×250 geometry, 240 alpha/12px round region, exact control coordinates, -16/-13 LOGFONT metrics, native-style fixed-format result text and original Classic colors
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
