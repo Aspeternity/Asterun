@@ -29,16 +29,26 @@ if channel_patch and channel != "alpha":
     fail("only alpha prereleases currently support a hotfix component")
 
 if channel == "alpha":
-    if channel_patch or channel_number >= 3:
+    if channel_number >= 4:
+        # alpha.3 accumulated forty real-Windows iterations and ended at
+        # revision 70. Keep those historical revisions stable, then reserve
+        # 100 revision slots per new alpha phase so a phase transition can
+        # never make Windows FileVersion move backwards.
+        if channel_patch == 0:
+            fail("alpha phase 4+ requires a hotfix component, e.g. alpha.4.1")
+        if channel_patch >= 100:
+            fail("alpha phase 4+ hotfix component must stay below 100")
+        revision = 70 + (channel_number - 4) * 100 + channel_patch
+    elif channel_patch or channel_number >= 3:
         revision = channel_number * 10 + channel_patch
     else:
         revision = channel_number
 elif channel == "beta":
-    revision = 99 + channel_number
+    revision = 10000 + channel_number
 elif channel == "rc":
-    revision = 199 + channel_number
+    revision = 20000 + channel_number
 else:
-    revision = 300
+    revision = 30000
 
 expected_numeric_csv = f"{major},{minor},{patch},{revision}"
 expected_numeric_dot = f"{major}.{minor}.{patch}.{revision}"

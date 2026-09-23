@@ -144,6 +144,30 @@ if version == "0.8.0-alpha.4.1":
         if token not in app_cpp and token not in app_h:
             fail(f"v0.8 alpha.4.1 updater architecture regressed: {token}")
 
+    version_script = read("scripts/verify_version.py")
+    package_script = read("scripts/verify_package.ps1")
+
+    for token in (
+        "revision = 70 + (channel_number - 4) * 100 + channel_patch",
+        "revision = 10000 + channel_number",
+        "revision = 20000 + channel_number",
+        "revision = 30000",
+        "alpha phase 4+ hotfix component must stay below 100",
+    ):
+        if token not in version_script:
+            fail(f"v0.8 alpha.4.1 Python fixed-version mapping missing: {token}")
+
+    for token in (
+        "70 +",
+        "(($channelNumber - 4) * 100)",
+        "$revision = 10000 + $channelNumber",
+        "$revision = 20000 + $channelNumber",
+        "$revision = 30000",
+        "Alpha phase 4+ hotfix component must stay below 100",
+    ):
+        if token not in package_script:
+            fail(f"v0.8 alpha.4.1 package fixed-version mapping missing: {token}")
+
     update_tests = read("tests/UpdatePolicyTests.cpp")
     for token in (
         '"0.8.0-alpha.3.40"',

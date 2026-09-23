@@ -135,17 +135,31 @@ if ($channelPatch -ne 0 -and $channel -ne "alpha") {
 }
 
 if ($channel -eq "alpha") {
-    if ($channelPatch -ne 0 -or $channelNumber -ge 3) {
+    if ($channelNumber -ge 4) {
+        # Keep historical alpha.3 revisions stable (ending at 70), then
+        # reserve 100 revision slots per new alpha phase so Windows
+        # FileVersion remains monotonic across phase transitions.
+        if ($channelPatch -eq 0) {
+            throw "Alpha phase 4+ requires a hotfix component, e.g. alpha.4.1."
+        }
+        if ($channelPatch -ge 100) {
+            throw "Alpha phase 4+ hotfix component must stay below 100."
+        }
+        $revision =
+            70 +
+            (($channelNumber - 4) * 100) +
+            $channelPatch
+    } elseif ($channelPatch -ne 0 -or $channelNumber -ge 3) {
         $revision = $channelNumber * 10 + $channelPatch
     } else {
         $revision = $channelNumber
     }
 } elseif ($channel -eq "beta") {
-    $revision = 99 + $channelNumber
+    $revision = 10000 + $channelNumber
 } elseif ($channel -eq "rc") {
-    $revision = 199 + $channelNumber
+    $revision = 20000 + $channelNumber
 } else {
-    $revision = 300
+    $revision = 30000
 }
 
 $expectedWindowsVersion =

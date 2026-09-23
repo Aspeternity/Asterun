@@ -31,6 +31,8 @@ Classic body typography is increased from **9 pt to 10 pt** while preserving the
 
 The green Classic input strip remains **22 logical pixels** high, but the native single-line Edit is now **18 logical pixels** high and vertically centered inside that strip. The parent paints the complete strip with the existing Classic accent background, so the smaller native Edit leaves no visual seams while its own text/caret metrics sit around the strip's real center instead of hugging the upper edge.
 
+The release tooling also hardens Windows fixed-version numbering at the alpha.4 boundary. Historical alpha.3 revisions stay unchanged through `0.8.0.70`; alpha.4 starts at `0.8.0.71` and future phases receive reserved monotonic ranges, preventing a semantic phase transition from lowering FileVersion.
+
 No search, ranking, provider, icon, context-menu, keyboard, window-placement, rapid-click, updater or Modern Compact behavior changes in this release. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.71`.
 
 ## v0.8.0-alpha.3.40 — Rapid Click Normalization

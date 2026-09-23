@@ -6,6 +6,7 @@
 - Increased Classic launcher body typography from 9 pt to **10 pt**, keeping SimSun/Tahoma, ClearType, 420 logical width, 16 logical result rows and 10-result density unchanged.
 - Kept the Classic green input strip at 22 logical px but reduced the native single-line Edit to **18 logical px** and centered it vertically inside the strip.
 - Added explicit parent painting for the full Classic input strip so the centered Edit remains visually seamless with the existing right-side hint surface.
+- Hardened Windows fixed-version mapping for the alpha.4 boundary: historical alpha.3 values stay unchanged, alpha.4.1 maps to 0.8.0.71, and future phase ranges remain monotonic in both metadata and package verification.
 - Preserved Modern Compact typography/geometry, search/ranking/provider behavior, async result icons, context actions, alpha.3.40 rapid-click normalization and alpha.3.36 updater hardening.
 - Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.71`.
 
