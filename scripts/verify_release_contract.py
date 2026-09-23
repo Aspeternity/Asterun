@@ -173,7 +173,7 @@ if version == "0.8.0-alpha.3.36":
         "## v0.8.0-alpha.3.36 — Update Status Dispatch Hardening",
         "0.8.0.66",
         "message-only HWND",
-        "nested Windows message loops",
+        "Nested Windows message loops",
         "active-only HWND timer",
     ):
         if token not in readme:
