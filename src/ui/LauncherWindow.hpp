@@ -152,6 +152,7 @@ private:
     HWND preview_{};
     WNDPROC oldEditProc_{};
     HFONT normalFont_{};
+    HFONT auxiliaryFont_{};
     HFONT boldFont_{};
     HFONT titleFont_{};
     HBRUSH windowBrush_{};

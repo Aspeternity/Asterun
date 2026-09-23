@@ -13,12 +13,14 @@ enum class UiFontRole {
     PageTitle,
     AppTitle,
     LauncherTitle,
+    LauncherAuxiliary,
 };
 
 struct UiFontSpec {
     const wchar_t* face{};
     int pointSize{};
     int weight{};
+    DWORD quality{CLEARTYPE_QUALITY};
 };
 
 [[nodiscard]] UiFontSpec

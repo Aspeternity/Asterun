@@ -5,11 +5,13 @@ namespace altrun::ui {
 namespace {
 
 constexpr int
-    kClassicLauncherBodyPointSize = 10;
+    kClassicLauncherPrimaryPointSize = 12;
+constexpr int
+    kClassicLauncherAuxiliaryPointSize = 10;
 constexpr int
     kModernLauncherBodyPointSize = 10;
 constexpr int
-    kLauncherTitlePointSize = 10;
+    kModernLauncherTitlePointSize = 10;
 
 [[nodiscard]] const wchar_t*
 ApplicationFace(
@@ -35,6 +37,7 @@ ApplicationPointSize(
         return 10;
     case UiFontRole::Body:
     case UiFontRole::BodySemibold:
+    case UiFontRole::LauncherAuxiliary:
     default:
         return 10;
     }
@@ -53,6 +56,7 @@ RoleWeight(
     case UiFontRole::LauncherTitle:
         return FW_BOLD;
     case UiFontRole::Body:
+    case UiFontRole::LauncherAuxiliary:
     default:
         return FW_NORMAL;
     }
@@ -68,6 +72,7 @@ UiFontSpec ApplicationFontSpec(
         ApplicationFace(language),
         ApplicationPointSize(role),
         RoleWeight(role),
+        CLEARTYPE_QUALITY,
     };
 }
 
@@ -87,16 +92,30 @@ UiFontSpec LauncherFontSpec(
                 : L"Tahoma";
 
     const int pointSize =
+        modern
+            ? role == UiFontRole::LauncherTitle
+                ? kModernLauncherTitlePointSize
+                : kModernLauncherBodyPointSize
+            : role == UiFontRole::LauncherAuxiliary
+                ? kClassicLauncherAuxiliaryPointSize
+                : kClassicLauncherPrimaryPointSize;
+
+    const int weight =
+        !modern &&
         role == UiFontRole::LauncherTitle
-            ? kLauncherTitlePointSize
-            : modern
-                ? kModernLauncherBodyPointSize
-                : kClassicLauncherBodyPointSize;
+            ? FW_NORMAL
+            : RoleWeight(role);
+
+    const DWORD quality =
+        modern
+            ? CLEARTYPE_QUALITY
+            : DEFAULT_QUALITY;
 
     return {
         face,
         pointSize,
-        RoleWeight(role),
+        weight,
+        quality,
     };
 }
 
@@ -123,7 +142,7 @@ HFONT CreateFontHandle(
         DEFAULT_CHARSET,
         OUT_DEFAULT_PRECIS,
         CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
+        spec.quality,
         DEFAULT_PITCH | FF_DONTCARE,
         spec.face);
 }

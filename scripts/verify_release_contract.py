@@ -42,6 +42,176 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.2":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.2 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.2 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    typography_h = read("src/ui/UiTypography.hpp")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    for token in (
+        "kClassicLauncherPrimaryPointSize = 12",
+        "kClassicLauncherAuxiliaryPointSize = 10",
+        "kModernLauncherBodyPointSize = 10",
+        "kModernLauncherTitlePointSize = 10",
+        'L"SimSun"',
+        'L"Tahoma"',
+        "DEFAULT_QUALITY",
+        "CLEARTYPE_QUALITY",
+        "spec.quality",
+        "role == UiFontRole::LauncherTitle",
+        "FW_NORMAL",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.2 Classic typography contract missing: {token}")
+
+    for token in ("LauncherAuxiliary", "DWORD quality{CLEARTYPE_QUALITY}"):
+        if token not in typography_h:
+            fail(f"v0.8 alpha.4.2 font role/spec contract missing: {token}")
+
+    for token in (
+        "HFONT auxiliaryFont_{};",
+        "DeleteObject(auxiliaryFont_)",
+        "UiFontRole::LauncherAuxiliary",
+        "reinterpret_cast<WPARAM>(auxiliaryFont_)",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.2 auxiliary-font wiring missing: {token}")
+
+    for token in (
+        "kClassicLauncherMetrics{\n        420,\n        16,\n        10,",
+        "kModernCompactLauncherMetrics{\n        620,\n        32,\n        9,",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.2 launcher metrics regressed: {token}")
+
+    for token in (
+        "constexpr int inputHeightLogical = 22;",
+        "titleHeight,\n        inputWidth,\n        inputHeight,",
+        "RECT classicInputStrip",
+        "&classicInputStrip",
+        "accentBrush_",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.2 Classic input layout missing: {token}")
+
+    for forbidden in ("inputEditHeightLogical", "inputEditOffset"):
+        if forbidden in launcher:
+            fail(f"v0.8 alpha.4.2 old 18px Edit compensation survived: {forbidden}")
+
+    for token in (
+        "const int inputHeight = DpiScale(36);",
+        "const int margin = DpiScale(12);",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "showResultIcons",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.2 Modern/performance contract regressed: {token}")
+
+    for token in ("NM_CLICK", "NM_DBLCLK", "ToggleResultRowSelection("):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.2 Path Conversion rapid-click regression: {token}")
+
+    for token in ("BN_CLICKED", "BN_DOUBLECLICKED", "toggleActivated", "ToggleAdvanced();"):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.2 Shortcut Editor rapid-click regression: {token}")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.2 updater architecture regressed: {token}")
+
+    version_script = read("scripts/verify_version.py")
+    package_script = read("scripts/verify_package.ps1")
+    for token in (
+        "revision = 70 + (channel_number - 4) * 100 + channel_patch",
+        "revision = 10000 + channel_number",
+        "revision = 20000 + channel_number",
+        "revision = 30000",
+    ):
+        if token not in version_script:
+            fail(f"v0.8 alpha.4.2 Python fixed-version mapping missing: {token}")
+    for token in (
+        "(($channelNumber - 4) * 100)",
+        "$revision = 10000 + $channelNumber",
+        "$revision = 20000 + $channelNumber",
+        "$revision = 30000",
+    ):
+        if token not in package_script:
+            fail(f"v0.8 alpha.4.2 package fixed-version mapping missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in ('"0.8.0-alpha.4.1"', '"0.8.0-alpha.4.2"', "UpdateChannel::Stable"):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.2 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    for token in (
+        "Classic Native Typography Matching",
+        "0.8.0.72",
+        "12 pt primary font",
+        "10 pt auxiliary font",
+        "DEFAULT_QUALITY",
+        "22 logical pixel",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.2 README contract missing: {token}")
+    for token in (
+        "## 0.8.0-alpha.4.2",
+        "0.8.0.72",
+        "12 pt",
+        "10 pt",
+        "DEFAULT_QUALITY",
+        "22 logical px",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.2 changelog contract missing: {token}")
+    for token in (
+        "v0.8.0-alpha.4.2",
+        "12 pt primary",
+        "10 pt auxiliary",
+        "Modern Compact refinement follows",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.2 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.2 Classic native typography verified:",
+        "| Classic primary 12pt + auxiliary 10pt",
+        "| Classic DEFAULT_QUALITY",
+        "| full-height 22px native Edit",
+        "| Modern/search/icons/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.1":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

@@ -231,6 +231,7 @@ LauncherWindow::~LauncherWindow() {
     ClearResultIconCache();
 
     if (normalFont_) DeleteObject(normalFont_);
+    if (auxiliaryFont_) DeleteObject(auxiliaryFont_);
     if (boldFont_) DeleteObject(boldFont_);
     if (titleFont_) DeleteObject(titleFont_);
     if (windowBrush_) DeleteObject(windowBrush_);
@@ -388,6 +389,10 @@ void LauncherWindow::ApplyFonts() {
         DeleteObject(normalFont_);
         normalFont_ = nullptr;
     }
+    if (auxiliaryFont_) {
+        DeleteObject(auxiliaryFont_);
+        auxiliaryFont_ = nullptr;
+    }
     if (boldFont_) {
         DeleteObject(boldFont_);
         boldFont_ = nullptr;
@@ -410,6 +415,14 @@ void LauncherWindow::ApplyFonts() {
                 ui::UiFontRole::Body),
             dpi_);
 
+    auxiliaryFont_ =
+        ui::CreateFontHandle(
+            ui::LauncherFontSpec(
+                style,
+                language,
+                ui::UiFontRole::LauncherAuxiliary),
+            dpi_);
+
     boldFont_ =
         ui::CreateFontHandle(
             ui::LauncherFontSpec(
@@ -427,9 +440,9 @@ void LauncherWindow::ApplyFonts() {
             dpi_);
 
     SendMessageW(edit_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
-    SendMessageW(hint_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
+    SendMessageW(hint_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
     SendMessageW(list_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
-    SendMessageW(preview_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
+    SendMessageW(preview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
     SendMessageW(list_, LB_SETITEMHEIGHT, 0, DpiScale(rowHeightLogical_));
 }
 
@@ -622,7 +635,6 @@ void LauncherWindow::Layout() {
     constexpr int leftSideLogical = 7;
     constexpr int rightSideLogical = 7;
     constexpr int inputHeightLogical = 22;
-    constexpr int inputEditHeightLogical = 18;
     constexpr int inputWidthLogical = 190;
     constexpr int listTopGapLogical = 4;
     constexpr int listHeightLogical = 162;
@@ -641,12 +653,6 @@ void LauncherWindow::Layout() {
     const int rightSide = DpiScale(rightSideLogical);
     const int titleHeight = DpiScale(titleHeightLogical);
     const int inputHeight = DpiScale(inputHeightLogical);
-    const int inputEditHeight =
-        DpiScale(inputEditHeightLogical);
-    const int inputEditOffset =
-        (inputHeight -
-         inputEditHeight) /
-        2;
     const int inputWidth = DpiScale(inputWidthLogical);
     const int contentWidth = width - leftSide - rightSide;
     const int listY = titleHeight + inputHeight + DpiScale(listTopGapLogical);
@@ -656,10 +662,9 @@ void LauncherWindow::Layout() {
     MoveWindow(
         edit_,
         leftSide,
-        titleHeight +
-            inputEditOffset,
+        titleHeight,
         inputWidth,
-        inputEditHeight,
+        inputHeight,
         TRUE);
 
     MoveWindow(

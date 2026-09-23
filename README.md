@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.4.2 — Classic Native Typography Matching
+
+Real-Windows alpha.4.1 comparison was still visibly softer and smaller than the original ALTRun, so alpha.4.2 switches from incremental pixel nudges to source-backed Classic typography matching. The original ALTRun defaults its title, keyword Edit and result list to 12 pt Song type with a 16 px list item height, while hint/command-line text uses the smaller -13-height tier.
+
+Classic now uses a **12 pt primary font** for the search Edit, result list and launcher title, while Hint and Preview use a separate **10 pt auxiliary font**. The Classic title returns to normal weight instead of the previous small bold treatment. The existing SimSun/Tahoma face selection is preserved, as are the 420 logical width, 16 logical result rows and ten-result density.
+
+Classic font creation now uses **DEFAULT_QUALITY** rather than forcing ClearType. Modern Compact and the application/settings typography continue to use ClearType and keep their existing 10 pt sizing.
+
+The Classic search Edit is restored to the full **22 logical pixel** height of the green input strip. The alpha.4.1 18 px inner-Edit compensation is removed because the 12 pt native font now matches the original control/font relationship directly. The full-strip parent painting remains in place.
+
+No search, ranking, provider, icon, context-menu, keyboard, window-placement, rapid-click, updater or Modern Compact behavior changes in this release. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.72`.
+
 ## v0.8.0-alpha.4.1 — Classic Typography & Input Alignment
 
 Alpha 4 begins by polishing **Classic ALTRun** before Modern Compact work. Real-Windows comparison against the original ALTRun showed two immediate readability regressions in ALTRun Next: Classic body text was visibly smaller/thinner, and the native search Edit occupied the full 22-logical-pixel green strip so its text sat visually high inside the field.

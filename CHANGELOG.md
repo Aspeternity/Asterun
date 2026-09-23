@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.4.2
+
+- Matched Classic's primary typography to the original ALTRun source: search input, result list and launcher title now use **12 pt** Classic typography while Hint/Preview use a separate **10 pt** auxiliary font.
+- Restored the Classic launcher title to normal weight; Modern Compact keeps its existing 10 pt title/body behavior.
+- Added a dedicated launcher auxiliary font handle so Hint/Preview no longer inherit the primary result/input size.
+- Stopped forcing `CLEARTYPE_QUALITY` for Classic fonts and use `DEFAULT_QUALITY`; application/settings and Modern Compact continue to use ClearType.
+- Restored the Classic native search Edit to the full **22 logical px** input-strip height and removed the alpha.4.1 18 px centering compensation.
+- Preserved 420 logical width, 16 logical result rows, 10-result density, result columns, search/ranking/providers/icons, alpha.3.40 rapid-click normalization and alpha.3.36 updater hardening.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.72`.
+
 ## 0.8.0-alpha.4.1
 
 - Started Launcher refinement with Classic ALTRun rather than Modern Compact.
