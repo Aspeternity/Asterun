@@ -42,6 +42,215 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.3":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.3 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.3 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    resources = read("src/resources.rc")
+    resource_ids = read("src/ResourceIds.h")
+    cmake = read("CMakeLists.txt")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    for token in (
+        "kClassicLauncherPrimaryPointSize = 12",
+        "kClassicLauncherAuxiliaryPointSize = 11",
+        "kModernLauncherBodyPointSize = 10",
+        "kModernLauncherTitlePointSize = 10",
+        "DEFAULT_QUALITY",
+        "CLEARTYPE_QUALITY",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.3 typography contract missing: {token}")
+
+    for token in (
+        "#define IDB_CLASSIC_SHORTCUT 201",
+        "#define IDB_CLASSIC_CLOSE 202",
+    ):
+        if token not in resource_ids:
+            fail(f"v0.8 alpha.4.3 resource ID missing: {token}")
+
+    for token in (
+        'IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"',
+        'IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"',
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.4.3 bitmap resource declaration missing: {token}")
+
+    def verify_bmp(path: str, expected_size: int, expected_bpp: int) -> None:
+        data = (ROOT / path).read_bytes()
+        if len(data) != expected_size:
+            fail(
+                f"v0.8 alpha.4.3 {path} size={len(data)}, "
+                f"expected {expected_size}"
+            )
+        if data[:2] != b"BM":
+            fail(f"v0.8 alpha.4.3 {path} is not a BMP")
+        width = int.from_bytes(data[18:22], "little", signed=True)
+        height = int.from_bytes(data[22:26], "little", signed=True)
+        bpp = int.from_bytes(data[28:30], "little")
+        declared_size = int.from_bytes(data[2:6], "little")
+        if (width, height, bpp) != (25, 25, expected_bpp):
+            fail(
+                f"v0.8 alpha.4.3 {path} geometry/bpp "
+                f"{width}x{height}x{bpp} does not match original glyph"
+            )
+        if declared_size != expected_size:
+            fail(
+                f"v0.8 alpha.4.3 {path} BMP header size "
+                f"{declared_size} != {expected_size}"
+            )
+
+    verify_bmp("src/resources/classic_shortcut.bmp", 2554, 32)
+    verify_bmp("src/resources/classic_close.bmp", 1954, 24)
+
+    for token in (
+        '#include "../ResourceIds.h"',
+        "LoadImageW(",
+        "MAKEINTRESOURCEW(",
+        "IDB_CLASSIC_SHORTCUT",
+        "IDB_CLASSIC_CLOSE",
+        "LR_CREATEDIBSECTION",
+        "TransparentBlt(",
+        "COLORONCOLOR",
+        "kClassicGlyphSourceSize = 25",
+        "classicShortcutBitmap_",
+        "classicCloseBitmap_",
+        "const int size = DpiScale(22);",
+        "const int rightInset = DpiScale(6);",
+        "const int top = DpiScale(4);",
+        "PaintClassicLogo(dc, DpiScale(8), DpiScale(2));",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.3 original-glyph integration missing: {token}")
+
+    for forbidden in (
+        "Clean-room vector recreation of the old skin",
+        "Filled beveled X rather than two crossing strokes",
+        "POINT backShadow[7]",
+        "POINT star[10]",
+    ):
+        if forbidden in launcher:
+            fail(f"v0.8 alpha.4.3 procedural Classic glyph survived: {forbidden}")
+
+    if "msimg32" not in cmake:
+        fail("v0.8 alpha.4.3 must link msimg32 for TransparentBlt")
+
+    for token in (
+        "kClassicLauncherMetrics{\n        420,\n        16,\n        10,",
+        "kModernCompactLauncherMetrics{\n        620,\n        32,\n        9,",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.3 launcher metrics regressed: {token}")
+
+    for token in (
+        "const int inputHeight = DpiScale(36);",
+        "const int margin = DpiScale(12);",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "showResultIcons",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.3 Modern/performance contract regressed: {token}")
+
+    for token in ("NM_CLICK", "NM_DBLCLK", "ToggleResultRowSelection("):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.3 Path Conversion rapid-click regression: {token}")
+
+    for token in ("BN_CLICKED", "BN_DOUBLECLICKED", "toggleActivated", "ToggleAdvanced();"):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.3 Shortcut Editor rapid-click regression: {token}")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.3 updater architecture regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.4.2"',
+        '"0.8.0-alpha.4.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.3 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    notices = read("THIRD_PARTY_NOTICES.md")
+
+    for token in (
+        "Original Classic Glyphs & Auxiliary Typography",
+        "0.8.0.73",
+        "10 pt to 11 pt",
+        "btnShortCut",
+        "btnClose",
+        "author permission",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.3 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.4.3",
+        "0.8.0.73",
+        "10 pt to 11 pt",
+        "25×25",
+        "22×22",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.3 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.3",
+        "original authorized Classic shortcut/close glyph bitmaps",
+        "Modern Compact refinement follows",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.3 roadmap missing: {token}")
+
+    for token in (
+        "btnShortCut.Glyph.Data",
+        "btnClose.Glyph.Data",
+        "etworker/ALTRun",
+        "permission from the original ALTRun author",
+    ):
+        if token not in notices:
+            fail(f"v0.8 alpha.4.3 provenance notice missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.3 Classic glyph/auxiliary typography verified:",
+        "| original 25x25 glyph BMPs embedded",
+        "| original corner geometry restored",
+        "| Classic auxiliary 11pt",
+        "| Modern/search/providers/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.2":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

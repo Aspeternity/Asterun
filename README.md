@@ -1,6 +1,6 @@
 # ALTRun Next
 
-ALTRun Next is a clean-room Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise.
+ALTRun Next is an independently implemented Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise. Classic mode includes two original launcher glyph bitmaps used with permission from the original author.
 
 ## Downloads
 
@@ -22,6 +22,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.8.0-alpha.4.3 — Original Classic Glyphs & Auxiliary Typography
+
+Real-Windows alpha.4.2 comparison confirmed that the main 12 pt Classic typography moved much closer to the original, while the top-left shortcut glyph, top-right close glyph and auxiliary Hint/Preview text still stood out visually.
+
+With permission from the original ALTRun author, alpha.4.3 directly embeds the original fixed-pixel `btnShortCut` and `btnClose` bitmap glyphs extracted from `Form/frmALTRun.dfm`. The launcher no longer approximates those two Classic glyphs with runtime Polygon/LineTo drawing. Their original 25×25 bitmap pixels are embedded as Windows resources; the shortcut glyph is placed at the original 8/2 logical coordinates, and the close control returns to the original 22×22 geometry at logical left 392/top 4 on the 420-wide Classic launcher. The 25×25 close glyph is centered and clipped by that 22×22 control rectangle, mirroring the original Delphi TSpeedButton layout.
+
+Classic Hint and Preview typography is raised from **10 pt to 11 pt** after real-Windows comparison showed the auxiliary tier remained visibly too small even though the main 12 pt result/input text was close. Classic primary/title typography remains 12 pt, Classic keeps DEFAULT_QUALITY, and Modern Compact remains unchanged at its existing 10 pt ClearType typography.
+
+ALTRun Next remains an independently implemented Windows launcher; the two original Classic glyph bitmaps are the explicit exception and are included with author permission. See `THIRD_PARTY_NOTICES.md` for provenance.
+
+No search, ranking, provider, Everything, result-icon pipeline, keyboard, window-presentation, rapid-click, updater or Modern Compact behavior changes in this release. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.73`.
 
 ## v0.8.0-alpha.4.2 — Classic Native Typography Matching
 

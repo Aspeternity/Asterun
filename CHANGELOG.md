@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.4.3
+
+- Replaced the procedural GDI recreations of the Classic top-left shortcut glyph and top-right close glyph with the original ALTRun fixed-pixel bitmap resources, used with permission from the original author.
+- Extracted the exact original `btnShortCut` 25×25 32-bit BMP and `btnClose` 25×25 24-bit BMP from `Form/frmALTRun.dfm`, embedded them through `resources.rc`, and render them with black-key transparency.
+- Restored original Classic corner geometry: shortcut glyph at logical (8,2); close hit/control rectangle 22×22 at logical top 4/right inset 6, with the 25×25 glyph centered and clipped like the original TSpeedButton.
+- Increased Classic Hint/Preview auxiliary typography from **10 pt to 11 pt** based on alpha.4.2 real-Windows comparison. Primary input/result/title typography remains 12 pt.
+- Added `THIRD_PARTY_NOTICES.md` provenance for the two authorized original glyph assets and updated the project description so the clean-room wording no longer overstates the visual-asset boundary.
+- Preserved Classic 420 width / 16-row / 10-result density, Modern Compact, search/ranking/providers/Everything, result-icon pipeline, alpha.3.40 rapid-click normalization and alpha.3.36 updater hardening.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.73`.
+
 ## 0.8.0-alpha.4.2
 
 - Matched Classic's primary typography to the original ALTRun source: search input, result list and launcher title now use **12 pt** Classic typography while Hint/Preview use a separate **10 pt** auxiliary font.

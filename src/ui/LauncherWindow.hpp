@@ -159,6 +159,8 @@ private:
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
+    HBITMAP classicShortcutBitmap_{};
+    HBITMAP classicCloseBitmap_{};
     std::unordered_map<
         std::wstring,
         ResultIconCacheEntry>

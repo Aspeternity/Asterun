@@ -7,7 +7,7 @@ namespace {
 constexpr int
     kClassicLauncherPrimaryPointSize = 12;
 constexpr int
-    kClassicLauncherAuxiliaryPointSize = 10;
+    kClassicLauncherAuxiliaryPointSize = 11;
 constexpr int
     kModernLauncherBodyPointSize = 10;
 constexpr int

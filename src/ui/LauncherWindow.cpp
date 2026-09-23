@@ -1,4 +1,5 @@
 #include "LauncherWindow.hpp"
+#include "../ResourceIds.h"
 
 #include "../app/App.hpp"
 #include "../core/ClassicBehavior.hpp"
@@ -189,6 +190,50 @@ LoadResultIconSource(
     return icon;
 }
 
+constexpr int kClassicGlyphSourceSize = 25;
+
+void PaintClassicBitmapGlyph(
+    HDC dc,
+    HBITMAP bitmap,
+    const RECT& clip,
+    int x,
+    int y,
+    int size) {
+    if (!bitmap || size <= 0) return;
+
+    HDC source = CreateCompatibleDC(dc);
+    if (!source) return;
+
+    HGDIOBJ oldBitmap =
+        SelectObject(source, bitmap);
+
+    const int saved = SaveDC(dc);
+    IntersectClipRect(
+        dc,
+        clip.left,
+        clip.top,
+        clip.right,
+        clip.bottom);
+    SetStretchBltMode(dc, COLORONCOLOR);
+
+    TransparentBlt(
+        dc,
+        x,
+        y,
+        size,
+        size,
+        source,
+        0,
+        0,
+        kClassicGlyphSourceSize,
+        kClassicGlyphSourceSize,
+        RGB(0, 0, 0));
+
+    RestoreDC(dc, saved);
+    SelectObject(source, oldBitmap);
+    DeleteDC(source);
+}
+
 } // namespace
 
 LauncherWindow::LauncherWindow(App& app, HINSTANCE instance)
@@ -238,6 +283,8 @@ LauncherWindow::~LauncherWindow() {
     if (controlBrush_) DeleteObject(controlBrush_);
     if (accentBrush_) DeleteObject(accentBrush_);
     if (bottomBrush_) DeleteObject(bottomBrush_);
+    if (classicShortcutBitmap_) DeleteObject(classicShortcutBitmap_);
+    if (classicCloseBitmap_) DeleteObject(classicCloseBitmap_);
 }
 
 bool LauncherWindow::IsModern() const {
@@ -247,6 +294,32 @@ bool LauncherWindow::IsModern() const {
 bool LauncherWindow::Create() {
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&controls);
+
+    classicShortcutBitmap_ =
+        static_cast<HBITMAP>(
+            LoadImageW(
+                instance_,
+                MAKEINTRESOURCEW(
+                    IDB_CLASSIC_SHORTCUT),
+                IMAGE_BITMAP,
+                0,
+                0,
+                LR_CREATEDIBSECTION));
+    classicCloseBitmap_ =
+        static_cast<HBITMAP>(
+            LoadImageW(
+                instance_,
+                MAKEINTRESOURCEW(
+                    IDB_CLASSIC_CLOSE),
+                IMAGE_BITMAP,
+                0,
+                0,
+                LR_CREATEDIBSECTION));
+
+    if (!classicShortcutBitmap_ ||
+        !classicCloseBitmap_) {
+        return false;
+    }
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -828,179 +901,68 @@ RECT LauncherWindow::ClassicCloseRect() const {
     RECT client{};
     GetClientRect(hwnd_, &client);
 
-    const int size = DpiScale(25);
-    const int inset = DpiScale(3);
+    const int size = DpiScale(22);
+    const int rightInset = DpiScale(6);
+    const int top = DpiScale(4);
 
     return {
-        client.right - inset - size,
-        inset,
-        client.right - inset,
-        inset + size,
+        client.right -
+            rightInset -
+            size,
+        top,
+        client.right -
+            rightInset,
+        top + size,
     };
 }
 
-void LauncherWindow::PaintClassicLogo(HDC dc, int x, int y) {
-    // Clean-room vector recreation of the old skin's visual language:
-    // a folded blue paper/arrow form with a large orange star in front.
-    POINT backShadow[7]{
-        {x + DpiScale(9),  y + DpiScale(1)},
-        {x + DpiScale(19), y + DpiScale(6)},
-        {x + DpiScale(25), y + DpiScale(11)},
-        {x + DpiScale(21), y + DpiScale(20)},
-        {x + DpiScale(14), y + DpiScale(23)},
-        {x + DpiScale(5),  y + DpiScale(17)},
-        {x + DpiScale(6),  y + DpiScale(7)},
+void LauncherWindow::PaintClassicLogo(
+    HDC dc,
+    int x,
+    int y) {
+    const int size =
+        DpiScale(
+            kClassicGlyphSourceSize);
+    RECT clip{
+        x,
+        y,
+        x + size,
+        y + size,
     };
 
-    HBRUSH shadowBrush = CreateSolidBrush(RGB(44, 57, 70));
-    HPEN shadowPen = CreatePen(PS_SOLID, DpiScale(1), RGB(33, 42, 52));
-    HGDIOBJ oldBrush = SelectObject(dc, shadowBrush);
-    HGDIOBJ oldPen = SelectObject(dc, shadowPen);
-    Polygon(dc, backShadow, 7);
-    SelectObject(dc, oldBrush);
-    SelectObject(dc, oldPen);
-    DeleteObject(shadowBrush);
-    DeleteObject(shadowPen);
-
-    POINT blueFold[6]{
-        {x + DpiScale(8),  y + DpiScale(1)},
-        {x + DpiScale(18), y + DpiScale(6)},
-        {x + DpiScale(23), y + DpiScale(11)},
-        {x + DpiScale(18), y + DpiScale(20)},
-        {x + DpiScale(11), y + DpiScale(22)},
-        {x + DpiScale(4),  y + DpiScale(14)},
-    };
-
-    HBRUSH blueBrush = CreateSolidBrush(RGB(72, 137, 204));
-    HPEN bluePen = CreatePen(PS_SOLID, DpiScale(1), RGB(35, 83, 130));
-    oldBrush = SelectObject(dc, blueBrush);
-    oldPen = SelectObject(dc, bluePen);
-    Polygon(dc, blueFold, 6);
-    SelectObject(dc, oldBrush);
-    SelectObject(dc, oldPen);
-    DeleteObject(blueBrush);
-    DeleteObject(bluePen);
-
-    // Pale folded tip on the right, clearly separated from the blue body.
-    POINT tip[4]{
-        {x + DpiScale(18), y + DpiScale(6)},
-        {x + DpiScale(25), y + DpiScale(9)},
-        {x + DpiScale(23), y + DpiScale(15)},
-        {x + DpiScale(18), y + DpiScale(12)},
-    };
-
-    HBRUSH tipBrush = CreateSolidBrush(RGB(244, 222, 132));
-    HPEN tipPen = CreatePen(PS_SOLID, DpiScale(1), RGB(116, 104, 63));
-    oldBrush = SelectObject(dc, tipBrush);
-    oldPen = SelectObject(dc, tipPen);
-    Polygon(dc, tip, 4);
-    SelectObject(dc, oldBrush);
-    SelectObject(dc, oldPen);
-    DeleteObject(tipBrush);
-    DeleteObject(tipPen);
-
-    // Large foreground five-point star.
-    POINT star[10]{
-        {x + DpiScale(8),  y + DpiScale(3)},
-        {x + DpiScale(11), y + DpiScale(9)},
-        {x + DpiScale(17), y + DpiScale(9)},
-        {x + DpiScale(12), y + DpiScale(13)},
-        {x + DpiScale(14), y + DpiScale(20)},
-        {x + DpiScale(8),  y + DpiScale(16)},
-        {x + DpiScale(2),  y + DpiScale(20)},
-        {x + DpiScale(4),  y + DpiScale(13)},
-        {x - DpiScale(1),  y + DpiScale(9)},
-        {x + DpiScale(5),  y + DpiScale(9)},
-    };
-
-    HBRUSH starBrush = CreateSolidBrush(RGB(249, 171, 63));
-    HPEN starPen = CreatePen(PS_SOLID, DpiScale(1), RGB(119, 78, 30));
-    oldBrush = SelectObject(dc, starBrush);
-    oldPen = SelectObject(dc, starPen);
-    Polygon(dc, star, 10);
-    SelectObject(dc, oldBrush);
-    SelectObject(dc, oldPen);
-    DeleteObject(starBrush);
-    DeleteObject(starPen);
-
-    HPEN highlight = CreatePen(PS_SOLID, DpiScale(1), RGB(255, 225, 155));
-    oldPen = SelectObject(dc, highlight);
-    MoveToEx(dc, x + DpiScale(3), y + DpiScale(10), nullptr);
-    LineTo(dc, x + DpiScale(8), y + DpiScale(5));
-    MoveToEx(dc, x + DpiScale(4), y + DpiScale(15), nullptr);
-    LineTo(dc, x + DpiScale(8), y + DpiScale(14));
-    SelectObject(dc, oldPen);
-    DeleteObject(highlight);
+    PaintClassicBitmapGlyph(
+        dc,
+        classicShortcutBitmap_,
+        clip,
+        x,
+        y,
+        size);
 }
 
-void LauncherWindow::PaintClassicClose(HDC dc, const RECT& rect) {
-    // Filled beveled X rather than two crossing strokes. This more closely
-    // matches the chunky early-Windows skin in the reference screenshot.
-    const int l = rect.left + DpiScale(2);
-    const int t = rect.top + DpiScale(2);
-    const int r = rect.right - DpiScale(2);
-    const int b = rect.bottom - DpiScale(2);
-    const int arm = DpiScale(5);
+void LauncherWindow::PaintClassicClose(
+    HDC dc,
+    const RECT& rect) {
+    const int glyphSize =
+        DpiScale(
+            kClassicGlyphSourceSize);
+    const int width =
+        rect.right - rect.left;
+    const int height =
+        rect.bottom - rect.top;
+    const int x =
+        rect.left +
+        (width - glyphSize) / 2;
+    const int y =
+        rect.top +
+        (height - glyphSize) / 2;
 
-    POINT shadow[12]{
-        {l + arm, t + DpiScale(2)},
-        {(l + r) / 2, (t + b) / 2 - arm / 2 + DpiScale(2)},
-        {r - arm, t + DpiScale(2)},
-        {r, t + arm + DpiScale(2)},
-        {(l + r) / 2 + arm / 2, (t + b) / 2 + DpiScale(2)},
-        {r, b - arm + DpiScale(2)},
-        {r - arm, b + DpiScale(2)},
-        {(l + r) / 2, (t + b) / 2 + arm / 2 + DpiScale(2)},
-        {l + arm, b + DpiScale(2)},
-        {l, b - arm + DpiScale(2)},
-        {(l + r) / 2 - arm / 2, (t + b) / 2 + DpiScale(2)},
-        {l, t + arm + DpiScale(2)},
-    };
-
-    HBRUSH shadowBrush = CreateSolidBrush(RGB(111, 48, 48));
-    HPEN shadowPen = CreatePen(PS_SOLID, DpiScale(1), RGB(83, 41, 41));
-    HGDIOBJ oldBrush = SelectObject(dc, shadowBrush);
-    HGDIOBJ oldPen = SelectObject(dc, shadowPen);
-    Polygon(dc, shadow, 12);
-    SelectObject(dc, oldBrush);
-    SelectObject(dc, oldPen);
-    DeleteObject(shadowBrush);
-    DeleteObject(shadowPen);
-
-    POINT body[12]{
-        {l + arm, t},
-        {(l + r) / 2, (t + b) / 2 - arm / 2},
-        {r - arm, t},
-        {r, t + arm},
-        {(l + r) / 2 + arm / 2, (t + b) / 2},
-        {r, b - arm},
-        {r - arm, b},
-        {(l + r) / 2, (t + b) / 2 + arm / 2},
-        {l + arm, b},
-        {l, b - arm},
-        {(l + r) / 2 - arm / 2, (t + b) / 2},
-        {l, t + arm},
-    };
-
-    HBRUSH bodyBrush = CreateSolidBrush(RGB(226, 91, 86));
-    HPEN bodyPen = CreatePen(PS_SOLID, DpiScale(1), RGB(158, 62, 60));
-    oldBrush = SelectObject(dc, bodyBrush);
-    oldPen = SelectObject(dc, bodyPen);
-    Polygon(dc, body, 12);
-    SelectObject(dc, oldBrush);
-    SelectObject(dc, oldPen);
-    DeleteObject(bodyBrush);
-    DeleteObject(bodyPen);
-
-    // Top-left bevel highlight.
-    HPEN light = CreatePen(PS_SOLID, DpiScale(2), RGB(255, 174, 160));
-    oldPen = SelectObject(dc, light);
-    MoveToEx(dc, l + arm, t + DpiScale(1), nullptr);
-    LineTo(dc, (l + r) / 2, (t + b) / 2 - arm / 2 + DpiScale(1));
-    MoveToEx(dc, r - arm, t + DpiScale(1), nullptr);
-    LineTo(dc, (l + r) / 2 + DpiScale(1), (t + b) / 2 - arm / 2 + DpiScale(1));
-    SelectObject(dc, oldPen);
-    DeleteObject(light);
+    PaintClassicBitmapGlyph(
+        dc,
+        classicCloseBitmap_,
+        rect,
+        x,
+        y,
+        glyphSize);
 }
 
 void LauncherWindow::PaintClassicTitleBar(HDC dc, const RECT& client) {
@@ -1245,7 +1207,7 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
 
     // Corner controls are painted last so the right Classic frame never clips the
     // close button.
-    PaintClassicLogo(dc, DpiScale(9), DpiScale(3));
+    PaintClassicLogo(dc, DpiScale(8), DpiScale(2));
     PaintClassicClose(dc, ClassicCloseRect());
 }
 
