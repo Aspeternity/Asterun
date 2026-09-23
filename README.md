@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.4.8 — Classic DPI Audit
+
+Alpha.4.8 turns the mature Classic layout into an explicit DPI contract instead of leaving its correct scaling behavior scattered across Launcher paint/layout code. ClassicLauncherMetricsForDpi() now owns the frozen 420×250 client, 8,30 / 404×22 input, 8,56 / 404×164 result list, 8,226 / 404×16 Command strip, 16px rows, x=23/x=230 dividers, title/glyph/close metrics and 12px corner diameter, all derived through the existing integer Scale() path.
+
+LauncherWindow caches that contract once per monitor DPI and consumes the cached snapshot for Classic layout, ListBox item height, rounded region, title/drag geometry, Logo/X sizing and fixed divider placement. The result-row hot paint path therefore performs no extra DPI-metrics construction. Separator width is explicitly frozen as **one physical pixel**, so 125%/150% scaling moves the divider to the correct physical x coordinate without making the line thicker.
+
+ui_foundation_tests now locks exact **96 / 120 / 144 / 192 DPI** mappings (100% / 125% / 150% / 200%), including client/control rectangles, row heights, divider positions, title/drag metrics, Logo/X sizing and corner diameter. The desktop checklist carries the same expected physical geometry plus a Per-Monitor V2 transition audit.
+
+This is geometry hardening, not a visual redesign: the alpha.4.7 native BMP/GDI render path, COLORONCOLOR bitmap policy, SimSun -16/-13 typography, search/providers/Everything/updater behavior and Modern Compact remain unchanged. Non-integer-DPI bitmap/glyph sharpness still requires real Windows visual evidence before any stretch-mode or DPI-bucket asset change.
+
+Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.78`.
+
 ## v0.8.0-alpha.4.7 — Classic Lean Render Path
 
 Alpha.4.7 treats Classic strictly as a visual skin over the ALTRun Next runtime: keep the proven compact visual language, but move fixed assets and repaint work onto the leanest native Win32 path instead of carrying legacy decoding/allocation machinery.

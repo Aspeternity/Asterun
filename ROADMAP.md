@@ -231,6 +231,7 @@ In progress:
 - v0.8.0-alpha.4.5 begins Classic+: full-opacity Classic color fidelity, owner-drawn query-aware Hint overlay, and fixed 23/230 logical result columns with per-column ellipsis instead of inherited string-padding misalignment
 - v0.8.0-alpha.4.6 removes the Classic Hint architecture completely, corrects the ListBox to 404×164, and replaces hard-clipped command text with lightweight native DT_PATH_ELLIPSIS rendering
 - v0.8.0-alpha.4.7 makes Classic a lean visual skin: native BMP background loading, no runtime GDI+ JPEG decode, one cached bitmap DC, and allocation-free Classic row backgrounds/separators
+- v0.8.0-alpha.4.8 performs the Classic DPI audit: one cached constexpr geometry contract drives 100%/125%/150%/200% layout, row/divider/title/glyph metrics are regression-tested, and real-Windows Per-Monitor V2 visual validation remains mandatory before changing bitmap scaling policy
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

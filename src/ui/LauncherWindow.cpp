@@ -415,6 +415,9 @@ bool LauncherWindow::Create() {
         hwnd_);
 
     dpi_ = GetDpiForWindow(hwnd_);
+    classicDpiMetrics_ =
+        ui::ClassicLauncherMetricsForDpi(
+            dpi_);
     CreateChildren();
     ApplyAppearance();
     ApplyLanguage();
@@ -576,7 +579,16 @@ void LauncherWindow::ApplyFonts() {
     SendMessageW(list_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
     SendMessageW(preview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
     SendMessageW(classicPreview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
-    SendMessageW(list_, LB_SETITEMHEIGHT, 0, DpiScale(rowHeightLogical_));
+    const int itemHeight =
+        IsModern()
+            ? DpiScale(rowHeightLogical_)
+            : classicDpiMetrics_.rowHeight;
+
+    SendMessageW(
+        list_,
+        LB_SETITEMHEIGHT,
+        0,
+        itemHeight);
 }
 
 void LauncherWindow::UpdateControlFrames() {
@@ -747,8 +759,8 @@ void LauncherWindow::UpdateWindowChrome() {
             0,
             width,
             height,
-            DpiScale(12),
-            DpiScale(12));
+            classicDpiMetrics_.cornerDiameter,
+            classicDpiMetrics_.cornerDiameter);
 
     if (SetWindowRgn(
             hwnd_,
@@ -938,10 +950,13 @@ void LauncherWindow::Layout() {
         return;
     }
 
+    const auto& classicMetrics =
+        classicDpiMetrics_;
+
     width =
-        DpiScale(420);
+        classicMetrics.clientWidth;
     height =
-        DpiScale(250);
+        classicMetrics.clientHeight;
 
     SetWindowPos(
         hwnd_,
@@ -956,18 +971,18 @@ void LauncherWindow::Layout() {
 
     MoveWindow(
         edit_,
-        DpiScale(8),
-        DpiScale(30),
-        DpiScale(404),
-        DpiScale(22),
+        classicMetrics.input.left,
+        classicMetrics.input.top,
+        classicMetrics.input.width,
+        classicMetrics.input.height,
         TRUE);
 
     MoveWindow(
         list_,
-        DpiScale(8),
-        DpiScale(56),
-        DpiScale(404),
-        DpiScale(164),
+        classicMetrics.results.left,
+        classicMetrics.results.top,
+        classicMetrics.results.width,
+        classicMetrics.results.height,
         TRUE);
 
     MoveWindow(
@@ -980,10 +995,10 @@ void LauncherWindow::Layout() {
 
     MoveWindow(
         classicPreview_,
-        DpiScale(8),
-        DpiScale(226),
-        DpiScale(404),
-        DpiScale(16),
+        classicMetrics.command.left,
+        classicMetrics.command.top,
+        classicMetrics.command.width,
+        classicMetrics.command.height,
         TRUE);
 }
 
@@ -1123,18 +1138,15 @@ RECT LauncherWindow::ClassicCloseRect() const {
     RECT client{};
     GetClientRect(hwnd_, &client);
 
-    const int size = DpiScale(22);
-    const int rightInset = DpiScale(6);
-    const int top = DpiScale(4);
-
     return {
         client.right -
-            rightInset -
-            size,
-        top,
+            classicDpiMetrics_.closeRightInset -
+            classicDpiMetrics_.closeSize,
+        classicDpiMetrics_.closeTop,
         client.right -
-            rightInset,
-        top + size,
+            classicDpiMetrics_.closeRightInset,
+        classicDpiMetrics_.closeTop +
+            classicDpiMetrics_.closeSize,
     };
 }
 
@@ -1143,8 +1155,7 @@ void LauncherWindow::PaintClassicLogo(
     int x,
     int y) {
     const int size =
-        DpiScale(
-            kClassicGlyphSourceSize);
+        classicDpiMetrics_.glyphSize;
     RECT clip{
         x,
         y,
@@ -1166,8 +1177,7 @@ void LauncherWindow::PaintClassicClose(
     HDC dc,
     const RECT& rect) {
     const int glyphSize =
-        DpiScale(
-            kClassicGlyphSourceSize);
+        classicDpiMetrics_.glyphSize;
     const int width =
         rect.right - rect.left;
     const int height =
@@ -1239,13 +1249,13 @@ void LauncherWindow::PaintClassicTitleBar(
         ClassicCloseRect();
 
     RECT textRect{
-        DpiScale(33),
+        classicDpiMetrics_.titleTextLeft,
         0,
         close.left,
         std::min<LONG>(
             client.bottom,
             static_cast<LONG>(
-                DpiScale(33))),
+                classicDpiMetrics_.titleHeight)),
     };
 
     HGDIOBJ oldFont =
@@ -1298,8 +1308,8 @@ void LauncherWindow::PaintWindowBackground(
         client);
     PaintClassicLogo(
         dc,
-        DpiScale(8),
-        DpiScale(2));
+        classicDpiMetrics_.logoLeft,
+        classicDpiMetrics_.logoTop);
     PaintClassicClose(
         dc,
         ClassicCloseRect());
@@ -2928,7 +2938,9 @@ LRESULT LauncherWindow::HandleMessage(
             }
 
             if (point.y >= 0 &&
-                point.y < DpiScale(30)) {
+                point.y <
+                    classicDpiMetrics_
+                        .dragHeight) {
                 return HTCAPTION;
             }
         } else if (
@@ -3367,11 +3379,10 @@ LRESULT LauncherWindow::HandleMessage(
         }
 
         constexpr int
-            numberColumnLogical = 23;
-        constexpr int
-            shortcutColumnLogical = 230;
-        constexpr int
             textInsetLogical = 4;
+
+        const auto& classicMetrics =
+            classicDpiMetrics_;
 
         const bool showIcons =
             app_.SettingsData()
@@ -3379,12 +3390,10 @@ LRESULT LauncherWindow::HandleMessage(
 
         const int firstX =
             item->rcItem.left +
-            DpiScale(
-                numberColumnLogical);
+            classicMetrics.numberDividerX;
         const int secondX =
             item->rcItem.left +
-            DpiScale(
-                shortcutColumnLogical);
+            classicMetrics.shortcutDividerX;
 
         RECT numberRect =
             item->rcItem;
@@ -3527,13 +3536,15 @@ LRESULT LauncherWindow::HandleMessage(
         RECT firstSeparator{
             firstX,
             item->rcItem.top,
-            firstX + 1,
+            firstX +
+                ui::kClassicSeparatorPhysicalThickness,
             item->rcItem.bottom,
         };
         RECT secondSeparator{
             secondX,
             item->rcItem.top,
-            secondX + 1,
+            secondX +
+                ui::kClassicSeparatorPhysicalThickness,
             item->rcItem.bottom,
         };
 
@@ -3574,6 +3585,9 @@ LRESULT LauncherWindow::HandleMessage(
 
     case WM_DPICHANGED: {
         dpi_ = HIWORD(wParam);
+        classicDpiMetrics_ =
+            ui::ClassicLauncherMetricsForDpi(
+                dpi_);
         const auto* suggested = reinterpret_cast<RECT*>(lParam);
 
         ++resultIconEpoch_;

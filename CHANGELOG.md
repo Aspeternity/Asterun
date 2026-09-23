@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.4.8
+
+- Added a single constexpr ClassicLauncherMetricsForDpi() contract for the frozen Classic client/control geometry, row height, divider positions, title/drag metrics, Logo/X sizing and rounded-region diameter.
+- Cached one Classic DPI snapshot per monitor DPI and routed Launcher layout, ListBox item height, rounded region, title/drag geometry, Logo/X sizing and x=23/x=230 divider placement through it without adding work to the result-row paint hot path.
+- Explicitly froze Classic separator thickness at **1 physical pixel** instead of DPI-scaling the line width.
+- Expanded ui_foundation_tests with exact 96/120/144/192 DPI snapshots for 100%/125%/150%/200%, including control rectangles, title/close/glyph metrics and invariants for ten rows, the 6-logical-px skin band and Command containment.
+- Added a focused alpha.4.8 real-Windows DPI checklist with expected physical rectangles and Per-Monitor V2 monitor-transition validation; removed obsolete Hint-strip wording from the historical Classic freeze checklist.
+- Preserved the alpha.4.7 native BMP/GDI render path and COLORONCOLOR policy pending real 125%/150% visual evidence; Modern Compact and all search/provider/updater behavior remain frozen.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.78`.
+
 ## 0.8.0-alpha.4.7
 
 - Kept Classic as a visual skin while continuing to modernize the runtime implementation for low overhead and maintainability.

@@ -43,6 +43,189 @@ int main() {
     assert(ui::kSettingsNavGapLogical == 4);
     assert(ui::Scale(-10, 144) == -15);
 
+    struct ClassicDpiExpectation {
+        unsigned dpi;
+        int clientWidth;
+        int clientHeight;
+        ui::UiRectMetrics input;
+        ui::UiRectMetrics results;
+        ui::UiRectMetrics command;
+        int rowHeight;
+        int numberDividerX;
+        int shortcutDividerX;
+        int titleTextLeft;
+        int titleHeight;
+        int dragHeight;
+        int logoLeft;
+        int logoTop;
+        int glyphSize;
+        int closeSize;
+        int closeRightInset;
+        int closeTop;
+        int cornerDiameter;
+    };
+
+    constexpr std::array<
+        ClassicDpiExpectation,
+        4>
+        classicDpiExpectations{{
+            {
+                96u,
+                420,
+                250,
+                {8, 30, 404, 22},
+                {8, 56, 404, 164},
+                {8, 226, 404, 16},
+                16,
+                23,
+                230,
+                33,
+                33,
+                30,
+                8,
+                2,
+                25,
+                22,
+                6,
+                4,
+                12,
+            },
+            {
+                120u,
+                525,
+                313,
+                {10, 38, 505, 28},
+                {10, 70, 505, 205},
+                {10, 283, 505, 20},
+                20,
+                29,
+                288,
+                41,
+                41,
+                38,
+                10,
+                3,
+                31,
+                28,
+                8,
+                5,
+                15,
+            },
+            {
+                144u,
+                630,
+                375,
+                {12, 45, 606, 33},
+                {12, 84, 606, 246},
+                {12, 339, 606, 24},
+                24,
+                35,
+                345,
+                50,
+                50,
+                45,
+                12,
+                3,
+                38,
+                33,
+                9,
+                6,
+                18,
+            },
+            {
+                192u,
+                840,
+                500,
+                {16, 60, 808, 44},
+                {16, 112, 808, 328},
+                {16, 452, 808, 32},
+                32,
+                46,
+                460,
+                66,
+                66,
+                60,
+                16,
+                4,
+                50,
+                44,
+                12,
+                8,
+                24,
+            },
+        }};
+
+    const auto assertRect =
+        [](const ui::UiRectMetrics& actual,
+           const ui::UiRectMetrics& expected) {
+            assert(actual.left == expected.left);
+            assert(actual.top == expected.top);
+            assert(actual.width == expected.width);
+            assert(actual.height == expected.height);
+        };
+
+    for (const auto& expected :
+         classicDpiExpectations) {
+        const auto actual =
+            ui::ClassicLauncherMetricsForDpi(
+                expected.dpi);
+
+        assert(actual.clientWidth ==
+               expected.clientWidth);
+        assert(actual.clientHeight ==
+               expected.clientHeight);
+        assertRect(actual.input, expected.input);
+        assertRect(actual.results, expected.results);
+        assertRect(actual.command, expected.command);
+        assert(actual.rowHeight ==
+               expected.rowHeight);
+        assert(actual.numberDividerX ==
+               expected.numberDividerX);
+        assert(actual.shortcutDividerX ==
+               expected.shortcutDividerX);
+        assert(actual.titleTextLeft ==
+               expected.titleTextLeft);
+        assert(actual.titleHeight ==
+               expected.titleHeight);
+        assert(actual.dragHeight ==
+               expected.dragHeight);
+        assert(actual.logoLeft ==
+               expected.logoLeft);
+        assert(actual.logoTop ==
+               expected.logoTop);
+        assert(actual.glyphSize ==
+               expected.glyphSize);
+        assert(actual.closeSize ==
+               expected.closeSize);
+        assert(actual.closeRightInset ==
+               expected.closeRightInset);
+        assert(actual.closeTop ==
+               expected.closeTop);
+        assert(actual.cornerDiameter ==
+               expected.cornerDiameter);
+
+        assert(
+            actual.results.height -
+                actual.rowHeight *
+                    static_cast<int>(
+                        ui::kClassicLauncherMetrics
+                            .maxResults) ==
+            ui::Scale(4, expected.dpi));
+        assert(
+            actual.command.top -
+                (actual.results.top +
+                 actual.results.height) ==
+            ui::Scale(6, expected.dpi));
+        assert(
+            actual.command.top +
+                actual.command.height <=
+            actual.clientHeight);
+    }
+
+    assert(
+        ui::kClassicSeparatorPhysicalThickness ==
+        1);
+
     std::cout
         << "UI foundation metrics verified\n";
     return 0;

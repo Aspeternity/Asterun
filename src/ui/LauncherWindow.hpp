@@ -190,6 +190,10 @@ private:
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};
     UINT dpi_{96};
+    ui::ClassicLauncherDpiMetrics
+        classicDpiMetrics_{
+            ui::ClassicLauncherMetricsForDpi(
+                96)};
     int widthLogical_{
         ui::kClassicLauncherMetrics.widthLogical};
     int rowHeightLogical_{

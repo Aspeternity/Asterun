@@ -117,8 +117,29 @@ Repeat the General page checks at 100%, 125%, 150% and 200% display scaling.
 This is a regression check, not a request for visual redesign.
 
 - [ ] Classic launcher remains 420 logical px wide with 10 visible results and the established compact row geometry.
-- [ ] Title bar, right frame, result columns, selection rendering, hint strip and command strip have no unintended geometry regression.
+- [ ] Title bar, right frame, fixed result columns, selection rendering and command strip have no unintended geometry regression.
 - [ ] Modern Compact changes do not leak into Classic rendering.
+
+## v0.8.0-alpha.4.8 Classic DPI audit
+
+Repeat the Classic launcher checks at all four supported validation scales. The physical geometry below is generated from the frozen logical Classic contract using the same integer rounding as the runtime.
+
+| Scale | DPI | Client | Input | Result list | Command | Row | Dividers |
+| --- | ---: | --- | --- | --- | --- | ---: | --- |
+| 100% | 96 | 420×250 | 8,30 / 404×22 | 8,56 / 404×164 | 8,226 / 404×16 | 16 | 23 / 230 |
+| 125% | 120 | 525×313 | 10,38 / 505×28 | 10,70 / 505×205 | 10,283 / 505×20 | 20 | 29 / 288 |
+| 150% | 144 | 630×375 | 12,45 / 606×33 | 12,84 / 606×246 | 12,339 / 606×24 | 24 | 35 / 345 |
+| 200% | 192 | 840×500 | 16,60 / 808×44 | 16,112 / 808×328 | 16,452 / 808×32 | 32 | 46 / 460 |
+
+- [ ] Background crop remains visually identical to the 100% Classic baseline; no black strip, color shift or unexpected crop appears.
+- [ ] Logo remains sharp enough and correctly positioned; the 25px source glyph scales to 25 / 31 / 38 / 50 physical px at 100% / 125% / 150% / 200%.
+- [ ] Close X remains visually centered, is not unexpectedly clipped, and its click target follows the scaled title geometry.
+- [ ] SimSun -16 / -13 logical-height fonts remain vertically centered and readable in title, input, results and Command.
+- [ ] Ten result rows remain fully visible; row height matches 16 / 20 / 24 / 32 physical px.
+- [ ] The two result dividers stay aligned at the expected x positions and remain exactly one physical pixel thick.
+- [ ] Command remains a single 16-logical-px row and DT_PATH_ELLIPSIS preserves the beginning and final filename for long paths.
+- [ ] Move the visible launcher between monitors with different scaling and verify Per-Monitor V2 relayout occurs without stale size, wrong font scale, black frame or misplaced hit target.
+- [ ] Compare 125% and 150% bitmap/glyph sharpness against 100% before changing stretch mode or introducing DPI-bucket assets; visual evidence is required before such a rendering change.
 
 ## Release assets
 

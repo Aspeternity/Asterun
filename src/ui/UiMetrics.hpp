@@ -40,6 +40,80 @@ inline constexpr LauncherMetrics
         10,
     };
 
+
+struct UiRectMetrics {
+    int left{};
+    int top{};
+    int width{};
+    int height{};
+};
+
+struct ClassicLauncherDpiMetrics {
+    int clientWidth{};
+    int clientHeight{};
+    UiRectMetrics input{};
+    UiRectMetrics results{};
+    UiRectMetrics command{};
+    int rowHeight{};
+    int numberDividerX{};
+    int shortcutDividerX{};
+    int titleTextLeft{};
+    int titleHeight{};
+    int dragHeight{};
+    int logoLeft{};
+    int logoTop{};
+    int glyphSize{};
+    int closeSize{};
+    int closeRightInset{};
+    int closeTop{};
+    int cornerDiameter{};
+};
+
+inline constexpr int
+    kClassicSeparatorPhysicalThickness = 1;
+
+[[nodiscard]] constexpr
+ClassicLauncherDpiMetrics
+ClassicLauncherMetricsForDpi(
+    unsigned dpi) noexcept {
+
+    return {
+        Scale(420, dpi),
+        Scale(250, dpi),
+        {
+            Scale(8, dpi),
+            Scale(30, dpi),
+            Scale(404, dpi),
+            Scale(22, dpi),
+        },
+        {
+            Scale(8, dpi),
+            Scale(56, dpi),
+            Scale(404, dpi),
+            Scale(164, dpi),
+        },
+        {
+            Scale(8, dpi),
+            Scale(226, dpi),
+            Scale(404, dpi),
+            Scale(16, dpi),
+        },
+        Scale(16, dpi),
+        Scale(23, dpi),
+        Scale(230, dpi),
+        Scale(33, dpi),
+        Scale(33, dpi),
+        Scale(30, dpi),
+        Scale(8, dpi),
+        Scale(2, dpi),
+        Scale(25, dpi),
+        Scale(22, dpi),
+        Scale(6, dpi),
+        Scale(4, dpi),
+        Scale(12, dpi),
+    };
+}
+
 inline constexpr LauncherMetrics
     kModernCompactLauncherMetrics{
         620,

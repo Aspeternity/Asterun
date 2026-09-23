@@ -42,6 +42,274 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.8":
+    import hashlib
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.8 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.8 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    cmake = read("CMakeLists.txt")
+    ui_tests = read("tests/UiFoundationTests.cpp")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    expected_assets = {
+        "src/resources/classic_bg.jpg": (
+            74289,
+            "daf552e9f948335575ae2701ca7ce0308c7c288c",
+        ),
+        "src/resources/classic_bg.bmp": (
+            475578,
+            "bbced49d20184051cf8ad48b153b022cecfecd50",
+        ),
+        "src/resources/classic_shortcut.bmp": (
+            2554,
+            "eee00956b449975f05e63a38e4da4ea29e01c240",
+        ),
+        "src/resources/classic_close.bmp": (
+            1954,
+            "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        ),
+    }
+    for path, (expected_size, expected_sha) in expected_assets.items():
+        data = (ROOT / path).read_bytes()
+        if len(data) != expected_size or git_blob_sha(path) != expected_sha:
+            fail(f"v0.8 alpha.4.8 Classic asset contract changed: {path}")
+
+    for token in (
+        'IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"',
+        'IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"',
+        'IDB_CLASSIC_BACKGROUND BITMAP "resources/classic_bg.bmp"',
+        "FILEVERSION 0,8,0,78",
+        "PRODUCTVERSION 0,8,0,78",
+        "0.8.0-alpha.4.8",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.4.8 resource/version contract missing: {token}")
+
+    for token in (
+        'version="0.8.0.78"',
+        ">PerMonitorV2</dpiAwareness>",
+    ):
+        if token not in manifest:
+            fail(f"v0.8 alpha.4.8 manifest DPI/version contract missing: {token}")
+
+    for forbidden in (
+        "#include <gdiplus.h>",
+        "Gdiplus::",
+        "LoadClassicJpegResource(",
+        "CreateStreamOnHGlobal(",
+        "GlobalAlloc(",
+        "hint_",
+        "UpdateHint",
+        "UpdateClassicHintLayout",
+        "TextId::ClassicHint",
+    ):
+        if forbidden in launcher or forbidden in launcher_h:
+            fail(f"v0.8 alpha.4.8 removed Classic path returned: {forbidden}")
+
+    if "\n        gdiplus\n" in cmake:
+        fail("v0.8 alpha.4.8 ALTRunNext must not link GDI+")
+
+    for token in (
+        "struct ClassicLauncherDpiMetrics",
+        "ClassicLauncherMetricsForDpi(",
+        "Scale(420, dpi)",
+        "Scale(250, dpi)",
+        "Scale(404, dpi)",
+        "Scale(164, dpi)",
+        "Scale(226, dpi)",
+        "Scale(16, dpi)",
+        "Scale(23, dpi)",
+        "Scale(230, dpi)",
+        "Scale(25, dpi)",
+        "kClassicSeparatorPhysicalThickness = 1",
+        "kModernCompactLauncherMetrics{\n        620,\n        32,\n        9,",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.8 DPI metrics contract missing: {token}")
+
+    for token in (
+        "classicDpiMetrics_{",
+        "ClassicLauncherMetricsForDpi(\n                96)",
+    ):
+        if token not in launcher_h:
+            fail(f"v0.8 alpha.4.8 cached DPI declaration missing: {token}")
+
+    if launcher.count("ClassicLauncherMetricsForDpi(") != 2:
+        fail(
+            "v0.8 alpha.4.8 Classic DPI metrics must be computed "
+            "only at create/DPI-change boundaries"
+        )
+
+    for token in (
+        "classicDpiMetrics_.rowHeight",
+        "classicDpiMetrics_.cornerDiameter",
+        "classicMetrics.clientWidth",
+        "classicMetrics.input.left",
+        "classicMetrics.results.height",
+        "classicMetrics.command.top",
+        "classicDpiMetrics_.glyphSize",
+        "classicDpiMetrics_.dragHeight",
+        "classicMetrics.numberDividerX",
+        "classicMetrics.shortcutDividerX",
+        "ui::kClassicSeparatorPhysicalThickness",
+        "WM_DPICHANGED",
+        "dpi_ = HIWORD(wParam)",
+        "GetDpiForWindow(hwnd_)",
+        "ApplyFonts();\n        Layout();\n        UpdateWindowChrome();",
+        "SetStretchBltMode(\n        dc,\n        COLORONCOLOR)",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.8 Launcher DPI wiring missing: {token}")
+
+    for token in (
+        "96u",
+        "120u",
+        "144u",
+        "192u",
+        "420,\n                250",
+        "525,\n                313",
+        "630,\n                375",
+        "840,\n                500",
+        "ui::Scale(4, expected.dpi)",
+        "ui::Scale(6, expected.dpi)",
+        "kClassicSeparatorPhysicalThickness",
+    ):
+        if token not in ui_tests:
+            fail(f"v0.8 alpha.4.8 automated DPI coverage missing: {token}")
+
+    for token in (
+        "kClassicLauncherPrimaryLogicalHeight96 = -16",
+        "kClassicLauncherAuxiliaryLogicalHeight96 = -13",
+        'L"SimSun"',
+        "ANSI_CHARSET",
+        "DEFAULT_QUALITY",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.8 Classic typography baseline regressed: {token}")
+
+    for token in (
+        "GetSysColorBrush(",
+        "GetStockObject(",
+        "DC_BRUSH",
+        "SetDCBrushColor(",
+        "DT_PATH_ELLIPSIS",
+        "        255,\n        LWA_ALPHA",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.8 frozen Classic/performance contract regressed: {token}")
+
+    for token in ("NM_CLICK", "NM_DBLCLK", "ToggleResultRowSelection("):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.8 Path Conversion rapid-click regression: {token}")
+
+    for token in ("BN_CLICKED", "BN_DOUBLECLICKED", "toggleActivated", "ToggleAdvanced();"):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.8 Shortcut Editor rapid-click regression: {token}")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.8 updater architecture regressed: {token}")
+
+    for token in (
+        '"0.8.0-alpha.4.7"',
+        '"0.8.0-alpha.4.8"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.8 update ordering/default coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.8 Classic DPI audit",
+        "525×313",
+        "630×375",
+        "840×500",
+        "one physical pixel",
+        "Per-Monitor V2",
+        "bitmap/glyph sharpness",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.4.8 desktop DPI checklist missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "v0.8.0-alpha.4.8 — Classic DPI Audit",
+        "ClassicLauncherMetricsForDpi()",
+        "96 / 120 / 144 / 192 DPI",
+        "one physical pixel",
+        "0.8.0.78",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.8 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.4.8",
+        "96/120/144/192 DPI",
+        "Per-Monitor V2",
+        "0.8.0.78",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.8 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.8",
+        "Classic DPI audit",
+        "100%/125%/150%/200%",
+        "real-Windows Per-Monitor V2 visual validation",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.8 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.8 Classic DPI audit verified:",
+        "| cached frozen DPI geometry contract",
+        "| 96/120/144/192 automated snapshots",
+        "| one-physical-pixel dividers",
+        "| Per-Monitor V2 manual visual matrix retained",
+        "| Modern/search/providers/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.7":
     import hashlib
 
