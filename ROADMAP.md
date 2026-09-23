@@ -210,7 +210,8 @@ In progress:
 - v0.8.0-alpha.3.24 closes the final real-Windows Shortcut Editor density pass: 590px width, content-fit ComboBox breathing room, compact inline labels and neutral Advanced hierarchy
 - v0.8.0-alpha.3.25 attempted the Shortcut workflow focus/column closeout with mouse-origin Advanced focus handling and a 16/24/14/46 Manager target layout
 - v0.8.0-alpha.3.26 corrects the real-Windows interaction/state regressions: direct native Advanced clicks with no dotted renderer focus, content-fit administrator checkbox hit area, and width-only Header custom-state detection so 16/24/14/46 is actually applied
-- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.26 real-Windows validation
+- v0.8.0-alpha.3.27 closes Manager column lifecycle: validated default-width minima plus reset-to-default on Manager reopen instead of persisting temporary drag widths
+- v0.8.0-alpha.4 follows with Launcher UX refinement after alpha.3.27 real-Windows validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

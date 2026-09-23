@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.27 — Shortcut Manager Column Lifecycle Closeout
+
+Alpha 3.27 closes the remaining Shortcut Manager column-state issue exposed by real-Windows reopen testing.
+
+The intended first-open table remains **16% Keywords / 24% Name / 14% Type / 46% Target**. Manual Header dragging is still supported, but those widths now belong only to the currently open Shortcut Manager window. Closing the Manager destroys that temporary column state; reopening starts again from the validated default balance. Window placement continues to be retained independently.
+
+The previous first-three-column cache has therefore been removed rather than repaired. This avoids a second bug in the old restore path: saved widths were being applied while the newly created ListView/Header still had effectively zero layout width, so the normal width constraints could collapse the restored values down to their minimums before the first real Layout pass.
+
+The minimum widths have also been aligned with the visually accepted first-open table at the Manager's 720×480 minimum geometry: **107 logical pixels for Keywords, 161 for Name and 94 for Type**. Target keeps its 180 logical-pixel minimum. The practical effect is that users can widen the first three columns and borrow space from Target, but can no longer shrink them below the same baseline seen on a fresh open.
+
+Alpha 3.26's Advanced disclosure/administrator-checkbox fixes, alpha.3.24 Editor geometry and alpha.3.23 updater hardening remain unchanged. Settings schema remains 8 and commands schema remains 2. Windows fixed FileVersion/ProductVersion is `0.8.0.57`.
+
 ## v0.8.0-alpha.3.26 — Shortcut Interaction Reliability & Column Default Repair
 
 Alpha 3.26 is a corrective real-Windows pass over alpha.3.25. It fixes three interaction/layout defects without changing Shortcut Editor geometry or shortcut execution behavior.

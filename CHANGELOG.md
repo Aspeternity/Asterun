@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.27
+
+- Corrected Shortcut Manager column lifecycle after real-Windows validation of alpha.3.26.
+- Freshly opened Shortcut Manager windows still start from the validated 16/24/14/46 Keywords/Name/Type/Target balance.
+- Manual column dragging is now intentionally local to the currently open Manager window. Closing and reopening the Manager resets the table to the validated default proportions instead of persisting arbitrary temporary drag widths.
+- Removed the saved first-three-column width cache and its recreate-time restore path. Window placement remains preserved exactly as before.
+- Raised the drag minimums for Keywords/Name/Type from 88/128/88 to 107/161/94 logical pixels, matching the accepted first-open widths at the 720×480 minimum Manager geometry. Users can still widen those columns while Target remains elastic, but cannot compress them below the validated baseline.
+- Kept Target's 180 logical-pixel minimum, constrained guide-only Header dragging, elastic Target resizing and no-horizontal-scrollbar behavior.
+- Preserved alpha.3.26 Advanced disclosure reliability, content-fit administrator checkbox hit area and width-only Header change detection.
+- Preserved alpha.3.24 Editor geometry and alpha.3.23 update-check hardening.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.57`.
+
 ## 0.8.0-alpha.3.26
 
 - Removed the alpha.3.25 mouse-origin focus bookkeeping from Shortcut Editor Advanced after real-Windows testing showed it could make repeated disclosure clicks feel unreliable.

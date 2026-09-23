@@ -142,9 +142,6 @@ private:
     WINDOWPLACEMENT savedWindowPlacement_{
         sizeof(WINDOWPLACEMENT)};
     bool savedWindowPlacementValid_{false};
-    std::array<int, 3>
-        savedColumnWidthsLogical_{};
-    bool savedColumnWidthsValid_{false};
     std::vector<std::wstring>
         visibleIds_;
 };

@@ -38,9 +38,13 @@ constexpr int kMinimumHeightLogical = 480;
 constexpr int kKeywordColumnPercent = 16;
 constexpr int kNameColumnPercent = 24;
 constexpr int kTypeColumnPercent = 14;
-constexpr int kKeywordColumnMinimumLogical = 88;
-constexpr int kNameColumnMinimumLogical = 128;
-constexpr int kTypeColumnMinimumLogical = 88;
+// Match the validated first-open proportions at the Manager's minimum window
+// size. Users may widen columns (with Target remaining elastic) but should not
+// compress Keywords/Name/Type below the baseline that was already accepted
+// visually on real Windows.
+constexpr int kKeywordColumnMinimumLogical = 107;
+constexpr int kNameColumnMinimumLogical = 161;
+constexpr int kTypeColumnMinimumLogical = 94;
 constexpr int kTargetColumnMinimumLogical = 180;
 
 enum ShortcutContextMenuId : UINT {
@@ -141,29 +145,9 @@ CaptureWindowState() {
             true;
     }
 
-    savedColumnWidthsValid_ =
-        false;
-
-    if (list_ &&
-        customColumnWidths_) {
-        for (int index = 0;
-             index < 3;
-             ++index) {
-            savedColumnWidthsLogical_[
-                static_cast<std::size_t>(
-                    index)] =
-                MulDiv(
-                    ListView_GetColumnWidth(
-                        list_,
-                        index),
-                    96,
-                    static_cast<int>(
-                        dpi_));
-        }
-
-        savedColumnWidthsValid_ =
-            true;
-    }
+    // Column widths are intentionally session-local to the visible Manager
+    // instance. Closing and reopening the tool window returns to the validated
+    // default balance instead of carrying arbitrary drag experiments forward.
 }
 
 void ShortcutManagerWindow::
@@ -300,22 +284,10 @@ bool ShortcutManagerWindow::Create() {
 
     CreateControls();
 
-    if (savedColumnWidthsValid_) {
-        customColumnWidths_ = true;
-
-        for (int index = 0;
-             index < 3;
-             ++index) {
-            ListView_SetColumnWidth(
-                list_,
-                index,
-                Scale(
-                    savedColumnWidthsLogical_[
-                        static_cast<
-                            std::size_t>(
-                                index)]));
-        }
-    }
+    // A recreated Manager always starts from the validated default column
+    // balance. customColumnWidths_ becomes true only after a real Header width
+    // edit while this window instance is open.
+    customColumnWidths_ = false;
 
     ApplyLanguage();
     Layout();

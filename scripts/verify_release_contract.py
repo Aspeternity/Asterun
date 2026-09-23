@@ -42,6 +42,125 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.27":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.27 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.27 must keep provider-cache schemaVersion 2")
+
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+
+    for token in (
+        "kKeywordColumnPercent = 16",
+        "kNameColumnPercent = 24",
+        "kTypeColumnPercent = 14",
+        "kKeywordColumnMinimumLogical = 107",
+        "kNameColumnMinimumLogical = 161",
+        "kTypeColumnMinimumLogical = 94",
+        "kTargetColumnMinimumLogical = 180",
+        "Column widths are intentionally session-local",
+        "A recreated Manager always starts from the validated default column",
+        "ApplyLanguage() changes only HDI_TEXT",
+        "(header->pitem->mask &\n         HDI_WIDTH) != 0",
+        "customColumnWidths_",
+        "ClampTrackedColumnWidth(",
+        "UpdateColumnWidths(",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.27 Manager column lifecycle missing: {token}")
+
+    if "savedColumnWidths" in manager_cpp or "savedColumnWidths" in manager_h:
+        fail("v0.8 alpha.3.27 must not persist temporary Manager column widths across reopen")
+
+    for token in (
+        "Deliberately do not draw ODS_FOCUS here",
+        "BCM_GETIDEALSIZE",
+        "SM_CXMENUCHECK",
+        "kEditorWidthLogical = 590",
+        "kAdvancedRightInsetLogical = 18",
+        "ToggleAdvanced();",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.27 must preserve alpha.3.26 Editor interaction repair: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    app_cpp = read("src/app/App.cpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp and token not in settings_cpp:
+            fail(f"v0.8 alpha.3.27 must preserve alpha.3.23 update hardening: {token}")
+
+    if "WinHttpQueryDataAvailable(" in update_cpp:
+        fail("v0.8 alpha.3.27 must not regress to QueryDataAvailable update reads")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.26"',
+        '"0.8.0-alpha.3.27"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.27 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.27 — Shortcut Manager Column Lifecycle Closeout",
+        "0.8.0.57",
+        "16% Keywords / 24% Name / 14% Type / 46% Target",
+        "107 logical pixels for Keywords, 161 for Name and 94 for Type",
+        "Closing the Manager destroys that temporary column state",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.27 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.27",
+        "0.8.0.57",
+        "107/161/94",
+        "reset",
+        "saved first-three-column width cache",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.27 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.27",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.27 Shortcut Manager column lifecycle verified:",
+        "| fresh open=16/24/14/46",
+        "| drag minima=107/161/94/180 logical",
+        "| temporary drag widths reset on Manager reopen",
+        "| window placement persistence retained",
+        "| alpha.3.26 Editor fixes + alpha.3.23 updater hardening preserved",
+        "| schemas unchanged",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.26":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,
