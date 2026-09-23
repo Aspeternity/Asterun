@@ -222,7 +222,8 @@ In progress:
 - v0.8.0-alpha.3.36 systemically hardens update-status delivery with a message-only HWND dispatcher plus active-only Settings self-reconciliation, removing the shared thread-message loss mode
 - v0.8.0-alpha.3.37 attempted a hybrid transparent native-state/custom-rendered checkbox, but real-Windows validation exposed a black state-image artifact
 - v0.8.0-alpha.3.38 removes native checkbox/state-image ownership entirely and moves selection, hit-testing, keyboard toggling and first-column checkbox/label rendering into the Path Conversion row model
-- v0.8.0-alpha.4 follows after alpha.3.38 real-Windows validation
+- v0.8.0-alpha.3.39 hardens pointer reliability: Path Conversion uses the whole first field cell as the checkbox target, while Shortcut Editor stops stealing focus from interactive child controls during WM_PARENTNOTIFY
+- v0.8.0-alpha.4 follows after alpha.3.39 real-Windows interaction validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

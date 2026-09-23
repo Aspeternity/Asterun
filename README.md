@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.39 — Interaction Reliability Hardening
+
+Alpha 3.39 fixes two real-Windows interaction failures that shared the same UX symptom — a visible control sometimes appeared to ignore a click — but had different causes.
+
+Path Conversion now treats the **entire first-column field cell** as the checkbox interaction target instead of only the 15/17/19/21/23 physical-pixel visual box. The visible checkbox, field label and row model remain exactly as introduced in alpha.3.38; only hit testing changes. `GetResultFieldInteractionRect()` derives the active area from the real first Header column plus the real ListView row bounds, so clicking the box, **目标 / 工作目录 / 自定义图标**, or the small gap around them toggles the same `Row::selected` state. Other columns remain non-toggling.
+
+Shortcut Editor also removes an input-focus race in the existing ComboBox de-focus helper. The old `WM_PARENTNOTIFY` path called `SetFocus(hwnd_)` during **every** child-control mouse-down while a Type/Runtime Input ComboBox still had focus. That could steal focus in the middle of an owner-drawn BUTTON down/up sequence and prevent `BN_CLICKED`, most visibly on **高级选项 / Advanced** immediately after using a ComboBox. Parent-surface clicks still dismiss ComboBox focus, and child STATIC labels/hints still count as passive surface clicks, but interactive Buttons/Edits/ComboBoxes are now left alone to complete their native mouse sequence and take focus normally.
+
+No checkbox visual, Path Conversion layout/column ratio/conversion behavior, Shortcut Editor layout, alpha.3.34 selector raster or alpha.3.36 updater architecture changes in this release. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.69`.
+
 ## v0.8.0-alpha.3.38 — Path Conversion Checkbox Ownership
 
 Alpha 3.38 removes the remaining Win32 checkbox rendering path from Path Conversion after real-Windows alpha.3.37 validation exposed a black state-image square. The hybrid approach — native `LVS_EX_CHECKBOXES` state images hidden behind transparent `LVSIL_STATE` slots with a custom post-paint checkbox layered on top — is deleted rather than patched again.

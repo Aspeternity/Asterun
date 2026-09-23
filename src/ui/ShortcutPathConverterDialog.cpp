@@ -2548,10 +2548,9 @@ ShortcutPathConverterDialog::FieldLabel(
     return L"";
 }
 
-bool ShortcutPathConverterDialog::GetResultFieldLayout(
+bool ShortcutPathConverterDialog::GetResultFieldInteractionRect(
     int itemIndex,
-    RECT& checkboxRect,
-    RECT& textRect) const {
+    RECT& interactionRect) const {
     if (!list_ ||
         itemIndex < 0 ||
         !RowIndexForListItem(
@@ -2571,18 +2570,37 @@ bool ShortcutPathConverterDialog::GetResultFieldLayout(
     HWND header =
         ListView_GetHeader(
             list_);
-    RECT fieldRect{};
 
     if (!header ||
         !Header_GetItemRect(
             header,
             0,
-            &fieldRect)) {
+            &interactionRect)) {
         return false;
     }
 
-    fieldRect.top = rowRect.top;
-    fieldRect.bottom = rowRect.bottom;
+    interactionRect.top =
+        rowRect.top;
+    interactionRect.bottom =
+        rowRect.bottom;
+
+    return interactionRect.right >
+            interactionRect.left &&
+        interactionRect.bottom >
+            interactionRect.top;
+}
+
+bool ShortcutPathConverterDialog::GetResultFieldLayout(
+    int itemIndex,
+    RECT& checkboxRect,
+    RECT& textRect) const {
+    RECT fieldRect{};
+
+    if (!GetResultFieldInteractionRect(
+            itemIndex,
+            fieldRect)) {
+        return false;
+    }
 
     const CheckboxRasterTemplate raster =
         CheckboxTemplateForDpi(
@@ -2590,9 +2608,9 @@ bool ShortcutPathConverterDialog::GetResultFieldLayout(
 
     const double rowCenter =
         (static_cast<double>(
-             rowRect.top) +
+             fieldRect.top) +
          static_cast<double>(
-             rowRect.bottom)) /
+             fieldRect.bottom)) /
         2.0;
 
     const int checkboxTop =
@@ -2625,11 +2643,11 @@ bool ShortcutPathConverterDialog::GetResultFieldLayout(
     return checkboxRect.left >=
             fieldRect.left &&
         checkboxRect.top >=
-            rowRect.top &&
+            fieldRect.top &&
         checkboxRect.right <=
             fieldRect.right &&
         checkboxRect.bottom <=
-            rowRect.bottom &&
+            fieldRect.bottom &&
         textRect.right >
             textRect.left;
 }
@@ -3428,15 +3446,13 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
                 for (int itemIndex = 0;
                      itemIndex < itemCount;
                      ++itemIndex) {
-                    RECT checkboxRect{};
-                    RECT textRect{};
+                    RECT interactionRect{};
 
-                    if (GetResultFieldLayout(
+                    if (GetResultFieldInteractionRect(
                             itemIndex,
-                            checkboxRect,
-                            textRect) &&
+                            interactionRect) &&
                         PtInRect(
-                            &checkboxRect,
+                            &interactionRect,
                             click->ptAction)) {
                         ToggleResultRowSelection(
                             itemIndex);

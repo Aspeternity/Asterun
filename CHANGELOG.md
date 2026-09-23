@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.3.39
+
+- Hardened Path Conversion checkbox interaction after alpha.3.38 real-Windows testing showed the custom visual was correct but the exact-box hit target was too unforgiving.
+- Added `GetResultFieldInteractionRect()` based on the real first Header column and row bounds; the whole Field cell now toggles `Row::selected`, while the checkbox visual/layout remains unchanged.
+- Fixed Shortcut Editor Advanced clicks being intermittently lost after ComboBox use: `WM_PARENTNOTIFY` no longer steals focus during interactive child-control mouse-down.
+- ComboBox focus is still dismissed by true parent-surface clicks and passive STATIC labels/hints, preserving the previously requested click-away behavior without interrupting Buttons/Edits/ComboBoxes.
+- Preserved the alpha.3.38 owned checkbox model/raster, alpha.3.34 selector, 13/36/39/remainder Path Conversion columns, Shortcut Editor layout and alpha.3.36 updater hardening.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.69`.
+
 ## 0.8.0-alpha.3.38
 
 - Removed the failed alpha.3.37 hybrid checkbox layer after real-Windows validation showed a black ListView state-image square.

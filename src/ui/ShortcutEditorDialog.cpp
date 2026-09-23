@@ -3529,10 +3529,48 @@ LRESULT ShortcutEditorDialog::HandleMessage(
                 WM_RBUTTONDOWN ||
             LOWORD(wParam) ==
                 WM_MBUTTONDOWN) {
-            // Child-control clicks also count as leaving a ComboBox. The
-            // clicked child can then acquire focus through normal Win32
-            // processing.
-            dismissComboFocus();
+            // Do not steal focus during an interactive child control's mouse
+            // down. Doing so can cancel the BUTTON down/up sequence before
+            // BN_CLICKED is emitted (most visible on Advanced immediately
+            // after using a ComboBox). Native interactive controls naturally
+            // take focus themselves. We only dismiss a lingering ComboBox
+            // focus when the click is on a passive STATIC surface.
+            POINT point{};
+            GetCursorPos(
+                &point);
+            ScreenToClient(
+                hwnd_,
+                &point);
+
+            HWND clickedChild =
+                ChildWindowFromPointEx(
+                    hwnd_,
+                    point,
+                    CWP_SKIPINVISIBLE |
+                        CWP_SKIPDISABLED);
+
+            bool passiveSurface = false;
+
+            if (clickedChild &&
+                clickedChild != hwnd_) {
+                wchar_t className[32]{};
+
+                if (GetClassNameW(
+                        clickedChild,
+                        className,
+                        static_cast<int>(
+                            _countof(
+                                className))) > 0) {
+                    passiveSurface =
+                        lstrcmpiW(
+                            className,
+                            L"Static") == 0;
+                }
+            }
+
+            if (passiveSurface) {
+                dismissComboFocus();
+            }
         }
         break;
 

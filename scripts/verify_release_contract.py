@@ -42,6 +42,259 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.39":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.39 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.39 must keep provider-cache schemaVersion 2")
+
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    update_cpp = read("src/platform/UpdateManager.cpp")
+
+    # Preserve the alpha.3.38 owned checkbox model and visual.
+    for forbidden in (
+        "LVS_EX_CHECKBOXES",
+        "LVSIL_STATE",
+        "checkboxStateImageList_",
+        "CreateTransparentCheckboxStateImageList",
+        "ListView_GetCheckState",
+        "ListView_SetCheckState",
+        "LVIS_STATEIMAGEMASK",
+        "BP_CHECKBOX",
+        "CBS_CHECKEDNORMAL",
+        "CBS_UNCHECKEDNORMAL",
+        "rowHeightImageList_",
+        "kResultRowHeightLogical",
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.39 native/hybrid checkbox ownership returned: {forbidden}")
+
+    for token in (
+        "bool selected{false}",
+        "row.selected = row.exists",
+        "return row.selected",
+        "for (const Row& row :",
+        "FieldLabel(",
+        "GetResultFieldLayout(",
+        "DrawResultFieldCell(",
+        "ToggleResultRowSelection(",
+        "VK_SPACE",
+        "LVNI_FOCUSED",
+        "CDDS_ITEMPOSTPAINT",
+        "CheckboxTemplateForDpi(",
+        "DrawCheckboxRaster(",
+        "kCheckboxSamplesPerAxis = 4",
+    ):
+        if token not in path_cpp and token not in path_h:
+            fail(f"v0.8 alpha.3.39 owned checkbox regression: {token}")
+
+    # Alpha.3.39 interaction reliability: first-column cell, not only the
+    # painted square, owns pointer toggling.
+    for token in (
+        "GetResultFieldInteractionRect(",
+        "Header_GetItemRect(",
+        "interactionRect.top =",
+        "interactionRect.bottom =",
+        "NM_CLICK",
+        "PtInRect(",
+        "&interactionRect",
+    ):
+        if token not in path_cpp and token not in path_h:
+            fail(f"v0.8 alpha.3.39 field-cell hit target missing: {token}")
+
+    click_region = path_cpp[
+        path_cpp.index("if (header->code ==\n            NM_CLICK)"):
+        path_cpp.index("if (header->code ==\n            LVN_ITEMCHANGING)")
+    ]
+    if "GetResultFieldInteractionRect(" not in click_region:
+        fail("v0.8 alpha.3.39 NM_CLICK must use the first-column interaction rect")
+    if "&checkboxRect" in click_region:
+        fail("v0.8 alpha.3.39 must not regress to exact visual-checkbox hit testing")
+
+    # Shortcut Editor: passive surface clicks may dismiss a lingering ComboBox
+    # focus, but interactive child controls must complete their mouse sequence.
+    for token in (
+        "case WM_PARENTNOTIFY:",
+        "ChildWindowFromPointEx(",
+        "CWP_SKIPINVISIBLE",
+        "CWP_SKIPDISABLED",
+        "GetClassNameW(",
+        'L"Static"',
+        "passiveSurface",
+        "if (passiveSurface)",
+        "dismissComboFocus();",
+        "kIdAdvancedToggle",
+        "BN_CLICKED",
+        "ToggleAdvanced();",
+        "BS_OWNERDRAW",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.39 Shortcut Editor interaction hardening missing: {token}")
+
+    parent_notify_region = editor_cpp[
+        editor_cpp.index("case WM_PARENTNOTIFY:"):
+        editor_cpp.index("case WM_NCLBUTTONDOWN:")
+    ]
+    if parent_notify_region.count("dismissComboFocus();") != 1:
+        fail("v0.8 alpha.3.39 WM_PARENTNOTIFY must have one guarded ComboBox dismissal")
+    if "if (passiveSurface)" not in parent_notify_region:
+        fail("v0.8 alpha.3.39 child-control focus dismissal must be passive-surface-only")
+    if "SetFocus(hwnd_);" in parent_notify_region:
+        fail("v0.8 alpha.3.39 WM_PARENTNOTIFY must not directly steal focus from interactive controls")
+
+    # Parent background and non-client clicks still dismiss ComboBox focus.
+    parent_surface_region = editor_cpp[
+        editor_cpp.index("case WM_LBUTTONDOWN:"):
+        editor_cpp.index("case WM_PARENTNOTIFY:")
+    ]
+    if "dismissComboFocus();" not in parent_surface_region:
+        fail("v0.8 alpha.3.39 parent-surface ComboBox click-away behavior regressed")
+
+    # Freeze selector / Path Conversion geometry and behavior.
+    for token in (
+        "struct SelectorRasterTemplate",
+        "SelectorTemplateForDpi(",
+        "CircleCoverage(",
+        "DrawSelectorRaster(",
+        "kSamplesPerAxis = 4",
+        "return {15, 1.35, 5}",
+        "return {17, 1.45, 6}",
+        "return {19, 1.60, 7}",
+        "return {21, 1.75, 8}",
+        "return {23, 1.90, 9}",
+        "kDefaultWidthLogical = 960",
+        "kDefaultHeightLogical = 560",
+        "kMinimumWidthLogical = 820",
+        "kMinimumHeightLogical = 480",
+        "kFieldColumnPercent = 13",
+        "kCurrentColumnPercent = 36",
+        "kConvertedColumnPercent = 39",
+        "SelectedFieldCount() const",
+        "UpdateSelectionState(",
+        "UpdateColumnWidths(",
+        "HandleHeaderNotification(",
+        "HandleHeaderCustomDraw(",
+        'T(L"当前没有可转换的路径"',
+        "ApplyUserCommandPathUpdates(",
+        "win::MakePortablePath(",
+        "win::ExpandPortablePath(",
+        "ResolveOwnedPopupGeometry(",
+        "RevealFullyPainted(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.39 frozen Path Conversion contract missing: {token}")
+
+    # Preserve Shortcut Editor layout / dynamic section architecture.
+    for token in (
+        "kEditorWidthLogical = 590",
+        "kControlRowHeightLogical = 28",
+        "DrawAdvancedHeader(",
+        "UpdateAdvancedVisibility()",
+        "RefreshDynamicLayout()",
+        'T(L"▾ 高级选项"',
+        'T(L"▸ 高级选项"',
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.39 Shortcut Editor layout contract regressed: {token}")
+
+    # Preserve alpha.3.36 updater hardening.
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "DestroyUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "PostMessageW(",
+        "kUpdateReconcileTimerId",
+        "HandleUpdateStatusMessage(",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.39 updater dispatcher regressed: {token}")
+
+    for token in (
+        "kUpdateStatusTimerId = 0x51692",
+        "SyncUpdateStatusTimer()",
+        "RefreshUpdateStatus();\n                SyncUpdateStatusTimer();",
+        "RDW_UPDATENOW",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.3.39 Settings updater reconciliation regressed: {token}")
+
+    for token in (
+        "WinHttpSetTimeouts(",
+        "std::stop_callback",
+        "handles.request.Close();",
+    ):
+        if token not in update_cpp:
+            fail(f"v0.8 alpha.3.39 WinHTTP hardening regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.38"',
+        '"0.8.0-alpha.3.39"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.39 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.39 — Interaction Reliability Hardening",
+        "0.8.0.69",
+        "entire first-column field cell",
+        "WM_PARENTNOTIFY",
+        "passive surface clicks",
+        "interactive Buttons/Edits/ComboBoxes",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.39 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.39",
+        "0.8.0.69",
+        "GetResultFieldInteractionRect()",
+        "WM_PARENTNOTIFY",
+        "passive STATIC",
+        "alpha.3.36 updater hardening",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.39 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.39",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3.39 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.39 interaction reliability verified:",
+        "| Path Conversion whole-field-cell checkbox hit target",
+        "| Shortcut Editor interactive child clicks no longer lose focus mid-sequence",
+        "| passive click-away ComboBox behavior preserved",
+        "| selector/columns/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.38":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

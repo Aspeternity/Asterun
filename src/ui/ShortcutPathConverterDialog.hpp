@@ -102,6 +102,10 @@ private:
     FieldLabel(
         Field field) const;
     [[nodiscard]] bool
+    GetResultFieldInteractionRect(
+        int itemIndex,
+        RECT& interactionRect) const;
+    [[nodiscard]] bool
     GetResultFieldLayout(
         int itemIndex,
         RECT& checkboxRect,
