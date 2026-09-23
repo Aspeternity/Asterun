@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.40 — Rapid Click Normalization
+
+Alpha 3.40 fixes the remaining fast-click gap discovered in real-Windows alpha.3.39 validation. The hit areas and focus routing from alpha.3.39 were correct; the missing activations came from Win32 translating the second press of a rapid double-click into a different notification code.
+
+Path Conversion now treats both `NM_CLICK` and `NM_DBLCLK` as one physical checkbox-toggle activation path. Both notifications use the same first-column interaction rectangle and the same `ToggleResultRowSelection()`, so two quick physical clicks reliably produce two state flips instead of the second press appearing to be ignored.
+
+Shortcut Editor now applies the same normalization already proven by Settings since alpha.2.3: the owner-drawn **高级选项 / Advanced** toggle accepts both `BN_CLICKED` and `BN_DOUBLECLICKED`. Browse, Test, Save, Cancel, Rescan, Apply and other one-shot action buttons deliberately remain `BN_CLICKED`-only so a user double-click cannot execute those operations twice.
+
+No hit-area, focus, visual, layout, conversion or updater behavior changes in this release. Alpha.3.39 whole-field-cell hit testing and passive-only ComboBox focus dismissal remain intact; the alpha.3.38 owned checkbox model, alpha.3.34 selector raster and alpha.3.36 updater architecture remain frozen. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.70`.
+
 ## v0.8.0-alpha.3.39 — Interaction Reliability Hardening
 
 Alpha 3.39 fixes two real-Windows interaction failures that shared the same UX symptom — a visible control sometimes appeared to ignore a click — but had different causes.

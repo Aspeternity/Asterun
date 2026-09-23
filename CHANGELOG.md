@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.3.40
+
+- Fixed rapid repeated Path Conversion checkbox clicks losing every second activation when Windows emitted `NM_DBLCLK` instead of `NM_CLICK`.
+- Routed both `NM_CLICK` and `NM_DBLCLK` through the same first-column hit test and `ToggleResultRowSelection()`, preserving one toggle per physical click.
+- Fixed rapid Advanced expand/collapse clicks in Shortcut Editor by accepting both `BN_CLICKED` and `BN_DOUBLECLICKED`, matching the already validated Settings toggle policy.
+- Deliberately kept Browse/Test/Save/Cancel and Path Conversion Rescan/Apply as single-shot `BN_CLICKED` actions so double-clicks cannot execute operations twice.
+- Preserved alpha.3.39 hit-area/focus fixes, alpha.3.38 owned checkbox rendering/state, alpha.3.34 selector rendering and alpha.3.36 updater hardening.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.70`.
+
 ## 0.8.0-alpha.3.39
 
 - Hardened Path Conversion checkbox interaction after alpha.3.38 real-Windows testing showed the custom visual was correct but the exact-box hit target was too unforgiving.

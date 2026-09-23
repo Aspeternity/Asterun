@@ -3744,12 +3744,19 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             }
             return 0;
 
-        case kIdAdvancedToggle:
-            if (HIWORD(wParam) ==
-                BN_CLICKED) {
+        case kIdAdvancedToggle: {
+            const UINT notify =
+                HIWORD(wParam);
+            const bool toggleActivated =
+                notify == BN_CLICKED ||
+                notify ==
+                    BN_DOUBLECLICKED;
+
+            if (toggleActivated) {
                 ToggleAdvanced();
             }
             return 0;
+        }
 
         case kIdBrowseWorkdir:
             if (HIWORD(wParam) ==

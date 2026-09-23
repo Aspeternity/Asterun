@@ -42,6 +42,246 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.40":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.40 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.40 must keep provider-cache schemaVersion 2")
+
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+    update_cpp = read("src/platform/UpdateManager.cpp")
+
+    # Path Conversion rapid clicks: both single and double-click notifications
+    # must enter the exact same owned-checkbox toggle path.
+    for token in (
+        "NM_CLICK",
+        "NM_DBLCLK",
+        "GetResultFieldInteractionRect(",
+        "PtInRect(",
+        "ToggleResultRowSelection(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.40 Path Conversion rapid-click normalization missing: {token}")
+
+    path_click_start = path_cpp.index(
+        "if (header->code ==\n                NM_CLICK ||"
+    )
+    path_click_end = path_cpp.index(
+        "if (header->code ==\n            LVN_ITEMCHANGING)",
+        path_click_start,
+    )
+    path_click_region = path_cpp[path_click_start:path_click_end]
+    for token in (
+        "NM_CLICK",
+        "NM_DBLCLK",
+        "GetResultFieldInteractionRect(",
+        "ToggleResultRowSelection(",
+    ):
+        if token not in path_click_region:
+            fail(f"v0.8 alpha.3.40 click branch missing {token}")
+
+    # Advanced is toggle semantics, so every physical rapid click must flip it.
+    advanced_start = editor_cpp.index("case kIdAdvancedToggle: {")
+    advanced_end = editor_cpp.index("case kIdBrowseWorkdir:", advanced_start)
+    advanced_region = editor_cpp[advanced_start:advanced_end]
+    for token in (
+        "BN_CLICKED",
+        "BN_DOUBLECLICKED",
+        "toggleActivated",
+        "ToggleAdvanced();",
+    ):
+        if token not in advanced_region:
+            fail(f"v0.8 alpha.3.40 Advanced rapid-click normalization missing: {token}")
+
+    # One-shot action buttons must NOT inherit toggle double-click semantics.
+    for start_marker, end_marker in (
+        ("case kIdBrowseIcon:", "case kIdAdvancedToggle:"),
+        ("case kIdBrowseWorkdir:", "case kIdTest:"),
+        ("case kIdTest:", "case kIdSave:"),
+        ("case kIdSave:", "case kIdCancel:"),
+        ("case kIdCancel:", "default:"),
+    ):
+        start = editor_cpp.index(start_marker)
+        end = editor_cpp.index(end_marker, start)
+        if "BN_DOUBLECLICKED" in editor_cpp[start:end]:
+            fail(f"v0.8 alpha.3.40 one-shot action gained double-click execution: {start_marker}")
+
+    for start_marker, end_marker in (
+        ("case kIdRescan:", "case kIdApply:"),
+        ("case kIdApply:", "default:"),
+    ):
+        start = path_cpp.index(start_marker)
+        end = path_cpp.index(end_marker, start)
+        if "BN_DOUBLECLICKED" in path_cpp[start:end]:
+            fail(f"v0.8 alpha.3.40 Path Conversion one-shot action gained double-click execution: {start_marker}")
+
+    # Settings already established the shared owner-draw toggle policy.
+    for token in (
+        "notify == BN_CLICKED ||",
+        "notify == BN_DOUBLECLICKED",
+        "const bool toggleActivated",
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.3.40 Settings rapid-toggle policy regressed: {token}")
+
+    # Preserve alpha.3.39 hit-area and focus fixes.
+    for token in (
+        "GetResultFieldInteractionRect(",
+        "Header_GetItemRect(",
+        "&interactionRect",
+        "case WM_PARENTNOTIFY:",
+        "ChildWindowFromPointEx(",
+        "passiveSurface",
+        "if (passiveSurface)",
+        'L"Static"',
+    ):
+        if token not in path_cpp and token not in editor_cpp:
+            fail(f"v0.8 alpha.3.40 alpha.3.39 interaction contract regressed: {token}")
+
+    # Preserve the fully-owned checkbox visual/state model.
+    for forbidden in (
+        "LVS_EX_CHECKBOXES",
+        "LVSIL_STATE",
+        "checkboxStateImageList_",
+        "CreateTransparentCheckboxStateImageList",
+        "ListView_GetCheckState",
+        "ListView_SetCheckState",
+        "LVIS_STATEIMAGEMASK",
+        "rowHeightImageList_",
+        "kResultRowHeightLogical",
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.40 native/hybrid checkbox ownership returned: {forbidden}")
+
+    for token in (
+        "bool selected{false}",
+        "row.selected = row.exists",
+        "DrawResultFieldCell(",
+        "CheckboxTemplateForDpi(",
+        "kCheckboxSamplesPerAxis = 4",
+        "VK_SPACE",
+        "LVNI_FOCUSED",
+    ):
+        if token not in path_cpp and token not in path_h:
+            fail(f"v0.8 alpha.3.40 owned checkbox regression: {token}")
+
+    # Freeze selector / geometry / editor layout.
+    for token in (
+        "struct SelectorRasterTemplate",
+        "SelectorTemplateForDpi(",
+        "kSamplesPerAxis = 4",
+        "return {19, 1.60, 7}",
+        "kDefaultWidthLogical = 960",
+        "kDefaultHeightLogical = 560",
+        "kMinimumWidthLogical = 820",
+        "kMinimumHeightLogical = 480",
+        "kFieldColumnPercent = 13",
+        "kCurrentColumnPercent = 36",
+        "kConvertedColumnPercent = 39",
+        "ApplyUserCommandPathUpdates(",
+        "ResolveOwnedPopupGeometry(",
+        "RevealFullyPainted(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.40 frozen Path Conversion contract missing: {token}")
+
+    for token in (
+        "kEditorWidthLogical = 590",
+        "kControlRowHeightLogical = 28",
+        "DrawAdvancedHeader(",
+        "UpdateAdvancedVisibility()",
+        "RefreshDynamicLayout()",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.40 Shortcut Editor layout contract regressed: {token}")
+
+    # Preserve alpha.3.36 updater architecture.
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "DestroyUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.40 updater dispatcher regressed: {token}")
+
+    for token in (
+        "WinHttpSetTimeouts(",
+        "std::stop_callback",
+        "handles.request.Close();",
+    ):
+        if token not in update_cpp:
+            fail(f"v0.8 alpha.3.40 WinHTTP hardening regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.39"',
+        '"0.8.0-alpha.3.40"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.40 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.40 — Rapid Click Normalization",
+        "0.8.0.70",
+        "NM_CLICK",
+        "NM_DBLCLK",
+        "BN_CLICKED",
+        "BN_DOUBLECLICKED",
+        "one-shot action buttons",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.40 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.40",
+        "0.8.0.70",
+        "NM_DBLCLK",
+        "BN_DOUBLECLICKED",
+        "single-shot",
+        "alpha.3.36 updater hardening",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.40 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.40",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3.40 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.40 rapid-click normalization verified:",
+        "| Path Conversion NM_CLICK + NM_DBLCLK toggle",
+        "| Advanced BN_CLICKED + BN_DOUBLECLICKED toggle",
+        "| one-shot actions remain single-fire",
+        "| alpha.3.39 interaction + updater/visual contracts preserved",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.39":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,

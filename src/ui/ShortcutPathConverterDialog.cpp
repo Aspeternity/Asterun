@@ -3432,7 +3432,9 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
         }
 
         if (header->code ==
-            NM_CLICK) {
+                NM_CLICK ||
+            header->code ==
+                NM_DBLCLK) {
             const auto* click =
                 reinterpret_cast<
                     NMITEMACTIVATE*>(
