@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.26 — Shortcut Interaction Reliability & Column Default Repair
+
+Alpha 3.26 is a corrective real-Windows pass over alpha.3.25. It fixes three interaction/layout defects without changing Shortcut Editor geometry or shortcut execution behavior.
+
+The Advanced disclosure no longer uses mouse-origin bookkeeping or focus transfer after `BN_CLICKED`. Those alpha.3.25 mechanics were unnecessary once the owner-drawn header stopped using accent focus styling, and real-Windows testing showed they could make repeated pointer clicks feel unreliable. Advanced is again driven directly by the native Button notification path. Its renderer intentionally ignores `ODS_FOCUS`, so the classic dotted Win32 focus rectangle is never painted, while click/Tab/Space behavior remains native.
+
+The **Run as administrator** control no longer spans the entire Advanced value column. Its HWND is sized to the checkbox's ideal content width through `BCM_GETIDEALSIZE`, with a font- and DPI-aware fallback using the active text metrics plus the native checkmark width. Only the visible checkbox/label area is therefore clickable.
+
+The Shortcut Manager column screenshot also exposed a separate state bug rather than a bad 16/24/14/46 ratio. `ApplyLanguage()` updates Header text with `HDI_TEXT`, which raises `HDN_ITEMCHANGED`; the old handler treated every item-changed notification as a width edit and enabled `customColumnWidths_` before the first layout. That bypassed the percentage defaults and left the table using creation/minimum-like widths. Alpha 3.26 only treats `HDN_ITEMCHANGED` as a user resize when `HDI_WIDTH` is present. Fresh Manager windows can now apply the intended **16% Keywords / 24% Name / 14% Type / 46% Target** layout, while real user drag widths still enter custom mode and remain elastic against Target.
+
+Alpha 3.24 Editor geometry and alpha.3.23 updater hardening are preserved unchanged. Settings schema remains 8 and commands schema remains 2. Windows fixed FileVersion/ProductVersion is `0.8.0.56`.
+
 ## v0.8.0-alpha.3.25 — Shortcut Workflow Focus & Column Balance Closeout
 
 Alpha 3.25 closes the two remaining real-Windows Shortcut workflow polish items without reopening Shortcut Editor geometry or shortcut behavior.

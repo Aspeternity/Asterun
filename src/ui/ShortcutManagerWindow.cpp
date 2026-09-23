@@ -1830,7 +1830,13 @@ HandleHeaderNotification(
     }
 
     if (itemChanged &&
-        !columnTracking_) {
+        !columnTracking_ &&
+        header->pitem &&
+        (header->pitem->mask &
+         HDI_WIDTH) != 0) {
+        // ApplyLanguage() changes only HDI_TEXT. Treating that notification as
+        // a user resize made customColumnWidths_ true before the first Layout,
+        // so the intended 16/24/14/46 defaults were silently skipped.
         customColumnWidths_ =
             true;
         UpdateColumnWidths(

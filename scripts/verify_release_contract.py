@@ -42,6 +42,142 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.26":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.26 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.26 must keep provider-cache schemaVersion 2")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+
+    for token in (
+        "Deliberately do not draw ODS_FOCUS here",
+        "BCM_GETIDEALSIZE",
+        "SM_CXMENUCHECK",
+        "adminWidth",
+        "kEditorWidthLogical = 590",
+        "kAdvancedRightInsetLogical = 18",
+        "case kIdAdvancedToggle:",
+        "ToggleAdvanced();",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.26 Editor interaction repair missing: {token}")
+
+    if "advancedMouseActivation_" in editor_cpp or "advancedMouseActivation_" in editor_h:
+        fail("v0.8 alpha.3.26 must remove alpha.3.25 Advanced mouse-origin focus state")
+
+    for token in (
+        "kKeywordColumnPercent = 16",
+        "kNameColumnPercent = 24",
+        "kTypeColumnPercent = 14",
+        "kKeywordColumnMinimumLogical = 88",
+        "kNameColumnMinimumLogical = 128",
+        "kTypeColumnMinimumLogical = 88",
+        "kTargetColumnMinimumLogical = 180",
+        "ApplyLanguage() changes only HDI_TEXT",
+        "(header->pitem->mask &\n         HDI_WIDTH) != 0",
+        "customColumnWidths_",
+        "ClampTrackedColumnWidth(",
+        "UpdateColumnWidths(",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.26 Manager column-state repair missing: {token}")
+
+    for token in (
+        "ParseShortcutKeywords(",
+        "SuggestShortcutTitle(",
+        "InferShortcutCommandType(",
+        "CanAcceptRuntimeInput(",
+        "HasRuntimeInputPlaceholder(",
+        "RuntimeInputMode::Raw",
+        "RuntimeInputMode::UrlEncoded",
+        "app_.CreateUserCommand(",
+        "app_.UpdateUserCommand(",
+        "app_.TestCommand(",
+        "RefreshDynamicLayout();",
+        "RDW_ALLCHILDREN",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.26 frozen Shortcut behavior missing: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    app_cpp = read("src/app/App.cpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp and token not in settings_cpp:
+            fail(f"v0.8 alpha.3.26 must preserve alpha.3.23 update hardening: {token}")
+
+    if "WinHttpQueryDataAvailable(" in update_cpp:
+        fail("v0.8 alpha.3.26 must not regress to QueryDataAvailable update reads")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.25"',
+        '"0.8.0-alpha.3.26"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.26 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.26 — Shortcut Interaction Reliability & Column Default Repair",
+        "0.8.0.56",
+        "BCM_GETIDEALSIZE",
+        "HDN_ITEMCHANGED",
+        "16% Keywords / 24% Name / 14% Type / 46% Target",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.26 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.26",
+        "0.8.0.56",
+        "classic dotted focus rectangle",
+        "HDI_WIDTH",
+        "16/24/14/46",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.26 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.26",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.26 Shortcut interaction/column repair verified:",
+        "| Advanced=native click path, no ODS_FOCUS renderer",
+        "| admin checkbox=content-fit hit area",
+        "| Manager text-only HDN_ITEMCHANGED no longer enters custom widths",
+        "| intended 16/24/14/46 defaults preserved",
+        "| alpha.3.24 geometry + alpha.3.23 updater hardening preserved",
+        "| schemas/frozen shortcut behavior unchanged",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.25":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

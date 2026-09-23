@@ -1738,11 +1738,72 @@ void ShortcutEditorDialog::Layout() {
         y += Scale(
             kAdminTopGapLogical);
 
+        int adminWidth =
+            advancedFieldWidth;
+        SIZE adminIdeal{};
+
+        if (SendMessageW(
+                admin_,
+                BCM_GETIDEALSIZE,
+                0,
+                reinterpret_cast<LPARAM>(
+                    &adminIdeal)) != FALSE &&
+            adminIdeal.cx > 0) {
+            adminWidth =
+                std::min(
+                    advancedFieldWidth,
+                    static_cast<int>(
+                        adminIdeal.cx) +
+                        Scale(2));
+        } else {
+            HDC adminDc =
+                GetDC(hwnd_);
+
+            if (adminDc) {
+                HGDIOBJ oldAdminFont =
+                    SelectObject(
+                        adminDc,
+                        font_);
+
+                wchar_t adminText[128]{};
+                GetWindowTextW(
+                    admin_,
+                    adminText,
+                    static_cast<int>(
+                        _countof(adminText)));
+
+                SIZE adminTextSize{};
+                if (GetTextExtentPoint32W(
+                        adminDc,
+                        adminText,
+                        GetWindowTextLengthW(
+                            admin_),
+                        &adminTextSize)) {
+                    adminWidth =
+                        std::min(
+                            advancedFieldWidth,
+                            static_cast<int>(
+                                adminTextSize.cx) +
+                                GetSystemMetricsForDpi(
+                                    SM_CXMENUCHECK,
+                                    dpi_) +
+                                Scale(14));
+                }
+
+                SelectObject(
+                    adminDc,
+                    oldAdminFont);
+                ReleaseDC(
+                    hwnd_,
+                    adminDc);
+            }
+        }
+
         MoveWindow(
             admin_,
             formFieldLeft,
             y,
-            advancedFieldWidth,
+            adminWidth,
             Scale(26),
             TRUE);
     }
@@ -1898,9 +1959,6 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
     const bool disabled =
         (draw.itemState &
          ODS_DISABLED) != 0;
-    const bool focused =
-        (draw.itemState &
-         ODS_FOCUS) != 0;
 
     HBRUSH background =
         CreateSolidBrush(
@@ -1995,33 +2053,9 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
         oldPen);
     DeleteObject(linePen);
 
-    const LRESULT uiState =
-        SendMessageW(
-            hwnd_,
-            WM_QUERYUISTATE,
-            0,
-            0);
-
-    if (focused &&
-        !disabled &&
-        (uiState & UISF_HIDEFOCUS) == 0) {
-        // Keep focus feedback keyboard-only. Mouse clicks no longer leave an
-        // accent underline that makes Advanced look like a selected web tab.
-        RECT focusRect{
-            textRect.left - Scale(1),
-            rect.top + Scale(4),
-            std::min(
-                rect.right,
-                textRect.left +
-                    extent.cx +
-                    Scale(2)),
-            rect.bottom - Scale(4),
-        };
-
-        DrawFocusRect(
-            draw.hDC,
-            &focusRect);
-    }
+    // Deliberately do not draw ODS_FOCUS here. The disclosure remains a
+    // native Button for Tab/Space/click semantics, but its low-noise section
+    // header presentation never exposes the classic dotted focus rectangle.
 
     SelectObject(
         draw.hDC,
@@ -3476,9 +3510,6 @@ LRESULT ShortcutEditorDialog::HandleMessage(
 
     switch (message) {
     case WM_LBUTTONDOWN:
-        // A click on the dialog itself is not an Advanced-button activation.
-        advancedMouseActivation_ = false;
-        [[fallthrough]];
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:
         // Match Settings: clicking the dialog surface should dismiss the
@@ -3487,17 +3518,6 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
 
     case WM_PARENTNOTIFY:
-        if (LOWORD(wParam) ==
-                WM_LBUTTONDOWN) {
-            // WM_PARENTNOTIFY carries the child control id in HIWORD(wParam).
-            // Remember only the left-click that starts on Advanced so the
-            // subsequent BN_CLICKED can discard mouse focus without touching
-            // Tab/Space keyboard semantics.
-            advancedMouseActivation_ =
-                HIWORD(wParam) ==
-                kIdAdvancedToggle;
-        }
-
         if (LOWORD(wParam) ==
                 WM_LBUTTONDOWN ||
             LOWORD(wParam) ==
@@ -3512,8 +3532,6 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
 
     case WM_NCLBUTTONDOWN:
-        advancedMouseActivation_ = false;
-        [[fallthrough]];
     case WM_NCRBUTTONDOWN:
     case WM_NCMBUTTONDOWN:
         dismissComboFocus();
@@ -3686,19 +3704,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         case kIdAdvancedToggle:
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
-                const bool mouseActivation =
-                    advancedMouseActivation_;
-                advancedMouseActivation_ =
-                    false;
-
                 ToggleAdvanced();
-
-                if (mouseActivation) {
-                    // Mouse clicks should not leave the section header looking
-                    // selected. Keyboard activation keeps Button focus so
-                    // Tab/Space navigation retains a visible focus cue.
-                    SetFocus(hwnd_);
-                }
             }
             return 0;
 

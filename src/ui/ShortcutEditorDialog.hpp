@@ -149,7 +149,6 @@ private:
     bool changed_{false};
     bool closed_{false};
     bool advancedExpanded_{false};
-    bool advancedMouseActivation_{false};
     bool nameAuto_{true};
     bool suppressNameChange_{false};
     std::wstring commandId_;

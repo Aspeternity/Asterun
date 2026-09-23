@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.26
+
+- Removed the alpha.3.25 mouse-origin focus bookkeeping from Shortcut Editor Advanced after real-Windows testing showed it could make repeated disclosure clicks feel unreliable.
+- Advanced remains a native owner-drawn Button for click/Tab/Space semantics, but its custom renderer no longer draws ODS_FOCUS at all, eliminating the persistent classic dotted focus rectangle without moving focus during BN_CLICKED.
+- Reduced the **Run as administrator** checkbox HWND to its ideal content width using `BCM_GETIDEALSIZE` with a font/DPI-aware fallback. Clicking blank space to the right of the label therefore no longer toggles the checkbox.
+- Fixed the root cause behind the unexpected Shortcut Manager column proportions: `HDN_ITEMCHANGED` from `ApplyLanguage()` text updates was incorrectly treated as a user width change, setting `customColumnWidths_` before first layout and silently bypassing the intended 16/24/14/46 defaults.
+- Header notifications now enter custom-width mode only when `HDI_WIDTH` actually changed. Text-only label updates no longer alter column sizing state.
+- Kept the validated 16/24/14/46 default Manager column balance and 88/128/88/180 logical minimum widths; with the false custom-width transition removed, fresh windows now actually receive that layout.
+- Preserved constrained Header dragging, elastic Target behavior, column-session persistence, alpha.3.24 Editor geometry, Runtime Input, IME, modern pickers and path conversion.
+- Preserved alpha.3.23 update-check cancellation, CheckTimedOut handling and 60-second watchdog.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.56`.
+
 ## 0.8.0-alpha.3.25
 
 - Closed the remaining Shortcut Editor Advanced-focus regression: mouse clicks now expand/collapse Advanced and immediately return focus to the dialog surface, so the classic dotted Button focus rectangle does not remain after pointer activation.
