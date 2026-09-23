@@ -324,6 +324,10 @@ int main() {
         IsUpdateVersionNewer(
             "0.8.0-alpha.3.39",
             "0.8.0-alpha.3.40"));
+    assert(
+        IsUpdateVersionNewer(
+            "0.8.0-alpha.3.40",
+            "0.8.0-alpha.4.1"));
 
     assert(
         !CompareVersions(
@@ -348,7 +352,7 @@ int main() {
         UpdateChannel::Stable);
     assert(
         DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.3.40") ==
+            "0.8.0-alpha.4.1") ==
         UpdateChannel::Stable);
 
     assert(

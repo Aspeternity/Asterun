@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.4.1 — Classic Typography & Input Alignment
+
+Alpha 4 begins by polishing **Classic ALTRun** before Modern Compact work. Real-Windows comparison against the original ALTRun showed two immediate readability regressions in ALTRun Next: Classic body text was visibly smaller/thinner, and the native search Edit occupied the full 22-logical-pixel green strip so its text sat visually high inside the field.
+
+Classic body typography is increased from **9 pt to 10 pt** while preserving the original-style typefaces (SimSun for zh-CN and Tahoma for English), ClearType rendering, the 16-logical-pixel result-row height, ten-result density and the existing 420-logical-pixel launcher width. Launcher title typography remains 10 pt, and Modern Compact remains 10 pt, so this change is scoped to Classic body/result/input/hint/preview text.
+
+The green Classic input strip remains **22 logical pixels** high, but the native single-line Edit is now **18 logical pixels** high and vertically centered inside that strip. The parent paints the complete strip with the existing Classic accent background, so the smaller native Edit leaves no visual seams while its own text/caret metrics sit around the strip's real center instead of hugging the upper edge.
+
+No search, ranking, provider, icon, context-menu, keyboard, window-placement, rapid-click, updater or Modern Compact behavior changes in this release. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.71`.
+
 ## v0.8.0-alpha.3.40 — Rapid Click Normalization
 
 Alpha 3.40 fixes the remaining fast-click gap discovered in real-Windows alpha.3.39 validation. The hit areas and focus routing from alpha.3.39 were correct; the missing activations came from Win32 translating the second press of a rapid double-click into a different notification code.

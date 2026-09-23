@@ -224,8 +224,9 @@ In progress:
 - v0.8.0-alpha.3.38 removes native checkbox/state-image ownership entirely and moves selection, hit-testing, keyboard toggling and first-column checkbox/label rendering into the Path Conversion row model
 - v0.8.0-alpha.3.39 hardens pointer reliability: Path Conversion uses the whole first field cell as the checkbox target, while Shortcut Editor stops stealing focus from interactive child controls during WM_PARENTNOTIFY
 - v0.8.0-alpha.3.40 normalizes rapid toggle clicks: Path Conversion handles NM_CLICK + NM_DBLCLK and Shortcut Editor Advanced handles BN_CLICKED + BN_DOUBLECLICKED, while one-shot actions remain single-fire
-- v0.8.0-alpha.4 follows after alpha.3.40 real-Windows rapid-click validation
-- Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
+- v0.8.0-alpha.4.1 starts Launcher refinement with Classic typography/readability: 10 pt Classic body text plus a vertically centered 18 px native Edit inside the unchanged 22 px input strip
+- Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
+- Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 
 ## v0.9.x - Distribution & extensibility

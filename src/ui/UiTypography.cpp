@@ -4,6 +4,13 @@ namespace altrun::ui {
 
 namespace {
 
+constexpr int
+    kClassicLauncherBodyPointSize = 10;
+constexpr int
+    kModernLauncherBodyPointSize = 10;
+constexpr int
+    kLauncherTitlePointSize = 10;
+
 [[nodiscard]] const wchar_t*
 ApplicationFace(
     Language language) noexcept {
@@ -81,10 +88,10 @@ UiFontSpec LauncherFontSpec(
 
     const int pointSize =
         role == UiFontRole::LauncherTitle
-            ? 10
+            ? kLauncherTitlePointSize
             : modern
-                ? 10
-                : 9;
+                ? kModernLauncherBodyPointSize
+                : kClassicLauncherBodyPointSize;
 
     return {
         face,

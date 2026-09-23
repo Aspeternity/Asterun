@@ -622,6 +622,7 @@ void LauncherWindow::Layout() {
     constexpr int leftSideLogical = 7;
     constexpr int rightSideLogical = 7;
     constexpr int inputHeightLogical = 22;
+    constexpr int inputEditHeightLogical = 18;
     constexpr int inputWidthLogical = 190;
     constexpr int listTopGapLogical = 4;
     constexpr int listHeightLogical = 162;
@@ -640,6 +641,12 @@ void LauncherWindow::Layout() {
     const int rightSide = DpiScale(rightSideLogical);
     const int titleHeight = DpiScale(titleHeightLogical);
     const int inputHeight = DpiScale(inputHeightLogical);
+    const int inputEditHeight =
+        DpiScale(inputEditHeightLogical);
+    const int inputEditOffset =
+        (inputHeight -
+         inputEditHeight) /
+        2;
     const int inputWidth = DpiScale(inputWidthLogical);
     const int contentWidth = width - leftSide - rightSide;
     const int listY = titleHeight + inputHeight + DpiScale(listTopGapLogical);
@@ -649,9 +656,10 @@ void LauncherWindow::Layout() {
     MoveWindow(
         edit_,
         leftSide,
-        titleHeight,
+        titleHeight +
+            inputEditOffset,
         inputWidth,
-        inputHeight,
+        inputEditHeight,
         TRUE);
 
     MoveWindow(
@@ -1060,6 +1068,28 @@ void LauncherWindow::PaintWindowBackground(HDC dc) {
     PaintClassicTitleBar(dc, client);
 
     const auto palette = CurrentPalette();
+
+    const int classicLeftSide =
+        DpiScale(7);
+    const int classicRightSide =
+        DpiScale(7);
+    const int classicInputTop =
+        DpiScale(30);
+    const int classicInputBottom =
+        classicInputTop +
+        DpiScale(22);
+
+    RECT classicInputStrip{
+        classicLeftSide,
+        classicInputTop,
+        client.right -
+            classicRightSide,
+        classicInputBottom,
+    };
+    FillRect(
+        dc,
+        &classicInputStrip,
+        accentBrush_);
 
     // Continuous Classic side rails. These intentionally use the same color
     // above and below the title/content boundary to avoid the visible break

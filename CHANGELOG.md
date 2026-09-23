@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.4.1
+
+- Started Launcher refinement with Classic ALTRun rather than Modern Compact.
+- Increased Classic launcher body typography from 9 pt to **10 pt**, keeping SimSun/Tahoma, ClearType, 420 logical width, 16 logical result rows and 10-result density unchanged.
+- Kept the Classic green input strip at 22 logical px but reduced the native single-line Edit to **18 logical px** and centered it vertically inside the strip.
+- Added explicit parent painting for the full Classic input strip so the centered Edit remains visually seamless with the existing right-side hint surface.
+- Preserved Modern Compact typography/geometry, search/ranking/provider behavior, async result icons, context actions, alpha.3.40 rapid-click normalization and alpha.3.36 updater hardening.
+- Kept settings schemaVersion 9 and updated Windows fixed FileVersion/ProductVersion to `0.8.0.71`.
+
 ## 0.8.0-alpha.3.40
 
 - Fixed rapid repeated Path Conversion checkbox clicks losing every second activation when Windows emitted `NM_DBLCLK` instead of `NM_CLICK`.

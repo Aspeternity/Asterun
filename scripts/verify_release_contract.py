@@ -42,6 +42,160 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.1":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.1 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.1 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    # Classic typography is the only font change in alpha.4.1.
+    for token in (
+        "kClassicLauncherBodyPointSize = 10",
+        "kModernLauncherBodyPointSize = 10",
+        "kLauncherTitlePointSize = 10",
+        'L"SimSun"',
+        'L"Tahoma"',
+        "CLEARTYPE_QUALITY",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.1 Classic typography contract missing: {token}")
+
+    # Classic geometry/density remains fixed while the native Edit is centered
+    # inside the existing 22-logical-pixel green strip.
+    for token in (
+        "kClassicLauncherMetrics{\n        420,\n        16,\n        10,",
+        "kModernCompactLauncherMetrics{\n        620,\n        32,\n        9,",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.1 launcher metrics regressed: {token}")
+
+    for token in (
+        "constexpr int inputHeightLogical = 22;",
+        "constexpr int inputEditHeightLogical = 18;",
+        "const int inputEditOffset =",
+        "(inputHeight -\n         inputEditHeight) /\n        2;",
+        "titleHeight +\n            inputEditOffset",
+        "inputEditHeight,",
+        "RECT classicInputStrip",
+        "DpiScale(30)",
+        "DpiScale(22)",
+        "&classicInputStrip",
+        "accentBrush_",
+    ):
+        if token not in launcher:
+            fail(f"v0.8 alpha.4.1 Classic input alignment missing: {token}")
+
+    # Modern Compact remains untouched in this first Classic pass.
+    for token in (
+        "const int inputHeight = DpiScale(36);",
+        "const int margin = DpiScale(12);",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "showResultIcons",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.1 Modern/performance contract regressed: {token}")
+
+    # Preserve alpha.3.40 rapid-click closeout.
+    for token in (
+        "NM_CLICK",
+        "NM_DBLCLK",
+        "ToggleResultRowSelection(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.1 Path Conversion rapid-click regression: {token}")
+
+    for token in (
+        "BN_CLICKED",
+        "BN_DOUBLECLICKED",
+        "toggleActivated",
+        "ToggleAdvanced();",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.1 Shortcut Editor rapid-click regression: {token}")
+
+    # Preserve the shared updater dispatcher architecture.
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.1 updater architecture regressed: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.40"',
+        '"0.8.0-alpha.4.1"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.1 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.4.1 — Classic Typography & Input Alignment",
+        "0.8.0.71",
+        "9 pt to 10 pt",
+        "18 logical pixels",
+        "22 logical pixels",
+        "Modern Compact remains 10 pt",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.1 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.4.1",
+        "0.8.0.71",
+        "Classic launcher body typography",
+        "18 logical px",
+        "Modern Compact",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.1 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.1",
+        "Classic ALTRun is polished to maturity first",
+        "Modern Compact refinement follows",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.1 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.1 Classic typography/input alignment verified:",
+        "| Classic body 10pt",
+        "| 22px strip + centered 18px native Edit",
+        "| Classic density preserved",
+        "| Modern/search/icons/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.40":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,
