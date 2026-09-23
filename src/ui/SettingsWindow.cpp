@@ -306,8 +306,10 @@ ResolveSettingsCreationGeometry(
             y =
                 std::clamp(
                     preferredY,
-                    info.rcWork.top,
-                    info.rcWork.bottom -
+                    static_cast<int>(
+                        info.rcWork.top),
+                    static_cast<int>(
+                        info.rcWork.bottom) -
                         std::min(
                             height,
                             workHeight));

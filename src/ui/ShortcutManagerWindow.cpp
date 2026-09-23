@@ -1163,16 +1163,20 @@ ApplyConfiguredPlacement() {
                 result.x =
                     std::clamp(
                         settings.shortcutManagerLastX,
-                        info.rcWork.left,
-                        info.rcWork.right -
+                        static_cast<int>(
+                            info.rcWork.left),
+                        static_cast<int>(
+                            info.rcWork.right) -
                             std::min(
                                 width,
                                 workWidth));
                 result.y =
                     std::clamp(
                         settings.shortcutManagerLastY,
-                        info.rcWork.top,
-                        info.rcWork.bottom -
+                        static_cast<int>(
+                            info.rcWork.top),
+                        static_cast<int>(
+                            info.rcWork.bottom) -
                             std::min(
                                 height,
                                 workHeight));
@@ -1198,8 +1202,10 @@ ApplyConfiguredPlacement() {
                 result.y =
                     std::clamp(
                         preferredY,
-                        info.rcWork.top,
-                        info.rcWork.bottom -
+                        static_cast<int>(
+                            info.rcWork.top),
+                        static_cast<int>(
+                            info.rcWork.bottom) -
                             std::min(
                                 height,
                                 workHeight));
