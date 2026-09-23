@@ -27,10 +27,11 @@ int main() {
     assert(ui::kSettingsToggleRowLogical == 50);
 
     for (const auto [dpi, expected] :
-         std::array<std::pair<unsigned, int>, 4>{
+         std::array<std::pair<unsigned, int>, 5>{
              std::pair{96u, 50},
              std::pair{120u, 63},
              std::pair{144u, 75},
+             std::pair{168u, 88},
              std::pair{192u, 100},
          }) {
         assert(ui::Scale(50, dpi) == expected);
@@ -67,7 +68,7 @@ int main() {
 
     constexpr std::array<
         ClassicDpiExpectation,
-        4>
+        5>
         classicDpiExpectations{{
             {
                 96u,
@@ -131,6 +132,27 @@ int main() {
                 9,
                 6,
                 18,
+            },
+            {
+                168u,
+                735,
+                438,
+                {14, 53, 707, 39},
+                {14, 98, 707, 287},
+                {14, 396, 707, 28},
+                28,
+                40,
+                403,
+                58,
+                58,
+                53,
+                14,
+                4,
+                44,
+                39,
+                11,
+                7,
+                21,
             },
             {
                 192u,
@@ -225,6 +247,41 @@ int main() {
     assert(
         ui::kClassicSeparatorPhysicalThickness ==
         1);
+
+    for (const auto [dpi, expectedSize] :
+         std::array<std::pair<unsigned, int>, 5>{
+             std::pair{96u, 25},
+             std::pair{120u, 31},
+             std::pair{144u, 38},
+             std::pair{168u, 44},
+             std::pair{192u, 50},
+         }) {
+        const int target =
+            ui::Scale(25, dpi);
+        const auto index =
+            ui::ClassicGlyphAssetIndexForTarget(
+                target);
+        assert(
+            ui::kClassicGlyphAssetPixelSizes[
+                index] ==
+            expectedSize);
+    }
+
+    assert(
+        ui::ClassicGlyphAssetIndexForTarget(
+            26) == 1);
+    assert(
+        ui::ClassicGlyphAssetIndexForTarget(
+            32) == 2);
+    assert(
+        ui::ClassicGlyphAssetIndexForTarget(
+            39) == 3);
+    assert(
+        ui::ClassicGlyphAssetIndexForTarget(
+            45) == 4);
+    assert(
+        ui::ClassicGlyphAssetIndexForTarget(
+            64) == 4);
 
     std::cout
         << "UI foundation metrics verified\n";

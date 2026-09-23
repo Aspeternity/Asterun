@@ -7,6 +7,7 @@
 
 #include <windows.h>
 
+#include <array>
 #include <condition_variable>
 #include <cstddef>
 #include <deque>
@@ -159,8 +160,14 @@ private:
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
-    HBITMAP classicShortcutBitmap_{};
-    HBITMAP classicCloseBitmap_{};
+    std::array<
+        HBITMAP,
+        ui::kClassicGlyphAssetPixelSizes.size()>
+        classicShortcutBitmaps_{};
+    std::array<
+        HBITMAP,
+        ui::kClassicGlyphAssetPixelSizes.size()>
+        classicCloseBitmaps_{};
     HBITMAP classicBackgroundBitmap_{};
     HDC classicBitmapDc_{};
     SIZE classicBackgroundSize_{};

@@ -42,6 +42,362 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.4.9":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.4.9 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.4.9 must keep provider-cache schemaVersion 2")
+
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    metrics = read("src/ui/UiMetrics.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    resources = read("src/resources.rc")
+    resource_ids = read("src/ResourceIds.h")
+    manifest = read("src/app.manifest")
+    cmake = read("CMakeLists.txt")
+    ui_tests = read("tests/UiFoundationTests.cpp")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    generator = read("scripts/generate_classic_hidpi_assets.py")
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    # The approved 100% assets and background remain immutable.
+    expected_base_assets = {
+        "src/resources/classic_bg.jpg": (
+            74289,
+            "daf552e9f948335575ae2701ca7ce0308c7c288c",
+        ),
+        "src/resources/classic_bg.bmp": (
+            475578,
+            "bbced49d20184051cf8ad48b153b022cecfecd50",
+        ),
+        "src/resources/classic_shortcut.bmp": (
+            2554,
+            "eee00956b449975f05e63a38e4da4ea29e01c240",
+        ),
+        "src/resources/classic_close.bmp": (
+            1954,
+            "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        ),
+    }
+    for path, (expected_size, expected_sha) in expected_base_assets.items():
+        data = (ROOT / path).read_bytes()
+        if len(data) != expected_size or git_blob_sha(path) != expected_sha:
+            fail(f"v0.8 alpha.4.9 approved Classic base asset changed: {path}")
+
+    expected_hidpi_assets = {
+        "src/resources/classic_shortcut_125.bmp": (
+            31,
+            3898,
+            "9462262313ce92a1e9019cbe013df6471ca508fe",
+        ),
+        "src/resources/classic_close_125.bmp": (
+            31,
+            3898,
+            "19599f1eebcf543fa55c637ed6d3cd63964116ef",
+        ),
+        "src/resources/classic_shortcut_150.bmp": (
+            38,
+            5830,
+            "58139c2311ac2fab80e01122ec5fbbbdf7736c49",
+        ),
+        "src/resources/classic_close_150.bmp": (
+            38,
+            5830,
+            "3b8ac72c3cd8e89288e74d9c338b3a2f44ab5073",
+        ),
+        "src/resources/classic_shortcut_175.bmp": (
+            44,
+            7798,
+            "64d2b11dde8fd2025dc489bb144356dc1e4ac8ce",
+        ),
+        "src/resources/classic_close_175.bmp": (
+            44,
+            7798,
+            "a85834917ac87e1678ea1bb8be49377c15cc0225",
+        ),
+        "src/resources/classic_shortcut_200.bmp": (
+            50,
+            10054,
+            "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        ),
+        "src/resources/classic_close_200.bmp": (
+            50,
+            10054,
+            "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+        ),
+    }
+
+    for path, (expected_side, expected_size, expected_sha) in expected_hidpi_assets.items():
+        data = (ROOT / path).read_bytes()
+        if len(data) != expected_size:
+            fail(
+                f"v0.8 alpha.4.9 {path} size={len(data)}, "
+                f"expected {expected_size}"
+            )
+        if git_blob_sha(path) != expected_sha:
+            fail(f"v0.8 alpha.4.9 deterministic HiDPI asset changed: {path}")
+        if data[:2] != b"BM":
+            fail(f"v0.8 alpha.4.9 HiDPI asset is not BMP: {path}")
+        width = int.from_bytes(data[18:22], "little", signed=True)
+        height = int.from_bytes(data[22:26], "little", signed=True)
+        bpp = int.from_bytes(data[28:30], "little")
+        if (width, height, bpp) != (
+            expected_side,
+            expected_side,
+            32,
+        ):
+            fail(
+                f"v0.8 alpha.4.9 {path} must be "
+                f"{expected_side}x{expected_side}x32"
+            )
+        pixel_offset = int.from_bytes(data[10:14], "little")
+        alpha_values = data[pixel_offset + 3 :: 4]
+        if not any(0 < alpha < 255 for alpha in alpha_values):
+            fail(f"v0.8 alpha.4.9 {path} has no blended alpha edge")
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"),
+            "--verify",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+
+    for token in (
+        "SOURCE_SIZE = 25",
+        'TARGETS = (("125", 31), ("150", 38), ("175", 44), ("200", 50))',
+        "resize_premultiplied(",
+        "write_bmp32(",
+        "--verify",
+        "Black is treated as the",
+    ):
+        if token not in generator:
+            fail(f"v0.8 alpha.4.9 deterministic generator contract missing: {token}")
+
+    expected_resource_ids = {
+        "IDB_CLASSIC_SHORTCUT_125": 204,
+        "IDB_CLASSIC_CLOSE_125": 205,
+        "IDB_CLASSIC_SHORTCUT_150": 206,
+        "IDB_CLASSIC_CLOSE_150": 207,
+        "IDB_CLASSIC_SHORTCUT_175": 208,
+        "IDB_CLASSIC_CLOSE_175": 209,
+        "IDB_CLASSIC_SHORTCUT_200": 210,
+        "IDB_CLASSIC_CLOSE_200": 211,
+    }
+    for name, value in expected_resource_ids.items():
+        if f"#define {name} {value}" not in resource_ids:
+            fail(f"v0.8 alpha.4.9 resource ID missing: {name}")
+
+    for token in (
+        'IDB_CLASSIC_SHORTCUT_125 BITMAP "resources/classic_shortcut_125.bmp"',
+        'IDB_CLASSIC_CLOSE_125 BITMAP "resources/classic_close_125.bmp"',
+        'IDB_CLASSIC_SHORTCUT_150 BITMAP "resources/classic_shortcut_150.bmp"',
+        'IDB_CLASSIC_CLOSE_150 BITMAP "resources/classic_close_150.bmp"',
+        'IDB_CLASSIC_SHORTCUT_175 BITMAP "resources/classic_shortcut_175.bmp"',
+        'IDB_CLASSIC_CLOSE_175 BITMAP "resources/classic_close_175.bmp"',
+        'IDB_CLASSIC_SHORTCUT_200 BITMAP "resources/classic_shortcut_200.bmp"',
+        'IDB_CLASSIC_CLOSE_200 BITMAP "resources/classic_close_200.bmp"',
+        "FILEVERSION 0,8,0,79",
+        "PRODUCTVERSION 0,8,0,79",
+        "0.8.0-alpha.4.9",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.4.9 resource/version contract missing: {token}")
+
+    for token in (
+        'version="0.8.0.79"',
+        ">PerMonitorV2</dpiAwareness>",
+    ):
+        if token not in manifest:
+            fail(f"v0.8 alpha.4.9 manifest contract missing: {token}")
+
+    for token in (
+        "kClassicGlyphAssetPixelSizes{",
+        "        25,",
+        "        31,",
+        "        38,",
+        "        44,",
+        "        50,",
+        "ClassicGlyphAssetIndexForTarget(",
+        "kClassicSeparatorPhysicalThickness = 1",
+    ):
+        if token not in metrics:
+            fail(f"v0.8 alpha.4.9 glyph-tier metrics contract missing: {token}")
+
+    for token in (
+        "classicShortcutBitmaps_",
+        "classicCloseBitmaps_",
+        "kClassicShortcutResourceIds",
+        "kClassicCloseResourceIds",
+        "LoadClassicBitmapResources(",
+        "ClassicGlyphAssetIndexForTarget(",
+        "kClassicGlyphAssetPixelSizes[",
+        "assetIndex != 0",
+        "AlphaBlend(",
+        "AC_SRC_ALPHA",
+        "TransparentBlt(",
+        "COLORONCOLOR",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.9 Launcher HiDPI wiring missing: {token}")
+
+    for forbidden in (
+        "#include <gdiplus.h>",
+        "Gdiplus::",
+        "CreateStreamOnHGlobal(",
+        "LoadClassicJpegResource(",
+        "IWIC",
+        "Direct2D",
+    ):
+        if forbidden in launcher or forbidden in launcher_h:
+            fail(f"v0.8 alpha.4.9 heavy runtime image path introduced: {forbidden}")
+
+    if "\n        msimg32\n" not in cmake:
+        fail("v0.8 alpha.4.9 native AlphaBlend dependency must remain msimg32")
+
+    for token in (
+        "ClassicDpiExpectation,\n        5>",
+        "168u",
+        "735,\n                438",
+        "{14, 53, 707, 39}",
+        "{14, 98, 707, 287}",
+        "{14, 396, 707, 28}",
+        "std::pair{168u, 44}",
+        "ClassicGlyphAssetIndexForTarget(",
+        "64) == 4",
+    ):
+        if token not in ui_tests:
+            fail(f"v0.8 alpha.4.9 175%/asset selection coverage missing: {token}")
+
+    for token in (
+        "kClassicLauncherPrimaryLogicalHeight96 = -16",
+        "kClassicLauncherAuxiliaryLogicalHeight96 = -13",
+        'L"SimSun"',
+        "ANSI_CHARSET",
+        "DEFAULT_QUALITY",
+    ):
+        if token not in typography:
+            fail(f"v0.8 alpha.4.9 Classic typography baseline regressed: {token}")
+
+    for token in (
+        "DT_PATH_ELLIPSIS",
+        "classicDpiMetrics_.rowHeight",
+        "classicDpiMetrics_.cornerDiameter",
+        "ResultIconWorkerLoop()",
+        "kIconReadyMessage",
+        "MergeLauncherResultsRanked(",
+    ):
+        if token not in launcher and token not in launcher_h:
+            fail(f"v0.8 alpha.4.9 frozen Launcher architecture regressed: {token}")
+
+    for token in ("NM_CLICK", "NM_DBLCLK", "ToggleResultRowSelection("):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.4.9 Path Conversion rapid-click regression: {token}")
+
+    for token in ("BN_CLICKED", "BN_DOUBLECLICKED", "toggleActivated", "ToggleAdvanced();"):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.4.9 Shortcut Editor rapid-click regression: {token}")
+
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "kUpdateReconcileTimerId",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.4.9 updater architecture regressed: {token}")
+
+    for token in (
+        '"0.8.0-alpha.4.8"',
+        '"0.8.0-alpha.4.9"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.4.9 update ordering/default coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.9 Classic HiDPI glyph validation",
+        "25px original",
+        "31px HiDPI",
+        "38px HiDPI",
+        "44px HiDPI",
+        "50px HiDPI",
+        "no black halo",
+        "Per-Monitor V2",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.4.9 desktop validation contract missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "v0.8.0-alpha.4.9 — Classic HiDPI Glyph Assets",
+        "31 / 38 / 44 / 50 px",
+        "premultiplied alpha",
+        "AlphaBlend",
+        "168-DPI",
+        "0.8.0.79",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.4.9 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.4.9",
+        "31/38/44/50px",
+        "AC_SRC_ALPHA",
+        "175% / 168-DPI",
+        "0.8.0.79",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.4.9 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.4.9",
+        "25/31/38/44/50px",
+        "100% remains byte-identical",
+        "125/150/175/200%",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.4.9 roadmap contract missing: {token}")
+
+    print(
+        "v0.8.0-alpha.4.9 Classic HiDPI glyph assets verified:",
+        "| original 25px tier immutable",
+        "| deterministic 31/38/44/50px premultiplied-alpha assets",
+        "| exact standard-DPI tier selection",
+        "| 175% geometry covered",
+        "| no runtime image decoder or heavy UI stack",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.8":
     import hashlib
 

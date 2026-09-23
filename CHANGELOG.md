@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.4.9
+
+- Preserved the original 25×25 Classic Logo/X resources byte-for-byte for the 100% tier and added deterministic 31/38/44/50px HiDPI tiers for 125/150/175/200%.
+- Added `scripts/generate_classic_hidpi_assets.py`, a standard-library-only generator/verifier that converts the legacy black transparent key to premultiplied alpha and performs deterministic bilinear resampling.
+- Replaced the single Logo/X bitmap handles with fixed five-tier arrays loaded once at startup; standard DPIs select an exact-size bitmap and unusual DPIs select the next larger tier before any downscale.
+- Kept the 25px tier on the original `TransparentBlt` path and switched only generated HiDPI tiers to native `AlphaBlend` with `AC_SRC_ALPHA`, avoiding GDI+, Direct2D, WIC and runtime image decoding.
+- Added the user-validated 175% / 168-DPI Classic geometry snapshot and explicit 25/31/38/44/50 glyph-tier selection coverage to `ui_foundation_tests`.
+- Kept Classic background/typography/geometry and Modern/search/provider/Everything/updater behavior frozen; settings schemaVersion remains 9.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.79`.
+
 ## 0.8.0-alpha.4.8
 
 - Added a single constexpr ClassicLauncherMetricsForDpi() contract for the frozen Classic client/control geometry, row height, divider positions, title/drag metrics, Logo/X sizing and rounded-region diameter.

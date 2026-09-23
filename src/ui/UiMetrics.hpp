@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -71,6 +72,34 @@ struct ClassicLauncherDpiMetrics {
 
 inline constexpr int
     kClassicSeparatorPhysicalThickness = 1;
+
+inline constexpr std::array<int, 5>
+    kClassicGlyphAssetPixelSizes{
+        25,
+        31,
+        38,
+        44,
+        50,
+    };
+
+[[nodiscard]] constexpr std::size_t
+ClassicGlyphAssetIndexForTarget(
+    int targetPixelSize) noexcept {
+
+    for (std::size_t index = 0;
+         index <
+         kClassicGlyphAssetPixelSizes.size();
+         ++index) {
+        if (targetPixelSize <=
+            kClassicGlyphAssetPixelSizes[index]) {
+            return index;
+        }
+    }
+
+    return
+        kClassicGlyphAssetPixelSizes.size() -
+        1;
+}
 
 [[nodiscard]] constexpr
 ClassicLauncherDpiMetrics

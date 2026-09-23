@@ -183,18 +183,69 @@ LoadResultIconSource(
     return icon;
 }
 
-constexpr int kClassicGlyphSourceSize = 25;
+constexpr std::array<
+    int,
+    ui::kClassicGlyphAssetPixelSizes.size()>
+    kClassicShortcutResourceIds{
+        IDB_CLASSIC_SHORTCUT,
+        IDB_CLASSIC_SHORTCUT_125,
+        IDB_CLASSIC_SHORTCUT_150,
+        IDB_CLASSIC_SHORTCUT_175,
+        IDB_CLASSIC_SHORTCUT_200,
+    };
+
+constexpr std::array<
+    int,
+    ui::kClassicGlyphAssetPixelSizes.size()>
+    kClassicCloseResourceIds{
+        IDB_CLASSIC_CLOSE,
+        IDB_CLASSIC_CLOSE_125,
+        IDB_CLASSIC_CLOSE_150,
+        IDB_CLASSIC_CLOSE_175,
+        IDB_CLASSIC_CLOSE_200,
+    };
+
+template <std::size_t N>
+bool LoadClassicBitmapResources(
+    HINSTANCE instance,
+    const std::array<int, N>& resourceIds,
+    std::array<HBITMAP, N>& bitmaps) {
+
+    for (std::size_t index = 0;
+         index < N;
+         ++index) {
+        bitmaps[index] =
+            static_cast<HBITMAP>(
+                LoadImageW(
+                    instance,
+                    MAKEINTRESOURCEW(
+                        resourceIds[index]),
+                    IMAGE_BITMAP,
+                    0,
+                    0,
+                    LR_CREATEDIBSECTION));
+
+        if (!bitmaps[index]) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 void PaintClassicBitmapGlyph(
     HDC dc,
     HDC source,
     HBITMAP bitmap,
+    int sourceSize,
+    bool hasPerPixelAlpha,
     const RECT& clip,
     int x,
     int y,
     int size) {
     if (!source ||
         !bitmap ||
+        sourceSize <= 0 ||
         size <= 0) {
         return;
     }
@@ -211,22 +262,60 @@ void PaintClassicBitmapGlyph(
         clip.top,
         clip.right,
         clip.bottom);
-    SetStretchBltMode(
-        dc,
-        COLORONCOLOR);
 
-    TransparentBlt(
-        dc,
-        x,
-        y,
-        size,
-        size,
-        source,
-        0,
-        0,
-        kClassicGlyphSourceSize,
-        kClassicGlyphSourceSize,
-        RGB(0, 0, 0));
+    if (hasPerPixelAlpha) {
+        const BLENDFUNCTION blend{
+            AC_SRC_OVER,
+            0,
+            255,
+            AC_SRC_ALPHA,
+        };
+
+        if (!AlphaBlend(
+                dc,
+                x,
+                y,
+                size,
+                size,
+                source,
+                0,
+                0,
+                sourceSize,
+                sourceSize,
+                blend)) {
+            SetStretchBltMode(
+                dc,
+                COLORONCOLOR);
+            TransparentBlt(
+                dc,
+                x,
+                y,
+                size,
+                size,
+                source,
+                0,
+                0,
+                sourceSize,
+                sourceSize,
+                RGB(0, 0, 0));
+        }
+    } else {
+        SetStretchBltMode(
+            dc,
+            COLORONCOLOR);
+        TransparentBlt(
+            dc,
+            x,
+            y,
+            size,
+            size,
+            source,
+            0,
+            0,
+            sourceSize,
+            sourceSize,
+            RGB(0, 0, 0));
+    }
 
     RestoreDC(
         dc,
@@ -288,8 +377,18 @@ LauncherWindow::~LauncherWindow() {
     if (accentBrush_) DeleteObject(accentBrush_);
     if (bottomBrush_) DeleteObject(bottomBrush_);
     if (classicBitmapDc_) DeleteDC(classicBitmapDc_);
-    if (classicShortcutBitmap_) DeleteObject(classicShortcutBitmap_);
-    if (classicCloseBitmap_) DeleteObject(classicCloseBitmap_);
+    for (HBITMAP bitmap :
+         classicShortcutBitmaps_) {
+        if (bitmap) {
+            DeleteObject(bitmap);
+        }
+    }
+    for (HBITMAP bitmap :
+         classicCloseBitmaps_) {
+        if (bitmap) {
+            DeleteObject(bitmap);
+        }
+    }
     if (classicBackgroundBitmap_) DeleteObject(classicBackgroundBitmap_);
 }
 
@@ -301,26 +400,17 @@ bool LauncherWindow::Create() {
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&controls);
 
-    classicShortcutBitmap_ =
-        static_cast<HBITMAP>(
-            LoadImageW(
-                instance_,
-                MAKEINTRESOURCEW(
-                    IDB_CLASSIC_SHORTCUT),
-                IMAGE_BITMAP,
-                0,
-                0,
-                LR_CREATEDIBSECTION));
-    classicCloseBitmap_ =
-        static_cast<HBITMAP>(
-            LoadImageW(
-                instance_,
-                MAKEINTRESOURCEW(
-                    IDB_CLASSIC_CLOSE),
-                IMAGE_BITMAP,
-                0,
-                0,
-                LR_CREATEDIBSECTION));
+    if (!LoadClassicBitmapResources(
+            instance_,
+            kClassicShortcutResourceIds,
+            classicShortcutBitmaps_) ||
+        !LoadClassicBitmapResources(
+            instance_,
+            kClassicCloseResourceIds,
+            classicCloseBitmaps_)) {
+        return false;
+    }
+
     classicBackgroundBitmap_ =
         static_cast<HBITMAP>(
             LoadImageW(
@@ -334,9 +424,7 @@ bool LauncherWindow::Create() {
 
     BITMAP classicBackgroundInfo{};
 
-    if (!classicShortcutBitmap_ ||
-        !classicCloseBitmap_ ||
-        !classicBackgroundBitmap_ ||
+    if (!classicBackgroundBitmap_ ||
         GetObjectW(
             classicBackgroundBitmap_,
             sizeof(classicBackgroundInfo),
@@ -1163,10 +1251,20 @@ void LauncherWindow::PaintClassicLogo(
         y + size,
     };
 
+    const std::size_t assetIndex =
+        ui::ClassicGlyphAssetIndexForTarget(
+            size);
+    const int sourceSize =
+        ui::kClassicGlyphAssetPixelSizes[
+            assetIndex];
+
     PaintClassicBitmapGlyph(
         dc,
         classicBitmapDc_,
-        classicShortcutBitmap_,
+        classicShortcutBitmaps_[
+            assetIndex],
+        sourceSize,
+        assetIndex != 0,
         clip,
         x,
         y,
@@ -1189,10 +1287,20 @@ void LauncherWindow::PaintClassicClose(
         rect.top +
         (height - glyphSize) / 2;
 
+    const std::size_t assetIndex =
+        ui::ClassicGlyphAssetIndexForTarget(
+            glyphSize);
+    const int sourceSize =
+        ui::kClassicGlyphAssetPixelSizes[
+            assetIndex];
+
     PaintClassicBitmapGlyph(
         dc,
         classicBitmapDc_,
-        classicCloseBitmap_,
+        classicCloseBitmaps_[
+            assetIndex],
+        sourceSize,
+        assetIndex != 0,
         rect,
         x,
         y,

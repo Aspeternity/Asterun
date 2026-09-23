@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.4.9 — Classic HiDPI Glyph Assets
+
+Alpha.4.9 keeps the original Classic Logo and Close artwork but removes the visible high-DPI block enlargement seen during the 100/125/150/175/200% real-Windows audit. The original 25×25 BMPs remain byte-for-byte unchanged and are still used at 100%; four deterministic higher-resolution resource tiers are added for the standard high-DPI targets: **31 / 38 / 44 / 50 px**.
+
+The new assets are generated from the original 25px pixels by `scripts/generate_classic_hidpi_assets.py`, which uses only Python's standard library. Legacy pure-black transparency is converted into a premultiplied alpha mask before deterministic bilinear resampling, producing 32-bit BGRA BMPs suitable for native GDI `AlphaBlend`. No AI redraw, GDI+, WIC, Direct2D, PNG runtime decoding or third-party image dependency is introduced.
+
+`LauncherWindow` loads all five Logo/X tiers once, then uses the existing cached Classic DPI target size to choose the smallest resource that is at least as large as the requested glyph. Standard 96/120/144/168/192 DPI therefore map exactly to **25/31/38/44/50 px** with no runtime enlargement. The 25px tier deliberately stays on the old `TransparentBlt` path so the 100% author-approved Classic appearance is untouched; HiDPI tiers use `AlphaBlend(..., AC_SRC_ALPHA)` and only need scaling for unusual non-standard DPIs.
+
+The 175% / 168-DPI geometry reported during alpha.4.8 real-Windows testing is now part of `ui_foundation_tests` alongside 100/125/150/200%. Classic background, typography, geometry, search/results, providers, Everything, updater and Modern Compact remain frozen. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.79`.
+
 ## v0.8.0-alpha.4.8 — Classic DPI Audit
 
 Alpha.4.8 turns the mature Classic layout into an explicit DPI contract instead of leaving its correct scaling behavior scattered across Launcher paint/layout code. ClassicLauncherMetricsForDpi() now owns the frozen 420×250 client, 8,30 / 404×22 input, 8,56 / 404×164 result list, 8,226 / 404×16 Command strip, 16px rows, x=23/x=230 dividers, title/glyph/close metrics and 12px corner diameter, all derived through the existing integer Scale() path.

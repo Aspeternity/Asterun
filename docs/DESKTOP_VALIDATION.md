@@ -141,6 +141,25 @@ Repeat the Classic launcher checks at all four supported validation scales. The 
 - [ ] Move the visible launcher between monitors with different scaling and verify Per-Monitor V2 relayout occurs without stale size, wrong font scale, black frame or misplaced hit target.
 - [ ] Compare 125% and 150% bitmap/glyph sharpness against 100% before changing stretch mode or introducing DPI-bucket assets; visual evidence is required before such a rendering change.
 
+## v0.8.0-alpha.4.9 Classic HiDPI glyph validation
+
+Repeat the title-bar check at the five real-Windows scaling levels already used for the alpha.4.8 audit.
+
+| Scale | DPI | Target glyph | Selected asset | Expected path |
+| --- | ---: | ---: | ---: | --- |
+| 100% | 96 | 25px | 25px original | TransparentBlt / original pixels |
+| 125% | 120 | 31px | 31px HiDPI | AlphaBlend / exact size |
+| 150% | 144 | 38px | 38px HiDPI | AlphaBlend / exact size |
+| 175% | 168 | 44px | 44px HiDPI | AlphaBlend / exact size |
+| 200% | 192 | 50px | 50px HiDPI | AlphaBlend / exact size |
+
+- [ ] At 100%, Logo and X are visually identical to alpha.4.8; no color, transparency, position or sharpness change is acceptable.
+- [ ] At 125/150/175/200%, Logo and X retain the same Classic shapes/colors but no longer show the large square-pixel enlargement visible when the 25px source was stretched.
+- [ ] Semi-transparent HiDPI edges blend cleanly with the gray title bitmap: no black halo, white fringe, rectangular background or missing pixels.
+- [ ] Logo and X remain centered in the same alpha.4.8 geometry and the X hit target is unchanged.
+- [ ] Move the launcher across monitors with different scaling and confirm the selected tier changes with Per-Monitor V2 without stale glyph size or redraw artifacts.
+- [ ] Test one non-standard scale if available; it may resample from the next larger tier, but must never fall back to enlarging a smaller tier while a larger tier exists.
+
 ## Release assets
 
 For the candidate tag:
