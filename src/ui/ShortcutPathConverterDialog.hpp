@@ -37,6 +37,7 @@ private:
         std::wstring converted;
         std::wstring resolved;
         bool exists{false};
+        bool selected{false};
     };
 
     ShortcutPathConverterDialog(
@@ -97,9 +98,19 @@ private:
         int itemIndex) const;
     LRESULT HandleListCustomDraw(
         NMLVCUSTOMDRAW* draw);
-    void DrawResultCheckbox(
+    [[nodiscard]] const wchar_t*
+    FieldLabel(
+        Field field) const;
+    [[nodiscard]] bool
+    GetResultFieldLayout(
+        int itemIndex,
+        RECT& checkboxRect,
+        RECT& textRect) const;
+    void DrawResultFieldCell(
         HDC dc,
         int itemIndex) const;
+    bool ToggleResultRowSelection(
+        int itemIndex);
 
     [[nodiscard]] const wchar_t* T(
         const wchar_t* zh,
@@ -124,12 +135,10 @@ private:
 
     HFONT font_{};
     HFONT groupFont_{};
-    HIMAGELIST checkboxStateImageList_{};
     UINT dpi_{96};
     Mode mode_{Mode::Portable};
     bool changed_{false};
     bool closed_{false};
-    bool rebuildingList_{false};
     bool customColumnWidths_{false};
     bool adjustingColumnWidths_{false};
     std::size_t convertibleShortcutCount_{0};

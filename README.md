@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.38 — Path Conversion Checkbox Ownership
+
+Alpha 3.38 removes the remaining Win32 checkbox rendering path from Path Conversion after real-Windows alpha.3.37 validation exposed a black state-image square. The hybrid approach — native `LVS_EX_CHECKBOXES` state images hidden behind transparent `LVSIL_STATE` slots with a custom post-paint checkbox layered on top — is deleted rather than patched again.
+
+Checkbox ownership now lives entirely in the Path Conversion row model. Each convertible `Row` has its own `selected` flag, initialized from the existing-path rule (accessible paths selected by default; missing paths unselected). Selection counts and Apply operate directly on that model instead of `LVIS_STATEIMAGEMASK`.
+
+The first result column is intentionally stored with empty native ListView text. After the normal row background/selection paint, ALTRun Next draws both the modern checkbox and the field label itself. A shared `GetResultFieldLayout()` computes the checkbox and label rectangles from the real row bounds, current first-column width and the same row-center coordinate. The checkbox therefore cannot drift independently above or below **目标 / 工作目录 / 自定义图标**.
+
+Mouse clicks are hit-tested against the exact custom checkbox rectangle and toggle `Row::selected`. With the ListView focused, Space toggles the focused data row. Group-header selection remains suppressed. The existing 15/17/19/21/23 physical-pixel checkbox templates, rounded-corner 4×4 coverage raster and accent-blue checkmark are retained, but no state image, mask bitmap, themed checkbox or native checkbox glyph remains anywhere in this dialog.
+
+The validated alpha.3.34 mode selector, 13/36/39/remainder columns, conversion semantics, group headers, empty state and alpha.3.36 updater dispatch hardening remain frozen. Settings schema remains **9**. Windows fixed FileVersion/ProductVersion is `0.8.0.68`.
+
 ## v0.8.0-alpha.3.37 — Path Conversion Checkbox Visual & Alignment Final Fix
 
 Alpha 3.37 replaces the last visually inconsistent control in Path Conversion: the legacy Win32 ListView checkbox. Real-Windows alpha.3.35 validation showed that simply returning row height to native Explorer metrics moved the checkbox from visibly low to visibly high, and the old gray system state image still looked out of place beside the modern selector cards and flat actions.

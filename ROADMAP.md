@@ -220,8 +220,9 @@ In progress:
 - v0.8.0-alpha.3.34 replaces the still-unclear selector with DPI-bucketed 4×4 coverage antialiasing rendered directly to final device pixels
 - v0.8.0-alpha.3.35 closes Path Conversion result-row alignment by returning row height/checkbox placement to native Explorer ListView metrics and removing redundant field-label indentation; the validated alpha.3.34 selector stays frozen
 - v0.8.0-alpha.3.36 systemically hardens update-status delivery with a message-only HWND dispatcher plus active-only Settings self-reconciliation, removing the shared thread-message loss mode
-- v0.8.0-alpha.3.37 closes Path Conversion checkbox visual/alignment with transparent native state slots plus DPI-aware 4×4 supersampled custom rendering tied to the real row center
-- v0.8.0-alpha.4 follows after alpha.3.37 real-Windows validation
+- v0.8.0-alpha.3.37 attempted a hybrid transparent native-state/custom-rendered checkbox, but real-Windows validation exposed a black state-image artifact
+- v0.8.0-alpha.3.38 removes native checkbox/state-image ownership entirely and moves selection, hit-testing, keyboard toggling and first-column checkbox/label rendering into the Path Conversion row model
+- v0.8.0-alpha.4 follows after alpha.3.38 real-Windows validation
 - Launcher visual polish remains last so keyboard-first behavior, density and performance stay protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 

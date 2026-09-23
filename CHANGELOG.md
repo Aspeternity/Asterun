@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.3.38
+
+- Removed the failed alpha.3.37 hybrid checkbox layer after real-Windows validation showed a black ListView state-image square.
+- Deleted `LVS_EX_CHECKBOXES`, `LVSIL_STATE`, transparent state images, `LVIS_STATEIMAGEMASK`, `ListView_GetCheckState` and `ListView_SetCheckState` from Path Conversion.
+- Added `Row::selected` as the single authoritative checkbox state. Existing paths still start selected; missing paths still start unselected.
+- First-column native item text is now empty. ALTRun Next post-paints both the custom checkbox and **Target / Working directory / Custom icon** label from one real-row-center layout.
+- Added exact custom checkbox hit-testing for mouse clicks and focused-row Space-key toggling; selected count and Apply now read directly from row state.
+- Retained the DPI-bucketed 15/17/19/21/23 px, rounded 4×4 supersampled checkbox raster and the already validated alpha.3.34 mode selector.
+- Preserved Path Conversion geometry/columns/semantics, settings schemaVersion 9 and alpha.3.36 updater dispatch hardening.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.68`.
+
 ## 0.8.0-alpha.3.37
 
 - Replaced the visually inconsistent legacy ListView checkbox artwork in Path Conversion with a modern ALTRun Next checkbox while keeping native ListView checkbox state and interaction semantics.

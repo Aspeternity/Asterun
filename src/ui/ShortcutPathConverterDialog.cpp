@@ -654,106 +654,6 @@ void DrawCheckboxRaster(
     }
 }
 
-[[nodiscard]] HIMAGELIST
-CreateTransparentCheckboxStateImageList(
-    int size) {
-    if (size <= 0) {
-        return nullptr;
-    }
-
-    HIMAGELIST images =
-        ImageList_Create(
-            size,
-            size,
-            ILC_COLOR32 |
-                ILC_MASK,
-            2,
-            0);
-
-    if (!images) {
-        return nullptr;
-    }
-
-    HDC screen =
-        GetDC(nullptr);
-    if (!screen) {
-        ImageList_Destroy(images);
-        return nullptr;
-    }
-
-    HDC memory =
-        CreateCompatibleDC(screen);
-    HBITMAP bitmap =
-        CreateCompatibleBitmap(
-            screen,
-            size,
-            size);
-
-    ReleaseDC(
-        nullptr,
-        screen);
-
-    if (!memory ||
-        !bitmap) {
-        if (memory) {
-            DeleteDC(memory);
-        }
-        if (bitmap) {
-            DeleteObject(bitmap);
-        }
-        ImageList_Destroy(images);
-        return nullptr;
-    }
-
-    HGDIOBJ oldBitmap =
-        SelectObject(
-            memory,
-            bitmap);
-    const COLORREF maskColor =
-        RGB(255, 0, 255);
-    HBRUSH maskBrush =
-        CreateSolidBrush(
-            maskColor);
-    RECT rect{
-        0,
-        0,
-        size,
-        size,
-    };
-    FillRect(
-        memory,
-        &rect,
-        maskBrush);
-    DeleteObject(maskBrush);
-    SelectObject(
-        memory,
-        oldBitmap);
-    DeleteDC(memory);
-
-    const int unchecked =
-        ImageList_AddMasked(
-            images,
-            bitmap,
-            maskColor);
-    const int checked =
-        ImageList_AddMasked(
-            images,
-            bitmap,
-            maskColor);
-
-    DeleteObject(bitmap);
-
-    if (unchecked < 0 ||
-        checked < 0) {
-        ImageList_Destroy(images);
-        return nullptr;
-    }
-
-    ImageList_SetBkColor(
-        images,
-        CLR_NONE);
-    return images;
-}
 
 } // namespace
 
@@ -778,13 +678,6 @@ ShortcutPathConverterDialog::
     if (groupFont_) {
         DeleteObject(groupFont_);
         groupFont_ = nullptr;
-    }
-
-    if (checkboxStateImageList_) {
-        ImageList_Destroy(
-            checkboxStateImageList_);
-        checkboxStateImageList_ =
-            nullptr;
     }
 }
 
@@ -987,6 +880,21 @@ bool ShortcutPathConverterDialog::RunModal() {
         }
 
         if (msg.message == WM_KEYDOWN &&
+            msg.wParam == VK_SPACE &&
+            msg.hwnd == list_) {
+            const int focusedItem =
+                ListView_GetNextItem(
+                    list_,
+                    -1,
+                    LVNI_FOCUSED);
+
+            if (ToggleResultRowSelection(
+                    focusedItem)) {
+                continue;
+            }
+        }
+
+        if (msg.message == WM_KEYDOWN &&
             msg.wParam == VK_ESCAPE &&
             (msg.hwnd == hwnd_ ||
              IsChild(
@@ -1109,31 +1017,7 @@ void ShortcutPathConverterDialog::CreateControls() {
     ListView_SetExtendedListViewStyle(
         list_,
         LVS_EX_FULLROWSELECT |
-            LVS_EX_DOUBLEBUFFER |
-            LVS_EX_CHECKBOXES);
-
-    const auto checkboxRaster =
-        CheckboxTemplateForDpi(
-            dpi_);
-
-    checkboxStateImageList_ =
-        CreateTransparentCheckboxStateImageList(
-            checkboxRaster.size);
-
-    if (checkboxStateImageList_) {
-        HIMAGELIST nativeStateImages =
-            ListView_SetImageList(
-                list_,
-                checkboxStateImageList_,
-                LVSIL_STATE);
-
-        if (nativeStateImages &&
-            nativeStateImages !=
-                checkboxStateImageList_) {
-            ImageList_Destroy(
-                nativeStateImages);
-        }
-    }
+            LVS_EX_DOUBLEBUFFER);
 
     SetWindowTheme(
         list_,
@@ -2000,28 +1884,13 @@ void ShortcutPathConverterDialog::Layout() {
 std::size_t
 ShortcutPathConverterDialog::
 SelectedFieldCount() const {
-    if (!list_) {
-        return 0;
-    }
-
-    std::size_t count = 0;
-    const int itemCount =
-        ListView_GetItemCount(
-            list_);
-
-    for (int itemIndex = 0;
-         itemIndex < itemCount;
-         ++itemIndex) {
-        if (RowIndexForListItem(
-                itemIndex) &&
-            ListView_GetCheckState(
-                list_,
-                itemIndex)) {
-            ++count;
-        }
-    }
-
-    return count;
+    return static_cast<std::size_t>(
+        std::count_if(
+            rows_.begin(),
+            rows_.end(),
+            [](const Row& row) {
+                return row.selected;
+            }));
 }
 
 void ShortcutPathConverterDialog::
@@ -2527,15 +2396,11 @@ void ShortcutPathConverterDialog::InsertGroupHeader(
     LVITEMW item{};
     item.mask =
         LVIF_TEXT |
-        LVIF_PARAM |
-        LVIF_STATE;
+        LVIF_PARAM;
     item.iItem = itemIndex;
     item.iSubItem = 0;
     item.pszText = text.data();
     item.lParam = kGroupHeaderItemParam;
-    item.stateMask =
-        LVIS_STATEIMAGEMASK;
-    item.state = 0;
 
     const int inserted =
         ListView_InsertItem(
@@ -2547,8 +2412,7 @@ void ShortcutPathConverterDialog::InsertGroupHeader(
             list_,
             inserted,
             0,
-            LVIS_STATEIMAGEMASK |
-                LVIS_SELECTED);
+            LVIS_SELECTED);
     }
 }
 
@@ -2557,31 +2421,15 @@ void ShortcutPathConverterDialog::InsertPreviewRow(
     const std::size_t rowIndex =
         rows_.size();
 
+    row.selected = row.exists;
+
     rows_.push_back(
         std::move(row));
 
     const int itemIndex =
         ListView_GetItemCount(list_);
 
-    std::wstring fieldText;
-
-    switch (rows_.back().field) {
-    case Field::Target:
-        fieldText =
-            T(L"目标",
-              L"Target");
-        break;
-    case Field::WorkingDirectory:
-        fieldText =
-            T(L"工作目录",
-              L"Working directory");
-        break;
-    case Field::Icon:
-        fieldText =
-            T(L"自定义图标",
-              L"Custom icon");
-        break;
-    }
+    wchar_t emptyText[] = L"";
 
     LVITEMW item{};
     item.mask =
@@ -2589,7 +2437,7 @@ void ShortcutPathConverterDialog::InsertPreviewRow(
         LVIF_PARAM;
     item.iItem = itemIndex;
     item.iSubItem = 0;
-    item.pszText = fieldText.data();
+    item.pszText = emptyText;
     item.lParam =
         static_cast<LPARAM>(
             rowIndex + 1);
@@ -2630,13 +2478,6 @@ void ShortcutPathConverterDialog::InsertPreviewRow(
                     L"Accessible")
                 : T(L"路径不存在",
                     L"Missing")));
-
-    ListView_SetCheckState(
-        list_,
-        inserted,
-        rows_.back().exists
-            ? TRUE
-            : FALSE);
 }
 
 bool ShortcutPathConverterDialog::IsGroupHeaderItem(
@@ -2688,33 +2529,60 @@ ShortcutPathConverterDialog::RowIndexForListItem(
     return rowIndex;
 }
 
-void ShortcutPathConverterDialog::DrawResultCheckbox(
-    HDC dc,
-    int itemIndex) const {
-    if (!dc ||
-        !list_ ||
-        !checkboxStateImageList_ ||
+const wchar_t*
+ShortcutPathConverterDialog::FieldLabel(
+    Field field) const {
+    switch (field) {
+    case Field::Target:
+        return T(L"目标", L"Target");
+    case Field::WorkingDirectory:
+        return T(
+            L"工作目录",
+            L"Working directory");
+    case Field::Icon:
+        return T(
+            L"自定义图标",
+            L"Custom icon");
+    }
+
+    return L"";
+}
+
+bool ShortcutPathConverterDialog::GetResultFieldLayout(
+    int itemIndex,
+    RECT& checkboxRect,
+    RECT& textRect) const {
+    if (!list_ ||
         itemIndex < 0 ||
-        IsGroupHeaderItem(
+        !RowIndexForListItem(
             itemIndex)) {
-        return;
+        return false;
     }
 
     RECT rowRect{};
-    RECT labelRect{};
-
     if (!ListView_GetItemRect(
             list_,
             itemIndex,
             &rowRect,
-            LVIR_BOUNDS) ||
-        !ListView_GetItemRect(
-            list_,
-            itemIndex,
-            &labelRect,
-            LVIR_LABEL)) {
-        return;
+            LVIR_BOUNDS)) {
+        return false;
     }
+
+    HWND header =
+        ListView_GetHeader(
+            list_);
+    RECT fieldRect{};
+
+    if (!header ||
+        !Header_GetItemRect(
+            header,
+            0,
+            &fieldRect)) {
+        return false;
+    }
+
+    fieldRect.top = rowRect.top;
+    fieldRect.bottom = rowRect.bottom;
 
     const CheckboxRasterTemplate raster =
         CheckboxTemplateForDpi(
@@ -2727,48 +2595,96 @@ void ShortcutPathConverterDialog::DrawResultCheckbox(
              rowRect.bottom)) /
         2.0;
 
-    const int top =
+    const int checkboxTop =
         static_cast<int>(
             std::lround(
                 rowCenter -
                 static_cast<double>(
                     raster.size) /
                     2.0));
+    const int checkboxLeft =
+        fieldRect.left +
+        raster.textGap;
 
-    const int left =
-        labelRect.left -
-        raster.textGap -
-        raster.size;
+    checkboxRect = RECT{
+        checkboxLeft,
+        checkboxTop,
+        checkboxLeft +
+            raster.size,
+        checkboxTop +
+            raster.size,
+    };
 
-    if (left < rowRect.left ||
-        top < rowRect.top ||
-        top + raster.size >
-            rowRect.bottom) {
+    textRect = fieldRect;
+    textRect.left =
+        checkboxRect.right +
+        raster.textGap;
+    textRect.right -=
+        raster.textGap;
+
+    return checkboxRect.left >=
+            fieldRect.left &&
+        checkboxRect.top >=
+            rowRect.top &&
+        checkboxRect.right <=
+            fieldRect.right &&
+        checkboxRect.bottom <=
+            rowRect.bottom &&
+        textRect.right >
+            textRect.left;
+}
+
+void ShortcutPathConverterDialog::DrawResultFieldCell(
+    HDC dc,
+    int itemIndex) const {
+    if (!dc) {
         return;
     }
+
+    const auto rowIndex =
+        RowIndexForListItem(
+            itemIndex);
+    if (!rowIndex) {
+        return;
+    }
+
+    RECT checkboxRect{};
+    RECT textRect{};
+    if (!GetResultFieldLayout(
+            itemIndex,
+            checkboxRect,
+            textRect)) {
+        return;
+    }
+
+    const Row& row =
+        rows_[*rowIndex];
+    const auto& palette =
+        ui::kApplicationPalette;
+    const CheckboxRasterTemplate raster =
+        CheckboxTemplateForDpi(
+            dpi_);
+
+    const int sampleX =
+        (checkboxRect.left +
+         checkboxRect.right) /
+        2;
+    const int sampleY =
+        (checkboxRect.top +
+         checkboxRect.bottom) /
+        2;
 
     COLORREF background =
         GetPixel(
             dc,
-            left +
-                raster.size / 2,
-            static_cast<int>(
-                std::lround(
-                    rowCenter)));
+            sampleX,
+            sampleY);
 
     if (background ==
         CLR_INVALID) {
         background =
-            ui::kApplicationPalette
-                .controlBackground;
+            palette.controlBackground;
     }
-
-    const auto& palette =
-        ui::kApplicationPalette;
-    const bool checked =
-        ListView_GetCheckState(
-            list_,
-            itemIndex) != FALSE;
 
     const COLORREF uncheckedBorder =
         BlendCheckboxPixel(
@@ -2778,16 +2694,90 @@ void ShortcutPathConverterDialog::DrawResultCheckbox(
 
     DrawCheckboxRaster(
         dc,
-        left,
-        top,
+        checkboxRect.left,
+        checkboxRect.top,
         raster,
-        checked,
+        row.selected,
         background,
         palette.controlBackground,
-        checked
+        row.selected
             ? palette.accent
             : uncheckedBorder,
         palette.accent);
+
+    const bool listSelected =
+        (ListView_GetItemState(
+             list_,
+             itemIndex,
+             LVIS_SELECTED) &
+         LVIS_SELECTED) != 0;
+
+    const COLORREF fieldTextColor =
+        listSelected
+            ? GetSysColor(
+                  COLOR_HIGHLIGHTTEXT)
+            : palette.text;
+
+    SetBkMode(
+        dc,
+        TRANSPARENT);
+    SetTextColor(
+        dc,
+        fieldTextColor);
+
+    HGDIOBJ previousFont =
+        SelectObject(
+            dc,
+            font_);
+
+    DrawTextW(
+        dc,
+        FieldLabel(
+            row.field),
+        -1,
+        &textRect,
+        DT_LEFT |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        dc,
+        previousFont);
+}
+
+bool ShortcutPathConverterDialog::ToggleResultRowSelection(
+    int itemIndex) {
+    const auto rowIndex =
+        RowIndexForListItem(
+            itemIndex);
+    if (!rowIndex) {
+        return false;
+    }
+
+    rows_[*rowIndex].selected =
+        !rows_[*rowIndex].selected;
+
+    RECT rowRect{};
+    if (ListView_GetItemRect(
+            list_,
+            itemIndex,
+            &rowRect,
+            LVIR_BOUNDS)) {
+        InvalidateRect(
+            list_,
+            &rowRect,
+            FALSE);
+    } else {
+        InvalidateRect(
+            list_,
+            nullptr,
+            FALSE);
+    }
+
+    UpdateSelectionState();
+    return true;
 }
 
 LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
@@ -3015,7 +3005,7 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
 
         if (!IsGroupHeaderItem(
                 itemIndex)) {
-            DrawResultCheckbox(
+            DrawResultFieldCell(
                 draw->nmcd.hdc,
                 itemIndex);
         }
@@ -3035,7 +3025,6 @@ void ShortcutPathConverterDialog::Scan(
         return;
     }
 
-    rebuildingList_ = true;
     ListView_DeleteAllItems(
         list_);
     rows_.clear();
@@ -3170,7 +3159,6 @@ void ShortcutPathConverterDialog::Scan(
 
     convertibleShortcutCount_ =
         convertibleShortcutCount;
-    rebuildingList_ = false;
 
     UpdateSelectionState(
         appliedFieldCount);
@@ -3186,28 +3174,13 @@ void ShortcutPathConverterDialog::ApplySelected() {
         updates;
     std::size_t selectedFieldCount = 0;
 
-    const int itemCount =
-        ListView_GetItemCount(
-            list_);
-
-    for (int itemIndex = 0;
-         itemIndex < itemCount;
-         ++itemIndex) {
-        const auto rowIndex =
-            RowIndexForListItem(
-                itemIndex);
-
-        if (!rowIndex ||
-            !ListView_GetCheckState(
-                list_,
-                itemIndex)) {
+    for (const Row& row :
+         rows_) {
+        if (!row.selected) {
             continue;
         }
 
         ++selectedFieldCount;
-
-        const Row& row =
-            rows_[*rowIndex];
 
         auto it =
             std::find_if(
@@ -3441,6 +3414,41 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
         }
 
         if (header->code ==
+            NM_CLICK) {
+            const auto* click =
+                reinterpret_cast<
+                    NMITEMACTIVATE*>(
+                        lParam);
+
+            if (click) {
+                const int itemCount =
+                    ListView_GetItemCount(
+                        list_);
+
+                for (int itemIndex = 0;
+                     itemIndex < itemCount;
+                     ++itemIndex) {
+                    RECT checkboxRect{};
+                    RECT textRect{};
+
+                    if (GetResultFieldLayout(
+                            itemIndex,
+                            checkboxRect,
+                            textRect) &&
+                        PtInRect(
+                            &checkboxRect,
+                            click->ptAction)) {
+                        ToggleResultRowSelection(
+                            itemIndex);
+                        break;
+                    }
+                }
+            }
+
+            return 0;
+        }
+
+        if (header->code ==
             LVN_ITEMCHANGING) {
             const auto* change =
                 reinterpret_cast<
@@ -3454,32 +3462,9 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
                     change->uOldState;
 
                 if ((changedState &
-                     (LVIS_SELECTED |
-                      LVIS_STATEIMAGEMASK)) !=
+                     LVIS_SELECTED) !=
                     0) {
                     return TRUE;
-                }
-            }
-        }
-
-        if (header->code ==
-                LVN_ITEMCHANGED &&
-            !rebuildingList_) {
-            const auto* change =
-                reinterpret_cast<
-                    NMLISTVIEW*>(
-                        lParam);
-
-            if (!IsGroupHeaderItem(
-                    change->iItem)) {
-                const UINT changedState =
-                    change->uNewState ^
-                    change->uOldState;
-
-                if ((changedState &
-                     LVIS_STATEIMAGEMASK) !=
-                    0) {
-                    UpdateSelectionState();
                 }
             }
         }

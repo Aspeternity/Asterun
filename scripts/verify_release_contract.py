@@ -42,6 +42,272 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.38":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 9,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.38 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.38 must keep provider-cache schemaVersion 2")
+
+    path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    path_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    app_cpp = read("src/app/App.cpp")
+    app_h = read("src/app/App.hpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_h = read("src/ui/SettingsWindow.hpp")
+    update_cpp = read("src/platform/UpdateManager.cpp")
+
+    # The alpha.3.34 selector remains frozen.
+    for token in (
+        "struct SelectorRasterTemplate",
+        "SelectorTemplateForDpi(",
+        "CircleCoverage(",
+        "DrawSelectorRaster(",
+        "kSamplesPerAxis = 4",
+        "return {15, 1.35, 5}",
+        "return {17, 1.45, 6}",
+        "return {19, 1.60, 7}",
+        "return {21, 1.75, 8}",
+        "return {23, 1.90, 9}",
+        "SetPixelV(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.38 validated selector regressed: {token}")
+
+    # Checkbox ownership is entirely ours. No ListView state-image API may
+    # participate in rendering, storage or selection anymore.
+    for forbidden in (
+        "LVS_EX_CHECKBOXES",
+        "LVSIL_STATE",
+        "checkboxStateImageList_",
+        "CreateTransparentCheckboxStateImageList",
+        "ListView_GetCheckState",
+        "ListView_SetCheckState",
+        "LVIS_STATEIMAGEMASK",
+        "BP_CHECKBOX",
+        "CBS_CHECKEDNORMAL",
+        "CBS_UNCHECKEDNORMAL",
+        "rowHeightImageList_",
+        "kResultRowHeightLogical",
+    ):
+        if forbidden in path_cpp or forbidden in path_h:
+            fail(f"v0.8 alpha.3.38 native/hybrid checkbox ownership returned: {forbidden}")
+
+    for token in (
+        "bool selected{false}",
+        "row.selected = row.exists",
+        "return row.selected",
+        "for (const Row& row :",
+        "FieldLabel(",
+        "GetResultFieldLayout(",
+        "Header_GetItemRect(",
+        "DrawResultFieldCell(",
+        "ToggleResultRowSelection(",
+        "NM_CLICK",
+        "PtInRect(",
+        "VK_SPACE",
+        "LVNI_FOCUSED",
+        "CDDS_ITEMPOSTPAINT",
+        "ListView_GetItemState(",
+        "COLOR_HIGHLIGHTTEXT",
+    ):
+        if token not in path_cpp and token not in path_h:
+            fail(f"v0.8 alpha.3.38 owned checkbox state/interaction missing: {token}")
+
+    for token in (
+        "struct CheckboxRasterTemplate",
+        "CheckboxTemplateForDpi(",
+        "BlendCheckboxPixel(",
+        "PointInsideRoundedRect(",
+        "RoundedRectCoverage(",
+        "DistanceSquaredToSegment(",
+        "CheckmarkCoverage(",
+        "DrawCheckboxRaster(",
+        "kCheckboxSamplesPerAxis = 4",
+        "return {15, 3.0, 1.35, 1.8, 4}",
+        "return {17, 3.5, 1.45, 2.0, 4}",
+        "return {19, 4.0, 1.60, 2.2, 5}",
+        "return {21, 4.5, 1.75, 2.4, 5}",
+        "return {23, 5.0, 1.90, 2.6, 6}",
+        "palette.accent",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.38 modern checkbox raster missing: {token}")
+
+    # First-column native text stays empty; field labels are ours too.
+    for token in (
+        'wchar_t emptyText[] = L""',
+        'T(L"目标", L"Target")',
+        'L"工作目录"',
+        'L"Working directory"',
+        'L"自定义图标"',
+        'L"Custom icon"',
+        "DT_VCENTER",
+        "DT_SINGLELINE",
+        "DT_END_ELLIPSIS",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.38 owned field-cell drawing missing: {token}")
+
+    for forbidden in (
+        'T(L"    目标"',
+        'L"    Target"',
+        'T(L"    工作目录"',
+        'L"    Working directory"',
+        'T(L"    自定义图标"',
+        'L"    Custom icon"',
+    ):
+        if forbidden in path_cpp:
+            fail(f"v0.8 alpha.3.38 artificial field indentation returned: {forbidden}")
+
+    # Freeze remaining Path Conversion geometry and behavior.
+    for token in (
+        "kDefaultWidthLogical = 960",
+        "kDefaultHeightLogical = 560",
+        "kMinimumWidthLogical = 820",
+        "kMinimumHeightLogical = 480",
+        "kFieldColumnPercent = 13",
+        "kCurrentColumnPercent = 36",
+        "kConvertedColumnPercent = 39",
+        "kFieldColumnMinimumLogical = 100",
+        "kCurrentColumnMinimumLogical = 180",
+        "kConvertedColumnMinimumLogical = 180",
+        "kStatusColumnMinimumLogical = 100",
+        "SelectedFieldCount() const",
+        "UpdateSelectionState(",
+        "UpdateColumnWidths(",
+        "HandleHeaderNotification(",
+        "HandleHeaderCustomDraw(",
+        'T(L"当前没有可转换的路径"',
+        'T(L"已应用 "',
+        "listHeight * 44 / 100",
+        "VK_ESCAPE",
+        "VK_LEFT",
+        "VK_RIGHT",
+        "WM_GETMINMAXINFO",
+        "ApplyUserCommandPathUpdates(",
+        "win::MakePortablePath(",
+        "win::ExpandPortablePath(",
+        "ResolveOwnedPopupGeometry(",
+        "RevealFullyPainted(",
+    ):
+        if token not in path_cpp:
+            fail(f"v0.8 alpha.3.38 frozen Path Conversion behavior missing: {token}")
+
+    # Preserve alpha.3.36 updater hardening unchanged.
+    for token in (
+        'L"ALTRunNext.UpdateDispatch"',
+        "UpdateDispatchWindowProc(",
+        "CreateUpdateDispatchWindow()",
+        "DestroyUpdateDispatchWindow()",
+        "PostUpdateStatusNotification(",
+        "HWND_MESSAGE",
+        "PostMessageW(",
+        "kUpdateReconcileTimerId",
+        "HandleUpdateStatusMessage(",
+    ):
+        if token not in app_cpp and token not in app_h:
+            fail(f"v0.8 alpha.3.38 updater dispatcher regressed: {token}")
+
+    for token in (
+        "kUpdateStatusTimerId = 0x51692",
+        "SyncUpdateStatusTimer()",
+        "RefreshUpdateStatus();\n                SyncUpdateStatusTimer();",
+        "RDW_UPDATENOW",
+    ):
+        if token not in settings_cpp and token not in settings_h:
+            fail(f"v0.8 alpha.3.38 Settings updater reconciliation regressed: {token}")
+
+    for token in (
+        "kUpdateCheckWatchdogMs =\n        60ULL * 1000ULL",
+        "CheckTimedOut",
+        "updateWorkerStartedTick_",
+        "request_stop()",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.3.38 updater watchdog/cancellation regressed: {token}")
+
+    for token in (
+        "WinHttpSetTimeouts(",
+        "5000,",
+        "15000,",
+        "std::stop_callback",
+        "handles.request.Close();",
+        "WinHttpReadData(",
+    ):
+        if token not in update_cpp:
+            fail(f"v0.8 alpha.3.38 WinHTTP hardening regressed: {token}")
+
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+    for token in (
+        "$migratedSettings.schemaVersion -ne 9",
+        "shortcutManagerMode",
+        "shortcutManagerLastValid",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.3.38 must preserve schema-9 runtime smoke coverage: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.37"',
+        '"0.8.0-alpha.3.38"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.38 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.38 — Path Conversion Checkbox Ownership",
+        "0.8.0.68",
+        "Row",
+        "GetResultFieldLayout()",
+        "Mouse clicks",
+        "Space toggles",
+        "no state image",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.38 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.38",
+        "0.8.0.68",
+        "Row::selected",
+        "exact custom checkbox hit-testing",
+        "Space-key toggling",
+        "alpha.3.36 updater dispatch hardening",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.38 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.38",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3.38 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.38 Path Conversion checkbox ownership verified:",
+        "| no native/state-image checkbox ownership",
+        "| Row::selected drives count/apply",
+        "| first-column checkbox + field label share real row center",
+        "| exact mouse hit-test + Space toggle",
+        "| selector/columns/updater frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.37":
     expected_schemas = {
         "kSettingsSchemaVersion": 9,
