@@ -60,6 +60,7 @@ if version == "0.8.0-alpha.3.31":
     path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
     presentation_cpp = read("src/ui/TopLevelWindowPresentation.cpp")
     app_cpp = read("src/app/App.cpp")
+    settings_window_cpp = read("src/ui/SettingsWindow.cpp")
 
     for token in (
         "kDefaultWidthLogical = 960",
@@ -143,7 +144,7 @@ if version == "0.8.0-alpha.3.31":
         "60ULL * 1000ULL",
         "检查更新超时，请重试",
     ):
-        if token not in update_cpp and token not in app_cpp:
+        if token not in update_cpp and token not in app_cpp and token not in settings_window_cpp:
             fail(f"v0.8 alpha.3.31 must preserve updater hardening: {token}")
 
     runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
