@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.25
+
+- Closed the remaining Shortcut Editor Advanced-focus regression: mouse clicks now expand/collapse Advanced and immediately return focus to the dialog surface, so the classic dotted Button focus rectangle does not remain after pointer activation.
+- Preserved keyboard accessibility: Tab focus and Space activation keep native Button focus/focus-cue behavior, while mouse and keyboard activation paths are tracked separately.
+- Rebalanced Shortcut Manager's default four-column layout from the previous 22/26/12/40 split to 16/24/14/46 for Keywords/Name/Type/Target, giving Name and Type practical room without letting Target dominate wide windows.
+- Raised responsive minimum widths to 88/128/88 logical pixels for Keywords/Name/Type and 180 logical pixels for Target so column dragging and narrow-window behavior stay readable.
+- Aligned the hidden creation-time ListView widths with the new 720-pixel baseline while preserving the existing elastic Target-column model and guide-only Header dragging.
+- Preserved user-dragged column widths for the current app session; only fresh/default layout uses the new balance.
+- Preserved alpha.3.24 Shortcut Editor geometry, Runtime Input, Advanced field inset, native Edit/ComboBox behavior, IME, modern pickers, path conversion and all shortcut execution semantics.
+- Preserved alpha.3.23 update-check cancellation, CheckTimedOut handling and 60-second watchdog.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.55`.
+
 ## 0.8.0-alpha.3.24
 
 - Reduced Shortcut Editor width from 620 to 590 logical pixels after the latest real-Windows density review.

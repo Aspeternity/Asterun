@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.25 — Shortcut Workflow Focus & Column Balance Closeout
+
+Alpha 3.25 closes the two remaining real-Windows Shortcut workflow polish items without reopening Shortcut Editor geometry or shortcut behavior.
+
+Shortcut Editor now distinguishes pointer activation from keyboard activation for **Advanced**. A left-click still expands/collapses the section through the native owner-drawn Button, but after the click completes focus returns to the dialog surface, so the classic dotted Win32 Button focus rectangle does not remain around the header. Tab navigation and Space activation retain native Button focus and visible keyboard focus cues. The 590-pixel editor width, current vertical rhythm, measured ComboBox sizing and 18-pixel Advanced right inset are unchanged.
+
+Shortcut Manager also receives a fresh default column balance. The four columns now resolve to **16% Keywords / 24% Name / 14% Type / 46% Target** instead of 22/26/12/40. This gives typical names such as *Command Prompt* and fixed type labels more usable width while keeping Target the largest column without allowing it to visually overwhelm the table. Responsive minimums are now 88/128/88 logical pixels for Keywords/Name/Type and 180 logical pixels for Target. Existing constrained Header dragging, elastic Target behavior and in-session custom column widths remain intact.
+
+Alpha 3.23 update hardening is preserved unchanged, as are Settings schemaVersion 8 and commands schemaVersion 2. Windows fixed FileVersion/ProductVersion is `0.8.0.55`.
+
 ## v0.8.0-alpha.3.24 — Shortcut Editor Density Closeout
 
 Alpha 3.24 is the final density closeout for the native Shortcut Editor based on the latest real-Windows screenshots. It changes visual geometry only: shortcut persistence, Runtime Input, path conversion, pickers, execution and schemas remain frozen.

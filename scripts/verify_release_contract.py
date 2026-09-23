@@ -42,6 +42,141 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.3.25":
+    expected_schemas = {
+        "kSettingsSchemaVersion": 8,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.3.25 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.3.25 must keep provider-cache schemaVersion 2")
+
+    editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
+    editor_h = read("src/ui/ShortcutEditorDialog.hpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+
+    for token in (
+        "advancedMouseActivation_{false}",
+        "HIWORD(wParam) ==\n                kIdAdvancedToggle",
+        "const bool mouseActivation =",
+        "advancedMouseActivation_ =\n                    false;",
+        "if (mouseActivation) {",
+        "SetFocus(hwnd_);",
+        "WM_QUERYUISTATE",
+        "UISF_HIDEFOCUS",
+        "kEditorWidthLogical = 590",
+        "kAdvancedRightInsetLogical = 18",
+    ):
+        if token not in editor_cpp and token not in editor_h:
+            fail(f"v0.8 alpha.3.25 Advanced focus closeout missing: {token}")
+
+    for token in (
+        "kKeywordColumnPercent = 16",
+        "kNameColumnPercent = 24",
+        "kTypeColumnPercent = 14",
+        "kKeywordColumnMinimumLogical = 88",
+        "kNameColumnMinimumLogical = 128",
+        "kTypeColumnMinimumLogical = 88",
+        "kTargetColumnMinimumLogical = 180",
+        "contentWidth *\n            kKeywordColumnPercent / 100",
+        "contentWidth *\n            kNameColumnPercent / 100",
+        "contentWidth *\n            kTypeColumnPercent / 100",
+        "customColumnWidths_",
+        "ClampTrackedColumnWidth(",
+        "UpdateColumnWidths(",
+    ):
+        if token not in manager_cpp:
+            fail(f"v0.8 alpha.3.25 Manager column balance missing: {token}")
+
+    for token in (
+        "ParseShortcutKeywords(",
+        "SuggestShortcutTitle(",
+        "InferShortcutCommandType(",
+        "CanAcceptRuntimeInput(",
+        "HasRuntimeInputPlaceholder(",
+        "RuntimeInputMode::Raw",
+        "RuntimeInputMode::UrlEncoded",
+        "app_.CreateUserCommand(",
+        "app_.UpdateUserCommand(",
+        "app_.TestCommand(",
+        "RefreshDynamicLayout();",
+        "RDW_ALLCHILDREN",
+    ):
+        if token not in editor_cpp:
+            fail(f"v0.8 alpha.3.25 frozen Shortcut behavior missing: {token}")
+
+    update_cpp = read("src/platform/UpdateManager.cpp")
+    app_cpp = read("src/app/App.cpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    for token in (
+        "std::stop_callback",
+        "CheckTimedOut",
+        "kUpdateCheckWatchdogMs",
+        "60ULL * 1000ULL",
+        "检查更新超时，请重试",
+    ):
+        if token not in update_cpp and token not in app_cpp and token not in settings_cpp:
+            fail(f"v0.8 alpha.3.25 must preserve alpha.3.23 update hardening: {token}")
+
+    if "WinHttpQueryDataAvailable(" in update_cpp:
+        fail("v0.8 alpha.3.25 must not regress to QueryDataAvailable update reads")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.3.24"',
+        '"0.8.0-alpha.3.25"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.3.25 update ordering/default coverage missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "## v0.8.0-alpha.3.25 — Shortcut Workflow Focus & Column Balance Closeout",
+        "0.8.0.55",
+        "16% Keywords / 24% Name / 14% Type / 46% Target",
+        "pointer activation from keyboard activation",
+        "180 logical pixels for Target",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.3.25 README contract missing: {token}")
+
+    for token in (
+        "## 0.8.0-alpha.3.25",
+        "0.8.0.55",
+        "16/24/14/46",
+        "mouse clicks",
+        "180 logical pixels for Target",
+    ):
+        if token not in changelog:
+            fail(f"v0.8 alpha.3.25 changelog contract missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.3.25",
+        "v0.8.0-alpha.4",
+    ):
+        if token not in roadmap:
+            fail(f"v0.8 alpha.3 roadmap missing: {token}")
+
+    print(
+        "v0.8.0-alpha.3.25 Shortcut workflow closeout verified:",
+        "| Advanced mouse focus dismissed, keyboard focus preserved",
+        "| Manager columns=16/24/14/46 responsive balance",
+        "| minimums=88/128/88/180 logical",
+        "| alpha.3.24 geometry + alpha.3.23 updater hardening preserved",
+        "| schemas/frozen shortcut behavior unchanged",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.3.24":
     expected_schemas = {
         "kSettingsSchemaVersion": 8,

@@ -3476,6 +3476,9 @@ LRESULT ShortcutEditorDialog::HandleMessage(
 
     switch (message) {
     case WM_LBUTTONDOWN:
+        // A click on the dialog itself is not an Advanced-button activation.
+        advancedMouseActivation_ = false;
+        [[fallthrough]];
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:
         // Match Settings: clicking the dialog surface should dismiss the
@@ -3484,6 +3487,17 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
 
     case WM_PARENTNOTIFY:
+        if (LOWORD(wParam) ==
+                WM_LBUTTONDOWN) {
+            // WM_PARENTNOTIFY carries the child control id in HIWORD(wParam).
+            // Remember only the left-click that starts on Advanced so the
+            // subsequent BN_CLICKED can discard mouse focus without touching
+            // Tab/Space keyboard semantics.
+            advancedMouseActivation_ =
+                HIWORD(wParam) ==
+                kIdAdvancedToggle;
+        }
+
         if (LOWORD(wParam) ==
                 WM_LBUTTONDOWN ||
             LOWORD(wParam) ==
@@ -3498,6 +3512,8 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
 
     case WM_NCLBUTTONDOWN:
+        advancedMouseActivation_ = false;
+        [[fallthrough]];
     case WM_NCRBUTTONDOWN:
     case WM_NCMBUTTONDOWN:
         dismissComboFocus();
@@ -3670,7 +3686,19 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         case kIdAdvancedToggle:
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
+                const bool mouseActivation =
+                    advancedMouseActivation_;
+                advancedMouseActivation_ =
+                    false;
+
                 ToggleAdvanced();
+
+                if (mouseActivation) {
+                    // Mouse clicks should not leave the section header looking
+                    // selected. Keyboard activation keeps Button focus so
+                    // Tab/Space navigation retains a visible focus cue.
+                    SetFocus(hwnd_);
+                }
             }
             return 0;
 

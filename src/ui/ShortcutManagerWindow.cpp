@@ -35,6 +35,14 @@ constexpr int kDefaultHeightLogical = 480;
 constexpr int kMinimumWidthLogical = 720;
 constexpr int kMinimumHeightLogical = 480;
 
+constexpr int kKeywordColumnPercent = 16;
+constexpr int kNameColumnPercent = 24;
+constexpr int kTypeColumnPercent = 14;
+constexpr int kKeywordColumnMinimumLogical = 88;
+constexpr int kNameColumnMinimumLogical = 128;
+constexpr int kTypeColumnMinimumLogical = 88;
+constexpr int kTargetColumnMinimumLogical = 180;
+
 enum ShortcutContextMenuId : UINT {
     kShortcutContextAdd = 52201,
     kShortcutContextEdit = 52202,
@@ -458,19 +466,19 @@ void ShortcutManagerWindow::CreateControls() {
 
     addColumn(
         0,
-        210,
+        116,
         T(L"快捷词", L"Keywords"));
     addColumn(
         1,
-        180,
+        170,
         T(L"名称", L"Name"));
     addColumn(
         2,
-        90,
+        100,
         T(L"类型", L"Type"));
     addColumn(
         3,
-        320,
+        334,
         T(L"目标", L"Target"));
 
     for (HWND control :
@@ -1317,13 +1325,17 @@ ClampTrackedColumnWidth(
 
     const std::array<int, 3>
         minimums{
-            Scale(72),
-            Scale(96),
-            Scale(72),
+            Scale(
+                kKeywordColumnMinimumLogical),
+            Scale(
+                kNameColumnMinimumLogical),
+            Scale(
+                kTypeColumnMinimumLogical),
         };
 
     const int minimumTarget =
-        Scale(120);
+        Scale(
+            kTargetColumnMinimumLogical);
 
     int otherWidth = 0;
 
@@ -1399,24 +1411,31 @@ UpdateColumnWidths(
 
     const std::array<int, 3>
         minimums{
-            Scale(72),
-            Scale(96),
-            Scale(72),
+            Scale(
+                kKeywordColumnMinimumLogical),
+            Scale(
+                kNameColumnMinimumLogical),
+            Scale(
+                kTypeColumnMinimumLogical),
         };
 
     const int minimumTarget =
-        Scale(120);
+        Scale(
+            kTargetColumnMinimumLogical);
 
     std::array<int, 3> widths{};
 
     if (!customColumnWidths_ &&
         resizedColumn < 0) {
         widths[0] =
-            contentWidth * 22 / 100;
+            contentWidth *
+            kKeywordColumnPercent / 100;
         widths[1] =
-            contentWidth * 26 / 100;
+            contentWidth *
+            kNameColumnPercent / 100;
         widths[2] =
-            contentWidth * 12 / 100;
+            contentWidth *
+            kTypeColumnPercent / 100;
     } else {
         for (int index = 0;
              index < 3;
