@@ -25,7 +25,7 @@ namespace {
 constexpr wchar_t kShortcutEditorClass[] =
     L"ALTRunNext.ShortcutEditor";
 
-constexpr int kEditorWidthLogical = 720;
+constexpr int kEditorWidthLogical = 680;
 constexpr int kInitialEditorHeightLogical = 420;
 constexpr int kRuntimeTestExtraHeightLogical = 42;
 constexpr int kTypeDropdownHeightLogical = 150;
@@ -35,6 +35,7 @@ constexpr int kFooterButtonHeightLogical = 32;
 constexpr int kFooterBottomMarginLogical = 18;
 constexpr int kFooterSeparatorGapLogical = 12;
 constexpr int kContentFooterGapLogical = 24;
+constexpr int kAdminTopGapLogical = 4;
 
 constexpr COLORREF kEditorHintText =
     RGB(112, 119, 128);
@@ -1298,7 +1299,7 @@ void ShortcutEditorDialog::Layout() {
         std::max(
             Scale(220),
             (contentWidth -
-             columnGap) * 42 / 100);
+             columnGap) * 38 / 100);
     const int keywordLeft =
         margin +
         nameWidth +
@@ -1606,6 +1607,8 @@ void ShortcutEditorDialog::Layout() {
             editHeight,
             TRUE);
         y += advancedRowAdvance;
+        y += Scale(
+            kAdminTopGapLogical);
 
         MoveWindow(
             admin_,
@@ -1796,7 +1799,9 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
         draw.hDC,
         disabled
             ? palette.mutedText
-            : palette.text);
+            : focused
+                ? palette.accent
+                : palette.text);
 
     HGDIOBJ oldFont =
         SelectObject(
@@ -1864,26 +1869,50 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
         oldPen);
     DeleteObject(linePen);
 
-    if (focused) {
-        RECT focus{
-            textRect.left,
-            rect.top + Scale(4),
-            std::min<LONG>(
-                static_cast<LONG>(
-                    lineStart -
-                    Scale(6)),
+    if (focused &&
+        !disabled) {
+        // Preserve a clear keyboard-focus affordance without falling back to
+        // the heavy classic Win32 dotted rectangle around the section title.
+        const int focusStart =
+            textRect.left;
+        const int focusEnd =
+            std::min(
+                rect.right,
                 textRect.left +
-                    static_cast<LONG>(
-                        extent.cx +
-                        Scale(6))),
-            rect.bottom - Scale(4),
-        };
+                    extent.cx);
+        const int focusY =
+            rect.bottom -
+            Scale(4);
 
-        if (focus.right >
-            focus.left) {
-            DrawFocusRect(
+        if (focusEnd >
+            focusStart) {
+            HPEN focusPen =
+                CreatePen(
+                    PS_SOLID,
+                    std::max(
+                        1,
+                        Scale(2)),
+                    palette.accent);
+            HGDIOBJ oldFocusPen =
+                SelectObject(
+                    draw.hDC,
+                    focusPen);
+
+            MoveToEx(
                 draw.hDC,
-                &focus);
+                focusStart,
+                focusY,
+                nullptr);
+            LineTo(
+                draw.hDC,
+                focusEnd,
+                focusY);
+
+            SelectObject(
+                draw.hDC,
+                oldFocusPen);
+            DeleteObject(
+                focusPen);
         }
     }
 
@@ -2114,6 +2143,8 @@ DesiredClientHeight() const {
 
         contentBottom =
             y +
+            Scale(
+                kAdminTopGapLogical) +
             Scale(26);
     }
 
@@ -2293,10 +2324,28 @@ void ShortcutEditorDialog::UpdateTypeState() {
                 0,
                 0));
 
+    const std::wstring target =
+        TrimWide(
+            ControlText(target_));
+
+    if (selected <= 0 &&
+        target.empty()) {
+        // InferShortcutCommandType() intentionally keeps Application as its
+        // internal fallback for an empty target. Do not expose that fallback
+        // as if auto-detection had already succeeded in a brand-new editor.
+        SetWindowTextW(
+            typeHint_,
+            T(L"等待输入目标",
+              L"Waiting for target"));
+
+        UpdateRuntimeInputHint();
+        return;
+    }
+
     const CommandType type =
         selected <= 0
             ? InferShortcutCommandType(
-                  ControlText(target_))
+                  target)
             : ExplicitTypeFromIndex(
                   selected);
 

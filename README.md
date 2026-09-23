@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.21 — Shortcut Editor Final Visual Polish
+
+Alpha 3.21 returns to the Shortcut Editor after the Settings reliability work and performs the final compact-layout pass based on real-Windows screenshots of the collapsed, Advanced-expanded and Runtime Input + Advanced states.
+
+The editor width is reduced from 720 to 680 logical pixels so long Advanced fields no longer dominate the dialog. The top identity row shifts from a 42/58 Name/Keywords split to 38/62, giving the keyword/alias field more practical space while keeping short display names compact. Existing native single-line Edit controls, font-derived edit height, IME behavior, modern IFileOpenDialog pickers, dynamic Runtime Input/Test Input expansion and content-derived dialog height remain unchanged.
+
+Auto-detect presentation now distinguishes an empty Target from an actual Application inference. The core model intentionally continues to use Application as its internal empty-target fallback, preserving all command/model behavior, but the editor shows **等待输入目标 / Waiting for target** while Auto detect is selected and Target is blank. Once a target exists, the existing **识别为 / Detected** state resumes; explicit type selections continue to show **手动指定 / Override**.
+
+The Advanced header keeps native Button keyboard semantics but replaces the classic dotted focus rectangle with a lightweight accent treatment: focused text turns accent-colored and receives a short underline while the continuation divider stays neutral. Advanced field geometry remains stable, with a small extra gap before **以管理员身份运行 / Run as administrator** so the checkbox reads as an option belonging to the section rather than a fourth text field.
+
+Footer actions remain intentionally unchanged: Test stays on the left, Save remains the single primary accent action, Cancel stays secondary on the right, and Enter-to-save behavior is preserved. No shortcut schema, execution, Runtime Input, path conversion, picker or Settings behavior changes are introduced. Settings remains schemaVersion 8 and commands remains schemaVersion 2. Windows fixed FileVersion/ProductVersion is `0.8.0.51`.
+
 ## v0.8.0-alpha.3.20 — Settings DWM First-Frame Barrier
 
 Alpha 3.20 moves the remaining Settings flash fix from USER32 placement logic to the Desktop Window Manager composition layer.

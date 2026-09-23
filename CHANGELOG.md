@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.21
+
+- Performed the final real-Windows visual-density pass for Shortcut Editor across collapsed, Advanced-expanded and Runtime Input + Advanced states.
+- Reduced Shortcut Editor width from 720 to 680 logical pixels so Advanced fields no longer create excessive horizontal dead space.
+- Changed the top Name/Keywords split from 42/58 to 38/62, giving aliases/keywords more practical room while keeping Name compact.
+- Fixed the empty-target Auto detect presentation: a brand-new shortcut now shows **等待输入目标 / Waiting for target** instead of incorrectly exposing the model's internal Application fallback as **识别为：应用程序 / Detected: Application**.
+- Kept `InferShortcutCommandType("") == Application` unchanged internally so command collection, title suggestion, Runtime Input and compatibility behavior are not broadened by a UI-only state fix.
+- Replaced the Advanced header's classic dotted Win32 focus rectangle with an accent text + short underline focus affordance while retaining native Button focus, Tab, Space and click semantics.
+- Added a small visual gap before **Run as administrator** so the checkbox is separated from the Icon field without changing Advanced field ordering.
+- Preserved native Edit/ComboBox controls, IME, modern file/folder/icon pickers, Runtime Input/Test Input behavior, adaptive dialog height, footer layout and Enter-to-save behavior.
+- Preserved Settings schemaVersion 8 and commands schemaVersion 2.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.51`.
+
 ## 0.8.0-alpha.3.20
 
 - Escalated the remaining rare Settings upper-left flash from USER32 placement handling to DWM presentation handling after alpha.3.19 removed all real monitor-origin Settings birth rectangles.
