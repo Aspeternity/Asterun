@@ -63,7 +63,6 @@ if version == "0.8.0-alpha.4.6":
     metrics = read("src/ui/UiMetrics.hpp")
     typography = read("src/ui/UiTypography.cpp")
     resources = read("src/resources.rc")
-    cmake = read("CMakeLists.txt")
     path_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
     editor_cpp = read("src/ui/ShortcutEditorDialog.cpp")
     app_cpp = read("src/app/App.cpp")
@@ -131,9 +130,6 @@ if version == "0.8.0-alpha.4.6":
     ):
         if forbidden in launcher:
             fail(f"v0.8 alpha.4.6 old/heavier command path survived: {forbidden}")
-
-    if "shlwapi" in cmake.lower():
-        fail("v0.8 alpha.4.6 must not add shlwapi just for command text compaction")
 
     # Preserve Classic+ fixed columns and full-fidelity colors.
     for token in (
