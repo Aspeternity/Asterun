@@ -25,7 +25,7 @@ namespace {
 constexpr wchar_t kShortcutEditorClass[] =
     L"ALTRunNext.ShortcutEditor";
 
-constexpr int kEditorWidthLogical = 620;
+constexpr int kEditorWidthLogical = 590;
 constexpr int kInitialEditorHeightLogical = 420;
 constexpr int kRuntimeTestExtraHeightLogical = 42;
 constexpr int kTypeDropdownHeightLogical = 150;
@@ -36,8 +36,9 @@ constexpr int kFooterBottomMarginLogical = 16;
 constexpr int kFooterSeparatorGapLogical = 10;
 constexpr int kContentFooterGapLogical = 16;
 constexpr int kAdminTopGapLogical = 4;
-constexpr int kInlineComboMinWidthLogical = 150;
-constexpr int kInlineComboMaxWidthLogical = 175;
+constexpr int kInlineComboMinWidthLogical = 158;
+constexpr int kInlineComboMaxWidthLogical = 185;
+constexpr int kAdvancedRightInsetLogical = 18;
 
 constexpr COLORREF kEditorHintText =
     RGB(112, 119, 128);
@@ -1299,7 +1300,7 @@ void ShortcutEditorDialog::Layout() {
     // Primary fields keep the familiar stacked-label layout.
     const int nameWidth =
         std::max(
-            Scale(200),
+            Scale(190),
             (contentWidth -
              columnGap) * 36 / 100);
     const int keywordLeft =
@@ -1410,8 +1411,8 @@ void ShortcutEditorDialog::Layout() {
         Scale(
             app_.SettingsData().language ==
                     Language::ZhCN
-                ? 84
-                : 116);
+                ? 76
+                : 108);
     const int formFieldLeft =
         margin +
         formLabelWidth +
@@ -1516,7 +1517,7 @@ void ShortcutEditorDialog::Layout() {
             GetSystemMetricsForDpi(
                 SM_CXVSCROLL,
                 dpi_) +
-            Scale(20);
+            Scale(28);
 
         typeWidth =
             std::clamp(
@@ -1644,6 +1645,18 @@ void ShortcutEditorDialog::Layout() {
         const int advancedRowAdvance =
             controlRowHeight +
             Scale(6);
+        const int advancedRightInset =
+            Scale(
+                kAdvancedRightInsetLogical);
+        const int advancedFieldWidth =
+            std::max(
+                0,
+                formFieldWidth -
+                    advancedRightInset);
+        const int advancedFieldRight =
+            client.right -
+            margin -
+            advancedRightInset;
 
         MoveWindow(
             argumentsLabel_,
@@ -1656,7 +1669,7 @@ void ShortcutEditorDialog::Layout() {
             arguments_,
             formFieldLeft,
             editTop(y),
-            formFieldWidth,
+            advancedFieldWidth,
             editHeight,
             TRUE);
         y += advancedRowAdvance;
@@ -1664,7 +1677,7 @@ void ShortcutEditorDialog::Layout() {
         const int workdirButtonWidth =
             Scale(68);
         const int workdirEditWidth =
-            formFieldWidth -
+            advancedFieldWidth -
             workdirButtonWidth -
             gap;
 
@@ -1684,8 +1697,7 @@ void ShortcutEditorDialog::Layout() {
             TRUE);
         MoveWindow(
             browseWorkdir_,
-            client.right -
-                margin -
+            advancedFieldRight -
                 workdirButtonWidth,
             editTop(y),
             workdirButtonWidth,
@@ -1696,7 +1708,7 @@ void ShortcutEditorDialog::Layout() {
         const int iconButtonWidth =
             Scale(68);
         const int iconEditWidth =
-            formFieldWidth -
+            advancedFieldWidth -
             iconButtonWidth -
             gap;
 
@@ -1716,8 +1728,7 @@ void ShortcutEditorDialog::Layout() {
             TRUE);
         MoveWindow(
             browseIcon_,
-            client.right -
-                margin -
+            advancedFieldRight -
                 iconButtonWidth,
             editTop(y),
             iconButtonWidth,
@@ -1731,7 +1742,7 @@ void ShortcutEditorDialog::Layout() {
             admin_,
             formFieldLeft,
             y,
-            formFieldWidth,
+            advancedFieldWidth,
             Scale(26),
             TRUE);
     }
@@ -1894,7 +1905,7 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
     HBRUSH background =
         CreateSolidBrush(
             pressed
-                ? palette.accentBackground
+                ? palette.controlBackground
                 : palette.windowBackground);
     FillRect(
         draw.hDC,
@@ -1984,51 +1995,32 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
         oldPen);
     DeleteObject(linePen);
 
+    const LRESULT uiState =
+        SendMessageW(
+            hwnd_,
+            WM_QUERYUISTATE,
+            0,
+            0);
+
     if (focused &&
-        !disabled) {
-        // Preserve a clear keyboard-focus affordance without falling back to
-        // the heavy classic Win32 dotted rectangle around the section title.
-        const int focusStart =
-            textRect.left;
-        const int focusEnd =
+        !disabled &&
+        (uiState & UISF_HIDEFOCUS) == 0) {
+        // Keep focus feedback keyboard-only. Mouse clicks no longer leave an
+        // accent underline that makes Advanced look like a selected web tab.
+        RECT focusRect{
+            textRect.left - Scale(1),
+            rect.top + Scale(4),
             std::min(
                 rect.right,
                 textRect.left +
-                    extent.cx);
-        const int focusY =
-            rect.bottom -
-            Scale(4);
+                    extent.cx +
+                    Scale(2)),
+            rect.bottom - Scale(4),
+        };
 
-        if (focusEnd >
-            focusStart) {
-            HPEN focusPen =
-                CreatePen(
-                    PS_SOLID,
-                    std::max(
-                        1,
-                        Scale(2)),
-                    palette.accent);
-            HGDIOBJ oldFocusPen =
-                SelectObject(
-                    draw.hDC,
-                    focusPen);
-
-            MoveToEx(
-                draw.hDC,
-                focusStart,
-                focusY,
-                nullptr);
-            LineTo(
-                draw.hDC,
-                focusEnd,
-                focusY);
-
-            SelectObject(
-                draw.hDC,
-                oldFocusPen);
-            DeleteObject(
-                focusPen);
-        }
+        DrawFocusRect(
+            draw.hDC,
+            &focusRect);
     }
 
     SelectObject(

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.3.24
+
+- Reduced Shortcut Editor width from 620 to 590 logical pixels after the latest real-Windows density review.
+- Kept the 36:64 Name/Keywords split while reducing the Name minimum from 200 to 190 logical pixels so the top row stays balanced in the narrower dialog.
+- Shifted inline Target type / Runtime input / Advanced label-value rows 8 logical pixels left by tightening the localized label column from 84/116 to 76/108 logical pixels.
+- Kept localized content-measured ComboBox sizing but increased breathing room around the selected text: the shared width now clamps to 158–185 logical pixels and includes 8 additional logical pixels of text/chrome padding.
+- Removed the Advanced header's accent underline and accent pressed surface. Mouse clicks now leave the header neutral, while Windows keyboard-only focus cues remain available when focus cues are enabled.
+- Added an 18 logical pixels right inset to Advanced text fields, picker buttons and the administrator option so expanded Advanced content no longer stretches to the same edge as primary Target content.
+- Preserved alpha.3.23 vertical rhythm, native Edit font-metric height, 28-pixel rows, Runtime Input/Test Input expansion, IME, modern pickers, path conversion and adaptive footer height.
+- Preserved alpha.3.23 update-check cancellation, CheckTimedOut handling and 60-second watchdog without changing updater endpoints or install semantics.
+- Preserved Settings schemaVersion 8, commands schemaVersion 2 and Shortcut Manager 720×480 default/minimum geometry.
+- Updated Windows fixed FileVersion/ProductVersion to `0.8.0.54`.
+
 ## 0.8.0-alpha.3.23
 
 - Reduced Shortcut Editor width from 680 to 620 logical pixels for the final compact horizontal-density pass.

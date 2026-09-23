@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.3.24 — Shortcut Editor Density Closeout
+
+Alpha 3.24 is the final density closeout for the native Shortcut Editor based on the latest real-Windows screenshots. It changes visual geometry only: shortcut persistence, Runtime Input, path conversion, pickers, execution and schemas remain frozen.
+
+The editor width moves from 620 to 590 logical pixels. Name/Keywords keeps the 36:64 split with a smaller 190-pixel Name minimum, while the inline label column moves 8 pixels left in both Chinese and English. Target type and Runtime input remain native, aligned ComboBoxes sized from the active localized text; their shared clamp is widened to 158–185 logical pixels and the measured chrome allowance gains 8 pixels so values such as **URL 编码（UTF-8）** no longer crowd the drop arrow.
+
+Advanced keeps the arrow + semibold title + neutral continuation divider, but removes the blue accent underline and accent pressed surface. Mouse interaction therefore does not leave a web-tab-like selected treatment; Windows keyboard focus cues are drawn only when the UI state exposes focus cues. Expanded Advanced fields, picker buttons and **Run as administrator** also stop at an 18-logical-pixel right inset before the normal form edge, restoring a quieter secondary hierarchy.
+
+Vertical metrics are intentionally unchanged from alpha.3.23: the 16-pixel top rhythm, 28-pixel rows, font-derived native Edit height, Runtime Input/Test Input expansion and adaptive footer remain intact. Alpha.3.23's interruptible WinHTTP update transport, explicit CheckTimedOut state and 60-second App watchdog are preserved unchanged. Settings schema remains 8 and commands schema remains 2. Windows fixed FileVersion/ProductVersion is `0.8.0.54`.
+
 ## v0.8.0-alpha.3.23 — Shortcut Editor Compact Width & Update Check Hardening
 
 Alpha 3.23 closes the final Shortcut Editor horizontal-density pass and hardens the update checker against a second class of real-Windows **正在检查更新... / Checking for updates...** stalls.
