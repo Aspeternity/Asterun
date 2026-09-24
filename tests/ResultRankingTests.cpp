@@ -14,8 +14,8 @@ LauncherResult Result(
     std::string provider,
     std::wstring title,
     std::wstring subtitle,
-    std::wstring target,
-    int score = 0) {
+    std::wstring target) {
+
     LauncherResult result;
     result.kind = kind;
     result.providerId =
@@ -26,7 +26,6 @@ LauncherResult Result(
         std::move(subtitle);
     result.target =
         std::move(target);
-    result.score = score;
     return result;
 }
 
@@ -43,96 +42,122 @@ int main() {
             L"D:\\Research\\CKD",
             L"D:\\Research\\CKD\\paper.docx");
 
-    const auto exact =
+    LauncherResult exact = file;
+    LauncherResult stem = file;
+    LauncherResult contains = file;
+    LauncherResult path = file;
+
+    assert(RankDynamicResultText(
+        exact,
+        L"paper.docx"));
+    assert(RankDynamicResultText(
+        stem,
+        L"paper"));
+    assert(RankDynamicResultText(
+        contains,
+        L"aper"));
+    assert(RankDynamicResultText(
+        path,
+        L"research"));
+
+    assert(
+        exact.relevanceMatch.kind ==
+        relevance::MatchKind::Exact);
+    assert(
+        exact.relevanceMatch.field ==
+        relevance::MatchField::Title);
+    assert(
+        stem.relevanceMatch.kind ==
+        relevance::MatchKind::Exact);
+    assert(
+        stem.relevanceMatch.field ==
+        relevance::MatchField::FileStem);
+    assert(BetterLauncherResult(
+        exact,
+        stem));
+    assert(BetterLauncherResult(
+        stem,
+        contains));
+
+    LauncherResult multi = file;
+    assert(RankDynamicResultText(
+        multi,
+        L"paper docx"));
+
+    LauncherResult syntax = file;
+    assert(RankDynamicResultText(
+        syntax,
+        L"ext:docx"));
+
+    // Everything no longer runs a second permissive fuzzy regime.
+    assert(
         ScoreDynamicResultText(
             file,
-            L"paper.docx");
+            L"p") == 0);
 
-    const auto stem =
-        ScoreDynamicResultText(
-            file,
-            L"paper");
-
-    const auto contains =
-        ScoreDynamicResultText(
-            file,
-            L"aper");
-
-    const auto path =
-        ScoreDynamicResultText(
-            file,
-            L"research");
-
-    assert(exact == 1100);
-    assert(stem >= 1000);
-    assert(stem < exact);
-    assert(contains < stem);
-    assert(path > 0);
-    assert(path < contains);
-
-    const auto multi =
-        ScoreDynamicResultText(
-            file,
-            L"paper docx");
-    assert(multi >= stem);
-
-    const auto syntaxFallback =
-        ScoreDynamicResultText(
-            file,
-            L"ext:docx");
-    assert(syntaxFallback > 0);
-
-    const auto user =
-        Result(
-            ResultKind::UserCommand,
-            "user.commands",
-            L"paper",
-            L"My paper command",
-            L"paper.exe",
-            1000);
-
-    const auto app =
-        Result(
-            ResultKind::Application,
-            std::string(
-                providers::kStartMenu),
-            L"paper",
-            L"Paper App",
-            L"paper.exe",
-            1000);
-
-    const auto folder =
-        Result(
-            ResultKind::Folder,
-            std::string(
-                providers::
-                    kEverythingFilesystem),
-            L"paper",
-            L"D:\\Research",
-            L"D:\\Research\\paper",
-            1000);
-
-    const auto plainFile =
+    const auto internal =
         Result(
             ResultKind::File,
             std::string(
                 providers::
                     kEverythingFilesystem),
-            L"paper.txt",
-            L"D:\\Research",
-            L"D:\\Research\\paper.txt",
-            1000);
+            L"PlatformExperienceShell.exe",
+            L"C:\\Windows\\SystemApps",
+            L"C:\\Windows\\SystemApps\\PlatformExperienceShell.exe");
 
     assert(
-        UnifiedRankScore(user) >
-        UnifiedRankScore(app));
-    assert(
-        UnifiedRankScore(app) >
-        UnifiedRankScore(folder));
-    assert(
-        UnifiedRankScore(folder) >
-        UnifiedRankScore(
-            plainFile));
+        ScoreDynamicResultText(
+            internal,
+            L"h") == 0);
+
+    assert(!relevance::
+        ShouldRunDynamicFilesystemQuery(
+            L"h"));
+    assert(relevance::
+        ShouldRunDynamicFilesystemQuery(
+            L"he"));
+    assert(relevance::
+        ShouldRunDynamicFilesystemQuery(
+            L"ext:exe"));
+
+    LauncherResult user;
+    user.kind = ResultKind::UserCommand;
+    user.providerId = "user.commands";
+    user.title = L"paper";
+    user.target = L"paper.exe";
+    user.surfaceClass =
+        LaunchSurfaceClass::UserCommand;
+    user.relevanceMatch = {
+        relevance::MatchKind::Prefix,
+        relevance::MatchField::Keyword,
+        880,
+        false,
+    };
+
+    LauncherResult app;
+    app.kind = ResultKind::Application;
+    app.providerId =
+        std::string(
+            providers::kStartMenu);
+    app.title = L"paper";
+    app.target = L"paper.exe";
+    app.surfaceClass =
+        LaunchSurfaceClass::
+            PrimaryApplication;
+    app.relevanceMatch =
+        user.relevanceMatch;
+
+    LauncherResult auxiliary = app;
+    auxiliary.target = L"helper.exe";
+    auxiliary.surfaceClass =
+        LaunchSurfaceClass::Auxiliary;
+
+    assert(BetterLauncherResult(
+        user,
+        app));
+    assert(BetterLauncherResult(
+        app,
+        auxiliary));
 
     assert(
         ProviderRankWeight(

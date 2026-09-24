@@ -60,14 +60,6 @@ bool IsStartMenuEntry(
            extension == L".exe";
 }
 
-enum class StartMenuEntryClass {
-    Primary,
-    SystemAdmin,
-    DeveloperAuxiliary,
-    Maintenance,
-    Filtered,
-};
-
 std::wstring LowerPathText(
     const std::filesystem::path& path) {
 
@@ -312,55 +304,32 @@ bool IsDeveloperAuxiliaryEntry(
             L"SDK");
 }
 
-StartMenuEntryClass
+LaunchSurfaceClass
 ClassifyStartMenuEntry(
     const std::filesystem::path& path) {
 
-    if (IsDocumentationEntry(path)) {
-        return StartMenuEntryClass::
-            Filtered;
-    }
-
     if (IsMaintenanceEntry(path)) {
-        return StartMenuEntryClass::
+        return LaunchSurfaceClass::
             Maintenance;
     }
 
     if (IsAdministrativeEntry(path)) {
-        return StartMenuEntryClass::
-            SystemAdmin;
+        return LaunchSurfaceClass::
+            SystemUtility;
     }
 
     if (IsDeveloperAuxiliaryEntry(
             path)) {
-        return StartMenuEntryClass::
-            DeveloperAuxiliary;
+        return LaunchSurfaceClass::
+            DeveloperTool;
     }
 
-    return StartMenuEntryClass::
-        Primary;
+    return ClassifyApplicationSurface(
+        path.stem().wstring(),
+        path.wstring());
 }
 
-int BasePriorityFor(
-    StartMenuEntryClass entryClass) {
-
-    switch (entryClass) {
-    case StartMenuEntryClass::Primary:
-        return 0;
-    case StartMenuEntryClass::SystemAdmin:
-        return -30;
-    case StartMenuEntryClass::DeveloperAuxiliary:
-        return -50;
-    case StartMenuEntryClass::Maintenance:
-        return -140;
-    case StartMenuEntryClass::Filtered:
-        break;
-    }
-
-    return -140;
-}
-
-} // namespace
+} // namespace} // namespace
 
 const ProviderDescriptor&
 StartMenuProvider::Descriptor() const noexcept {
@@ -450,16 +419,15 @@ void StartMenuProvider::ScanPath(
             continue;
         }
 
-        const StartMenuEntryClass
-            entryClass =
-                ClassifyStartMenuEntry(
-                    it->path());
-
-        if (entryClass ==
-            StartMenuEntryClass::
-                Filtered) {
+        if (IsDocumentationEntry(
+                it->path())) {
             continue;
         }
+
+        const LaunchSurfaceClass
+            surfaceClass =
+                ClassifyStartMenuEntry(
+                    it->path());
 
         Command command;
         command.title =
@@ -475,8 +443,9 @@ void StartMenuProvider::ScanPath(
         command.enabled = true;
         command.source =
             CommandSource::StartMenu;
-        command.basePriority =
-            BasePriorityFor(entryClass);
+        command.surfaceClass =
+            surfaceClass;
+        command.basePriority = 0;
 
         if (command.keyword.empty()) {
             command.keyword =
@@ -527,10 +496,8 @@ void StartMenuProvider::FingerprintPath(
         if (!it->is_regular_file(ec) ||
             !IsStartMenuEntry(
                 it->path()) ||
-            ClassifyStartMenuEntry(
-                it->path()) ==
-                StartMenuEntryClass::
-                    Filtered) {
+            IsDocumentationEntry(
+                it->path())) {
             continue;
         }
 

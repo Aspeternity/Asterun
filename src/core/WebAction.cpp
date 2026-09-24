@@ -190,6 +190,14 @@ BuildWebActionResults(
         result.target = *direct;
         result.detail = *direct;
         result.score = 1200;
+        result.relevanceMatch = {
+            relevance::MatchKind::Exact,
+            relevance::MatchField::Target,
+            1200,
+            false,
+        };
+        result.surfaceClass =
+            LaunchSurfaceClass::Action;
         result.action.kind = LauncherActionKind::OpenUrl;
         result.action.payload = *direct;
         results.push_back(std::move(result));
@@ -237,6 +245,15 @@ BuildWebActionResults(
                 : command.icon;
         result.detail = result.target;
         result.score = 1180;
+        result.relevanceMatch = {
+            relevance::MatchKind::Exact,
+            relevance::MatchField::Keyword,
+            1180,
+            false,
+        };
+        result.surfaceClass =
+            LaunchSurfaceClass::UserCommand;
+        result.pinned = command.pinned;
         result.action.kind = LauncherActionKind::OpenUrl;
         result.action.commandIndex = i;
         result.action.payload = result.target;

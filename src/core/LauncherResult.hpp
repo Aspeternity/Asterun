@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RelevancePolicy.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -58,6 +60,11 @@ struct LauncherResult {
     std::wstring iconSource;
     std::wstring detail;
     int score{0};
+    relevance::Match relevanceMatch;
+    LaunchSurfaceClass surfaceClass{
+        LaunchSurfaceClass::Action};
+    int usageScore{0};
+    bool pinned{false};
     LauncherAction action;
 };
 

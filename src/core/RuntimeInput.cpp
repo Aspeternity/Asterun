@@ -444,6 +444,15 @@ BuildRuntimeInputActionResults(
         result.detail =
             command.target;
         result.score = 1320;
+        result.relevanceMatch = {
+            relevance::MatchKind::Exact,
+            relevance::MatchField::Keyword,
+            1320,
+            false,
+        };
+        result.surfaceClass =
+            LaunchSurfaceClass::UserCommand;
+        result.pinned = command.pinned;
         result.action.kind =
             LauncherActionKind::
                 ExecuteCommand;

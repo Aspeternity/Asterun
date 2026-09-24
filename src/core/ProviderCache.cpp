@@ -14,7 +14,7 @@ namespace altrun {
 
 namespace {
 
-constexpr int kProviderCacheSchemaVersion = 3;
+constexpr int kProviderCacheSchemaVersion = 4;
 
 const char* TypeName(
     CommandType type) {
@@ -127,6 +127,27 @@ bool CachedProviderTargetIsUsable(
     return true;
 }
 
+LaunchSurfaceClass DefaultSurfaceForSource(
+    CommandSource source) {
+
+    switch (source) {
+    case CommandSource::Path:
+        return LaunchSurfaceClass::
+            CommandLineTool;
+    case CommandSource::StartMenu:
+    case CommandSource::AppPaths:
+    case CommandSource::PackagedApp:
+        return LaunchSurfaceClass::
+            PrimaryApplication;
+    case CommandSource::User:
+        return LaunchSurfaceClass::
+            UserCommand;
+    }
+
+    return LaunchSurfaceClass::
+        PrimaryApplication;
+}
+
 std::optional<Command>
 ParseCommand(
     const nlohmann::json& item) {
@@ -196,6 +217,13 @@ ParseCommand(
     command.sortOrder =
         item.value("sortOrder", 0);
     command.source = *source;
+    command.surfaceClass =
+        ParseLaunchSurface(
+            item.value(
+                "surface",
+                std::string{}),
+            DefaultSurfaceForSource(
+                *source));
     command.basePriority =
         item.value(
             "basePriority",
@@ -265,6 +293,9 @@ nlohmann::json CommandJson(
         {"pinned", command.pinned},
         {"sortOrder", command.sortOrder},
         {"source", SourceName(command.source)},
+        {"surface",
+         LaunchSurfaceName(
+             command.surfaceClass)},
         {"basePriority", command.basePriority}
     };
 }
@@ -357,9 +388,10 @@ ProviderCache::Load() const {
             return data;
         }
 
-        // v0.4.0-alpha.2 used a flat schemaVersion 1 cache.
-        // Group those commands by their stable provider IDs in memory;
-        // the next successful refresh writes schemaVersion 2.
+        // v0.4.0-alpha.2 used a flat schemaVersion 1 cache. Group those
+        // commands by their stable provider IDs in memory; modern surface
+        // metadata falls back from CommandSource and the next refresh writes
+        // the current generated-cache schema.
         if (version == 1 &&
             root.contains("commands") &&
             root["commands"].is_array()) {

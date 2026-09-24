@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.15
+
+- Added LaunchSurfaceClass to provider commands and split primary apps, system utilities, developer tools, command-line tools, auxiliary helpers and maintenance entries before search ranking.
+- Added generic role-based application classification for Help/Helper/Host/Broker/NativeMessaging/ExperienceShell/BackgroundTask/Updater-style entries without per-product blacklists.
+- Start Menu now emits surface metadata instead of relevance penalties; AppsFolder and App Paths use the same generic classifier; PATH entries are explicitly CommandLineTool.
+- New installations default PATH Provider off. Existing explicit PATH settings are preserved, while legacy settings that predate a windows.path key keep the historical implicit enabled behavior.
+- Extracted RelevancePolicy as the single owner for literal matching, short-query fuzzy gates, initials, path intent, surface admission and structured rank comparison.
+- Everything no longer starts for ordinary one-character queries and no longer keeps a second permissive fuzzy scorer; explicit syntax/path queries retain fallback support.
+- Replaced final additive ranking ownership with structured precedence: explicit user/pinned intent → match quality → launch surface → match field → literal/pinyin → match score → usage → kind/provider tie-breakers.
+- Bumped generated Provider Cache schema to 4 so older unclassified provider entries are rebuilt.
+- Added classifier, surface-admission, dynamic-result and provider-cache regression coverage including the one-character helper-noise scenario.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.185`.
 ## 0.8.0-alpha.5.14
 
 - Added query-length-aware search admission: 1–2 character ASCII queries no longer use arbitrary subsequence fuzzy matching, 3-character fuzzy is gap/span bounded, and 4+ fuzzy matches must clear a real minimum score.

@@ -99,6 +99,8 @@ add_library(altrun_core STATIC
     src/core/HotkeyRegistry.cpp
     src/core/LauncherActionPolicy.cpp
     src/core/LauncherResult.cpp
+    src/core/LaunchSurface.cpp
+    src/core/RelevancePolicy.cpp
     src/core/ResultMerger.cpp
     src/core/ResultRanking.cpp
     src/core/ResultIconPipeline.cpp
@@ -417,6 +419,26 @@ if(BUILD_TESTING)
     add_test(
         NAME classic_behavior_tests
         COMMAND classic_behavior_tests
+    )
+
+    add_executable(
+        launch_surface_tests
+        tests/LaunchSurfaceTests.cpp
+    )
+    target_link_libraries(
+        launch_surface_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        launch_surface_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        launch_surface_tests
+    )
+    add_test(
+        NAME launch_surface_tests
+        COMMAND launch_surface_tests
     )
 
     add_executable(search_engine_tests tests/SearchEngineTests.cpp)

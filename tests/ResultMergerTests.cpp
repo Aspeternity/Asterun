@@ -72,10 +72,10 @@ int main() {
             0);
     exactFile.subtitle =
         L"D:\\Research";
-    exactFile.score =
-        ScoreDynamicResultText(
+    assert(
+        RankDynamicResultText(
             exactFile,
-            L"paper");
+            L"paper"));
 
     const std::vector<LauncherResult>
         dynamicResults{

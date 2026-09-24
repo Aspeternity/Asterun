@@ -274,7 +274,11 @@ void EnumerateAppPathsKey(
         command.enabled = true;
         command.source =
             CommandSource::AppPaths;
-        command.basePriority = -10;
+        command.surfaceClass =
+            ClassifyApplicationSurface(
+                command.title,
+                command.target);
+        command.basePriority = 0;
         command.id =
             MakeId(command.target);
 

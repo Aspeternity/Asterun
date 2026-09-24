@@ -5,390 +5,23 @@
 #include <cmath>
 #include <cwctype>
 #include <limits>
-#include <numeric>
 #include <utility>
 
 namespace altrun {
 
 SearchEngine::SearchEngine(
-    std::filesystem::path pinyinDictionaryDirectory)
+    std::filesystem::path
+        pinyinDictionaryDirectory)
     : pinyin_(
-          std::move(pinyinDictionaryDirectory)) {}
-
-std::wstring SearchEngine::Normalize(
-    std::wstring_view text) {
-
-    std::wstring out;
-    out.reserve(text.size());
-
-    for (const wchar_t ch : text) {
-        if (std::iswspace(ch) ||
-            ch == L'_' ||
-            ch == L'-') {
-            continue;
-        }
-
-        out.push_back(
-            static_cast<wchar_t>(
-                std::towlower(ch)));
-    }
-
-    return out;
-}
-
-std::vector<std::wstring> SearchEngine::QueryTokens(
-    std::wstring_view text) {
-
-    std::vector<std::wstring> tokens;
-    std::wstring current;
-
-    auto flush = [&]() {
-        const std::wstring normalized =
-            Normalize(current);
-
-        current.clear();
-
-        if (normalized.empty()) {
-            return;
-        }
-
-        if (std::find(
-                tokens.begin(),
-                tokens.end(),
-                normalized) ==
-            tokens.end()) {
-            tokens.push_back(normalized);
-        }
-    };
-
-    for (const wchar_t ch : text) {
-        if (std::iswspace(ch)) {
-            flush();
-        } else {
-            current.push_back(ch);
-        }
-    }
-
-    flush();
-    return tokens;
-}
-
-bool SearchEngine::IsAsciiQuery(
-    std::wstring_view normalizedQuery) {
-
-    return !normalizedQuery.empty() &&
-        std::all_of(
-            normalizedQuery.begin(),
-            normalizedQuery.end(),
-            [](wchar_t ch) {
-                return ch <= 0x7F;
-            });
-}
-
-bool SearchEngine::IsWordBoundary(
-    std::wstring_view field,
-    std::size_t index) {
-
-    if (index >= field.size()) {
-        return false;
-    }
-
-    if (index == 0) {
-        return true;
-    }
-
-    const wchar_t current = field[index];
-    const wchar_t previous = field[index - 1];
-
-    if (!std::iswalnum(previous)) {
-        return true;
-    }
-
-    const bool currentDigit =
-        std::iswdigit(current) != 0;
-    const bool previousDigit =
-        std::iswdigit(previous) != 0;
-
-    if (currentDigit != previousDigit) {
-        return true;
-    }
-
-    if (current > 0x7F ||
-        previous > 0x7F) {
-        return false;
-    }
-
-    const bool currentUpper =
-        std::iswupper(current) != 0;
-    const bool previousLower =
-        std::iswlower(previous) != 0;
-    const bool previousUpper =
-        std::iswupper(previous) != 0;
-    const bool nextLower =
-        index + 1 < field.size() &&
-        field[index + 1] <= 0x7F &&
-        std::iswlower(field[index + 1]) != 0;
-
-    return currentUpper &&
-        (previousLower ||
-         (previousUpper &&
-          nextLower));
-}
-
-bool SearchEngine::NormalizedPrefixAt(
-    std::wstring_view field,
-    std::size_t start,
-    std::wstring_view normalizedQuery) {
-
-    if (start >= field.size() ||
-        normalizedQuery.empty()) {
-        return false;
-    }
-
-    std::size_t fieldIndex = start;
-    std::size_t queryIndex = 0;
-
-    while (fieldIndex < field.size() &&
-           queryIndex <
-               normalizedQuery.size()) {
-
-        const wchar_t ch =
-            field[fieldIndex++];
-
-        if (std::iswspace(ch) ||
-            ch == L'_' ||
-            ch == L'-') {
-            continue;
-        }
-
-        if (static_cast<wchar_t>(
-                std::towlower(ch)) !=
-            normalizedQuery[queryIndex]) {
-            return false;
-        }
-
-        ++queryIndex;
-    }
-
-    return queryIndex ==
-        normalizedQuery.size();
-}
-
-SearchEngine::TextMatch SearchEngine::MatchScore(
-    std::wstring_view field,
-    std::wstring_view query) {
-
-    if (field.empty() || query.empty()) {
-        return {};
-    }
-
-    const std::wstring f = Normalize(field);
-    const std::wstring q = Normalize(query);
-
-    if (f.empty() || q.empty()) {
-        return {};
-    }
-
-    if (f == q) {
-        return {MatchKind::Exact, 1000};
-    }
-
-    if (f.starts_with(q)) {
-        return {
-            MatchKind::Prefix,
-            880 -
-                static_cast<int>(
-                    std::min<std::size_t>(
-                        f.size() - q.size(),
-                        120)),
-        };
-    }
-
-    for (std::size_t i = 1;
-         i < field.size();
-         ++i) {
-        if (IsWordBoundary(field, i) &&
-            NormalizedPrefixAt(
-                field,
-                i,
-                q)) {
-            return {
-                MatchKind::BoundaryPrefix,
-                760 -
-                    static_cast<int>(
-                        std::min<std::size_t>(
-                            i,
-                            100)),
-            };
-        }
-    }
-
-    const bool asciiQuery =
-        IsAsciiQuery(q);
-
-    if (!asciiQuery ||
-        q.size() >= 3) {
-        const auto pos = f.find(q);
-
-        if (pos != std::wstring::npos) {
-            return {
-                MatchKind::Substring,
-                690 -
-                    static_cast<int>(
-                        std::min<std::size_t>(
-                            pos,
-                            100)),
-            };
-        }
-    }
-
-    if (!asciiQuery ||
-        q.size() < 3) {
-        return {};
-    }
-
-    std::size_t qi = 0;
-    int gaps = 0;
-    int run = 0;
-    int bestRun = 0;
-    std::size_t first = 0;
-    std::size_t previous = 0;
-    bool havePrevious = false;
-
-    for (std::size_t i = 0;
-         i < f.size() && qi < q.size();
-         ++i) {
-        if (f[i] != q[qi]) {
-            continue;
-        }
-
-        if (!havePrevious) {
-            first = i;
-            run = 1;
-        } else if (i == previous + 1) {
-            ++run;
-        } else {
-            gaps +=
-                static_cast<int>(
-                    i - previous - 1);
-            run = 1;
-        }
-
-        bestRun =
-            std::max(bestRun, run);
-
-        previous = i;
-        havePrevious = true;
-        ++qi;
-    }
-
-    if (qi != q.size()) {
-        return {};
-    }
-
-    const int fuzzyScore =
-        430 +
-        bestRun * 18 -
-        gaps * 12;
-
-    if (q.size() == 3) {
-        const std::size_t span =
-            previous - first + 1;
-
-        if (gaps > 2 ||
-            span > q.size() + 2 ||
-            fuzzyScore < 320) {
-            return {};
-        }
-
-        return {
-            MatchKind::TightFuzzy,
-            fuzzyScore,
-        };
-    }
-
-    if (fuzzyScore < 260) {
-        return {};
-    }
-
-    return {
-        MatchKind::Fuzzy,
-        fuzzyScore,
-    };
-}
-
-SearchEngine::TextMatch
-SearchEngine::InitialsMatchScore(
-    std::wstring_view initials,
-    std::wstring_view normalizedQuery) {
-
-    const std::wstring value =
-        Normalize(initials);
-    const std::wstring query =
-        Normalize(normalizedQuery);
-
-    if (value.empty() ||
-        query.empty()) {
-        return {};
-    }
-
-    if (value == query) {
-        return {
-            MatchKind::Initials,
-            965,
-        };
-    }
-
-    if (value.starts_with(query)) {
-        return {
-            MatchKind::Initials,
-            845 -
-                static_cast<int>(
-                    std::min<std::size_t>(
-                        value.size() -
-                            query.size(),
-                        120)),
-        };
-    }
-
-    return {};
-}
-
-bool SearchEngine::HasPathIntent(
-    std::wstring_view query) {
-
-    if (query.find_first_of(
-            L"\\\\/:") !=
-        std::wstring_view::npos) {
-        return true;
-    }
-
-    const std::wstring lower =
-        Normalize(query);
-
-    for (const std::wstring_view extension :
-         {
-             L".exe",
-             L".com",
-             L".bat",
-             L".cmd",
-             L".lnk",
-         }) {
-        if (lower.find(extension) !=
-            std::wstring::npos) {
-            return true;
-        }
-    }
-
-    return false;
-}
+          std::move(
+              pinyinDictionaryDirectory)) {}
 
 bool SearchEngine::GlobMatch(
     std::wstring_view field,
     std::wstring_view pattern) {
 
     const std::wstring value =
-        Normalize(field);
+        relevance::Normalize(field);
 
     if (value.empty() ||
         pattern.empty()) {
@@ -531,18 +164,22 @@ bool SearchEngine::IsPinyinQuery(
 
     bool hasLetter = false;
 
-    for (const wchar_t ch : normalizedQuery) {
+    for (const wchar_t ch :
+         normalizedQuery) {
         if (ch > 0x7F) {
             return false;
         }
 
-        if ((ch >= L'a' && ch <= L'z') ||
-            (ch >= L'A' && ch <= L'Z')) {
+        if ((ch >= L'a' &&
+             ch <= L'z') ||
+            (ch >= L'A' &&
+             ch <= L'Z')) {
             hasLetter = true;
             continue;
         }
 
-        if (ch >= L'0' && ch <= L'9') {
+        if (ch >= L'0' &&
+            ch <= L'9') {
             continue;
         }
 
@@ -559,7 +196,10 @@ std::wstring SearchEngine::WordInitials(
     bool boundary = true;
     wchar_t previous = 0;
 
-    for (std::size_t i = 0; i < field.size(); ++i) {
+    for (std::size_t i = 0;
+         i < field.size();
+         ++i) {
+
         const wchar_t ch = field[i];
 
         if (!std::iswalnum(ch) ||
@@ -583,7 +223,8 @@ std::wstring SearchEngine::WordInitials(
         const bool nextLower =
             i + 1 < field.size() &&
             field[i + 1] <= 0x7F &&
-            std::iswlower(field[i + 1]) != 0;
+            std::iswlower(
+                field[i + 1]) != 0;
 
         const bool camelBoundary =
             upper &&
@@ -605,7 +246,7 @@ std::wstring SearchEngine::WordInitials(
     return initials;
 }
 
-SearchEngine::TextMatch
+relevance::Match
 SearchEngine::DerivedInitialMatchScore(
     std::wstring_view field,
     std::wstring_view normalizedQuery) {
@@ -617,9 +258,19 @@ SearchEngine::DerivedInitialMatchScore(
         return {};
     }
 
-    return InitialsMatchScore(
-        initials,
-        normalizedQuery);
+    auto match =
+        relevance::MatchInitials(
+            initials,
+            normalizedQuery);
+
+    if (match) {
+        match.score =
+            std::max(
+                1,
+                match.score - 35);
+    }
+
+    return match;
 }
 
 int SearchEngine::HybridPinyinPrefixScore(
@@ -632,7 +283,8 @@ int SearchEngine::HybridPinyinPrefixScore(
     }
 
     constexpr int kImpossible =
-        std::numeric_limits<int>::min() / 4;
+        std::numeric_limits<int>::min() /
+        4;
 
     std::vector<int> states(
         normalizedQuery.size() + 1,
@@ -642,7 +294,9 @@ int SearchEngine::HybridPinyinPrefixScore(
 
     int bestComplete = kImpossible;
 
-    for (const auto& syllable : forms.syllables) {
+    for (const auto& syllable :
+         forms.syllables) {
+
         if (syllable.empty()) {
             continue;
         }
@@ -652,14 +306,17 @@ int SearchEngine::HybridPinyinPrefixScore(
             kImpossible);
 
         for (std::size_t pos = 0;
-             pos <= normalizedQuery.size();
+             pos <=
+                 normalizedQuery.size();
              ++pos) {
 
-            if (states[pos] == kImpossible) {
+            if (states[pos] ==
+                kImpossible) {
                 continue;
             }
 
-            if (pos == normalizedQuery.size()) {
+            if (pos ==
+                normalizedQuery.size()) {
                 bestComplete =
                     std::max(
                         bestComplete,
@@ -715,12 +372,16 @@ int SearchEngine::HybridPinyinPrefixScore(
 
         states = std::move(next);
 
-        if (states[normalizedQuery.size()] !=
+        if (states[
+                normalizedQuery.size()] !=
             kImpossible) {
+
             bestComplete =
                 std::max(
                     bestComplete,
-                    states[normalizedQuery.size()]);
+                    states[
+                        normalizedQuery
+                            .size()]);
         }
     }
 
@@ -736,10 +397,11 @@ int SearchEngine::HybridPinyinPrefixScore(
                 bestComplete));
 }
 
-SearchEngine::TextMatch
+relevance::Match
 SearchEngine::PinyinMatchScore(
     std::wstring_view field,
-    std::wstring_view normalizedQuery) const {
+    std::wstring_view normalizedQuery)
+    const {
 
     const PinyinForms* forms =
         pinyin_.FormsFor(field);
@@ -748,54 +410,44 @@ SearchEngine::PinyinMatchScore(
         return {};
     }
 
-    TextMatch best{};
+    relevance::Match best{};
 
-    TextMatch full =
-        MatchScore(
+    auto full =
+        relevance::MatchText(
             forms->full,
             normalizedQuery);
 
-    if (full.score > 0) {
-        full.kind =
-            MatchKind::PinyinFull;
+    if (full) {
+        full.pinyin = true;
         full.score =
             std::max(
                 1,
                 full.score - 45);
-        best = full;
-    }
 
-    const std::wstring query =
-        Normalize(normalizedQuery);
-    const std::wstring initials =
-        Normalize(forms->initials);
-
-    TextMatch pinyinInitials{};
-
-    if (!query.empty() &&
-        !initials.empty()) {
-        if (initials == query) {
-            pinyinInitials = {
-                MatchKind::PinyinInitials,
-                980,
-            };
-        } else if (
-            initials.starts_with(query)) {
-            pinyinInitials = {
-                MatchKind::PinyinInitials,
-                860 -
-                    static_cast<int>(
-                        std::min<std::size_t>(
-                            initials.size() -
-                                query.size(),
-                            120)),
-            };
+        if (relevance::BetterMatch(
+                full,
+                best)) {
+            best = full;
         }
     }
 
-    if (pinyinInitials.score >
-        best.score) {
-        best = pinyinInitials;
+    auto initials =
+        relevance::MatchInitials(
+            forms->initials,
+            normalizedQuery);
+
+    if (initials) {
+        initials.pinyin = true;
+        initials.score =
+            std::max(
+                1,
+                initials.score - 20);
+
+        if (relevance::BetterMatch(
+                initials,
+                best)) {
+            best = initials;
+        }
     }
 
     const int hybridScore =
@@ -803,17 +455,26 @@ SearchEngine::PinyinMatchScore(
             *forms,
             normalizedQuery);
 
-    if (hybridScore > best.score) {
-        best = {
-            MatchKind::PinyinHybrid,
+    if (hybridScore > 0) {
+        relevance::Match hybrid{
+            relevance::MatchKind::
+                HybridPinyin,
+            relevance::MatchField::None,
             hybridScore,
+            true,
         };
+
+        if (relevance::BetterMatch(
+                hybrid,
+                best)) {
+            best = hybrid;
+        }
     }
 
     return best;
 }
 
-SearchEngine::TextMatch
+relevance::Match
 SearchEngine::CommandTextScore(
     const Command& command,
     std::wstring_view normalizedQuery,
@@ -824,63 +485,62 @@ SearchEngine::CommandTextScore(
         return {};
     }
 
-    TextMatch best{};
+    relevance::Match best{};
 
     const auto consider =
-        [&](TextMatch match,
-            int bonus = 0) {
-            if (match.score <= 0) {
+        [&](relevance::Match match,
+            relevance::MatchField field) {
+            if (!match) {
                 return;
             }
 
-            match.score += bonus;
+            match.field = field;
 
-            if (match.score >
-                best.score) {
+            if (relevance::BetterMatch(
+                    match,
+                    best)) {
                 best = match;
             }
         };
 
     consider(
-        MatchScore(
+        relevance::MatchText(
             command.keyword,
             normalizedQuery),
-        140);
+        relevance::MatchField::
+            Keyword);
 
     for (const auto& alias :
          command.aliases) {
         consider(
-            MatchScore(
+            relevance::MatchText(
                 alias,
                 normalizedQuery),
-            120);
+            relevance::MatchField::
+                Alias);
     }
 
     consider(
-        MatchScore(
+        relevance::MatchText(
             command.title,
-            normalizedQuery));
+            normalizedQuery),
+        relevance::MatchField::Title);
 
     if (allowTarget) {
-        TextMatch target =
-            MatchScore(
+        consider(
+            relevance::MatchText(
                 command.target,
-                normalizedQuery);
-
-        if (target.score > 0) {
-            target.score =
-                std::max(
-                    1,
-                    target.score - 120);
-            consider(target);
-        }
+                normalizedQuery),
+            relevance::MatchField::
+                Target);
     }
 
     consider(
         DerivedInitialMatchScore(
             command.keyword,
             normalizedQuery),
-        45);
+        relevance::MatchField::
+            Keyword);
 
     for (const auto& alias :
          command.aliases) {
@@ -888,22 +548,26 @@ SearchEngine::CommandTextScore(
             DerivedInitialMatchScore(
                 alias,
                 normalizedQuery),
-            25);
+            relevance::MatchField::
+                Alias);
     }
 
     consider(
         DerivedInitialMatchScore(
             command.title,
-            normalizedQuery));
+            normalizedQuery),
+        relevance::MatchField::Title);
 
     if (allowPinyin &&
         pinyin_.Available() &&
         IsPinyinQuery(normalizedQuery)) {
+
         consider(
             PinyinMatchScore(
                 command.keyword,
                 normalizedQuery),
-            60);
+            relevance::MatchField::
+                Keyword);
 
         for (const auto& alias :
              command.aliases) {
@@ -911,66 +575,80 @@ SearchEngine::CommandTextScore(
                 PinyinMatchScore(
                     alias,
                     normalizedQuery),
-                40);
+                relevance::MatchField::
+                    Alias);
         }
 
         consider(
             PinyinMatchScore(
                 command.title,
-                normalizedQuery));
+                normalizedQuery),
+            relevance::MatchField::
+                Title);
     }
 
     return best;
 }
 
-int SearchEngine::CommandWildcardScore(
+relevance::Match
+SearchEngine::CommandWildcardScore(
     const Command& command,
     std::wstring_view normalizedPattern) {
 
-    const int keywordScore =
-        WildcardMatchScore(
-            command.keyword,
-            normalizedPattern);
+    relevance::Match best{};
 
-    int aliasScore = 0;
+    const auto consider =
+        [&](std::wstring_view field,
+            relevance::MatchField matchField) {
+
+            const int score =
+                WildcardMatchScore(
+                    field,
+                    normalizedPattern);
+
+            if (score <= 0) {
+                return;
+            }
+
+            relevance::Match match{
+                relevance::MatchKind::
+                    Wildcard,
+                matchField,
+                score,
+                false,
+            };
+
+            if (relevance::BetterMatch(
+                    match,
+                    best)) {
+                best = match;
+            }
+        };
+
+    consider(
+        command.keyword,
+        relevance::MatchField::Keyword);
 
     for (const auto& alias :
          command.aliases) {
-        aliasScore =
-            std::max(
-                aliasScore,
-                WildcardMatchScore(
-                    alias,
-                    normalizedPattern));
+        consider(
+            alias,
+            relevance::MatchField::Alias);
     }
 
-    const int titleScore =
-        WildcardMatchScore(
-            command.title,
-            normalizedPattern);
+    consider(
+        command.title,
+        relevance::MatchField::Title);
 
-    const int targetScore =
-        WildcardMatchScore(
-            command.target,
-            normalizedPattern);
+    consider(
+        command.target,
+        relevance::MatchField::Target);
 
-    return std::max({
-        keywordScore > 0
-            ? keywordScore + 140
-            : 0,
-        aliasScore > 0
-            ? aliasScore + 120
-            : 0,
-        titleScore,
-        targetScore > 0
-            ? std::max(
-                  1,
-                  targetScore - 120)
-            : 0
-    });
+    return best;
 }
 
-std::vector<SearchResult> SearchEngine::Search(
+std::vector<SearchResult>
+SearchEngine::Search(
     const std::vector<Command>& commands,
     const UsageMap& usage,
     std::wstring_view query,
@@ -986,20 +664,25 @@ std::vector<SearchResult> SearchEngine::Search(
             limit * 3));
 
     const std::wstring normalizedQuery =
-        Normalize(query);
+        relevance::Normalize(query);
 
     const auto queryTokens =
-        QueryTokens(query);
+        relevance::QueryTokens(query);
 
     const bool wildcardQuery =
         allowWildcards &&
-        normalizedQuery
-            .find_first_of(L"*?") !=
+        normalizedQuery.find_first_of(
+            L"*?") !=
             std::wstring::npos;
 
     const bool allowTarget =
         wildcardQuery ||
-        HasPathIntent(query);
+        relevance::HasPathIntent(query);
+
+    const bool explicitSyntax =
+        wildcardQuery ||
+        relevance::HasExplicitSyntax(
+            query);
 
     for (std::size_t i = 0;
          i < commands.size();
@@ -1015,72 +698,72 @@ std::vector<SearchResult> SearchEngine::Search(
                 ? nullptr
                 : &usageIt->second;
 
-        int score =
-            command.basePriority +
+        const int usageScore =
             UsageScore(stat);
 
-        if (command.pinned) {
-            score += 220;
-        }
+        relevance::Match match{};
 
         if (normalizedQuery.empty()) {
-            if (stat == nullptr ||
-                stat->launches == 0) {
-                score -= 100;
+            if (!relevance::
+                    AdmitLaunchSurface(
+                        command.surfaceClass,
+                        query,
+                        match,
+                        false)) {
+                continue;
             }
         } else {
-            TextMatch textMatch{};
-            int textScore = 0;
-
-            if (wildcardQuery) {
-                textScore =
-                    CommandWildcardScore(
-                        command,
-                        normalizedQuery);
-            } else {
-                textMatch =
-                    CommandTextScore(
-                        command,
-                        normalizedQuery,
-                        allowPinyin,
-                        allowTarget);
-                textScore =
-                    textMatch.score;
-            }
+            match =
+                wildcardQuery
+                    ? CommandWildcardScore(
+                          command,
+                          normalizedQuery)
+                    : CommandTextScore(
+                          command,
+                          normalizedQuery,
+                          allowPinyin,
+                          allowTarget);
 
             if (!wildcardQuery &&
                 queryTokens.size() > 1) {
-                int weakest =
-                    std::numeric_limits<int>::max();
+
+                relevance::Match weakest{};
                 int total = 0;
+                bool haveWeakest = false;
                 bool allTokensMatched = true;
 
                 for (const auto& token :
                      queryTokens) {
-                    const TextMatch tokenMatch =
+
+                    const auto tokenMatch =
                         CommandTextScore(
                             command,
                             token,
                             allowPinyin,
                             allowTarget);
 
-                    if (tokenMatch.score <= 0) {
-                        allTokensMatched = false;
+                    if (!tokenMatch) {
+                        allTokensMatched =
+                            false;
                         break;
                     }
 
-                    weakest =
-                        std::min(
+                    if (!haveWeakest ||
+                        relevance::BetterMatch(
                             weakest,
-                            tokenMatch.score);
+                            tokenMatch)) {
+                        weakest = tokenMatch;
+                        haveWeakest = true;
+                    }
 
                     total +=
                         tokenMatch.score;
                 }
 
                 if (!allTokensMatched) {
-                    if (textMatch.kind !=
-                            MatchKind::PinyinHybrid) {
+                    if (match.kind !=
+                        relevance::MatchKind::
+                            HybridPinyin) {
                         continue;
                     }
                 } else {
@@ -1089,59 +772,103 @@ std::vector<SearchResult> SearchEngine::Search(
                         static_cast<int>(
                             queryTokens.size());
 
-                    const int multiTokenScore =
+                    weakest.score =
                         std::min(
                             1180,
-                            weakest +
+                            weakest.score +
                                 average / 5 +
                                 40);
 
-                    textScore =
-                        std::max(
-                            textScore,
-                            multiTokenScore);
+                    if (relevance::BetterMatch(
+                            weakest,
+                            match)) {
+                        match = weakest;
+                    }
                 }
             }
 
-            if (textScore <= 0) {
+            if (!match ||
+                !relevance::
+                    AdmitLaunchSurface(
+                        command.surfaceClass,
+                        query,
+                        match,
+                        explicitSyntax)) {
                 continue;
             }
-
-            score += textScore;
         }
 
-        results.push_back({i, score});
+        results.push_back({
+            i,
+            normalizedQuery.empty()
+                ? usageScore
+                : match.score,
+            match,
+            usageScore,
+        });
     }
 
     std::stable_sort(
         results.begin(),
         results.end(),
-        [&](const SearchResult& a,
-            const SearchResult& b) {
+        [&](const SearchResult& left,
+            const SearchResult& right) {
 
-            if (a.score != b.score) {
-                return a.score > b.score;
+            const auto& leftCommand =
+                commands[
+                    left.commandIndex];
+            const auto& rightCommand =
+                commands[
+                    right.commandIndex];
+
+            const relevance::RankContext
+                leftRank{
+                    leftCommand.pinned,
+                    leftCommand.source ==
+                        CommandSource::User,
+                    left.relevanceMatch,
+                    leftCommand.surfaceClass,
+                    left.usageScore,
+                    0,
+                    leftCommand.basePriority,
+                };
+
+            const relevance::RankContext
+                rightRank{
+                    rightCommand.pinned,
+                    rightCommand.source ==
+                        CommandSource::User,
+                    right.relevanceMatch,
+                    rightCommand.surfaceClass,
+                    right.usageScore,
+                    0,
+                    rightCommand.basePriority,
+                };
+
+            const int rank =
+                relevance::
+                    CompareRankContext(
+                        leftRank,
+                        rightRank);
+
+            if (rank != 0) {
+                return rank > 0;
             }
 
-            const auto& ca =
-                commands[a.commandIndex];
-
-            const auto& cb =
-                commands[b.commandIndex];
-
-            if (ca.pinned != cb.pinned) {
-                return ca.pinned;
+            if (leftCommand.sortOrder !=
+                rightCommand.sortOrder) {
+                return leftCommand.sortOrder <
+                    rightCommand.sortOrder;
             }
 
-            if (ca.sortOrder != cb.sortOrder) {
-                return ca.sortOrder < cb.sortOrder;
+            if (leftCommand.keyword !=
+                rightCommand.keyword) {
+                return leftCommand.keyword <
+                    rightCommand.keyword;
             }
 
-            if (ca.keyword != cb.keyword) {
-                return ca.keyword < cb.keyword;
-            }
-
-            return ca.title < cb.title;
+            return leftCommand.title <
+                rightCommand.title;
         });
 
     if (results.size() > limit) {

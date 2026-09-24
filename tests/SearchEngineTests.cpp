@@ -247,12 +247,16 @@ int main(int argc, char** argv) {
 
         hygieneCommands[1].source =
             CommandSource::StartMenu;
-        hygieneCommands[1].basePriority =
-            -30;
+        hygieneCommands[1].surfaceClass =
+            LaunchSurfaceClass::
+                SystemUtility;
+        hygieneCommands[1].basePriority = 0;
         hygieneCommands[2].source =
             CommandSource::StartMenu;
-        hygieneCommands[2].basePriority =
-            0;
+        hygieneCommands[2].surfaceClass =
+            LaunchSurfaceClass::
+                PrimaryApplication;
+        hygieneCommands[2].basePriority = 0;
 
         const auto cs =
             engine.Search(
@@ -282,8 +286,10 @@ int main(int argc, char** argv) {
 
         defenderCommands[0].source =
             CommandSource::StartMenu;
-        defenderCommands[0].basePriority =
-            -30;
+        defenderCommands[0].surfaceClass =
+            LaunchSurfaceClass::
+                SystemUtility;
+        defenderCommands[0].basePriority = 0;
 
         const auto df =
             engine.Search(
@@ -293,6 +299,106 @@ int main(int argc, char** argv) {
                 10);
 
         assert(df.empty());
+    }
+
+
+    // Launch-surface admission happens before ranking. A single-character
+    // query may reach real primary apps, but not system/CLI/auxiliary noise.
+    {
+        std::vector<Command> surfaceCommands{
+            MakeCommand(
+                L"s1",
+                L"hyperapp",
+                L"Hyper App",
+                L"hyper.exe",
+                0),
+            MakeCommand(
+                L"s2",
+                L"helpcenter",
+                L"Help Center",
+                L"helpcenter.exe",
+                1),
+            MakeCommand(
+                L"s3",
+                L"hosttool",
+                L"Host Tool",
+                L"hosttool.exe",
+                2),
+            MakeCommand(
+                L"s4",
+                L"git",
+                L"git",
+                L"git.exe",
+                3),
+        };
+
+        surfaceCommands[0].source =
+            CommandSource::StartMenu;
+        surfaceCommands[0].surfaceClass =
+            LaunchSurfaceClass::
+                PrimaryApplication;
+
+        surfaceCommands[1].source =
+            CommandSource::StartMenu;
+        surfaceCommands[1].surfaceClass =
+            LaunchSurfaceClass::
+                SystemUtility;
+
+        surfaceCommands[2].source =
+            CommandSource::PackagedApp;
+        surfaceCommands[2].surfaceClass =
+            LaunchSurfaceClass::Auxiliary;
+
+        surfaceCommands[3].source =
+            CommandSource::Path;
+        surfaceCommands[3].surfaceClass =
+            LaunchSurfaceClass::
+                CommandLineTool;
+
+        const auto singleH =
+            engine.Search(
+                surfaceCommands,
+                usage,
+                L"h",
+                10);
+
+        assert(singleH.size() == 1);
+        assert(
+            singleH.front()
+                .commandIndex == 0);
+
+        const auto explicitHelp =
+            engine.Search(
+                surfaceCommands,
+                usage,
+                L"help",
+                10);
+
+        assert(ContainsCommand(
+            explicitHelp,
+            1));
+
+        const auto cliShort =
+            engine.Search(
+                surfaceCommands,
+                usage,
+                L"g",
+                10);
+
+        assert(!ContainsCommand(
+            cliShort,
+            3));
+
+        const auto cliExplicit =
+            engine.Search(
+                surfaceCommands,
+                usage,
+                L"git",
+                10);
+
+        assert(ContainsCommand(
+            cliExplicit,
+            3));
     }
 
     auto wildcardDisabled =

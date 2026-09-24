@@ -1,5 +1,7 @@
 #pragma once
 
+#include "LaunchSurface.hpp"
+
 #include <string>
 #include <vector>
 
@@ -44,6 +46,8 @@ struct Command {
     int sortOrder{0};
     std::vector<std::wstring> legacyIds;
     CommandSource source{CommandSource::User};
+    LaunchSurfaceClass surfaceClass{
+        LaunchSurfaceClass::UserCommand};
     int basePriority{0};
 };
 

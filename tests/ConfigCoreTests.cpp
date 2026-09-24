@@ -456,7 +456,7 @@ int main() {
     assert(providers::IsEnabled(
         featureSettings.Data().providerEnabled,
         providers::kAppPaths));
-    assert(providers::IsEnabled(
+    assert(!providers::IsEnabled(
         featureSettings.Data().providerEnabled,
         providers::kPath));
     assert(!providers::IsEnabled(
@@ -672,6 +672,30 @@ int main() {
              ["windowPlacement"]
              ["shortcutManagerLastValid"]
              .get<bool>());
+
+    // New installs default PATH off, but an existing settings document
+    // that predates an explicit windows.path key keeps the historical true.
+    const auto legacyImplicitPath =
+        data /
+        "settings-legacy-implicit-path.json";
+
+    WriteText(
+        legacyImplicitPath,
+        "{\n"
+        "  \"schemaVersion\": 10,\n"
+        "  \"providers\": {\n"
+        "    \"windows.startmenu\": true\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore legacyPathSettings(
+        legacyImplicitPath);
+    legacyPathSettings.Load();
+
+    assert(providers::IsEnabled(
+        legacyPathSettings.Data()
+            .providerEnabled,
+        providers::kPath));
 
     // Every provider toggle combination must survive a save/reload cycle.
     const std::array<std::string_view, 5>
@@ -1538,7 +1562,7 @@ int main() {
     assert(featureSettings.Data().hotkeyModifiers.size() == 1);
     assert(featureSettings.Data().hotkeyModifiers[0] == "alt");
     assert(featureSettings.Data().hotkeyKey == "space");
-    assert(providers::IsEnabled(
+    assert(!providers::IsEnabled(
         featureSettings.Data().providerEnabled,
         providers::kPath));
 
@@ -1554,7 +1578,9 @@ int main() {
         L"C:\\ProgramData\\Test App.lnk";
     cachedStart.source =
         CommandSource::StartMenu;
-    cachedStart.basePriority = 20;
+    cachedStart.surfaceClass =
+        LaunchSurfaceClass::SystemUtility;
+    cachedStart.basePriority = 0;
 
     Command cachedUser;
     cachedUser.id = L"user:test";
@@ -1605,6 +1631,10 @@ int main() {
         startCache->second
             .commands[0].source ==
         CommandSource::StartMenu);
+    assert(
+        startCache->second
+            .commands[0].surfaceClass ==
+        LaunchSurfaceClass::SystemUtility);
     assert(
         startCache->second
             .commands[0]
@@ -1665,7 +1695,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 3,\n"
+        "  \"schemaVersion\": 4,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1694,17 +1724,16 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 2 is generated cache data from before Start Menu relevance
-    // classification. It must be ignored wholesale so providers rebuild
-    // fresh schema-3 entries instead of reviving stale .url/priority state.
-    const auto staleSchema2ProviderCache =
+    // Schema 3 is generated cache data from before launch-surface metadata.
+    // It must be ignored wholesale so providers rebuild classified entries.
+    const auto staleSchema3ProviderCache =
         data /
-        "provider-cache-schema2-stale.json";
+        "provider-cache-schema3-stale.json";
 
     WriteText(
-        staleSchema2ProviderCache,
+        staleSchema3ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 2,\n"
+        "  \"schemaVersion\": 3,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1721,11 +1750,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema2Cache(
-        staleSchema2ProviderCache);
+    ProviderCache staleSchema3Cache(
+        staleSchema3ProviderCache);
 
     assert(
-        staleSchema2Cache.Load().empty());
+        staleSchema3Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

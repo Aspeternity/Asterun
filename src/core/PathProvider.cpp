@@ -304,7 +304,7 @@ PathProvider::Descriptor() const noexcept {
     static const ProviderDescriptor descriptor{
         std::string(providers::kPath),
         L"PATH",
-        true,
+        false,
         0,
     };
     return descriptor;
@@ -389,7 +389,10 @@ PathProvider::Discover() const {
             command.enabled = true;
             command.source =
                 CommandSource::Path;
-            command.basePriority = -35;
+            command.surfaceClass =
+                LaunchSurfaceClass::
+                    CommandLineTool;
+            command.basePriority = 0;
             command.id =
                 L"path:" + targetKey;
 

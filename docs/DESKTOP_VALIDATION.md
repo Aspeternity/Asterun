@@ -366,6 +366,21 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Provider duplicate canonicalization remains Start Menu → Packaged App → App Paths → PATH; previously fixed TeamSpeak/user-shortcut dedupe does not regress.
 - [ ] Classic geometry, fonts, table surface, numeric Quick Launch, Everything IPC behavior and Modern Compact visuals remain unchanged.
 
+## v0.8.0-alpha.5.15 Launch surface & unified relevance validation
+
+- [ ] With PATH and Everything disabled, type a single `h`: normal primary apps with a genuine literal/pinyin/initial match may appear, but recovery/admin tools, Get Help/support entries and helper/host/native-messaging/internal components must not fill the top 10.
+- [ ] Specifically verify entries resembling `idmhelp`, `gpuviewhelp`, `grabberhelp`, `gethelp`, `PlatformExperienceShell` and `BrowserNativeMessaging` are absent for casual `h`; typing a sufficiently explicit strong prefix may still expose auxiliary entries when intentionally requested.
+- [ ] `华硕管家` and `画图` remain valid `h` pinyin-primary candidates; `恢复驱动器` / system utilities do not compete on a single-character query and become discoverable once the query is sufficiently specific.
+- [ ] Verify primary application ranking is stable for `chrome`, `code`, `cs2`, `wt`, `vsc`, plus pinyin regressions `wx`, `wyy`, `jsq`, `chongqing`, `wangyy`, `wei x`.
+- [ ] Verify a PATH CLI such as `git`, `python`, `adb` or `ffmpeg` does not appear from a one-character guess; with PATH enabled, an explicit 2–3 character prefix finds it normally.
+- [ ] On a clean settings profile, PATH Provider is off by default. Upgrade an existing profile that already stores windows.path=true/false and confirm the stored choice is preserved.
+- [ ] Enable Everything: an ordinary one-character query does not issue dynamic filesystem results or cause asynchronous list reordering. Two-character dynamic results require strong exact/prefix/boundary intent.
+- [ ] Everything explicit syntax such as `ext:exe` and explicit path/wildcard queries still work; multi-token ordinary queries remain strict.
+- [ ] Confirm static Search and Everything agree on short-query fuzzy behavior; there must be no case where the static provider rejects a weak match but Everything reintroduces it through an independent subsequence floor.
+- [ ] Provider Cache schema 4 rebuilds once after upgrade and preserves LaunchSurfaceClass on subsequent loads.
+- [ ] User shortcuts/pinned commands remain authoritative. Usage changes ordering only among comparable relevance tiers and cannot lift an auxiliary fuzzy match above a primary prefix.
+- [ ] Classic visuals, geometry, numeric Quick Launch arbitration, table surface and Modern Compact visuals remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

@@ -42,6 +42,265 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.15":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.15 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 4:
+        fail("v0.8 alpha.5.15 must rebuild generated provider cache at schemaVersion 4")
+
+    command_h = read("src/core/Command.hpp")
+    surface_h = read("src/core/LaunchSurface.hpp")
+    surface_cpp = read("src/core/LaunchSurface.cpp")
+    relevance_h = read("src/core/RelevancePolicy.hpp")
+    relevance_cpp = read("src/core/RelevancePolicy.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    ranking_cpp = read("src/core/ResultRanking.cpp")
+    merger_cpp = read("src/core/ResultMerger.cpp")
+    start_menu_cpp = read("src/core/StartMenuProvider.cpp")
+    packaged_cpp = read("src/core/PackagedAppProvider.cpp")
+    app_paths_cpp = read("src/core/AppPathsProvider.cpp")
+    path_cpp = read("src/core/PathProvider.cpp")
+    provider_ids = read("src/core/ProviderIds.hpp")
+    settings_cpp = read("src/core/Settings.cpp")
+    everything_cpp = read("src/core/EverythingProvider.cpp")
+    app_cpp = read("src/app/App.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    ranking_tests = read("tests/ResultRankingTests.cpp")
+    surface_tests = read("tests/LaunchSurfaceTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    provider_tests = read("tests/WindowsProviderSmokeTests.cpp")
+    cmake = read("CMakeLists.txt")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "LaunchSurfaceClass surfaceClass",
+        "LaunchSurfaceClass::UserCommand",
+    ):
+        if token not in command_h:
+            fail(f"v0.8 alpha.5.15 Command launch-surface contract missing: {token}")
+
+    for token in (
+        "PrimaryApplication",
+        "SystemUtility",
+        "DeveloperTool",
+        "CommandLineTool",
+        "Auxiliary",
+        "Maintenance",
+        "FilesystemItem",
+    ):
+        if token not in surface_h:
+            fail(f"v0.8 alpha.5.15 LaunchSurface enum missing: {token}")
+
+    for token in (
+        'L"help"',
+        'L"nativemessaging"',
+        'L"experienceshell"',
+        'L"backgroundtask"',
+        "ClassifyApplicationSurface(",
+    ):
+        if token not in surface_cpp:
+            fail(f"v0.8 alpha.5.15 role classifier missing: {token}")
+
+    for token in (
+        "enum class MatchKind",
+        "struct RankContext",
+        "AdmitLaunchSurface(",
+        "ShouldRunDynamicFilesystemQuery(",
+        "CompareRankContext(",
+    ):
+        if token not in relevance_h:
+            fail(f"v0.8 alpha.5.15 RelevancePolicy contract missing: {token}")
+
+    for token in (
+        "normalizedQuery.size() < 3",
+        "fuzzyScore < 260",
+        "StrongShortMatch(",
+        "VeryStrongMatch(",
+        "LaunchSurfaceTier(",
+    ):
+        if token not in relevance_cpp:
+            fail(f"v0.8 alpha.5.15 RelevancePolicy implementation missing: {token}")
+
+    if "MatchScore(" in ranking_cpp or "CompactMatchScore(" in ranking_cpp:
+        fail("v0.8 alpha.5.15 ResultRanking must not own a second text matcher")
+
+    for token in (
+        "relevance::MatchText(",
+        "AdmitLaunchSurface(",
+        "CompareRankContext(",
+    ):
+        if token not in search_cpp and token != "CompareRankContext(":
+            fail(f"v0.8 alpha.5.15 SearchEngine is not using unified policy: {token}")
+
+    if "CompareRankContext(" not in search_cpp:
+        fail("v0.8 alpha.5.15 SearchEngine structured ranking missing")
+
+    for token in (
+        "RankDynamicResultText(",
+        "ShouldRunDynamicFilesystemQuery(",
+        "BetterLauncherResult(",
+    ):
+        if token not in ranking_cpp:
+            fail(f"v0.8 alpha.5.15 dynamic structured ranking missing: {token}")
+
+    if "BetterLauncherResult(" not in merger_cpp:
+        fail("v0.8 alpha.5.15 ResultMerger must use structured comparator")
+
+    for token in (
+        "surfaceClass =",
+        "ClassifyApplicationSurface(",
+    ):
+        if token not in packaged_cpp or token not in app_paths_cpp:
+            fail(f"v0.8 alpha.5.15 packaged/AppPaths classification missing: {token}")
+
+    if "LaunchSurfaceClass::CommandLineTool" not in path_cpp:
+        fail("v0.8 alpha.5.15 PATH must be a CommandLineTool surface")
+    if 'L"PATH",\n        false' not in path_cpp:
+        fail("v0.8 alpha.5.15 PATH provider descriptor must default off")
+    if "{std::string(kPath), false}" not in provider_ids:
+        fail("v0.8 alpha.5.15 new settings must default PATH off")
+    if "pathProviderSpecified" not in settings_cpp:
+        fail("v0.8 alpha.5.15 legacy implicit PATH compatibility missing")
+
+    if "ShouldRunDynamicFilesystemQuery(" not in app_cpp:
+        fail("v0.8 alpha.5.15 App must gate one-character Everything IPC")
+    if "RankDynamicResultText(" not in everything_cpp:
+        fail("v0.8 alpha.5.15 Everything provider must apply unified local admission")
+
+    for token in (
+        "singleH",
+        "LaunchSurfaceClass::Auxiliary",
+        "CommandLineTool",
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.15 surface admission regression missing: {token}")
+
+    for token in (
+        "IDMHelp",
+        "GPUViewHelp",
+        "GrabberHelp",
+        "PlatformExperienceShell",
+        "BrowserNativeMessaging",
+        "Visual Studio Code",
+    ):
+        if token not in surface_tests:
+            fail(f"v0.8 alpha.5.15 classifier regression missing: {token}")
+
+    for token in (
+        'ScoreDynamicResultText(\n            file,\n            L"p") == 0',
+        "ShouldRunDynamicFilesystemQuery(",
+        "BetterLauncherResult(",
+    ):
+        if token not in ranking_tests:
+            fail(f"v0.8 alpha.5.15 dynamic ranking regression missing: {token}")
+
+    for token in (
+        "provider-cache-schema3-stale.json",
+        "staleSchema3Cache.Load().empty()",
+        "LaunchSurfaceClass::SystemUtility",
+        "settings-legacy-implicit-path.json",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.15 cache/settings regression missing: {token}")
+
+    if "launch_surface_tests" not in cmake:
+        fail("v0.8 alpha.5.15 LaunchSurface tests are not wired into CTest")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.15 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,185",
+        "PRODUCTVERSION 0,8,0,185",
+        "0.8.0-alpha.5.15",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.15 resource version missing: {token}")
+
+    if 'version="0.8.0.185"' not in manifest:
+        fail("v0.8 alpha.5.15 manifest fixed version must be 0.8.0.185")
+
+    for token in (
+        '"0.8.0-alpha.5.14"',
+        '"0.8.0-alpha.5.15"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.15 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.15 Launch surface & unified relevance validation",
+        "BrowserNativeMessaging",
+        "one-character query",
+        "Provider Cache schema 4",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.15 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.15 — Launch Surface & Unified Relevance",
+        "LaunchSurfaceClass",
+        "RelevancePolicy",
+        "0.8.0.185",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.15 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.15" not in changelog:
+        fail("v0.8 alpha.5.15 changelog entry missing")
+
+    if "v0.8.0-alpha.5.15 adds the missing classification/admission layer" not in roadmap:
+        fail("v0.8 alpha.5.15 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.15 Launch Surface & Unified Relevance verified:",
+        "| providers classified",
+        "| one RelevancePolicy matcher",
+        "| surface admission precedes ranking",
+        "| Everything one-char gated",
+        "| PATH new-default off",
+        "| provider cache schema 4",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.14":
     import hashlib
     import subprocess

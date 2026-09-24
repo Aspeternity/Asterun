@@ -38,11 +38,18 @@ int main() {
                 });
 
             assert(extension != L".url");
+            assert(command.basePriority == 0);
             assert(
-                command.basePriority == 0 ||
-                command.basePriority == -30 ||
-                command.basePriority == -50 ||
-                command.basePriority == -140);
+                command.surfaceClass !=
+                    LaunchSurfaceClass::
+                        UserCommand);
+            assert(
+                command.surfaceClass !=
+                    LaunchSurfaceClass::
+                        FilesystemItem);
+            assert(
+                command.surfaceClass !=
+                    LaunchSurfaceClass::Action);
         }
     }
 
@@ -58,6 +65,14 @@ int main() {
                         std::filesystem::path(
                             command.target),
                         ec));
+            assert(
+                command.surfaceClass !=
+                    LaunchSurfaceClass::
+                        UserCommand);
+            assert(
+                command.surfaceClass !=
+                    LaunchSurfaceClass::
+                        FilesystemItem);
         }
     }
 
@@ -178,6 +193,19 @@ int main() {
     assert(ids.contains(
         std::string(
             providers::kPath)));
+
+    const auto pathDescriptor =
+        std::find_if(
+            descriptors.begin(),
+            descriptors.end(),
+            [](const ProviderDescriptor& descriptor) {
+                return descriptor.id ==
+                    providers::kPath;
+            });
+
+    assert(pathDescriptor !=
+        descriptors.end());
+    assert(!pathDescriptor->defaultEnabled);
 
     ProviderEnableMap disabled =
         providers::DefaultEnabled();

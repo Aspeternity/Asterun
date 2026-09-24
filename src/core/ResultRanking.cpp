@@ -1,169 +1,50 @@
 #include "ResultRanking.hpp"
 
 #include "ProviderIds.hpp"
+#include "RelevancePolicy.hpp"
 
 #include <algorithm>
-#include <cwctype>
-#include <limits>
 #include <string>
-#include <utility>
-#include <vector>
 
 namespace altrun {
 namespace {
 
-[[nodiscard]] std::wstring Compact(
-    std::wstring_view value) {
-    std::wstring result;
-    result.reserve(value.size());
-
-    for (const wchar_t ch : value) {
-        if (std::iswalnum(ch) ||
-            ch >= 0x4E00) {
-            result.push_back(
-                static_cast<wchar_t>(
-                    std::towlower(ch)));
-        }
-    }
-
-    return result;
-}
-
-[[nodiscard]]
-std::vector<std::wstring>
-QueryTokens(
-    std::wstring_view query) {
-    std::vector<std::wstring> tokens;
-    std::wstring current;
-
-    auto flush = [&]() {
-        auto compact =
-            Compact(current);
-        current.clear();
-
-        if (compact.empty()) {
-            return;
-        }
-
-        if (std::find(
-                tokens.begin(),
-                tokens.end(),
-                compact) ==
-            tokens.end()) {
-            tokens.push_back(
-                std::move(compact));
-        }
-    };
-
-    for (const wchar_t ch : query) {
-        if (std::iswspace(ch)) {
-            flush();
-        } else {
-            current.push_back(ch);
-        }
-    }
-
-    flush();
-    return tokens;
-}
-
-[[nodiscard]] int CompactMatchScore(
-    std::wstring_view field,
-    std::wstring_view compactQuery) {
-    if (field.empty() ||
-        compactQuery.empty()) {
-        return 0;
-    }
-
-    const auto compactField =
-        Compact(field);
-
-    if (compactField.empty()) {
-        return 0;
-    }
-
-    if (compactField ==
-        compactQuery) {
-        return 1100;
-    }
-
-    if (compactField.starts_with(
-            compactQuery)) {
-        return 940 -
-            static_cast<int>(
-                std::min<std::size_t>(
-                    compactField.size() -
-                        compactQuery.size(),
-                    100));
-    }
-
-    const auto position =
-        compactField.find(
-            compactQuery);
-
-    if (position !=
-        std::wstring::npos) {
-        return 760 -
-            static_cast<int>(
-                std::min<std::size_t>(
-                    position,
-                    120));
-    }
-
-    std::size_t queryIndex = 0;
-    int gaps = 0;
-    std::size_t previous = 0;
-    bool havePrevious = false;
-
-    for (std::size_t i = 0;
-         i < compactField.size() &&
-         queryIndex <
-             compactQuery.size();
-         ++i) {
-        if (compactField[i] !=
-            compactQuery[queryIndex]) {
-            continue;
-        }
-
-        if (havePrevious &&
-            i > previous + 1) {
-            gaps +=
-                static_cast<int>(
-                    i - previous - 1);
-        }
-
-        previous = i;
-        havePrevious = true;
-        ++queryIndex;
-    }
-
-    if (queryIndex !=
-        compactQuery.size()) {
-        return 0;
-    }
-
-    return std::max(
-        260,
-        470 -
-            std::min(
-                gaps * 7,
-                210));
-}
-
 [[nodiscard]] std::wstring FileStem(
     std::wstring_view title) {
+
     const auto slash =
-        title.find_last_of(L"\\/");
+        title.find_last_of(L"\\");
+
+    const auto slash2 =
+        title.find_last_of(L"/");
+
+    std::size_t position =
+        std::wstring_view::npos;
+
+    if (slash == std::wstring_view::npos) {
+        position = slash2;
+    } else if (
+        slash2 ==
+        std::wstring_view::npos) {
+        position = slash;
+    } else {
+        position = std::max(
+            slash,
+            slash2);
+    }
 
     const auto name =
-        slash == std::wstring_view::npos
+        position ==
+                std::wstring_view::npos
             ? title
-            : title.substr(slash + 1);
+            : title.substr(
+                  position + 1);
 
     const auto dot =
         name.find_last_of(L'.');
 
-    if (dot == std::wstring_view::npos ||
+    if (dot ==
+            std::wstring_view::npos ||
         dot == 0) {
         return std::wstring(name);
     }
@@ -172,68 +53,145 @@ QueryTokens(
         name.substr(0, dot));
 }
 
-[[nodiscard]] int ScoreOneToken(
-    const LauncherResult& result,
-    std::wstring_view compactQuery) {
-    const int titleScore =
-        CompactMatchScore(
-            result.title,
-            compactQuery);
+[[nodiscard]] relevance::Match
+WithField(
+    relevance::Match match,
+    relevance::MatchField field) {
 
-    int stemScore = 0;
+    if (match) {
+        match.field = field;
+    }
+
+    return match;
+}
+
+[[nodiscard]] relevance::Match
+ScoreOneToken(
+    const LauncherResult& result,
+    std::wstring_view query,
+    bool allowTarget) {
+
+    relevance::Match best{};
+
+    const auto consider =
+        [&](relevance::Match match) {
+            if (match &&
+                relevance::BetterMatch(
+                    match,
+                    best)) {
+                best = match;
+            }
+        };
+
+    consider(
+        WithField(
+            relevance::MatchText(
+                result.title,
+                query),
+            relevance::MatchField::Title));
 
     if (result.kind ==
-            ResultKind::File) {
-        stemScore =
-            CompactMatchScore(
-                FileStem(
-                    result.title),
-                compactQuery);
+        ResultKind::File) {
 
-        if (stemScore > 0) {
-            stemScore =
-                std::min(
-                    1070,
-                    stemScore + 20);
-        }
+        consider(
+            WithField(
+                relevance::MatchText(
+                    FileStem(
+                        result.title),
+                    query),
+                relevance::MatchField::
+                    FileStem));
     }
 
-    int subtitleScore =
-        CompactMatchScore(
-            result.subtitle,
-            compactQuery);
+    consider(
+        WithField(
+            relevance::MatchText(
+                result.subtitle,
+                query),
+            relevance::MatchField::
+                Subtitle));
 
-    if (subtitleScore > 0) {
-        subtitleScore =
-            std::max(
-                1,
-                subtitleScore - 330);
+    if (allowTarget) {
+        consider(
+            WithField(
+                relevance::MatchText(
+                    result.target,
+                    query),
+                relevance::MatchField::
+                    Target));
     }
 
-    int targetScore =
-        CompactMatchScore(
-            result.target,
-            compactQuery);
+    return best;
+}
 
-    if (targetScore > 0) {
-        targetScore =
-            std::max(
-                1,
-                targetScore - 260);
+[[nodiscard]] relevance::Match
+LegacyMatch(
+    const LauncherResult& result) {
+
+    if (result.relevanceMatch) {
+        return result.relevanceMatch;
     }
 
-    return std::max({
-        titleScore,
-        stemScore,
-        subtitleScore,
-        targetScore,
-    });
+    if (result.score <= 0) {
+        return {};
+    }
+
+    relevance::MatchKind kind =
+        relevance::MatchKind::Fuzzy;
+
+    if (result.score >= 1100) {
+        kind =
+            relevance::MatchKind::Exact;
+    } else if (result.score >= 850) {
+        kind =
+            relevance::MatchKind::Prefix;
+    } else if (result.score >= 650) {
+        kind =
+            relevance::MatchKind::
+                Substring;
+    }
+
+    return {
+        kind,
+        relevance::MatchField::Title,
+        result.score,
+        false,
+    };
+}
+
+[[nodiscard]] LaunchSurfaceClass
+EffectiveSurface(
+    const LauncherResult& result) {
+
+    if (result.surfaceClass !=
+        LaunchSurfaceClass::Action) {
+        return result.surfaceClass;
+    }
+
+    switch (result.kind) {
+    case ResultKind::UserCommand:
+        return LaunchSurfaceClass::
+            UserCommand;
+    case ResultKind::Application:
+        return LaunchSurfaceClass::
+            PrimaryApplication;
+    case ResultKind::File:
+    case ResultKind::Folder:
+        return LaunchSurfaceClass::
+            FilesystemItem;
+    case ResultKind::Action:
+        return LaunchSurfaceClass::
+            Action;
+    }
+
+    return LaunchSurfaceClass::Action;
 }
 
 } // namespace
 
 int ResultKindWeight(
     ResultKind kind) noexcept {
+
     switch (kind) {
     case ResultKind::UserCommand:
         return 60;
@@ -252,6 +210,7 @@ int ResultKindWeight(
 
 int ProviderRankWeight(
     std::string_view providerId) noexcept {
+
     if (providerId ==
         "user.commands") {
         return 20;
@@ -287,78 +246,179 @@ int ProviderRankWeight(
 
 int UnifiedRankScore(
     const LauncherResult& result) noexcept {
+
     return result.score +
         ResultKindWeight(result.kind) +
         ProviderRankWeight(
             result.providerId);
 }
 
-int ScoreDynamicResultText(
-    const LauncherResult& result,
+bool RankDynamicResultText(
+    LauncherResult& result,
     std::wstring_view query) {
-    const auto compactQuery =
-        Compact(query);
 
-    if (compactQuery.empty()) {
-        return 0;
+    if (!relevance::
+            ShouldRunDynamicFilesystemQuery(
+                query)) {
+        return false;
     }
 
-    int score =
+    const bool explicitSyntax =
+        relevance::HasExplicitSyntax(
+            query);
+
+    const bool allowTarget =
+        relevance::HasPathIntent(
+            query);
+
+    relevance::Match match =
         ScoreOneToken(
             result,
-            compactQuery);
+            query,
+            allowTarget);
 
     const auto tokens =
-        QueryTokens(query);
+        relevance::QueryTokens(query);
 
-    if (tokens.size() > 1) {
-        int weakest =
-            std::numeric_limits<int>::max();
-        int total = 0;
+    if (tokens.size() > 1 &&
+        !explicitSyntax) {
+
+        relevance::Match weakest{};
+        bool haveWeakest = false;
         bool allMatched = true;
+        int total = 0;
 
         for (const auto& token :
              tokens) {
-            const int tokenScore =
+
+            const auto tokenMatch =
                 ScoreOneToken(
                     result,
-                    token);
+                    token,
+                    allowTarget);
 
-            if (tokenScore <= 0) {
+            if (!tokenMatch) {
                 allMatched = false;
                 break;
             }
 
-            weakest =
-                std::min(
+            if (!haveWeakest ||
+                relevance::BetterMatch(
                     weakest,
-                    tokenScore);
-            total += tokenScore;
+                    tokenMatch)) {
+                weakest = tokenMatch;
+                haveWeakest = true;
+            }
+
+            total += tokenMatch.score;
         }
 
-        if (allMatched) {
-            const int average =
-                total /
-                static_cast<int>(
-                    tokens.size());
+        if (!allMatched) {
+            return false;
+        }
 
-            score =
-                std::max(
-                    score,
-                    std::min(
-                        1120,
-                        weakest +
-                            average / 7 +
-                            35));
+        const int average =
+            total /
+            static_cast<int>(
+                tokens.size());
+
+        weakest.score =
+            std::min(
+                1120,
+                weakest.score +
+                    average / 7 +
+                    35);
+
+        if (relevance::BetterMatch(
+                weakest,
+                match)) {
+            match = weakest;
         }
     }
 
-    // Everything already matched this item using its own query engine.
-    // Keep advanced/syntax matches visible even when our lightweight local
-    // scorer cannot interpret the query expression.
-    return score > 0
-        ? score
-        : 240;
+    if (!match &&
+        explicitSyntax) {
+        match = {
+            relevance::MatchKind::
+                SyntaxFallback,
+            relevance::MatchField::Target,
+            240,
+            false,
+        };
+    }
+
+    if (!match ||
+        !relevance::AdmitLaunchSurface(
+            LaunchSurfaceClass::
+                FilesystemItem,
+            query,
+            match,
+            explicitSyntax)) {
+        return false;
+    }
+
+    result.relevanceMatch = match;
+    result.surfaceClass =
+        LaunchSurfaceClass::
+            FilesystemItem;
+    result.usageScore = 0;
+    result.pinned = false;
+    result.score = match.score;
+
+    return true;
+}
+
+int ScoreDynamicResultText(
+    const LauncherResult& result,
+    std::wstring_view query) {
+
+    LauncherResult ranked = result;
+
+    return RankDynamicResultText(
+               ranked,
+               query)
+        ? ranked.score
+        : 0;
+}
+
+bool BetterLauncherResult(
+    const LauncherResult& left,
+    const LauncherResult& right) noexcept {
+
+    const relevance::RankContext leftRank{
+        left.pinned,
+        left.kind ==
+            ResultKind::UserCommand,
+        LegacyMatch(left),
+        EffectiveSurface(left),
+        left.usageScore,
+        ResultKindWeight(left.kind),
+        ProviderRankWeight(
+            left.providerId),
+    };
+
+    const relevance::RankContext rightRank{
+        right.pinned,
+        right.kind ==
+            ResultKind::UserCommand,
+        LegacyMatch(right),
+        EffectiveSurface(right),
+        right.usageScore,
+        ResultKindWeight(right.kind),
+        ProviderRankWeight(
+            right.providerId),
+    };
+
+    const int comparison =
+        relevance::CompareRankContext(
+            leftRank,
+            rightRank);
+
+    if (comparison != 0) {
+        return comparison > 0;
+    }
+
+    return left.score > right.score;
 }
 
 } // namespace altrun

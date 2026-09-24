@@ -35,7 +35,7 @@ DefaultEnabled() {
         {std::string(kStartMenu), true},
         {std::string(kPackaged), true},
         {std::string(kAppPaths), true},
-        {std::string(kPath), true},
+        {std::string(kPath), false},
         {std::string(kEverythingFilesystem), false},
     };
 }

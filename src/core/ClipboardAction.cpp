@@ -128,6 +128,14 @@ BuildClipboardActionResults(
     result.detail =
         std::wstring(payload);
     result.score = 1500;
+    result.relevanceMatch = {
+        relevance::MatchKind::Exact,
+        relevance::MatchField::Keyword,
+        1500,
+        false,
+    };
+    result.surfaceClass =
+        LaunchSurfaceClass::Action;
     result.action.kind =
         LauncherActionKind::
             CopyText;

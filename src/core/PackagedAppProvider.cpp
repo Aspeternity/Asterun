@@ -240,7 +240,11 @@ PackagedAppProvider::Discover() const {
         command.enabled = true;
         command.source =
             CommandSource::PackagedApp;
-        command.basePriority = -5;
+        command.surfaceClass =
+            ClassifyApplicationSurface(
+                command.title,
+                command.target);
+        command.basePriority = 0;
         command.id =
             L"packaged:" +
             targetKey;

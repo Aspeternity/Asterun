@@ -136,10 +136,12 @@ void EverythingProvider::QueryAsync(
                         item.fullPath);
                 result.detail =
                     result.target;
-                result.score =
-                    ScoreDynamicResultText(
+                if (!RankDynamicResultText(
                         result,
-                        rankingQuery);
+                        rankingQuery)) {
+                    continue;
+                }
+
                 result.action.kind =
                     result.kind ==
                             ResultKind::Folder

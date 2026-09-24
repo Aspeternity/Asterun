@@ -134,46 +134,16 @@ MergeLauncherResultsRanked(
         merged.end(),
         [](const LauncherResult& left,
            const LauncherResult& right) {
-            const int leftRank =
-                UnifiedRankScore(left);
-            const int rightRank =
-                UnifiedRankScore(right);
-
-            if (leftRank != rightRank) {
-                return leftRank >
-                    rightRank;
+            if (BetterLauncherResult(
+                    left,
+                    right)) {
+                return true;
             }
 
-            if (left.score !=
-                right.score) {
-                return left.score >
-                    right.score;
-            }
-
-            const int leftKind =
-                ResultKindWeight(
-                    left.kind);
-            const int rightKind =
-                ResultKindWeight(
-                    right.kind);
-
-            if (leftKind !=
-                rightKind) {
-                return leftKind >
-                    rightKind;
-            }
-
-            const int leftProvider =
-                ProviderRankWeight(
-                    left.providerId);
-            const int rightProvider =
-                ProviderRankWeight(
-                    right.providerId);
-
-            if (leftProvider !=
-                rightProvider) {
-                return leftProvider >
-                    rightProvider;
+            if (BetterLauncherResult(
+                    right,
+                    left)) {
+                return false;
             }
 
             return LowerTitleLess(

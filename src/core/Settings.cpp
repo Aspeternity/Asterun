@@ -743,16 +743,26 @@ bool SettingsStore::LoadJson() {
                     : UpdateChannel::Stable;
         }
 
-        // Provider settings were introduced after the original schema.
-        // Missing keys intentionally keep their default-enabled behavior,
-        // so existing users upgrade without losing application sources.
+        // PATH is opt-in for new installations. Existing settings written
+        // before this policy keep the historical implicit PATH=true only
+        // when the file did not yet carry an explicit windows.path value.
+        bool pathProviderSpecified = false;
+
         if (root.contains("providers") &&
             root["providers"].is_object()) {
 
+            const auto& providersJson =
+                root["providers"];
+
+            pathProviderSpecified =
+                providersJson.contains(
+                    std::string(
+                        providers::kPath));
+
             for (auto it =
-                     root["providers"].begin();
+                     providersJson.begin();
                  it !=
-                     root["providers"].end();
+                     providersJson.end();
                  ++it) {
 
                 if (!it.value()
@@ -766,6 +776,16 @@ bool SettingsStore::LoadJson() {
                     it.value()
                         .get<bool>();
             }
+        }
+
+        if (!pathProviderSpecified &&
+            load.schemaVersion > 0 &&
+            load.schemaVersion <=
+                config::kSettingsSchemaVersion) {
+            settings_.providerEnabled[
+                std::string(
+                    providers::kPath)] =
+                true;
         }
 
         if (!readOnlyDueToNewerSchema_ &&

@@ -247,6 +247,7 @@ In progress:
 - v0.8.0-alpha.5.12 makes the actual multi-column ListView width commit atomic: redraw is paused across all dragged/elastic updates and the complete table is synchronously repainted once, eliminating stale owner-draw/back-buffer pixels after release
 - v0.8.0-alpha.5.13 closes Classic keyboard arbitration: result navigation wraps, numeric Quick Launch becomes semantic+temporal with a 90ms deferred ambiguity window, consumed digits cannot leak into WM_CHAR, and explicit Ctrl/Alt+digit remains deterministic
 - v0.8.0-alpha.5.14 hardens search relevance at the policy boundary: short ASCII fuzzy is gated, initials are exact/prefix-only, ordinary target paths leave lexical search, multi-token matching becomes strict with Hybrid Pinyin preserved, and Start Menu entries gain content hygiene without changing Provider canonicalization
+- v0.8.0-alpha.5.15 adds the missing classification/admission layer and a single RelevancePolicy owner shared by static Search and Everything, preventing helper/CLI/system noise from entering casual queries before structured ranking is applied
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

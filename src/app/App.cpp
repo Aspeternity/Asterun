@@ -8,6 +8,7 @@
 #include "../core/HotkeyRegistry.hpp"
 #include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
+#include "../core/RelevancePolicy.hpp"
 #include "../core/ResultMerger.hpp"
 #include "../core/RuntimeInput.hpp"
 #include "../core/WebAction.hpp"
@@ -708,6 +709,14 @@ std::vector<LauncherResult> App::Search(
         result.detail =
             CommandDetail(command);
         result.score = match.score;
+        result.relevanceMatch =
+            match.relevanceMatch;
+        result.surfaceClass =
+            command.surfaceClass;
+        result.usageScore =
+            match.usageScore;
+        result.pinned =
+            command.pinned;
         result.action.kind =
             LauncherActionKind::
                 ExecuteCommand;
@@ -862,7 +871,9 @@ void App::BeginDynamicSearch(
     std::wstring query,
     std::size_t limit) {
     if (!DynamicSearchEnabled() ||
-        query.empty()) {
+        !relevance::
+            ShouldRunDynamicFilesystemQuery(
+                query)) {
         return;
     }
 

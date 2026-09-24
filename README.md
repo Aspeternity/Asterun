@@ -23,6 +23,19 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.15 — Launch Surface & Unified Relevance
+
+Alpha.5.15 moves search quality upstream from score tuning to an explicit discovery → classification → admission → matching → ranking pipeline.
+
+Provider commands now carry a lightweight LaunchSurfaceClass. User shortcuts and primary applications are first-class launch targets; Windows administrative utilities, developer tools, PATH command-line tools, auxiliary/helper processes and maintenance entries are distinct surfaces with different query-admission requirements. The generic classifier uses role semantics such as Help/Helper/Host/Broker/NativeMessaging/ExperienceShell/BackgroundTask/Updater rather than per-application blacklists, so internal helpers no longer compete with normal apps on casual one-character queries.
+
+Start Menu keeps its Windows Tools / developer-folder knowledge but writes surface metadata instead of magic priority penalties. AppsFolder and App Paths use the same generic role classifier. PATH is explicitly CommandLineTool and is disabled by default for new installations; existing settings that explicitly store the PATH toggle are preserved, while older settings with no windows.path key retain the historical implicit enabled state.
+
+Static SearchEngine and dynamic Everything ranking now share one RelevancePolicy for normalization, short-query fuzzy gates, initials, path intent, launch-surface admission and structured rank comparison. Everything no longer runs for ordinary one-character queries, no longer falls back to a separate permissive subsequence scorer, and locally rejects weak two-character filesystem matches; explicit Everything syntax/path queries remain supported.
+
+Final result ordering is structured rather than driven by one additive score: explicit user/pinned intent, match quality, launch surface, matched field, literal-vs-pinyin origin, match score, usage, result kind and provider preference are compared in order. Usage can refine peers but cannot promote a weak auxiliary fuzzy match above a strong primary-app prefix.
+
+Generated Provider Cache schema is bumped to 4 so pre-surface cache data is rebuilt once. Classic geometry and the alpha.5.13 numeric arbitration state machine are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.185`.
 ## v0.8.0-alpha.5.14 — Search Relevance Hygiene
 
 Alpha.5.14 tightens Classic search relevance at the matching-policy and Start Menu ingestion layers without changing Classic geometry or adding background work.
