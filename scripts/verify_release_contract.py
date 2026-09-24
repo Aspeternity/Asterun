@@ -288,7 +288,7 @@ if version == "0.8.0-alpha.5.2":
     for token in (
         "v0.8.0-alpha.5.2 — Settings UX & Global Shortcut Manager Hotkey",
         "true Windows global hotkey",
-        "all seven Settings dropdowns",
+        "All seven Settings dropdowns",
         "0.8.0.172",
     ):
         if token not in readme:
