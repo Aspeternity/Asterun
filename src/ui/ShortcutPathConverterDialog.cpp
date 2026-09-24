@@ -2774,7 +2774,7 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
                 itemIndex)) {
             HBRUSH background =
                 CreateSolidBrush(
-                    palette.cardBackground);
+                    RGB(251, 252, 253));
             FillRect(
                 draw->nmcd.hdc,
                 &row,
@@ -3292,26 +3292,6 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
     }
 
     case WM_NOTIFY: {
-        const auto* notification =
-            reinterpret_cast<NMHDR*>(
-                lParam);
-
-        if (notification &&
-            notification->code ==
-                NM_CUSTOMDRAW &&
-            notification->hwndFrom ==
-                ListView_GetHeader(
-                    list_)) {
-            return ui::DrawNextListHeader(
-                reinterpret_cast<
-                    NMCUSTOMDRAW*>(
-                        lParam),
-                dpi_,
-                groupFont_
-                    ? groupFont_
-                    : font_);
-        }
-
         LRESULT headerResult = 0;
         if (HandleHeaderNotification(
                 lParam,

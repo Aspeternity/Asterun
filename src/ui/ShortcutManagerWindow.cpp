@@ -3032,26 +3032,6 @@ LRESULT ShortcutManagerWindow::HandleMessage(
         break;
 
     case WM_NOTIFY: {
-        const auto* notification =
-            reinterpret_cast<NMHDR*>(
-                lParam);
-
-        if (notification &&
-            notification->code ==
-                NM_CUSTOMDRAW &&
-            notification->hwndFrom ==
-                ListView_GetHeader(
-                    list_)) {
-            return ui::DrawNextListHeader(
-                reinterpret_cast<
-                    NMCUSTOMDRAW*>(
-                        lParam),
-                dpi_,
-                semiboldFont_
-                    ? semiboldFont_
-                    : font_);
-        }
-
         LRESULT headerResult = 0;
 
         if (HandleHeaderNotification(
