@@ -209,7 +209,7 @@ ParseCommand(
                 "activation",
                 std::string{}),
             LaunchActivationKind::
-                ShellExecute);
+                ShellItem);
     command.canonicalIdentity =
         text::FromUtf8(
             item.value(
