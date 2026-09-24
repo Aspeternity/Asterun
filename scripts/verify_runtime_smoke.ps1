@@ -125,8 +125,32 @@ try {
         Get-Content $settingsPath -Raw |
         ConvertFrom-Json
 
-    if ($migratedSettings.schemaVersion -ne 9) {
-        throw "Packaged runtime did not migrate schema-2 settings to schema 9."
+    if ($migratedSettings.schemaVersion -ne 10) {
+        throw "Packaged runtime did not migrate schema-2 settings to schema 10."
+    }
+
+    if ($migratedSettings.general.startupBehavior -ne "silent") {
+        throw "Packaged runtime migration must preserve legacy showOnStartup=false as startupBehavior=silent."
+    }
+
+    foreach ($removedSetting in @(
+        "showOnStartup",
+        "hideAfterLaunch",
+        "clearQueryOnShow",
+        "hideOnFocusLost"
+    )) {
+        if ($migratedSettings.general.PSObject.Properties.Name -contains $removedSetting) {
+            throw "Packaged runtime migration must not serialize removed general setting '$removedSetting'."
+        }
+    }
+
+    foreach ($removedSetting in @(
+        "wildcardMatching",
+        "numericQuickLaunchOrder"
+    )) {
+        if ($migratedSettings.behavior.PSObject.Properties.Name -contains $removedSetting) {
+            throw "Packaged runtime migration must not serialize removed behavior setting '$removedSetting'."
+        }
     }
 
     if ($migratedSettings.windowPlacement.launcherMode -ne "top" -or
@@ -161,6 +185,8 @@ try {
         "launcher.activate",
         "launcher.activateSecondary",
         "launcher.openSettings",
+        "launcher.openShortcutManager",
+        "launcher.exitApplication",
         "result.navigateCurrentFileManager",
         "result.copySelectedTarget"
     )
@@ -186,7 +212,7 @@ try {
     Write-Host "  FileVersion string: $fileVersion"
     Write-Host "  Process id: $($process.Id)"
     Write-Host "  Startup observation: $StartupSeconds seconds"
-    Write-Host "  Runtime migration: schema 2 -> 8 with default window placement + frozen Hotkey Registry + default-on Pinyin + default-off result icons + release-appropriate update defaults"
+    Write-Host "  Runtime migration: schema 2 -> 10 with startup-behavior cleanup + current Hotkey Registry + default window placement + default-on Pinyin + default-off result icons + release-appropriate update defaults"
 }
 finally {
     if ($null -ne $process) {

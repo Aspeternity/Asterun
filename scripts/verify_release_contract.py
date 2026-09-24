@@ -80,6 +80,7 @@ if version == "0.8.0-alpha.5.1":
     update_tests = read("tests/UpdatePolicyTests.cpp")
     desktop_validation = read("docs/DESKTOP_VALIDATION.md")
     generator = read("scripts/generate_classic_hidpi_assets.py")
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
 
     for token in (
         "enum class StartupBehavior",
@@ -276,6 +277,16 @@ if version == "0.8.0-alpha.5.1":
             fail(f"v0.8 alpha.5 resource version missing: {token}")
     if 'version="0.8.0.171"' not in manifest:
         fail("v0.8 alpha.5 manifest fixed version must be 0.8.0.171")
+
+    for token in (
+        "schemaVersion -ne 10",
+        "startupBehavior=silent",
+        '"launcher.openShortcutManager"',
+        '"launcher.exitApplication"',
+        "schema 2 -> 10",
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.5.1 packaged runtime smoke contract missing: {token}")
 
     for token in (
         '"0.8.0-alpha.4.9"',
