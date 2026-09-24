@@ -184,8 +184,8 @@ if version == "0.8.0-alpha.5.16":
         fail("v0.8 alpha.5.16 generated ProviderCache must not migrate stale legacy schemas")
 
     for token in (
-        "LaunchSurfaceClass::Auxiliary",
-        "LaunchSurfaceClass::Maintenance",
+        "Auxiliary",
+        "Maintenance",
         "LooksLikeWebTarget(",
     ):
         if token not in provider_tests:
