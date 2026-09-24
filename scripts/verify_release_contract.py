@@ -73,6 +73,7 @@ if version == "0.8.0-alpha.5.16":
     config_tests = read("tests/ConfigCoreTests.cpp")
     provider_tests = read("tests/WindowsProviderSmokeTests.cpp")
     cmake = read("CMakeLists.txt")
+    build_workflow = read(".github/workflows/build.yml")
     resources = read("src/resources.rc")
     manifest = read("src/app.manifest")
     update_tests = read("tests/UpdatePolicyTests.cpp")
@@ -199,6 +200,9 @@ if version == "0.8.0-alpha.5.16":
     ):
         if token not in cmake:
             fail(f"v0.8 alpha.5.16 CMake ownership missing: {token}")
+
+    if build_workflow.count("launch_target_inspector_tests") < 4:
+        fail("v0.8 alpha.5.16 Windows smoke/baseline workflow must build and run launch_target_inspector_tests")
 
     subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
