@@ -399,6 +399,26 @@ if(BUILD_TESTING)
         COMMAND ui_foundation_tests
     )
 
+    add_executable(
+        classic_behavior_tests
+        tests/ClassicBehaviorTests.cpp
+    )
+    target_link_libraries(
+        classic_behavior_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        classic_behavior_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        classic_behavior_tests
+    )
+    add_test(
+        NAME classic_behavior_tests
+        COMMAND classic_behavior_tests
+    )
+
     add_executable(search_engine_tests tests/SearchEngineTests.cpp)
     target_link_libraries(search_engine_tests PRIVATE altrun_core)
     target_include_directories(search_engine_tests PRIVATE src)

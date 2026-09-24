@@ -42,6 +42,180 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.13":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.13 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.5.13 must keep provider-cache schemaVersion 2")
+
+    behavior_h = read("src/core/ClassicBehavior.hpp")
+    behavior_cpp = read("src/core/ClassicBehavior.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    launcher_cpp = read("src/ui/LauncherWindow.cpp")
+    app_h = read("src/app/App.hpp")
+    app_cpp = read("src/app/App.cpp")
+    behavior_tests = read("tests/ClassicBehaviorTests.cpp")
+    cmake = read("CMakeLists.txt")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "NumericQuickLaunchDecision",
+        "NumericQuickLaunchContext",
+        "kNumericTypingWindowMs",
+        "kNumericIntentGraceMs",
+        "DecideNumericQuickLaunch(",
+        "HasStrongCommandContinuation(",
+        "HasStrongResultContinuation(",
+        "WrappedSelectionIndex(",
+    ):
+        if token not in behavior_h or (
+            token.endswith("(") and token not in behavior_cpp
+        ):
+            fail(f"v0.8 alpha.5.13 ClassicBehavior contract missing: {token}")
+
+    for token in (
+        "kNumericIntentTimerId",
+        "PendingNumericIntent",
+        "lastTextInputTick_",
+        "consumedNumericVirtualKey_",
+        "consumedNumericChar_",
+        "QueuePendingNumericIntent(",
+        "CommitPendingNumericIntentAsText(",
+        "ExecutePendingNumericIntent(",
+        "ConsumeNumericKey(",
+        "HasStrongNumericContinuation(",
+        "HasRecentTextInput(",
+        "WM_CHAR",
+        "WM_SYSCHAR",
+        "WM_TIMER",
+        "WrappedSelectionIndex(",
+        "NumericQuickLaunchDecision::",
+    ):
+        if token not in launcher_h and token not in launcher_cpp:
+            fail(f"v0.8 alpha.5.13 Launcher arbitration missing: {token}")
+
+    if "HasStaticQueryContinuation(" not in app_h or "HasStaticQueryContinuation(" not in app_cpp:
+        fail("v0.8 alpha.5.13 lightweight static continuation route missing")
+    if "classic_behavior::\n        HasStrongCommandContinuation(" not in app_cpp:
+        fail("v0.8 alpha.5.13 App continuation must scan the resident command cache")
+
+    if "app_.Search(" in launcher_cpp.split(
+        "HasStrongNumericContinuation(", 1
+    )[1].split("ConsumeNumericKey(", 1)[0]:
+        fail("v0.8 alpha.5.13 numeric arbitration must not launch a second full Search")
+
+    if "BeginDynamicSearch(" in launcher_cpp.split(
+        "HasStrongNumericContinuation(", 1
+    )[1].split("ConsumeNumericKey(", 1)[0]:
+        fail("v0.8 alpha.5.13 numeric arbitration must not issue Everything IPC")
+
+    for token in (
+        "v2ray",
+        "7-Zip",
+        "1password",
+        "cs2",
+        "DeferExecute",
+        "ExecuteNow",
+        "WrappedSelectionIndex",
+        "kNumericIntentGraceMs < 100",
+    ):
+        if token not in behavior_tests:
+            fail(f"v0.8 alpha.5.13 focused behavior test missing: {token}")
+
+    if "classic_behavior_tests" not in cmake or "tests/ClassicBehaviorTests.cpp" not in cmake:
+        fail("v0.8 alpha.5.13 ClassicBehavior tests are not wired into CTest")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.13 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,183",
+        "PRODUCTVERSION 0,8,0,183",
+        "0.8.0-alpha.5.13",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.13 resource version missing: {token}")
+    if 'version="0.8.0.183"' not in manifest:
+        fail("v0.8 alpha.5.13 manifest fixed version must be 0.8.0.183")
+
+    for token in (
+        '"0.8.0-alpha.5.12"',
+        '"0.8.0-alpha.5.13"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.13 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.13 Classic input-arbitration validation",
+        "v2ray",
+        "originally numbered result",
+        "Ctrl+1…0",
+        "result snapshot",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.13 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.13 — Classic Input Arbitration",
+        "90ms pending intent",
+        "420ms typing burst",
+        "0.8.0.183",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.13 README missing: {token}")
+    if "## 0.8.0-alpha.5.13" not in changelog:
+        fail("v0.8 alpha.5.13 changelog entry missing")
+    if "v0.8.0-alpha.5.13 closes Classic keyboard arbitration" not in roadmap:
+        fail("v0.8 alpha.5.13 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.13 Classic Input Arbitration verified:",
+        "| Classic navigation wraps",
+        "| numeric intent is semantic + temporal + deferred",
+        "| no second Search/Everything query",
+        "| consumed digits cannot leak into WM_CHAR",
+        "| schema 10 + Classic geometry/assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.12":
     import hashlib
     import subprocess

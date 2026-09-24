@@ -1,6 +1,7 @@
 #include "App.hpp"
 
 #include "../core/EverythingProvider.hpp"
+#include "../core/ClassicBehavior.hpp"
 #include "../core/ClipboardAction.hpp"
 #include "../core/CommandTemplate.hpp"
 #include "../core/ShortcutEditorModel.hpp"
@@ -592,6 +593,15 @@ void App::ReloadCommands() {
     if (shortcutManagerWindow_) {
         shortcutManagerWindow_->Refresh();
     }
+}
+
+bool App::HasStaticQueryContinuation(
+    std::wstring_view query) const noexcept {
+
+    return classic_behavior::
+        HasStrongCommandContinuation(
+            commandStore_.Commands(),
+            query);
 }
 
 std::vector<LauncherResult> App::Search(

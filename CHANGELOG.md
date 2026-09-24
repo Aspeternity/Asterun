@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.13
+
+- Added a pure/testable Classic numeric-input arbitration policy instead of treating every bare digit as an unconditional launch command.
+- Classic Tab/Shift+Tab and Up/Down now wrap across the 1…9,0 result cycle; Modern Compact remains bounded.
+- Bare digits stay text for empty queries, IME/Shift/Win input, recent typing bursts, unavailable result numbers and strong command/result prefix continuations.
+- Strong continuation checks scan existing command/static/dynamic result caches only; no second full search or Everything query is issued.
+- Ambiguous numeric launches use a 90ms pending intent; a following key converts the digit to text, otherwise the original numbered result snapshot executes.
+- Ctrl+digit and Alt+digit provide an explicit immediate numbered-launch path.
+- Consumed numeric keys suppress matching WM_CHAR/WM_SYSCHAR messages, fixing the v → v2 query flash during Quick Launch.
+- Added focused ClassicBehavior unit coverage for wrap navigation, arbitration, v2ray/7zip/1password/cs2-style prefixes and timing constants.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.183`.
+
 ## 0.8.0-alpha.5.12
 
 - Identified the remaining artifact source as the real multi-step `ListView_SetColumnWidth()` commit rather than resize-preview rendering.

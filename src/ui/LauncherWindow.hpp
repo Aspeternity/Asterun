@@ -56,6 +56,8 @@ private:
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kIconReadyMessage = WM_APP + 18;
     static constexpr UINT kShortcutIpcMessage = WM_APP + 19;
+    static constexpr UINT_PTR
+        kNumericIntentTimerId = 0xA176;
     static constexpr UINT kMenuShow = 40001;
     static constexpr UINT kMenuReload = 40002;
     static constexpr UINT kMenuSettings = 40003;
@@ -132,8 +134,29 @@ private:
         std::size_t resultIndex,
         LauncherExecutionIntent intent =
             LauncherExecutionIntent::Default);
+    void ExecuteResultSnapshot(
+        const LauncherResult& result,
+        LauncherExecutionIntent intent =
+            LauncherExecutionIntent::Default);
     [[nodiscard]] int QuickLaunchIndexForKey(
         WPARAM key) const;
+    [[nodiscard]] int NumericDigitForKey(
+        WPARAM key) const noexcept;
+    [[nodiscard]] bool
+    HasStrongNumericContinuation(
+        wchar_t digit) const;
+    [[nodiscard]] bool
+    HasRecentTextInput() const noexcept;
+    void QueuePendingNumericIntent(
+        UINT virtualKey,
+        wchar_t digit,
+        const LauncherResult& result);
+    void CommitPendingNumericIntentAsText();
+    void ExecutePendingNumericIntent();
+    void CancelPendingNumericIntent();
+    void ConsumeNumericKey(
+        UINT virtualKey,
+        wchar_t digit) noexcept;
     [[nodiscard]] std::wstring ResultNumberLabel(
         std::size_t resultIndex) const;
     void MoveSelection(int delta);
@@ -208,6 +231,21 @@ private:
     bool contextActionModalActive_{false};
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};
+    bool numericTextCommitInProgress_{false};
+    std::uint64_t lastTextInputTick_{0};
+    UINT consumedNumericVirtualKey_{0};
+    wchar_t consumedNumericChar_{0};
+
+    struct PendingNumericIntent {
+        bool active{false};
+        UINT virtualKey{0};
+        wchar_t digit{0};
+        LauncherResult result{};
+    };
+
+    PendingNumericIntent
+        pendingNumericIntent_{};
+
     UINT dpi_{96};
     ui::ClassicLauncherDpiMetrics
         classicDpiMetrics_{

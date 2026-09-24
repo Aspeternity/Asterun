@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.13 — Classic Input Arbitration
+
+Alpha.5.13 polishes Classic keyboard behavior without adding a heavyweight input subsystem.
+
+Classic selection navigation now wraps: Tab / Down move 1 → 2 → … → 9 → 0 → 1, while Shift+Tab / Up wrap in the reverse direction. Modern Compact keeps its existing bounded selection behavior.
+
+Numeric Quick Launch is now ambiguity-aware. A bare digit is treated as text when the query is empty, IME/Shift/Win input is active, the user is inside a 420ms typing burst, or the candidate query has a strong prefix continuation in the already-resident command/result caches (for example v2ray, 7zip, 1password or cs2). No full search, Everything IPC, background thread, database or model is started for this check.
+
+When a bare digit is genuinely ambiguous and maps to an existing numbered result, ALTRun Next keeps a 90ms pending intent. Any distinct following key converts that pending digit to text; otherwise the numbered result snapshot executes. Ctrl+digit and Alt+digit remain the explicit immediate path. The snapshot binds execution to the result that was numbered when the digit was pressed, so an asynchronous provider merge cannot retarget the intent.
+
+Consumed numeric keys suppress their matching WM_CHAR / WM_SYSCHAR path, so Quick Launch no longer briefly changes queries such as v → v2 while launching. Programmatic pending-digit insertion also suppresses single-result auto execution until the user's following character is processed.
+
+The state is only a few counters/flags plus one transient LauncherResult snapshot, and the semantic continuation check scans existing in-memory caches without allocations. Windows fixed FileVersion/ProductVersion is `0.8.0.183`.
+
 ## v0.8.0-alpha.5.12 — Atomic Table Column Commit
 
 Alpha.5.12 fixes the actual ListView-body artifact root cause identified after alpha.5.11 proved that resize-preview rendering was no longer involved.

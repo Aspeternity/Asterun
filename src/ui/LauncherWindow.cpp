@@ -1438,6 +1438,9 @@ void LauncherWindow::Toggle() {
 void LauncherWindow::Show() {
     if (!hwnd_) return;
 
+    CancelPendingNumericIntent();
+    lastTextInputTick_ = 0;
+
     // Do not carry an interrupted IME composition across launcher hides.
     imeComposing_ = false;
 
@@ -1477,6 +1480,7 @@ void LauncherWindow::Show() {
 void LauncherWindow::Hide() {
     app_.ClearActivationContext();
 
+    CancelPendingNumericIntent();
     immediateExecutionPending_ = false;
     dynamicQueryPending_ = false;
     ++searchGeneration_;
@@ -2188,13 +2192,39 @@ void LauncherWindow::UpdatePreview() {
 }
 
 void LauncherWindow::MoveSelection(int delta) {
-    if (results_.empty()) return;
+    if (results_.empty()) {
+        return;
+    }
 
-    int current = static_cast<int>(SendMessageW(list_, LB_GETCURSEL, 0, 0));
-    if (current == LB_ERR) current = 0;
+    int current =
+        static_cast<int>(
+            SendMessageW(
+                list_,
+                LB_GETCURSEL,
+                0,
+                0));
 
-    current = std::clamp(current + delta, 0, static_cast<int>(results_.size()) - 1);
-    SendMessageW(list_, LB_SETCURSEL, current, 0);
+    if (current == LB_ERR) {
+        current =
+            delta < 0
+                ? static_cast<int>(
+                      results_.size()) - 1
+                : 0;
+    } else {
+        current =
+            classic_behavior::
+                WrappedSelectionIndex(
+                    current,
+                    delta,
+                    results_.size(),
+                    !IsModern());
+    }
+
+    SendMessageW(
+        list_,
+        LB_SETCURSEL,
+        current,
+        0);
     UpdatePreview();
 }
 
@@ -2226,14 +2256,41 @@ void LauncherWindow::ExecuteResultAt(
         return;
     }
 
+    ExecuteResultSnapshot(
+        results_[resultIndex],
+        intent);
+}
+
+void LauncherWindow::ExecuteResultSnapshot(
+    const LauncherResult& result,
+    LauncherExecutionIntent intent) {
+
     immediateExecutionPending_ =
         false;
 
     if (app_.ExecuteResult(
-            results_[resultIndex],
+            result,
             intent)) {
         Hide();
     }
+}
+
+int LauncherWindow::NumericDigitForKey(
+    WPARAM key) const noexcept {
+
+    if (key >= L'0' &&
+        key <= L'9') {
+        return static_cast<int>(
+            key - L'0');
+    }
+
+    if (key >= VK_NUMPAD0 &&
+        key <= VK_NUMPAD9) {
+        return static_cast<int>(
+            key - VK_NUMPAD0);
+    }
+
+    return -1;
 }
 
 int LauncherWindow::QuickLaunchIndexForKey(
@@ -2245,38 +2302,152 @@ int LauncherWindow::QuickLaunchIndexForKey(
         return -1;
     }
 
-    if ((GetKeyState(VK_CONTROL) &
-             0x8000) != 0 ||
-        (GetKeyState(VK_MENU) &
-             0x8000) != 0 ||
-        (GetKeyState(VK_SHIFT) &
-             0x8000) != 0 ||
-        (GetKeyState(VK_LWIN) &
-             0x8000) != 0 ||
-        (GetKeyState(VK_RWIN) &
-             0x8000) != 0) {
-        return -1;
+    return classic_behavior::
+        QuickLaunchIndexForDigit(
+            NumericDigitForKey(key),
+            "one-to-zero");
+}
+
+bool LauncherWindow::
+HasRecentTextInput() const noexcept {
+
+    if (lastTextInputTick_ == 0) {
+        return false;
     }
 
-    int digit = -1;
+    const std::uint64_t now =
+        GetTickCount64();
 
-    if (key >= L'0' &&
-        key <= L'9') {
-        digit =
-            static_cast<int>(
-                key - L'0');
-    } else if (
-        key >= VK_NUMPAD0 &&
-        key <= VK_NUMPAD9) {
-        digit =
-            static_cast<int>(
-                key - VK_NUMPAD0);
+    return now -
+        lastTextInputTick_ <=
+        classic_behavior::
+            kNumericTypingWindowMs;
+}
+
+bool LauncherWindow::
+HasStrongNumericContinuation(
+    wchar_t digit) const {
+
+    std::wstring candidate =
+        CurrentQuery();
+    candidate.push_back(digit);
+
+    if (app_.HasStaticQueryContinuation(
+            candidate)) {
+        return true;
     }
 
     return classic_behavior::
-        QuickLaunchIndexForDigit(
-            digit,
-            "one-to-zero");
+            HasStrongResultContinuation(
+                dynamicResults_,
+                candidate) ||
+        classic_behavior::
+            HasStrongResultContinuation(
+                staticResults_,
+                candidate);
+}
+
+void LauncherWindow::ConsumeNumericKey(
+    UINT virtualKey,
+    wchar_t digit) noexcept {
+
+    consumedNumericVirtualKey_ =
+        virtualKey;
+    consumedNumericChar_ =
+        digit;
+}
+
+void LauncherWindow::
+QueuePendingNumericIntent(
+    UINT virtualKey,
+    wchar_t digit,
+    const LauncherResult& result) {
+
+    CancelPendingNumericIntent();
+
+    pendingNumericIntent_.active =
+        true;
+    pendingNumericIntent_.virtualKey =
+        virtualKey;
+    pendingNumericIntent_.digit =
+        digit;
+    pendingNumericIntent_.result =
+        result;
+
+    ConsumeNumericKey(
+        virtualKey,
+        digit);
+
+    SetTimer(
+        hwnd_,
+        kNumericIntentTimerId,
+        static_cast<UINT>(
+            classic_behavior::
+                kNumericIntentGraceMs),
+        nullptr);
+}
+
+void LauncherWindow::
+CommitPendingNumericIntentAsText() {
+
+    if (!pendingNumericIntent_.active ||
+        !edit_) {
+        return;
+    }
+
+    const wchar_t digit =
+        pendingNumericIntent_.digit;
+
+    CancelPendingNumericIntent();
+
+    const wchar_t text[2]{
+        digit,
+        L'\0',
+    };
+
+    numericTextCommitInProgress_ =
+        true;
+
+    SendMessageW(
+        edit_,
+        EM_REPLACESEL,
+        TRUE,
+        reinterpret_cast<LPARAM>(
+            text));
+
+    numericTextCommitInProgress_ =
+        false;
+    lastTextInputTick_ =
+        GetTickCount64();
+}
+
+void LauncherWindow::
+ExecutePendingNumericIntent() {
+
+    if (!pendingNumericIntent_.active) {
+        return;
+    }
+
+    LauncherResult result =
+        pendingNumericIntent_.result;
+
+    CancelPendingNumericIntent();
+
+    ExecuteResultSnapshot(
+        result);
+}
+
+void LauncherWindow::
+CancelPendingNumericIntent() {
+
+    if (hwnd_) {
+        KillTimer(
+            hwnd_,
+            kNumericIntentTimerId);
+    }
+
+    pendingNumericIntent_ =
+        PendingNumericIntent{};
 }
 
 std::wstring
@@ -3027,17 +3198,84 @@ LRESULT CALLBACK LauncherWindow::EditProc(
 }
 
 LRESULT LauncherWindow::HandleEditMessage(
-    HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    HWND hwnd,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam) {
 
-    if (message == WM_IME_STARTCOMPOSITION) {
+    if (message ==
+            WM_IME_STARTCOMPOSITION) {
         imeComposing_ = true;
     } else if (
-        message == WM_IME_ENDCOMPOSITION) {
+        message ==
+            WM_IME_ENDCOMPOSITION) {
         imeComposing_ = false;
+    }
+
+    if (message == WM_CHAR ||
+        message == WM_SYSCHAR) {
+        if (consumedNumericChar_ != 0 &&
+            static_cast<wchar_t>(
+                wParam) ==
+                consumedNumericChar_) {
+            return 0;
+        }
+
+        if (message == WM_CHAR &&
+            wParam >= L' ') {
+            lastTextInputTick_ =
+                GetTickCount64();
+        }
+    }
+
+    if (message == WM_PASTE &&
+        pendingNumericIntent_.active) {
+        // A second input action inside the grace window is definitive typing.
+        CommitPendingNumericIntentAsText();
+    }
+
+    if (message == WM_KEYUP ||
+        message == WM_SYSKEYUP) {
+        if (consumedNumericVirtualKey_ ==
+            static_cast<UINT>(
+                wParam)) {
+            consumedNumericVirtualKey_ = 0;
+            consumedNumericChar_ = 0;
+        }
+
+        return CallWindowProcW(
+            oldEditProc_,
+            hwnd,
+            message,
+            wParam,
+            lParam);
     }
 
     if (message == WM_KEYDOWN ||
         message == WM_SYSKEYDOWN) {
+
+        const bool firstPress =
+            (lParam &
+             (static_cast<LPARAM>(1)
+              << 30)) == 0;
+
+        if (pendingNumericIntent_.active) {
+            if (static_cast<UINT>(
+                    wParam) ==
+                    pendingNumericIntent_
+                        .virtualKey &&
+                !firstPress) {
+                // Holding the candidate digit must never turn one pending
+                // numbered launch into repeated text or repeated launches.
+                return 0;
+            }
+
+            // Any distinct key before the very short grace expires means the
+            // user is continuing a query. Commit the pending digit as text
+            // first, then process the new key normally.
+            CommitPendingNumericIntentAsText();
+        }
+
         const bool controlDown =
             (GetKeyState(VK_CONTROL) &
                 0x8000) != 0;
@@ -3105,28 +3343,116 @@ LRESULT LauncherWindow::HandleEditMessage(
         const int quickLaunchIndex =
             QuickLaunchIndexForKey(
                 wParam);
+        const int digit =
+            NumericDigitForKey(
+                wParam);
 
-        if (quickLaunchIndex >= 0) {
-            // Bit 30 is set for key-repeat WM_KEYDOWN messages. Swallow
-            // repeats so holding a number cannot launch the same result
-            // many times when hide-after-launch is disabled.
-            const bool firstPress =
-                (lParam &
-                 (static_cast<LPARAM>(1)
-                  << 30)) == 0;
+        if (quickLaunchIndex >= 0 &&
+            digit >= 0) {
 
-            if (firstPress &&
-                static_cast<std::size_t>(
-                    quickLaunchIndex) <
-                    results_.size()) {
-
-                ExecuteResultAt(
-                    static_cast<
-                        std::size_t>(
-                        quickLaunchIndex));
+            if (!firstPress &&
+                consumedNumericVirtualKey_ ==
+                    static_cast<UINT>(
+                        wParam)) {
+                return 0;
             }
 
-            return 0;
+            const bool resultAvailable =
+                static_cast<std::size_t>(
+                    quickLaunchIndex) <
+                results_.size();
+
+            const std::wstring query =
+                CurrentQuery();
+
+            bool strongContinuation =
+                false;
+
+            if (!query.empty() &&
+                !controlDown &&
+                !altDown &&
+                !shiftDown &&
+                !winDown &&
+                !imeComposing_) {
+                strongContinuation =
+                    HasStrongNumericContinuation(
+                        static_cast<wchar_t>(
+                            L'0' + digit));
+            }
+
+            classic_behavior::
+                NumericQuickLaunchContext
+                    context{};
+            context.enabled =
+                app_.SettingsData()
+                    .numericQuickLaunch;
+            context.imeComposing =
+                imeComposing_;
+            context.controlDown =
+                controlDown;
+            context.altDown =
+                altDown;
+            context.shiftDown =
+                shiftDown;
+            context.winDown =
+                winDown;
+            context.queryEmpty =
+                query.empty();
+            context.recentTextInput =
+                HasRecentTextInput();
+            context.strongContinuation =
+                strongContinuation;
+            context.resultAvailable =
+                resultAvailable;
+
+            const auto decision =
+                classic_behavior::
+                    DecideNumericQuickLaunch(
+                        context);
+
+            if (decision ==
+                    classic_behavior::
+                        NumericQuickLaunchDecision::
+                            ExecuteNow) {
+                if (firstPress &&
+                    resultAvailable) {
+                    ConsumeNumericKey(
+                        static_cast<UINT>(
+                            wParam),
+                        static_cast<wchar_t>(
+                            L'0' + digit));
+
+                    const LauncherResult
+                        snapshot =
+                            results_[
+                                static_cast<
+                                    std::size_t>(
+                                        quickLaunchIndex)];
+
+                    ExecuteResultSnapshot(
+                        snapshot);
+                }
+                return 0;
+            }
+
+            if (decision ==
+                    classic_behavior::
+                        NumericQuickLaunchDecision::
+                            DeferExecute) {
+                if (firstPress &&
+                    resultAvailable) {
+                    QueuePendingNumericIntent(
+                        static_cast<UINT>(
+                            wParam),
+                        static_cast<wchar_t>(
+                            L'0' + digit),
+                        results_[
+                            static_cast<
+                                std::size_t>(
+                                    quickLaunchIndex)]);
+                }
+                return 0;
+            }
         }
 
         switch (wParam) {
@@ -3146,7 +3472,10 @@ LRESULT LauncherWindow::HandleEditMessage(
             }
             return 0;
         case VK_TAB:
-            MoveSelection((GetKeyState(VK_SHIFT) & 0x8000) != 0 ? -1 : 1);
+            MoveSelection(
+                shiftDown
+                    ? -1
+                    : 1);
             return 0;
         case VK_ESCAPE:
             Hide();
@@ -3156,13 +3485,26 @@ LRESULT LauncherWindow::HandleEditMessage(
         }
     }
 
-    return CallWindowProcW(oldEditProc_, hwnd, message, wParam, lParam);
+    return CallWindowProcW(
+        oldEditProc_,
+        hwnd,
+        message,
+        wParam,
+        lParam);
 }
 
 LRESULT LauncherWindow::HandleMessage(
     UINT message, WPARAM wParam, LPARAM lParam) {
 
     switch (message) {
+    case WM_TIMER:
+        if (wParam ==
+            kNumericIntentTimerId) {
+            ExecutePendingNumericIntent();
+            return 0;
+        }
+        break;
+
     case WM_NCHITTEST: {
         POINT point{
             GET_X_LPARAM(lParam),
@@ -3234,7 +3576,8 @@ LRESULT LauncherWindow::HandleMessage(
             // Search may update live, but single-result auto execution must
             // wait until composition is committed.
             RefreshResults(
-                !imeComposing_);
+                !imeComposing_ &&
+                !numericTextCommitInProgress_);
             return 0;
         }
         if (LOWORD(wParam) == 1002 && HIWORD(wParam) == LBN_DBLCLK) {
@@ -3968,6 +4311,7 @@ LRESULT LauncherWindow::HandleMessage(
     }
 
     case WM_DESTROY:
+        CancelPendingNumericIntent();
         RemoveTrayIcon();
         hwnd_ = nullptr;
         PostQuitMessage(0);

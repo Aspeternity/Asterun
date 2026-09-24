@@ -335,6 +335,23 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Repeat at 100/125/150/175/200% scaling.
 - [ ] Path Conversion group/checkbox rendering, Table visuals, ComboBoxes, Hotkeys and Classic visuals remain unchanged.
 
+## v0.8.0-alpha.5.13 Classic input-arbitration validation
+
+- [ ] Classic: Tab cycles 1 → 2 → … → 9 → 0 → 1 continuously; Shift+Tab cycles in reverse.
+- [ ] Classic: Down wraps 0 → 1 and Up wraps 1 → 0. Modern Compact remains bounded at its first/last result.
+- [ ] With Numeric Quick Launch enabled, type `v2ray`, `7zip`, `1password`, `cs2`, `h264` and `python3` at natural typing speed; digits remain query text and no result launches.
+- [ ] Type `v`, pause for more than the typing window, then press `2` when a v2* command is present in the in-memory command cache; query becomes `v2` rather than launching row 2.
+- [ ] For a query with no strong digit continuation, pause, press an existing result number and keep hands still; the originally numbered result launches after the short grace without the digit ever appearing in the Edit control.
+- [ ] In the previous case, press another character immediately after the digit; the digit is committed as text before the new character and no numbered result launches.
+- [ ] During a deferred text commit, single-result immediate execution does not fire between the pending digit and the following character.
+- [ ] Ctrl+1…0 and Alt+1…0 immediately execute the corresponding numbered result even when a text continuation exists.
+- [ ] Shift+digit produces its normal symbol/text path; IME composition digits remain text; Win+digit is never consumed by Numeric Quick Launch.
+- [ ] With fewer than N results, bare digit N remains query text rather than disappearing.
+- [ ] Hold a numeric Quick Launch key; only one pending/immediate launch is possible and key-repeat never creates repeated launches or query digits.
+- [ ] Enable Everything and force asynchronous result reordering during the 90ms grace; execution still targets the result snapshot that occupied the numbered row at key-down.
+- [ ] With Numeric Quick Launch disabled, all bare numeric input behaves exactly as normal Edit text.
+- [ ] Classic geometry, fonts, result numbering, Search/Provider ranking, Everything, Settings, Table Surface and Modern Compact visuals remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

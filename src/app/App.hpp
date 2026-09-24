@@ -51,6 +51,10 @@ public:
         std::wstring_view query,
         std::size_t limit) const;
 
+    [[nodiscard]] bool
+    HasStaticQueryContinuation(
+        std::wstring_view query) const noexcept;
+
     void BeginDynamicSearch(
         std::uint64_t generation,
         std::wstring query,
