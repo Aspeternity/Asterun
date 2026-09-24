@@ -371,9 +371,13 @@ DividerAtPoint(
     hit.pt = point;
 
     const int item =
-        Header_HitTest(
-            header,
-            &hit);
+        static_cast<int>(
+            SendMessageW(
+                header,
+                HDM_HITTEST,
+                0,
+                reinterpret_cast<LPARAM>(
+                    &hit)));
 
     if (item < 0) {
         return -1;
