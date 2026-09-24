@@ -475,11 +475,6 @@ bool ShortcutManagerWindow::Create() {
 
     CreateControls();
 
-    // A recreated Manager always starts from the validated default column
-    // balance. customColumnWidths_ becomes true only after a real Header width
-    // edit while this window instance is open.
-    customColumnWidths_ = false;
-
     ApplyLanguage();
     Layout();
     Refresh();
