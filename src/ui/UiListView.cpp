@@ -878,13 +878,19 @@ void DrawHeaderSurface(
 
     if (state.resizeDrag.active &&
         state.resizePreviewX >= 0) {
+        const int clientLeft =
+            static_cast<int>(
+                client.left);
+        const int clientRight =
+            static_cast<int>(
+                client.right);
         const int x =
             std::clamp(
                 state.resizePreviewX,
-                client.left,
+                clientLeft,
                 std::max(
-                    client.left,
-                    client.right - 1));
+                    clientLeft,
+                    clientRight - 1));
 
         HPEN preview =
             CreatePen(
