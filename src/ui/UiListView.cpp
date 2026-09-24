@@ -483,6 +483,103 @@ void ClearHeaderResizePreview(
     }
 }
 
+class ScopedNextListColumnCommitRedraw {
+public:
+    ScopedNextListColumnCommitRedraw(
+        HWND list,
+        HWND header) noexcept
+        : list_(list),
+          header_(header),
+          listWasVisible_(
+              list &&
+              IsWindowVisible(list)),
+          headerWasVisible_(
+              header &&
+              IsWindowVisible(header)) {
+
+        // ListView_SetColumnWidth may internally repaint/copy report-view
+        // client pixels. The Next tables custom-draw full rows, so presenting
+        // any intermediate width state can preserve stale owner-drawn pixels
+        // in the double-buffered surface. Treat the multi-column update as one
+        // visual transaction instead.
+        if (listWasVisible_) {
+            SendMessageW(
+                list_,
+                WM_SETREDRAW,
+                FALSE,
+                0);
+        }
+
+        if (headerWasVisible_) {
+            SendMessageW(
+                header_,
+                WM_SETREDRAW,
+                FALSE,
+                0);
+        }
+    }
+
+    ScopedNextListColumnCommitRedraw(
+        const ScopedNextListColumnCommitRedraw&) =
+        delete;
+    ScopedNextListColumnCommitRedraw& operator=(
+        const ScopedNextListColumnCommitRedraw&) =
+        delete;
+
+    ~ScopedNextListColumnCommitRedraw() {
+        if (listWasVisible_ &&
+            list_ &&
+            IsWindow(list_)) {
+            SendMessageW(
+                list_,
+                WM_SETREDRAW,
+                TRUE,
+                0);
+        }
+
+        if (headerWasVisible_ &&
+            header_ &&
+            IsWindow(header_)) {
+            SendMessageW(
+                header_,
+                WM_SETREDRAW,
+                TRUE,
+                0);
+        }
+
+        if (!list_ ||
+            !IsWindow(list_)) {
+            return;
+        }
+
+        UINT redrawFlags =
+            RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_FRAME |
+            RDW_ALLCHILDREN;
+
+        if (listWasVisible_) {
+            redrawFlags |=
+                RDW_UPDATENOW;
+        }
+
+        // One complete repaint is the commit boundary. This clears the native
+        // control's old column pixels, owner-drawn row pixels, empty-body
+        // pixels and the custom frame before the next input event can occur.
+        RedrawWindow(
+            list_,
+            nullptr,
+            nullptr,
+            redrawFlags);
+    }
+
+private:
+    HWND list_{};
+    HWND header_{};
+    bool listWasVisible_{false};
+    bool headerWasVisible_{false};
+};
+
 void CommitNextListColumnResize(
     HWND header,
     NextListState& state,
@@ -539,6 +636,11 @@ void CommitNextListColumnResize(
         ListView_GetColumnWidth(
             list,
             elastic);
+
+    ScopedNextListColumnCommitRedraw
+        redrawTransaction(
+            list,
+            header);
 
     if (elasticWidth <
         currentElastic) {

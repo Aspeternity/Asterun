@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.12 — Atomic Table Column Commit
+
+Alpha.5.12 fixes the actual ListView-body artifact root cause identified after alpha.5.11 proved that resize-preview rendering was no longer involved.
+
+The remaining artifacts happened **after mouse release**, while `CommitNextListColumnResize()` changed the dragged column and elastic Target/Status column through multiple `ListView_SetColumnWidth()` calls with redraw still enabled. Both Next tables use `LVS_EX_DOUBLEBUFFER` and custom-draw complete rows; Path Conversion additionally custom-draws group rows. Native report-view column relayout can therefore expose/copy intermediate client pixels that our owner-draw rows do not immediately repaint. Because the commit path had no final full-table repaint, stale group text (for example “KOOK”) and old vertical pixels in the empty body could remain until the next mouse move invalidated a row.
+
+Runtime column commit is now a single visual transaction. `UiListView` temporarily disables redraw for both the ListView and its Header with `WM_SETREDRAW(FALSE)`, performs all existing grow/shrink width updates, reenables redraw, then synchronously repaints the complete control with `RedrawWindow(... RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW)`.
+
+The validated alpha.5.9 ownership model and alpha.5.11 Header-only preview remain unchanged. No per-row cleanup, delayed timer or artifact-specific invalidate patch is used. Windows fixed FileVersion/ProductVersion is `0.8.0.182`.
+
 ## v0.8.0-alpha.5.11 — In-Header Resize Preview
 
 Alpha.5.11 removes the resize-preview window architecture completely after real-Windows validation showed that even the alpha.5.10 layered popup could produce short-lived DWM/composition trails while crossing owner-drawn Path Conversion content.

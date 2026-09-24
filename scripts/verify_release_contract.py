@@ -42,6 +42,170 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.12":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.12 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.5.12 must keep provider-cache schemaVersion 2")
+
+    ui_list_h = read("src/ui/UiListView.hpp")
+    ui_list_cpp = read("src/ui/UiListView.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    converter_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "NextListColumnResizePolicy",
+        "ConfigureNextListColumnResize(",
+        "NextListHasUserAdjustedColumns(",
+    ):
+        if token not in ui_list_h:
+            fail(f"v0.8 alpha.5.12 shared resize contract missing: {token}")
+
+    for token in (
+        "ScopedNextListColumnCommitRedraw",
+        "WM_SETREDRAW",
+        "RDW_INVALIDATE",
+        "RDW_ERASE",
+        "RDW_FRAME",
+        "RDW_ALLCHILDREN",
+        "RDW_UPDATENOW",
+        "RedrawWindow(",
+        "ListView_SetColumnWidth(",
+        "UpdateHeaderResizePreview(",
+        "HDS_NOSIZING",
+    ):
+        if token not in ui_list_cpp:
+            fail(f"v0.8 alpha.5.12 atomic commit contract missing: {token}")
+
+    commit_body = ui_list_cpp.split(
+        "void CommitNextListColumnResize(", 1
+    )[1].split("void BeginNextListColumnResize(", 1)[0]
+    if "ScopedNextListColumnCommitRedraw" not in commit_body:
+        fail("v0.8 alpha.5.12 runtime width commit is not protected by redraw transaction")
+    if commit_body.find("ScopedNextListColumnCommitRedraw") > commit_body.find("ListView_SetColumnWidth("):
+        fail("v0.8 alpha.5.12 redraw transaction starts after the first width mutation")
+
+    transaction_body = ui_list_cpp.split(
+        "class ScopedNextListColumnCommitRedraw", 1
+    )[1].split("void CommitNextListColumnResize(", 1)[0]
+    for token in (
+        "SendMessageW(",
+        "WM_SETREDRAW",
+        "FALSE",
+        "TRUE",
+        "RedrawWindow(",
+        "RDW_UPDATENOW",
+    ):
+        if token not in transaction_body:
+            fail(f"v0.8 alpha.5.12 redraw transaction incomplete: {token}")
+
+    for forbidden in (
+        "NextResizeGuideSubclassProc",
+        "EnsureResizeGuideWindow(",
+        "PositionResizeGuide(",
+        "resizeGuide",
+        "WS_EX_LAYERED",
+        "columnTracking_",
+        "trackedColumn_",
+        "HandleHeaderNotification(",
+    ):
+        if forbidden in ui_list_cpp or forbidden in manager_h or forbidden in manager_cpp or forbidden in converter_h or forbidden in converter_cpp:
+            fail(f"v0.8 alpha.5.12 obsolete resize path returned: {forbidden}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.12 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,182",
+        "PRODUCTVERSION 0,8,0,182",
+        "0.8.0-alpha.5.12",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.12 resource version missing: {token}")
+    if 'version="0.8.0.182"' not in manifest:
+        fail("v0.8 alpha.5.12 manifest fixed version must be 0.8.0.182")
+
+    for token in (
+        '"0.8.0-alpha.5.11"',
+        '"0.8.0-alpha.5.12"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.12 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.12 atomic column-commit validation",
+        "do not move the mouse",
+        "20+ alternating large left/right commits",
+        "Mouse entering/leaving rows after a commit must not visibly",
+        "100/125/150/175/200%",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.12 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.12 — Atomic Table Column Commit",
+        "WM_SETREDRAW(FALSE)",
+        "RDW_UPDATENOW",
+        "0.8.0.182",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.12 README missing: {token}")
+    if "## 0.8.0-alpha.5.12" not in changelog:
+        fail("v0.8 alpha.5.12 changelog entry missing")
+    if "v0.8.0-alpha.5.12 makes the actual multi-column ListView width commit atomic" not in roadmap:
+        fail("v0.8 alpha.5.12 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.12 Atomic Table Column Commit verified:",
+        "| multi-column width update is redraw-suspended",
+        "| one synchronous full-table repaint ends the transaction",
+        "| stale owner-draw/back-buffer pixels cannot survive commit",
+        "| Header-only preview + single resize owner retained",
+        "| schema 10 + Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.11":
     import hashlib
     import subprocess

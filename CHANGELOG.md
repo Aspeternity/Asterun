@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.12
+
+- Identified the remaining artifact source as the real multi-step `ListView_SetColumnWidth()` commit rather than resize-preview rendering.
+- Added a shared RAII redraw transaction around runtime column commit.
+- Pause redraw on both ListView and Header before changing dragged/elastic widths so no intermediate report-view layout is presented.
+- Preserve the validated grow/shrink ordering while making all width updates one visual commit.
+- Reenable redraw and synchronously repaint the entire ListView/Header tree with `RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW`.
+- This full commit repaint clears stale owner-drawn group text, row pixels, empty-body pixels and copied custom-frame pixels before the next input event.
+- Keep alpha.5.11 Header-only preview and alpha.5.9 single resize owner unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.182`.
+
 ## 0.8.0-alpha.5.11
 
 - Removed the resize-guide HWND architecture entirely; no child, popup or layered preview window remains.

@@ -244,6 +244,7 @@ In progress:
 - v0.8.0-alpha.5.9 unifies Table resize ownership inside UiListView: native Header sizing/HDN tracking is cut off, shared capture/preview/clamp/elastic commit becomes the only resize state machine, and consumer tracking code is removed
 - v0.8.0-alpha.5.10 isolates the resize guide into an owned layered popup so guide motion is composed independently and cannot damage owner-drawn group text or leave trails in the ListView body
 - v0.8.0-alpha.5.11 removes resize-preview HWNDs entirely and renders drag feedback only inside the Header paint transaction, structurally isolating owner-drawn rows and the empty ListView body from resize feedback
+- v0.8.0-alpha.5.12 makes the actual multi-column ListView width commit atomic: redraw is paused across all dragged/elastic updates and the complete table is synchronously repainted once, eliminating stale owner-draw/back-buffer pixels after release
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

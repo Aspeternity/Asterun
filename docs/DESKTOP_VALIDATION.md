@@ -321,6 +321,20 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Repeat at 100/125/150/175/200% scaling; Header preview stays aligned and crisp.
 - [ ] Alpha.5.9 unified ownership, Path Conversion group/checkbox rendering, Table visuals, ComboBoxes, Hotkeys and Classic visuals remain unchanged.
 
+## v0.8.0-alpha.5.12 atomic column-commit validation
+
+- [ ] Path Conversion: drag Field / Current path repeatedly across the horizontal position occupied by “kook — KOOK”, release, and do not move the mouse; the group title is immediately correct with no stale fragment waiting for hover repaint.
+- [ ] After every release, leave the pointer stationary outside the ListView body for at least several seconds; no old vertical line remains in the empty body.
+- [ ] Perform 20+ alternating large left/right commits; the empty body stays uniformly clean and never accumulates historical one-pixel column/frame traces.
+- [ ] During drag, alpha.5.11 Header-only preview remains the only moving feedback; ListView rows/body stay static.
+- [ ] On mouse release, dragged and elastic widths appear together as one visual state—no intermediate column arrangement is visible.
+- [ ] Shortcut Manager repeats the same test across normal rows and its empty body with zero stale text or vertical traces.
+- [ ] Mouse entering/leaving rows after a commit must not visibly “repair” anything; hover should change only hover styling.
+- [ ] Minimum/maximum clamp, elastic Target/Status behavior and grow/shrink commit ordering remain unchanged.
+- [ ] Alt+Tab/capture loss still cancels rather than committing.
+- [ ] Repeat at 100/125/150/175/200% scaling.
+- [ ] Path Conversion group/checkbox rendering, Table visuals, ComboBoxes, Hotkeys and Classic visuals remain unchanged.
+
 ## Release assets
 
 For the candidate tag:
