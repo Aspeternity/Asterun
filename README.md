@@ -23,6 +23,19 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.14 — Search Relevance Hygiene
+
+Alpha.5.14 tightens Classic search relevance at the matching-policy and Start Menu ingestion layers without changing Classic geometry or adding background work.
+
+One- and two-character ASCII queries no longer fall through to arbitrary subsequence fuzzy matching. Three-character queries use a bounded tight-fuzzy path, while four-or-more-character queries keep fuzzy matching with a real minimum score instead of the previous 180-point floor. Derived word/camel initials and pinyin initials are now exact/prefix-only, preventing fuzzy-on-fuzzy matches such as `df` → `Windows Defender Firewall` through `wdf`.
+
+Ordinary launcher searches now treat keyword, aliases and title as the lexical identity of a command. Execution targets and Start Menu `.lnk` paths participate only when the query expresses path intent or explicitly uses wildcard matching, so common path text such as `C:\ProgramData\Microsoft\Windows\Start Menu\...` can no longer manufacture unrelated short-query results.
+
+Multi-token queries require every token to match, with the existing anchored Hybrid Pinyin route retained for compact syllable forms such as `wei x` → `微信`. Existing pinyin initials/full forms, wildcard search, usage ranking and explicit aliases remain supported.
+
+Start Menu discovery now excludes `.url` entries and generic documentation/help/website/release-note shortcuts. Primary applications retain normal weight; Windows administrative tools, developer auxiliaries and uninstall/repair entries remain discoverable with progressively lower entry-level priority. Provider-to-provider canonicalization order is unchanged.
+
+The generated Provider Cache schema is bumped to 3 so older unclassified Start Menu cache data is rebuilt once. Windows fixed FileVersion/ProductVersion is `0.8.0.184`.
 ## v0.8.0-alpha.5.13 — Classic Input Arbitration
 
 Alpha.5.13 polishes Classic keyboard behavior without adding a heavyweight input subsystem.

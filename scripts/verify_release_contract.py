@@ -42,6 +42,160 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.14":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.14 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 3:
+        fail("v0.8 alpha.5.14 must rebuild generated provider cache at schemaVersion 3")
+
+    search_h = read("src/core/SearchEngine.hpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    start_menu_cpp = read("src/core/StartMenuProvider.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    provider_tests = read("tests/WindowsProviderSmokeTests.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "enum class MatchKind",
+        "TightFuzzy",
+        "PinyinHybrid",
+        "HasPathIntent(",
+        "InitialsMatchScore(",
+        "bool allowTarget",
+    ):
+        if token not in search_h:
+            fail(f"v0.8 alpha.5.14 SearchEngine contract missing: {token}")
+
+    for token in (
+        "MatchKind::TightFuzzy",
+        "fuzzyScore < 260",
+        "HasPathIntent(query)",
+        "MatchKind::PinyinHybrid",
+        "queryTokens.size() > 1",
+    ):
+        if token not in search_cpp:
+            fail(f"v0.8 alpha.5.14 search relevance implementation missing: {token}")
+
+    for token in (
+        "StartMenuEntryClass",
+        "SystemAdmin",
+        "DeveloperAuxiliary",
+        "Maintenance",
+        "Filtered",
+        "BasePriorityFor(entryClass)",
+    ):
+        if token not in start_menu_cpp:
+            fail(f"v0.8 alpha.5.14 Start Menu hygiene missing: {token}")
+
+    if 'extension == L".url"' in start_menu_cpp:
+        fail("v0.8 alpha.5.14 Start Menu provider must not index .url entries")
+
+    for token in (
+        'L"cd"',
+        'L"cde"',
+        'L"cloudmusic.exe"',
+        'L"cs"',
+        'L"df"',
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.14 focused SearchEngine regression missing: {token}")
+
+    if "StartMenuProvider provider" not in provider_tests or 'extension != L".url"' not in provider_tests:
+        fail("v0.8 alpha.5.14 Windows Start Menu smoke coverage missing")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.14 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,184",
+        "PRODUCTVERSION 0,8,0,184",
+        "0.8.0-alpha.5.14",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.14 resource version missing: {token}")
+
+    if 'version="0.8.0.184"' not in manifest:
+        fail("v0.8 alpha.5.14 manifest fixed version must be 0.8.0.184")
+
+    for token in (
+        '"0.8.0-alpha.5.13"',
+        '"0.8.0-alpha.5.14"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.14 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.14 Search relevance hygiene validation",
+        "Provider Cache schema 3",
+        "wei x",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.14 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.14 — Search Relevance Hygiene",
+        "short-query",
+        "Provider Cache schema is bumped to 3",
+        "0.8.0.184",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.14 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.14" not in changelog:
+        fail("v0.8 alpha.5.14 changelog entry missing")
+
+    if "v0.8.0-alpha.5.14 hardens search relevance" not in roadmap:
+        fail("v0.8 alpha.5.14 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.14 Search Relevance Hygiene verified:",
+        "| short fuzzy gated",
+        "| initials exact/prefix-only",
+        "| ordinary targets excluded",
+        "| Start Menu content classified",
+        "| provider cache schema 3",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.13":
     import hashlib
     import subprocess

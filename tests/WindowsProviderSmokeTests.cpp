@@ -2,8 +2,11 @@
 #include "core/ProviderCache.hpp"
 #include "core/ProviderIds.hpp"
 #include "core/ProviderRegistry.hpp"
+#include "core/StartMenuProvider.hpp"
 
+#include <algorithm>
 #include <cassert>
+#include <cwctype>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -14,6 +17,35 @@
 using namespace altrun;
 
 int main() {
+    {
+        StartMenuProvider provider;
+
+        for (const auto& command :
+             provider.Discover()) {
+            std::wstring extension =
+                std::filesystem::path(
+                    command.target)
+                    .extension()
+                    .wstring();
+
+            std::transform(
+                extension.begin(),
+                extension.end(),
+                extension.begin(),
+                [](wchar_t ch) {
+                    return static_cast<wchar_t>(
+                        std::towlower(ch));
+                });
+
+            assert(extension != L".url");
+            assert(
+                command.basePriority == 0 ||
+                command.basePriority == -30 ||
+                command.basePriority == -50 ||
+                command.basePriority == -140);
+        }
+    }
+
     {
         AppPathsProvider provider;
 

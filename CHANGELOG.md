@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.5.14
+
+- Added query-length-aware search admission: 1–2 character ASCII queries no longer use arbitrary subsequence fuzzy matching, 3-character fuzzy is gap/span bounded, and 4+ fuzzy matches must clear a real minimum score.
+- Split match quality into explicit kinds so derived English/camel initials and pinyin initials are exact/prefix-only instead of recursively fuzzy.
+- Removed execution targets from ordinary lexical search; target/path matching now requires path intent or explicit wildcard use.
+- Made multi-token queries strict AND while preserving the anchored Hybrid Pinyin route used by cases such as `wei x`.
+- Added Start Menu entry hygiene: `.url` plus documentation/help/website/release-note shortcuts are filtered; admin/developer/maintenance entries remain discoverable at lower entry-level priority without changing Provider canonicalization order.
+- Bumped generated Provider Cache schema to 3 so stale pre-classification Start Menu entries are rebuilt.
+- Added regressions for `cs`, `df`, short `cd`, tight-fuzzy `cde`, explicit target-path search, existing pinyin/initials behavior and Windows Start Menu output policy.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.184`.
 ## 0.8.0-alpha.5.13
 
 - Added a pure/testable Classic numeric-input arbitration policy instead of treating every bare digit as an unconditional launch command.

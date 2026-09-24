@@ -352,6 +352,20 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] With Numeric Quick Launch disabled, all bare numeric input behaves exactly as normal Edit text.
 - [ ] Classic geometry, fonts, result numbering, Search/Provider ranking, Everything, Settings, Table Surface and Modern Compact visuals remain unchanged.
 
+## v0.8.0-alpha.5.14 Search relevance hygiene validation
+
+- [ ] Disable Everything and PATH, type `cs`: `cs2` or genuine CS-prefix/initial results stay relevant; SOLIDWORKS/iSCSI/ODBC-style path or subsequence noise does not appear.
+- [ ] Type `df`: Windows Defender Firewall does not appear solely because `df` is a fuzzy suffix of derived initials `wdf`.
+- [ ] Type `de`: real `De...` applications may match; Start Menu documentation/website shortcuts are absent and Developer PowerShell/Command Prompt remain discoverable only as lower-priority developer auxiliaries.
+- [ ] Verify a genuine initials query such as `wt` → Windows Terminal and `vsc` → Visual Studio Code still works.
+- [ ] Verify pinyin regressions `wx`, `wyy`, `jsq`, `chongqing`, `wangyy` and spaced Hybrid Pinyin `wei x` still resolve correctly with pinyin enabled.
+- [ ] Verify a two-character subsequence such as `cd` does not guess `Code`, while the bounded three-character fuzzy case `cde` still finds Code.
+- [ ] Verify an explicit path-style query such as `cloudmusic.exe`, a backslash-containing path, or an explicit wildcard can still match command targets.
+- [ ] Rebuild the program index once after upgrade; Provider Cache schema 3 replaces older Start Menu cache data, and `.url`/documentation/help/website/release-note entries do not return.
+- [ ] Windows administrative/developer/maintenance shortcuts remain launchable when directly searched; primary Start Menu applications retain normal ranking.
+- [ ] Provider duplicate canonicalization remains Start Menu → Packaged App → App Paths → PATH; previously fixed TeamSpeak/user-shortcut dedupe does not regress.
+- [ ] Classic geometry, fonts, table surface, numeric Quick Launch, Everything IPC behavior and Modern Compact visuals remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

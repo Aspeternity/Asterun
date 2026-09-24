@@ -55,14 +55,52 @@ public:
     }
 
 private:
+    enum class MatchKind {
+        None,
+        Exact,
+        Prefix,
+        BoundaryPrefix,
+        Substring,
+        Initials,
+        TightFuzzy,
+        Fuzzy,
+        PinyinFull,
+        PinyinInitials,
+        PinyinHybrid,
+    };
+
+    struct TextMatch {
+        MatchKind kind{MatchKind::None};
+        int score{0};
+    };
+
     [[nodiscard]] static std::wstring Normalize(
         std::wstring_view text);
 
     [[nodiscard]] static std::vector<std::wstring> QueryTokens(
         std::wstring_view text);
 
-    [[nodiscard]] static int MatchScore(
+    [[nodiscard]] static bool IsAsciiQuery(
+        std::wstring_view normalizedQuery);
+
+    [[nodiscard]] static bool IsWordBoundary(
         std::wstring_view field,
+        std::size_t index);
+
+    [[nodiscard]] static bool NormalizedPrefixAt(
+        std::wstring_view field,
+        std::size_t start,
+        std::wstring_view normalizedQuery);
+
+    [[nodiscard]] static TextMatch MatchScore(
+        std::wstring_view field,
+        std::wstring_view query);
+
+    [[nodiscard]] static TextMatch InitialsMatchScore(
+        std::wstring_view initials,
+        std::wstring_view normalizedQuery);
+
+    [[nodiscard]] static bool HasPathIntent(
         std::wstring_view query);
 
     [[nodiscard]] static bool GlobMatch(
@@ -82,7 +120,7 @@ private:
     [[nodiscard]] static std::wstring WordInitials(
         std::wstring_view field);
 
-    [[nodiscard]] static int DerivedInitialMatchScore(
+    [[nodiscard]] static TextMatch DerivedInitialMatchScore(
         std::wstring_view field,
         std::wstring_view normalizedQuery);
 
@@ -90,14 +128,15 @@ private:
         const PinyinForms& forms,
         std::wstring_view normalizedQuery);
 
-    [[nodiscard]] int PinyinMatchScore(
+    [[nodiscard]] TextMatch PinyinMatchScore(
         std::wstring_view field,
         std::wstring_view normalizedQuery) const;
 
-    [[nodiscard]] int CommandTextScore(
+    [[nodiscard]] TextMatch CommandTextScore(
         const Command& command,
         std::wstring_view normalizedQuery,
-        bool allowPinyin) const;
+        bool allowPinyin,
+        bool allowTarget) const;
 
     [[nodiscard]] static int CommandWildcardScore(
         const Command& command,

@@ -11,6 +11,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cwctype>
+#include <string>
+#include <string_view>
 #include <system_error>
 
 namespace altrun {
@@ -54,8 +57,307 @@ bool IsStartMenuEntry(
             path.extension().wstring());
 
     return extension == L".lnk" ||
-           extension == L".url" ||
            extension == L".exe";
+}
+
+enum class StartMenuEntryClass {
+    Primary,
+    SystemAdmin,
+    DeveloperAuxiliary,
+    Maintenance,
+    Filtered,
+};
+
+std::wstring LowerPathText(
+    const std::filesystem::path& path) {
+
+    std::wstring value =
+        win::Lower(
+            path.lexically_normal()
+                .wstring());
+
+    std::replace(
+        value.begin(),
+        value.end(),
+        L'/',
+        L'\\');
+
+    return value;
+}
+
+bool PathWithin(
+    const std::filesystem::path& path,
+    const std::filesystem::path& root) {
+
+    if (root.empty()) {
+        return false;
+    }
+
+    const std::wstring value =
+        LowerPathText(path);
+    std::wstring prefix =
+        LowerPathText(root);
+
+    if (value.empty() ||
+        prefix.empty()) {
+        return false;
+    }
+
+    while (prefix.size() > 3 &&
+           prefix.back() == L'\\') {
+        prefix.pop_back();
+    }
+
+    return value == prefix ||
+        (value.size() > prefix.size() &&
+         value.compare(
+             0,
+             prefix.size(),
+             prefix) == 0 &&
+         value[prefix.size()] == L'\\');
+}
+
+bool ContainsWholeWord(
+    std::wstring_view text,
+    std::wstring_view word) {
+
+    if (text.empty() ||
+        word.empty()) {
+        return false;
+    }
+
+    std::size_t start = 0;
+
+    while (start < text.size()) {
+        const auto position =
+            text.find(
+                word,
+                start);
+
+        if (position ==
+            std::wstring_view::npos) {
+            return false;
+        }
+
+        const bool leftBoundary =
+            position == 0 ||
+            !std::iswalnum(
+                text[position - 1]);
+
+        const std::size_t after =
+            position + word.size();
+
+        const bool rightBoundary =
+            after >= text.size() ||
+            !std::iswalnum(
+                text[after]);
+
+        if (leftBoundary &&
+            rightBoundary) {
+            return true;
+        }
+
+        start = position + 1;
+    }
+
+    return false;
+}
+
+bool HasPathComponent(
+    const std::filesystem::path& path,
+    std::wstring_view component) {
+
+    const std::wstring wrapped =
+        L"\\" +
+        LowerPathText(
+            path.parent_path()) +
+        L"\\";
+
+    const std::wstring needle =
+        L"\\" +
+        win::Lower(component) +
+        L"\\";
+
+    return wrapped.find(needle) !=
+        std::wstring::npos;
+}
+
+bool IsDocumentationEntry(
+    const std::filesystem::path& path) {
+
+    const std::wstring title =
+        win::Lower(
+            path.stem().wstring());
+
+    return
+        ContainsWholeWord(
+            title,
+            L"documentation") ||
+        ContainsWholeWord(
+            title,
+            L"docs") ||
+        ContainsWholeWord(
+            title,
+            L"help") ||
+        ContainsWholeWord(
+            title,
+            L"manual") ||
+        ContainsWholeWord(
+            title,
+            L"readme") ||
+        ContainsWholeWord(
+            title,
+            L"website") ||
+        ContainsWholeWord(
+            title,
+            L"changelog") ||
+        title.find(
+            L"release notes") !=
+            std::wstring::npos ||
+        title.find(L"文档") !=
+            std::wstring::npos ||
+        title.find(L"帮助") !=
+            std::wstring::npos ||
+        title.find(L"网站") !=
+            std::wstring::npos ||
+        title.find(L"发行说明") !=
+            std::wstring::npos ||
+        title.find(L"发布说明") !=
+            std::wstring::npos ||
+        title.find(L"更新日志") !=
+            std::wstring::npos;
+}
+
+bool IsMaintenanceEntry(
+    const std::filesystem::path& path) {
+
+    const std::wstring title =
+        win::Lower(
+            path.stem().wstring());
+
+    return
+        ContainsWholeWord(
+            title,
+            L"uninstall") ||
+        ContainsWholeWord(
+            title,
+            L"repair") ||
+        ContainsWholeWord(
+            title,
+            L"modify") ||
+        title.find(L"卸载") !=
+            std::wstring::npos ||
+        title.find(L"修复") !=
+            std::wstring::npos;
+}
+
+bool IsAdministrativeEntry(
+    const std::filesystem::path& path) {
+
+    static const std::filesystem::path
+        userAdmin =
+            KnownFolder(
+                FOLDERID_AdminTools);
+    static const std::filesystem::path
+        commonAdmin =
+            KnownFolder(
+                FOLDERID_CommonAdminTools);
+
+    return
+        PathWithin(
+            path,
+            userAdmin) ||
+        PathWithin(
+            path,
+            commonAdmin) ||
+        HasPathComponent(
+            path,
+            L"Windows Tools") ||
+        HasPathComponent(
+            path,
+            L"Administrative Tools") ||
+        HasPathComponent(
+            path,
+            L"System Tools");
+}
+
+bool IsDeveloperAuxiliaryEntry(
+    const std::filesystem::path& path) {
+
+    const std::wstring title =
+        win::Lower(
+            path.stem().wstring());
+
+    return
+        ContainsWholeWord(
+            title,
+            L"developer") ||
+        ContainsWholeWord(
+            title,
+            L"debuggable") ||
+        ContainsWholeWord(
+            title,
+            L"sdk") ||
+        HasPathComponent(
+            path,
+            L"Developer Tools") ||
+        HasPathComponent(
+            path,
+            L"Visual Studio Tools") ||
+        HasPathComponent(
+            path,
+            L"Windows Kits") ||
+        HasPathComponent(
+            path,
+            L"SDK");
+}
+
+StartMenuEntryClass
+ClassifyStartMenuEntry(
+    const std::filesystem::path& path) {
+
+    if (IsDocumentationEntry(path)) {
+        return StartMenuEntryClass::
+            Filtered;
+    }
+
+    if (IsMaintenanceEntry(path)) {
+        return StartMenuEntryClass::
+            Maintenance;
+    }
+
+    if (IsAdministrativeEntry(path)) {
+        return StartMenuEntryClass::
+            SystemAdmin;
+    }
+
+    if (IsDeveloperAuxiliaryEntry(
+            path)) {
+        return StartMenuEntryClass::
+            DeveloperAuxiliary;
+    }
+
+    return StartMenuEntryClass::
+        Primary;
+}
+
+int BasePriorityFor(
+    StartMenuEntryClass entryClass) {
+
+    switch (entryClass) {
+    case StartMenuEntryClass::Primary:
+        return 0;
+    case StartMenuEntryClass::SystemAdmin:
+        return -30;
+    case StartMenuEntryClass::DeveloperAuxiliary:
+        return -50;
+    case StartMenuEntryClass::Maintenance:
+        return -140;
+    case StartMenuEntryClass::Filtered:
+        break;
+    }
+
+    return -140;
 }
 
 } // namespace
@@ -148,6 +450,17 @@ void StartMenuProvider::ScanPath(
             continue;
         }
 
+        const StartMenuEntryClass
+            entryClass =
+                ClassifyStartMenuEntry(
+                    it->path());
+
+        if (entryClass ==
+            StartMenuEntryClass::
+                Filtered) {
+            continue;
+        }
+
         Command command;
         command.title =
             it->path().stem().wstring();
@@ -162,7 +475,8 @@ void StartMenuProvider::ScanPath(
         command.enabled = true;
         command.source =
             CommandSource::StartMenu;
-        command.basePriority = 0;
+        command.basePriority =
+            BasePriorityFor(entryClass);
 
         if (command.keyword.empty()) {
             command.keyword =
@@ -212,7 +526,11 @@ void StartMenuProvider::FingerprintPath(
 
         if (!it->is_regular_file(ec) ||
             !IsStartMenuEntry(
-                it->path())) {
+                it->path()) ||
+            ClassifyStartMenuEntry(
+                it->path()) ==
+                StartMenuEntryClass::
+                    Filtered) {
             continue;
         }
 

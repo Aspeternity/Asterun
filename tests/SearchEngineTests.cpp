@@ -191,6 +191,110 @@ int main(int argc, char** argv) {
     auto impossibleMultiWord = engine.Search(commands, usage, L"visual music", 10);
     assert(impossibleMultiWord.empty());
 
+    // Short queries must not admit arbitrary subsequence or target-path noise.
+    auto shortSubsequence =
+        engine.Search(
+            commands,
+            usage,
+            L"cd",
+            10);
+    assert(shortSubsequence.empty());
+
+    auto tightFuzzy =
+        engine.Search(
+            commands,
+            usage,
+            L"cde",
+            10);
+    assert(!tightFuzzy.empty());
+    assert(
+        tightFuzzy.front()
+            .commandIndex == 1);
+
+    auto explicitTargetPath =
+        engine.Search(
+            commands,
+            usage,
+            L"cloudmusic.exe",
+            10);
+    assert(!explicitTargetPath.empty());
+    assert(
+        explicitTargetPath.front()
+            .commandIndex == 4);
+
+    {
+        std::vector<Command>
+            hygieneCommands{
+                MakeCommand(
+                    L"h1",
+                    L"cs2",
+                    L"Counter-Strike 2",
+                    L"C:\\Games\\cs2.exe",
+                    0),
+                MakeCommand(
+                    L"h2",
+                    L"componentservices",
+                    L"Component Services",
+                    L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Windows Tools\\Component Services.lnk",
+                    1),
+                MakeCommand(
+                    L"h3",
+                    L"solidworks",
+                    L"SOLIDWORKS",
+                    L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\SOLIDWORKS\\SOLIDWORKS.lnk",
+                    2),
+            };
+
+        hygieneCommands[1].source =
+            CommandSource::StartMenu;
+        hygieneCommands[1].basePriority =
+            -30;
+        hygieneCommands[2].source =
+            CommandSource::StartMenu;
+        hygieneCommands[2].basePriority =
+            0;
+
+        const auto cs =
+            engine.Search(
+                hygieneCommands,
+                usage,
+                L"cs",
+                10);
+
+        assert(!cs.empty());
+        assert(
+            cs.front()
+                .commandIndex == 0);
+        assert(ContainsCommand(cs, 1));
+        assert(!ContainsCommand(cs, 2));
+    }
+
+    {
+        std::vector<Command>
+            defenderCommands{
+                MakeCommand(
+                    L"d1",
+                    L"windowsdefenderfirewall",
+                    L"Windows Defender Firewall",
+                    L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Windows Tools\\Windows Defender Firewall.lnk",
+                    0),
+            };
+
+        defenderCommands[0].source =
+            CommandSource::StartMenu;
+        defenderCommands[0].basePriority =
+            -30;
+
+        const auto df =
+            engine.Search(
+                defenderCommands,
+                usage,
+                L"df",
+                10);
+
+        assert(df.empty());
+    }
+
     auto wildcardDisabled =
         engine.Search(
             commands,
