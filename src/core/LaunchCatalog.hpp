@@ -6,7 +6,7 @@
 namespace altrun {
 
 enum class LaunchActivationKind {
-    ShellExecute,
+    ShellItem,
     PackagedApplication,
 };
 
@@ -19,7 +19,7 @@ ParseLaunchActivationKind(
     std::string_view value,
     LaunchActivationKind fallback =
         LaunchActivationKind::
-            ShellExecute) noexcept;
+            ShellItem) noexcept;
 
 struct PackagedVisibilityEvidence {
     bool hidden{false};

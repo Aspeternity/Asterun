@@ -1580,7 +1580,7 @@ int main() {
         CommandSource::StartMenu;
     cachedStart.activationKind =
         LaunchActivationKind::
-            ShellExecute;
+            ShellItem;
     cachedStart.canonicalIdentity =
         L"file:c:\\apps\\test.exe";
     cachedStart.surfaceClass =
@@ -1649,7 +1649,7 @@ int main() {
             .commands[0]
             .activationKind ==
         LaunchActivationKind::
-            ShellExecute);
+            ShellItem);
     assert(
         startCache->second
             .commands[0]

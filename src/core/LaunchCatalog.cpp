@@ -99,7 +99,7 @@ const char* LaunchActivationKindName(
 
     switch (kind) {
     case LaunchActivationKind::
-        ShellExecute:
+        ShellItem:
         return "shell-execute";
     case LaunchActivationKind::
         PackagedApplication:
@@ -122,7 +122,7 @@ ParseLaunchActivationKind(
 
     if (value == "shell-execute") {
         return LaunchActivationKind::
-            ShellExecute;
+            ShellItem;
     }
 
     return fallback;
@@ -174,7 +174,7 @@ ActivationKindForCatalogTarget(
         ? LaunchActivationKind::
               PackagedApplication
         : LaunchActivationKind::
-              ShellExecute;
+              ShellItem;
 }
 
 std::wstring BuildCanonicalLaunchIdentity(

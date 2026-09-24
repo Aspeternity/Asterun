@@ -25,13 +25,13 @@ int main() {
     const auto startIdentity =
         BuildCanonicalLaunchIdentity(
             LaunchActivationKind::
-                ShellExecute,
+                ShellItem,
             L"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe");
 
     const auto appPathIdentity =
         BuildCanonicalLaunchIdentity(
             LaunchActivationKind::
-                ShellExecute,
+                ShellItem,
             L"c:/program files/google/chrome/application/CHROME.EXE");
 
     assert(!startIdentity.empty());
@@ -42,13 +42,13 @@ int main() {
     const auto normalIdentity =
         BuildCanonicalLaunchIdentity(
             LaunchActivationKind::
-                ShellExecute,
+                ShellItem,
             L"C:\\Apps\\Browser.exe");
 
     const auto specialIdentity =
         BuildCanonicalLaunchIdentity(
             LaunchActivationKind::
-                ShellExecute,
+                ShellItem,
             L"C:\\Apps\\Browser.exe",
             L"--incognito");
 

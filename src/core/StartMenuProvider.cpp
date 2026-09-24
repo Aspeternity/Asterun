@@ -394,7 +394,7 @@ void StartMenuProvider::ScanPath(
             it->path().wstring();
         command.activationKind =
             LaunchActivationKind::
-                ShellExecute;
+                ShellItem;
         command.canonicalIdentity =
             BuildCanonicalLaunchIdentity(
                 command.activationKind,

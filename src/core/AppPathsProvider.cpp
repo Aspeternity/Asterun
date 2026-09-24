@@ -328,7 +328,7 @@ void EnumerateAppPathsKey(
         command.target = target;
         command.activationKind =
             LaunchActivationKind::
-                ShellExecute;
+                ShellItem;
         command.canonicalIdentity =
             BuildCanonicalLaunchIdentity(
                 command.activationKind,

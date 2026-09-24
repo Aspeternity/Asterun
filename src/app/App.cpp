@@ -4466,7 +4466,7 @@ bool App::LaunchCommand(
     // packaged apps keep launching correctly without a user-schema rewrite.
     if (activationKind ==
             LaunchActivationKind::
-                ShellExecute &&
+                ShellItem &&
         IsPackagedApplicationId(
             resolved.target)) {
         activationKind =

@@ -40,7 +40,7 @@ struct Command {
     std::wstring workingDirectory;
     LaunchActivationKind activationKind{
         LaunchActivationKind::
-            ShellExecute};
+            ShellItem};
     std::wstring canonicalIdentity;
     RuntimeInputMode runtimeInputMode{
         RuntimeInputMode::None};

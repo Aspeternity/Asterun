@@ -278,7 +278,7 @@ int main() {
         const auto chromeIdentity =
             BuildCanonicalLaunchIdentity(
                 LaunchActivationKind::
-                    ShellExecute,
+                    ShellItem,
                 L"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe");
 
         const std::vector<Command> providers{
@@ -320,13 +320,13 @@ int main() {
         const auto normalIdentity =
             BuildCanonicalLaunchIdentity(
                 LaunchActivationKind::
-                    ShellExecute,
+                    ShellItem,
                 L"C:\\Apps\\Browser.exe");
 
         const auto privateIdentity =
             BuildCanonicalLaunchIdentity(
                 LaunchActivationKind::
-                    ShellExecute,
+                    ShellItem,
                 L"C:\\Apps\\Browser.exe",
                 L"--incognito");
 
@@ -362,7 +362,7 @@ int main() {
         const auto providerIdentity =
             BuildCanonicalLaunchIdentity(
                 LaunchActivationKind::
-                    ShellExecute,
+                    ShellItem,
                 L"C:\\Apps\\ChatClient.exe");
 
         const std::vector<Command> users{
