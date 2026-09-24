@@ -358,8 +358,7 @@ int main() {
     }
 
     {
-        // Preserve the old user-promotion invariant without carrying a
-        // product-specific TeamSpeak fixture.
+        // Preserve the old user-promotion invariant with a generic fixture.
         const auto providerIdentity =
             BuildCanonicalLaunchIdentity(
                 LaunchActivationKind::
