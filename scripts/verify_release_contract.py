@@ -94,8 +94,8 @@ if version == "0.8.0-alpha.5.16":
     for token in (
         "IsDocumentationLikeTitle(",
         "IsMaintenanceLikeTitle(",
-        "LaunchTargetKind::Document",
-        "LaunchTargetKind::WebUri",
+        "Document",
+        "WebUri",
         "LaunchCandidateSource::StartMenu",
         "LaunchCandidateSource::AppsFolder",
         "LaunchCandidateSource::AppPaths",
