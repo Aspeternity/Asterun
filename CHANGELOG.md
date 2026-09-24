@@ -9,7 +9,7 @@
 - Added Open Shortcut Manager (Alt+S) and disabled-by-default Exit ALTRun Next actions to the centralized Hotkey Registry.
 - Retained all four window-placement preferences and the optional system-tray icon.
 - Migrated settings schemaVersion from 9 to 10 and stopped serializing showOnStartup, hideAfterLaunch, clearQueryOnShow, hideOnFocusLost, wildcardMatching, and numericQuickLaunchOrder.
-- Kept Classic HiDPI assets and all non-Settings architecture frozen; Windows fixed FileVersion/ProductVersion is `0.8.0.80`.
+- Kept Classic HiDPI assets and all non-Settings architecture frozen; Windows fixed FileVersion/ProductVersion is `0.8.0.171`.
 
 ## 0.8.0-alpha.4.9
 

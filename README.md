@@ -33,7 +33,7 @@ Search & execution keeps result icons, Pinyin search, numeric quick launch, and 
 
 Send To integration creates a normal Windows SendTo .lnk only when explicitly enabled. Explorer launches ALTRunNext.exe --add-shortcut <path>; a second instance forwards the request to the existing Launcher through bounded WM_COPYDATA, and the normal New Shortcut editor opens prefilled instead of silently creating data. The centralized Hotkey Registry adds **打开快捷项管理 / Open Shortcut Manager** (Alt+S by default) plus **退出 ALTRun Next / Exit ALTRun Next** (disabled by default).
 
-Settings schema is **10**. Classic ALTRun geometry, HiDPI 25/31/38/44/50px glyph resources, providers, Everything, updater and Modern Compact remain frozen. Windows fixed FileVersion/ProductVersion is `0.8.0.80`.
+Settings schema is **10**. Classic ALTRun geometry, HiDPI 25/31/38/44/50px glyph resources, providers, Everything, updater and Modern Compact remain frozen. Windows fixed FileVersion/ProductVersion is `0.8.0.171`.
 
 ## v0.8.0-alpha.4.9 — Classic HiDPI Glyph Assets
 

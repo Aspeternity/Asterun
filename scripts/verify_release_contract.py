@@ -268,14 +268,14 @@ if version == "0.8.0-alpha.5.1":
             fail(f"v0.8 alpha.5 frozen Classic asset changed: {path}")
 
     for token in (
-        "FILEVERSION 0,8,0,80",
-        "PRODUCTVERSION 0,8,0,80",
+        "FILEVERSION 0,8,0,171",
+        "PRODUCTVERSION 0,8,0,171",
         "0.8.0-alpha.5.1",
     ):
         if token not in resources:
             fail(f"v0.8 alpha.5 resource version missing: {token}")
-    if 'version="0.8.0.80"' not in manifest:
-        fail("v0.8 alpha.5 manifest fixed version must be 0.8.0.80")
+    if 'version="0.8.0.171"' not in manifest:
+        fail("v0.8 alpha.5 manifest fixed version must be 0.8.0.171")
 
     for token in (
         '"0.8.0-alpha.4.9"',
@@ -302,7 +302,7 @@ if version == "0.8.0-alpha.5.1":
         "v0.8.0-alpha.5.1 — Settings Behavior Cleanup",
         "Settings schema is **10**",
         "WM_COPYDATA",
-        "0.8.0.80",
+        "0.8.0.171",
     ):
         if token not in readme:
             fail(f"v0.8 alpha.5 README missing: {token}")
