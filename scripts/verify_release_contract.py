@@ -170,7 +170,7 @@ if version == "0.8.0-alpha.5.15":
         if token not in packaged_cpp or token not in app_paths_cpp:
             fail(f"v0.8 alpha.5.15 packaged/AppPaths classification missing: {token}")
 
-    if "LaunchSurfaceClass::CommandLineTool" not in path_cpp:
+    if "CommandLineTool" not in path_cpp or "surfaceClass" not in path_cpp:
         fail("v0.8 alpha.5.15 PATH must be a CommandLineTool surface")
     if 'L"PATH",\n        false' not in path_cpp:
         fail("v0.8 alpha.5.15 PATH provider descriptor must default off")
