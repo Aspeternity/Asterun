@@ -3950,13 +3950,32 @@ void SettingsWindow::Layout() {
             behaviorWidth, toggleHeight, TRUE);
 
         const int startupTop = metrics.behavior.top + toggleHeight;
-        const int comboWidth = Scale(180);
-        const int comboX = metrics.behavior.right - comboWidth - Scale(18);
-        const int labelX = metrics.behavior.left + Scale(18);
-        MoveWindow(startupBehaviorLabel_, labelX, startupTop + Scale(15),
-            std::max(Scale(150), comboX - labelX - Scale(16)), Scale(24), TRUE);
-        MoveWindow(startupBehavior_, comboX, startupTop + Scale(10),
-            comboWidth, Scale(180), TRUE);
+        const int startupComboWidth = Scale(180);
+        const int startupComboX =
+            metrics.behavior.right -
+            startupComboWidth -
+            Scale(18);
+        const int startupLabelX =
+            metrics.behavior.left +
+            Scale(18);
+        MoveWindow(
+            startupBehaviorLabel_,
+            startupLabelX,
+            startupTop + Scale(15),
+            std::max(
+                Scale(150),
+                startupComboX -
+                    startupLabelX -
+                    Scale(16)),
+            Scale(24),
+            TRUE);
+        MoveWindow(
+            startupBehavior_,
+            startupComboX,
+            startupTop + Scale(10),
+            startupComboWidth,
+            Scale(180),
+            TRUE);
 
         const int trayTop = startupTop + comboRowHeight;
         MoveWindow(showTrayIcon_, behaviorX, trayTop, behaviorWidth, toggleHeight, TRUE);
