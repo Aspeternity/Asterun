@@ -10,6 +10,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <knownfolders.h>
+#include <propsys.h>
 #include <propkey.h>
 #include <shlobj.h>
 #include <shobjidl.h>
