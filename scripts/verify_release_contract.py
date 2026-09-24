@@ -120,6 +120,15 @@ if version == "0.8.0-alpha.5.14":
     if "StartMenuProvider provider" not in provider_tests or 'extension != L".url"' not in provider_tests:
         fail("v0.8 alpha.5.14 Windows Start Menu smoke coverage missing")
 
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    for token in (
+        '"schemaVersion\\": 3',
+        "provider-cache-schema2-stale.json",
+        "staleSchema2Cache.Load().empty()",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.14 provider-cache migration regression missing: {token}")
+
     subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
         cwd=ROOT,

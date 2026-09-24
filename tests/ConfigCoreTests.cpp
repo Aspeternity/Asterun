@@ -1665,7 +1665,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 2,\n"
+        "  \"schemaVersion\": 3,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1693,6 +1693,39 @@ int main() {
             std::string(
                 providers::kStartMenu))
             .commands.empty());
+
+    // Schema 2 is generated cache data from before Start Menu relevance
+    // classification. It must be ignored wholesale so providers rebuild
+    // fresh schema-3 entries instead of reviving stale .url/priority state.
+    const auto staleSchema2ProviderCache =
+        data /
+        "provider-cache-schema2-stale.json";
+
+    WriteText(
+        staleSchema2ProviderCache,
+        "{\n"
+        "  \"schemaVersion\": 2,\n"
+        "  \"providers\": {\n"
+        "    \"windows.startmenu\": {\n"
+        "      \"generatedAtUnix\": 1700000260,\n"
+        "      \"commands\": [\n"
+        "        {\n"
+        "          \"id\": \"start:stale\",\n"
+        "          \"name\": \"Stale Website\",\n"
+        "          \"keyword\": \"stalewebsite\",\n"
+        "          \"target\": \"stale.url\",\n"
+        "          \"source\": \"start-menu\"\n"
+        "        }\n"
+        "      ]\n"
+        "    }\n"
+        "  }\n"
+        "}\n");
+
+    ProviderCache staleSchema2Cache(
+        staleSchema2ProviderCache);
+
+    assert(
+        staleSchema2Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =
