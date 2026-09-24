@@ -29,7 +29,7 @@ Alpha.5.17 fixes a false-negative edge in the positive-admission pipeline introd
 
 `ExecutableUnknown` still passes through every alpha.5.16 hygiene gate: documentation, web, maintenance, updater/uninstaller and auxiliary/helper/native-messaging roles are rejected before indexing. This restores legitimate Start Menu/App Paths applications without returning to extension-only default acceptance.
 
-`LaunchAdmission` now carries an explicit reason (`Admitted`, `Documentation`, `Maintenance`, `Auxiliary`, `DocumentTarget`, `WebTarget`, `UnsupportedTarget`, etc.), making admission behavior deterministic and testable. The TeamSpeak regression is covered directly: a normal Start Menu `TeamSpeak.exe` with an unclassified executable subtype is admitted as a PrimaryApplication, while the existing TeamSpeak 3/6 merge regression continues to prove both distinct applications survive canonicalization.
+`LaunchAdmission` now carries an explicit `LaunchAdmissionReason` (`Admitted`, `Documentation`, `Maintenance`, `Auxiliary`, `DocumentTarget`, `WebTarget`, `UnsupportedTarget`, etc.), making admission behavior deterministic and testable. The TeamSpeak regression is covered directly: a normal Start Menu `TeamSpeak.exe` with an unclassified executable subtype is admitted as a PrimaryApplication, while the existing TeamSpeak 3/6 merge regression continues to prove both distinct applications survive canonicalization.
 
 Windows runtime coverage creates an actual `.lnk` to an opaque existing `.exe` fixture and verifies that shortcut resolution yields `ExecutableUnknown` rather than rejection. Generated Provider Cache schema is bumped to 6 so schema-5 caches that may have omitted such applications rebuild once.
 
