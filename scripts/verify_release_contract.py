@@ -125,7 +125,7 @@ if version == "0.8.0-alpha.5.21":
         "PKEY_AppUserModel_PreventPinning",
         "SFGAO_HIDDEN",
         "SFGAO_SYSTEM",
-        "PackagedApplication",
+        "ActivationKindForCatalogTarget",
     ):
         if token not in packaged_cpp:
             fail(f"v0.8 alpha.5.21 packaged visibility/activation evidence missing: {token}")
