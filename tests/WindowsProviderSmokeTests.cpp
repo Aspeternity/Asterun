@@ -1,4 +1,5 @@
 #include "core/AppPathsProvider.hpp"
+#include "core/LaunchCandidate.hpp"
 #include "core/ProviderCache.hpp"
 #include "core/ProviderIds.hpp"
 #include "core/ProviderRegistry.hpp"
@@ -50,6 +51,14 @@ int main() {
             assert(
                 command.surfaceClass !=
                     LaunchSurfaceClass::Action);
+            assert(
+                command.surfaceClass !=
+                    LaunchSurfaceClass::
+                        Auxiliary);
+            assert(
+                command.surfaceClass !=
+                    LaunchSurfaceClass::
+                        Maintenance);
         }
     }
 
@@ -73,6 +82,14 @@ int main() {
                 command.surfaceClass !=
                     LaunchSurfaceClass::
                         FilesystemItem);
+            assert(
+                command.surfaceClass !=
+                    LaunchSurfaceClass::
+                        Auxiliary);
+            assert(
+                command.surfaceClass !=
+                    LaunchSurfaceClass::
+                        Maintenance);
         }
     }
 
@@ -251,6 +268,25 @@ int main() {
                 << L"Provider discovery reported a recoverable failure: "
                 << descriptor.name
                 << L"\n";
+        } else {
+            for (const auto& command :
+                 discovery[0].commands) {
+                assert(
+                    command.surfaceClass !=
+                        LaunchSurfaceClass::
+                            Auxiliary);
+                assert(
+                    command.surfaceClass !=
+                        LaunchSurfaceClass::
+                            Maintenance);
+
+                if (descriptor.id ==
+                    providers::kPackaged) {
+                    assert(
+                        !LooksLikeWebTarget(
+                            command.target));
+                }
+            }
         }
 
         const auto tokens =

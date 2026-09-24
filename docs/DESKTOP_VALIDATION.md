@@ -381,6 +381,21 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] User shortcuts/pinned commands remain authoritative. Usage changes ordering only among comparable relevance tiers and cannot lift an auxiliary fuzzy match above a primary prefix.
 - [ ] Classic visuals, geometry, numeric Quick Launch arbitration, table surface and Modern Compact visuals remain unchanged.
 
+## v0.8.0-alpha.5.16 Launch candidate admission validation
+
+- [ ] Refresh/rebuild providers after upgrade. Provider Cache schema 5 must rebuild once and schema-4 Start Menu/AppsFolder/App Paths entries must not survive unchanged.
+- [ ] Search for `最新版本里有哪些新功能`: the WinRAR What's New shortcut from the Start Menu must not appear. `控制台 RAR 中文手册`, WinRAR help/manual/documentation shortcuts must likewise stay out of the normal launcher index.
+- [ ] Search `winrar`: the real WinRAR application remains available and launches normally through its original Start Menu shortcut.
+- [ ] Search `f` / `fangwen`: AppsFolder vendor website entries such as `访问 Java.com` with an `https://java.com/` target must not appear.
+- [ ] Confirm normal packaged applications (Calculator, Paint, Settings/other installed MSIX apps as available) remain discoverable; HTTP/HTTPS/FTP/mail Shell entries are not treated as applications.
+- [ ] Confirm `Uninstall`, `Repair`, updater/update-helper, `*Help`, `*Helper`, `*Host`, `*Broker`, NativeMessaging, crash-handler and comparable internal/maintenance candidates do not enter Start Menu, AppsFolder, App Paths or PATH result sets merely because they are launchable files.
+- [ ] Verify Windows administrative tools and meaningful developer tools remain searchable with their existing stricter LaunchSurface admission thresholds.
+- [ ] With PATH enabled, `git`, `python`, `adb`, `ffmpeg` and comparable CLI tools remain available on explicit queries; helper/maintenance binaries are absent.
+- [ ] Right-click/launch several normal Start Menu shortcuts with arguments or custom working directories. Execution must still use the original `.lnk` and preserve Windows shortcut semantics.
+- [ ] Recheck search relevance regressions `h`, `cs`, `de`, `df`, `wt`, `vsc`, `wx`, `wyy`, `jsq`, `wei x`, `v2ray`, `7zip`, `1password`, `cs2`.
+- [ ] Everything behavior is unchanged from alpha.5.15: ordinary one-character queries do not start dynamic filesystem IPC and explicit syntax/path queries still work.
+- [ ] Classic visuals/geometry, table resize, numeric Quick Launch arbitration and Modern Compact visuals remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

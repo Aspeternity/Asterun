@@ -23,6 +23,19 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.16 — Launch Candidate Admission
+
+Alpha.5.16 moves the provider boundary from default-accept/filter-later to positive admission: a discovered Windows object must prove that it is a meaningful launch target before it is allowed into the searchable command index.
+
+Start Menu `.lnk` entries are now inspected through the native `IShellLinkW`/`IPersistFile` path. ALTRun Next resolves the shortcut's real target for admission and role inspection while preserving the original `.lnk` as the execution target, so shortcut arguments, working directory and Windows Installer/Shell semantics remain owned by Windows. Shortcuts that resolve to documents, help/manual/What's New content, web targets, maintenance entries or auxiliary/internal helpers are rejected before search. Opaque unresolved shortcuts are no longer assumed to be applications.
+
+AppsFolder entries now pass the same admission policy. HTTP/HTTPS/FTP/mail targets such as vendor website shortcuts are not Windows applications and are excluded. Valid package/Shell activation targets remain eligible, while Auxiliary and Maintenance surfaces are rejected rather than merely ranked lower.
+
+App Paths now inspects the actual PE subsystem. GUI executables remain PrimaryApplication candidates, console executables become CommandLineTool candidates, and maintenance/helper/native-messaging style executables are rejected before indexing. PATH keeps its opt-in CLI role and also uses the shared candidate admission policy, so obvious helper/maintenance binaries do not enter its candidate set.
+
+`LaunchCandidate` is the single provider-neutral admission owner; `LaunchTargetInspector` owns Windows-specific shortcut resolution and PE target inspection. Search/RelevancePolicy receives only admitted candidates and therefore no longer has to clean up uninstallers, documentation links, web shortcuts or internal helper executables after the fact.
+
+Generated Provider Cache schema is bumped to 5 so schema-4 candidates discovered before positive admission are rebuilt once. Classic UI geometry, table resize ownership, numeric Quick Launch arbitration and the alpha.5.15 unified relevance/ranking policy are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.186`.
 ## v0.8.0-alpha.5.15 — Launch Surface & Unified Relevance
 
 Alpha.5.15 moves search quality upstream from score tuning to an explicit discovery → classification → admission → matching → ranking pipeline.

@@ -14,7 +14,7 @@ namespace altrun {
 
 namespace {
 
-constexpr int kProviderCacheSchemaVersion = 4;
+constexpr int kProviderCacheSchemaVersion = 5;
 
 const char* TypeName(
     CommandType type) {
@@ -388,48 +388,9 @@ ProviderCache::Load() const {
             return data;
         }
 
-        // v0.4.0-alpha.2 used a flat schemaVersion 1 cache. Group those
-        // commands by their stable provider IDs in memory; modern surface
-        // metadata falls back from CommandSource and the next refresh writes
-        // the current generated-cache schema.
-        if (version == 1 &&
-            root.contains("commands") &&
-            root["commands"].is_array()) {
-
-            const std::int64_t generatedAt =
-                root.value(
-                    "generatedAtUnix",
-                    std::int64_t{0});
-
-            for (const auto& item :
-                 root["commands"]) {
-                auto command =
-                    ParseCommand(item);
-
-                if (!command ||
-                    command->source ==
-                        CommandSource::User) {
-                    continue;
-                }
-
-                const char* providerId =
-                    ProviderIdForSource(
-                        command->source);
-
-                if (providerId == nullptr) {
-                    continue;
-                }
-
-                auto& entry =
-                    data[providerId];
-
-                entry.generatedAtUnix =
-                    generatedAt;
-
-                entry.commands.push_back(
-                    std::move(*command));
-            }
-        }
+        // Provider cache is generated state. Any older schema is ignored
+        // wholesale and rebuilt by live providers; migrating stale candidates
+        // would bypass the current admission policy.
     } catch (...) {
         data.clear();
     }

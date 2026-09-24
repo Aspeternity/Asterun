@@ -1,5 +1,6 @@
 #include "PathProvider.hpp"
 
+#include "LaunchCandidate.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/WinUtil.hpp"
@@ -369,9 +370,48 @@ PathProvider::Discover() const {
                 continue;
             }
 
-            Command command;
-            command.title =
+            const std::wstring extension =
+                win::Lower(
+                    it->path()
+                        .extension()
+                        .wstring());
+
+            LaunchTargetKind targetKind =
+                LaunchTargetKind::
+                    ConsoleExecutable;
+
+            if (extension == L".bat" ||
+                extension == L".cmd") {
+                targetKind =
+                    LaunchTargetKind::
+                        CommandScript;
+            }
+
+            const std::wstring title =
                 it->path().stem().wstring();
+
+            const LaunchSurfaceClass
+                initialSurface =
+                    ClassifyApplicationSurface(
+                        title,
+                        target);
+
+            const LaunchAdmission admission =
+                EvaluateLaunchCandidate({
+                    LaunchCandidateSource::Path,
+                    title,
+                    target,
+                    initialSurface,
+                    targetKind,
+                    true,
+                });
+
+            if (!admission.admit) {
+                continue;
+            }
+
+            Command command;
+            command.title = title;
             command.keyword =
                 win::CompactKeyword(
                     command.title);
@@ -390,8 +430,7 @@ PathProvider::Discover() const {
             command.source =
                 CommandSource::Path;
             command.surfaceClass =
-                LaunchSurfaceClass::
-                    CommandLineTool;
+                admission.surface;
             command.basePriority = 0;
             command.id =
                 L"path:" + targetKey;

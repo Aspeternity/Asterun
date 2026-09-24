@@ -42,6 +42,243 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.16":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.16 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 5:
+        fail("v0.8 alpha.5.16 must rebuild generated provider cache at schemaVersion 5")
+
+    candidate_h = read("src/core/LaunchCandidate.hpp")
+    candidate_cpp = read("src/core/LaunchCandidate.cpp")
+    provider_cache_cpp = read("src/core/ProviderCache.cpp")
+    inspector_h = read("src/platform/LaunchTargetInspector.hpp")
+    inspector_cpp = read("src/platform/LaunchTargetInspector.cpp")
+    start_menu_cpp = read("src/core/StartMenuProvider.cpp")
+    packaged_cpp = read("src/core/PackagedAppProvider.cpp")
+    app_paths_cpp = read("src/core/AppPathsProvider.cpp")
+    path_cpp = read("src/core/PathProvider.cpp")
+    candidate_tests = read("tests/LaunchCandidateTests.cpp")
+    inspector_tests = read("tests/LaunchTargetInspectorTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    provider_tests = read("tests/WindowsProviderSmokeTests.cpp")
+    cmake = read("CMakeLists.txt")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "enum class LaunchCandidateSource",
+        "enum class LaunchTargetKind",
+        "struct LaunchAdmission",
+        "EvaluateLaunchCandidate(",
+        "InferTextTargetKind(",
+    ):
+        if token not in candidate_h:
+            fail(f"v0.8 alpha.5.16 LaunchCandidate contract missing: {token}")
+
+    for token in (
+        "IsDocumentationLikeTitle(",
+        "IsMaintenanceLikeTitle(",
+        "LaunchTargetKind::Document",
+        "LaunchTargetKind::WebUri",
+        "LaunchCandidateSource::StartMenu",
+        "LaunchCandidateSource::AppsFolder",
+        "LaunchCandidateSource::AppPaths",
+        "LaunchCandidateSource::Path",
+    ):
+        if token not in candidate_cpp:
+            fail(f"v0.8 alpha.5.16 positive admission implementation missing: {token}")
+
+    for token in (
+        "InspectLaunchTarget(",
+        "InspectShellLink(",
+        "ShortcutTarget",
+    ):
+        if token not in inspector_h:
+            fail(f"v0.8 alpha.5.16 Windows target inspector contract missing: {token}")
+
+    for token in (
+        "IShellLinkW",
+        "IPersistFile",
+        "SHGetNameFromIDList",
+        "IMAGE_SUBSYSTEM_WINDOWS_GUI",
+        "IMAGE_SUBSYSTEM_WINDOWS_CUI",
+    ):
+        if token not in inspector_cpp:
+            fail(f"v0.8 alpha.5.16 Windows target inspection missing: {token}")
+
+    for token in (
+        "InspectStartMenuEntry(",
+        "InspectShellLink(",
+        "EvaluateLaunchCandidate(",
+    ):
+        if token not in start_menu_cpp:
+            fail(f"v0.8 alpha.5.16 Start Menu target-aware admission missing: {token}")
+
+    if "IsDocumentationEntry(" in start_menu_cpp:
+        fail("v0.8 alpha.5.16 Start Menu must not rely on the old filename-only documentation filter")
+
+    for token in (
+        "LaunchCandidateSource::",
+        "AppsFolder",
+        "EvaluateLaunchCandidate(",
+    ):
+        if token not in packaged_cpp:
+            fail(f"v0.8 alpha.5.16 AppsFolder admission missing: {token}")
+
+    for token in (
+        "InspectLaunchTarget(",
+        "EvaluateLaunchCandidate(",
+        "AppPaths",
+    ):
+        if token not in app_paths_cpp:
+            fail(f"v0.8 alpha.5.16 App Paths target inspection missing: {token}")
+
+    if "EvaluateLaunchCandidate(" not in path_cpp:
+        fail("v0.8 alpha.5.16 PATH must use shared candidate admission")
+
+    for token in (
+        "访问 Java.com",
+        "最新版本里有哪些新功能",
+        "WinRAR",
+        "BrowserNativeMessagingHost",
+        "Component Services",
+        "ffmpeg",
+    ):
+        if token not in candidate_tests:
+            fail(f"v0.8 alpha.5.16 admission regression missing: {token}")
+
+    for token in (
+        "CreateShortcut(",
+        "InspectShellLink(",
+        "ConsoleExecutable",
+        "Document",
+    ):
+        if token not in inspector_tests:
+            fail(f"v0.8 alpha.5.16 runtime shortcut regression missing: {token}")
+
+    for token in (
+        "provider-cache-schema4-stale.json",
+        "staleSchema4Cache.Load().empty()",
+        "migratedCache.empty()",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.16 provider-cache rebuild regression missing: {token}")
+
+    if "version == 1" in provider_cache_cpp:
+        fail("v0.8 alpha.5.16 generated ProviderCache must not migrate stale legacy schemas")
+
+    for token in (
+        "LaunchSurfaceClass::Auxiliary",
+        "LaunchSurfaceClass::Maintenance",
+        "LooksLikeWebTarget(",
+    ):
+        if token not in provider_tests:
+            fail(f"v0.8 alpha.5.16 Windows provider smoke admission assertion missing: {token}")
+
+    for token in (
+        "src/core/LaunchCandidate.cpp",
+        "src/platform/LaunchTargetInspector.cpp",
+        "launch_candidate_tests",
+        "launch_target_inspector_tests",
+    ):
+        if token not in cmake:
+            fail(f"v0.8 alpha.5.16 CMake ownership missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.16 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,186",
+        "PRODUCTVERSION 0,8,0,186",
+        "0.8.0-alpha.5.16",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.16 resource version missing: {token}")
+
+    if 'version="0.8.0.186"' not in manifest:
+        fail("v0.8 alpha.5.16 manifest fixed version must be 0.8.0.186")
+
+    for token in (
+        '"0.8.0-alpha.5.15"',
+        '"0.8.0-alpha.5.16"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.16 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.16 Launch candidate admission validation",
+        "访问 Java.com",
+        "最新版本里有哪些新功能",
+        "Provider Cache schema 5",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.16 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.16 — Launch Candidate Admission",
+        "positive admission",
+        "IShellLinkW",
+        "Provider Cache schema is bumped to 5",
+        "0.8.0.186",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.16 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.16" not in changelog:
+        fail("v0.8 alpha.5.16 changelog entry missing")
+
+    if "v0.8.0-alpha.5.16 makes provider admission positive" not in roadmap:
+        fail("v0.8 alpha.5.16 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.16 Launch Candidate Admission verified:",
+        "| positive provider admission",
+        "| Start Menu shortcut targets resolved",
+        "| AppsFolder web targets rejected",
+        "| App Paths PE role inspected",
+        "| PATH candidate gate shared",
+        "| provider cache schema 5",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.15":
     import hashlib
     import subprocess

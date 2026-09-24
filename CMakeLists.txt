@@ -100,6 +100,7 @@ add_library(altrun_core STATIC
     src/core/LauncherActionPolicy.cpp
     src/core/LauncherResult.cpp
     src/core/LaunchSurface.cpp
+    src/core/LaunchCandidate.cpp
     src/core/RelevancePolicy.cpp
     src/core/ResultMerger.cpp
     src/core/ResultRanking.cpp
@@ -186,6 +187,7 @@ if(WIN32)
         src/platform/EverythingBootstrapper.cpp
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
+        src/platform/LaunchTargetInspector.cpp
         src/platform/ShellActions.cpp
         src/platform/UpdateManager.cpp
         src/platform/WinClipboard.cpp
@@ -439,6 +441,26 @@ if(BUILD_TESTING)
     add_test(
         NAME launch_surface_tests
         COMMAND launch_surface_tests
+    )
+
+    add_executable(
+        launch_candidate_tests
+        tests/LaunchCandidateTests.cpp
+    )
+    target_link_libraries(
+        launch_candidate_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        launch_candidate_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        launch_candidate_tests
+    )
+    add_test(
+        NAME launch_candidate_tests
+        COMMAND launch_candidate_tests
     )
 
     add_executable(search_engine_tests tests/SearchEngineTests.cpp)
@@ -849,6 +871,7 @@ if(BUILD_TESTING)
             src/core/PathProvider.cpp
             src/core/ProviderRegistry.cpp
             src/core/StartMenuProvider.cpp
+            src/platform/LaunchTargetInspector.cpp
             src/platform/WinUtil.cpp
         )
 
@@ -894,7 +917,56 @@ if(BUILD_TESTING)
             COMMAND windows_provider_smoke_tests
         )
 
+        add_executable(
+            launch_target_inspector_tests
+            tests/LaunchTargetInspectorTests.cpp
+            src/platform/LaunchTargetInspector.cpp
+        )
 
+        target_include_directories(
+            launch_target_inspector_tests
+            PRIVATE src
+        )
+
+        target_link_libraries(
+            launch_target_inspector_tests
+            PRIVATE
+                altrun_core
+                shell32
+                ole32
+                uuid
+        )
+
+        target_compile_definitions(
+            launch_target_inspector_tests
+            PRIVATE
+                UNICODE
+                _UNICODE
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0A00
+                WINVER=0x0A00
+        )
+
+        if(MSVC)
+            target_compile_options(
+                launch_target_inspector_tests
+                PRIVATE
+                    /W4
+                    /permissive-
+                    /utf-8
+                    /EHsc
+            )
+        endif()
+
+        altrun_enable_test_assertions(
+            launch_target_inspector_tests
+        )
+
+        add_test(
+            NAME launch_target_inspector_tests
+            COMMAND launch_target_inspector_tests
+        )
 
         add_executable(
             path_portability_tests

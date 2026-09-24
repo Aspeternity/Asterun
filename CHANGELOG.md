@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.16
+
+- Added a provider-neutral LaunchCandidate admission layer so discovery is positive-admission instead of default-accept followed by ranking cleanup.
+- Start Menu `.lnk` files are resolved with native IShellLink/IPersistFile inspection for admission; document/help/manual/What's New/web/maintenance/auxiliary shortcuts are rejected while the original `.lnk` remains the execution target.
+- AppsFolder now rejects web URI/vendor website entries and non-launch content before command creation.
+- App Paths now inspects PE subsystem: GUI executables stay primary, console executables become CommandLineTool, and maintenance/helper/native-messaging entries are excluded.
+- PATH remains opt-in and now shares candidate admission, preventing obvious helper/maintenance binaries from entering the CLI index.
+- Added pure admission regressions for `访问 Java.com`, WinRAR `最新版本里有哪些新功能`, maintenance/helper entries, system tools and CLI tools.
+- Added Windows runtime tests that create real `.lnk` files and verify native shortcut resolution plus GUI/console/document target inspection.
+- Bumped generated Provider Cache schema to 5 so pre-admission schema-4 candidates are rebuilt.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.186`.
 ## 0.8.0-alpha.5.15
 
 - Added LaunchSurfaceClass to provider commands and split primary apps, system utilities, developer tools, command-line tools, auxiliary helpers and maintenance entries before search ranking.

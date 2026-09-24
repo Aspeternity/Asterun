@@ -1,7 +1,9 @@
 #include "AppPathsProvider.hpp"
 
+#include "LaunchCandidate.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
+#include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/WinUtil.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -261,6 +263,31 @@ void EnumerateAppPathsKey(
                     target);
         }
 
+        const LaunchTargetKind targetKind =
+            win::InspectLaunchTarget(
+                target);
+
+        const LaunchSurfaceClass
+            initialSurface =
+                ClassifyApplicationSurface(
+                    title,
+                    target);
+
+        const LaunchAdmission admission =
+            EvaluateLaunchCandidate({
+                LaunchCandidateSource::
+                    AppPaths,
+                title,
+                target,
+                initialSurface,
+                targetKind,
+                true,
+            });
+
+        if (!admission.admit) {
+            continue;
+        }
+
         Command command;
         command.title =
             std::move(title);
@@ -275,9 +302,7 @@ void EnumerateAppPathsKey(
         command.source =
             CommandSource::AppPaths;
         command.surfaceClass =
-            ClassifyApplicationSurface(
-                command.title,
-                command.target);
+            admission.surface;
         command.basePriority = 0;
         command.id =
             MakeId(command.target);

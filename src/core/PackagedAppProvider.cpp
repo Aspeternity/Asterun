@@ -1,7 +1,9 @@
 #include "PackagedAppProvider.hpp"
 
+#include "LaunchCandidate.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
+#include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/WinUtil.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -14,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -219,6 +222,45 @@ PackagedAppProvider::Discover() const {
             continue;
         }
 
+        LaunchTargetKind targetKind =
+            InferTextTargetKind(
+                app.target);
+
+        if (targetKind ==
+            LaunchTargetKind::Unknown) {
+            std::error_code targetError;
+
+            if (std::filesystem::is_regular_file(
+                    std::filesystem::path(
+                        app.target),
+                    targetError)) {
+                targetKind =
+                    win::InspectLaunchTarget(
+                        app.target);
+            }
+        }
+
+        const LaunchSurfaceClass
+            initialSurface =
+                ClassifyApplicationSurface(
+                    app.title,
+                    app.target);
+
+        const LaunchAdmission admission =
+            EvaluateLaunchCandidate({
+                LaunchCandidateSource::
+                    AppsFolder,
+                app.title,
+                app.target,
+                initialSurface,
+                targetKind,
+                true,
+            });
+
+        if (!admission.admit) {
+            continue;
+        }
+
         Command command;
         command.title =
             std::move(app.title);
@@ -241,9 +283,7 @@ PackagedAppProvider::Discover() const {
         command.source =
             CommandSource::PackagedApp;
         command.surfaceClass =
-            ClassifyApplicationSurface(
-                command.title,
-                command.target);
+            admission.surface;
         command.basePriority = 0;
         command.id =
             L"packaged:" +

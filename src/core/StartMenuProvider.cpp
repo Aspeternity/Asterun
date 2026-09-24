@@ -1,7 +1,9 @@
 #include "StartMenuProvider.hpp"
 
+#include "LaunchCandidate.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
+#include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/WinUtil.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -12,6 +14,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cwctype>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -109,52 +112,6 @@ bool PathWithin(
          value[prefix.size()] == L'\\');
 }
 
-bool ContainsWholeWord(
-    std::wstring_view text,
-    std::wstring_view word) {
-
-    if (text.empty() ||
-        word.empty()) {
-        return false;
-    }
-
-    std::size_t start = 0;
-
-    while (start < text.size()) {
-        const auto position =
-            text.find(
-                word,
-                start);
-
-        if (position ==
-            std::wstring_view::npos) {
-            return false;
-        }
-
-        const bool leftBoundary =
-            position == 0 ||
-            !std::iswalnum(
-                text[position - 1]);
-
-        const std::size_t after =
-            position + word.size();
-
-        const bool rightBoundary =
-            after >= text.size() ||
-            !std::iswalnum(
-                text[after]);
-
-        if (leftBoundary &&
-            rightBoundary) {
-            return true;
-        }
-
-        start = position + 1;
-    }
-
-    return false;
-}
-
 bool HasPathComponent(
     const std::filesystem::path& path,
     std::wstring_view component) {
@@ -172,75 +129,6 @@ bool HasPathComponent(
 
     return wrapped.find(needle) !=
         std::wstring::npos;
-}
-
-bool IsDocumentationEntry(
-    const std::filesystem::path& path) {
-
-    const std::wstring title =
-        win::Lower(
-            path.stem().wstring());
-
-    return
-        ContainsWholeWord(
-            title,
-            L"documentation") ||
-        ContainsWholeWord(
-            title,
-            L"docs") ||
-        ContainsWholeWord(
-            title,
-            L"help") ||
-        ContainsWholeWord(
-            title,
-            L"manual") ||
-        ContainsWholeWord(
-            title,
-            L"readme") ||
-        ContainsWholeWord(
-            title,
-            L"website") ||
-        ContainsWholeWord(
-            title,
-            L"changelog") ||
-        title.find(
-            L"release notes") !=
-            std::wstring::npos ||
-        title.find(L"文档") !=
-            std::wstring::npos ||
-        title.find(L"帮助") !=
-            std::wstring::npos ||
-        title.find(L"网站") !=
-            std::wstring::npos ||
-        title.find(L"发行说明") !=
-            std::wstring::npos ||
-        title.find(L"发布说明") !=
-            std::wstring::npos ||
-        title.find(L"更新日志") !=
-            std::wstring::npos;
-}
-
-bool IsMaintenanceEntry(
-    const std::filesystem::path& path) {
-
-    const std::wstring title =
-        win::Lower(
-            path.stem().wstring());
-
-    return
-        ContainsWholeWord(
-            title,
-            L"uninstall") ||
-        ContainsWholeWord(
-            title,
-            L"repair") ||
-        ContainsWholeWord(
-            title,
-            L"modify") ||
-        title.find(L"卸载") !=
-            std::wstring::npos ||
-        title.find(L"修复") !=
-            std::wstring::npos;
 }
 
 bool IsAdministrativeEntry(
@@ -273,23 +161,10 @@ bool IsAdministrativeEntry(
             L"System Tools");
 }
 
-bool IsDeveloperAuxiliaryEntry(
+bool IsDeveloperEntry(
     const std::filesystem::path& path) {
 
-    const std::wstring title =
-        win::Lower(
-            path.stem().wstring());
-
     return
-        ContainsWholeWord(
-            title,
-            L"developer") ||
-        ContainsWholeWord(
-            title,
-            L"debuggable") ||
-        ContainsWholeWord(
-            title,
-            L"sdk") ||
         HasPathComponent(
             path,
             L"Developer Tools") ||
@@ -304,32 +179,86 @@ bool IsDeveloperAuxiliaryEntry(
             L"SDK");
 }
 
-LaunchSurfaceClass
-ClassifyStartMenuEntry(
+struct AdmittedStartMenuEntry {
+    LaunchSurfaceClass surface{
+        LaunchSurfaceClass::
+            PrimaryApplication};
+};
+
+std::optional<AdmittedStartMenuEntry>
+InspectStartMenuEntry(
     const std::filesystem::path& path) {
 
-    if (IsMaintenanceEntry(path)) {
-        return LaunchSurfaceClass::
-            Maintenance;
+    const std::wstring title =
+        path.stem().wstring();
+
+    std::wstring inspectedTarget;
+    LaunchTargetKind targetKind =
+        LaunchTargetKind::Unknown;
+
+    const std::wstring extension =
+        win::Lower(
+            path.extension().wstring());
+
+    if (extension == L".lnk") {
+        const auto shortcut =
+            win::InspectShellLink(path);
+
+        if (!shortcut) {
+            // Positive admission: an opaque shortcut is not automatically
+            // an application merely because it lives in the Start Menu.
+            return std::nullopt;
+        }
+
+        inspectedTarget =
+            shortcut->target;
+        targetKind =
+            shortcut->targetKind;
+    } else {
+        inspectedTarget =
+            path.wstring();
+        targetKind =
+            win::InspectLaunchTarget(
+                inspectedTarget);
     }
+
+    LaunchSurfaceClass surface =
+        ClassifyApplicationSurface(
+            title,
+            inspectedTarget);
 
     if (IsAdministrativeEntry(path)) {
-        return LaunchSurfaceClass::
-            SystemUtility;
+        surface =
+            LaunchSurfaceClass::
+                SystemUtility;
+    } else if (
+        IsDeveloperEntry(path)) {
+        surface =
+            LaunchSurfaceClass::
+                DeveloperTool;
     }
 
-    if (IsDeveloperAuxiliaryEntry(
-            path)) {
-        return LaunchSurfaceClass::
-            DeveloperTool;
+    const LaunchAdmission decision =
+        EvaluateLaunchCandidate({
+            LaunchCandidateSource::
+                StartMenu,
+            title,
+            inspectedTarget,
+            surface,
+            targetKind,
+            true,
+        });
+
+    if (!decision.admit) {
+        return std::nullopt;
     }
 
-    return ClassifyApplicationSurface(
-        path.stem().wstring(),
-        path.wstring());
+    return AdmittedStartMenuEntry{
+        decision.surface,
+    };
 }
 
-} // namespace} // namespace
+} // namespace
 
 const ProviderDescriptor&
 StartMenuProvider::Descriptor() const noexcept {
@@ -419,15 +348,13 @@ void StartMenuProvider::ScanPath(
             continue;
         }
 
-        if (IsDocumentationEntry(
-                it->path())) {
+        const auto admission =
+            InspectStartMenuEntry(
+                it->path());
+
+        if (!admission) {
             continue;
         }
-
-        const LaunchSurfaceClass
-            surfaceClass =
-                ClassifyStartMenuEntry(
-                    it->path());
 
         Command command;
         command.title =
@@ -444,7 +371,7 @@ void StartMenuProvider::ScanPath(
         command.source =
             CommandSource::StartMenu;
         command.surfaceClass =
-            surfaceClass;
+            admission->surface;
         command.basePriority = 0;
 
         if (command.keyword.empty()) {
@@ -495,8 +422,6 @@ void StartMenuProvider::FingerprintPath(
 
         if (!it->is_regular_file(ec) ||
             !IsStartMenuEntry(
-                it->path()) ||
-            IsDocumentationEntry(
                 it->path())) {
             continue;
         }

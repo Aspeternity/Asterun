@@ -1695,7 +1695,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 4,\n"
+        "  \"schemaVersion\": 5,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1724,16 +1724,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 3 is generated cache data from before launch-surface metadata.
-    // It must be ignored wholesale so providers rebuild classified entries.
-    const auto staleSchema3ProviderCache =
+    // Schema 4 predates positive launch-candidate admission. Generated
+    // entries must be rebuilt so rejected documents/web/maintenance helpers
+    // cannot survive from an older provider cache.
+    const auto staleSchema4ProviderCache =
         data /
-        "provider-cache-schema3-stale.json";
+        "provider-cache-schema4-stale.json";
 
     WriteText(
-        staleSchema3ProviderCache,
+        staleSchema4ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 3,\n"
+        "  \"schemaVersion\": 4,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1750,11 +1751,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema3Cache(
-        staleSchema3ProviderCache);
+    ProviderCache staleSchema4Cache(
+        staleSchema4ProviderCache);
 
     assert(
-        staleSchema3Cache.Load().empty());
+        staleSchema4Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =
@@ -1811,17 +1812,9 @@ int main() {
     const auto migratedCache =
         legacyCache.Load();
 
-    assert(
-        migratedCache.at(
-            std::string(
-                providers::kStartMenu))
-            .generatedAtUnix ==
-        1700000300);
-    assert(
-        migratedCache.at(
-            std::string(
-                providers::kPath))
-            .commands.size() == 1);
+    // Provider cache is generated state. Legacy schema-1 data must not bypass
+    // the current positive-admission policy; live providers rebuild it.
+    assert(migratedCache.empty());
 
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
