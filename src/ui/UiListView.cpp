@@ -140,20 +140,39 @@ void EnsureResizeGuideWindow(
         return;
     }
 
+    HWND owner =
+        GetAncestor(
+            list,
+            GA_ROOT);
+
+    if (!owner) {
+        owner =
+            GetParent(list);
+    }
+
+    if (!owner) {
+        return;
+    }
+
+    // Keep the guide outside the ListView/Header child-window tree. A layered
+    // owned popup is composed independently by USER/DWM, so moving it never
+    // changes the table's clip region and never exposes stale owner-drawn
+    // pixels underneath the previous guide position.
     state.resizeGuide =
         CreateWindowExW(
-            WS_EX_TRANSPARENT |
-                WS_EX_NOPARENTNOTIFY,
+            WS_EX_LAYERED |
+                WS_EX_TRANSPARENT |
+                WS_EX_TOOLWINDOW |
+                WS_EX_NOACTIVATE,
             L"STATIC",
             L"",
-            WS_CHILD |
-                WS_DISABLED |
-                WS_CLIPSIBLINGS,
+            WS_POPUP |
+                WS_DISABLED,
             0,
             0,
             1,
             1,
-            list,
+            owner,
             nullptr,
             GetModuleHandleW(
                 nullptr),
@@ -168,6 +187,12 @@ void EnsureResizeGuideWindow(
         NextResizeGuideSubclassProc,
         kNextResizeGuideSubclassId,
         0);
+
+    SetLayeredWindowAttributes(
+        state.resizeGuide,
+        0,
+        255,
+        LWA_ALPHA);
 
     ShowWindow(
         state.resizeGuide,
@@ -189,23 +214,26 @@ void PositionResizeGuide(
         return;
     }
 
-    RECT client{};
-    GetClientRect(
-        list,
-        &client);
+    RECT listRect{};
+
+    if (!GetWindowRect(
+            list,
+            &listRect)) {
+        return;
+    }
 
     const int listWidth =
         std::max(
             1,
             static_cast<int>(
-                client.right -
-                    client.left));
+                listRect.right -
+                    listRect.left));
     const int listHeight =
         std::max(
             1,
             static_cast<int>(
-                client.bottom -
-                    client.top));
+                listRect.bottom -
+                    listRect.top));
 
     guideX =
         std::clamp(
@@ -230,9 +258,11 @@ void PositionResizeGuide(
     SetWindowPos(
         state.resizeGuide,
         HWND_TOP,
-        guideX -
+        listRect.left +
+            guideX -
             guideWidth / 2,
-        topInset,
+        listRect.top +
+            topInset,
         guideWidth,
         std::max(
             1,
@@ -240,6 +270,7 @@ void PositionResizeGuide(
                 topInset -
                 1),
         SWP_NOACTIVATE |
+            SWP_NOCOPYBITS |
             SWP_SHOWWINDOW);
 }
 

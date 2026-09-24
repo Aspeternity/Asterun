@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.10 — Composited Resize Guide
+
+Alpha.5.10 keeps the alpha.5.9 Unified Table Resize Controller and changes only the preview-guide rendering boundary after real-Windows validation exposed two artifacts: dragging across owner-drawn group text could leave character fragments, and long leftward drags could leave vertical traces in the empty ListView body.
+
+The guide is no longer a `WS_CHILD` of the ListView. `UiListView` now creates one non-activating `WS_EX_LAYERED` owned popup (`WS_POPUP | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`) and positions it in screen coordinates above the table. USER/DWM therefore composites the two-logical-pixel guide independently instead of inserting a moving HWND into the ListView/Header child clipping tree.
+
+The alpha.5.9 ownership model is unchanged: `UiListView` still exclusively owns divider hit testing, mouse capture, preview clamp, cancel and the one-shot dragged+elastic commit; native Header sizing remains disabled with `HDS_NOSIZING`, and Shortcut Manager / Path Conversion contain no HDN resize state machine.
+
+Static Table visuals, group-row rendering, checkbox rendering, column defaults/minimums and all business behavior remain frozen. Windows fixed FileVersion/ProductVersion is `0.8.0.180`.
+
 ## v0.8.0-alpha.5.9 — Unified Table Resize Controller
 
 Alpha.5.9 removes the mixed native/custom resize state machine that remained after alpha.5.8. `UiListView` is now the single owner of a column-resize gesture from divider hit-test through mouse capture, preview, cancel and final commit.

@@ -295,6 +295,19 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Path Conversion grouped rows, Rescan, Apply selected and conversion results remain unchanged.
 - [ ] Alpha.5.6 Table visuals, alpha.5.4 ComboBoxes, Hotkeys and Classic launcher visuals remain unchanged.
 
+## v0.8.0-alpha.5.10 composited-guide validation
+
+- [ ] Path Conversion: repeatedly drag the Field / Current path divider left and right directly across a visible group title such as “KOOK”; the title remains byte-for-byte visually intact with no duplicated or clipped character fragments.
+- [ ] Drag the same divider a long distance left and then back right across the empty lower ListView body; no old guide position remains as a vertical line.
+- [ ] Rapid back-and-forth dragging for several seconds shows exactly one two-logical-pixel guide and never builds a blue block, trail or black/native tracker fragment.
+- [ ] Releasing over Header, body or outside the table removes the layered guide immediately and commits the width exactly once.
+- [ ] Alt+Tab / capture loss cancels the drag, hides the popup guide and preserves pre-drag widths.
+- [ ] The guide never steals activation/focus, never appears in Alt+Tab/taskbar, and cannot intercept mouse input.
+- [ ] Repeat the same artifact checks in Shortcut Manager across normal row text and the empty table body.
+- [ ] Minimum/maximum drag limits and elastic Target/Status behavior remain identical to alpha.5.9 with no horizontal-scrollbar or bottom-bar flash.
+- [ ] Repeat at 100/125/150/175/200% scaling; guide thickness/alignment remains crisp and the owner-drawn Header/rows remain unchanged.
+- [ ] Alpha.5.9 unified ownership, alpha.5.6 Table visuals, Path Conversion checkbox/group bands, alpha.5.4 ComboBoxes, Hotkeys and Classic launcher visuals remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

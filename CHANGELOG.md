@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.10
+
+- Kept the alpha.5.9 single-owner resize state machine and replaced only the guide rendering boundary.
+- Removed the resize guide from the ListView child-window tree so moving the guide no longer changes ListView/Header clipping or expose behavior.
+- Recreated the guide as a non-activating `WS_EX_LAYERED` owned popup with `WS_POPUP`, `WS_EX_TOOLWINDOW` and `WS_EX_NOACTIVATE`.
+- Position the guide in screen coordinates from the current ListView rectangle; moving the guide is now an independent USER/DWM composition operation.
+- Added `SWP_NOCOPYBITS` so the tiny guide surface is repainted rather than copying stale popup bits while it moves.
+- Preserved alpha.5.9 divider hit testing, capture/cancel lifecycle, minimum-width clamp and one-shot elastic Target/Status commit.
+- Added real-Windows validation for dragging through owner-drawn group text and over the empty ListView body with zero text fragments or vertical trails.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.180`.
+
 ## 0.8.0-alpha.5.9
 
 - Replaced the mixed native Header + consumer HDN resize flow with one shared `UiListView` resize controller.

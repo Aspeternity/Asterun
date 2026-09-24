@@ -42,6 +42,175 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.10":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.10 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.5.10 must keep provider-cache schemaVersion 2")
+
+    ui_list_h = read("src/ui/UiListView.hpp")
+    ui_list_cpp = read("src/ui/UiListView.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    converter_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "NextListColumnResizePolicy",
+        "ConfigureNextListColumnResize(",
+        "NextListHasUserAdjustedColumns(",
+    ):
+        if token not in ui_list_h:
+            fail(f"v0.8 alpha.5.10 shared resize contract missing: {token}")
+
+    for token in (
+        "HDS_NOSIZING",
+        "SetCapture(",
+        "ReleaseCapture(",
+        "WM_CAPTURECHANGED",
+        "BeginNextListColumnResize(",
+        "EndNextListColumnResize(",
+        "CommitNextListColumnResize(",
+        "WS_EX_LAYERED",
+        "WS_EX_TRANSPARENT",
+        "WS_EX_TOOLWINDOW",
+        "WS_EX_NOACTIVATE",
+        "WS_POPUP",
+        "GetAncestor(",
+        "GA_ROOT",
+        "SetLayeredWindowAttributes(",
+        "LWA_ALPHA",
+        "GetWindowRect(",
+        "SWP_NOCOPYBITS",
+    ):
+        if token not in ui_list_cpp:
+            fail(f"v0.8 alpha.5.10 composited guide contract missing: {token}")
+
+    guide_create = ui_list_cpp.split(
+        "void EnsureResizeGuideWindow(", 1
+    )[1].split("void PositionResizeGuide(", 1)[0]
+    if "WS_CHILD" in guide_create:
+        fail("v0.8 alpha.5.10 guide must not re-enter the ListView child tree")
+    if "GetParent(list);" not in guide_create:
+        fail("v0.8 alpha.5.10 guide owner fallback missing")
+
+    guide_position = ui_list_cpp.split(
+        "void PositionResizeGuide(", 1
+    )[1].split("void HideResizeGuide(", 1)[0]
+    if "MapWindowPoints(" in guide_position:
+        fail("v0.8 alpha.5.10 guide positioning must stay in screen coordinates")
+    if "listRect.left +" not in guide_position or "listRect.top +" not in guide_position:
+        fail("v0.8 alpha.5.10 guide is not positioned from the ListView screen rect")
+
+    for forbidden in (
+        "columnTracking_",
+        "trackedColumn_",
+        "trackedColumnWidth_",
+        "customColumnWidths_",
+        "adjustingColumnWidths_",
+        "ClampTrackedColumnWidth(",
+        "HandleHeaderNotification(",
+    ):
+        if (
+            forbidden in manager_h or
+            forbidden in manager_cpp or
+            forbidden in converter_h or
+            forbidden in converter_cpp
+        ):
+            fail(f"v0.8 alpha.5.10 consumer resize state returned: {forbidden}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.10 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,180",
+        "PRODUCTVERSION 0,8,0,180",
+        "0.8.0-alpha.5.10",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.10 resource version missing: {token}")
+    if 'version="0.8.0.180"' not in manifest:
+        fail("v0.8 alpha.5.10 manifest fixed version must be 0.8.0.180")
+
+    for token in (
+        '"0.8.0-alpha.5.9"',
+        '"0.8.0-alpha.5.10"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.10 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.10 composited-guide validation",
+        "directly across a visible group title",
+        "no old guide position remains as a vertical line",
+        "never steals activation/focus",
+        "100/125/150/175/200%",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.10 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.10 — Composited Resize Guide",
+        "WS_EX_LAYERED",
+        "independently",
+        "0.8.0.180",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.10 README missing: {token}")
+    if "## 0.8.0-alpha.5.10" not in changelog:
+        fail("v0.8 alpha.5.10 changelog entry missing")
+    if "v0.8.0-alpha.5.10 isolates the resize guide" not in roadmap:
+        fail("v0.8 alpha.5.10 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.10 Composited Resize Guide verified:",
+        "| alpha.5.9 single-owner controller retained",
+        "| guide removed from ListView child clipping",
+        "| layered owned popup uses screen-space composition",
+        "| consumer HDN resize state remains deleted",
+        "| schema 10 + Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.9":
     import hashlib
     import subprocess
