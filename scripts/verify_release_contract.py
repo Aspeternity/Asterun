@@ -42,6 +42,314 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.3":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.3 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.5.3 must keep provider-cache schemaVersion 2")
+
+    settings_h = read("src/core/Settings.hpp")
+    settings_cpp = read("src/core/Settings.cpp")
+    settings_window_h = read("src/ui/SettingsWindow.hpp")
+    settings_window_cpp = read("src/ui/SettingsWindow.cpp")
+    app_h = read("src/app/App.hpp")
+    app_cpp = read("src/app/App.cpp")
+    launcher_cpp = read("src/ui/LauncherWindow.cpp")
+    hotkey_cpp = read("src/core/HotkeyRegistry.cpp")
+    hotkey_tests = read("tests/HotkeyRegistryTests.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+
+    removed_runtime_tokens = (
+        "showOnStartup",
+        "hideAfterLaunch",
+        "clearQueryOnShow",
+        "hideOnFocusLost",
+        "wildcardMatching",
+        "numericQuickLaunchOrder",
+    )
+    for path, text_value in (
+        ("Settings.hpp", settings_h),
+        ("SettingsWindow.hpp", settings_window_h),
+        ("SettingsWindow.cpp", settings_window_cpp),
+        ("App.hpp", app_h),
+        ("App.cpp", app_cpp),
+        ("LauncherWindow.cpp", launcher_cpp),
+    ):
+        for token in removed_runtime_tokens:
+            if token in text_value:
+                fail(
+                    f"v0.8 alpha.5.3 removed pseudo-setting returned "
+                    f"in {path}: {token}"
+                )
+
+    if "load.schemaVersion >= 10" not in settings_cpp:
+        fail("v0.8 alpha.5.3 must keep schema-10 migration behavior")
+    if '"startupBehavior"' not in settings_cpp or '"addToSendToMenu"' not in settings_cpp:
+        fail("v0.8 alpha.5.3 must keep alpha.5.1 Settings fields")
+
+    # Every Settings dropdown must go through one shared native themed path.
+    if settings_window_cpp.count("CreateThemedComboBox(") != 8:
+        fail(
+            "v0.8 alpha.5.3 expected one CreateThemedComboBox definition "
+            "plus seven Settings dropdown uses"
+        )
+    for token in (
+        "CBS_OWNERDRAWFIXED",
+        "ComboSubclassProc",
+        "DrawComboSurface(",
+        "DrawComboItem(",
+        "ODT_COMBOBOX",
+        "CB_SETITEMHEIGHT",
+        "kAccent",
+        "kBorder",
+    ):
+        if token not in settings_window_cpp:
+            fail(f"v0.8 alpha.5.3 themed ComboBox path missing: {token}")
+
+    for control in (
+        "startupBehavior_",
+        "popupMonitor_",
+        "launcherPlacement_",
+        "settingsPlacement_",
+        "shortcutManagerPlacement_",
+        "uiStyle_",
+        "language_",
+    ):
+        marker = f"{control} =\n        CreateThemedComboBox("
+        if marker not in settings_window_cpp:
+            fail(f"v0.8 alpha.5.3 Settings dropdown is not themed: {control}")
+
+    # Alpha.5.3 keeps the shared native path but removes fixed-width/split-cell styling.
+    for token in (
+        "MeasureComboPreferredWidth(",
+        "UpdateThemedComboMetrics()",
+        "GetTextExtentPoint32W(",
+        "WM_MOUSEMOVE",
+        "TME_LEAVE",
+        "WM_MOUSELEAVE",
+        "Scale(30)",
+    ):
+        if token not in settings_window_cpp and token not in settings_window_h:
+            fail(f"v0.8 alpha.5.3 ComboBox polish contract missing: {token}")
+
+    combo_surface = settings_window_cpp.split(
+        "void SettingsWindow::DrawComboSurface(", 1
+    )[1].split("void SettingsWindow::DrawComboItem(", 1)[0]
+    if "HPEN divider" in combo_surface or "arrowLeft" in combo_surface:
+        fail("v0.8 alpha.5.3 must not restore the split ComboBox arrow cell")
+    if "const int startupComboWidth = Scale(180)" in settings_window_cpp:
+        fail("v0.8 alpha.5.3 Startup behavior returned to a fixed long width")
+    if "const int comboWidth =\n            Scale(180);" in settings_window_cpp:
+        fail("v0.8 alpha.5.3 placement ComboBoxes returned to one fixed width")
+
+    # Hotkey actions scroll independently; the reset-all action stays fixed.
+    for token in (
+        "hotkeyScrollOffset_",
+        "HotkeyScrollViewport()",
+        "HotkeyContentBottom()",
+        "UpdatePageScrollBar()",
+        "ScrollCurrentPage(",
+        "ClipHotkeyControlsToViewport()",
+        "page_ == Page::Hotkeys",
+        "WM_MOUSEWHEEL",
+        "WM_VSCROLL",
+        "hotkeyResetAll_",
+        "client.bottom",
+    ):
+        if token not in settings_window_cpp and token not in settings_window_h:
+            fail(f"v0.8 alpha.5.3 Hotkeys scrolling contract missing: {token}")
+    if "UpdateGeneralScrollBar" in settings_window_cpp or "ScrollGeneral(" in settings_window_cpp:
+        fail("v0.8 alpha.5.3 must not retain the General-only scroll implementation")
+
+    for token in (
+        "HotkeyControlDesiredVisible(",
+        "const bool desiredVisible",
+        "if (!desiredVisible)",
+        "return row.statusVisible;",
+        "return row.resetVisible;",
+        "row.statusVisible &&",
+        "auxiliaryHeight > 0",
+    ):
+        if token not in settings_window_cpp and token not in settings_window_h:
+            fail(f"v0.8 alpha.5.3 Hotkeys visibility contract missing: {token}")
+
+    clip_body = settings_window_cpp.split(
+        "ClipHotkeyControlsToViewport()", 1
+    )[1].split("RECT SettingsWindow::BehaviorCardRect()", 1)[0]
+    if "HotkeyControlDesiredVisible(" not in clip_body:
+        fail("v0.8 alpha.5.3 viewport clipping must consult business visibility")
+
+    # Shortcut Manager must be a real global hotkey, not a Launcher-only chord.
+    global_manager_descriptor = (
+        'kOpenShortcutManager),HotkeyScope::Global,false,true,'
+        '{true,{"alt"},"s"}'
+    )
+    if global_manager_descriptor not in hotkey_cpp:
+        fail("v0.8 alpha.5.3 Shortcut Manager default must be global Alt+S")
+    if "HotkeyScope::Global,\n            \"s\"" not in hotkey_tests:
+        fail("v0.8 alpha.5.3 Hotkey Registry tests do not assert global Alt+S")
+
+    for token in (
+        "kShortcutManagerHotkeyId = 0xA173",
+        "RebindShortcutManagerHotkey(",
+        "shortcutManagerHotkeyRegistered_",
+        "shortcutManagerHotkeyLastError_",
+    ):
+        if token not in app_h:
+            fail(f"v0.8 alpha.5.3 App hotkey state missing: {token}")
+
+    for token in (
+        "RegisterHotKey(",
+        "kShortcutManagerHotkeyId",
+        "RebindShortcutManagerHotkey(",
+        "ShowShortcutManager();",
+        "UnregisterHotKey(",
+        "oldShortcutManager",
+        "previousShortcutManager",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.5.3 global Shortcut Manager lifecycle missing: {token}")
+
+    # Exit remains an opt-in Launcher action; do not accidentally globalize it.
+    if (
+        'kExitApplication),HotkeyScope::Launcher,false,false,{false,{},"f12"}'
+        not in hotkey_cpp
+    ):
+        fail("v0.8 alpha.5.3 Exit action scope/default changed unexpectedly")
+
+    # Startup notification is concise and uses the current activation binding.
+    for token in (
+        'L"已在后台启动"',
+        'L"Running in the background"',
+        'L" 呼出"',
+        "activationHotkey",
+    ):
+        if token not in launcher_cpp:
+            fail(f"v0.8 alpha.5.3 startup notification copy missing: {token}")
+    if 'L"ALTRun Next 已启动"' in launcher_cpp:
+        fail("v0.8 alpha.5.3 duplicated old startup notification copy returned")
+    if 'VALUE "FileDescription", "ALTRun Next\\0"' not in resources:
+        fail("v0.8 alpha.5.3 executable FileDescription must be ALTRun Next")
+    if "classic lightweight launcher" in resources:
+        fail("v0.8 alpha.5.3 old notification source description returned")
+
+    # Keep alpha.5.1 SendTo/runtime behavior intact.
+    for token in (
+        "FOLDERID_SendTo",
+        "ForwardShortcutRequestsToExistingInstance",
+        "ApplySendToRegistration(",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.5.3 alpha.5.1 integration regressed: {token}")
+    for token in (
+        "schemaVersion -ne 10",
+        '"launcher.openShortcutManager"',
+        '"launcher.exitApplication"',
+    ):
+        if token not in runtime_smoke:
+            fail(f"v0.8 alpha.5.3 packaged runtime smoke regressed: {token}")
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"),
+            "--verify",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp":
+            "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp":
+            "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp":
+            "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp":
+            "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp":
+            "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.3 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,173",
+        "PRODUCTVERSION 0,8,0,173",
+        "0.8.0-alpha.5.3",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.3 resource version missing: {token}")
+    if 'version="0.8.0.173"' not in manifest:
+        fail("v0.8 alpha.5.3 manifest fixed version must be 0.8.0.173")
+
+    for token in (
+        '"0.8.0-alpha.5.2"',
+        '"0.8.0-alpha.5.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.3 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.3 Settings polish validation",
+        "content-sized",
+        "no empty status strip",
+        "恢复全部默认快捷键",
+        "100/125/150/175/200%",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.3 desktop checklist missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    for token in (
+        "v0.8.0-alpha.5.3 — Settings ComboBox Polish & Hotkey Viewport Fix",
+        "content-sized ComboBox",
+        "business visibility",
+        "0.8.0.173",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.3 README missing: {token}")
+    if "## 0.8.0-alpha.5.3" not in changelog:
+        fail("v0.8 alpha.5.3 changelog entry missing")
+    if "v0.8.0-alpha.5.3 polishes that Settings path after real-Windows review" not in roadmap:
+        fail("v0.8 alpha.5.3 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.3 Settings polish verified:",
+        "| content-sized continuous native ComboBoxes",
+        "| Hotkeys business visibility preserved through clipping",
+        "| global Shortcut Manager Alt+S retained",
+        "| concise startup notification retained",
+        "| schema 10 + Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.2":
     import hashlib
     import subprocess

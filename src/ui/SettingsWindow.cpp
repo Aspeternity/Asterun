@@ -638,15 +638,147 @@ HWND SettingsWindow::CreateThemedComboBox(
             0xC0B0,
             reinterpret_cast<DWORD_PTR>(
                 this));
+    }
+
+    return combo;
+}
+
+void SettingsWindow::UpdateThemedComboMetrics() {
+    const std::array<HWND, 7> combos{
+        startupBehavior_,
+        popupMonitor_,
+        launcherPlacement_,
+        settingsPlacement_,
+        shortcutManagerPlacement_,
+        uiStyle_,
+        language_,
+    };
+
+    for (HWND combo : combos) {
+        if (!combo) {
+            continue;
+        }
 
         SendMessageW(
             combo,
             CB_SETITEMHEIGHT,
             static_cast<WPARAM>(-1),
-            Scale(28));
+            Scale(30));
+
+        if (SendMessageW(
+                combo,
+                CB_GETCOUNT,
+                0,
+                0) > 0) {
+            SendMessageW(
+                combo,
+                CB_SETITEMHEIGHT,
+                0,
+                Scale(30));
+        }
+
+        InvalidateRect(
+            combo,
+            nullptr,
+            FALSE);
+    }
+}
+
+int SettingsWindow::MeasureComboPreferredWidth(
+    HWND combo) const {
+
+    const int minimum =
+        Scale(132);
+    const int maximum =
+        Scale(280);
+
+    if (!combo ||
+        !normalFont_) {
+        return Scale(150);
     }
 
-    return combo;
+    HDC dc =
+        GetDC(combo);
+
+    if (!dc) {
+        return Scale(150);
+    }
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            dc,
+            normalFont_);
+
+    int widest = 0;
+    const LRESULT count =
+        SendMessageW(
+            combo,
+            CB_GETCOUNT,
+            0,
+            0);
+
+    for (LRESULT index = 0;
+         index < count;
+         ++index) {
+        const LRESULT length =
+            SendMessageW(
+                combo,
+                CB_GETLBTEXTLEN,
+                static_cast<WPARAM>(
+                    index),
+                0);
+
+        if (length <= 0) {
+            continue;
+        }
+
+        std::wstring text(
+            static_cast<std::size_t>(
+                length) + 1,
+            L'\0');
+
+        SendMessageW(
+            combo,
+            CB_GETLBTEXT,
+            static_cast<WPARAM>(
+                index),
+            reinterpret_cast<LPARAM>(
+                text.data()));
+
+        text.resize(
+            static_cast<std::size_t>(
+                length));
+
+        SIZE extent{};
+
+        if (GetTextExtentPoint32W(
+                dc,
+                text.c_str(),
+                static_cast<int>(
+                    text.size()),
+                &extent)) {
+            widest =
+                std::max(
+                    widest,
+                    static_cast<int>(
+                        extent.cx));
+        }
+    }
+
+    SelectObject(
+        dc,
+        oldFont);
+    ReleaseDC(
+        combo,
+        dc);
+
+    const int chrome =
+        Scale(52);
+
+    return std::clamp(
+        widest + chrome,
+        minimum,
+        maximum);
 }
 
 void SettingsWindow::CreateControls() {
@@ -1273,6 +1405,8 @@ void SettingsWindow::ApplyFonts() {
                 TRUE);
         }
     }
+
+    UpdateThemedComboMetrics();
 }
 
 void SettingsWindow::ApplyLanguage() {
@@ -3857,6 +3991,39 @@ void SettingsWindow::ScrollCurrentPage(
             RDW_UPDATENOW);
 }
 
+bool SettingsWindow::HotkeyControlDesiredVisible(
+    HWND control) const {
+
+    if (!control) {
+        return false;
+    }
+
+    if (control == hotkeyResetAll_ ||
+        control == hotkeyGlobalTitle_ ||
+        control == hotkeyLauncherTitle_) {
+        return true;
+    }
+
+    for (const auto& row :
+         hotkeyRows_) {
+        if (control == row.status) {
+            return row.statusVisible;
+        }
+
+        if (control == row.reset) {
+            return row.resetVisible;
+        }
+
+        if (control == row.title ||
+            control == row.capture ||
+            control == row.enabled) {
+            return true;
+        }
+    }
+
+    return true;
+}
+
 void SettingsWindow::
 ClipHotkeyControlsToViewport() {
     if (page_ != Page::Hotkeys) {
@@ -3871,6 +4038,21 @@ ClipHotkeyControlsToViewport() {
         if (!control ||
             control ==
                 hotkeyResetAll_) {
+            continue;
+        }
+
+        const bool desiredVisible =
+            HotkeyControlDesiredVisible(
+                control);
+
+        if (!desiredVisible) {
+            SetWindowRgn(
+                control,
+                nullptr,
+                FALSE);
+            ShowWindow(
+                control,
+                SW_HIDE);
             continue;
         }
 
@@ -3902,10 +4084,6 @@ ClipHotkeyControlsToViewport() {
             continue;
         }
 
-        ShowWindow(
-            control,
-            SW_SHOW);
-
         HRGN region =
             CreateRectRgn(
                 visible.left -
@@ -3925,6 +4103,10 @@ ClipHotkeyControlsToViewport() {
             DeleteObject(
                 region);
         }
+
+        ShowWindow(
+            control,
+            SW_SHOW);
     }
 
     if (hotkeyResetAll_) {
@@ -4128,7 +4310,9 @@ void SettingsWindow::Layout() {
             behaviorWidth, toggleHeight, TRUE);
 
         const int startupTop = metrics.behavior.top + toggleHeight;
-        const int startupComboWidth = Scale(180);
+        const int startupComboWidth =
+            MeasureComboPreferredWidth(
+                startupBehavior_);
         const int startupComboX =
             metrics.behavior.right -
             startupComboWidth -
@@ -4186,12 +4370,6 @@ void SettingsWindow::Layout() {
         const int labelX =
             metrics.placement.left +
             Scale(18);
-        const int comboWidth =
-            Scale(180);
-        const int comboX =
-            metrics.placement.right -
-            comboWidth -
-            Scale(18);
 
         const std::array<
             std::pair<HWND, HWND>,
@@ -4222,6 +4400,15 @@ void SettingsWindow::Layout() {
                 metrics.placement.top +
                 static_cast<int>(i) *
                     rowHeight;
+            const HWND combo =
+                placementRows[i].second;
+            const int comboWidth =
+                MeasureComboPreferredWidth(
+                    combo);
+            const int comboX =
+                metrics.placement.right -
+                comboWidth -
+                Scale(18);
 
             MoveWindow(
                 placementRows[i].first,
@@ -4236,7 +4423,7 @@ void SettingsWindow::Layout() {
                 TRUE);
 
             MoveWindow(
-                placementRows[i].second,
+                combo,
                 comboX,
                 top + Scale(10),
                 comboWidth,
@@ -4392,17 +4579,35 @@ void SettingsWindow::Layout() {
                 inner -
                 captureX;
 
-            MoveWindow(
-                row.status,
-                captureX,
-                auxiliaryTop +
-                    Scale(4),
-                auxiliaryWidth,
-                std::max(
-                    Scale(22),
-                    auxiliaryHeight -
-                        Scale(8)),
-                TRUE);
+            if (row.statusVisible &&
+                auxiliaryHeight > 0) {
+                MoveWindow(
+                    row.status,
+                    captureX,
+                    auxiliaryTop +
+                        Scale(4),
+                    auxiliaryWidth,
+                    std::max(
+                        Scale(22),
+                        auxiliaryHeight -
+                            Scale(8)),
+                    TRUE);
+            } else {
+                SetWindowRgn(
+                    row.status,
+                    nullptr,
+                    FALSE);
+                ShowWindow(
+                    row.status,
+                    SW_HIDE);
+                MoveWindow(
+                    row.status,
+                    captureX,
+                    auxiliaryTop,
+                    0,
+                    0,
+                    FALSE);
+            }
 
             MoveWindow(
                 row.reset,
@@ -4546,13 +4751,22 @@ void SettingsWindow::Layout() {
                 Scale(560));
         const int inner =
             Scale(18);
-        const int comboWidth =
-            Scale(160);
-        const int comboX =
+        const int styleComboWidth =
+            MeasureComboPreferredWidth(
+                uiStyle_);
+        const int styleComboX =
             contentLeft +
             width -
             inner -
-            comboWidth;
+            styleComboWidth;
+        const int languageComboWidth =
+            MeasureComboPreferredWidth(
+                language_);
+        const int languageComboX =
+            contentLeft +
+            width -
+            inner -
+            languageComboWidth;
 
         MoveWindow(
             appearanceLauncherTitle_,
@@ -4568,7 +4782,7 @@ void SettingsWindow::Layout() {
             Scale(157),
             std::max(
                 Scale(160),
-                comboX -
+                styleComboX -
                     contentLeft -
                     inner -
                     Scale(16)),
@@ -4576,9 +4790,9 @@ void SettingsWindow::Layout() {
             TRUE);
         MoveWindow(
             uiStyle_,
-            comboX,
+            styleComboX,
             Scale(158),
-            comboWidth,
+            styleComboWidth,
             Scale(180),
             TRUE);
 
@@ -4596,7 +4810,7 @@ void SettingsWindow::Layout() {
             Scale(281),
             std::max(
                 Scale(160),
-                comboX -
+                languageComboX -
                     contentLeft -
                     inner -
                     Scale(16)),
@@ -4604,9 +4818,9 @@ void SettingsWindow::Layout() {
             TRUE);
         MoveWindow(
             language_,
-            comboX,
+            languageComboX,
             Scale(282),
-            comboWidth,
+            languageComboWidth,
             Scale(180),
             TRUE);
     }
@@ -5937,7 +6151,8 @@ void SettingsWindow::DrawComboSurface(
         dc,
         &rect,
         outer);
-    DeleteObject(outer);
+    DeleteObject(
+        outer);
 
     RECT surface =
         rect;
@@ -5956,12 +6171,27 @@ void SettingsWindow::DrawComboSurface(
             0,
             0) != 0;
 
+    POINT cursor{};
+    RECT screenRect{};
+    const bool hovered =
+        GetCursorPos(&cursor) &&
+        GetWindowRect(
+            combo,
+            &screenRect) &&
+        PtInRect(
+            &screenRect,
+            cursor);
+
     const COLORREF borderColor =
         active
             ? kAccent
             : kBorder;
     const COLORREF fillColor =
-        RGB(255, 255, 255);
+        active
+            ? RGB(248, 252, 255)
+            : hovered
+                ? RGB(250, 251, 253)
+                : RGB(255, 255, 255);
 
     HBRUSH fill =
         CreateSolidBrush(
@@ -5982,7 +6212,7 @@ void SettingsWindow::DrawComboSurface(
             border);
 
     const int radius =
-        Scale(5);
+        Scale(6);
 
     RoundRect(
         dc,
@@ -5999,70 +6229,60 @@ void SettingsWindow::DrawComboSurface(
     SelectObject(
         dc,
         oldPen);
-    DeleteObject(fill);
-    DeleteObject(border);
+    DeleteObject(
+        fill);
+    DeleteObject(
+        border);
 
-    const int arrowWidth =
-        Scale(30);
-    const int arrowLeft =
-        std::max(
-            surface.left,
-            surface.right -
-                arrowWidth);
-
-    HPEN divider =
-        CreatePen(
-            PS_SOLID,
-            1,
-            kBorder);
-    oldPen =
-        SelectObject(
-            dc,
-            divider);
-
-    MoveToEx(
-        dc,
-        arrowLeft,
-        surface.top + Scale(5),
-        nullptr);
-    LineTo(
-        dc,
-        arrowLeft,
-        surface.bottom - Scale(5));
-
-    const int centerX =
-        arrowLeft +
-        (surface.right -
-         arrowLeft) / 2;
-    const int centerY =
+    const int arrowCenterX =
+        surface.right -
+        Scale(17);
+    const int arrowCenterY =
         surface.top +
         (surface.bottom -
          surface.top) / 2;
 
-    POINT arrow[3]{
-        {
-            centerX - Scale(4),
-            centerY - Scale(2),
-        },
-        {
-            centerX,
-            centerY + Scale(2),
-        },
-        {
-            centerX + Scale(4),
-            centerY - Scale(2),
-        },
-    };
+    const COLORREF arrowColor =
+        enabled
+            ? RGB(92, 100, 108)
+            : RGB(166, 172, 179);
 
-    Polyline(
+    HPEN arrowPen =
+        CreatePen(
+            PS_SOLID,
+            std::max(
+                1,
+                Scale(1)),
+            arrowColor);
+    oldPen =
+        SelectObject(
+            dc,
+            arrowPen);
+
+    MoveToEx(
         dc,
-        arrow,
-        3);
+        arrowCenterX -
+            Scale(4),
+        arrowCenterY -
+            Scale(2),
+        nullptr);
+    LineTo(
+        dc,
+        arrowCenterX,
+        arrowCenterY +
+            Scale(2));
+    LineTo(
+        dc,
+        arrowCenterX +
+            Scale(4),
+        arrowCenterY -
+            Scale(2));
 
     SelectObject(
         dc,
         oldPen);
-    DeleteObject(divider);
+    DeleteObject(
+        arrowPen);
 
     wchar_t text[256]{};
     const LRESULT selected =
@@ -6083,9 +6303,9 @@ void SettingsWindow::DrawComboSurface(
     }
 
     RECT textRect{
-        surface.left + Scale(10),
+        surface.left + Scale(12),
         surface.top,
-        arrowLeft - Scale(8),
+        arrowCenterX - Scale(12),
         surface.bottom,
     };
 
@@ -6128,6 +6348,9 @@ void SettingsWindow::DrawComboItem(
     const bool selected =
         (item.itemState &
          ODS_SELECTED) != 0;
+    const bool disabled =
+        (item.itemState &
+         ODS_DISABLED) != 0;
 
     const COLORREF background =
         selected
@@ -6141,7 +6364,8 @@ void SettingsWindow::DrawComboItem(
         item.hDC,
         &rect,
         fill);
-    DeleteObject(fill);
+    DeleteObject(
+        fill);
 
     if (item.itemID ==
             static_cast<UINT>(-1)) {
@@ -6160,16 +6384,18 @@ void SettingsWindow::DrawComboItem(
     RECT textRect =
         rect;
     textRect.left +=
-        Scale(10);
+        Scale(12);
     textRect.right -=
-        Scale(10);
+        Scale(12);
 
     SetBkMode(
         item.hDC,
         TRANSPARENT);
     SetTextColor(
         item.hDC,
-        kText);
+        disabled
+            ? kMuted
+            : kText);
 
     HGDIOBJ oldFont =
         SelectObject(
@@ -6239,11 +6465,16 @@ SettingsWindow::ComboSubclassProc(
                 wParam));
         return 0;
 
-    case CB_SETCURSEL:
-    case CB_SHOWDROPDOWN:
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
-    case WM_ENABLE: {
+    case WM_MOUSEMOVE: {
+        TRACKMOUSEEVENT track{
+            sizeof(track),
+            TME_LEAVE,
+            hwnd,
+            0,
+        };
+        TrackMouseEvent(
+            &track);
+
         const LRESULT result =
             DefSubclassProc(
                 hwnd,
@@ -6255,10 +6486,22 @@ SettingsWindow::ComboSubclassProc(
             hwnd,
             nullptr,
             FALSE);
-
         return result;
     }
 
+    case WM_MOUSELEAVE:
+        InvalidateRect(
+            hwnd,
+            nullptr,
+            FALSE);
+        return 0;
+
+    case CB_SETCURSEL:
+    case CB_SHOWDROPDOWN:
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
+    case WM_ENABLE:
+    case WM_LBUTTONDOWN:
     case WM_LBUTTONUP: {
         const LRESULT result =
             DefSubclassProc(
@@ -8123,9 +8366,10 @@ LRESULT SettingsWindow::HandleMessage(
             kText);
         SetBkColor(
             dc,
-            kCardBackground);
+            RGB(255, 255, 255));
         return reinterpret_cast<LRESULT>(
-            cardBrush_);
+            GetStockObject(
+                WHITE_BRUSH));
     }
 
 

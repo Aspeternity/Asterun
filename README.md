@@ -23,6 +23,15 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.3 — Settings ComboBox Polish & Hotkey Viewport Fix
+
+Alpha.5.3 is a focused real-desktop polish release. The seven native Settings dropdowns keep the lightweight owner-drawn Win32 path, but the closed surface is now one continuous rounded control instead of a split arrow cell. A clearer chevron, restrained hover/focus feedback, DPI-aware 30-logical-pixel item metrics and content-sized ComboBox widths remove the long empty tails while preserving enough room for the longest localized option.
+
+ComboBox width is measured from the current font and every localized item with `GetTextExtentPoint32W`, then clamped to a compact 132–280 logical-pixel range. Startup behavior, each Window placement row, Launcher style and Interface language therefore size to their actual content rather than sharing an arbitrary fixed width.
+
+The Hotkeys viewport now separates business visibility from scroll clipping. Hidden per-row status/reset controls stay hidden even when they intersect the viewport, and a hidden status HWND is collapsed to zero drawable geometry. This removes the pale empty strip that could appear under the final row of each hotkey card without regressing scrolling, fixed Reset-all placement or capture/error status rows.
+
+Settings schema remains **10** and the alpha.5.2 global Shortcut Manager hotkey/startup-notification behavior remains frozen. Classic launcher geometry/assets, providers, Everything, updater and Modern Compact are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.173`.
 ## v0.8.0-alpha.5.2 — Settings UX & Global Shortcut Manager Hotkey
 
 Alpha.5.2 closes the first real-desktop regressions found after the Settings cleanup. **Open Shortcut Manager** is now a true Windows global hotkey rather than a Launcher-only chord: the default **Alt+S** is registered with `RegisterHotKey`, works while the Launcher is hidden, can be rebound transactionally, is restored with defaults, and is unregistered cleanly on exit.

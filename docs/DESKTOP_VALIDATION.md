@@ -194,6 +194,19 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Exit ALTRun Next and confirm the Shortcut Manager global chord is released for other applications.
 - [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
 
+## v0.8.0-alpha.5.3 Settings polish validation
+
+- [ ] All seven Settings dropdowns use a continuous rounded closed surface with no vertical divider or separate arrow cell.
+- [ ] The chevron is clearly visible but remains visually lighter than the selected text; hover is subtle and focus/dropdown-open uses the existing accent border.
+- [ ] Startup behavior, each Window placement selector, Launcher style and Interface language are content-sized rather than padded to one fixed long width.
+- [ ] Switch between Simplified Chinese and English and verify the preferred widths recompute for the localized items without clipping the longest option.
+- [ ] Repeat ComboBox text/arrow alignment at 100/125/150/175/200% scaling; closed text and dropdown rows remain vertically centered after DPI transitions.
+- [ ] Open Hotkeys with no capture/error status active: no empty status strip or pale rectangle appears below the final row of either card.
+- [ ] Scroll both Hotkeys cards through the viewport; business-hidden status/reset controls never reappear merely because their HWND intersects the viewport.
+- [ ] Start hotkey capture so a status row is legitimately visible, scroll it partly through the viewport, then cancel capture; clipping is correct and the status disappears completely.
+- [ ] Modify a hotkey so its per-row Reset action appears, scroll away/back, then restore default; the Reset action disappears and is not resurrected by scrolling.
+- [ ] “恢复全部默认快捷键” stays fixed in the bottom action area and the alpha.5.2 Alt+S global Shortcut Manager behavior remains unchanged.
+- [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
 ## Release assets
 
 For the candidate tag:

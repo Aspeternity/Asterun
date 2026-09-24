@@ -304,6 +304,10 @@ private:
         UINT id);
     HWND CreateThemedComboBox(
         UINT id);
+    void UpdateThemedComboMetrics();
+    [[nodiscard]] int
+    MeasureComboPreferredWidth(
+        HWND combo) const;
 
     [[nodiscard]] bool
     ToggleChecked(UINT id) const;
@@ -317,6 +321,9 @@ private:
     HotkeyScrollViewport() const;
     [[nodiscard]] int
     HotkeyContentBottom() const;
+    [[nodiscard]] bool
+    HotkeyControlDesiredVisible(
+        HWND control) const;
     void ClipHotkeyControlsToViewport();
 
     [[nodiscard]] RECT

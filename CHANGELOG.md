@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.5.3
+
+- Reworked the shared native Settings ComboBox surface into one continuous rounded control with a clearer chevron and lightweight hover/focus feedback.
+- Added DPI-aware content measurement so all seven Settings ComboBoxes size from their localized items instead of fixed 160/180-logical-pixel widths.
+- Normalized closed/list item metrics to 30 logical pixels across DPI changes while retaining owner-drawn Win32/GDI rendering.
+- Fixed Hotkeys viewport clipping so scrolling can no longer resurrect business-hidden status/reset HWNDs.
+- Collapsed hidden hotkey status controls to zero drawable geometry, removing the pale strip below the final row of a hotkey card.
+- Added update-ordering and release-contract coverage for alpha.5.2 -> alpha.5.3 while preserving schemaVersion 10 and frozen Classic/provider/Everything/updater contracts.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.173`.
 ## 0.8.0-alpha.5.2
 
 - Fixed Open Shortcut Manager so default Alt+S is a real global Windows hotkey and works while the Launcher is hidden.
