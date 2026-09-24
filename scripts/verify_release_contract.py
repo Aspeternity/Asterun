@@ -106,9 +106,9 @@ if version == "0.8.0-alpha.5.18":
 
     for token in (
         "refreshCompleted",
-        "ProviderIndexState::Degraded",
-        "ProviderIndexState::Building",
-        "ProviderIndexState::Ready",
+        "Degraded",
+        "Building",
+        "Ready",
     ):
         if token not in policy_cpp:
             fail(f"v0.8 alpha.5.18 provider-index policy implementation missing: {token}")
@@ -182,9 +182,9 @@ if version == "0.8.0-alpha.5.18":
             fail(f"v0.8 alpha.5.18 launcher reveal gate missing: {token}")
 
     for token in (
-        "ProviderIndexState::Ready",
-        "ProviderIndexState::Building",
-        "ProviderIndexState::Degraded",
+        "Ready",
+        "Building",
+        "Degraded",
         "ProviderAdmissionDiagnostics",
         "TargetResolutionFailed",
     ):
