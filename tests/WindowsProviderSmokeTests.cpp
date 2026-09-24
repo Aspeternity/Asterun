@@ -265,6 +265,8 @@ int main() {
         ProviderEnableMap allEnabled =
             providers::DefaultEnabled();
 
+        allEnabled[descriptor.id] = true;
+
         const auto selected =
             registry.Discover(
                 allEnabled,
