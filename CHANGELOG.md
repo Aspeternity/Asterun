@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.5.8
+
+- Replaced direct ListView/Header DC resize-guide painting with a dedicated shared overlay child window.
+- Removed the old invalidate-strip/paint-again guide path that could leave multiple vertical trails and blue blocks during fast dragging.
+- Move the 2-logical-pixel guide with `SetWindowPos` only; no full ListView repaint occurs for each drag motion.
+- Enabled `HDS_FULLDRAG` to suppress the native legacy tracker while existing `HDN_ITEMCHANGING` guards continue blocking live column-width commits.
+- Hide the overlay on normal release, capture loss and destruction; final column widths still commit only once at `HDN_ENDTRACK`.
+- Preserved alpha.5.7 expanded divider hit zone, resize cursor, default widths, elastic Target/Status behavior and all Table visuals.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.178`.
 ## 0.8.0-alpha.5.7
 
 - Expanded shared Header divider hit zones to ±4 logical pixels and added immediate `IDC_SIZEWE` feedback.

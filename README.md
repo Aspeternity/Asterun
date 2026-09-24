@@ -23,6 +23,15 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.8 — Table Resize Guide Fix
+
+Alpha.5.8 fixes the real-Windows drag artifacts found in alpha.5.7 without changing the approved Table Surface or deferred column-width model. The resize preview is no longer drawn directly into the ListView/Header DC and no longer relies on invalidating previously painted strips.
+
+`UiListView` now owns a dedicated non-interactive 2-logical-pixel resize-guide child overlay hosted by the dialog above the table. Drag motion only repositions that tiny overlay with `SetWindowPos`; hiding or moving the overlay lets USER32 expose the underlying Header/ListView normally, eliminating accumulated vertical trails and the large blue smear seen during rapid back-and-forth dragging.
+
+The shared Header now enables `HDS_FULLDRAG` only to suppress the legacy native tracking line. Shortcut Manager and Path Conversion continue rejecting live `HDN_ITEMCHANGING` width commits while tracking, so the actual columns remain stationary until `HDN_ENDTRACK`, where the dragged column and elastic Target/Status column are committed once.
+
+All alpha.5.7 hit-zone, resize-cursor, default-width, minimum-width and DPI behavior remains unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.178`.
 ## v0.8.0-alpha.5.7 — Table Interaction Polish
 
 Alpha.5.7 keeps the approved alpha.5.6 Next Table Surface and focuses only on column-resize discoverability and drag smoothness. The shared `UiListView` Header now treats a DPI-aware ±4 logical-pixel area around each resizable divider as one interaction zone, immediately shows the standard horizontal-resize cursor, and paints a clearer hover hint without restoring permanent grid lines.

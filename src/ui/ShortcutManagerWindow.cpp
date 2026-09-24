@@ -1821,8 +1821,9 @@ HandleHeaderNotification(
             column,
             clamped);
 
-        // With HDS_FULLDRAG disabled, returning FALSE lets the Header move
-        // only its tracking guide. No ListView column is resized here.
+        // HDS_FULLDRAG suppresses the legacy native tracker. The subsequent
+        // HDN_ITEMCHANGING path rejects live width commits, so only the shared
+        // overlay guide moves until HDN_ENDTRACK commits the final widths.
         result = FALSE;
         return true;
     }

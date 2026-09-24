@@ -25,9 +25,17 @@ constexpr UINT_PTR
     kNextHeaderSubclassId =
         0x1A58;
 
+constexpr UINT_PTR
+    kNextResizeGuideSubclassId =
+        0x1A59;
+
 constexpr COLORREF
     kTableHairline =
         RGB(237, 240, 244);
+
+constexpr COLORREF
+    kResizeGuideColor =
+        RGB(155, 190, 222);
 
 struct NextListState {
     UINT dpi{96};
@@ -35,11 +43,207 @@ struct NextListState {
     HFONT headerFont{};
     HIMAGELIST rowHeightImageList{};
     HWND header{};
+    HWND resizeGuide{};
     int hotItem{-1};
     int hotDivider{-1};
     int draggingDivider{-1};
     int resizeGuideX{-1};
 };
+
+LRESULT CALLBACK
+NextResizeGuideSubclassProc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    UINT_PTR subclassId,
+    DWORD_PTR) {
+
+    switch (message) {
+    case WM_NCHITTEST:
+        return HTTRANSPARENT;
+
+    case WM_ERASEBKGND:
+        return 1;
+
+    case WM_PAINT: {
+        PAINTSTRUCT paint{};
+        HDC dc =
+            BeginPaint(
+                hwnd,
+                &paint);
+
+        RECT client{};
+        GetClientRect(
+            hwnd,
+            &client);
+
+        HBRUSH brush =
+            CreateSolidBrush(
+                kResizeGuideColor);
+        FillRect(
+            dc,
+            &client,
+            brush);
+        DeleteObject(
+            brush);
+
+        EndPaint(
+            hwnd,
+            &paint);
+        return 0;
+    }
+
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(
+            hwnd,
+            NextResizeGuideSubclassProc,
+            subclassId);
+        break;
+
+    default:
+        break;
+    }
+
+    return DefSubclassProc(
+        hwnd,
+        message,
+        wParam,
+        lParam);
+}
+
+void EnsureResizeGuideWindow(
+    HWND list,
+    NextListState& state) {
+
+    if (state.resizeGuide &&
+        IsWindow(
+            state.resizeGuide)) {
+        return;
+    }
+
+    HWND parent =
+        GetParent(list);
+
+    if (!parent) {
+        return;
+    }
+
+    state.resizeGuide =
+        CreateWindowExW(
+            WS_EX_TRANSPARENT |
+                WS_EX_NOPARENTNOTIFY,
+            L"STATIC",
+            L"",
+            WS_CHILD |
+                WS_DISABLED |
+                WS_CLIPSIBLINGS,
+            0,
+            0,
+            1,
+            1,
+            parent,
+            nullptr,
+            GetModuleHandleW(
+                nullptr),
+            nullptr);
+
+    if (!state.resizeGuide) {
+        return;
+    }
+
+    SetWindowSubclass(
+        state.resizeGuide,
+        NextResizeGuideSubclassProc,
+        kNextResizeGuideSubclassId,
+        0);
+
+    ShowWindow(
+        state.resizeGuide,
+        SW_HIDE);
+}
+
+void PositionResizeGuide(
+    HWND list,
+    NextListState& state,
+    int guideX) {
+
+    EnsureResizeGuideWindow(
+        list,
+        state);
+
+    if (!state.resizeGuide ||
+        !IsWindow(
+            state.resizeGuide)) {
+        return;
+    }
+
+    HWND parent =
+        GetParent(list);
+
+    if (!parent) {
+        return;
+    }
+
+    RECT listRect{};
+    GetWindowRect(
+        list,
+        &listRect);
+    MapWindowPoints(
+        nullptr,
+        parent,
+        reinterpret_cast<POINT*>(
+            &listRect),
+        2);
+
+    const int listWidth =
+        std::max(
+            1,
+            listRect.right -
+                listRect.left);
+    const int listHeight =
+        std::max(
+            1,
+            listRect.bottom -
+                listRect.top);
+
+    guideX =
+        std::clamp(
+            guideX,
+            0,
+            listWidth);
+
+    const int guideWidth =
+        std::max(
+            2,
+            Scale(
+                2,
+                state.dpi));
+    const int topInset =
+        Scale(
+            4,
+            state.dpi);
+
+    state.resizeGuideX =
+        guideX;
+
+    SetWindowPos(
+        state.resizeGuide,
+        HWND_TOP,
+        listRect.left +
+            guideX -
+            guideWidth / 2,
+        listRect.top +
+            topInset,
+        guideWidth,
+        std::max(
+            1,
+            listHeight -
+                topInset -
+                1),
+        SWP_NOACTIVATE |
+            SWP_SHOWWINDOW);
+}
 
 [[nodiscard]] NextListState*
 ListState(
@@ -270,166 +474,6 @@ DividerNearPoint(
     return bestDivider;
 }
 
-void InvalidateGuideStrip(
-    HWND list,
-    const NextListState& state,
-    int guideX) {
-
-    if (!list ||
-        guideX < 0) {
-        return;
-    }
-
-    const int halfWidth =
-        std::max(
-            2,
-            Scale(2, state.dpi));
-
-    if (state.header &&
-        IsWindow(state.header)) {
-        RECT headerRect{
-            guideX - halfWidth,
-            0,
-            guideX + halfWidth + 1,
-            0,
-        };
-
-        RECT headerClient{};
-        GetClientRect(
-            state.header,
-            &headerClient);
-        headerRect.bottom =
-            headerClient.bottom;
-
-        InvalidateRect(
-            state.header,
-            &headerRect,
-            FALSE);
-    }
-
-    POINT origin{0, 0};
-
-    if (state.header &&
-        IsWindow(state.header)) {
-        MapWindowPoints(
-            state.header,
-            list,
-            &origin,
-            1);
-    }
-
-    RECT listClient{};
-    GetClientRect(
-        list,
-        &listClient);
-
-    RECT strip{
-        origin.x +
-            guideX -
-            halfWidth,
-        0,
-        origin.x +
-            guideX +
-            halfWidth + 1,
-        listClient.bottom,
-    };
-
-    InvalidateRect(
-        list,
-        &strip,
-        FALSE);
-}
-
-void SetResizeGuide(
-    HWND list,
-    NextListState& state,
-    int divider,
-    int guideX) {
-
-    const int oldGuide =
-        state.resizeGuideX;
-
-    state.draggingDivider =
-        divider;
-    state.resizeGuideX =
-        guideX;
-
-    InvalidateGuideStrip(
-        list,
-        state,
-        oldGuide);
-    InvalidateGuideStrip(
-        list,
-        state,
-        guideX);
-}
-
-void DrawResizeGuideOnList(
-    HWND list,
-    HDC dc,
-    const NextListState& state) {
-
-    if (!list ||
-        !dc ||
-        state.resizeGuideX < 0 ||
-        !state.header ||
-        !IsWindow(state.header)) {
-        return;
-    }
-
-    POINT origin{0, 0};
-    MapWindowPoints(
-        state.header,
-        list,
-        &origin,
-        1);
-
-    RECT headerClient{};
-    GetClientRect(
-        state.header,
-        &headerClient);
-
-    RECT listClient{};
-    GetClientRect(
-        list,
-        &listClient);
-
-    const int x =
-        origin.x +
-        state.resizeGuideX;
-    const int top =
-        origin.y +
-        headerClient.bottom;
-
-    HPEN guide =
-        CreatePen(
-            PS_SOLID,
-            std::max(
-                1,
-                Scale(2, state.dpi)),
-            RGB(155, 190, 222));
-    HGDIOBJ oldPen =
-        SelectObject(
-            dc,
-            guide);
-
-    MoveToEx(
-        dc,
-        x,
-        top,
-        nullptr);
-    LineTo(
-        dc,
-        x,
-        listClient.bottom);
-
-    SelectObject(
-        dc,
-        oldPen);
-    DeleteObject(
-        guide);
-}
-
 void DrawHeaderSurface(
     HWND header,
     HDC dc,
@@ -565,38 +609,6 @@ void DrawHeaderSurface(
             DeleteObject(
                 guide);
         }
-    }
-
-    if (state.resizeGuideX >= 0) {
-        HPEN guide =
-            CreatePen(
-                PS_SOLID,
-                std::max(
-                    1,
-                    Scale(2, state.dpi)),
-                RGB(155, 190, 222));
-        HGDIOBJ oldGuidePen =
-            SelectObject(
-                dc,
-                guide);
-
-        MoveToEx(
-            dc,
-            state.resizeGuideX,
-            client.top +
-                Scale(4, state.dpi),
-            nullptr);
-        LineTo(
-            dc,
-            state.resizeGuideX,
-            client.bottom -
-                Scale(1, state.dpi));
-
-        SelectObject(
-            dc,
-            oldGuidePen);
-        DeleteObject(
-            guide);
     }
 
     if (oldFont) {
@@ -797,14 +809,15 @@ NextHeaderSubclassProc(
 
                 if (message ==
                         WM_LBUTTONDOWN) {
-                    state->draggingDivider =
-                        divider;
+                    HWND list =
+                        GetParent(hwnd);
 
-                    SetResizeGuide(
-                        GetParent(hwnd),
-                        *state,
+                    UpdateNextListResizeGuide(
+                        list,
                         divider,
-                        dividerX);
+                        ListView_GetColumnWidth(
+                            list,
+                            divider));
                 }
 
                 SetCursor(
@@ -986,6 +999,17 @@ NextListSubclassProc(
             FALSE);
         break;
 
+    case WM_SIZE:
+        if (state &&
+            state->draggingDivider >= 0 &&
+            state->resizeGuideX >= 0) {
+            PositionResizeGuide(
+                hwnd,
+                *state,
+                state->resizeGuideX);
+        }
+        break;
+
     case WM_PAINT: {
         const LRESULT result =
             DefSubclassProc(
@@ -996,22 +1020,6 @@ NextListSubclassProc(
 
         DrawListFrame(
             hwnd);
-
-        if (state) {
-            HDC dc =
-                GetDC(hwnd);
-
-            if (dc) {
-                DrawResizeGuideOnList(
-                    hwnd,
-                    dc,
-                    *state);
-                ReleaseDC(
-                    hwnd,
-                    dc);
-            }
-        }
-
         return result;
     }
 
@@ -1038,6 +1046,15 @@ NextListSubclassProc(
                     NextHeaderSubclassProc,
                     kNextHeaderSubclassId);
                 state->header =
+                    nullptr;
+            }
+
+            if (state->resizeGuide &&
+                IsWindow(
+                    state->resizeGuide)) {
+                DestroyWindow(
+                    state->resizeGuide);
+                state->resizeGuide =
                     nullptr;
             }
 
@@ -1162,8 +1179,8 @@ void InitializeNextListView(
             GetWindowLongPtrW(
                 header,
                 GWL_STYLE);
-        headerStyle &=
-            ~static_cast<LONG_PTR>(
+        headerStyle |=
+            static_cast<LONG_PTR>(
                 HDS_FULLDRAG);
         SetWindowLongPtrW(
             header,
@@ -1252,27 +1269,46 @@ void UpdateNextListResizeGuide(
         return;
     }
 
-    int x = 0;
+    RECT columnRect{};
 
-    for (int index = 0;
-         index < column;
-         ++index) {
-        x +=
-            ListView_GetColumnWidth(
-                list,
-                index);
+    if (!Header_GetItemRect(
+            state->header,
+            column,
+            &columnRect)) {
+        return;
     }
 
-    x += proposedWidth;
+    POINT guidePoint{
+        columnRect.left +
+            proposedWidth,
+        0,
+    };
+
+    MapWindowPoints(
+        state->header,
+        list,
+        &guidePoint,
+        1);
+
+    const bool starting =
+        state->draggingDivider < 0;
 
     state->hotDivider =
         column;
+    state->draggingDivider =
+        column;
 
-    SetResizeGuide(
+    PositionResizeGuide(
         list,
         *state,
-        column,
-        x);
+        guidePoint.x);
+
+    if (starting) {
+        InvalidateRect(
+            state->header,
+            nullptr,
+            FALSE);
+    }
 }
 
 void ClearNextListResizeGuide(
@@ -1285,16 +1321,16 @@ void ClearNextListResizeGuide(
         return;
     }
 
-    const int oldGuide =
-        state->resizeGuideX;
+    if (state->resizeGuide &&
+        IsWindow(
+            state->resizeGuide)) {
+        ShowWindow(
+            state->resizeGuide,
+            SW_HIDE);
+    }
 
     state->resizeGuideX = -1;
     state->draggingDivider = -1;
-
-    InvalidateGuideStrip(
-        list,
-        *state,
-        oldGuide);
 
     if (state->header &&
         IsWindow(state->header)) {

@@ -265,6 +265,19 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Path Conversion checkbox, grouped rows, Rescan, Apply selected and conversion results remain unchanged.
 - [ ] Repeat hover + drag at 100/125/150/175/200% scaling; hit zone, cursor and guide remain crisp and aligned with the committed divider.
 - [ ] Alpha.5.6 Table visual surface, alpha.5.4 ComboBoxes, Hotkeys and Classic launcher visuals remain unchanged.
+## v0.8.0-alpha.5.8 resize-guide artifact validation
+
+- [ ] Shortcut Manager: drag each resizable divider slowly and rapidly left/right; exactly one preview line is visible at any time.
+- [ ] No previously visited divider positions remain visible after the guide moves; rapid back-and-forth dragging never builds a blue block or vertical trail.
+- [ ] Releasing the mouse removes the preview guide completely before/with the final one-shot column commit.
+- [ ] Move the pointer away immediately after release: no residual vertical line remains in Header, rows or empty ListView body.
+- [ ] Cancel/interrupt a drag by moving outside the window or changing capture; the overlay disappears with no stale guide.
+- [ ] During drag, actual row text and column geometry remain stationary; only the overlay guide moves. Final widths update once on release.
+- [ ] Native Header tracking feedback does not appear alongside the Next overlay; there is only one visible drag indicator.
+- [ ] Repeat all checks in Path Conversion for Field / Current path / Converted path; Status remains elastic/non-resizable.
+- [ ] Expanded alpha.5.7 ±4 logical-pixel hit zone and resize cursor remain easy to discover.
+- [ ] Repeat at 100/125/150/175/200% scaling; guide width and alignment remain crisp with no trail.
+- [ ] Alpha.5.6 Table visuals, alpha.5.4 ComboBoxes, Hotkeys, Checkbox rendering and Classic launcher remain unchanged.
 ## Release assets
 
 For the candidate tag:
