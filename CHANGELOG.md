@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.11
+
+- Removed the resize-guide HWND architecture entirely; no child, popup or layered preview window remains.
+- Store only the clamped preview x-coordinate in `NextListState`.
+- Paint the active two-logical-pixel resize preview directly inside `DrawHeaderSurface()` during the Header's normal `WM_PAINT`.
+- Restrict resize feedback to the 34-logical-pixel Header so Path Conversion group text, normal rows and empty ListView body are never overlapped by drag feedback.
+- Keep the alpha.5.9 unified capture/clamp/cancel/commit state machine and `HDS_NOSIZING` native-Header lockout unchanged.
+- Remove popup composition, screen-coordinate guide movement, layered-window lifetime and ListView-size guide repositioning code.
+- Add release-contract guards that reject any future resize-preview HWND architecture.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.181`.
+
 ## 0.8.0-alpha.5.10
 
 - Kept the alpha.5.9 single-owner resize state machine and replaced only the guide rendering boundary.

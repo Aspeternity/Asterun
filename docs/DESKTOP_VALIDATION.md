@@ -308,6 +308,19 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Repeat at 100/125/150/175/200% scaling; guide thickness/alignment remains crisp and the owner-drawn Header/rows remain unchanged.
 - [ ] Alpha.5.9 unified ownership, alpha.5.6 Table visuals, Path Conversion checkbox/group bands, alpha.5.4 ComboBoxes, Hotkeys and Classic launcher visuals remain unchanged.
 
+## v0.8.0-alpha.5.11 in-Header preview validation
+
+- [ ] Path Conversion: repeatedly drag the Field / Current path divider across the horizontal position occupied by “KOOK”; “KOOK” never duplicates, clips, smears or briefly shows stale fragments.
+- [ ] During drag, the only moving feedback is a two-logical-pixel line inside the Header; no preview line enters group rows, data rows or the empty ListView body.
+- [ ] Long left/right drags over the empty body leave zero vertical traces, including transient traces that disappear a moment later.
+- [ ] Rapid back-and-forth dragging for several seconds keeps Header text/background clean with exactly one preview line.
+- [ ] Release over Header/body/outside the table commits exactly once; Alt+Tab/capture loss cancels and restores the pre-drag widths.
+- [ ] Shortcut Manager repeats the same behavior: body rows and empty area remain completely untouched while Header preview tracks the pointer.
+- [ ] Minimum/maximum limits and elastic Target/Status behavior remain identical to alpha.5.9/5.10.
+- [ ] Divider hover hint remains visible when idle and disappears while the active Header preview is shown.
+- [ ] Repeat at 100/125/150/175/200% scaling; Header preview stays aligned and crisp.
+- [ ] Alpha.5.9 unified ownership, Path Conversion group/checkbox rendering, Table visuals, ComboBoxes, Hotkeys and Classic visuals remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

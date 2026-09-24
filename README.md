@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.11 — In-Header Resize Preview
+
+Alpha.5.11 removes the resize-preview window architecture completely after real-Windows validation showed that even the alpha.5.10 layered popup could produce short-lived DWM/composition trails while crossing owner-drawn Path Conversion content.
+
+There is now **no preview HWND at all**. During a drag, `UiListView` stores only the clamped preview x-coordinate and invalidates the 34-logical-pixel native Header. `DrawHeaderSurface()` paints the two-logical-pixel preview line inside the same Header paint transaction that paints Header text and background. The ListView body, group rows such as “KOOK”, normal rows and empty-body pixels are never covered, exposed or repainted by resize feedback.
+
+The alpha.5.9 single-owner state machine remains unchanged: `UiListView` exclusively owns divider hit testing, capture, clamp, cancel and one-shot dragged+elastic commit; `HDS_NOSIZING` continues to disable native Header resizing and consumers contain no HDN resize state.
+
+This intentionally narrows the visual feedback to the Header instead of spanning the entire table body. It is simpler, deterministic and avoids using any child/popup/layered overlay for a transient drag indicator. Windows fixed FileVersion/ProductVersion is `0.8.0.181`.
+
 ## v0.8.0-alpha.5.10 — Composited Resize Guide
 
 Alpha.5.10 keeps the alpha.5.9 Unified Table Resize Controller and changes only the preview-guide rendering boundary after real-Windows validation exposed two artifacts: dragging across owner-drawn group text could leave character fragments, and long leftward drags could leave vertical traces in the empty ListView body.

@@ -14,8 +14,8 @@ IDB_CLASSIC_CLOSE_200 BITMAP "resources/classic_close_200.bmp"
 IDB_CLASSIC_BACKGROUND BITMAP "resources/classic_bg.bmp"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,8,0,180
- PRODUCTVERSION 0,8,0,180
+ FILEVERSION 0,8,0,181
+ PRODUCTVERSION 0,8,0,181
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -32,11 +32,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Aspeternity\0"
             VALUE "FileDescription", "ALTRun Next\0"
-            VALUE "FileVersion", "0.8.0-alpha.5.10\0"
+            VALUE "FileVersion", "0.8.0-alpha.5.11\0"
             VALUE "InternalName", "ALTRunNext\0"
             VALUE "OriginalFilename", "ALTRunNext.exe\0"
             VALUE "ProductName", "ALTRun Next\0"
-            VALUE "ProductVersion", "0.8.0-alpha.5.10\0"
+            VALUE "ProductVersion", "0.8.0-alpha.5.11\0"
         END
     END
     BLOCK "VarFileInfo"

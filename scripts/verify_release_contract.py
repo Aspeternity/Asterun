@@ -42,6 +42,183 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.11":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.11 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.5.11 must keep provider-cache schemaVersion 2")
+
+    ui_list_h = read("src/ui/UiListView.hpp")
+    ui_list_cpp = read("src/ui/UiListView.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    converter_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "NextListColumnResizePolicy",
+        "ConfigureNextListColumnResize(",
+        "NextListHasUserAdjustedColumns(",
+    ):
+        if token not in ui_list_h:
+            fail(f"v0.8 alpha.5.11 shared resize contract missing: {token}")
+
+    for token in (
+        "HDS_NOSIZING",
+        "SetCapture(",
+        "ReleaseCapture(",
+        "WM_CAPTURECHANGED",
+        "BeginNextListColumnResize(",
+        "UpdateNextListColumnResize(",
+        "EndNextListColumnResize(",
+        "CancelNextListColumnResize(",
+        "CommitNextListColumnResize(",
+        "UpdateHeaderResizePreview(",
+        "ClearHeaderResizePreview(",
+        "resizePreviewX",
+        "kResizePreviewColor",
+        "DrawHeaderSurface(",
+    ):
+        if token not in ui_list_cpp:
+            fail(f"v0.8 alpha.5.11 in-Header preview contract missing: {token}")
+
+    for forbidden in (
+        "NextResizeGuideSubclassProc",
+        "EnsureResizeGuideWindow(",
+        "PositionResizeGuide(",
+        "ShowNextListResizeGuide(",
+        "HideResizeGuide(",
+        "resizeGuide",
+        "WS_EX_LAYERED",
+        "SetLayeredWindowAttributes(",
+        "LWA_ALPHA",
+        "SWP_NOCOPYBITS",
+    ):
+        if forbidden in ui_list_cpp:
+            fail(f"v0.8 alpha.5.11 resize-preview HWND architecture returned: {forbidden}")
+
+    header_draw = ui_list_cpp.split(
+        "void DrawHeaderSurface(", 1
+    )[1].split("LRESULT CALLBACK", 1)[0]
+    for token in (
+        "state.resizeDrag.active",
+        "state.resizePreviewX",
+        "kResizePreviewColor",
+        "MoveToEx(",
+        "LineTo(",
+    ):
+        if token not in header_draw:
+            fail(f"v0.8 alpha.5.11 Header preview drawing missing: {token}")
+
+    for forbidden in (
+        "columnTracking_",
+        "trackedColumn_",
+        "trackedColumnWidth_",
+        "customColumnWidths_",
+        "adjustingColumnWidths_",
+        "ClampTrackedColumnWidth(",
+        "HandleHeaderNotification(",
+    ):
+        if (
+            forbidden in manager_h or
+            forbidden in manager_cpp or
+            forbidden in converter_h or
+            forbidden in converter_cpp
+        ):
+            fail(f"v0.8 alpha.5.11 consumer resize state returned: {forbidden}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.11 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,181",
+        "PRODUCTVERSION 0,8,0,181",
+        "0.8.0-alpha.5.11",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.11 resource version missing: {token}")
+    if 'version="0.8.0.181"' not in manifest:
+        fail("v0.8 alpha.5.11 manifest fixed version must be 0.8.0.181")
+
+    for token in (
+        '"0.8.0-alpha.5.10"',
+        '"0.8.0-alpha.5.11"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.11 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.11 in-Header preview validation",
+        "never duplicates, clips, smears",
+        "no preview line enters group rows",
+        "zero vertical traces",
+        "100/125/150/175/200%",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.11 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.11 — In-Header Resize Preview",
+        "no preview HWND at all",
+        "DrawHeaderSurface()",
+        "0.8.0.181",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.11 README missing: {token}")
+    if "## 0.8.0-alpha.5.11" not in changelog:
+        fail("v0.8 alpha.5.11 changelog entry missing")
+    if "v0.8.0-alpha.5.11 removes resize-preview HWNDs entirely" not in roadmap:
+        fail("v0.8 alpha.5.11 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.11 In-Header Resize Preview verified:",
+        "| no resize-preview HWND exists",
+        "| Header paint owns all visual drag feedback",
+        "| ListView body is never covered by preview",
+        "| alpha.5.9 single-owner resize state retained",
+        "| schema 10 + Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.10":
     import hashlib
     import subprocess
