@@ -3,6 +3,7 @@
 #include "ShortcutEditorDialog.hpp"
 #include "ShortcutPathConverterDialog.hpp"
 #include "TopLevelWindowPresentation.hpp"
+#include "UiListView.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
@@ -340,12 +341,6 @@ int ShortcutManagerWindow::Scale(
 
 void ShortcutManagerWindow::
 ReleaseWindowResources() {
-    if (rowHeightImageList_) {
-        ImageList_Destroy(
-            rowHeightImageList_);
-        rowHeightImageList_ = nullptr;
-    }
-
     if (font_) {
         DeleteObject(font_);
         font_ = nullptr;
@@ -355,12 +350,6 @@ ReleaseWindowResources() {
         DeleteObject(
             semiboldFont_);
         semiboldFont_ = nullptr;
-    }
-
-    if (headerFont_) {
-        DeleteObject(
-            headerFont_);
-        headerFont_ = nullptr;
     }
 
     add_ = nullptr;
@@ -563,7 +552,6 @@ void ShortcutManagerWindow::CreateControls() {
         WS_CHILD |
             WS_VISIBLE |
             WS_TABSTOP |
-            WS_BORDER |
             LVS_REPORT |
             LVS_SINGLESEL |
             LVS_SHOWSELALWAYS,
@@ -591,24 +579,6 @@ void ShortcutManagerWindow::CreateControls() {
         delete_,
         kIdDelete);
 
-    ListView_SetExtendedListViewStyle(
-        list_,
-        LVS_EX_FULLROWSELECT |
-            LVS_EX_DOUBLEBUFFER);
-
-    const auto& palette =
-        ui::kApplicationPalette;
-
-    ListView_SetBkColor(
-        list_,
-        palette.controlBackground);
-    ListView_SetTextBkColor(
-        list_,
-        palette.controlBackground);
-    ListView_SetTextColor(
-        list_,
-        palette.text);
-
     SendMessageW(
         filter_,
         EM_SETMARGINS,
@@ -619,7 +589,6 @@ void ShortcutManagerWindow::CreateControls() {
             Scale(10)));
 
     RecreateFonts();
-    RebuildRowHeightImageList();
 
     const auto addColumn =
         [&](int index,
@@ -1234,12 +1203,6 @@ void ShortcutManagerWindow::RecreateFonts() {
         semiboldFont_ = nullptr;
     }
 
-    if (headerFont_) {
-        DeleteObject(
-            headerFont_);
-        headerFont_ = nullptr;
-    }
-
     const auto language =
         app_.SettingsData().language;
 
@@ -1255,21 +1218,6 @@ void ShortcutManagerWindow::RecreateFonts() {
             ui::ApplicationFontSpec(
                 language,
                 ui::UiFontRole::BodySemibold),
-            dpi_);
-
-    auto headerSpec =
-        ui::ApplicationFontSpec(
-            language,
-            ui::UiFontRole::Body);
-
-    headerSpec.pointSize =
-        std::max(
-            8,
-            headerSpec.pointSize - 1);
-
-    headerFont_ =
-        ui::CreateFontHandle(
-            headerSpec,
             dpi_);
 
     for (HWND control :
@@ -1292,73 +1240,14 @@ void ShortcutManagerWindow::RecreateFonts() {
     }
 
     if (list_) {
-        if (HWND header =
-                ListView_GetHeader(
-                    list_)) {
-            SendMessageW(
-                header,
-                WM_SETFONT,
-                reinterpret_cast<WPARAM>(
-                    headerFont_
-                        ? headerFont_
-                        : font_),
-                TRUE);
-        }
-    }
-}
-
-void ShortcutManagerWindow::
-RebuildRowHeightImageList() {
-    if (!list_) {
-        return;
-    }
-
-    if (rowHeightImageList_) {
-        ListView_SetImageList(
+        ui::InitializeNextListView(
             list_,
-            nullptr,
-            LVSIL_SMALL);
-        ImageList_Destroy(
-            rowHeightImageList_);
-        rowHeightImageList_ =
-            nullptr;
+            dpi_,
+            font_,
+            semiboldFont_
+                ? semiboldFont_
+                : font_);
     }
-
-    const int rowHeight =
-        Scale(24);
-
-    rowHeightImageList_ =
-        ImageList_Create(
-            1,
-            rowHeight,
-            ILC_COLOR32,
-            1,
-            1);
-
-    if (!rowHeightImageList_) {
-        return;
-    }
-
-    HBITMAP spacer =
-        CreateBitmap(
-            1,
-            rowHeight,
-            1,
-            32,
-            nullptr);
-
-    if (spacer) {
-        ImageList_Add(
-            rowHeightImageList_,
-            spacer,
-            nullptr);
-        DeleteObject(spacer);
-    }
-
-    ListView_SetImageList(
-        list_,
-        rowHeightImageList_,
-        LVSIL_SMALL);
 }
 
 void ShortcutManagerWindow::
@@ -2210,20 +2099,16 @@ HandleListCustomDraw(
         return CDRF_DODEFAULT;
     }
 
-    if (draw->nmcd.dwDrawStage !=
-        CDDS_PREPAINT &&
-        draw->nmcd.dwDrawStage !=
-            CDDS_ITEMPREPAINT) {
-        return CDRF_DODEFAULT;
-    }
-
     if (draw->nmcd.dwDrawStage ==
         CDDS_PREPAINT) {
         return CDRF_NOTIFYITEMDRAW;
     }
 
-    const auto& palette =
-        ui::kApplicationPalette;
+    if (draw->nmcd.dwDrawStage !=
+        CDDS_ITEMPREPAINT) {
+        return CDRF_DODEFAULT;
+    }
+
     const int itemIndex =
         static_cast<int>(
             draw->nmcd.dwItemSpec);
@@ -2251,14 +2136,12 @@ HandleListCustomDraw(
              LVIS_SELECTED) &
          LVIS_SELECTED) != 0;
 
-    const COLORREF backgroundColor =
-        selected
-            ? palette.selectionBackground
-            : palette.controlBackground;
-
     HBRUSH background =
         CreateSolidBrush(
-            backgroundColor);
+            ui::NextListRowBackground(
+                list_,
+                itemIndex,
+                selected));
     FillRect(
         draw->nmcd.hdc,
         &row,
@@ -2271,15 +2154,17 @@ HandleListCustomDraw(
         TRANSPARENT);
     SetTextColor(
         draw->nmcd.hdc,
-        selected
-            ? palette.selectionText
-            : palette.text);
+        ui::NextListRowText(
+            selected));
 
     HGDIOBJ oldFont =
         SelectObject(
             draw->nmcd.hdc,
             font_);
 
+    const int padding =
+        ui::NextListCellPadding(
+            dpi_);
     int x =
         row.left;
 
@@ -2292,11 +2177,11 @@ HandleListCustomDraw(
                 column);
 
         RECT cell{
-            x + Scale(6),
+            x + padding,
             row.top,
             x +
                 width -
-                Scale(6),
+                padding,
             row.bottom,
         };
 
@@ -2327,30 +2212,9 @@ HandleListCustomDraw(
         draw->nmcd.hdc,
         oldFont);
 
-    HPEN separator =
-        CreatePen(
-            PS_SOLID,
-            1,
-            palette.separator);
-    HGDIOBJ oldPen =
-        SelectObject(
-            draw->nmcd.hdc,
-            separator);
-
-    MoveToEx(
+    ui::DrawNextListRowSeparator(
         draw->nmcd.hdc,
-        row.left,
-        row.bottom - 1,
-        nullptr);
-    LineTo(
-        draw->nmcd.hdc,
-        row.right,
-        row.bottom - 1);
-
-    SelectObject(
-        draw->nmcd.hdc,
-        oldPen);
-    DeleteObject(separator);
+        row);
 
     return CDRF_SKIPDEFAULT;
 }
@@ -3055,7 +2919,6 @@ LRESULT ShortcutManagerWindow::HandleMessage(
         }
 
         RecreateFonts();
-        RebuildRowHeightImageList();
         Layout();
         InvalidateRect(
             hwnd_,
@@ -3169,6 +3032,26 @@ LRESULT ShortcutManagerWindow::HandleMessage(
         break;
 
     case WM_NOTIFY: {
+        const auto* notification =
+            reinterpret_cast<NMHDR*>(
+                lParam);
+
+        if (notification &&
+            notification->code ==
+                NM_CUSTOMDRAW &&
+            notification->hwndFrom ==
+                ListView_GetHeader(
+                    list_)) {
+            return ui::DrawNextListHeader(
+                reinterpret_cast<
+                    NMCUSTOMDRAW*>(
+                        lParam),
+                dpi_,
+                semiboldFont_
+                    ? semiboldFont_
+                    : font_);
+        }
+
         LRESULT headerResult = 0;
 
         if (HandleHeaderNotification(

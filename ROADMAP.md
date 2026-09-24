@@ -237,6 +237,7 @@ In progress:
 - v0.8.0-alpha.5.2 fixes real-desktop Settings UX regressions: Shortcut Manager Alt+S becomes a real global hotkey, the Hotkeys page gains independent scrolling with a fixed reset action, all Settings dropdowns share one themed native ComboBox path, and startup notification copy is simplified
 - v0.8.0-alpha.5.3 polishes that Settings path after real-Windows review: ComboBoxes become content-sized continuous surfaces with clearer native-lightweight interaction feedback, and Hotkeys clipping now preserves business visibility so hidden status HWNDs cannot reappear as empty card strips
 - v0.8.0-alpha.5.4 promotes the approved ComboBox treatment into one shared native UI component and migrates Shortcut Editor Target type / Runtime input to it, leaving no direct old-style ComboBox creation in Settings or Shortcut Editor
+- v0.8.0-alpha.5.5 adds one shared Next ListView visual foundation for Shortcut Manager and Path Conversion: semibold Header, 30-logical-pixel dense rows, subtle hover/selection, horizontal separators and light framing while preserving native scrolling and all existing column/selection behavior
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

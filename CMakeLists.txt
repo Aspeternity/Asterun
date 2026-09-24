@@ -196,6 +196,7 @@ if(WIN32)
         src/ui/ShortcutPathConverterDialog.cpp
         src/ui/TopLevelWindowPresentation.cpp
         src/ui/UiComboBox.cpp
+        src/ui/UiListView.cpp
         src/ui/UiTypography.cpp
         src/resources.rc
         src/app.manifest

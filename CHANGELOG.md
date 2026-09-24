@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.5
+
+- Added shared `UiListView` native Win32/GDI infrastructure for report-list framing, Header drawing, row metrics, hover state, selection colors, cell padding and row separators.
+- Migrated Shortcut Manager to the shared ListView surface and removed its old hard `WS_BORDER` table edge.
+- Reused the existing Shortcut Manager custom row text/ellipsis logic while moving Header and row visual tokens to the shared component.
+- Preserved Shortcut Manager column dragging, minimum widths, elastic Target behavior, remembered custom widths, keyboard/context actions and double-click editing.
+- Migrated Path Conversion Header and standard preview rows to the same shared list surface while retaining grouped shortcut rows and the high-DPI custom checkbox renderer.
+- Removed body-column grid lines; dense rows now separate horizontally and use subtle hover / light-blue selection feedback.
+- Kept native scrollbars and all conversion/business behavior unchanged.
+- Added release-contract coverage for one shared ListView path and update ordering alpha.5.4 -> alpha.5.5.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.175`.
 ## 0.8.0-alpha.5.4
 
 - Extracted the alpha.5.3 Settings ComboBox renderer into shared `UiComboBox` Win32/GDI infrastructure.

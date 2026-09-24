@@ -69,7 +69,6 @@ private:
     void CreateControls();
     void Layout();
     void RecreateFonts();
-    void RebuildRowHeightImageList();
     void ApplyConfiguredPlacement();
     [[nodiscard]] int
     ClampTrackedColumnWidth(
@@ -129,8 +128,6 @@ private:
     HWND list_{};
     HFONT font_{};
     HFONT semiboldFont_{};
-    HFONT headerFont_{};
-    HIMAGELIST rowHeightImageList_{};
     UINT dpi_{96};
     bool customColumnWidths_{false};
     bool adjustingColumnWidths_{false};

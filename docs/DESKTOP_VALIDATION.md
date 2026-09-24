@@ -219,6 +219,22 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Repeat Settings and Shortcut Editor ComboBox checks at 100/125/150/175/200% scaling; text, chevron and list rows remain vertically centered.
 - [ ] Hotkeys page still has no empty status strip and Reset all hotkeys remains fixed.
 - [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
+## v0.8.0-alpha.5.5 shared ListView validation
+
+- [ ] Shortcut Manager list no longer has the old dark hard table border; the surrounding frame is light and belongs to the same visual system as Next buttons/ComboBoxes.
+- [ ] Shortcut Manager Header is light, semibold and vertically comfortable; column dividers are subtle rather than dominant.
+- [ ] Shortcut Manager rows are about 30 logical pixels high, text is vertically centered, body columns have no vertical grid lines, and only light horizontal separators remain.
+- [ ] Hovering an unselected Shortcut Manager row gives a very subtle background response; selecting a row uses the shared light-blue selection and does not show a black dotted focus rectangle.
+- [ ] Drag Keywords/Name/Type columns repeatedly left/right and verify minimum widths, no ghosting, no bottom flashing bar, and elastic Target behavior remain unchanged.
+- [ ] Reopen Shortcut Manager after custom column widths and verify the existing width/position behavior remains unchanged.
+- [ ] Target text still ellipsizes correctly; double-click editing, right-click actions, Delete, Ctrl+N, Ctrl+F and Ctrl+Enter still work.
+- [ ] Path Conversion Header and normal preview rows visually match Shortcut Manager: same header treatment, row height, padding, hover/selection and horizontal separators.
+- [ ] Path Conversion `KOOK — KOOK`-style group rows remain semibold/light-section rows and cannot become selected.
+- [ ] Path Conversion high-DPI checkbox remains sharp and toggles only the intended field; converted/current path text and status still ellipsize correctly.
+- [ ] Path Conversion column dragging and the fixed elastic Status column behavior remain unchanged; Rescan and Apply selected still work.
+- [ ] Repeat both lists at 100/125/150/175/200% scaling and verify Header/row text, checkbox alignment and frame remain crisp.
+- [ ] Settings/Shortcut Editor ComboBoxes remain visually identical to alpha.5.4 and Hotkeys still have no empty status strip.
+- [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
 ## Release assets
 
 For the candidate tag:

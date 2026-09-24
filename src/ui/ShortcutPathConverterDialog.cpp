@@ -1,6 +1,7 @@
 #include "ShortcutPathConverterDialog.hpp"
 
 #include "TopLevelWindowPresentation.hpp"
+#include "UiListView.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
@@ -1014,37 +1015,6 @@ void ShortcutPathConverterDialog::CreateControls() {
         instance_,
         nullptr);
 
-    ListView_SetExtendedListViewStyle(
-        list_,
-        LVS_EX_FULLROWSELECT |
-            LVS_EX_DOUBLEBUFFER);
-
-    SetWindowTheme(
-        list_,
-        L"Explorer",
-        nullptr);
-
-    if (HWND header =
-            ListView_GetHeader(
-                list_)) {
-        SetWindowTheme(
-            header,
-            L"Explorer",
-            nullptr);
-    }
-
-    ListView_SetBkColor(
-        list_,
-        ui::kApplicationPalette
-            .controlBackground);
-    ListView_SetTextBkColor(
-        list_,
-        ui::kApplicationPalette
-            .controlBackground);
-    ListView_SetTextColor(
-        list_,
-        ui::kApplicationPalette.text);
-
     makeStatic(status_);
 
     makeButton(
@@ -1094,6 +1064,14 @@ void ShortcutPathConverterDialog::CreateControls() {
         reinterpret_cast<WPARAM>(
             groupFont_),
         TRUE);
+
+    ui::InitializeNextListView(
+        list_,
+        dpi_,
+        font_,
+        groupFont_
+            ? groupFont_
+            : font_);
 
     EnableWindow(
         apply_,
@@ -1582,143 +1560,6 @@ void ShortcutPathConverterDialog::DrawActionButton(
     SelectObject(
         draw.hDC,
         oldFont);
-}
-
-LRESULT ShortcutPathConverterDialog::
-HandleHeaderCustomDraw(
-    NMCUSTOMDRAW* draw) {
-    if (!draw ||
-        !list_ ||
-        draw->hdr.hwndFrom !=
-            ListView_GetHeader(
-                list_)) {
-        return CDRF_DODEFAULT;
-    }
-
-    const auto& palette =
-        ui::kApplicationPalette;
-    const COLORREF headerBackground =
-        RGB(250, 251, 252);
-    const COLORREF headerSeparator =
-        RGB(236, 239, 243);
-
-    if (draw->dwDrawStage ==
-        CDDS_PREPAINT) {
-        return CDRF_NOTIFYITEMDRAW;
-    }
-
-    if (draw->dwDrawStage !=
-        CDDS_ITEMPREPAINT) {
-        return CDRF_DODEFAULT;
-    }
-
-    RECT rect =
-        draw->rc;
-
-    HBRUSH background =
-        CreateSolidBrush(
-            (draw->uItemState &
-             (CDIS_SELECTED |
-              CDIS_HOT)) != 0
-                ? palette.cardBackground
-                : headerBackground);
-
-    FillRect(
-        draw->hdc,
-        &rect,
-        background);
-    DeleteObject(
-        background);
-
-    std::array<wchar_t, 128>
-        text{};
-
-    HDITEMW item{};
-    item.mask =
-        HDI_TEXT;
-    item.pszText =
-        text.data();
-    item.cchTextMax =
-        static_cast<int>(
-            text.size());
-
-    Header_GetItem(
-        draw->hdr.hwndFrom,
-        static_cast<int>(
-            draw->dwItemSpec),
-        &item);
-
-    SetBkMode(
-        draw->hdc,
-        TRANSPARENT);
-    SetTextColor(
-        draw->hdc,
-        palette.text);
-
-    HGDIOBJ oldFont =
-        SelectObject(
-            draw->hdc,
-            font_);
-
-    RECT textRect =
-        rect;
-    textRect.left +=
-        Scale(8);
-    textRect.right -=
-        Scale(8);
-
-    DrawTextW(
-        draw->hdc,
-        text.data(),
-        -1,
-        &textRect,
-        DT_LEFT |
-            DT_VCENTER |
-            DT_SINGLELINE |
-            DT_END_ELLIPSIS |
-            DT_NOPREFIX);
-
-    SelectObject(
-        draw->hdc,
-        oldFont);
-
-    HPEN separator =
-        CreatePen(
-            PS_SOLID,
-            1,
-            headerSeparator);
-    HGDIOBJ oldPen =
-        SelectObject(
-            draw->hdc,
-            separator);
-
-    MoveToEx(
-        draw->hdc,
-        rect.left,
-        rect.bottom - 1,
-        nullptr);
-    LineTo(
-        draw->hdc,
-        rect.right,
-        rect.bottom - 1);
-
-    MoveToEx(
-        draw->hdc,
-        rect.right - 1,
-        rect.top + Scale(6),
-        nullptr);
-    LineTo(
-        draw->hdc,
-        rect.right - 1,
-        rect.bottom - Scale(6));
-
-    SelectObject(
-        draw->hdc,
-        oldPen);
-    DeleteObject(
-        separator);
-
-    return CDRF_SKIPDEFAULT;
 }
 
 void ShortcutPathConverterDialog::Layout() {
@@ -2731,10 +2572,8 @@ void ShortcutPathConverterDialog::DrawResultFieldCell(
          LVIS_SELECTED) != 0;
 
     const COLORREF fieldTextColor =
-        listSelected
-            ? GetSysColor(
-                  COLOR_HIGHLIGHTTEXT)
-            : palette.text;
+        ui::NextListRowText(
+            listSelected);
 
     SetBkMode(
         dc,
@@ -2913,16 +2752,11 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
             static_cast<int>(
                 draw->nmcd.dwItemSpec);
 
-        if (!IsGroupHeaderItem(
-                itemIndex)) {
-            return CDRF_NOTIFYPOSTPAINT;
-        }
-
-        RECT rect{};
+        RECT row{};
         if (!ListView_GetItemRect(
                 list_,
                 itemIndex,
-                &rect,
+                &row,
                 LVIR_BOUNDS)) {
             return CDRF_DODEFAULT;
         }
@@ -2931,104 +2765,172 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
         GetClientRect(
             list_,
             &client);
-        rect.left = client.left;
-        rect.right = client.right;
+        row.left =
+            client.left;
+        row.right =
+            client.right;
+
+        if (IsGroupHeaderItem(
+                itemIndex)) {
+            HBRUSH background =
+                CreateSolidBrush(
+                    palette.cardBackground);
+            FillRect(
+                draw->nmcd.hdc,
+                &row,
+                background);
+            DeleteObject(
+                background);
+
+            std::array<wchar_t, 512>
+                title{};
+
+            ListView_GetItemText(
+                list_,
+                itemIndex,
+                0,
+                title.data(),
+                static_cast<int>(
+                    title.size()));
+
+            RECT textRect = row;
+            const int padding =
+                ui::NextListCellPadding(
+                    dpi_);
+            textRect.left +=
+                padding + Scale(2);
+            textRect.right -=
+                padding;
+
+            SetBkMode(
+                draw->nmcd.hdc,
+                TRANSPARENT);
+            SetTextColor(
+                draw->nmcd.hdc,
+                palette.text);
+
+            HGDIOBJ previousFont =
+                SelectObject(
+                    draw->nmcd.hdc,
+                    groupFont_
+                        ? groupFont_
+                        : font_);
+
+            DrawTextW(
+                draw->nmcd.hdc,
+                title.data(),
+                -1,
+                &textRect,
+                DT_LEFT |
+                    DT_VCENTER |
+                    DT_SINGLELINE |
+                    DT_END_ELLIPSIS |
+                    DT_NOPREFIX);
+
+            SelectObject(
+                draw->nmcd.hdc,
+                previousFont);
+
+            ui::DrawNextListRowSeparator(
+                draw->nmcd.hdc,
+                row);
+
+            return CDRF_SKIPDEFAULT;
+        }
+
+        const bool selected =
+            (ListView_GetItemState(
+                 list_,
+                 itemIndex,
+                 LVIS_SELECTED) &
+             LVIS_SELECTED) != 0;
 
         HBRUSH background =
             CreateSolidBrush(
-                palette.cardBackground);
+                ui::NextListRowBackground(
+                    list_,
+                    itemIndex,
+                    selected));
         FillRect(
             draw->nmcd.hdc,
-            &rect,
+            &row,
             background);
-        DeleteObject(background);
-
-        std::array<wchar_t, 512>
-            title{};
-
-        ListView_GetItemText(
-            list_,
-            itemIndex,
-            0,
-            title.data(),
-            static_cast<int>(
-                title.size()));
-
-        RECT textRect = rect;
-        textRect.left += Scale(12);
-        textRect.right -= Scale(8);
+        DeleteObject(
+            background);
 
         SetBkMode(
             draw->nmcd.hdc,
             TRANSPARENT);
         SetTextColor(
             draw->nmcd.hdc,
-            palette.text);
+            ui::NextListRowText(
+                selected));
 
-        HGDIOBJ previousFont =
+        HGDIOBJ oldFont =
             SelectObject(
                 draw->nmcd.hdc,
-                groupFont_
-                    ? groupFont_
-                    : font_);
+                font_);
 
-        DrawTextW(
-            draw->nmcd.hdc,
-            title.data(),
-            -1,
-            &textRect,
-            DT_LEFT |
-                DT_VCENTER |
-                DT_SINGLELINE |
-                DT_END_ELLIPSIS);
+        const int padding =
+            ui::NextListCellPadding(
+                dpi_);
+        int x = row.left;
 
-        SelectObject(
-            draw->nmcd.hdc,
-            previousFont);
+        for (int column = 0;
+             column < 4;
+             ++column) {
+            const int width =
+                ListView_GetColumnWidth(
+                    list_,
+                    column);
 
-        HPEN separator =
-            CreatePen(
-                PS_SOLID,
-                1,
-                palette.separator);
+            if (column > 0) {
+                RECT cell{
+                    x + padding,
+                    row.top,
+                    x +
+                        width -
+                        padding,
+                    row.bottom,
+                };
 
-        HGDIOBJ previousPen =
-            SelectObject(
-                draw->nmcd.hdc,
-                separator);
+                wchar_t text[2048]{};
+                ListView_GetItemText(
+                    list_,
+                    itemIndex,
+                    column,
+                    text,
+                    static_cast<int>(
+                        std::size(text)));
 
-        MoveToEx(
-            draw->nmcd.hdc,
-            rect.left,
-            rect.bottom - 1,
-            nullptr);
+                DrawTextW(
+                    draw->nmcd.hdc,
+                    text,
+                    -1,
+                    &cell,
+                    DT_LEFT |
+                        DT_VCENTER |
+                        DT_SINGLELINE |
+                        DT_END_ELLIPSIS |
+                        DT_NOPREFIX);
+            }
 
-        LineTo(
-            draw->nmcd.hdc,
-            rect.right,
-            rect.bottom - 1);
-
-        SelectObject(
-            draw->nmcd.hdc,
-            previousPen);
-        DeleteObject(separator);
-
-        return CDRF_SKIPDEFAULT;
-    }
-
-    case CDDS_ITEMPOSTPAINT: {
-        const int itemIndex =
-            static_cast<int>(
-                draw->nmcd.dwItemSpec);
-
-        if (!IsGroupHeaderItem(
-                itemIndex)) {
-            DrawResultFieldCell(
-                draw->nmcd.hdc,
-                itemIndex);
+            x += width;
         }
 
-        return CDRF_DODEFAULT;
+        SelectObject(
+            draw->nmcd.hdc,
+            oldFont);
+
+        DrawResultFieldCell(
+            draw->nmcd.hdc,
+            itemIndex);
+
+        ui::DrawNextListRowSeparator(
+            draw->nmcd.hdc,
+            row);
+
+        return CDRF_SKIPDEFAULT;
     }
 
     default:
@@ -3400,10 +3302,14 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
             notification->hwndFrom ==
                 ListView_GetHeader(
                     list_)) {
-            return HandleHeaderCustomDraw(
+            return ui::DrawNextListHeader(
                 reinterpret_cast<
                     NMCUSTOMDRAW*>(
-                        lParam));
+                        lParam),
+                dpi_,
+                groupFont_
+                    ? groupFont_
+                    : font_);
         }
 
         LRESULT headerResult = 0;

@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.5 — Shared Next ListView UI
+
+Alpha.5.5 continues the native UI consolidation started by the shared ComboBox work. Shortcut Manager and Path Conversion now use one shared `UiListView` visual foundation for dense report lists: light Next-style framing, semibold headers, 30-logical-pixel rows, consistent cell padding, subtle hover feedback, light-blue selection and horizontal row separators without body-column grid lines.
+
+Shortcut Manager keeps its validated column-resize model, elastic Target column, column-width persistence behavior, keyboard shortcuts, context menu, target ellipsis and double-click editing. Only the presentation layer changes: the old hard `WS_BORDER` table edge is removed, the Header is custom drawn through the shared path, and row colors/padding/separators now come from `UiListView`.
+
+Path Conversion keeps its conversion logic, rescan/apply flow, grouped shortcut rows and high-DPI checkbox renderer. Its standard preview rows are now fully drawn through the same shared list palette instead of the Explorer table selection path; grouped rows remain a page-specific extension on top of the shared surface.
+
+The shared component owns ListView theme setup, body/header fonts, 30-logical-pixel row metrics, hover tracking and the light frame. Native scrollbars remain native. No framework or runtime dependency is added.
+
+Settings schema remains **10**. ComboBox alpha.5.4, Hotkeys visibility/scrolling, global Alt+S, startup notification behavior, Classic launcher geometry/assets, providers, Everything, updater and Modern Compact remain unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.175`.
 ## v0.8.0-alpha.5.4 — Shared Next ComboBox UI
 
 Alpha.5.4 finishes the ComboBox consistency pass by moving the alpha.5.3 Settings dropdown renderer into one shared native Win32 component. `UiComboBox` now owns creation, owner-draw list rows, continuous rounded closed-surface painting, chevron/focus/hover behavior, DPI-aware row metrics and localized text-width measurement.
