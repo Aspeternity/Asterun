@@ -1505,7 +1505,8 @@ std::wstring LauncherWindow::CurrentQuery() const {
 }
 
 void LauncherWindow::RefreshResults(
-    bool allowImmediateExecution) {
+    bool allowImmediateExecution,
+    bool preserveSelection) {
     if (!list_) return;
 
     const std::wstring query =
@@ -1534,7 +1535,8 @@ void LauncherWindow::RefreshResults(
         allowImmediateExecution;
 
     RebuildVisibleResults(
-        immediateExecutionPending_);
+        immediateExecutionPending_,
+        preserveSelection);
 
     if (dynamicQueryPending_) {
         app_.BeginDynamicSearch(
@@ -1560,7 +1562,8 @@ void LauncherWindow::ApplyDynamicResults(
         std::move(results);
 
     RebuildVisibleResults(
-        immediateExecutionPending_);
+        immediateExecutionPending_,
+        true);
 
     immediateExecutionPending_ =
         false;
@@ -1972,7 +1975,8 @@ HandleResultIconCompletions() {
 }
 
 void LauncherWindow::RebuildVisibleResults(
-    bool allowImmediateExecution) {
+    bool allowImmediateExecution,
+    bool preserveSelection) {
     std::wstring selectedId;
     std::string selectedProvider;
 
@@ -1983,7 +1987,8 @@ void LauncherWindow::RebuildVisibleResults(
             0,
             0);
 
-    if (previous != LB_ERR &&
+    if (preserveSelection &&
+        previous != LB_ERR &&
         static_cast<std::size_t>(
             previous) <
             results_.size()) {
@@ -1999,38 +2004,66 @@ void LauncherWindow::RebuildVisibleResults(
                 .providerId;
     }
 
-    results_ =
+    auto nextResults =
         MergeLauncherResultsRanked(
             staticResults_,
             dynamicResults_,
             maxResults_);
 
+    // The owner-drawn LISTBOX stores row slots only; all visible content
+    // comes from results_. Resetting all slots for every keystroke forced a
+    // full erase/recreate cycle through the layered Classic window.
     SendMessageW(
         list_,
         WM_SETREDRAW,
         FALSE,
         0);
-    SendMessageW(
-        list_,
-        LB_RESETCONTENT,
-        0,
-        0);
 
-    for (std::size_t i = 0;
-         i < results_.size();
-         ++i) {
+    LRESULT rowCount =
         SendMessageW(
             list_,
-            LB_ADDSTRING,
+            LB_GETCOUNT,
             0,
-            reinterpret_cast<LPARAM>(
-                L""));
+            0);
+
+    if (rowCount == LB_ERR) {
+        rowCount = 0;
     }
+
+    while (static_cast<std::size_t>(
+               rowCount) >
+           nextResults.size()) {
+        SendMessageW(
+            list_,
+            LB_DELETESTRING,
+            static_cast<WPARAM>(
+                rowCount - 1),
+            0);
+        --rowCount;
+    }
+
+    while (static_cast<std::size_t>(
+               rowCount) <
+           nextResults.size()) {
+        if (SendMessageW(
+                list_,
+                LB_ADDSTRING,
+                0,
+                reinterpret_cast<LPARAM>(
+                    L"")) == LB_ERR) {
+            break;
+        }
+        ++rowCount;
+    }
+
+    results_ =
+        std::move(nextResults);
 
     if (!results_.empty()) {
         std::size_t selection = 0;
 
-        if (!selectedId.empty()) {
+        if (preserveSelection &&
+            !selectedId.empty()) {
             const auto it =
                 std::find_if(
                     results_.begin(),
@@ -2058,6 +2091,12 @@ void LauncherWindow::RebuildVisibleResults(
             static_cast<WPARAM>(
                 selection),
             0);
+    } else {
+        SendMessageW(
+            list_,
+            LB_SETCURSEL,
+            static_cast<WPARAM>(-1),
+            0);
     }
 
     SendMessageW(
@@ -2065,10 +2104,14 @@ void LauncherWindow::RebuildVisibleResults(
         WM_SETREDRAW,
         TRUE,
         0);
+
+    // WM_DRAWITEM paints each result-row background itself. Avoid a separate
+    // erase pass so rapid typing can coalesce into a clean deferred repaint.
     InvalidateRect(
         list_,
         nullptr,
-        TRUE);
+        FALSE);
+
     UpdatePreview();
 
     const bool queryEmpty =
@@ -3563,26 +3606,18 @@ LRESULT LauncherWindow::HandleMessage(
     case WM_COMMAND:
         if (LOWORD(wParam) == 1001 &&
             HIWORD(wParam) == EN_CHANGE) {
-            // A query edit starts a new ranking decision. Do not keep the
-            // command selected under the previous query merely because its
-            // result id still exists at a different row. Clearing selection
-            // before rebuilding makes the new query select its current best
-            // match (row 0). Rebuilds that happen without EN_CHANGE, such as
-            // asynchronous Everything merges, still preserve selection.
-            if (list_) {
-                SendMessageW(
-                    list_,
-                    LB_SETCURSEL,
-                    static_cast<WPARAM>(-1),
-                    0);
-            }
-
-                    // IME composition can emit intermediate EN_CHANGE events.
-            // Search may update live, but single-result auto execution must
-            // wait until composition is committed.
+            // A query edit starts a new ranking decision. Rebuild the rows
+            // atomically and select the new best match only after redraw is
+            // suspended; visibly clearing the old selection first caused a
+            // transient Classic repaint on every keystroke.
+            //
+            // IME composition can emit intermediate EN_CHANGE events. Search
+            // may update live, but single-result auto execution must wait
+            // until composition is committed.
             RefreshResults(
                 !imeComposing_ &&
-                !numericTextCommitInProgress_);
+                    !numericTextCommitInProgress_,
+                false);
             return 0;
         }
         if (LOWORD(wParam) == 1002 && HIWORD(wParam) == LBN_DBLCLK) {

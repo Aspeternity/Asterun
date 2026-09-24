@@ -32,7 +32,8 @@ public:
     void Show();
     void Hide();
     void RefreshResults(
-        bool allowImmediateExecution = false);
+        bool allowImmediateExecution = false,
+        bool preserveSelection = true);
     void ApplyDynamicResults(
         std::uint64_t generation,
         std::vector<LauncherResult> results);
@@ -126,7 +127,8 @@ private:
     void InvalidateResultRowsForIconKey(
         std::wstring_view cacheKey);
     void RebuildVisibleResults(
-        bool allowImmediateExecution);
+        bool allowImmediateExecution,
+        bool preserveSelection = true);
     void ExecuteSelection(
         LauncherExecutionIntent intent =
             LauncherExecutionIntent::Default);

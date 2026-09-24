@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.23 — Classic Live Result Repaint Hygiene
+
+Alpha.5.23 fixes the visible flash seen while typing in the frozen Classic launcher without changing its geometry or visual design. The result LISTBOX is owner-drawn, so its native string payload is only a set of row slots; recreating every slot with `LB_RESETCONTENT` on every query change was unnecessary and forced an erase/repaint cycle through the layered Classic window.
+
+The launcher now keeps existing row slots, applies only the row-count delta with `LB_ADDSTRING` / `LB_DELETESTRING`, updates the result snapshot while redraw is suspended, and invalidates without a background erase. Query edits also stop visibly clearing the previous selection before rebuilding; the new best result is committed inside the same redraw-suppressed update.
+
+Search/ranking, Everything merging, numeric Quick Launch, icons, catalog identity/admission, Provider Cache schema 8 and Classic assets/geometry are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.193`.
+
 ## v0.8.0-alpha.5.22 — Provider Monitor Performance Hygiene
 
 Alpha.5.22 keeps the Intelligent Launch Catalog behavior from alpha.5.21 while removing unnecessary background Shell work from packaged-app monitoring.

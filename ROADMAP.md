@@ -254,7 +254,8 @@ In progress:
 - v0.8.0-alpha.5.19 freezes admission behavior and adds a temporary exact legacy-vs-current launch-target trace so the TeamSpeak 6 false-negative can be proven before retaining or removing ExecutableUnknown
 - v0.8.0-alpha.5.20 removes the disproven ExecutableUnknown fallback and temporary probe, rebuilds generated cache under strict admission, and locks empty-cache startup behind the alpha.5.18 Building gate
 - v0.8.0-alpha.5.21 establishes an Intelligent Launch Catalog: canonical identity owns provider dedupe, activation semantics distinguish AUMID from ShellExecute, and structural/role evidence prevents internal/product-info surfaces from entering the normal index
-- v0.8.0-alpha.5.22 separates expensive AppsFolder classification from lightweight 5-second change fingerprinting so smarter catalog admission does not add unnecessary idle Shell/COM work
+- v0.8.0-alpha.5.22 moves provider monitoring to event-driven Start Menu/registry/Shell notifications with a low-frequency safety reconciliation, eliminating the prior 5-second idle scan loop
+- v0.8.0-alpha.5.23 removes full LISTBOX reset/erase from live query rebuilds so frozen Classic geometry can update results without visible typing flicker
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

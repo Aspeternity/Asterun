@@ -462,6 +462,18 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck repeated launcher invocation and continuous typing: search responsiveness is unchanged because no new work was added to the search hot path.
 - [ ] Record working-set memory after 30 seconds idle for comparison with the existing alpha.5.x baseline.
 
+## v0.8.0-alpha.5.23 Classic live-result repaint validation
+
+- [ ] With Classic active, invoke the launcher and 连续输入 a multi-character query at normal and fast typing speed. The result area must update without the previous whole-list flash.
+- [ ] Repeat while backspacing rapidly, changing between queries that return 10, a few, one and zero results. Removed rows must clear cleanly without stale pixels or blank stripes.
+- [ ] Verify the best result remains selected after each text edit; asynchronous Everything merges preserve the currently selected result by identity when it still exists.
+- [ ] Verify Up/Down/Tab wrapping, numeric Quick Launch timing, single-result immediate execution and IME composition behavior are unchanged.
+- [ ] With result icons enabled, first-use asynchronous icon arrival redraws only the affected rows and does not reintroduce whole-list flashing.
+- [ ] Recheck idle CPU remains effectively 0% after the alpha.5.22 event-driven monitor change.
+- [ ] Record working set at 30 seconds before first search (~7 MB observed baseline) and after the first normal search (~11 MB observed baseline); confirm it stabilizes rather than growing continuously.
+- [ ] Recheck 时钟/设置 activation, Chrome dedupe and TeamSpeak 3/6 presence. SOLIDWORKS suite-role filtering is not claimed by this version and remains a later Intelligent Launch Catalog step.
+- [ ] Classic geometry/assets and Provider Cache schema 8 remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

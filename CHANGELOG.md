@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.5.23
+
+- Removed per-keystroke `LB_RESETCONTENT` from the owner-drawn launcher result list.
+- Result updates now preserve existing LISTBOX row slots and adjust only the row-count delta before repainting.
+- Live result repaint no longer requests a background erase, avoiding the visible Classic flash during continuous typing.
+- Query edits no longer deselect the old row before redraw is suspended; the new best result is selected atomically with the rebuilt snapshot.
+- Kept Classic geometry/assets, ranking, numeric Quick Launch, provider catalog behavior and Provider Cache schema 8 unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.193`.
+
 ## 0.8.0-alpha.5.22
 
 - Split Windows Apps enumeration into detailed discovery/admission and lightweight monitor fingerprint consumers.

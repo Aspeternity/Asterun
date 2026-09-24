@@ -42,6 +42,141 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.23":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.23 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 8:
+        fail("v0.8 alpha.5.23 must preserve Provider Cache schemaVersion 8")
+
+    launcher_cpp = read("src/ui/LauncherWindow.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    rebuild = launcher_cpp.split(
+        "void LauncherWindow::RebuildVisibleResults(",
+        1,
+    )[1].split(
+        "void LauncherWindow::UpdatePreview()",
+        1,
+    )[0]
+
+    if "LB_RESETCONTENT" in rebuild:
+        fail("v0.8 alpha.5.23 result rebuild must not reset the whole LISTBOX")
+    for token in (
+        "LB_GETCOUNT",
+        "LB_DELETESTRING",
+        "LB_ADDSTRING",
+        "WM_SETREDRAW",
+        "InvalidateRect(",
+        "FALSE",
+        "preserveSelection",
+    ):
+        if token not in rebuild:
+            fail(f"v0.8 alpha.5.23 incremental result sync missing: {token}")
+
+    en_change = launcher_cpp.split(
+        "HIWORD(wParam) == EN_CHANGE",
+        1,
+    )[1].split(
+        "if (LOWORD(wParam) == 1002",
+        1,
+    )[0]
+    if "LB_SETCURSEL" in en_change:
+        fail("v0.8 alpha.5.23 EN_CHANGE must not visibly deselect before rebuild")
+    if "false);" not in en_change:
+        fail("v0.8 alpha.5.23 query edits must request a fresh best-result selection")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.23 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,193",
+        "PRODUCTVERSION 0,8,0,193",
+        "0.8.0-alpha.5.23",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.23 resource version missing: {token}")
+
+    if 'version="0.8.0.193"' not in manifest:
+        fail("v0.8 alpha.5.23 manifest fixed version must be 0.8.0.193")
+
+    for token in (
+        '"0.8.0-alpha.5.22"',
+        '"0.8.0-alpha.5.23"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.23 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.23 Classic live-result repaint validation",
+        "连续输入",
+        "11 MB",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.23 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.23 — Classic Live Result Repaint Hygiene",
+        "LB_RESETCONTENT",
+        "0.8.0.193",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.23 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.23" not in changelog:
+        fail("v0.8 alpha.5.23 changelog entry missing")
+
+    if "v0.8.0-alpha.5.23 removes full LISTBOX reset/erase" not in roadmap:
+        fail("v0.8 alpha.5.23 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.23 Classic Live Result Repaint Hygiene verified:",
+        "| no LB_RESETCONTENT on query rebuild",
+        "| count-delta LISTBOX synchronization",
+        "| no erase pass on live result repaint",
+        "| query selection committed atomically",
+        "| Provider Cache schema 8 preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.22":
     import hashlib
     import subprocess
