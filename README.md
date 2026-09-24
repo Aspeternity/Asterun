@@ -23,6 +23,15 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.7 — Table Interaction Polish
+
+Alpha.5.7 keeps the approved alpha.5.6 Next Table Surface and focuses only on column-resize discoverability and drag smoothness. The shared `UiListView` Header now treats a DPI-aware ±4 logical-pixel area around each resizable divider as one interaction zone, immediately shows the standard horizontal-resize cursor, and paints a clearer hover hint without restoring permanent grid lines.
+
+Column dragging is explicitly deferred by removing `HDS_FULLDRAG`. During drag, Shortcut Manager and Path Conversion update only a shared two-pixel preview guide; the actual ListView widths and their elastic Target/Status companion columns are committed once at `HDN_ENDTRACK`. This removes repeated whole-list relayout/redraw work while preserving the native Header capture and notification model.
+
+Shortcut Manager keeps its existing minimum-width rules and remembered runtime widths, but the first-open columns are now 110 / 180 / 110 logical pixels for Keywords / Name / Type with Target taking the remainder. Path Conversion starts from 110 / 360 / 380 logical pixels for Field / Current path / Converted path, shrinking within existing minimums when necessary so Status keeps its elastic minimum.
+
+No data model, scrollbar, selection, checkbox, context-menu, keyboard or conversion behavior changes in this release. Windows fixed FileVersion/ProductVersion is `0.8.0.177`.
 ## v0.8.0-alpha.5.6 — Next Table Surface
 
 Alpha.5.6 completes the visual separation from the classic Windows report-table look without replacing the proven native ListView engine. The native Header still owns hit testing, keyboard/accessibility and column-resize notifications, but its visible surface is now fully painted by the shared `UiListView` Header subclass instead of exposing the themed `WC_HEADER` appearance.

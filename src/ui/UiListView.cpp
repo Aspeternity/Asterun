@@ -36,6 +36,8 @@ struct NextListState {
     HWND header{};
     int hotItem{-1};
     int hotDivider{-1};
+    int draggingDivider{-1};
+    int resizeGuideX{-1};
 };
 
 [[nodiscard]] NextListState*
@@ -195,6 +197,238 @@ void DrawListFrame(
         dc);
 }
 
+[[nodiscard]] int
+HeaderDividerX(
+    HWND header,
+    int divider) {
+
+    if (!header ||
+        divider < 0) {
+        return -1;
+    }
+
+    RECT itemRect{};
+
+    if (!Header_GetItemRect(
+            header,
+            divider,
+            &itemRect)) {
+        return -1;
+    }
+
+    return itemRect.right;
+}
+
+[[nodiscard]] int
+DividerNearPoint(
+    HWND header,
+    POINT point,
+    UINT dpi) {
+
+    if (!header) {
+        return -1;
+    }
+
+    const int count =
+        Header_GetItemCount(
+            header);
+    const int hitRadius =
+        Scale(4, dpi);
+
+    int bestDivider = -1;
+    int bestDistance =
+        hitRadius + 1;
+
+    for (int divider = 0;
+         divider < count - 1;
+         ++divider) {
+        const int x =
+            HeaderDividerX(
+                header,
+                divider);
+
+        if (x < 0) {
+            continue;
+        }
+
+        const int distance =
+            std::abs(
+                point.x - x);
+
+        if (distance <=
+                hitRadius &&
+            distance <
+                bestDistance) {
+            bestDivider =
+                divider;
+            bestDistance =
+                distance;
+        }
+    }
+
+    return bestDivider;
+}
+
+void InvalidateGuideStrip(
+    HWND list,
+    const NextListState& state,
+    int guideX) {
+
+    if (!list ||
+        guideX < 0) {
+        return;
+    }
+
+    const int halfWidth =
+        std::max(
+            2,
+            Scale(2, state.dpi));
+
+    if (state.header &&
+        IsWindow(state.header)) {
+        RECT headerRect{
+            guideX - halfWidth,
+            0,
+            guideX + halfWidth + 1,
+            0,
+        };
+
+        RECT headerClient{};
+        GetClientRect(
+            state.header,
+            &headerClient);
+        headerRect.bottom =
+            headerClient.bottom;
+
+        InvalidateRect(
+            state.header,
+            &headerRect,
+            FALSE);
+    }
+
+    POINT origin{0, 0};
+
+    if (state.header &&
+        IsWindow(state.header)) {
+        MapWindowPoints(
+            state.header,
+            list,
+            &origin,
+            1);
+    }
+
+    RECT listClient{};
+    GetClientRect(
+        list,
+        &listClient);
+
+    RECT strip{
+        origin.x +
+            guideX -
+            halfWidth,
+        0,
+        origin.x +
+            guideX +
+            halfWidth + 1,
+        listClient.bottom,
+    };
+
+    InvalidateRect(
+        list,
+        &strip,
+        FALSE);
+}
+
+void SetResizeGuide(
+    HWND list,
+    NextListState& state,
+    int divider,
+    int guideX) {
+
+    const int oldGuide =
+        state.resizeGuideX;
+
+    state.draggingDivider =
+        divider;
+    state.resizeGuideX =
+        guideX;
+
+    InvalidateGuideStrip(
+        list,
+        state,
+        oldGuide);
+    InvalidateGuideStrip(
+        list,
+        state,
+        guideX);
+}
+
+void DrawResizeGuideOnList(
+    HWND list,
+    HDC dc,
+    const NextListState& state) {
+
+    if (!list ||
+        !dc ||
+        state.resizeGuideX < 0 ||
+        !state.header ||
+        !IsWindow(state.header)) {
+        return;
+    }
+
+    POINT origin{0, 0};
+    MapWindowPoints(
+        state.header,
+        list,
+        &origin,
+        1);
+
+    RECT headerClient{};
+    GetClientRect(
+        state.header,
+        &headerClient);
+
+    RECT listClient{};
+    GetClientRect(
+        list,
+        &listClient);
+
+    const int x =
+        origin.x +
+        state.resizeGuideX;
+    const int top =
+        origin.y +
+        headerClient.bottom;
+
+    HPEN guide =
+        CreatePen(
+            PS_SOLID,
+            std::max(
+                1,
+                Scale(2, state.dpi)),
+            RGB(155, 190, 222));
+    HGDIOBJ oldPen =
+        SelectObject(
+            dc,
+            guide);
+
+    MoveToEx(
+        dc,
+        x,
+        top,
+        nullptr);
+    LineTo(
+        dc,
+        x,
+        listClient.bottom);
+
+    SelectObject(
+        dc,
+        oldPen);
+    DeleteObject(
+        guide);
+}
+
 void DrawHeaderSurface(
     HWND header,
     HDC dc,
@@ -290,27 +524,30 @@ void DrawHeaderSurface(
 
         if (state.hotDivider ==
                 index &&
+            state.draggingDivider < 0 &&
             index <
                 count - 1) {
             HPEN guide =
                 CreatePen(
                     PS_SOLID,
-                    1,
-                    RGB(188, 207, 226));
+                    std::max(
+                        1,
+                        Scale(2, state.dpi)),
+                    RGB(171, 199, 224));
             HGDIOBJ oldPen =
                 SelectObject(
                     dc,
                     guide);
 
             const int x =
-                itemRect.right - 1;
+                itemRect.right;
 
             MoveToEx(
                 dc,
                 x,
                 itemRect.top +
                     Scale(
-                        8,
+                        6,
                         state.dpi),
                 nullptr);
             LineTo(
@@ -318,7 +555,7 @@ void DrawHeaderSurface(
                 x,
                 itemRect.bottom -
                     Scale(
-                        8,
+                        6,
                         state.dpi));
 
             SelectObject(
@@ -327,6 +564,38 @@ void DrawHeaderSurface(
             DeleteObject(
                 guide);
         }
+    }
+
+    if (state.resizeGuideX >= 0) {
+        HPEN guide =
+            CreatePen(
+                PS_SOLID,
+                std::max(
+                    1,
+                    Scale(2, state.dpi)),
+                RGB(155, 190, 222));
+        HGDIOBJ oldGuidePen =
+            SelectObject(
+                dc,
+                guide);
+
+        MoveToEx(
+            dc,
+            state.resizeGuideX,
+            client.top +
+                Scale(4, state.dpi),
+            nullptr);
+        LineTo(
+            dc,
+            state.resizeGuideX,
+            client.bottom -
+                Scale(1, state.dpi));
+
+        SelectObject(
+            dc,
+            oldGuidePen);
+        DeleteObject(
+            guide);
     }
 
     if (oldFont) {
@@ -362,37 +631,8 @@ void DrawHeaderSurface(
         bottom);
 }
 
-[[nodiscard]] int
-DividerAtPoint(
-    HWND header,
-    POINT point) {
-
-    HDHITTESTINFO hit{};
-    hit.pt = point;
-
-    const int item =
-        static_cast<int>(
-            SendMessageW(
-                header,
-                HDM_HITTEST,
-                0,
-                reinterpret_cast<LPARAM>(
-                    &hit)));
-
-    if (item < 0) {
-        return -1;
-    }
-
-    if ((hit.flags &
-         (HHT_ONDIVIDER |
-          HHT_ONDIVOPEN)) == 0) {
-        return -1;
-    }
-
-    return item;
-}
-
 LRESULT CALLBACK
+NextHeaderSubclassProc(LRESULT CALLBACK
 NextHeaderSubclassProc(
     HWND hwnd,
     UINT message,
@@ -474,6 +714,28 @@ NextHeaderSubclassProc(
         }
         break;
 
+    case WM_SETCURSOR:
+        if (state) {
+            POINT point{};
+
+            if (GetCursorPos(
+                    &point) &&
+                ScreenToClient(
+                    hwnd,
+                    &point) &&
+                DividerNearPoint(
+                    hwnd,
+                    point,
+                    state->dpi) >= 0) {
+                SetCursor(
+                    LoadCursorW(
+                        nullptr,
+                        IDC_SIZEWE));
+                return TRUE;
+            }
+        }
+        break;
+
     case WM_MOUSEMOVE:
         if (state) {
             POINT point{
@@ -482,9 +744,12 @@ NextHeaderSubclassProc(
             };
 
             const int divider =
-                DividerAtPoint(
-                    hwnd,
-                    point);
+                state->draggingDivider >= 0
+                    ? state->draggingDivider
+                    : DividerNearPoint(
+                          hwnd,
+                          point,
+                          state->dpi);
 
             if (divider !=
                 state->hotDivider) {
@@ -507,9 +772,91 @@ NextHeaderSubclassProc(
         }
         break;
 
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONDBLCLK:
+        if (state) {
+            POINT point{
+                GET_X_LPARAM(lParam),
+                GET_Y_LPARAM(lParam),
+            };
+
+            const int divider =
+                DividerNearPoint(
+                    hwnd,
+                    point,
+                    state->dpi);
+
+            if (divider >= 0) {
+                const int dividerX =
+                    HeaderDividerX(
+                        hwnd,
+                        divider);
+
+                state->hotDivider =
+                    divider;
+
+                if (message ==
+                        WM_LBUTTONDOWN) {
+                    state->draggingDivider =
+                        divider;
+
+                    SetResizeGuide(
+                        GetParent(hwnd),
+                        *state,
+                        divider,
+                        dividerX);
+                }
+
+                SetCursor(
+                    LoadCursorW(
+                        nullptr,
+                        IDC_SIZEWE));
+
+                const LPARAM adjusted =
+                    MAKELPARAM(
+                        std::max(
+                            0,
+                            dividerX - 1),
+                        point.y);
+
+                return DefSubclassProc(
+                    hwnd,
+                    message,
+                    wParam,
+                    adjusted);
+            }
+        }
+        break;
+
+    case WM_LBUTTONUP: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        if (state &&
+            state->draggingDivider >= 0) {
+            ClearNextListResizeGuide(
+                GetParent(hwnd));
+        }
+
+        return result;
+    }
+
+    case WM_CAPTURECHANGED:
+        if (state &&
+            state->draggingDivider >= 0) {
+            ClearNextListResizeGuide(
+                GetParent(hwnd));
+        }
+        break;
+
     case WM_MOUSELEAVE:
         if (state &&
-            state->hotDivider != -1) {
+            state->hotDivider != -1 &&
+            state->draggingDivider < 0) {
             state->hotDivider = -1;
             InvalidateRect(
                 hwnd,
@@ -649,6 +996,22 @@ NextListSubclassProc(
 
         DrawListFrame(
             hwnd);
+
+        if (state) {
+            HDC dc =
+                GetDC(hwnd);
+
+            if (dc) {
+                DrawResizeGuideOnList(
+                    hwnd,
+                    dc,
+                    *state);
+                ReleaseDC(
+                    hwnd,
+                    dc);
+            }
+        }
+
         return result;
     }
 
@@ -795,6 +1158,18 @@ void InitializeNextListView(
         state->header =
             header;
 
+        LONG_PTR headerStyle =
+            GetWindowLongPtrW(
+                header,
+                GWL_STYLE);
+        headerStyle &=
+            ~static_cast<LONG_PTR>(
+                HDS_FULLDRAG);
+        SetWindowLongPtrW(
+            header,
+            GWL_STYLE,
+            headerStyle);
+
         // The Header remains the native hit-testing/resizing engine, but its
         // visible surface is fully owned by Next. No classic Header borders or
         // permanent column grid lines are painted.
@@ -860,6 +1235,74 @@ void InitializeNextListView(
         RDW_INVALIDATE |
             RDW_ERASE |
             RDW_ALLCHILDREN);
+}
+
+void UpdateNextListResizeGuide(
+    HWND list,
+    int column,
+    int proposedWidth) {
+
+    auto* state =
+        ListState(list);
+
+    if (!state ||
+        !state->header ||
+        column < 0 ||
+        proposedWidth < 0) {
+        return;
+    }
+
+    int x = 0;
+
+    for (int index = 0;
+         index < column;
+         ++index) {
+        x +=
+            ListView_GetColumnWidth(
+                list,
+                index);
+    }
+
+    x += proposedWidth;
+
+    state->hotDivider =
+        column;
+
+    SetResizeGuide(
+        list,
+        *state,
+        column,
+        x);
+}
+
+void ClearNextListResizeGuide(
+    HWND list) {
+
+    auto* state =
+        ListState(list);
+
+    if (!state) {
+        return;
+    }
+
+    const int oldGuide =
+        state->resizeGuideX;
+
+    state->resizeGuideX = -1;
+    state->draggingDivider = -1;
+
+    InvalidateGuideStrip(
+        list,
+        *state,
+        oldGuide);
+
+    if (state->header &&
+        IsWindow(state->header)) {
+        InvalidateRect(
+            state->header,
+            nullptr,
+            FALSE);
+    }
 }
 
 COLORREF NextListRowBackground(

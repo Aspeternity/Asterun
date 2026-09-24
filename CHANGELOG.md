@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.7
+
+- Expanded shared Header divider hit zones to ±4 logical pixels and added immediate `IDC_SIZEWE` feedback.
+- Added a clearer hover-only divider hint and a two-pixel drag preview guide spanning the Header and table body.
+- Disabled `HDS_FULLDRAG` in the shared ListView Header so drag motion no longer continuously resizes/reflows ListView columns.
+- Wired Shortcut Manager HDN tracking into the shared preview guide while retaining its deferred elastic Target commit.
+- Reworked Path Conversion column tracking to the same deferred begin/track/end model and commit its elastic Status column only once on release.
+- Changed first-open Shortcut Manager columns to 110 / 180 / 110 logical pixels with Target elastic.
+- Changed first-open Path Conversion columns to 110 / 360 / 380 logical pixels with Status elastic, preserving existing minimum widths on smaller windows.
+- Preserved native Header capture, resize notifications, DPI behavior, saved runtime widths, row rendering, checkbox behavior and all business logic.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.177`.
 ## 0.8.0-alpha.5.6
 
 - Replaced the visible native Header painting with a shared `UiListView` Header subclass while keeping native Header hit testing and resize notifications.

@@ -71,8 +71,13 @@ private:
     void UpdateSelectionState(
         std::optional<std::size_t>
             appliedFieldCount = std::nullopt);
+    [[nodiscard]] int
+    ClampTrackedColumnWidth(
+        int column,
+        int proposedWidth) const;
     void UpdateColumnWidths(
-        int resizedColumn = -1);
+        int resizedColumn = -1,
+        int proposedWidth = -1);
     [[nodiscard]] bool
     HandleHeaderNotification(
         LPARAM lParam,
@@ -142,6 +147,9 @@ private:
     bool closed_{false};
     bool customColumnWidths_{false};
     bool adjustingColumnWidths_{false};
+    bool columnTracking_{false};
+    int trackedColumn_{-1};
+    int trackedColumnWidth_{-1};
     std::size_t convertibleShortcutCount_{0};
     std::vector<Row> rows_;
 };

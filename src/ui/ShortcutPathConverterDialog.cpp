@@ -38,9 +38,9 @@ constexpr int kDefaultHeightLogical = 560;
 constexpr int kMinimumWidthLogical = 820;
 constexpr int kMinimumHeightLogical = 480;
 
-constexpr int kFieldColumnPercent = 13;
-constexpr int kCurrentColumnPercent = 36;
-constexpr int kConvertedColumnPercent = 39;
+constexpr int kFieldColumnDefaultLogical = 110;
+constexpr int kCurrentColumnDefaultLogical = 360;
+constexpr int kConvertedColumnDefaultLogical = 380;
 constexpr int kFieldColumnMinimumLogical = 100;
 constexpr int kCurrentColumnMinimumLogical = 180;
 constexpr int kConvertedColumnMinimumLogical = 180;
@@ -1795,10 +1795,96 @@ UpdateSelectionState(
         text.c_str());
 }
 
+int ShortcutPathConverterDialog::
+ClampTrackedColumnWidth(
+    int column,
+    int proposedWidth) const {
+    if (!list_ ||
+        column < 0 ||
+        column >= 3) {
+        return proposedWidth;
+    }
+
+    HWND header =
+        ListView_GetHeader(
+            list_);
+
+    RECT client{};
+
+    if (header) {
+        GetClientRect(
+            header,
+            &client);
+    } else {
+        GetClientRect(
+            list_,
+            &client);
+    }
+
+    const int contentWidth =
+        std::max(
+            1,
+            static_cast<int>(
+                client.right -
+                client.left));
+
+    const std::array<int, 4>
+        minimums{
+            Scale(
+                kFieldColumnMinimumLogical),
+            Scale(
+                kCurrentColumnMinimumLogical),
+            Scale(
+                kConvertedColumnMinimumLogical),
+            Scale(
+                kStatusColumnMinimumLogical),
+        };
+
+    int otherWidth = 0;
+
+    for (int index = 0;
+         index < 3;
+         ++index) {
+        if (index == column) {
+            continue;
+        }
+
+        otherWidth +=
+            std::max(
+                minimums[
+                    static_cast<
+                        std::size_t>(
+                            index)],
+                ListView_GetColumnWidth(
+                    list_,
+                    index));
+    }
+
+    const int maximum =
+        std::max(
+            minimums[
+                static_cast<
+                    std::size_t>(
+                        column)],
+            contentWidth -
+                minimums[3] -
+                otherWidth);
+
+    return std::clamp(
+        proposedWidth,
+        minimums[
+            static_cast<
+                std::size_t>(
+                    column)],
+        maximum);
+}
+
 void ShortcutPathConverterDialog::
 UpdateColumnWidths(
-    int resizedColumn) {
-    if (!list_) {
+    int resizedColumn,
+    int proposedWidth) {
+    if (!list_ ||
+        adjustingColumnWidths_) {
         return;
     }
 
@@ -1847,25 +1933,23 @@ UpdateColumnWidths(
 
     std::array<int, 3> widths{};
 
-    if (!customColumnWidths_) {
+    if (!customColumnWidths_ &&
+        resizedColumn < 0) {
         widths[0] =
             std::max(
                 minimums[0],
-                contentWidth *
-                    kFieldColumnPercent /
-                    100);
+                Scale(
+                    kFieldColumnDefaultLogical));
         widths[1] =
             std::max(
                 minimums[1],
-                contentWidth *
-                    kCurrentColumnPercent /
-                    100);
+                Scale(
+                    kCurrentColumnDefaultLogical));
         widths[2] =
             std::max(
                 minimums[2],
-                contentWidth *
-                    kConvertedColumnPercent /
-                    100);
+                Scale(
+                    kConvertedColumnDefaultLogical));
     } else {
         for (int index = 0;
              index < 3;
@@ -1883,6 +1967,16 @@ UpdateColumnWidths(
                         list_,
                         index));
         }
+    }
+
+    if (resizedColumn >= 0 &&
+        resizedColumn < 3 &&
+        proposedWidth >= 0) {
+        widths[
+            static_cast<
+                std::size_t>(
+                    resizedColumn)] =
+            proposedWidth;
     }
 
     const int minimumFirstThree =
@@ -2060,7 +2154,7 @@ HandleHeaderNotification(
             list_);
 
     if (notification->hwndFrom !=
-        headerWindow) {
+            headerWindow) {
         return false;
     }
 
@@ -2109,21 +2203,17 @@ HandleHeaderNotification(
     const int column =
         header->iItem;
 
-    const bool widthChange =
-        header->pitem &&
-        (header->pitem->mask &
-         HDI_WIDTH) != 0;
+    if (column == 3) {
+        if (beginTrack ||
+            itemChanging ||
+            track ||
+            endTrack ||
+            dividerDoubleClick) {
+            result = TRUE;
+            return true;
+        }
 
-    if (column == 3 &&
-        (beginTrack ||
-         track ||
-         endTrack ||
-         dividerDoubleClick ||
-         ((itemChanging ||
-           itemChanged) &&
-          widthChange))) {
-        result = TRUE;
-        return true;
+        return false;
     }
 
     if (dividerDoubleClick) {
@@ -2132,94 +2222,135 @@ HandleHeaderNotification(
     }
 
     if (beginTrack) {
-        customColumnWidths_ =
-            true;
+        columnTracking_ = true;
+        trackedColumn_ = column;
+        trackedColumnWidth_ =
+            ListView_GetColumnWidth(
+                list_,
+                column);
+
+        ui::UpdateNextListResizeGuide(
+            list_,
+            column,
+            trackedColumnWidth_);
+
         result = FALSE;
         return true;
     }
 
-    if ((itemChanging ||
-         track) &&
+    if (track &&
+        columnTracking_ &&
+        trackedColumn_ == column &&
         header->pitem &&
         (header->pitem->mask &
          HDI_WIDTH) != 0) {
+        const int clamped =
+            ClampTrackedColumnWidth(
+                column,
+                header->pitem->cxy);
+
+        header->pitem->cxy =
+            clamped;
+        trackedColumnWidth_ =
+            clamped;
+
+        ui::UpdateNextListResizeGuide(
+            list_,
+            column,
+            clamped);
+
+        result = FALSE;
+        return true;
+    }
+
+    if (itemChanging &&
+        header->pitem &&
+        (header->pitem->mask &
+         HDI_WIDTH) != 0) {
+        const int clamped =
+            ClampTrackedColumnWidth(
+                column,
+                header->pitem->cxy);
+
+        header->pitem->cxy =
+            clamped;
+
+        if (columnTracking_ &&
+            trackedColumn_ == column) {
+            trackedColumnWidth_ =
+                clamped;
+
+            ui::UpdateNextListResizeGuide(
+                list_,
+                column,
+                clamped);
+
+            result = TRUE;
+            return true;
+        }
+
+        customColumnWidths_ =
+            true;
+        UpdateColumnWidths(
+            column,
+            clamped);
+
+        result = TRUE;
+        return true;
+    }
+
+    if (endTrack &&
+        columnTracking_ &&
+        trackedColumn_ == column) {
+        int finalWidth =
+            trackedColumnWidth_;
+
+        if (header->pitem &&
+            (header->pitem->mask &
+             HDI_WIDTH) != 0) {
+            finalWidth =
+                ClampTrackedColumnWidth(
+                    column,
+                    header->pitem->cxy);
+        }
+
+        columnTracking_ = false;
+        trackedColumn_ = -1;
+        trackedColumnWidth_ = -1;
         customColumnWidths_ =
             true;
 
-        const std::array<int, 4>
-            minimums{
-                Scale(
-                    kFieldColumnMinimumLogical),
-                Scale(
-                    kCurrentColumnMinimumLogical),
-                Scale(
-                    kConvertedColumnMinimumLogical),
-                Scale(
-                    kStatusColumnMinimumLogical),
-            };
+        UpdateColumnWidths(
+            column,
+            finalWidth);
 
-        HWND listHeader =
-            ListView_GetHeader(
-                list_);
-        RECT client{};
-        GetClientRect(
-            listHeader,
-            &client);
+        ui::ClearNextListResizeGuide(
+            list_);
 
-        int otherWidth = 0;
-        for (int index = 0;
-             index < 3;
-             ++index) {
-            if (index != column) {
-                otherWidth +=
-                    ListView_GetColumnWidth(
-                        list_,
-                        index);
-            }
-        }
-
-        const int maximum =
-            std::max(
-                minimums[
-                    static_cast<
-                        std::size_t>(
-                            column)],
-                static_cast<int>(
-                    client.right -
-                    client.left) -
-                    minimums[3] -
-                    otherWidth);
-
-        header->pitem->cxy =
-            std::clamp(
-                header->pitem->cxy,
-                minimums[
-                    static_cast<
-                        std::size_t>(
-                            column)],
-                maximum);
+        RedrawWindow(
+            list_,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_ERASE |
+                RDW_ALLCHILDREN);
 
         result = FALSE;
         return true;
     }
 
     if (itemChanged &&
+        !columnTracking_ &&
         header->pitem &&
         (header->pitem->mask &
          HDI_WIDTH) != 0) {
         customColumnWidths_ =
             true;
         UpdateColumnWidths(
-            column);
-        result = FALSE;
-        return true;
-    }
-
-    if (endTrack) {
-        customColumnWidths_ =
-            true;
-        UpdateColumnWidths(
-            column);
+            column,
+            ClampTrackedColumnWidth(
+                column,
+                header->pitem->cxy));
         result = FALSE;
         return true;
     }

@@ -251,6 +251,20 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Repeat both Table Surfaces at 100/125/150/175/200% scaling; Header height, text centering, resize hit zones, body padding and checkbox alignment remain crisp.
 - [ ] Settings/Shortcut Editor ComboBoxes remain visually identical to alpha.5.4 and Hotkeys still have no empty status strip.
 - [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
+## v0.8.0-alpha.5.7 Table interaction validation
+
+- [ ] In Shortcut Manager, move slowly across the first three Header boundaries: the resize cursor appears within an easy-to-hit ~8 logical-pixel zone and no guessing is required.
+- [ ] Hovering a resizable boundary shows a short, clearer divider hint only while the pointer is in the hit zone; no permanent vertical grid lines return.
+- [ ] Drag each Shortcut Manager divider rapidly left/right. The table body does not continuously reflow during drag; only the shared vertical preview guide moves.
+- [ ] Releasing the mouse commits the dragged width once, recalculates elastic Target once, and leaves no guide, ghosting, flashing bottom bar or stale divider.
+- [ ] Shortcut Manager minimum widths and Target elastic/non-resizable behavior remain unchanged; first-open widths are approximately 110 / 180 / 110 logical pixels before Target.
+- [ ] Repeat the same interaction in Path Conversion for Field / Current path / Converted path. Dragging is deferred and Status remains elastic/non-resizable.
+- [ ] Path Conversion first-open intent is 110 / 360 / 380 logical pixels before Status, shrinking only as needed to respect the existing minimum window and Status minimum.
+- [ ] Double-click/normal Header interaction does not make the last elastic column resizable.
+- [ ] Existing Shortcut Manager column persistence behavior, filtering, right-click menu, double-click editing, Ctrl+N/Ctrl+F/Ctrl+Enter/Delete remain unchanged.
+- [ ] Path Conversion checkbox, grouped rows, Rescan, Apply selected and conversion results remain unchanged.
+- [ ] Repeat hover + drag at 100/125/150/175/200% scaling; hit zone, cursor and guide remain crisp and aligned with the committed divider.
+- [ ] Alpha.5.6 Table visual surface, alpha.5.4 ComboBoxes, Hotkeys and Classic launcher visuals remain unchanged.
 ## Release assets
 
 For the candidate tag:

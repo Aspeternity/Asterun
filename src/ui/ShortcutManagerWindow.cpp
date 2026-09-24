@@ -38,13 +38,11 @@ constexpr int kDefaultHeightLogical = 480;
 constexpr int kMinimumWidthLogical = 720;
 constexpr int kMinimumHeightLogical = 480;
 
-constexpr int kKeywordColumnPercent = 16;
-constexpr int kNameColumnPercent = 24;
-constexpr int kTypeColumnPercent = 14;
-// Match the validated first-open proportions at the Manager's minimum window
-// size. Users may widen columns (with Target remaining elastic) but should not
-// compress Keywords/Name/Type below the baseline that was already accepted
-// visually on real Windows.
+constexpr int kKeywordColumnDefaultLogical = 110;
+constexpr int kNameColumnDefaultLogical = 180;
+constexpr int kTypeColumnDefaultLogical = 110;
+// Keep compact, readable first-open columns and give the elastic Target column
+// the remaining space. Existing user-resized widths keep their current path.
 constexpr int kKeywordColumnMinimumLogical = 107;
 constexpr int kNameColumnMinimumLogical = 161;
 constexpr int kTypeColumnMinimumLogical = 94;
@@ -1493,14 +1491,20 @@ UpdateColumnWidths(
     if (!customColumnWidths_ &&
         resizedColumn < 0) {
         widths[0] =
-            contentWidth *
-            kKeywordColumnPercent / 100;
+            std::max(
+                minimums[0],
+                Scale(
+                    kKeywordColumnDefaultLogical));
         widths[1] =
-            contentWidth *
-            kNameColumnPercent / 100;
+            std::max(
+                minimums[1],
+                Scale(
+                    kNameColumnDefaultLogical));
         widths[2] =
-            contentWidth *
-            kTypeColumnPercent / 100;
+            std::max(
+                minimums[2],
+                Scale(
+                    kTypeColumnDefaultLogical));
     } else {
         for (int index = 0;
              index < 3;
@@ -1786,6 +1790,12 @@ HandleHeaderNotification(
             ListView_GetColumnWidth(
                 list_,
                 column);
+
+        ui::UpdateNextListResizeGuide(
+            list_,
+            column,
+            trackedColumnWidth_);
+
         result = FALSE;
         return true;
     }
@@ -1805,6 +1815,11 @@ HandleHeaderNotification(
             clamped;
         trackedColumnWidth_ =
             clamped;
+
+        ui::UpdateNextListResizeGuide(
+            list_,
+            column,
+            clamped);
 
         // With HDS_FULLDRAG disabled, returning FALSE lets the Header move
         // only its tracking guide. No ListView column is resized here.
@@ -1828,6 +1843,11 @@ HandleHeaderNotification(
             trackedColumn_ == column) {
             trackedColumnWidth_ =
                 clamped;
+
+            ui::UpdateNextListResizeGuide(
+                list_,
+                column,
+                clamped);
 
             // Reject the Header's final native resize. HDN_ENDTRACK commits
             // the dragged column and elastic Target together in one step.
@@ -1872,6 +1892,9 @@ HandleHeaderNotification(
         UpdateColumnWidths(
             column,
             finalWidth);
+
+        ui::ClearNextListResizeGuide(
+            list_);
 
         RedrawWindow(
             list_,

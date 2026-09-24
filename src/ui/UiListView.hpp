@@ -11,6 +11,14 @@ void InitializeNextListView(
     HFONT bodyFont,
     HFONT headerFont);
 
+void UpdateNextListResizeGuide(
+    HWND list,
+    int column,
+    int proposedWidth);
+
+void ClearNextListResizeGuide(
+    HWND list);
+
 [[nodiscard]] COLORREF
 NextListRowBackground(
     HWND list,
