@@ -139,7 +139,7 @@ int main() {
             CommandSource::AppPaths;
         live.activationKind =
             LaunchActivationKind::
-                ShellExecute;
+                ShellItem;
         live.canonicalIdentity =
             BuildCanonicalLaunchIdentity(
                 live.activationKind,
@@ -157,7 +157,7 @@ int main() {
             CommandSource::AppPaths;
         stale.activationKind =
             LaunchActivationKind::
-                ShellExecute;
+                ShellItem;
         stale.canonicalIdentity =
             BuildCanonicalLaunchIdentity(
                 stale.activationKind,
