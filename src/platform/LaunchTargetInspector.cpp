@@ -234,29 +234,6 @@ InspectExecutableDetailed(
         ExecutableInspectionStage::
             UnsupportedSubsystem;
 
-    DWORD binaryType = 0;
-
-    if (GetBinaryTypeW(
-            path.c_str(),
-            &binaryType)) {
-        result.getBinaryTypeSucceeded =
-            true;
-        result.binaryType =
-            binaryType;
-        result.currentKind =
-            LaunchTargetKind::
-                ExecutableUnknown;
-        result.fallbackUsed = true;
-        return result;
-    }
-
-    if (result.fileExists) {
-        result.currentKind =
-            LaunchTargetKind::
-                ExecutableUnknown;
-        result.fallbackUsed = true;
-    }
-
     return result;
 }
 
@@ -370,6 +347,36 @@ InspectLaunchTargetDetailed(
 
     result.executable =
         InspectExecutableDetailed(path);
+
+    result.executable.currentKind =
+        result.executable.legacyKind;
+
+    if (result.executable.legacyKind ==
+        LaunchTargetKind::Unknown) {
+        DWORD binaryType = 0;
+
+        if (GetBinaryTypeW(
+                path.c_str(),
+                &binaryType)) {
+            result.executable
+                .getBinaryTypeSucceeded =
+                true;
+            result.executable.binaryType =
+                binaryType;
+            result.executable.currentKind =
+                LaunchTargetKind::
+                    ExecutableUnknown;
+            result.executable.fallbackUsed =
+                true;
+        } else if (
+            result.executable.fileExists) {
+            result.executable.currentKind =
+                LaunchTargetKind::
+                    ExecutableUnknown;
+            result.executable.fallbackUsed =
+                true;
+        }
+    }
 
     result.finalKind =
         result.executable.currentKind;
