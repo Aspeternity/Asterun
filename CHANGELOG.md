@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.5.17
+
+- Added `LaunchTargetKind::ExecutableUnknown` for existing `.exe` targets whose PE subsystem cannot be classified as GUI/CUI.
+- Start Menu and App Paths positive admission now accept such real executables after existing documentation/maintenance/auxiliary filters, preventing legitimate apps such as user-local TeamSpeak installations from being falsely dropped.
+- Added explicit `LaunchAdmissionReason` values so candidate admission has a deterministic reason instead of a bare boolean.
+- Added TeamSpeak-style admission regression and Windows runtime `.lnk` coverage for an opaque existing `.exe` target.
+- Kept the existing TeamSpeak 3 + TeamSpeak 6 merge regression unchanged, confirming canonicalization preserves both distinct applications.
+- Bumped generated Provider Cache schema to 6 so schema-5 caches rebuild and rediscover previously omitted executable candidates.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.187`.
 ## 0.8.0-alpha.5.16
 
 - Added a provider-neutral LaunchCandidate admission layer so discovery is positive-admission instead of default-accept followed by ranking cleanup.

@@ -15,6 +15,7 @@ enum class LaunchCandidateSource {
 
 enum class LaunchTargetKind {
     Unknown,
+    ExecutableUnknown,
     GuiExecutable,
     ConsoleExecutable,
     CommandScript,
@@ -22,6 +23,17 @@ enum class LaunchTargetKind {
     SystemControl,
     Document,
     WebUri,
+};
+
+enum class LaunchAdmissionReason {
+    Admitted,
+    MissingIdentity,
+    Documentation,
+    Maintenance,
+    Auxiliary,
+    DocumentTarget,
+    WebTarget,
+    UnsupportedTarget,
 };
 
 struct LaunchCandidate {
@@ -42,7 +54,14 @@ struct LaunchAdmission {
     LaunchSurfaceClass surface{
         LaunchSurfaceClass::
             PrimaryApplication};
+    LaunchAdmissionReason reason{
+        LaunchAdmissionReason::
+            UnsupportedTarget};
 };
+
+[[nodiscard]] const char*
+LaunchAdmissionReasonName(
+    LaunchAdmissionReason reason) noexcept;
 
 [[nodiscard]] bool
 IsDocumentationLikeTitle(

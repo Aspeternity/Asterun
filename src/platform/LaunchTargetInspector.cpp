@@ -187,7 +187,32 @@ LaunchTargetKind InspectLaunchTarget(
         LowerExtension(target);
 
     if (extension == L".exe") {
-        return InspectExecutable(path);
+        const auto inspected =
+            InspectExecutable(path);
+
+        if (inspected !=
+            LaunchTargetKind::Unknown) {
+            return inspected;
+        }
+
+        DWORD binaryType = 0;
+
+        if (GetBinaryTypeW(
+                path.c_str(),
+                &binaryType)) {
+            return LaunchTargetKind::
+                ExecutableUnknown;
+        }
+
+        std::error_code ec;
+
+        if (std::filesystem::
+                is_regular_file(
+                    path,
+                    ec)) {
+            return LaunchTargetKind::
+                ExecutableUnknown;
+        }
     }
 
     return LaunchTargetKind::Unknown;

@@ -249,6 +249,7 @@ In progress:
 - v0.8.0-alpha.5.14 hardens search relevance at the policy boundary: short ASCII fuzzy is gated, initials are exact/prefix-only, ordinary target paths leave lexical search, multi-token matching becomes strict with Hybrid Pinyin preserved, and Start Menu entries gain content hygiene without changing Provider canonicalization
 - v0.8.0-alpha.5.15 adds the missing classification/admission layer and a single RelevancePolicy owner shared by static Search and Everything, preventing helper/CLI/system noise from entering casual queries before structured ranking is applied
 - v0.8.0-alpha.5.16 makes provider admission positive and target-aware: Start Menu shortcuts are resolved before indexing, AppsFolder web/non-app entries are rejected, App Paths PE roles are inspected, and only meaningful launch candidates reach the search/ranking layer
+- v0.8.0-alpha.5.17 hardens that admission boundary against false negatives by preserving real existing `.exe` targets as ExecutableUnknown when PE subsystem inspection is inconclusive, while keeping all content-hygiene rejection rules intact
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

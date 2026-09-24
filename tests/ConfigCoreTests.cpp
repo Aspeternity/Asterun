@@ -1695,7 +1695,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 5,\n"
+        "  \"schemaVersion\": 6,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1724,17 +1724,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 4 predates positive launch-candidate admission. Generated
-    // entries must be rebuilt so rejected documents/web/maintenance helpers
-    // cannot survive from an older provider cache.
-    const auto staleSchema4ProviderCache =
+    // Schema 5 predates executable-unknown admission. Generated entries
+    // must be rebuilt so legitimate registered/start-menu executables that
+    // the PE inspector could not classify are rediscovered.
+    const auto staleSchema5ProviderCache =
         data /
-        "provider-cache-schema4-stale.json";
+        "provider-cache-schema5-stale.json";
 
     WriteText(
-        staleSchema4ProviderCache,
+        staleSchema5ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 4,\n"
+        "  \"schemaVersion\": 5,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1751,11 +1751,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema4Cache(
-        staleSchema4ProviderCache);
+    ProviderCache staleSchema5Cache(
+        staleSchema5ProviderCache);
 
     assert(
-        staleSchema4Cache.Load().empty());
+        staleSchema5Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

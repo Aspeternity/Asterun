@@ -159,6 +159,9 @@ namespace {
     return
         kind ==
             LaunchTargetKind::
+                ExecutableUnknown ||
+        kind ==
+            LaunchTargetKind::
                 GuiExecutable ||
         kind ==
             LaunchTargetKind::
@@ -383,6 +386,31 @@ LaunchTargetKind InferTextTargetKind(
     return LaunchTargetKind::Unknown;
 }
 
+const char* LaunchAdmissionReasonName(
+    LaunchAdmissionReason reason) noexcept {
+
+    switch (reason) {
+    case LaunchAdmissionReason::Admitted:
+        return "admitted";
+    case LaunchAdmissionReason::MissingIdentity:
+        return "missing-identity";
+    case LaunchAdmissionReason::Documentation:
+        return "documentation";
+    case LaunchAdmissionReason::Maintenance:
+        return "maintenance";
+    case LaunchAdmissionReason::Auxiliary:
+        return "auxiliary";
+    case LaunchAdmissionReason::DocumentTarget:
+        return "document-target";
+    case LaunchAdmissionReason::WebTarget:
+        return "web-target";
+    case LaunchAdmissionReason::UnsupportedTarget:
+        return "unsupported-target";
+    }
+
+    return "unsupported-target";
+}
+
 LaunchAdmission EvaluateLaunchCandidate(
     const LaunchCandidate& candidate) {
 
@@ -394,6 +422,9 @@ LaunchAdmission EvaluateLaunchCandidate(
 
     if (candidate.title.empty() ||
         candidate.target.empty()) {
+        decision.reason =
+            LaunchAdmissionReason::
+                MissingIdentity;
         return decision;
     }
 
@@ -408,30 +439,57 @@ LaunchAdmission EvaluateLaunchCandidate(
 
     if (IsDocumentationLikeTitle(
             candidate.title) ||
-        IsMaintenanceLikeTitle(
-            candidate.title) ||
         IsDocumentationLikeTitle(
-            targetLeaf) ||
+            targetLeaf)) {
+        decision.reason =
+            LaunchAdmissionReason::
+                Documentation;
+        return decision;
+    }
+
+    if (IsMaintenanceLikeTitle(
+            candidate.title) ||
         IsMaintenanceLikeTitle(
             targetLeaf) ||
         candidate.surface ==
             LaunchSurfaceClass::
-                Auxiliary ||
-        candidate.surface ==
-            LaunchSurfaceClass::
                 Maintenance ||
         targetRole ==
             LaunchSurfaceClass::
+                Maintenance) {
+        decision.reason =
+            LaunchAdmissionReason::
+                Maintenance;
+        return decision;
+    }
+
+    if (candidate.surface ==
+            LaunchSurfaceClass::
                 Auxiliary ||
         targetRole ==
             LaunchSurfaceClass::
-                Maintenance ||
-        candidate.targetKind ==
-            LaunchTargetKind::
-                Document ||
-        candidate.targetKind ==
-            LaunchTargetKind::
-                WebUri) {
+                Auxiliary) {
+        decision.reason =
+            LaunchAdmissionReason::
+                Auxiliary;
+        return decision;
+    }
+
+    if (candidate.targetKind ==
+        LaunchTargetKind::
+            Document) {
+        decision.reason =
+            LaunchAdmissionReason::
+                DocumentTarget;
+        return decision;
+    }
+
+    if (candidate.targetKind ==
+        LaunchTargetKind::
+            WebUri) {
+        decision.reason =
+            LaunchAdmissionReason::
+                WebTarget;
         return decision;
     }
 
@@ -462,12 +520,8 @@ LaunchAdmission EvaluateLaunchCandidate(
 
     case LaunchCandidateSource::AppPaths:
         decision.admit =
-            candidate.targetKind ==
-                LaunchTargetKind::
-                    GuiExecutable ||
-            candidate.targetKind ==
-                LaunchTargetKind::
-                    ConsoleExecutable;
+            IsExecutableKind(
+                candidate.targetKind);
         break;
 
     case LaunchCandidateSource::Path:
@@ -479,6 +533,13 @@ LaunchAdmission EvaluateLaunchCandidate(
                 CommandLineTool;
         break;
     }
+
+    decision.reason =
+        decision.admit
+            ? LaunchAdmissionReason::
+                  Admitted
+            : LaunchAdmissionReason::
+                  UnsupportedTarget;
 
     return decision;
 }

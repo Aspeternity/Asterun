@@ -102,6 +102,24 @@ int wmain() {
         LaunchTargetKind::
             ConsoleExecutable);
 
+
+    const auto opaqueExe =
+        root /
+        "TeamSpeak.exe";
+
+    {
+        std::ofstream output(
+            opaqueExe,
+            std::ios::binary);
+        output << "opaque executable fixture";
+    }
+
+    assert(
+        win::InspectLaunchTarget(
+            opaqueExe.wstring()) ==
+        LaunchTargetKind::
+            ExecutableUnknown);
+
     const auto doc =
         root /
         "whats-new.chm";
@@ -116,6 +134,9 @@ int wmain() {
     const auto appLink =
         root /
         "Application.lnk";
+    const auto opaqueAppLink =
+        root /
+        "TeamSpeak.lnk";
     const auto docLink =
         root /
         "What's New.lnk";
@@ -124,23 +145,35 @@ int wmain() {
         appLink,
         executable);
     CreateShortcut(
+        opaqueAppLink,
+        opaqueExe);
+    CreateShortcut(
         docLink,
         doc);
 
     const auto app =
         win::InspectShellLink(
             appLink);
+    const auto opaqueApp =
+        win::InspectShellLink(
+            opaqueAppLink);
     const auto help =
         win::InspectShellLink(
             docLink);
 
     assert(app.has_value());
+    assert(opaqueApp.has_value());
     assert(help.has_value());
 
     assert(
         app->targetKind ==
         LaunchTargetKind::
             ConsoleExecutable);
+
+    assert(
+        opaqueApp->targetKind ==
+        LaunchTargetKind::
+            ExecutableUnknown);
 
     assert(
         help->targetKind ==

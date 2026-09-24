@@ -20,6 +20,10 @@ int main() {
             });
 
         assert(!decision.admit);
+        assert(
+            decision.reason ==
+            LaunchAdmissionReason::
+                WebTarget);
     }
 
     {
@@ -36,6 +40,10 @@ int main() {
             });
 
         assert(!decision.admit);
+        assert(
+            decision.reason ==
+            LaunchAdmissionReason::
+                Documentation);
     }
 
     {
@@ -57,6 +65,32 @@ int main() {
             decision.surface ==
             LaunchSurfaceClass::
                 PrimaryApplication);
+    }
+
+
+    {
+        const auto decision =
+            EvaluateLaunchCandidate({
+                LaunchCandidateSource::
+                    StartMenu,
+                L"TeamSpeak",
+                L"C:\\Users\\Asp\\AppData\\Local\\Programs\\TeamSpeak\\TeamSpeak.exe",
+                LaunchSurfaceClass::
+                    PrimaryApplication,
+                LaunchTargetKind::
+                    ExecutableUnknown,
+                true,
+            });
+
+        assert(decision.admit);
+        assert(
+            decision.surface ==
+            LaunchSurfaceClass::
+                PrimaryApplication);
+        assert(
+            decision.reason ==
+            LaunchAdmissionReason::
+                Admitted);
     }
 
     {

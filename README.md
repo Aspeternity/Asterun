@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.17 — Executable Admission Recovery
+
+Alpha.5.17 fixes a false-negative edge in the positive-admission pipeline introduced by alpha.5.16. A real existing `.exe` whose PE subsystem cannot be classified as GUI/CUI is now represented as `ExecutableUnknown` instead of collapsing into `Unknown` and being rejected.
+
+`ExecutableUnknown` still passes through every alpha.5.16 hygiene gate: documentation, web, maintenance, updater/uninstaller and auxiliary/helper/native-messaging roles are rejected before indexing. This restores legitimate Start Menu/App Paths applications without returning to extension-only default acceptance.
+
+`LaunchAdmission` now carries an explicit reason (`Admitted`, `Documentation`, `Maintenance`, `Auxiliary`, `DocumentTarget`, `WebTarget`, `UnsupportedTarget`, etc.), making admission behavior deterministic and testable. The TeamSpeak regression is covered directly: a normal Start Menu `TeamSpeak.exe` with an unclassified executable subtype is admitted as a PrimaryApplication, while the existing TeamSpeak 3/6 merge regression continues to prove both distinct applications survive canonicalization.
+
+Windows runtime coverage creates an actual `.lnk` to an opaque existing `.exe` fixture and verifies that shortcut resolution yields `ExecutableUnknown` rather than rejection. Generated Provider Cache schema is bumped to 6 so schema-5 caches that may have omitted such applications rebuild once.
+
+Classic UI, relevance/ranking, Everything, table ownership and Quick Launch behavior are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.187`.
 ## v0.8.0-alpha.5.16 — Launch Candidate Admission
 
 Alpha.5.16 moves the provider boundary from default-accept/filter-later to positive admission: a discovered Windows object must prove that it is a meaningful launch target before it is allowed into the searchable command index.

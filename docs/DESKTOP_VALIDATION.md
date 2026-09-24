@@ -396,6 +396,17 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Everything behavior is unchanged from alpha.5.15: ordinary one-character queries do not start dynamic filesystem IPC and explicit syntax/path queries still work.
 - [ ] Classic visuals/geometry, table resize, numeric Quick Launch arbitration and Modern Compact visuals remain unchanged.
 
+## v0.8.0-alpha.5.17 Executable admission recovery validation
+
+- [ ] Upgrade from alpha.5.16 and allow Provider Cache schema 6 to rebuild once.
+- [ ] Search `teamsp`: both `TeamSpeak 3 Client` and the user-level `TeamSpeak` / TeamSpeak 6 shortcut must be present when both are installed.
+- [ ] Confirm the TeamSpeak 6 result launches the original Start Menu shortcut targeting `C:\\Users\\Asp\\AppData\\Local\\Programs\\TeamSpeak\\TeamSpeak.exe`.
+- [ ] Recheck `f` / `fangwen`: `访问 Java.com` remains excluded.
+- [ ] Recheck WinRAR `最新版本里有哪些新功能`, help/manual and uninstall/update entries: they remain excluded.
+- [ ] Recheck SOLIDWORKS only for regression in presence/absence; component-family filtering is intentionally deferred to the next hygiene step.
+- [ ] Normal Start Menu/App Paths applications whose `.exe` subsystem is recognized continue to behave identically.
+- [ ] Classic visuals/geometry, table resize, numeric Quick Launch, pinyin search and Everything behavior remain unchanged.
+
 ## Release assets
 
 For the candidate tag:
