@@ -33,7 +33,10 @@ enum class LaunchAdmissionReason {
     Auxiliary,
     DocumentTarget,
     WebTarget,
+    TargetResolutionFailed,
+    TargetMissing,
     UnsupportedTarget,
+    Count,
 };
 
 struct LaunchCandidate {

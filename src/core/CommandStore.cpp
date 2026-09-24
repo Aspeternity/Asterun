@@ -64,15 +64,58 @@ void CommandStore::Reload(
 
     userCommandStore_.Load();
 
-    ReloadProviderCache(
-        enabled);
+    providerEnabled_ = enabled;
+
+    const ProviderCacheData cache =
+        providerCache_.Load();
+
+    providerIndexState_ =
+        EvaluateProviderIndexState(
+            providerRegistry_
+                .Descriptors(),
+            providerEnabled_,
+            cache,
+            false);
+
+    RebuildMergedCommands(cache);
 }
 
 void CommandStore::ReloadProviderCache(
     const ProviderEnableMap& enabled) {
 
     providerEnabled_ = enabled;
-    RebuildMergedCommands();
+
+    const ProviderCacheData cache =
+        providerCache_.Load();
+
+    providerIndexState_ =
+        EvaluateProviderIndexState(
+            providerRegistry_
+                .Descriptors(),
+            providerEnabled_,
+            cache,
+            false);
+
+    RebuildMergedCommands(cache);
+}
+
+void CommandStore::PublishProviderCache(
+    const ProviderEnableMap& enabled) {
+
+    providerEnabled_ = enabled;
+
+    const ProviderCacheData cache =
+        providerCache_.Load();
+
+    providerIndexState_ =
+        EvaluateProviderIndexState(
+            providerRegistry_
+                .Descriptors(),
+            providerEnabled_,
+            cache,
+            true);
+
+    RebuildMergedCommands(cache);
 }
 
 ProviderRefreshOutcome
@@ -120,6 +163,11 @@ CommandStore::RefreshProviderCache(
                 result.success
                     ? std::wstring{}
                     : result.error;
+
+            if (result.success) {
+                diagnostic.admission =
+                    result.admission;
+            }
         }
     }
 
@@ -277,6 +325,10 @@ CommandStore::ProviderStatuses(
             status.lastError =
                 diagnosticIt->second
                     .lastError;
+
+            status.admission =
+                diagnosticIt->second
+                    .admission;
         }
 
         statuses.push_back(
@@ -296,7 +348,8 @@ bool CommandStore::CreateUserCommand(
         return false;
     }
 
-    RebuildMergedCommands();
+    RebuildMergedCommands(
+        providerCache_.Load());
     return true;
 }
 
@@ -310,7 +363,8 @@ bool CommandStore::UpdateUserCommand(
         return false;
     }
 
-    RebuildMergedCommands();
+    RebuildMergedCommands(
+        providerCache_.Load());
     return true;
 }
 
@@ -322,7 +376,8 @@ bool CommandStore::DeleteUserCommand(
         return false;
     }
 
-    RebuildMergedCommands();
+    RebuildMergedCommands(
+        providerCache_.Load());
     return true;
 }
 
@@ -336,7 +391,8 @@ bool CommandStore::MoveUserCommand(
         return false;
     }
 
-    RebuildMergedCommands();
+    RebuildMergedCommands(
+        providerCache_.Load());
     return true;
 }
 
@@ -348,7 +404,8 @@ bool CommandStore::ApplyUserCommandPathUpdates(
         return false;
     }
 
-    RebuildMergedCommands();
+    RebuildMergedCommands(
+        providerCache_.Load());
     return true;
 }
 
@@ -364,7 +421,8 @@ bool CommandStore::ImportUserCommands(
         return false;
     }
 
-    RebuildMergedCommands();
+    RebuildMergedCommands(
+        providerCache_.Load());
     return true;
 }
 
@@ -375,12 +433,11 @@ bool CommandStore::ExportUserCommands(
         .ExportTsv(path);
 }
 
-void CommandStore::RebuildMergedCommands() {
-    // Provider cache Commands are intentionally transient. Only the final
-    // accepted merged Commands remain resident after this synchronous merge.
-    const ProviderCacheData cache =
-        providerCache_.Load();
-
+void CommandStore::RebuildMergedCommands(
+    const ProviderCacheData& cache) {
+    // Provider cache Commands are intentionally transient. The supplied
+    // snapshot is merged and published as one synchronous command vector;
+    // callers never expose a provider-by-provider intermediate state.
     std::size_t rawProviderCount = 0;
 
     for (const auto& descriptor :

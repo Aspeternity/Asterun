@@ -269,6 +269,27 @@ int main() {
                 << descriptor.name
                 << L"\n";
         } else {
+            const auto& admission =
+                discovery[0].admission;
+
+            assert(
+                admission.evaluated ==
+                admission.admitted +
+                    admission.rejected);
+
+            assert(
+                admission.admitted >=
+                discovery[0]
+                    .commands.size());
+
+            for (const auto& sample :
+                 admission.rejectedSamples) {
+                assert(
+                    sample.reason !=
+                    LaunchAdmissionReason::
+                        Admitted);
+            }
+
             for (const auto& command :
                  discovery[0].commands) {
                 assert(

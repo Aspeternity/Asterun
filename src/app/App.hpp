@@ -55,6 +55,16 @@ public:
     HasStaticQueryContinuation(
         std::wstring_view query) const noexcept;
 
+    [[nodiscard]] bool
+    CanRevealLauncher() const noexcept {
+        return commandStore_
+            .IndexSearchable();
+    }
+
+    void DeferLauncherReveal() noexcept {
+        launcherRevealPending_ = true;
+    }
+
     void BeginDynamicSearch(
         std::uint64_t generation,
         std::wstring query,
@@ -403,6 +413,8 @@ private:
     std::vector<std::wstring>
         startupShortcutPaths_;
     bool suppressStartupPresentation_{
+        false};
+    bool launcherRevealPending_{
         false};
 
     DWORD uiThreadId_{0};

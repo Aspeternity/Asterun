@@ -13,6 +13,9 @@ public:
     [[nodiscard]] std::vector<Command>
     Discover() const override;
 
+    [[nodiscard]] ProviderDiscoveryPayload
+    DiscoverDetailed() const override;
+
     [[nodiscard]] std::uint64_t
     ChangeToken() const override;
 };

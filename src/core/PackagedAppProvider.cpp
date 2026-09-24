@@ -204,8 +204,17 @@ PackagedAppProvider::Descriptor() const noexcept {
 
 std::vector<Command>
 PackagedAppProvider::Discover() const {
+    return DiscoverDetailed().commands;
+}
 
-    std::vector<Command> commands;
+ProviderDiscoveryPayload
+PackagedAppProvider::DiscoverDetailed() const {
+
+    ProviderDiscoveryPayload payload;
+    auto& commands = payload.commands;
+    auto& diagnostics =
+        payload.admission;
+
     std::unordered_set<std::wstring>
         seenTargets;
 
@@ -257,6 +266,15 @@ PackagedAppProvider::Discover() const {
                 true,
             });
 
+        diagnostics.Record(
+            app.title,
+            app.target,
+            app.target,
+            targetKind,
+            initialSurface,
+            true,
+            admission);
+
         if (!admission.admit) {
             continue;
         }
@@ -293,7 +311,7 @@ PackagedAppProvider::Discover() const {
             std::move(command));
     }
 
-    return commands;
+    return payload;
 }
 
 std::uint64_t

@@ -16,13 +16,18 @@ public:
     [[nodiscard]] std::vector<Command>
     Discover() const override;
 
+    [[nodiscard]] ProviderDiscoveryPayload
+    DiscoverDetailed() const override;
+
     [[nodiscard]] std::uint64_t
     ChangeToken() const override;
 
 private:
     void ScanPath(
         const std::filesystem::path& root,
-        std::vector<Command>& output) const;
+        std::vector<Command>& output,
+        ProviderAdmissionDiagnostics&
+            diagnostics) const;
 
     void FingerprintPath(
         const std::filesystem::path& root,

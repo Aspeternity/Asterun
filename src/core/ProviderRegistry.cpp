@@ -103,8 +103,15 @@ ProviderRegistry::Discover(
         result.id = descriptor.id;
 
         try {
+            auto payload =
+                provider->DiscoverDetailed();
+
             result.commands =
-                provider->Discover();
+                std::move(
+                    payload.commands);
+            result.admission =
+                std::move(
+                    payload.admission);
             result.success = true;
         } catch (const std::exception& error) {
             result.error =

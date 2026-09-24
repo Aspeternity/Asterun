@@ -404,8 +404,14 @@ const char* LaunchAdmissionReasonName(
         return "document-target";
     case LaunchAdmissionReason::WebTarget:
         return "web-target";
+    case LaunchAdmissionReason::TargetResolutionFailed:
+        return "target-resolution-failed";
+    case LaunchAdmissionReason::TargetMissing:
+        return "target-missing";
     case LaunchAdmissionReason::UnsupportedTarget:
         return "unsupported-target";
+    case LaunchAdmissionReason::Count:
+        break;
     }
 
     return "unsupported-target";

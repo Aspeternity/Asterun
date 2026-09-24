@@ -1438,6 +1438,11 @@ void LauncherWindow::Toggle() {
 void LauncherWindow::Show() {
     if (!hwnd_) return;
 
+    if (!app_.CanRevealLauncher()) {
+        app_.DeferLauncherReveal();
+        return;
+    }
+
     CancelPendingNumericIntent();
     lastTextInputTick_ = 0;
 

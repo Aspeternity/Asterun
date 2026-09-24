@@ -609,6 +609,13 @@ std::vector<LauncherResult> App::Search(
     std::wstring_view query,
     std::size_t limit) const {
 
+    // A missing/stale generated provider snapshot is rebuilt in the
+    // background. Never expose the transient user-only command vector as if
+    // it were a complete launcher index.
+    if (!commandStore_.IndexSearchable()) {
+        return {};
+    }
+
     const auto& sourceCommands =
         commandStore_.Commands();
 
@@ -1435,19 +1442,13 @@ void App::HandleProviderRefreshCompleted(
 
     providerRefreshRunning_ = false;
 
-    if (outcome !=
-        ProviderRefreshOutcome::Failed) {
-
-        commandStore_
-            .ReloadProviderCache(
-                settingsStore_.Data()
-                    .providerEnabled);
-
-        if (window_) {
-            window_->RefreshResults();
-        }
-
-    }
+    // Publish the fully completed refresh attempt as one command snapshot.
+    // Success with complete coverage becomes Ready; a completed incomplete
+    // attempt becomes Degraded. Building is reserved for a refresh that is
+    // still in flight, so the launcher never exposes transient half-indexes.
+    commandStore_.PublishProviderCache(
+        settingsStore_.Data()
+            .providerEnabled);
 
     if (settingsWindow_) {
         settingsWindow_
@@ -1480,6 +1481,23 @@ void App::HandleProviderRefreshCompleted(
 
         StartProviderRefresh(
             std::move(pending));
+        return;
+    }
+
+    if (!window_) {
+        return;
+    }
+
+    if (launcherRevealPending_ &&
+        commandStore_.IndexSearchable()) {
+        launcherRevealPending_ = false;
+        window_->Show();
+        return;
+    }
+
+    if (window_->IsVisible() &&
+        commandStore_.IndexSearchable()) {
+        window_->RefreshResults();
     }
 }
 

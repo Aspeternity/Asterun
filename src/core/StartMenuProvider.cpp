@@ -179,22 +179,25 @@ bool IsDeveloperEntry(
             L"SDK");
 }
 
-struct AdmittedStartMenuEntry {
+struct StartMenuInspection {
+    std::wstring resolvedTarget;
+    LaunchTargetKind targetKind{
+        LaunchTargetKind::Unknown};
     LaunchSurfaceClass surface{
         LaunchSurfaceClass::
             PrimaryApplication};
+    bool targetResolved{false};
+    LaunchAdmission admission;
 };
 
-std::optional<AdmittedStartMenuEntry>
+StartMenuInspection
 InspectStartMenuEntry(
     const std::filesystem::path& path) {
 
+    StartMenuInspection result;
+
     const std::wstring title =
         path.stem().wstring();
-
-    std::wstring inspectedTarget;
-    LaunchTargetKind targetKind =
-        LaunchTargetKind::Unknown;
 
     const std::wstring extension =
         win::Lower(
@@ -205,57 +208,58 @@ InspectStartMenuEntry(
             win::InspectShellLink(path);
 
         if (!shortcut) {
-            // Positive admission: an opaque shortcut is not automatically
-            // an application merely because it lives in the Start Menu.
-            return std::nullopt;
+            result.admission.admit = false;
+            result.admission.surface =
+                LaunchSurfaceClass::
+                    PrimaryApplication;
+            result.admission.reason =
+                LaunchAdmissionReason::
+                    TargetResolutionFailed;
+            return result;
         }
 
-        inspectedTarget =
+        result.resolvedTarget =
             shortcut->target;
-        targetKind =
+        result.targetKind =
             shortcut->targetKind;
+        result.targetResolved = true;
     } else {
-        inspectedTarget =
+        result.resolvedTarget =
             path.wstring();
-        targetKind =
+        result.targetKind =
             win::InspectLaunchTarget(
-                inspectedTarget);
+                result.resolvedTarget);
+        result.targetResolved = true;
     }
 
-    LaunchSurfaceClass surface =
+    result.surface =
         ClassifyApplicationSurface(
             title,
-            inspectedTarget);
+            result.resolvedTarget);
 
     if (IsAdministrativeEntry(path)) {
-        surface =
+        result.surface =
             LaunchSurfaceClass::
                 SystemUtility;
     } else if (
         IsDeveloperEntry(path)) {
-        surface =
+        result.surface =
             LaunchSurfaceClass::
                 DeveloperTool;
     }
 
-    const LaunchAdmission decision =
+    result.admission =
         EvaluateLaunchCandidate({
             LaunchCandidateSource::
                 StartMenu,
             title,
-            inspectedTarget,
-            surface,
-            targetKind,
-            true,
+            result.resolvedTarget,
+            result.surface,
+            result.targetKind,
+            result.targetResolved,
         });
 
-    if (!decision.admit) {
-        return std::nullopt;
-    }
-
-    return AdmittedStartMenuEntry{
-        decision.surface,
-    };
+    return result;
 }
 
 } // namespace
@@ -273,16 +277,23 @@ StartMenuProvider::Descriptor() const noexcept {
 
 std::vector<Command>
 StartMenuProvider::Discover() const {
-    std::vector<Command> commands;
+    return DiscoverDetailed().commands;
+}
+
+ProviderDiscoveryPayload
+StartMenuProvider::DiscoverDetailed() const {
+    ProviderDiscoveryPayload payload;
 
     ScanPath(
         KnownFolder(FOLDERID_StartMenu),
-        commands);
+        payload.commands,
+        payload.admission);
     ScanPath(
         KnownFolder(FOLDERID_CommonStartMenu),
-        commands);
+        payload.commands,
+        payload.admission);
 
-    return commands;
+    return payload;
 }
 
 std::uint64_t
@@ -319,7 +330,9 @@ StartMenuProvider::ChangeToken() const {
 
 void StartMenuProvider::ScanPath(
     const std::filesystem::path& root,
-    std::vector<Command>& output) const {
+    std::vector<Command>& output,
+    ProviderAdmissionDiagnostics&
+        diagnostics) const {
 
     if (root.empty() ||
         !std::filesystem::exists(root)) {
@@ -348,17 +361,28 @@ void StartMenuProvider::ScanPath(
             continue;
         }
 
-        const auto admission =
+        const std::wstring title =
+            it->path().stem().wstring();
+
+        const auto inspection =
             InspectStartMenuEntry(
                 it->path());
 
-        if (!admission) {
+        diagnostics.Record(
+            title,
+            it->path().wstring(),
+            inspection.resolvedTarget,
+            inspection.targetKind,
+            inspection.surface,
+            inspection.targetResolved,
+            inspection.admission);
+
+        if (!inspection.admission.admit) {
             continue;
         }
 
         Command command;
-        command.title =
-            it->path().stem().wstring();
+        command.title = title;
         command.keyword =
             win::CompactKeyword(
                 command.title);
@@ -371,7 +395,7 @@ void StartMenuProvider::ScanPath(
         command.source =
             CommandSource::StartMenu;
         command.surfaceClass =
-            admission->surface;
+            inspection.admission.surface;
         command.basePriority = 0;
 
         if (command.keyword.empty()) {

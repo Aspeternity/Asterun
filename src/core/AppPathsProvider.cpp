@@ -171,7 +171,9 @@ void EnumerateAppPathsKey(
     HKEY root,
     REGSAM view,
     std::vector<Command>& output,
-    std::unordered_set<std::wstring>& seenTargets) {
+    std::unordered_set<std::wstring>& seenTargets,
+    ProviderAdmissionDiagnostics&
+        diagnostics) {
 
     HKEY appPaths{};
 
@@ -243,16 +245,6 @@ void EnumerateAppPathsKey(
             continue;
         }
 
-        std::error_code targetError;
-        if (!std::filesystem::is_regular_file(
-                std::filesystem::path(target),
-                targetError)) {
-            // App Paths entries are not guaranteed to be cleaned up when an
-            // application is moved or uninstalled. Do not expose a command
-            // that is already known to fail with ERROR_FILE_NOT_FOUND.
-            continue;
-        }
-
         std::wstring title =
             FriendlyStem(
                 subkeyName);
@@ -262,6 +254,36 @@ void EnumerateAppPathsKey(
                 FriendlyStem(
                     target);
         }
+
+        std::error_code targetError;
+        if (!std::filesystem::is_regular_file(
+                std::filesystem::path(target),
+                targetError)) {
+            LaunchAdmission rejected;
+            rejected.admit = false;
+            rejected.surface =
+                LaunchSurfaceClass::
+                    PrimaryApplication;
+            rejected.reason =
+                LaunchAdmissionReason::
+                    TargetMissing;
+
+            diagnostics.Record(
+                title,
+                target,
+                target,
+                LaunchTargetKind::Unknown,
+                LaunchSurfaceClass::
+                    PrimaryApplication,
+                true,
+                rejected);
+
+            // App Paths entries are not guaranteed to be cleaned up when an
+            // application is moved or uninstalled.
+            continue;
+        }
+
+
 
         const LaunchTargetKind targetKind =
             win::InspectLaunchTarget(
@@ -283,6 +305,15 @@ void EnumerateAppPathsKey(
                 targetKind,
                 true,
             });
+
+        diagnostics.Record(
+            title,
+            target,
+            target,
+            targetKind,
+            initialSurface,
+            true,
+            admission);
 
         if (!admission.admit) {
             continue;
@@ -428,8 +459,17 @@ AppPathsProvider::Descriptor() const noexcept {
 
 std::vector<Command>
 AppPathsProvider::Discover() const {
+    return DiscoverDetailed().commands;
+}
 
-    std::vector<Command> commands;
+ProviderDiscoveryPayload
+AppPathsProvider::DiscoverDetailed() const {
+
+    ProviderDiscoveryPayload payload;
+    auto& commands = payload.commands;
+    auto& diagnostics =
+        payload.admission;
+
     std::unordered_set<std::wstring>
         seenTargets;
 
@@ -444,16 +484,18 @@ AppPathsProvider::Discover() const {
             HKEY_CURRENT_USER,
             view,
             commands,
-            seenTargets);
+            seenTargets,
+            diagnostics);
 
         EnumerateAppPathsKey(
             HKEY_LOCAL_MACHINE,
             view,
             commands,
-            seenTargets);
+            seenTargets,
+            diagnostics);
     }
 
-    return commands;
+    return payload;
 }
 
 std::uint64_t

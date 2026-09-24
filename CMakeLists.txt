@@ -120,6 +120,7 @@ add_library(altrun_config STATIC
     src/core/CommandMerge.cpp
     src/core/ConfigIO.cpp
     src/core/ProviderCache.cpp
+    src/core/ProviderIndexPolicy.cpp
     src/core/Settings.cpp
     src/core/TextCodec.cpp
     src/core/UpdateManifest.cpp
@@ -461,6 +462,26 @@ if(BUILD_TESTING)
     add_test(
         NAME launch_candidate_tests
         COMMAND launch_candidate_tests
+    )
+
+    add_executable(
+        provider_index_policy_tests
+        tests/ProviderIndexPolicyTests.cpp
+    )
+    target_link_libraries(
+        provider_index_policy_tests
+        PRIVATE altrun_config
+    )
+    target_include_directories(
+        provider_index_policy_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        provider_index_policy_tests
+    )
+    add_test(
+        NAME provider_index_policy_tests
+        COMMAND provider_index_policy_tests
     )
 
     add_executable(search_engine_tests tests/SearchEngineTests.cpp)

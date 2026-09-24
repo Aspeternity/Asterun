@@ -407,6 +407,18 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Normal Start Menu/App Paths applications whose `.exe` subsystem is recognized continue to behave identically.
 - [ ] Classic visuals/geometry, table resize, numeric Quick Launch, pinyin search and Everything behavior remain unchanged.
 
+## v0.8.0-alpha.5.18 Provider index lifecycle & admission observability validation
+
+- [ ] With an existing valid schema-6 Provider Cache, launch ALTRun Next: the full cached result set is immediately available and background refresh does not blank or replace it with a user-only intermediate list.
+- [ ] Delete/rename `data/provider-cache.json` and start ALTRun Next with startup behavior `Show launcher`: the launcher must not appear with only `calc/cmd/explorer/...`; it should reveal only after the initial static-provider refresh attempt is complete.
+- [ ] Repeat the no-cache test and press the global launcher hotkey while discovery is Building: the request is deferred, then one fully published result snapshot appears when discovery completes.
+- [ ] After the first no-cache build completes, hide/show the launcher repeatedly: results remain complete and stable; typing is not required to make provider results appear.
+- [ ] Force or simulate a provider failure: after the completed attempt the index may enter Degraded and remain usable, but it must not expose provider-by-provider intermediate refresh states.
+- [ ] Recheck `teamsp`: TeamSpeak 3 and the user-level TeamSpeak/TeamSpeak 6 entry remain simultaneously available when installed.
+- [ ] Recheck `f`/`fangwen`, WinRAR help/What's New and obvious uninstall/helper entries: alpha.5.16/.17 admission hygiene remains intact.
+- [ ] Search-source settings and manual `重建程序索引` still complete without blocking the UI; valid old cache remains usable until the completed refresh snapshot is published.
+- [ ] Classic visuals/geometry, table resize, numeric Quick Launch, pinyin, Everything and result ranking remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

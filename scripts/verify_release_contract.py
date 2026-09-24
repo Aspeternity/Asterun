@@ -42,6 +42,249 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.18":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.18 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 6:
+        fail("v0.8 alpha.5.18 must keep generated Provider Cache schemaVersion 6")
+
+    provider_h = read("src/core/ICommandProvider.hpp")
+    policy_h = read("src/core/ProviderIndexPolicy.hpp")
+    policy_cpp = read("src/core/ProviderIndexPolicy.cpp")
+    store_h = read("src/core/CommandStore.hpp")
+    store_cpp = read("src/core/CommandStore.cpp")
+    registry_cpp = read("src/core/ProviderRegistry.cpp")
+    start_cpp = read("src/core/StartMenuProvider.cpp")
+    packaged_cpp = read("src/core/PackagedAppProvider.cpp")
+    app_paths_cpp = read("src/core/AppPathsProvider.cpp")
+    path_cpp = read("src/core/PathProvider.cpp")
+    app_h = read("src/app/App.hpp")
+    app_cpp = read("src/app/App.cpp")
+    launcher_cpp = read("src/ui/LauncherWindow.cpp")
+    policy_tests = read("tests/ProviderIndexPolicyTests.cpp")
+    provider_tests = read("tests/WindowsProviderSmokeTests.cpp")
+    cmake = read("CMakeLists.txt")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "ProviderAdmissionSample",
+        "ProviderAdmissionDiagnostics",
+        "ProviderDiscoveryPayload",
+        "kMaxRejectedSamples",
+        "rejectedSamples",
+        "reasonCounts",
+    ):
+        if token not in provider_h:
+            fail(f"v0.8 alpha.5.18 admission diagnostics contract missing: {token}")
+
+    for token in (
+        "enum class ProviderIndexState",
+        "Ready",
+        "Building",
+        "Degraded",
+        "ProviderIndexSearchable",
+    ):
+        if token not in policy_h:
+            fail(f"v0.8 alpha.5.18 provider-index state contract missing: {token}")
+
+    for token in (
+        "refreshCompleted",
+        "ProviderIndexState::Degraded",
+        "ProviderIndexState::Building",
+        "ProviderIndexState::Ready",
+    ):
+        if token not in policy_cpp:
+            fail(f"v0.8 alpha.5.18 provider-index policy implementation missing: {token}")
+
+    for token in (
+        "PublishProviderCache(",
+        "IndexSearchable()",
+        "providerIndexState_",
+        "ProviderAdmissionDiagnostics",
+    ):
+        if token not in store_h:
+            fail(f"v0.8 alpha.5.18 CommandStore lifecycle/diagnostic ownership missing: {token}")
+
+    for token in (
+        "EvaluateProviderIndexState(",
+        "PublishProviderCache(",
+        "diagnostic.admission",
+        "RebuildMergedCommands(cache)",
+    ):
+        if token not in store_cpp:
+            fail(f"v0.8 alpha.5.18 atomic provider snapshot publication missing: {token}")
+
+    if "DiscoverDetailed()" not in registry_cpp:
+        fail("v0.8 alpha.5.18 ProviderRegistry must consume detailed discovery payloads")
+
+    for name, text in (
+        ("Start Menu", start_cpp),
+        ("Windows Apps", packaged_cpp),
+        ("App Paths", app_paths_cpp),
+        ("PATH", path_cpp),
+    ):
+        for token in ("DiscoverDetailed()", "diagnostics"):
+            if token not in text:
+                fail(f"v0.8 alpha.5.18 {name} detailed discovery missing: {token}")
+
+    for token in (
+        "TargetResolutionFailed",
+        "diagnostics.Record(",
+    ):
+        if token not in start_cpp:
+            fail(f"v0.8 alpha.5.18 Start Menu rejection observability missing: {token}")
+
+    for token in (
+        "TargetMissing",
+        "diagnostics.Record(",
+    ):
+        if token not in app_paths_cpp:
+            fail(f"v0.8 alpha.5.18 App Paths rejection observability missing: {token}")
+
+    for token in (
+        "CanRevealLauncher()",
+        "DeferLauncherReveal()",
+        "launcherRevealPending_",
+    ):
+        if token not in app_h:
+            fail(f"v0.8 alpha.5.18 deferred launcher contract missing: {token}")
+
+    for token in (
+        "!commandStore_.IndexSearchable()",
+        "PublishProviderCache(",
+        "launcherRevealPending_",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.5.18 building-index search/reveal gate missing: {token}")
+
+    for token in (
+        "!app_.CanRevealLauncher()",
+        "app_.DeferLauncherReveal()",
+    ):
+        if token not in launcher_cpp:
+            fail(f"v0.8 alpha.5.18 launcher reveal gate missing: {token}")
+
+    for token in (
+        "ProviderIndexState::Ready",
+        "ProviderIndexState::Building",
+        "ProviderIndexState::Degraded",
+        "ProviderAdmissionDiagnostics",
+        "TargetResolutionFailed",
+    ):
+        if token not in policy_tests:
+            fail(f"v0.8 alpha.5.18 provider-index policy regression missing: {token}")
+
+    for token in (
+        "admission.evaluated",
+        "admission.admitted",
+        "admission.rejected",
+        "rejectedSamples",
+    ):
+        if token not in provider_tests:
+            fail(f"v0.8 alpha.5.18 Windows provider diagnostics smoke assertion missing: {token}")
+
+    for token in (
+        "src/core/ProviderIndexPolicy.cpp",
+        "provider_index_policy_tests",
+    ):
+        if token not in cmake:
+            fail(f"v0.8 alpha.5.18 CMake ownership missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.18 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,188",
+        "PRODUCTVERSION 0,8,0,188",
+        "0.8.0-alpha.5.18",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.18 resource version missing: {token}")
+
+    if 'version="0.8.0.188"' not in manifest:
+        fail("v0.8 alpha.5.18 manifest fixed version must be 0.8.0.188")
+
+    for token in (
+        '"0.8.0-alpha.5.17"',
+        '"0.8.0-alpha.5.18"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.18 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.18 Provider index lifecycle & admission observability validation",
+        "provider-cache.json",
+        "TeamSpeak 3",
+        "Show launcher",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.18 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.18 — Provider Index Lifecycle & Admission Observability",
+        "Ready",
+        "Building",
+        "Degraded",
+        "0.8.0.188",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.18 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.18" not in changelog:
+        fail("v0.8 alpha.5.18 changelog entry missing")
+
+    if "v0.8.0-alpha.5.18 makes static-provider publication stateful and observable" not in roadmap:
+        fail("v0.8 alpha.5.18 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.18 Provider Index Lifecycle & Admission Observability verified:",
+        "| Ready/Building/Degraded lifecycle",
+        "| deferred launcher reveal",
+        "| atomic completed snapshot publish",
+        "| bounded admission diagnostics",
+        "| Provider Cache schema 6 preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.17":
     import hashlib
     import subprocess

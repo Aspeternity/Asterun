@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.18 — Provider Index Lifecycle & Admission Observability
+
+Alpha.5.18 gives the generated static-program index an explicit lifecycle. A complete cache snapshot is `Ready`; a missing/stale/incomplete snapshot is `Building` until the background discovery attempt finishes; a completed but incomplete attempt becomes `Degraded`. Only `Ready` and `Degraded` snapshots are searchable.
+
+This removes the startup half-index race exposed by alpha.5.17 cache rebuilds. When the generated Provider Cache is unavailable, ALTRun Next still creates its native window and starts provider discovery off the UI thread, but `LauncherWindow::Show()` defers the reveal and `App::Search()` refuses to publish the transient user-command-only vector. Once the full refresh attempt completes, `CommandStore` performs one synchronous snapshot merge/publish and the deferred launcher reveal proceeds. A valid existing cache remains instant and continues refreshing in the background.
+
+Provider discovery now also carries bounded admission diagnostics. Each static provider reports evaluated/admitted/rejected counts, rejection-reason counts and up to 256 rejected samples containing title, discovered target, resolved target, target kind, launch surface, resolution state and `LaunchAdmissionReason`. Start Menu explicitly records unresolved `.lnk` targets as `TargetResolutionFailed`; App Paths records stale missing executables as `TargetMissing`. These diagnostics remain runtime state and are not added to the searchable index or persisted into Provider Cache.
+
+The provider-neutral lifecycle policy is covered independently for Ready/Building/Degraded transitions, disabled-provider completeness and admission accounting. Windows provider smoke verifies detailed-discovery accounting on real providers. Classic geometry/visuals, alpha.5.17 executable admission, relevance/ranking, Everything and Quick Launch are unchanged.
+
+Provider Cache schema remains 6 because its serialized command format did not change; alpha.5.18 fixes publication ownership rather than forcing another cache invalidation. Windows fixed FileVersion/ProductVersion is `0.8.0.188`.
 ## v0.8.0-alpha.5.17 — Executable Admission Recovery
 
 Alpha.5.17 fixes a false-negative edge in the positive-admission pipeline introduced by alpha.5.16. A real existing `.exe` whose PE subsystem cannot be classified as GUI/CUI is now represented as `ExecutableUnknown` instead of collapsing into `Unknown` and being rejected.

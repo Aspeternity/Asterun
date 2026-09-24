@@ -313,11 +313,20 @@ PathProvider::Descriptor() const noexcept {
 
 std::vector<Command>
 PathProvider::Discover() const {
+    return DiscoverDetailed().commands;
+}
+
+ProviderDiscoveryPayload
+PathProvider::DiscoverDetailed() const {
 
     constexpr std::size_t kMaxPathApps =
         4096;
 
-    std::vector<Command> commands;
+    ProviderDiscoveryPayload payload;
+    auto& commands = payload.commands;
+    auto& diagnostics =
+        payload.admission;
+
     std::unordered_set<std::wstring>
         seenTargets;
 
@@ -406,6 +415,15 @@ PathProvider::Discover() const {
                     true,
                 });
 
+            diagnostics.Record(
+                title,
+                target,
+                target,
+                targetKind,
+                initialSurface,
+                true,
+                admission);
+
             if (!admission.admit) {
                 continue;
             }
@@ -441,7 +459,7 @@ PathProvider::Discover() const {
         }
     }
 
-    return commands;
+    return payload;
 }
 
 std::uint64_t

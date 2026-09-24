@@ -4,6 +4,7 @@
 #include "CommandMerge.hpp"
 #include "ProviderCache.hpp"
 #include "ProviderIds.hpp"
+#include "ProviderIndexPolicy.hpp"
 #include "ProviderRegistry.hpp"
 #include "UserCommandStore.hpp"
 
@@ -34,6 +35,8 @@ struct ProviderStatus {
     std::int64_t lastAttemptUnix{0};
     bool lastAttemptSucceeded{true};
     std::wstring lastError;
+    ProviderAdmissionDiagnostics
+        admission;
 };
 
 class CommandStore {
@@ -46,6 +49,20 @@ public:
         const ProviderEnableMap& enabled);
     void ReloadProviderCache(
         const ProviderEnableMap& enabled);
+
+    void PublishProviderCache(
+        const ProviderEnableMap& enabled);
+
+    [[nodiscard]] ProviderIndexState
+    IndexState() const noexcept {
+        return providerIndexState_;
+    }
+
+    [[nodiscard]] bool
+    IndexSearchable() const noexcept {
+        return ProviderIndexSearchable(
+            providerIndexState_);
+    }
 
     [[nodiscard]] ProviderRefreshOutcome
     RefreshProviderCache(
@@ -140,9 +157,12 @@ private:
         std::int64_t lastAttemptUnix{0};
         bool lastAttemptSucceeded{true};
         std::wstring lastError;
+        ProviderAdmissionDiagnostics
+            admission;
     };
 
-    void RebuildMergedCommands();
+    void RebuildMergedCommands(
+        const ProviderCacheData& cache);
 
     std::filesystem::path
         baseDirectory_;
@@ -163,6 +183,9 @@ private:
         commands_;
     CommandMergeStats
         mergeStats_;
+    ProviderIndexState
+        providerIndexState_{
+            ProviderIndexState::Building};
 
     mutable std::mutex
         providerDiagnosticsMutex_;

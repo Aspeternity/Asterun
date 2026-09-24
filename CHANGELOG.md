@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.5.18
+
+- Added explicit static-provider index states: Ready, Building and Degraded.
+- Missing/stale/incomplete Provider Cache snapshots are no longer exposed as a temporary user-command-only launcher index while background discovery is still running.
+- Launcher reveal is deferred while the provider index is Building; valid cached snapshots still show immediately and refresh off the startup path.
+- Provider refresh now publishes one completed cache snapshot through CommandStore before refreshing/revealing the launcher.
+- Added bounded provider admission diagnostics with evaluated/admitted/rejected counts, per-reason counts and rejected candidate samples containing discovered/resolved target, target kind, surface and reason.
+- Start Menu records shortcut-resolution failures; App Paths records stale missing targets; all four static providers participate in detailed discovery diagnostics.
+- Added provider-index policy tests and Windows provider smoke accounting checks.
+- Provider Cache schema remains 6; Windows fixed FileVersion/ProductVersion is `0.8.0.188`.
 ## 0.8.0-alpha.5.17
 
 - Added `LaunchTargetKind::ExecutableUnknown` for existing `.exe` targets whose PE subsystem cannot be classified as GUI/CUI.
