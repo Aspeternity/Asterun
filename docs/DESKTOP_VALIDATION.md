@@ -207,6 +207,18 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Modify a hotkey so its per-row Reset action appears, scroll away/back, then restore default; the Reset action disappears and is not resurrected by scrolling.
 - [ ] “恢复全部默认快捷键” stays fixed in the bottom action area and the alpha.5.2 Alt+S global Shortcut Manager behavior remains unchanged.
 - [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
+## v0.8.0-alpha.5.4 shared ComboBox validation
+
+- [ ] Settings dropdowns remain visually identical to the approved alpha.5.3 treatment: continuous rounded surface, clear chevron, subtle hover and accent focus/open state.
+- [ ] New/Edit Shortcut shows the same Next-themed closed surface for Target type and Runtime input; no old square Windows arrow button remains.
+- [ ] Open both Shortcut Editor dropdowns and verify list row height, text padding and selection background match Settings.
+- [ ] Target type and Runtime input remain aligned to one compact value-column width and do not crowd their hint text in Simplified Chinese or English.
+- [ ] Clicking editor blank/static space still dismisses ComboBox focus as before; Enter on a closed dropdown still follows the existing Save workflow.
+- [ ] Target type Auto detect/Application/URL/Folder/Command line selection behavior is unchanged.
+- [ ] Runtime input None/Pass through/URL encode behavior, conditional Test input row and Advanced layout remain unchanged.
+- [ ] Repeat Settings and Shortcut Editor ComboBox checks at 100/125/150/175/200% scaling; text, chevron and list rows remain vertically centered.
+- [ ] Hotkeys page still has no empty status strip and Reset all hotkeys remains fixed.
+- [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
 ## Release assets
 
 For the candidate tag:

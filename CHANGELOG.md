@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.5.4
+
+- Extracted the alpha.5.3 Settings ComboBox renderer into shared `UiComboBox` Win32/GDI infrastructure.
+- Migrated all seven Settings dropdowns to the shared component without changing their approved alpha.5.3 visual treatment.
+- Migrated Shortcut Editor Target type and Runtime input from native old-style ComboBoxes to the same Next-themed shared control.
+- Centralized ComboBox closed-surface painting, dropdown item drawing, hover/focus interaction, 30-logical-pixel metrics and localized preferred-width measurement.
+- Preserved the Shortcut Editor's compact aligned value-column bounds while removing its duplicate native text-width measurement code.
+- Added release-contract coverage preventing Settings or Shortcut Editor from reintroducing direct `COMBOBOX` creation.
+- Preserved schemaVersion 10 and all frozen Classic/provider/Everything/updater contracts.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.174`.
 ## 0.8.0-alpha.5.3
 
 - Reworked the shared native Settings ComboBox surface into one continuous rounded control with a clearer chevron and lightweight hover/focus feedback.

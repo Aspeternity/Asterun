@@ -146,14 +146,6 @@ private:
         UINT message,
         WPARAM wParam,
         LPARAM lParam);
-    static LRESULT CALLBACK ComboSubclassProc(
-        HWND hwnd,
-        UINT message,
-        WPARAM wParam,
-        LPARAM lParam,
-        UINT_PTR subclassId,
-        DWORD_PTR refData);
-
     LRESULT HandleMessage(
         UINT message,
         WPARAM wParam,
@@ -273,11 +265,6 @@ private:
     void DrawHotkeyToggle(
         const DRAWITEMSTRUCT& item,
         std::size_t rowIndex);
-    void DrawComboItem(
-        const DRAWITEMSTRUCT& item);
-    void DrawComboSurface(
-        HWND combo,
-        HDC dc);
     void DrawSwitchGlyph(
         HDC dc,
         const RECT& rect,
@@ -302,13 +289,6 @@ private:
     HWND CreateCheckbox(
         const wchar_t* text,
         UINT id);
-    HWND CreateThemedComboBox(
-        UINT id);
-    void UpdateThemedComboMetrics();
-    [[nodiscard]] int
-    MeasureComboPreferredWidth(
-        HWND combo) const;
-
     [[nodiscard]] bool
     ToggleChecked(UINT id) const;
     [[nodiscard]]

@@ -23,6 +23,15 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.4 — Shared Next ComboBox UI
+
+Alpha.5.4 finishes the ComboBox consistency pass by moving the alpha.5.3 Settings dropdown renderer into one shared native Win32 component. `UiComboBox` now owns creation, owner-draw list rows, continuous rounded closed-surface painting, chevron/focus/hover behavior, DPI-aware row metrics and localized text-width measurement.
+
+Settings keeps the alpha.5.3 visual result, but its seven dropdowns no longer carry a private renderer. Shortcut Editor now uses the same component for **目标类型 / Target type** and **运行时输入 / Runtime input**, removing the last old-style Windows ComboBoxes from the product UI. The editor still keeps its compact aligned value column by applying its own 158–185 logical-pixel width bounds through the shared measurement API.
+
+The shared component accepts the host surface background so rounded corners blend correctly both inside Settings cards and on the Shortcut Editor window. No framework or runtime dependency is added; the implementation remains Win32/GDI with one subclassed owner-drawn control path.
+
+Settings schema remains **10**. Hotkey scrolling/visibility, global Alt+S, startup notification behavior, Classic launcher geometry/assets, providers, Everything, updater and Modern Compact remain unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.174`.
 ## v0.8.0-alpha.5.3 — Settings ComboBox Polish & Hotkey Viewport Fix
 
 Alpha.5.3 is a focused real-desktop polish release. The seven native Settings dropdowns keep the lightweight owner-drawn Win32 path, but the closed surface is now one continuous rounded control instead of a split arrow cell. A clearer chevron, restrained hover/focus feedback, DPI-aware 30-logical-pixel item metrics and content-sized ComboBox widths remove the long empty tails while preserving enough room for the longest localized option.

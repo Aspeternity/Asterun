@@ -1,6 +1,7 @@
 #include "SettingsWindow.hpp"
 
 #include "TopLevelWindowPresentation.hpp"
+#include "UiComboBox.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
 
@@ -608,179 +609,6 @@ HWND SettingsWindow::CreateCheckbox(
         BS_AUTOCHECKBOX | BS_FLAT);
 }
 
-HWND SettingsWindow::CreateThemedComboBox(
-    UINT id) {
-
-    HWND combo =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                CBS_OWNERDRAWFIXED |
-                CBS_HASSTRINGS |
-                CBS_NOINTEGRALHEIGHT |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    id)),
-            instance_,
-            nullptr);
-
-    if (combo) {
-        SetWindowSubclass(
-            combo,
-            ComboSubclassProc,
-            0xC0B0,
-            reinterpret_cast<DWORD_PTR>(
-                this));
-    }
-
-    return combo;
-}
-
-void SettingsWindow::UpdateThemedComboMetrics() {
-    const std::array<HWND, 7> combos{
-        startupBehavior_,
-        popupMonitor_,
-        launcherPlacement_,
-        settingsPlacement_,
-        shortcutManagerPlacement_,
-        uiStyle_,
-        language_,
-    };
-
-    for (HWND combo : combos) {
-        if (!combo) {
-            continue;
-        }
-
-        SendMessageW(
-            combo,
-            CB_SETITEMHEIGHT,
-            static_cast<WPARAM>(-1),
-            Scale(30));
-
-        if (SendMessageW(
-                combo,
-                CB_GETCOUNT,
-                0,
-                0) > 0) {
-            SendMessageW(
-                combo,
-                CB_SETITEMHEIGHT,
-                0,
-                Scale(30));
-        }
-
-        InvalidateRect(
-            combo,
-            nullptr,
-            FALSE);
-    }
-}
-
-int SettingsWindow::MeasureComboPreferredWidth(
-    HWND combo) const {
-
-    const int minimum =
-        Scale(132);
-    const int maximum =
-        Scale(280);
-
-    if (!combo ||
-        !normalFont_) {
-        return Scale(150);
-    }
-
-    HDC dc =
-        GetDC(combo);
-
-    if (!dc) {
-        return Scale(150);
-    }
-
-    HGDIOBJ oldFont =
-        SelectObject(
-            dc,
-            normalFont_);
-
-    int widest = 0;
-    const LRESULT count =
-        SendMessageW(
-            combo,
-            CB_GETCOUNT,
-            0,
-            0);
-
-    for (LRESULT index = 0;
-         index < count;
-         ++index) {
-        const LRESULT length =
-            SendMessageW(
-                combo,
-                CB_GETLBTEXTLEN,
-                static_cast<WPARAM>(
-                    index),
-                0);
-
-        if (length <= 0) {
-            continue;
-        }
-
-        std::wstring text(
-            static_cast<std::size_t>(
-                length) + 1,
-            L'\0');
-
-        SendMessageW(
-            combo,
-            CB_GETLBTEXT,
-            static_cast<WPARAM>(
-                index),
-            reinterpret_cast<LPARAM>(
-                text.data()));
-
-        text.resize(
-            static_cast<std::size_t>(
-                length));
-
-        SIZE extent{};
-
-        if (GetTextExtentPoint32W(
-                dc,
-                text.c_str(),
-                static_cast<int>(
-                    text.size()),
-                &extent)) {
-            widest =
-                std::max(
-                    widest,
-                    static_cast<int>(
-                        extent.cx));
-        }
-    }
-
-    SelectObject(
-        dc,
-        oldFont);
-    ReleaseDC(
-        combo,
-        dc);
-
-    const int chrome =
-        Scale(52);
-
-    return std::clamp(
-        widest + chrome,
-        minimum,
-        maximum);
-}
-
 void SettingsWindow::CreateControls() {
     brandName_ =
         CreateStatic(
@@ -845,8 +673,11 @@ void SettingsWindow::CreateGeneralPage() {
 
     startupBehaviorLabel_ = CreateStatic(L"");
     startupBehavior_ =
-        CreateThemedComboBox(
-            kIdStartupBehavior);
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdStartupBehavior,
+            kCardBackground);
 
     showTrayIcon_ = CreateCheckboxRow(L"", kIdShowTrayIcon);
     addToSendToMenu_ = CreateCheckboxRow(L"", kIdAddToSendToMenu);
@@ -861,26 +692,38 @@ void SettingsWindow::CreateGeneralPage() {
     popupMonitorLabel_ = CreateStatic(L"");
     popupMonitorDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
     popupMonitor_ =
-        CreateThemedComboBox(
-            kIdPopupMonitor);
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdPopupMonitor,
+            kCardBackground);
 
     launcherPlacementLabel_ = CreateStatic(L"");
     launcherPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
     launcherPlacement_ =
-        CreateThemedComboBox(
-            kIdLauncherPlacement);
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdLauncherPlacement,
+            kCardBackground);
 
     settingsPlacementLabel_ = CreateStatic(L"");
     settingsPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
     settingsPlacement_ =
-        CreateThemedComboBox(
-            kIdSettingsPlacement);
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdSettingsPlacement,
+            kCardBackground);
 
     shortcutManagerPlacementLabel_ = CreateStatic(L"");
     shortcutManagerPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
     shortcutManagerPlacement_ =
-        CreateThemedComboBox(
-            kIdShortcutManagerPlacement);
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdShortcutManagerPlacement,
+            kCardBackground);
 
     generalNote_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
 
@@ -995,8 +838,11 @@ void SettingsWindow::CreateAppearancePage() {
         CreateStatic(L"");
 
     uiStyle_ =
-        CreateThemedComboBox(
-            kIdUiStyle);
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdUiStyle,
+            kCardBackground);
 
     appearanceAppTitle_ =
         CreateStatic(L"");
@@ -1005,8 +851,11 @@ void SettingsWindow::CreateAppearancePage() {
         CreateStatic(L"");
 
     language_ =
-        CreateThemedComboBox(
-            kIdLanguage);
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdLanguage,
+            kCardBackground);
 
     appearanceNote_ =
         CreateStatic(
@@ -1406,7 +1255,19 @@ void SettingsWindow::ApplyFonts() {
         }
     }
 
-    UpdateThemedComboMetrics();
+    for (HWND combo :
+         std::array<HWND, 7>{
+             startupBehavior_,
+             popupMonitor_,
+             launcherPlacement_,
+             settingsPlacement_,
+             shortcutManagerPlacement_,
+             uiStyle_,
+             language_}) {
+        ui::ApplyNextComboBoxMetrics(
+            combo,
+            dpi_);
+    }
 }
 
 void SettingsWindow::ApplyLanguage() {
@@ -4311,8 +4172,9 @@ void SettingsWindow::Layout() {
 
         const int startupTop = metrics.behavior.top + toggleHeight;
         const int startupComboWidth =
-            MeasureComboPreferredWidth(
-                startupBehavior_);
+            ui::MeasureNextComboBoxPreferredWidth(
+                startupBehavior_,
+                dpi_);
         const int startupComboX =
             metrics.behavior.right -
             startupComboWidth -
@@ -4403,8 +4265,9 @@ void SettingsWindow::Layout() {
             const HWND combo =
                 placementRows[i].second;
             const int comboWidth =
-                MeasureComboPreferredWidth(
-                    combo);
+                ui::MeasureNextComboBoxPreferredWidth(
+                    combo,
+                    dpi_);
             const int comboX =
                 metrics.placement.right -
                 comboWidth -
@@ -4752,16 +4615,18 @@ void SettingsWindow::Layout() {
         const int inner =
             Scale(18);
         const int styleComboWidth =
-            MeasureComboPreferredWidth(
-                uiStyle_);
+            ui::MeasureNextComboBoxPreferredWidth(
+                uiStyle_,
+                dpi_);
         const int styleComboX =
             contentLeft +
             width -
             inner -
             styleComboWidth;
         const int languageComboWidth =
-            MeasureComboPreferredWidth(
-                language_);
+            ui::MeasureNextComboBoxPreferredWidth(
+                language_,
+                dpi_);
         const int languageComboX =
             contentLeft +
             width -
@@ -6135,408 +6000,6 @@ void SettingsWindow::DrawUpdateStatus(
 }
 
 
-void SettingsWindow::DrawComboSurface(
-    HWND combo,
-    HDC dc) {
-
-    RECT rect{};
-    GetClientRect(
-        combo,
-        &rect);
-
-    HBRUSH outer =
-        CreateSolidBrush(
-            kCardBackground);
-    FillRect(
-        dc,
-        &rect,
-        outer);
-    DeleteObject(
-        outer);
-
-    RECT surface =
-        rect;
-    InflateRect(
-        &surface,
-        -1,
-        -1);
-
-    const bool enabled =
-        IsWindowEnabled(combo) != FALSE;
-    const bool active =
-        GetFocus() == combo ||
-        SendMessageW(
-            combo,
-            CB_GETDROPPEDSTATE,
-            0,
-            0) != 0;
-
-    POINT cursor{};
-    RECT screenRect{};
-    const bool hovered =
-        GetCursorPos(&cursor) &&
-        GetWindowRect(
-            combo,
-            &screenRect) &&
-        PtInRect(
-            &screenRect,
-            cursor);
-
-    const COLORREF borderColor =
-        active
-            ? kAccent
-            : kBorder;
-    const COLORREF fillColor =
-        active
-            ? RGB(248, 252, 255)
-            : hovered
-                ? RGB(250, 251, 253)
-                : RGB(255, 255, 255);
-
-    HBRUSH fill =
-        CreateSolidBrush(
-            fillColor);
-    HPEN border =
-        CreatePen(
-            PS_SOLID,
-            1,
-            borderColor);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            dc,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            dc,
-            border);
-
-    const int radius =
-        Scale(6);
-
-    RoundRect(
-        dc,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        radius,
-        radius);
-
-    SelectObject(
-        dc,
-        oldBrush);
-    SelectObject(
-        dc,
-        oldPen);
-    DeleteObject(
-        fill);
-    DeleteObject(
-        border);
-
-    const int arrowCenterX =
-        surface.right -
-        Scale(17);
-    const int arrowCenterY =
-        surface.top +
-        (surface.bottom -
-         surface.top) / 2;
-
-    const COLORREF arrowColor =
-        enabled
-            ? RGB(92, 100, 108)
-            : RGB(166, 172, 179);
-
-    HPEN arrowPen =
-        CreatePen(
-            PS_SOLID,
-            std::max(
-                1,
-                Scale(1)),
-            arrowColor);
-    oldPen =
-        SelectObject(
-            dc,
-            arrowPen);
-
-    MoveToEx(
-        dc,
-        arrowCenterX -
-            Scale(4),
-        arrowCenterY -
-            Scale(2),
-        nullptr);
-    LineTo(
-        dc,
-        arrowCenterX,
-        arrowCenterY +
-            Scale(2));
-    LineTo(
-        dc,
-        arrowCenterX +
-            Scale(4),
-        arrowCenterY -
-            Scale(2));
-
-    SelectObject(
-        dc,
-        oldPen);
-    DeleteObject(
-        arrowPen);
-
-    wchar_t text[256]{};
-    const LRESULT selected =
-        SendMessageW(
-            combo,
-            CB_GETCURSEL,
-            0,
-            0);
-
-    if (selected != CB_ERR) {
-        SendMessageW(
-            combo,
-            CB_GETLBTEXT,
-            static_cast<WPARAM>(
-                selected),
-            reinterpret_cast<LPARAM>(
-                text));
-    }
-
-    RECT textRect{
-        surface.left + Scale(12),
-        surface.top,
-        arrowCenterX - Scale(12),
-        surface.bottom,
-    };
-
-    SetBkMode(
-        dc,
-        TRANSPARENT);
-    SetTextColor(
-        dc,
-        enabled
-            ? kText
-            : kMuted);
-
-    HGDIOBJ oldFont =
-        SelectObject(
-            dc,
-            normalFont_);
-
-    DrawTextW(
-        dc,
-        text,
-        -1,
-        &textRect,
-        DT_LEFT |
-            DT_VCENTER |
-            DT_SINGLELINE |
-            DT_END_ELLIPSIS |
-            DT_NOPREFIX);
-
-    SelectObject(
-        dc,
-        oldFont);
-}
-
-void SettingsWindow::DrawComboItem(
-    const DRAWITEMSTRUCT& item) {
-
-    RECT rect =
-        item.rcItem;
-
-    const bool selected =
-        (item.itemState &
-         ODS_SELECTED) != 0;
-    const bool disabled =
-        (item.itemState &
-         ODS_DISABLED) != 0;
-
-    const COLORREF background =
-        selected
-            ? RGB(231, 242, 252)
-            : RGB(255, 255, 255);
-
-    HBRUSH fill =
-        CreateSolidBrush(
-            background);
-    FillRect(
-        item.hDC,
-        &rect,
-        fill);
-    DeleteObject(
-        fill);
-
-    if (item.itemID ==
-            static_cast<UINT>(-1)) {
-        return;
-    }
-
-    wchar_t text[256]{};
-
-    SendMessageW(
-        item.hwndItem,
-        CB_GETLBTEXT,
-        item.itemID,
-        reinterpret_cast<LPARAM>(
-            text));
-
-    RECT textRect =
-        rect;
-    textRect.left +=
-        Scale(12);
-    textRect.right -=
-        Scale(12);
-
-    SetBkMode(
-        item.hDC,
-        TRANSPARENT);
-    SetTextColor(
-        item.hDC,
-        disabled
-            ? kMuted
-            : kText);
-
-    HGDIOBJ oldFont =
-        SelectObject(
-            item.hDC,
-            normalFont_);
-
-    DrawTextW(
-        item.hDC,
-        text,
-        -1,
-        &textRect,
-        DT_LEFT |
-            DT_VCENTER |
-            DT_SINGLELINE |
-            DT_END_ELLIPSIS |
-            DT_NOPREFIX);
-
-    SelectObject(
-        item.hDC,
-        oldFont);
-}
-
-LRESULT CALLBACK
-SettingsWindow::ComboSubclassProc(
-    HWND hwnd,
-    UINT message,
-    WPARAM wParam,
-    LPARAM lParam,
-    UINT_PTR subclassId,
-    DWORD_PTR refData) {
-
-    auto* self =
-        reinterpret_cast<
-            SettingsWindow*>(
-                refData);
-
-    if (!self) {
-        return DefSubclassProc(
-            hwnd,
-            message,
-            wParam,
-            lParam);
-    }
-
-    switch (message) {
-    case WM_PAINT: {
-        PAINTSTRUCT paint{};
-        HDC dc =
-            BeginPaint(
-                hwnd,
-                &paint);
-
-        self->DrawComboSurface(
-            hwnd,
-            dc);
-
-        EndPaint(
-            hwnd,
-            &paint);
-        return 0;
-    }
-
-    case WM_PRINTCLIENT:
-        self->DrawComboSurface(
-            hwnd,
-            reinterpret_cast<HDC>(
-                wParam));
-        return 0;
-
-    case WM_MOUSEMOVE: {
-        TRACKMOUSEEVENT track{
-            sizeof(track),
-            TME_LEAVE,
-            hwnd,
-            0,
-        };
-        TrackMouseEvent(
-            &track);
-
-        const LRESULT result =
-            DefSubclassProc(
-                hwnd,
-                message,
-                wParam,
-                lParam);
-
-        InvalidateRect(
-            hwnd,
-            nullptr,
-            FALSE);
-        return result;
-    }
-
-    case WM_MOUSELEAVE:
-        InvalidateRect(
-            hwnd,
-            nullptr,
-            FALSE);
-        return 0;
-
-    case CB_SETCURSEL:
-    case CB_SHOWDROPDOWN:
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
-    case WM_ENABLE:
-    case WM_LBUTTONDOWN:
-    case WM_LBUTTONUP: {
-        const LRESULT result =
-            DefSubclassProc(
-                hwnd,
-                message,
-                wParam,
-                lParam);
-
-        InvalidateRect(
-            hwnd,
-            nullptr,
-            FALSE);
-
-        return result;
-    }
-
-    case WM_NCDESTROY:
-        RemoveWindowSubclass(
-            hwnd,
-            ComboSubclassProc,
-            subclassId);
-        break;
-
-    default:
-        break;
-    }
-
-    return DefSubclassProc(
-        hwnd,
-        message,
-        wParam,
-        lParam);
-}
-
-
 void SettingsWindow::DrawGeneralToggle(
     const DRAWITEMSTRUCT& item) {
 
@@ -7781,8 +7244,8 @@ LRESULT SettingsWindow::HandleMessage(
             measure->CtlType ==
                 ODT_COMBOBOX) {
             measure->itemHeight =
-                static_cast<UINT>(
-                    Scale(30));
+                ui::NextComboBoxItemHeight(
+                    dpi_);
             return TRUE;
         }
 
@@ -7801,8 +7264,9 @@ LRESULT SettingsWindow::HandleMessage(
 
         if (item->CtlType ==
                 ODT_COMBOBOX) {
-            DrawComboItem(
-                *item);
+            ui::DrawNextComboBoxItem(
+                *item,
+                dpi_);
             return TRUE;
         }
 
@@ -8357,20 +7821,10 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_ERASEBKGND:
         return 1;
 
-    case WM_CTLCOLORLISTBOX: {
-        HDC dc =
+    case WM_CTLCOLORLISTBOX:
+        return ui::ColorNextComboBoxList(
             reinterpret_cast<HDC>(
-                wParam);
-        SetTextColor(
-            dc,
-            kText);
-        SetBkColor(
-            dc,
-            RGB(255, 255, 255));
-        return reinterpret_cast<LRESULT>(
-            GetStockObject(
-                WHITE_BRUSH));
-    }
+                wParam));
 
 
     case WM_CTLCOLORSTATIC: {

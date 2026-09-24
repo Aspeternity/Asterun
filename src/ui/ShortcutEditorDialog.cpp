@@ -1,6 +1,7 @@
 #include "ShortcutEditorDialog.hpp"
 
 #include "TopLevelWindowPresentation.hpp"
+#include "UiComboBox.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
@@ -829,49 +830,25 @@ void ShortcutEditorDialog::CreateControls() {
     makeStatic(
         typeLabel_,
         SS_RIGHT);
-    type_ = CreateWindowExW(
-        0,
-        L"COMBOBOX",
-        L"",
-        WS_CHILD |
-            WS_VISIBLE |
-            WS_TABSTOP |
-            CBS_DROPDOWNLIST |
-            WS_VSCROLL,
-        0,
-        0,
-        0,
-        0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(
-                kIdType)),
-        instance_,
-        nullptr);
+    type_ =
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdType,
+            ui::kApplicationPalette
+                .windowBackground);
     makeStatic(typeHint_);
 
     makeStatic(
         runtimeInputLabel_,
         SS_RIGHT);
-    runtimeInput_ = CreateWindowExW(
-        0,
-        L"COMBOBOX",
-        L"",
-        WS_CHILD |
-            WS_VISIBLE |
-            WS_TABSTOP |
-            CBS_DROPDOWNLIST |
-            WS_VSCROLL,
-        0,
-        0,
-        0,
-        0,
-        hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(
-                kIdRuntimeInput)),
-        instance_,
-        nullptr);
+    runtimeInput_ =
+        ui::CreateNextComboBox(
+            hwnd_,
+            instance_,
+            kIdRuntimeInput,
+            ui::kApplicationPalette
+                .windowBackground);
     makeStatic(runtimeInputHint_);
 
     makeStatic(
@@ -1201,6 +1178,13 @@ void ShortcutEditorDialog::ApplyLanguage() {
         T(L"取消",
           L"Cancel"));
 
+    ui::ApplyNextComboBoxMetrics(
+        type_,
+        dpi_);
+    ui::ApplyNextComboBoxMetrics(
+        runtimeInput_,
+        dpi_);
+
     UpdateAdvancedVisibility();
     UpdateTypeState();
     UpdateRuntimeInputHint();
@@ -1426,123 +1410,21 @@ void ShortcutEditorDialog::Layout() {
         client.right -
         margin -
         formFieldLeft;
-    int typeWidth =
-        Scale(kInlineComboMinWidthLogical);
+    const int typeWidth =
+        std::max(
+            ui::MeasureNextComboBoxPreferredWidth(
+                type_,
+                dpi_,
+                kInlineComboMinWidthLogical,
+                kInlineComboMaxWidthLogical),
+            ui::MeasureNextComboBoxPreferredWidth(
+                runtimeInput_,
+                dpi_,
+                kInlineComboMinWidthLogical,
+                kInlineComboMaxWidthLogical));
 
-    // Fit both native ComboBox controls to the widest localized item while
-    // preserving one shared value-column width. This keeps Target type and
-    // Runtime input aligned without hard-coding per-language pixel widths.
-    HDC comboDc =
-        GetDC(hwnd_);
-
-    if (comboDc) {
-        HGDIOBJ oldFont = nullptr;
-
-        if (font_) {
-            oldFont =
-                SelectObject(
-                    comboDc,
-                    font_);
-        }
-
-        const auto measureComboText =
-            [&](HWND combo) {
-                int widest = 0;
-
-                if (!combo) {
-                    return widest;
-                }
-
-                const LRESULT count =
-                    SendMessageW(
-                        combo,
-                        CB_GETCOUNT,
-                        0,
-                        0);
-
-                for (LRESULT index = 0;
-                     index < count;
-                     ++index) {
-                    const LRESULT length =
-                        SendMessageW(
-                            combo,
-                            CB_GETLBTEXTLEN,
-                            static_cast<WPARAM>(
-                                index),
-                            0);
-
-                    if (length <= 0 ||
-                        length == CB_ERR) {
-                        continue;
-                    }
-
-                    std::wstring item(
-                        static_cast<std::size_t>(
-                            length) +
-                            1,
-                        L'\0');
-
-                    if (SendMessageW(
-                            combo,
-                            CB_GETLBTEXT,
-                            static_cast<WPARAM>(
-                                index),
-                            reinterpret_cast<LPARAM>(
-                                item.data())) ==
-                        CB_ERR) {
-                        continue;
-                    }
-
-                    SIZE size{};
-
-                    if (GetTextExtentPoint32W(
-                            comboDc,
-                            item.c_str(),
-                            static_cast<int>(
-                                length),
-                            &size)) {
-                        widest =
-                            std::max(
-                                widest,
-                                static_cast<int>(
-                                    size.cx));
-                    }
-                }
-
-                return widest;
-            };
-
-        const int widestItem =
-            std::max(
-                measureComboText(type_),
-                measureComboText(
-                    runtimeInput_));
-
-        const int nativeChrome =
-            GetSystemMetricsForDpi(
-                SM_CXVSCROLL,
-                dpi_) +
-            Scale(28);
-
-        typeWidth =
-            std::clamp(
-                widestItem +
-                    nativeChrome,
-                Scale(
-                    kInlineComboMinWidthLogical),
-                Scale(
-                    kInlineComboMaxWidthLogical));
-
-        if (oldFont) {
-            SelectObject(
-                comboDc,
-                oldFont);
-        }
-
-        ReleaseDC(
-            hwnd_,
-            comboDc);
-    }
+    // Target type and Runtime input deliberately share one value-column width,
+    // while the shared Next ComboBox owns text/chrome measurement.
 
     MoveWindow(
         typeLabel_,
@@ -3633,6 +3515,28 @@ LRESULT ShortcutEditorDialog::HandleMessage(
                       COLOR_WINDOW));
     }
 
+    case WM_CTLCOLORLISTBOX:
+        return ui::ColorNextComboBoxList(
+            reinterpret_cast<HDC>(
+                wParam));
+
+    case WM_MEASUREITEM: {
+        auto* measure =
+            reinterpret_cast<
+                MEASUREITEMSTRUCT*>(
+                    lParam);
+
+        if (measure &&
+            measure->CtlType ==
+                ODT_COMBOBOX) {
+            measure->itemHeight =
+                ui::NextComboBoxItemHeight(
+                    dpi_);
+            return TRUE;
+        }
+        break;
+    }
+
     case WM_DRAWITEM: {
         const auto* draw =
             reinterpret_cast<
@@ -3641,6 +3545,14 @@ LRESULT ShortcutEditorDialog::HandleMessage(
 
         if (!draw) {
             break;
+        }
+
+        if (draw->CtlType ==
+                ODT_COMBOBOX) {
+            ui::DrawNextComboBoxItem(
+                *draw,
+                dpi_);
+            return TRUE;
         }
 
         const UINT id =
