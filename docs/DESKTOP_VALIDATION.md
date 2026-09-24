@@ -429,6 +429,17 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Confirm running the diagnostic command does not start a second launcher instance, change settings, rebuild Provider Cache, or alter normal search results.
 - [ ] Normal launcher startup, TeamSpeak 3/6 results, alpha.5.18 provider lifecycle and all previous admission-hygiene cases remain unchanged.
 
+## v0.8.0-alpha.5.20 Evidence-backed admission cleanup validation
+
+- [ ] Upgrade from alpha.5.19. Provider Cache schema 7 must rebuild once.
+- [ ] During the schema-7 rebuild, startup behavior `Show launcher` must not reveal a user-only/partial result list; the launcher becomes searchable only after the completed provider snapshot is published.
+- [ ] Search `teamsp` after the rebuild: TeamSpeak 3 and TeamSpeak/TeamSpeak 6 must both remain available without any ExecutableUnknown fallback.
+- [ ] Confirm TeamSpeak launches through the original Start Menu shortcut targeting `C:\\Users\\Asp\\AppData\\Local\\Programs\\TeamSpeak\\TeamSpeak.exe`.
+- [ ] Recheck WinRAR help/What's New, `访问 Java.com`, uninstall/update/helper/native-messaging entries: strict positive admission remains intact.
+- [ ] Confirm ordinary GUI/CUI Start Menu and App Paths applications remain discoverable.
+- [ ] Confirm there is no `--diagnose-shortcut` product path and no temporary launch-target diagnostic JSON is produced during normal use.
+- [ ] Classic visuals/geometry, table resize, numeric Quick Launch, pinyin, Everything and result ranking remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

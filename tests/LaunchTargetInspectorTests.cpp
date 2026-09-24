@@ -102,64 +102,6 @@ int wmain() {
         LaunchTargetKind::
             ConsoleExecutable);
 
-    const auto executableDetail =
-        win::InspectLaunchTargetDetailed(
-            executable.wstring());
-
-    assert(
-        executableDetail
-            .executable.legacyKind ==
-        LaunchTargetKind::
-            ConsoleExecutable);
-    assert(
-        executableDetail
-            .executable.currentKind ==
-        LaunchTargetKind::
-            ConsoleExecutable);
-    assert(
-        !executableDetail
-             .executable.fallbackUsed);
-    assert(
-        executableDetail
-            .executable.stage ==
-        win::ExecutableInspectionStage::
-            ConsoleExecutable);
-
-
-    const auto opaqueExe =
-        root /
-        "TeamSpeak.exe";
-
-    {
-        std::ofstream output(
-            opaqueExe,
-            std::ios::binary);
-        output << "opaque executable fixture";
-    }
-
-    assert(
-        win::InspectLaunchTarget(
-            opaqueExe.wstring()) ==
-        LaunchTargetKind::
-            ExecutableUnknown);
-
-    const auto opaqueDetail =
-        win::InspectLaunchTargetDetailed(
-            opaqueExe.wstring());
-
-    assert(
-        opaqueDetail
-            .executable.legacyKind ==
-        LaunchTargetKind::Unknown);
-    assert(
-        opaqueDetail
-            .executable.currentKind ==
-        LaunchTargetKind::
-            ExecutableUnknown);
-    assert(
-        opaqueDetail
-            .executable.fallbackUsed);
-
     const auto doc =
         root /
         "whats-new.chm";
@@ -174,9 +116,6 @@ int wmain() {
     const auto appLink =
         root /
         "Application.lnk";
-    const auto opaqueAppLink =
-        root /
-        "TeamSpeak.lnk";
     const auto docLink =
         root /
         "What's New.lnk";
@@ -185,50 +124,23 @@ int wmain() {
         appLink,
         executable);
     CreateShortcut(
-        opaqueAppLink,
-        opaqueExe);
-    CreateShortcut(
         docLink,
         doc);
 
     const auto app =
         win::InspectShellLink(
             appLink);
-    const auto appDiagnostic =
-        win::InspectShellLinkDetailed(
-            appLink);
-    const auto opaqueApp =
-        win::InspectShellLink(
-            opaqueAppLink);
     const auto help =
         win::InspectShellLink(
             docLink);
 
     assert(app.has_value());
-    assert(opaqueApp.has_value());
     assert(help.has_value());
-    assert(
-        appDiagnostic.stage ==
-        win::ShellLinkInspectionStage::
-            Resolved);
-    assert(
-        appDiagnostic.shortcut
-            .has_value());
-    assert(
-        appDiagnostic.targetInspection
-            .executable.legacyKind ==
-        LaunchTargetKind::
-            ConsoleExecutable);
 
     assert(
         app->targetKind ==
         LaunchTargetKind::
             ConsoleExecutable);
-
-    assert(
-        opaqueApp->targetKind ==
-        LaunchTargetKind::
-            ExecutableUnknown);
 
     assert(
         help->targetKind ==

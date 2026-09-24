@@ -159,9 +159,6 @@ namespace {
     return
         kind ==
             LaunchTargetKind::
-                ExecutableUnknown ||
-        kind ==
-            LaunchTargetKind::
                 GuiExecutable ||
         kind ==
             LaunchTargetKind::

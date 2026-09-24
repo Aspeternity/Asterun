@@ -54,6 +54,19 @@ int main() {
             false) ==
         ProviderIndexState::Ready);
 
+    ProviderCacheData empty;
+
+    assert(
+        EvaluateProviderIndexState(
+            descriptors,
+            enabled,
+            empty,
+            false) ==
+        ProviderIndexState::Building);
+    assert(
+        !ProviderIndexSearchable(
+            ProviderIndexState::Building));
+
     ProviderCacheData incomplete;
     incomplete[
         std::string(

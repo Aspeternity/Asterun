@@ -15,7 +15,6 @@ enum class LaunchCandidateSource {
 
 enum class LaunchTargetKind {
     Unknown,
-    ExecutableUnknown,
     GuiExecutable,
     ConsoleExecutable,
     CommandScript,

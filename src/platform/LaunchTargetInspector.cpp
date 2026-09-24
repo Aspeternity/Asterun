@@ -8,6 +8,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <array>
 #include <cwctype>
 #include <fstream>
 #include <string>
@@ -40,36 +41,20 @@ public:
                 RPC_E_CHANGED_MODE;
     }
 
-    [[nodiscard]] HRESULT Result()
-        const noexcept {
-        return result_;
-    }
-
 private:
     HRESULT result_{};
 };
 
-[[nodiscard]] ExecutableInspection
-InspectExecutableDetailed(
+[[nodiscard]] LaunchTargetKind
+InspectExecutable(
     const std::filesystem::path& path) {
-
-    ExecutableInspection result;
-
-    std::error_code ec;
-    result.fileExists =
-        std::filesystem::is_regular_file(
-            path,
-            ec);
 
     std::ifstream input(
         path,
         std::ios::binary);
 
     if (!input) {
-        result.stage =
-            ExecutableInspectionStage::
-                OpenFailed;
-        return result;
+        return LaunchTargetKind::Unknown;
     }
 
     IMAGE_DOS_HEADER dos{};
@@ -77,38 +62,16 @@ InspectExecutableDetailed(
         reinterpret_cast<char*>(&dos),
         sizeof(dos));
 
-    if (!input) {
-        result.stage =
-            ExecutableInspectionStage::
-                DosHeaderReadFailed;
-        return result;
-    }
-
-    if (dos.e_magic !=
-        IMAGE_DOS_SIGNATURE) {
-        result.stage =
-            ExecutableInspectionStage::
-                InvalidDosHeader;
-        return result;
-    }
-
-    if (dos.e_lfanew <= 0) {
-        result.stage =
-            ExecutableInspectionStage::
-                InvalidPeOffset;
-        return result;
+    if (!input ||
+        dos.e_magic !=
+            IMAGE_DOS_SIGNATURE ||
+        dos.e_lfanew <= 0) {
+        return LaunchTargetKind::Unknown;
     }
 
     input.seekg(
         dos.e_lfanew,
         std::ios::beg);
-
-    if (!input) {
-        result.stage =
-            ExecutableInspectionStage::
-                SeekFailed;
-        return result;
-    }
 
     DWORD signature = 0;
     IMAGE_FILE_HEADER fileHeader{};
@@ -129,34 +92,16 @@ InspectExecutableDetailed(
             &magic),
         sizeof(magic));
 
-    if (!input) {
-        result.stage =
-            ExecutableInspectionStage::
-                NtHeaderReadFailed;
-        return result;
+    if (!input ||
+        signature !=
+            IMAGE_NT_SIGNATURE) {
+        return LaunchTargetKind::Unknown;
     }
-
-    if (signature !=
-        IMAGE_NT_SIGNATURE) {
-        result.stage =
-            ExecutableInspectionStage::
-                InvalidPeSignature;
-        return result;
-    }
-
-    result.optionalMagic = magic;
 
     input.seekg(
         -static_cast<std::streamoff>(
             sizeof(magic)),
         std::ios::cur);
-
-    if (!input) {
-        result.stage =
-            ExecutableInspectionStage::
-                SeekFailed;
-        return result;
-    }
 
     WORD subsystem = 0;
 
@@ -167,16 +112,10 @@ InspectExecutableDetailed(
             reinterpret_cast<char*>(
                 &header),
             sizeof(header));
-
-        if (!input) {
-            result.stage =
-                ExecutableInspectionStage::
-                    OptionalHeaderReadFailed;
-            return result;
+        if (input) {
+            subsystem =
+                header.Subsystem;
         }
-
-        subsystem =
-            header.Subsystem;
     } else if (
         magic ==
         IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
@@ -185,56 +124,27 @@ InspectExecutableDetailed(
             reinterpret_cast<char*>(
                 &header),
             sizeof(header));
-
-        if (!input) {
-            result.stage =
-                ExecutableInspectionStage::
-                    OptionalHeaderReadFailed;
-            return result;
+        if (input) {
+            subsystem =
+                header.Subsystem;
         }
-
-        subsystem =
-            header.Subsystem;
     } else {
-        result.stage =
-            ExecutableInspectionStage::
-                UnsupportedOptionalMagic;
-        return result;
+        return LaunchTargetKind::Unknown;
     }
-
-    result.subsystem = subsystem;
 
     if (subsystem ==
         IMAGE_SUBSYSTEM_WINDOWS_GUI) {
-        result.legacyKind =
-            LaunchTargetKind::
-                GuiExecutable;
-        result.currentKind =
-            result.legacyKind;
-        result.stage =
-            ExecutableInspectionStage::
-                GuiExecutable;
-        return result;
+        return LaunchTargetKind::
+            GuiExecutable;
     }
 
     if (subsystem ==
         IMAGE_SUBSYSTEM_WINDOWS_CUI) {
-        result.legacyKind =
-            LaunchTargetKind::
-                ConsoleExecutable;
-        result.currentKind =
-            result.legacyKind;
-        result.stage =
-            ExecutableInspectionStage::
-                ConsoleExecutable;
-        return result;
+        return LaunchTargetKind::
+            ConsoleExecutable;
     }
 
-    result.stage =
-        ExecutableInspectionStage::
-            UnsupportedSubsystem;
-
-    return result;
+    return LaunchTargetKind::Unknown;
 }
 
 [[nodiscard]] std::wstring
@@ -259,80 +169,15 @@ LowerExtension(
 
 } // namespace
 
-const char*
-ExecutableInspectionStageName(
-    ExecutableInspectionStage stage) noexcept {
-
-    switch (stage) {
-    case ExecutableInspectionStage::NotRun:
-        return "not-run";
-    case ExecutableInspectionStage::OpenFailed:
-        return "open-failed";
-    case ExecutableInspectionStage::DosHeaderReadFailed:
-        return "dos-header-read-failed";
-    case ExecutableInspectionStage::InvalidDosHeader:
-        return "invalid-dos-header";
-    case ExecutableInspectionStage::InvalidPeOffset:
-        return "invalid-pe-offset";
-    case ExecutableInspectionStage::SeekFailed:
-        return "seek-failed";
-    case ExecutableInspectionStage::NtHeaderReadFailed:
-        return "nt-header-read-failed";
-    case ExecutableInspectionStage::InvalidPeSignature:
-        return "invalid-pe-signature";
-    case ExecutableInspectionStage::UnsupportedOptionalMagic:
-        return "unsupported-optional-magic";
-    case ExecutableInspectionStage::OptionalHeaderReadFailed:
-        return "optional-header-read-failed";
-    case ExecutableInspectionStage::GuiExecutable:
-        return "gui-executable";
-    case ExecutableInspectionStage::ConsoleExecutable:
-        return "console-executable";
-    case ExecutableInspectionStage::UnsupportedSubsystem:
-        return "unsupported-subsystem";
-    }
-
-    return "not-run";
-}
-
-const char*
-ShellLinkInspectionStageName(
-    ShellLinkInspectionStage stage) noexcept {
-
-    switch (stage) {
-    case ShellLinkInspectionStage::ComUnavailable:
-        return "com-unavailable";
-    case ShellLinkInspectionStage::CreateInstanceFailed:
-        return "create-instance-failed";
-    case ShellLinkInspectionStage::PersistInterfaceFailed:
-        return "persist-interface-failed";
-    case ShellLinkInspectionStage::LoadFailed:
-        return "load-failed";
-    case ShellLinkInspectionStage::TargetResolutionFailed:
-        return "target-resolution-failed";
-    case ShellLinkInspectionStage::Resolved:
-        return "resolved";
-    }
-
-    return "target-resolution-failed";
-}
-
-LaunchTargetInspection
-InspectLaunchTargetDetailed(
+LaunchTargetKind InspectLaunchTarget(
     std::wstring_view target) {
 
-    LaunchTargetInspection result;
-    result.target =
-        std::wstring(target);
-
-    result.inferredKind =
+    const auto inferred =
         InferTextTargetKind(target);
 
-    if (result.inferredKind !=
+    if (inferred !=
         LaunchTargetKind::Unknown) {
-        result.finalKind =
-            result.inferredKind;
-        return result;
+        return inferred;
     }
 
     const std::filesystem::path path(
@@ -341,124 +186,46 @@ InspectLaunchTargetDetailed(
     const std::wstring extension =
         LowerExtension(target);
 
-    if (extension != L".exe") {
-        return result;
+    if (extension == L".exe") {
+        return InspectExecutable(path);
     }
 
-    result.executable =
-        InspectExecutableDetailed(path);
-
-    result.executable.currentKind =
-        result.executable.legacyKind;
-
-    if (result.executable.legacyKind ==
-        LaunchTargetKind::Unknown) {
-        DWORD binaryType = 0;
-
-        if (GetBinaryTypeW(
-                path.c_str(),
-                &binaryType)) {
-            result.executable
-                .getBinaryTypeSucceeded =
-                true;
-            result.executable.binaryType =
-                binaryType;
-            result.executable.currentKind =
-                LaunchTargetKind::
-                    ExecutableUnknown;
-            result.executable.fallbackUsed =
-                true;
-        } else if (
-            result.executable.fileExists) {
-            result.executable.currentKind =
-                LaunchTargetKind::
-                    ExecutableUnknown;
-            result.executable.fallbackUsed =
-                true;
-        }
-    }
-
-    result.finalKind =
-        result.executable.currentKind;
-
-    return result;
+    return LaunchTargetKind::Unknown;
 }
 
-LaunchTargetKind InspectLaunchTarget(
-    std::wstring_view target) {
-
-    return InspectLaunchTargetDetailed(
-        target).finalKind;
-}
-
-ShellLinkInspection
-InspectShellLinkDetailed(
+std::optional<ShortcutTarget>
+InspectShellLink(
     const std::filesystem::path& path) {
-
-    ShellLinkInspection inspection;
 
     ComApartment apartment;
 
     if (!apartment.Available()) {
-        inspection.stage =
-            ShellLinkInspectionStage::
-                ComUnavailable;
-        inspection.nativeResult =
-            static_cast<long>(
-                apartment.Result());
-        return inspection;
+        return std::nullopt;
     }
 
     ComPtr<IShellLinkW> shellLink;
 
-    const HRESULT createResult =
-        CoCreateInstance(
-            CLSID_ShellLink,
-            nullptr,
-            CLSCTX_INPROC_SERVER,
-            IID_PPV_ARGS(
-                &shellLink));
-
-    if (FAILED(createResult) ||
+    if (FAILED(
+            CoCreateInstance(
+                CLSID_ShellLink,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_PPV_ARGS(
+                    &shellLink))) ||
         !shellLink) {
-        inspection.stage =
-            ShellLinkInspectionStage::
-                CreateInstanceFailed;
-        inspection.nativeResult =
-            static_cast<long>(
-                createResult);
-        return inspection;
+        return std::nullopt;
     }
 
     ComPtr<IPersistFile> persist;
 
-    const HRESULT persistResult =
-        shellLink.As(&persist);
-
-    if (FAILED(persistResult) ||
-        !persist) {
-        inspection.stage =
-            ShellLinkInspectionStage::
-                PersistInterfaceFailed;
-        inspection.nativeResult =
-            static_cast<long>(
-                persistResult);
-        return inspection;
-    }
-
-    const HRESULT loadResult =
-        persist->Load(
-            path.c_str(),
-            STGM_READ);
-
-    if (FAILED(loadResult)) {
-        inspection.stage =
-            ShellLinkInspectionStage::
-                LoadFailed;
-        inspection.nativeResult =
-            static_cast<long>(
-                loadResult);
-        return inspection;
+    if (FAILED(
+            shellLink.As(&persist)) ||
+        !persist ||
+        FAILED(
+            persist->Load(
+                path.c_str(),
+                STGM_READ))) {
+        return std::nullopt;
     }
 
     std::vector<wchar_t> buffer(
@@ -469,47 +236,36 @@ InspectShellLinkDetailed(
 
     std::wstring target;
 
-    const HRESULT getPathResult =
-        shellLink->GetPath(
-            buffer.data(),
-            static_cast<int>(
-                buffer.size()),
-            &findData,
-            0);
-
-    if (SUCCEEDED(getPathResult) &&
+    if (SUCCEEDED(
+            shellLink->GetPath(
+                buffer.data(),
+                static_cast<int>(
+                    buffer.size()),
+                &findData,
+                0)) &&
         buffer.front() != L'\0') {
         target.assign(
             buffer.data());
     }
 
-    HRESULT idListResult = S_OK;
-
     if (target.empty()) {
         PIDLIST_ABSOLUTE pidl = nullptr;
 
-        idListResult =
-            shellLink->GetIDList(
-                &pidl);
-
-        if (SUCCEEDED(idListResult) &&
+        if (SUCCEEDED(
+                shellLink->GetIDList(
+                    &pidl)) &&
             pidl != nullptr) {
 
             PWSTR raw = nullptr;
 
-            const HRESULT nameResult =
-                SHGetNameFromIDList(
-                    pidl,
-                    SIGDN_DESKTOPABSOLUTEPARSING,
-                    &raw);
-
-            if (SUCCEEDED(nameResult) &&
+            if (SUCCEEDED(
+                    SHGetNameFromIDList(
+                        pidl,
+                        SIGDN_DESKTOPABSOLUTEPARSING,
+                        &raw)) &&
                 raw != nullptr) {
                 target.assign(raw);
                 CoTaskMemFree(raw);
-            } else {
-                idListResult =
-                    nameResult;
             }
 
             CoTaskMemFree(pidl);
@@ -517,19 +273,11 @@ InspectShellLinkDetailed(
     }
 
     if (target.empty()) {
-        inspection.stage =
-            ShellLinkInspectionStage::
-                TargetResolutionFailed;
-        inspection.nativeResult =
-            static_cast<long>(
-                FAILED(getPathResult)
-                    ? getPathResult
-                    : idListResult);
-        return inspection;
+        return std::nullopt;
     }
 
-    ShortcutTarget shortcut;
-    shortcut.target =
+    ShortcutTarget result;
+    result.target =
         std::move(target);
 
     std::fill(
@@ -543,7 +291,7 @@ InspectShellLinkDetailed(
                 static_cast<int>(
                     buffer.size()))) &&
         buffer.front() != L'\0') {
-        shortcut.arguments.assign(
+        result.arguments.assign(
             buffer.data());
     }
 
@@ -558,39 +306,15 @@ InspectShellLinkDetailed(
                 static_cast<int>(
                     buffer.size()))) &&
         buffer.front() != L'\0') {
-        shortcut.workingDirectory.assign(
+        result.workingDirectory.assign(
             buffer.data());
     }
 
-    inspection.targetInspection =
-        InspectLaunchTargetDetailed(
-            shortcut.target);
+    result.targetKind =
+        InspectLaunchTarget(
+            result.target);
 
-    shortcut.targetKind =
-        inspection.targetInspection
-            .finalKind;
-
-    inspection.shortcut =
-        std::move(shortcut);
-    inspection.stage =
-        ShellLinkInspectionStage::
-            Resolved;
-    inspection.nativeResult =
-        static_cast<long>(
-            getPathResult);
-
-    return inspection;
-}
-
-std::optional<ShortcutTarget>
-InspectShellLink(
-    const std::filesystem::path& path) {
-
-    auto inspection =
-        InspectShellLinkDetailed(path);
-
-    return std::move(
-        inspection.shortcut);
+    return result;
 }
 
 } // namespace altrun::win

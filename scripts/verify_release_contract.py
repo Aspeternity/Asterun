@@ -42,6 +42,164 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.20":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.20 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 7:
+        fail("v0.8 alpha.5.20 must rebuild generated Provider Cache at schemaVersion 7")
+
+    candidate_h = read("src/core/LaunchCandidate.hpp")
+    candidate_cpp = read("src/core/LaunchCandidate.cpp")
+    inspector_h = read("src/platform/LaunchTargetInspector.hpp")
+    inspector_cpp = read("src/platform/LaunchTargetInspector.cpp")
+    inspector_tests = read("tests/LaunchTargetInspectorTests.cpp")
+    candidate_tests = read("tests/LaunchCandidateTests.cpp")
+    main_cpp = read("src/main.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    policy_tests = read("tests/ProviderIndexPolicyTests.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for name, text in (
+        ("LaunchCandidate.hpp", candidate_h),
+        ("LaunchCandidate.cpp", candidate_cpp),
+        ("LaunchTargetInspector.hpp", inspector_h),
+        ("LaunchTargetInspector.cpp", inspector_cpp),
+        ("LaunchTargetInspectorTests.cpp", inspector_tests),
+        ("LaunchCandidateTests.cpp", candidate_tests),
+        ("main.cpp", main_cpp),
+    ):
+        if "ExecutableUnknown" in text:
+            fail(f"v0.8 alpha.5.20 must remove disproven ExecutableUnknown production/test path: {name}")
+
+    for token in (
+        "GetBinaryTypeW(",
+        "fallbackUsed",
+        "legacyAlpha516Kind",
+        "--diagnose-shortcut",
+        "launch-target-diagnostic.json",
+        "InspectLaunchTargetDetailed(",
+        "InspectShellLinkDetailed(",
+    ):
+        if token in inspector_cpp or token in inspector_h or token in main_cpp:
+            fail(f"v0.8 alpha.5.20 temporary/fallback launch-target code still present: {token}")
+
+    for token in (
+        "IMAGE_SUBSYSTEM_WINDOWS_GUI",
+        "IMAGE_SUBSYSTEM_WINDOWS_CUI",
+        "InspectLaunchTarget(",
+        "InspectShellLink(",
+    ):
+        if token not in inspector_cpp:
+            fail(f"v0.8 alpha.5.20 strict alpha.5.16 inspector contract missing: {token}")
+
+    for token in (
+        "provider-cache-schema6-stale.json",
+        "staleSchema6Cache.Load().empty()",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.20 schema-6 cleanup regression missing: {token}")
+
+    for token in (
+        "ProviderCacheData empty",
+        "ProviderIndexState::Building",
+        "!ProviderIndexSearchable",
+    ):
+        if token not in policy_tests:
+            fail(f"v0.8 alpha.5.20 empty-cache startup policy regression missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.20 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,190",
+        "PRODUCTVERSION 0,8,0,190",
+        "0.8.0-alpha.5.20",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.20 resource version missing: {token}")
+
+    if 'version="0.8.0.190"' not in manifest:
+        fail("v0.8 alpha.5.20 manifest fixed version must be 0.8.0.190")
+
+    for token in (
+        '"0.8.0-alpha.5.19"',
+        '"0.8.0-alpha.5.20"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.20 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.20 Evidence-backed admission cleanup validation",
+        "schema 7",
+        "TeamSpeak 3",
+        "without any ExecutableUnknown fallback",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.20 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.20 — Evidence-backed Admission Cleanup",
+        "Provider Cache schema is bumped to 7",
+        "0.8.0.190",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.20 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.20" not in changelog:
+        fail("v0.8 alpha.5.20 changelog entry missing")
+
+    if "v0.8.0-alpha.5.20 removes the disproven ExecutableUnknown fallback" not in roadmap:
+        fail("v0.8 alpha.5.20 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.20 Evidence-backed Admission Cleanup verified:",
+        "| ExecutableUnknown removed",
+        "| temporary diagnostic removed",
+        "| strict alpha.5.16 target admission restored",
+        "| Provider Cache schema 7",
+        "| empty-cache Building gate regression",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.19":
     import hashlib
     import subprocess

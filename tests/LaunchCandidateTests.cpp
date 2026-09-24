@@ -72,31 +72,6 @@ int main() {
         const auto decision =
             EvaluateLaunchCandidate({
                 LaunchCandidateSource::
-                    StartMenu,
-                L"TeamSpeak",
-                L"C:\\Users\\Asp\\AppData\\Local\\Programs\\TeamSpeak\\TeamSpeak.exe",
-                LaunchSurfaceClass::
-                    PrimaryApplication,
-                LaunchTargetKind::
-                    ExecutableUnknown,
-                true,
-            });
-
-        assert(decision.admit);
-        assert(
-            decision.surface ==
-            LaunchSurfaceClass::
-                PrimaryApplication);
-        assert(
-            decision.reason ==
-            LaunchAdmissionReason::
-                Admitted);
-    }
-
-    {
-        const auto decision =
-            EvaluateLaunchCandidate({
-                LaunchCandidateSource::
                     AppPaths,
                 L"Product Updater",
                 L"C:\\Apps\\Updater.exe",

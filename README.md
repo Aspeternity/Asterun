@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.20 — Evidence-backed Admission Cleanup
+
+Alpha.5.20 removes the temporary `ExecutableUnknown` admission fallback introduced in alpha.5.17. Real-machine alpha.5.19 diagnostics proved that the installed TeamSpeak 6 shortcut resolves normally, its target exists, the PE optional-header magic is PE32+ (`0x020B`), the subsystem is Windows GUI, the reproduced alpha.5.16 target kind is `GuiExecutable`, and alpha.5.16 admission returns admitted. The fallback was therefore unrelated to that incident and is deleted instead of being retained as a speculative compatibility path.
+
+The temporary alpha.5.19 `--diagnose-shortcut` product entry point and stage-heavy inspector scaffolding are also removed now that the evidence has been collected. `LaunchTargetInspector` returns to the strict alpha.5.16 contract: known GUI/CUI PE targets, command scripts, Shell activations and system controls are admitted through their real target kind; an unclassified `.exe` is not accepted merely because the file exists.
+
+Generated Provider Cache schema is bumped to 7 because schema-6 caches may contain candidates admitted by the removed fallback. The rebuild is intentional cleanup, and alpha.5.18's ProviderIndex Building gate prevents that rebuild from exposing a user-command-only half-index while discovery is in flight.
+
+Historical review also narrowed the TeamSpeak incident away from Inspector, Admission, Merge and Search. Alpha.5.16 upgraded the Provider Cache schema to 5 but revealed the launcher before `StartProviderRefresh()` completed, so an invalidated/empty generated cache could be visible as a partial index. That exact lifecycle defect is the independently observed startup half-index fixed in alpha.5.18; alpha.5.20 adds explicit empty-cache policy coverage while preserving the alpha.5.18 atomic publication behavior.
+
+Classic UI, relevance/ranking, Everything, numeric Quick Launch and table ownership are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.190`.
 ## v0.8.0-alpha.5.19 — Launch Target Inspector Root-Cause Trace
 
 Alpha.5.19 is an evidence-gathering release for the TeamSpeak 6 false-negative introduced by alpha.5.16. It deliberately does not change provider admission policy or invalidate Provider Cache schema 6. The goal is to determine whether alpha.5.17's `ExecutableUnknown` fallback actually participated in the real failure before deciding whether that fallback should remain.

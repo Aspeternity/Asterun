@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.5.20
+
+- Removed `LaunchTargetKind::ExecutableUnknown` and the file-exists/GetBinaryType fallback added in alpha.5.17 after real-machine diagnostics proved TeamSpeak 6 is a normal GUI executable and alpha.5.16 admission already accepts it.
+- Removed the temporary alpha.5.19 `--diagnose-shortcut` product entry point and detailed inspector scaffolding after collecting the required evidence.
+- Restored strict alpha.5.16 executable target admission: unclassified `.exe` targets are not accepted merely because the file exists.
+- Bumped generated Provider Cache schema to 7 so schema-6 candidates admitted only by the removed fallback cannot survive cleanup.
+- Added explicit empty-provider-cache Building/non-searchable regression coverage, preserving alpha.5.18 atomic publication during the schema-7 rebuild.
+- Historical review excludes Inspector/Admission, Merge and Search from the TeamSpeak failure path and identifies alpha.5.16's visible-before-refresh startup lifecycle as the remaining matching defect already fixed in alpha.5.18.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.190`.
 ## 0.8.0-alpha.5.19
 
 - Added stage-preserving executable inspection diagnostics without changing launch admission behavior.
