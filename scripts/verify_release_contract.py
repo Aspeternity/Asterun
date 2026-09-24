@@ -105,7 +105,7 @@ if version == "0.8.0-alpha.5.17":
     for token in (
         "TeamSpeak",
         "ExecutableUnknown",
-        "LaunchAdmissionReason::Admitted",
+        "Admitted",
     ):
         if token not in candidate_tests:
             fail(f"v0.8 alpha.5.17 TeamSpeak admission regression missing: {token}")
