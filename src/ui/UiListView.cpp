@@ -20,12 +20,22 @@ constexpr UINT_PTR
     kNextListSubclassId =
         0x1A57;
 
+constexpr UINT_PTR
+    kNextHeaderSubclassId =
+        0x1A58;
+
+constexpr COLORREF
+    kTableHairline =
+        RGB(237, 240, 244);
+
 struct NextListState {
     UINT dpi{96};
     HFONT bodyFont{};
     HFONT headerFont{};
     HIMAGELIST rowHeightImageList{};
+    HWND header{};
     int hotItem{-1};
+    int hotDivider{-1};
 };
 
 [[nodiscard]] NextListState*
@@ -185,6 +195,369 @@ void DrawListFrame(
         dc);
 }
 
+void DrawHeaderSurface(
+    HWND header,
+    HDC dc,
+    const NextListState& state) {
+
+    RECT client{};
+    GetClientRect(
+        header,
+        &client);
+
+    HBRUSH background =
+        CreateSolidBrush(
+            kApplicationPalette
+                .cardBackground);
+    FillRect(
+        dc,
+        &client,
+        background);
+    DeleteObject(
+        background);
+
+    SetBkMode(
+        dc,
+        TRANSPARENT);
+    SetTextColor(
+        dc,
+        kApplicationPalette.text);
+
+    HGDIOBJ oldFont =
+        nullptr;
+
+    if (state.headerFont) {
+        oldFont =
+            SelectObject(
+                dc,
+                state.headerFont);
+    }
+
+    const int count =
+        Header_GetItemCount(
+            header);
+    const int padding =
+        Scale(
+            12,
+            state.dpi);
+
+    for (int index = 0;
+         index < count;
+         ++index) {
+        RECT itemRect{};
+
+        if (!Header_GetItemRect(
+                header,
+                index,
+                &itemRect)) {
+            continue;
+        }
+
+        std::array<wchar_t, 256>
+            text{};
+
+        HDITEMW item{};
+        item.mask = HDI_TEXT;
+        item.pszText =
+            text.data();
+        item.cchTextMax =
+            static_cast<int>(
+                text.size());
+
+        if (!Header_GetItem(
+                header,
+                index,
+                &item)) {
+            continue;
+        }
+
+        RECT textRect =
+            itemRect;
+        textRect.left += padding;
+        textRect.right -=
+            padding;
+
+        DrawTextW(
+            dc,
+            text.data(),
+            -1,
+            &textRect,
+            DT_LEFT |
+                DT_VCENTER |
+                DT_SINGLELINE |
+                DT_END_ELLIPSIS |
+                DT_NOPREFIX);
+
+        if (state.hotDivider ==
+                index &&
+            index <
+                count - 1) {
+            HPEN guide =
+                CreatePen(
+                    PS_SOLID,
+                    1,
+                    RGB(188, 207, 226));
+            HGDIOBJ oldPen =
+                SelectObject(
+                    dc,
+                    guide);
+
+            const int x =
+                itemRect.right - 1;
+
+            MoveToEx(
+                dc,
+                x,
+                itemRect.top +
+                    Scale(
+                        8,
+                        state.dpi),
+                nullptr);
+            LineTo(
+                dc,
+                x,
+                itemRect.bottom -
+                    Scale(
+                        8,
+                        state.dpi));
+
+            SelectObject(
+                dc,
+                oldPen);
+            DeleteObject(
+                guide);
+        }
+    }
+
+    if (oldFont) {
+        SelectObject(
+            dc,
+            oldFont);
+    }
+
+    HPEN bottom =
+        CreatePen(
+            PS_SOLID,
+            1,
+            kTableHairline);
+    HGDIOBJ oldPen =
+        SelectObject(
+            dc,
+            bottom);
+
+    MoveToEx(
+        dc,
+        client.left,
+        client.bottom - 1,
+        nullptr);
+    LineTo(
+        dc,
+        client.right,
+        client.bottom - 1);
+
+    SelectObject(
+        dc,
+        oldPen);
+    DeleteObject(
+        bottom);
+}
+
+[[nodiscard]] int
+DividerAtPoint(
+    HWND header,
+    POINT point) {
+
+    HDHITTESTINFO hit{};
+    hit.pt = point;
+
+    const int item =
+        Header_HitTest(
+            header,
+            &hit);
+
+    if (item < 0) {
+        return -1;
+    }
+
+    if ((hit.flags &
+         (HHT_ONDIVIDER |
+          HHT_ONDIVOPEN)) == 0) {
+        return -1;
+    }
+
+    return item;
+}
+
+LRESULT CALLBACK
+NextHeaderSubclassProc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    UINT_PTR subclassId,
+    DWORD_PTR refData) {
+
+    auto* state =
+        reinterpret_cast<
+            NextListState*>(
+                refData);
+
+    switch (message) {
+    case HDM_LAYOUT: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        if (state &&
+            lParam) {
+            auto* layout =
+                reinterpret_cast<
+                    HDLAYOUT*>(
+                        lParam);
+
+            if (layout->pwpos &&
+                layout->prc) {
+                const int height =
+                    Scale(
+                        34,
+                        state->dpi);
+
+                layout->pwpos->cy =
+                    height;
+                layout->prc->top =
+                    layout->pwpos->y +
+                    height;
+            }
+        }
+
+        return result;
+    }
+
+    case WM_ERASEBKGND:
+        return 1;
+
+    case WM_PAINT: {
+        PAINTSTRUCT paint{};
+        HDC dc =
+            BeginPaint(
+                hwnd,
+                &paint);
+
+        if (state) {
+            DrawHeaderSurface(
+                hwnd,
+                dc,
+                *state);
+        }
+
+        EndPaint(
+            hwnd,
+            &paint);
+        return 0;
+    }
+
+    case WM_PRINTCLIENT:
+        if (state) {
+            DrawHeaderSurface(
+                hwnd,
+                reinterpret_cast<HDC>(
+                    wParam),
+                *state);
+            return 0;
+        }
+        break;
+
+    case WM_MOUSEMOVE:
+        if (state) {
+            POINT point{
+                GET_X_LPARAM(lParam),
+                GET_Y_LPARAM(lParam),
+            };
+
+            const int divider =
+                DividerAtPoint(
+                    hwnd,
+                    point);
+
+            if (divider !=
+                state->hotDivider) {
+                state->hotDivider =
+                    divider;
+                InvalidateRect(
+                    hwnd,
+                    nullptr,
+                    FALSE);
+            }
+
+            TRACKMOUSEEVENT track{
+                sizeof(track),
+                TME_LEAVE,
+                hwnd,
+                0,
+            };
+            TrackMouseEvent(
+                &track);
+        }
+        break;
+
+    case WM_MOUSELEAVE:
+        if (state &&
+            state->hotDivider != -1) {
+            state->hotDivider = -1;
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+        }
+        break;
+
+    case WM_SETFONT: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        if (state) {
+            state->headerFont =
+                reinterpret_cast<HFONT>(
+                    wParam);
+        }
+
+        InvalidateRect(
+            hwnd,
+            nullptr,
+            FALSE);
+        return result;
+    }
+
+    case WM_NCDESTROY:
+        if (state &&
+            state->header == hwnd) {
+            state->header = nullptr;
+        }
+
+        RemoveWindowSubclass(
+            hwnd,
+            NextHeaderSubclassProc,
+            subclassId);
+        break;
+
+    default:
+        break;
+    }
+
+    return DefSubclassProc(
+        hwnd,
+        message,
+        wParam,
+        lParam);
+}
+
 LRESULT CALLBACK
 NextListSubclassProc(
     HWND hwnd,
@@ -290,6 +663,17 @@ NextListSubclassProc(
 
     case WM_NCDESTROY:
         if (state) {
+            if (state->header &&
+                IsWindow(
+                    state->header)) {
+                RemoveWindowSubclass(
+                    state->header,
+                    NextHeaderSubclassProc,
+                    kNextHeaderSubclassId);
+                state->header =
+                    nullptr;
+            }
+
             if (state->
                     rowHeightImageList) {
                 ListView_SetImageList(
@@ -394,10 +778,33 @@ void InitializeNextListView(
             list);
 
     if (header) {
+        if (state->header &&
+            state->header != header &&
+            IsWindow(
+                state->header)) {
+            RemoveWindowSubclass(
+                state->header,
+                NextHeaderSubclassProc,
+                kNextHeaderSubclassId);
+        }
+
+        state->header =
+            header;
+
+        // The Header remains the native hit-testing/resizing engine, but its
+        // visible surface is fully owned by Next. No classic Header borders or
+        // permanent column grid lines are painted.
         SetWindowTheme(
             header,
-            L"Explorer",
-            nullptr);
+            L"",
+            L"");
+
+        SetWindowSubclass(
+            header,
+            NextHeaderSubclassProc,
+            kNextHeaderSubclassId,
+            reinterpret_cast<DWORD_PTR>(
+                state));
     }
 
     ListView_SetBkColor(
@@ -435,6 +842,13 @@ void InitializeNextListView(
         list,
         *state);
 
+    if (header) {
+        InvalidateRect(
+            header,
+            nullptr,
+            FALSE);
+    }
+
     RedrawWindow(
         list,
         nullptr,
@@ -442,151 +856,6 @@ void InitializeNextListView(
         RDW_INVALIDATE |
             RDW_ERASE |
             RDW_ALLCHILDREN);
-}
-
-LRESULT DrawNextListHeader(
-    NMCUSTOMDRAW* draw,
-    UINT dpi,
-    HFONT headerFont) {
-
-    if (!draw) {
-        return CDRF_DODEFAULT;
-    }
-
-    if (draw->dwDrawStage ==
-        CDDS_PREPAINT) {
-        return CDRF_NOTIFYITEMDRAW;
-    }
-
-    if (draw->dwDrawStage !=
-        CDDS_ITEMPREPAINT) {
-        return CDRF_DODEFAULT;
-    }
-
-    const auto& palette =
-        kApplicationPalette;
-
-    RECT rect =
-        draw->rc;
-
-    const bool hot =
-        (draw->uItemState &
-         (CDIS_HOT |
-          CDIS_SELECTED)) != 0;
-
-    HBRUSH background =
-        CreateSolidBrush(
-            hot
-                ? palette.cardBackground
-                : palette.accentBackground);
-
-    FillRect(
-        draw->hdc,
-        &rect,
-        background);
-    DeleteObject(
-        background);
-
-    std::array<wchar_t, 256>
-        text{};
-
-    HDITEMW item{};
-    item.mask = HDI_TEXT;
-    item.pszText =
-        text.data();
-    item.cchTextMax =
-        static_cast<int>(
-            text.size());
-
-    Header_GetItem(
-        draw->hdr.hwndFrom,
-        static_cast<int>(
-            draw->dwItemSpec),
-        &item);
-
-    SetBkMode(
-        draw->hdc,
-        TRANSPARENT);
-    SetTextColor(
-        draw->hdc,
-        palette.text);
-
-    HGDIOBJ oldFont =
-        nullptr;
-
-    if (headerFont) {
-        oldFont =
-            SelectObject(
-                draw->hdc,
-                headerFont);
-    }
-
-    RECT textRect =
-        rect;
-    textRect.left +=
-        Scale(10, dpi);
-    textRect.right -=
-        Scale(10, dpi);
-
-    DrawTextW(
-        draw->hdc,
-        text.data(),
-        -1,
-        &textRect,
-        DT_LEFT |
-            DT_VCENTER |
-            DT_SINGLELINE |
-            DT_END_ELLIPSIS |
-            DT_NOPREFIX);
-
-    if (oldFont) {
-        SelectObject(
-            draw->hdc,
-            oldFont);
-    }
-
-    const COLORREF dividerColor =
-        RGB(236, 239, 243);
-
-    HPEN separator =
-        CreatePen(
-            PS_SOLID,
-            1,
-            dividerColor);
-    HGDIOBJ oldPen =
-        SelectObject(
-            draw->hdc,
-            separator);
-
-    MoveToEx(
-        draw->hdc,
-        rect.left,
-        rect.bottom - 1,
-        nullptr);
-    LineTo(
-        draw->hdc,
-        rect.right,
-        rect.bottom - 1);
-
-    MoveToEx(
-        draw->hdc,
-        rect.right - 1,
-        rect.top +
-            Scale(8, dpi),
-        nullptr);
-    LineTo(
-        draw->hdc,
-        rect.right - 1,
-        rect.bottom -
-            Scale(8, dpi));
-
-    SelectObject(
-        draw->hdc,
-        oldPen);
-    DeleteObject(
-        separator);
-
-    return CDRF_SKIPDEFAULT;
 }
 
 COLORREF NextListRowBackground(
@@ -626,7 +895,7 @@ int NextListCellPadding(
     UINT dpi) noexcept {
 
     return Scale(
-        10,
+        12,
         dpi);
 }
 
@@ -642,8 +911,7 @@ void DrawNextListRowSeparator(
         CreatePen(
             PS_SOLID,
             1,
-            kApplicationPalette
-                .separator);
+            kTableHairline);
     HGDIOBJ oldPen =
         SelectObject(
             dc,

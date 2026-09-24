@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.6 — Next Table Surface
+
+Alpha.5.6 completes the visual separation from the classic Windows report-table look without replacing the proven native ListView engine. The native Header still owns hit testing, keyboard/accessibility and column-resize notifications, but its visible surface is now fully painted by the shared `UiListView` Header subclass instead of exposing the themed `WC_HEADER` appearance.
+
+The shared Header surface is 34 logical pixels high, uses the Next card background and semibold typography, removes all permanent column dividers, and keeps only one soft bottom hairline. Column boundaries stay discoverable through the native resize cursor plus a very subtle divider hint while the pointer is directly over a resize boundary. Shortcut Manager and Path Conversion therefore read as one dense Table Surface rather than an embedded system grid.
+
+Body rows remain 30 logical pixels high but move to 12-logical-pixel cell padding and lighter horizontal separators. Shortcut Manager keeps its existing constrained column-drag model, elastic Target column, remembered runtime widths, ellipsis, keyboard and context actions. Path Conversion keeps its grouped shortcut structure, high-DPI checkbox, conversion logic and elastic Status column; its section band is slightly lighter so it reads as a subsection rather than a second table Header.
+
+No custom scrollbar or replacement data model is introduced. The implementation remains native Win32/GDI and preserves the same ListView/HDN resize behavior that passed previous real-Windows validation.
+
+Settings schema remains **10**. Shared ComboBox alpha.5.4, Hotkeys visibility/scrolling, global Alt+S, startup notification behavior, Classic launcher geometry/assets, providers, Everything, updater and Modern Compact remain unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.176`.
 ## v0.8.0-alpha.5.5 — Shared Next ListView UI
 
 Alpha.5.5 continues the native UI consolidation started by the shared ComboBox work. Shortcut Manager and Path Conversion now use one shared `UiListView` visual foundation for dense report lists: light Next-style framing, semibold headers, 30-logical-pixel rows, consistent cell padding, subtle hover feedback, light-blue selection and horizontal row separators without body-column grid lines.

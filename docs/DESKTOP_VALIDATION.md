@@ -235,6 +235,22 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Repeat both lists at 100/125/150/175/200% scaling and verify Header/row text, checkbox alignment and frame remain crisp.
 - [ ] Settings/Shortcut Editor ComboBoxes remain visually identical to alpha.5.4 and Hotkeys still have no empty status strip.
 - [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
+## v0.8.0-alpha.5.6 Next Table Surface validation
+
+- [ ] Shortcut Manager Header no longer looks like a native Windows table Header: no beveled/button-like column cells and no permanent vertical separators.
+- [ ] Header background belongs to the same light Next card family as Settings/ComboBox surfaces; labels are semibold and vertically centered in a ~34 logical-pixel Header.
+- [ ] A single soft horizontal divider separates Header from body. Normal body rows keep only very light horizontal separators and no vertical grid.
+- [ ] Move the pointer slowly across Header column boundaries: normal areas stay visually clean, and a subtle divider hint appears only directly over a resizable boundary while the native resize cursor remains available.
+- [ ] Drag Keywords/Name/Type repeatedly left/right in Shortcut Manager. Minimum widths, deferred drag behavior, no ghosting, no flashing bottom bar and elastic Target commitment remain unchanged.
+- [ ] Target remains non-resizable/elastic and still absorbs the remaining width exactly after window resize and column drag.
+- [ ] Shortcut Manager text padding/ellipsis remains correct in all four columns; selection/hover still use the shared light Next treatment without a dotted focus rectangle.
+- [ ] Path Conversion uses the exact same Table Header surface and row spacing as Shortcut Manager.
+- [ ] Path Conversion `KOOK — KOOK`-style group row is slightly lighter than alpha.5.5 and reads as a section band, not a second Header; it still cannot be selected.
+- [ ] Path Conversion checkbox remains sharp and centered; Current/Converted/Status text, rescan/apply and conversion behavior are unchanged.
+- [ ] Path Conversion first three columns remain resizable within their existing minimums and Status remains elastic/non-resizable.
+- [ ] Repeat both Table Surfaces at 100/125/150/175/200% scaling; Header height, text centering, resize hit zones, body padding and checkbox alignment remain crisp.
+- [ ] Settings/Shortcut Editor ComboBoxes remain visually identical to alpha.5.4 and Hotkeys still have no empty status strip.
+- [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
 ## Release assets
 
 For the candidate tag:

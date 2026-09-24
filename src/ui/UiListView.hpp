@@ -11,12 +11,6 @@ void InitializeNextListView(
     HFONT bodyFont,
     HFONT headerFont);
 
-[[nodiscard]] LRESULT
-DrawNextListHeader(
-    NMCUSTOMDRAW* draw,
-    UINT dpi,
-    HFONT headerFont);
-
 [[nodiscard]] COLORREF
 NextListRowBackground(
     HWND list,

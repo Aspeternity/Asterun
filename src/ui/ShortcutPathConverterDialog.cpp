@@ -3319,6 +3319,19 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
             return headerResult;
         }
 
+        // The shared Header subclass owns all visible Header painting.
+        // Swallow any remaining Header notifications here so they can never
+        // fall through into the ListView's NM_CUSTOMDRAW/business handlers.
+        const auto* headerNotification =
+            reinterpret_cast<NMHDR*>(
+                lParam);
+        if (headerNotification &&
+            headerNotification->hwndFrom ==
+                ListView_GetHeader(
+                    list_)) {
+            return 0;
+        }
+
         const auto* header =
             reinterpret_cast<NMHDR*>(
                 lParam);

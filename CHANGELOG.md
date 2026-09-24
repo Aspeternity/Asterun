@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.6
+
+- Replaced the visible native Header painting with a shared `UiListView` Header subclass while keeping native Header hit testing and resize notifications.
+- Added a 34-logical-pixel Next Table Header with semibold text, card background, one soft bottom hairline and no permanent vertical column grid lines.
+- Disabled the Header's themed visual surface so static table appearance no longer exposes classic `WC_HEADER` borders/buttons.
+- Added subtle resize-boundary feedback only when the pointer is directly over a native Header divider.
+- Increased shared list cell padding from 10 to 12 logical pixels and lightened row separators for a less spreadsheet-like body.
+- Kept Shortcut Manager column constraints, elastic Target behavior, width state, keyboard/context actions and double-click editing unchanged.
+- Kept Path Conversion grouped rows, high-DPI checkbox, conversion workflow and elastic Status behavior unchanged; lightened group-section background.
+- Removed parent `NM_CUSTOMDRAW` Header routes from Shortcut Manager and Path Conversion because Header rendering now lives entirely in `UiListView`.
+- Added release-contract coverage for the new Header subclass/table-surface architecture and update ordering alpha.5.5 -> alpha.5.6.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.176`.
 ## 0.8.0-alpha.5.5
 
 - Added shared `UiListView` native Win32/GDI infrastructure for report-list framing, Header drawing, row metrics, hover state, selection colors, cell padding and row separators.
