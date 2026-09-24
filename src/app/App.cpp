@@ -30,6 +30,7 @@
 #include <chrono>
 #include <cstdint>
 #include <fstream>
+#include <stop_token>
 #include <unordered_map>
 
 namespace altrun {
@@ -47,6 +48,10 @@ constexpr wchar_t
 constexpr UINT_PTR
     kUpdateReconcileTimerId =
         0xA175;
+
+constexpr UINT
+    kPackagedProviderChangedMessage =
+        WM_APP + 0x176;
 
 [[nodiscard]] HRESULT
 ActivatePackagedApplication(
@@ -369,6 +374,8 @@ int App::Run() {
     // for the exceptional case where this invisible dispatcher cannot exist.
     CreateUpdateDispatchWindow();
 
+    ULONG packagedChangeNotifyId = 0;
+
     if (!dataDirectoryWritable_) {
         MessageBoxW(
             nullptr,
@@ -499,8 +506,47 @@ int App::Run() {
     }
 
     // Cached provider results are already searchable. Refresh automatic
-    // discovery off the startup path, then keep lightweight provider
-    // fingerprints under observation for source-specific updates.
+    // discovery off the startup path, then keep provider sources under
+    // event-driven observation. AppsFolder uses Shell change notifications;
+    // the monitor thread watches Start Menu / registry-backed sources.
+    if (updateDispatchWindow_) {
+        PIDLIST_ABSOLUTE appsFolderPidl =
+            nullptr;
+
+        if (SUCCEEDED(
+                SHGetKnownFolderIDList(
+                    FOLDERID_AppsFolder,
+                    KF_FLAG_DEFAULT,
+                    nullptr,
+                    &appsFolderPidl)) &&
+            appsFolderPidl) {
+
+            SHChangeNotifyEntry entry{};
+            entry.pidl =
+                appsFolderPidl;
+            entry.fRecursive =
+                TRUE;
+
+            packagedChangeNotifyId =
+                SHChangeNotifyRegister(
+                    updateDispatchWindow_,
+                    SHCNRF_ShellLevel |
+                        SHCNRF_InterruptLevel,
+                    SHCNE_CREATE |
+                        SHCNE_DELETE |
+                        SHCNE_RENAMEITEM |
+                        SHCNE_UPDATEITEM |
+                        SHCNE_UPDATEDIR |
+                        SHCNE_ASSOCCHANGED,
+                    kPackagedProviderChangedMessage,
+                    1,
+                    &entry);
+
+            CoTaskMemFree(
+                appsFolderPidl);
+        }
+    }
+
     StartProviderRefresh();
     StartProviderMonitor();
 
@@ -612,6 +658,11 @@ int App::Run() {
 
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
+    }
+
+    if (packagedChangeNotifyId != 0) {
+        SHChangeNotifyDeregister(
+            packagedChangeNotifyId);
     }
 
     return static_cast<int>(msg.wParam);
@@ -1560,10 +1611,235 @@ void App::StartProviderMonitor() {
                 std::stop_token
                     stopToken) {
 
-                std::unordered_map<
-                    std::string,
-                    std::uint64_t>
-                    baseline;
+                enum class WatchKind {
+                    Directory,
+                    Registry,
+                };
+
+                struct SourceWatch {
+                    WatchKind kind{
+                        WatchKind::Directory};
+                    HANDLE waitHandle{
+                        nullptr};
+                    HKEY registryKey{
+                        nullptr};
+                    std::string providerId;
+                };
+
+                std::vector<SourceWatch>
+                    watches;
+
+                const auto knownFolderPath =
+                    [](REFKNOWNFOLDERID id) {
+                        PWSTR rawPath =
+                            nullptr;
+
+                        std::filesystem::path
+                            path;
+
+                        if (SUCCEEDED(
+                                SHGetKnownFolderPath(
+                                    id,
+                                    KF_FLAG_DEFAULT,
+                                    nullptr,
+                                    &rawPath)) &&
+                            rawPath) {
+                            path =
+                                rawPath;
+                        }
+
+                        CoTaskMemFree(
+                            rawPath);
+
+                        return path;
+                    };
+
+                const auto addDirectoryWatch =
+                    [&](const std::filesystem::path&
+                            path,
+                        std::string_view
+                            providerId) {
+
+                        if (path.empty()) {
+                            return;
+                        }
+
+                        HANDLE handle =
+                            FindFirstChangeNotificationW(
+                                path.c_str(),
+                                TRUE,
+                                FILE_NOTIFY_CHANGE_FILE_NAME |
+                                    FILE_NOTIFY_CHANGE_DIR_NAME |
+                                    FILE_NOTIFY_CHANGE_LAST_WRITE |
+                                    FILE_NOTIFY_CHANGE_SIZE);
+
+                        if (handle ==
+                            INVALID_HANDLE_VALUE) {
+                            return;
+                        }
+
+                        SourceWatch watch;
+                        watch.kind =
+                            WatchKind::Directory;
+                        watch.waitHandle =
+                            handle;
+                        watch.providerId =
+                            std::string(
+                                providerId);
+
+                        watches.push_back(
+                            std::move(
+                                watch));
+                    };
+
+                const auto addRegistryWatch =
+                    [&](HKEY root,
+                        const wchar_t* subkey,
+                        REGSAM view,
+                        std::string_view
+                            providerId) {
+
+                        HKEY key =
+                            nullptr;
+
+                        if (RegOpenKeyExW(
+                                root,
+                                subkey,
+                                0,
+                                KEY_NOTIFY |
+                                    view,
+                                &key) !=
+                            ERROR_SUCCESS) {
+                            return;
+                        }
+
+                        HANDLE event =
+                            CreateEventW(
+                                nullptr,
+                                FALSE,
+                                FALSE,
+                                nullptr);
+
+                        if (!event) {
+                            RegCloseKey(
+                                key);
+                            return;
+                        }
+
+                        if (RegNotifyChangeKeyValue(
+                                key,
+                                TRUE,
+                                REG_NOTIFY_CHANGE_NAME |
+                                    REG_NOTIFY_CHANGE_LAST_SET,
+                                event,
+                                TRUE) !=
+                            ERROR_SUCCESS) {
+                            CloseHandle(
+                                event);
+                            RegCloseKey(
+                                key);
+                            return;
+                        }
+
+                        SourceWatch watch;
+                        watch.kind =
+                            WatchKind::Registry;
+                        watch.waitHandle =
+                            event;
+                        watch.registryKey =
+                            key;
+                        watch.providerId =
+                            std::string(
+                                providerId);
+
+                        watches.push_back(
+                            std::move(
+                                watch));
+                    };
+
+                addDirectoryWatch(
+                    knownFolderPath(
+                        FOLDERID_StartMenu),
+                    providers::kStartMenu);
+
+                addDirectoryWatch(
+                    knownFolderPath(
+                        FOLDERID_CommonStartMenu),
+                    providers::kStartMenu);
+
+                constexpr std::array<
+                    REGSAM,
+                    2>
+                    registryViews{
+                        KEY_WOW64_64KEY,
+                        KEY_WOW64_32KEY,
+                    };
+
+                for (const REGSAM view :
+                     registryViews) {
+                    addRegistryWatch(
+                        HKEY_CURRENT_USER,
+                        L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths",
+                        view,
+                        providers::kAppPaths);
+
+                    addRegistryWatch(
+                        HKEY_LOCAL_MACHINE,
+                        L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths",
+                        view,
+                        providers::kAppPaths);
+                }
+
+                addRegistryWatch(
+                    HKEY_CURRENT_USER,
+                    L"Environment",
+                    0,
+                    providers::kPath);
+
+                addRegistryWatch(
+                    HKEY_LOCAL_MACHINE,
+                    L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+                    0,
+                    providers::kPath);
+
+                HANDLE stopEvent =
+                    CreateEventW(
+                        nullptr,
+                        TRUE,
+                        FALSE,
+                        nullptr);
+
+                if (!stopEvent) {
+                    for (auto& watch :
+                         watches) {
+                        if (watch.kind ==
+                            WatchKind::Directory) {
+                            FindCloseChangeNotification(
+                                watch.waitHandle);
+                        } else {
+                            CloseHandle(
+                                watch.waitHandle);
+                            RegCloseKey(
+                                watch.registryKey);
+                        }
+                    }
+                    return;
+                }
+
+                std::vector<HANDLE>
+                    waitHandles;
+
+                waitHandles.reserve(
+                    watches.size() + 1);
+
+                waitHandles.push_back(
+                    stopEvent);
+
+                for (const auto& watch :
+                     watches) {
+                    waitHandles.push_back(
+                        watch.waitHandle);
+                }
 
                 ProviderEnableMap
                     enabledSnapshot;
@@ -1576,6 +1852,15 @@ void App::StartProviderMonitor() {
                         providerMonitorEnabled_;
                 }
 
+                std::unordered_map<
+                    std::string,
+                    std::uint64_t>
+                    baseline;
+
+                // One startup baseline plus a very low-frequency safety
+                // reconciliation keeps a recovery path if Windows misses a
+                // source notification. Normal idle operation performs no
+                // provider scans.
                 for (const auto& token :
                      commandStore_
                          .ProviderChangeTokens(
@@ -1586,116 +1871,190 @@ void App::StartProviderMonitor() {
                     }
                 }
 
-                constexpr auto
-                    kPollInterval =
-                        std::chrono::
-                            milliseconds(5000);
+                constexpr DWORD
+                    kSafetyReconcileMs =
+                        30u * 60u * 1000u;
 
-                constexpr auto
-                    kSleepSlice =
-                        std::chrono::
-                            milliseconds(100);
+                const auto queueProvider =
+                    [&](std::string_view id) {
 
-                while (!stopToken
-                            .stop_requested()) {
+                        {
+                            std::scoped_lock lock(
+                                detectedProviderMutex_);
 
-                    auto remaining =
-                        kPollInterval;
+                            detectedProviderIds_
+                                .insert(
+                                    std::string(
+                                        id));
+                        }
 
-                    while (remaining >
-                               std::chrono::
-                                   milliseconds(0) &&
-                           !stopToken
+                        if (targetThread != 0) {
+                            PostThreadMessageW(
+                                targetThread,
+                                kProviderChangedMessage,
+                                0,
+                                0);
+                        }
+                    };
+
+                {
+                    std::stop_callback
+                        stopCallback(
+                            stopToken,
+                            [stopEvent]() {
+                                SetEvent(
+                                    stopEvent);
+                            });
+
+                    while (!stopToken
                                 .stop_requested()) {
 
-                        const auto slice =
-                            std::min(
-                                remaining,
-                                kSleepSlice);
+                        const DWORD waitResult =
+                            WaitForMultipleObjects(
+                                static_cast<DWORD>(
+                                    waitHandles.size()),
+                                waitHandles.data(),
+                                FALSE,
+                                kSafetyReconcileMs);
 
-                        std::this_thread::
-                            sleep_for(slice);
+                        if (waitResult ==
+                            WAIT_OBJECT_0) {
+                            break;
+                        }
 
-                        remaining -= slice;
-                    }
+                        if (waitResult ==
+                            WAIT_TIMEOUT) {
 
-                    if (stopToken
-                            .stop_requested()) {
-                        break;
-                    }
+                            {
+                                std::scoped_lock lock(
+                                    providerMonitorConfigMutex_);
 
-                    {
-                        std::scoped_lock lock(
-                            providerMonitorConfigMutex_);
+                                enabledSnapshot =
+                                    providerMonitorEnabled_;
+                            }
 
-                        enabledSnapshot =
-                            providerMonitorEnabled_;
-                    }
+                            std::vector<std::string>
+                                changed;
 
-                    std::vector<std::string>
-                        changed;
+                            for (const auto& token :
+                                 commandStore_
+                                     .ProviderChangeTokens(
+                                         enabledSnapshot)) {
 
-                    for (const auto& token :
-                         commandStore_
-                             .ProviderChangeTokens(
-                                 enabledSnapshot)) {
+                                if (!token.success) {
+                                    continue;
+                                }
 
-                        if (!token.success) {
+                                const auto previous =
+                                    baseline.find(
+                                        token.id);
+
+                                if (previous !=
+                                        baseline.end() &&
+                                    previous->second !=
+                                        token.token) {
+                                    changed.push_back(
+                                        token.id);
+                                }
+
+                                baseline[token.id] =
+                                    token.token;
+                            }
+
+                            for (auto it =
+                                     baseline.begin();
+                                 it != baseline.end();) {
+                                if (!providers::IsEnabled(
+                                        enabledSnapshot,
+                                        it->first,
+                                        true)) {
+                                    it =
+                                        baseline.erase(
+                                            it);
+                                } else {
+                                    ++it;
+                                }
+                            }
+
+                            for (const auto& id :
+                                 changed) {
+                                queueProvider(
+                                    id);
+                            }
+
                             continue;
                         }
 
-                        const auto previous =
-                            baseline.find(
-                                token.id);
-
-                        if (previous !=
-                                baseline.end() &&
-                            previous->second !=
-                                token.token) {
-                            changed.push_back(
-                                token.id);
+                        if (waitResult ==
+                                WAIT_FAILED ||
+                            waitResult <
+                                WAIT_OBJECT_0 + 1 ||
+                            waitResult >=
+                                WAIT_OBJECT_0 +
+                                    waitHandles.size()) {
+                            break;
                         }
 
-                        baseline[token.id] =
-                            token.token;
-                    }
+                        const std::size_t index =
+                            static_cast<std::size_t>(
+                                waitResult -
+                                WAIT_OBJECT_0 -
+                                1);
 
-                    for (auto it =
-                             baseline.begin();
-                         it != baseline.end();) {
-                        if (!providers::IsEnabled(
-                                enabledSnapshot,
-                                it->first,
-                                true)) {
-                            it =
-                                baseline.erase(it);
+                        auto& watch =
+                            watches[index];
+
+                        bool rearmed = false;
+
+                        if (watch.kind ==
+                            WatchKind::Directory) {
+                            rearmed =
+                                FindNextChangeNotification(
+                                    watch.waitHandle) !=
+                                FALSE;
                         } else {
-                            ++it;
+                            rearmed =
+                                RegNotifyChangeKeyValue(
+                                    watch.registryKey,
+                                    TRUE,
+                                    REG_NOTIFY_CHANGE_NAME |
+                                        REG_NOTIFY_CHANGE_LAST_SET,
+                                    watch.waitHandle,
+                                    TRUE) ==
+                                ERROR_SUCCESS;
                         }
-                    }
 
-                    if (changed.empty()) {
-                        continue;
-                    }
+                        // The event itself is sufficient evidence that this
+                        // source changed; do not rescan every provider just to
+                        // rediscover the same fact. A failed rearm simply
+                        // falls back to the periodic safety reconciliation.
+                        queueProvider(
+                            watch.providerId);
 
-                    {
-                        std::scoped_lock lock(
-                            detectedProviderMutex_);
-
-                        detectedProviderIds_
-                            .insert(
-                                changed.begin(),
-                                changed.end());
-                    }
-
-                    if (targetThread != 0) {
-                        PostThreadMessageW(
-                            targetThread,
-                            kProviderChangedMessage,
-                            0,
-                            0);
+                        if (!rearmed) {
+                            // Leave the handle quiet. The 30-minute safety
+                            // reconciliation preserves eventual recovery
+                            // without reintroducing a hot polling loop.
+                        }
                     }
                 }
+
+                for (auto& watch :
+                     watches) {
+                    if (watch.kind ==
+                        WatchKind::Directory) {
+                        FindCloseChangeNotification(
+                            watch.waitHandle);
+                    } else {
+                        CloseHandle(
+                            watch.waitHandle);
+                        RegCloseKey(
+                            watch.registryKey);
+                    }
+                }
+
+                CloseHandle(
+                    stopEvent);
             });
 }
 
@@ -1868,6 +2227,23 @@ App::UpdateDispatchWindowProc(
     }
 
     if (self) {
+        if (message ==
+                kPackagedProviderChangedMessage) {
+
+            {
+                std::scoped_lock lock(
+                    self->detectedProviderMutex_);
+
+                self->detectedProviderIds_
+                    .insert(
+                        std::string(
+                            providers::kPackaged));
+            }
+
+            self->HandleProviderChangedSignal();
+            return 0;
+        }
+
         if (message ==
                 kUpdateStatusMessage) {
             self->HandleUpdateStatusMessage(
