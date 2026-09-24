@@ -23,6 +23,17 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.19 — Launch Target Inspector Root-Cause Trace
+
+Alpha.5.19 is an evidence-gathering release for the TeamSpeak 6 false-negative introduced by alpha.5.16. It deliberately does not change provider admission policy or invalidate Provider Cache schema 6. The goal is to determine whether alpha.5.17's `ExecutableUnknown` fallback actually participated in the real failure before deciding whether that fallback should remain.
+
+`LaunchTargetInspector` now exposes a detailed, stage-preserving inspection result. The pre-fallback alpha.5.16 result is recorded separately from the current result, together with file-open status, DOS/PE parsing stage, optional-header magic, subsystem, `GetBinaryTypeW` fallback usage and Shell Link resolution stage.
+
+A temporary developer-only command-line probe is available: `ALTRunNext.exe --diagnose-shortcut <path-to-lnk>`. It performs no provider rebuild and no settings mutation; it writes UTF-8 JSON to `data/launch-target-diagnostic.json` and exits. The JSON reports the exact Shell Link target returned to ALTRun Next, `legacyAlpha516Kind`, current kind, whether `ExecutableUnknown` fallback was used, and the alpha.5.16/current admission decisions for that same target.
+
+This lets us distinguish two materially different outcomes on the user's real TeamSpeak shortcut: if `legacyAlpha516Kind` is already `gui-executable`, then the ExecutableUnknown patch was unrelated and must be removed; if it is `unknown`, the detailed parse stage identifies the actual failing boundary to repair generically.
+
+Windows runtime tests now verify both the legacy and current inspection paths for a normal PE and for the intentionally opaque executable fixture. Classic UI, provider lifecycle, search/ranking, Everything and all existing admission behavior are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.189`.
 ## v0.8.0-alpha.5.18 — Provider Index Lifecycle & Admission Observability
 
 Alpha.5.18 gives the generated static-program index an explicit lifecycle. A complete cache snapshot is `Ready`; a missing/stale/incomplete snapshot is `Building` until the background discovery attempt finishes; a completed but incomplete attempt becomes `Degraded`. Only `Ready` and `Degraded` snapshots are searchable.

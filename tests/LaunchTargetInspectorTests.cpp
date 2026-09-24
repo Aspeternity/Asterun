@@ -102,6 +102,29 @@ int wmain() {
         LaunchTargetKind::
             ConsoleExecutable);
 
+    const auto executableDetail =
+        win::InspectLaunchTargetDetailed(
+            executable.wstring());
+
+    assert(
+        executableDetail
+            .executable.legacyKind ==
+        LaunchTargetKind::
+            ConsoleExecutable);
+    assert(
+        executableDetail
+            .executable.currentKind ==
+        LaunchTargetKind::
+            ConsoleExecutable);
+    assert(
+        !executableDetail
+             .executable.fallbackUsed);
+    assert(
+        executableDetail
+            .executable.stage ==
+        win::ExecutableInspectionStage::
+            ConsoleExecutable);
+
 
     const auto opaqueExe =
         root /
@@ -119,6 +142,23 @@ int wmain() {
             opaqueExe.wstring()) ==
         LaunchTargetKind::
             ExecutableUnknown);
+
+    const auto opaqueDetail =
+        win::InspectLaunchTargetDetailed(
+            opaqueExe.wstring());
+
+    assert(
+        opaqueDetail
+            .executable.legacyKind ==
+        LaunchTargetKind::Unknown);
+    assert(
+        opaqueDetail
+            .executable.currentKind ==
+        LaunchTargetKind::
+            ExecutableUnknown);
+    assert(
+        opaqueDetail
+            .executable.fallbackUsed);
 
     const auto doc =
         root /
@@ -154,6 +194,9 @@ int wmain() {
     const auto app =
         win::InspectShellLink(
             appLink);
+    const auto appDiagnostic =
+        win::InspectShellLinkDetailed(
+            appLink);
     const auto opaqueApp =
         win::InspectShellLink(
             opaqueAppLink);
@@ -164,6 +207,18 @@ int wmain() {
     assert(app.has_value());
     assert(opaqueApp.has_value());
     assert(help.has_value());
+    assert(
+        appDiagnostic.stage ==
+        win::ShellLinkInspectionStage::
+            Resolved);
+    assert(
+        appDiagnostic.shortcut
+            .has_value());
+    assert(
+        appDiagnostic.targetInspection
+            .executable.legacyKind ==
+        LaunchTargetKind::
+            ConsoleExecutable);
 
     assert(
         app->targetKind ==

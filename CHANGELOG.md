@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0-alpha.5.19
+
+- Added stage-preserving executable inspection diagnostics without changing launch admission behavior.
+- Records the exact alpha.5.16 pre-fallback target kind separately from the current target kind.
+- Records PE parsing stage, optional-header magic, subsystem, file existence, GetBinaryType fallback use and Shell Link resolution stage.
+- Added temporary `--diagnose-shortcut <lnk>` developer probe writing `data/launch-target-diagnostic.json`; it does not rebuild providers or mutate settings.
+- Added runtime regressions proving ordinary PE targets do not use the fallback while the intentionally opaque fixture does.
+- Kept Provider Cache schema at 6 so diagnosis is not confounded by another forced provider rebuild.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.189`.
 ## 0.8.0-alpha.5.18
 
 - Added explicit static-provider index states: Ready, Building and Degraded.

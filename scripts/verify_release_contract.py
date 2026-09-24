@@ -42,6 +42,158 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.19":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.19 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 6:
+        fail("v0.8 alpha.5.19 must preserve Provider Cache schemaVersion 6 during root-cause diagnosis")
+
+    inspector_h = read("src/platform/LaunchTargetInspector.hpp")
+    inspector_cpp = read("src/platform/LaunchTargetInspector.cpp")
+    inspector_tests = read("tests/LaunchTargetInspectorTests.cpp")
+    main_cpp = read("src/main.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "ExecutableInspectionStage",
+        "ExecutableInspection",
+        "LaunchTargetInspection",
+        "ShellLinkInspectionStage",
+        "ShellLinkInspection",
+        "InspectLaunchTargetDetailed(",
+        "InspectShellLinkDetailed(",
+    ):
+        if token not in inspector_h:
+            fail(f"v0.8 alpha.5.19 detailed inspector contract missing: {token}")
+
+    for token in (
+        "OpenFailed",
+        "InvalidDosHeader",
+        "InvalidPeSignature",
+        "UnsupportedOptionalMagic",
+        "OptionalHeaderReadFailed",
+        "UnsupportedSubsystem",
+        "legacyKind",
+        "fallbackUsed",
+        "GetBinaryTypeW(",
+    ):
+        if token not in inspector_cpp:
+            fail(f"v0.8 alpha.5.19 executable root-cause stage missing: {token}")
+
+    for token in (
+        "legacyKind",
+        "currentKind",
+        "fallbackUsed",
+        "InspectShellLinkDetailed(",
+    ):
+        if token not in inspector_tests:
+            fail(f"v0.8 alpha.5.19 legacy/current runtime regression missing: {token}")
+
+    for token in (
+        "--diagnose-shortcut",
+        "launch-target-diagnostic.json",
+        "legacyAlpha516Kind",
+        "alpha516",
+        "InspectShellLinkDetailed(",
+        "SaveJsonAtomic(",
+    ):
+        if token not in main_cpp:
+            fail(f"v0.8 alpha.5.19 temporary shortcut diagnostic probe missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.19 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,189",
+        "PRODUCTVERSION 0,8,0,189",
+        "0.8.0-alpha.5.19",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.19 resource version missing: {token}")
+
+    if 'version="0.8.0.189"' not in manifest:
+        fail("v0.8 alpha.5.19 manifest fixed version must be 0.8.0.189")
+
+    for token in (
+        '"0.8.0-alpha.5.18"',
+        '"0.8.0-alpha.5.19"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.19 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.19 Launch target inspector root-cause validation",
+        "--diagnose-shortcut",
+        "legacyAlpha516Kind",
+        "ExecutableUnknown",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.19 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.19 — Launch Target Inspector Root-Cause Trace",
+        "legacyAlpha516Kind",
+        "ExecutableUnknown",
+        "0.8.0.189",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.19 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.19" not in changelog:
+        fail("v0.8 alpha.5.19 changelog entry missing")
+
+    if "v0.8.0-alpha.5.19 freezes admission behavior" not in roadmap:
+        fail("v0.8 alpha.5.19 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.19 Launch Target Inspector Root-Cause Trace verified:",
+        "| admission behavior frozen",
+        "| alpha.5.16 legacy kind separated",
+        "| PE failure stage recorded",
+        "| temporary shortcut diagnostic probe",
+        "| Provider Cache schema 6 preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.18":
     import hashlib
     import subprocess

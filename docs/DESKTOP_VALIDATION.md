@@ -419,6 +419,16 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Search-source settings and manual `重建程序索引` still complete without blocking the UI; valid old cache remains usable until the completed refresh snapshot is published.
 - [ ] Classic visuals/geometry, table resize, numeric Quick Launch, pinyin, Everything and result ranking remain unchanged.
 
+## v0.8.0-alpha.5.19 Launch target inspector root-cause validation
+
+- [ ] Do not delete Provider Cache and do not rebuild the program index before diagnosis; alpha.5.19 intentionally keeps schema 6 so the investigation is not altered by another forced refresh.
+- [ ] Run `ALTRunNext.exe --diagnose-shortcut "C:\\Users\\Asp\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\TeamSpeak.lnk"`.
+- [ ] Open `data\\launch-target-diagnostic.json` and preserve the complete file. Check `shellLink.stage`, exact resolved `target`, `targetInspection.legacyAlpha516Kind`, `currentKind`, executable `stage`, `optionalMagic`, `subsystem`, `fallbackUsed`, plus alpha.5.16/current admission decisions.
+- [ ] If `legacyAlpha516Kind` is `gui-executable`, treat ExecutableUnknown as unrelated to the TeamSpeak failure and remove/reassess that fallback before further search-hygiene work.
+- [ ] If `legacyAlpha516Kind` is `unknown`, use the recorded executable stage to repair the actual generic failure rather than adding a TeamSpeak special case.
+- [ ] Confirm running the diagnostic command does not start a second launcher instance, change settings, rebuild Provider Cache, or alter normal search results.
+- [ ] Normal launcher startup, TeamSpeak 3/6 results, alpha.5.18 provider lifecycle and all previous admission-hygiene cases remain unchanged.
+
 ## Release assets
 
 For the candidate tag:
