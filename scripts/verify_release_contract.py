@@ -204,6 +204,15 @@ if version == "0.8.0-alpha.5.16":
     if build_workflow.count("launch_target_inspector_tests") < 4:
         fail("v0.8 alpha.5.16 Windows smoke/baseline workflow must build and run launch_target_inspector_tests")
 
+    for token in (
+        "Refreshing active prerelease",
+        "Stable tag",
+        "stable releases are immutable",
+        'git push origin "refs/tags/$TAG" --force',
+    ):
+        if token not in build_workflow:
+            fail(f"v0.8 alpha.5.16 prerelease/tag consistency policy missing: {token}")
+
     subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
         cwd=ROOT,

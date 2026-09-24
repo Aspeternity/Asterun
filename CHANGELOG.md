@@ -9,6 +9,7 @@
 - PATH remains opt-in and now shares candidate admission, preventing obvious helper/maintenance binaries from entering the CLI index.
 - Added pure admission regressions for `访问 Java.com`, WinRAR `最新版本里有哪些新功能`, maintenance/helper entries, system tools and CLI tools.
 - Added Windows runtime tests that create real `.lnk` files and verify native shortcut resolution plus GUI/console/document target inspection.
+- Hardened release consistency: stable tags remain immutable, while an active same-VERSION prerelease is refreshed to the final green HEAD after in-version CI fixes so main/dev-latest/version tag cannot diverge.
 - Bumped generated Provider Cache schema to 5 so pre-admission schema-4 candidates are rebuilt.
 - Windows fixed FileVersion/ProductVersion is `0.8.0.186`.
 ## 0.8.0-alpha.5.15

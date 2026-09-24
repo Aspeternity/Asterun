@@ -210,7 +210,7 @@ jobs:
             --title "ALTRun Next Development Build" \
             --notes "Rolling prerelease built from main at commit $GITHUB_SHA. This release is replaced automatically after every successful main build."
 
-      - name: Publish immutable versioned release if needed
+      - name: Publish versioned release
         if: steps.current.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -218,17 +218,34 @@ jobs:
         run: |
           VERSION="$(tr -d '\r\n' < VERSION)"
           TAG="v$VERSION"
+          IS_PRERELEASE=false
 
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "$TAG already exists; keep the historical prerelease unchanged."
+          if [[ "$VERSION" == *-* ]]; then
+            IS_PRERELEASE=true
+          fi
+
+          REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
+
+          if [[ -n "$REMOTE_SHA" && "$REMOTE_SHA" != "$GITHUB_SHA" ]]; then
+            if [[ "$IS_PRERELEASE" != "true" ]]; then
+              echo "Stable tag $TAG already exists at $REMOTE_SHA; stable releases are immutable."
+              exit 1
+            fi
+
+            echo "Refreshing active prerelease $TAG from $REMOTE_SHA to $GITHUB_SHA."
+            gh release delete "$TAG" --yes --cleanup-tag || true
+            git tag -f "$TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG" --force
+          elif [[ -z "$REMOTE_SHA" ]]; then
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "$TAG"
+          elif gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already points to the current commit and its release exists."
             exit 0
           fi
 
-          git tag "$TAG" "$GITHUB_SHA"
-          git push origin "$TAG"
-
           EXTRA_ARGS=()
-          if [[ "$VERSION" == *-* ]]; then
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
             EXTRA_ARGS+=(--prerelease)
           fi
 
