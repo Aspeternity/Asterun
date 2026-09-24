@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 
 namespace altrun::ui {
 namespace {
@@ -632,7 +633,6 @@ void DrawHeaderSurface(
 }
 
 LRESULT CALLBACK
-NextHeaderSubclassProc(LRESULT CALLBACK
 NextHeaderSubclassProc(
     HWND hwnd,
     UINT message,
