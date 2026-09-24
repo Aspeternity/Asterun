@@ -199,13 +199,15 @@ void PositionResizeGuide(
     const int listWidth =
         std::max(
             1,
-            listRect.right -
-                listRect.left);
+            static_cast<int>(
+                listRect.right -
+                    listRect.left));
     const int listHeight =
         std::max(
             1,
-            listRect.bottom -
-                listRect.top);
+            static_cast<int>(
+                listRect.bottom -
+                    listRect.top));
 
     guideX =
         std::clamp(
