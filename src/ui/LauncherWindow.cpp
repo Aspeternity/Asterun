@@ -2371,8 +2371,8 @@ void LauncherWindow::ShowStartupNotification(
 
     std::wstring message =
         zh
-            ? L"ALTRun Next 已启动"
-            : L"ALTRun Next is running";
+            ? L"已在后台启动"
+            : L"Running in the background";
 
     if (!activationHotkey.empty()) {
         message +=
@@ -2383,7 +2383,7 @@ void LauncherWindow::ShowStartupNotification(
         message +=
             zh
                 ? L" 呼出"
-                : L" to show the launcher";
+                : L" to show";
     }
 
     NOTIFYICONDATAW data{};
@@ -3077,12 +3077,6 @@ LRESULT LauncherWindow::HandleEditMessage(
                         kOpenSettings) {
                     Hide();
                     app_.ShowSettings();
-                } else if (
-                    *actionId ==
-                    hotkey_actions::
-                        kOpenShortcutManager) {
-                    Hide();
-                    app_.ShowShortcutManager();
                 } else if (
                     *actionId ==
                     hotkey_actions::

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.5.2
+
+- Fixed Open Shortcut Manager so default Alt+S is a real global Windows hotkey and works while the Launcher is hidden.
+- Added transactional RegisterHotKey lifecycle for Shortcut Manager: startup registration, live rebinding, rollback on conflict, reset-to-default support and clean unregistration.
+- Added independent vertical scrolling to the Hotkeys page while keeping Reset all hotkeys fixed in the bottom action area.
+- Unified all seven Settings ComboBoxes behind a native owner-drawn/subclassed Next-themed control path with consistent borders, text, selection rows and arrow surface.
+- Simplified startup notification copy to “已在后台启动 / 按 <hotkey> 呼出” and normalized executable FileDescription to “ALTRun Next”.
+- Preserved Settings schemaVersion 10 and all frozen Classic/provider/Everything/updater contracts.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.172`.
+
 ## 0.8.0-alpha.5.1
 
 - Rebuilt General Settings around Windows & startup, Search & execution, and Window placement; removed six implementation-detail settings from UI and schema.

@@ -363,6 +363,7 @@ ResetWindowInstanceState() {
     page_ = Page::General;
     syncing_ = false;
     generalScrollOffset_ = 0;
+    hotkeyScrollOffset_ = 0;
     capturingHotkeyActionId_.clear();
     pendingProviderStates_.clear();
     providerCommitInProgress_ = false;
@@ -607,6 +608,47 @@ HWND SettingsWindow::CreateCheckbox(
         BS_AUTOCHECKBOX | BS_FLAT);
 }
 
+HWND SettingsWindow::CreateThemedComboBox(
+    UINT id) {
+
+    HWND combo =
+        CreateWindowExW(
+            0,
+            L"COMBOBOX",
+            L"",
+            WS_CHILD | WS_VISIBLE |
+                WS_TABSTOP |
+                CBS_DROPDOWNLIST |
+                CBS_OWNERDRAWFIXED |
+                CBS_HASSTRINGS |
+                CBS_NOINTEGRALHEIGHT |
+                WS_VSCROLL,
+            0, 0, 0, 0,
+            hwnd_,
+            reinterpret_cast<HMENU>(
+                static_cast<UINT_PTR>(
+                    id)),
+            instance_,
+            nullptr);
+
+    if (combo) {
+        SetWindowSubclass(
+            combo,
+            ComboSubclassProc,
+            0xC0B0,
+            reinterpret_cast<DWORD_PTR>(
+                this));
+
+        SendMessageW(
+            combo,
+            CB_SETITEMHEIGHT,
+            static_cast<WPARAM>(-1),
+            Scale(28));
+    }
+
+    return combo;
+}
+
 void SettingsWindow::CreateControls() {
     brandName_ =
         CreateStatic(
@@ -670,14 +712,9 @@ void SettingsWindow::CreateGeneralPage() {
     startWithWindows_ = CreateCheckboxRow(L"", kIdStartWithWindows);
 
     startupBehaviorLabel_ = CreateStatic(L"");
-    startupBehavior_ = CreateWindowExW(
-        0, L"COMBOBOX", L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0, hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdStartupBehavior)),
-        instance_, nullptr);
+    startupBehavior_ =
+        CreateThemedComboBox(
+            kIdStartupBehavior);
 
     showTrayIcon_ = CreateCheckboxRow(L"", kIdShowTrayIcon);
     addToSendToMenu_ = CreateCheckboxRow(L"", kIdAddToSendToMenu);
@@ -691,47 +728,27 @@ void SettingsWindow::CreateGeneralPage() {
     placementSectionTitle_ = CreateStatic(L"");
     popupMonitorLabel_ = CreateStatic(L"");
     popupMonitorDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
-    popupMonitor_ = CreateWindowExW(
-        0, L"COMBOBOX", L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0, hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdPopupMonitor)),
-        instance_, nullptr);
+    popupMonitor_ =
+        CreateThemedComboBox(
+            kIdPopupMonitor);
 
     launcherPlacementLabel_ = CreateStatic(L"");
     launcherPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
-    launcherPlacement_ = CreateWindowExW(
-        0, L"COMBOBOX", L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0, hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdLauncherPlacement)),
-        instance_, nullptr);
+    launcherPlacement_ =
+        CreateThemedComboBox(
+            kIdLauncherPlacement);
 
     settingsPlacementLabel_ = CreateStatic(L"");
     settingsPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
-    settingsPlacement_ = CreateWindowExW(
-        0, L"COMBOBOX", L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0, hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdSettingsPlacement)),
-        instance_, nullptr);
+    settingsPlacement_ =
+        CreateThemedComboBox(
+            kIdSettingsPlacement);
 
     shortcutManagerPlacementLabel_ = CreateStatic(L"");
     shortcutManagerPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
-    shortcutManagerPlacement_ = CreateWindowExW(
-        0, L"COMBOBOX", L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 0, 0, 0, hwnd_,
-        reinterpret_cast<HMENU>(
-            static_cast<UINT_PTR>(kIdShortcutManagerPlacement)),
-        instance_, nullptr);
+    shortcutManagerPlacement_ =
+        CreateThemedComboBox(
+            kIdShortcutManagerPlacement);
 
     generalNote_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
 
@@ -846,21 +863,8 @@ void SettingsWindow::CreateAppearancePage() {
         CreateStatic(L"");
 
     uiStyle_ =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdUiStyle)),
-            instance_,
-            nullptr);
+        CreateThemedComboBox(
+            kIdUiStyle);
 
     appearanceAppTitle_ =
         CreateStatic(L"");
@@ -869,21 +873,8 @@ void SettingsWindow::CreateAppearancePage() {
         CreateStatic(L"");
 
     language_ =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdLanguage)),
-            instance_,
-            nullptr);
+        CreateThemedComboBox(
+            kIdLanguage);
 
     appearanceNote_ =
         CreateStatic(
@@ -2904,9 +2895,13 @@ void SettingsWindow::ShowPage(Page page) {
             kUpdateStatusTimerId);
     }
 
-    if (page != page_ &&
-        page == Page::General) {
-        generalScrollOffset_ = 0;
+    if (page != page_) {
+        if (page == Page::General) {
+            generalScrollOffset_ = 0;
+        } else if (
+            page == Page::Hotkeys) {
+            hotkeyScrollOffset_ = 0;
+        }
     }
 
     SendMessageW(
@@ -3618,101 +3613,198 @@ SettingsWindow::BuildGeneralLayout(
             kSidebarWidthLogical);
 }
 
-void SettingsWindow::UpdateGeneralScrollBar() {
-    if (!hwnd_) return;
-
-    if (page_ != Page::General) {
-        generalScrollOffset_ = 0;
-        ShowScrollBar(
-            hwnd_,
-            SB_VERT,
-            FALSE);
-        return;
-    }
-
+RECT SettingsWindow::HotkeyScrollViewport() const {
     RECT client{};
     GetClientRect(
         hwnd_,
         &client);
 
-    auto full =
-        BuildGeneralLayout(0);
+    const int top =
+        Scale(104);
+    const int bottom =
+        std::max(
+            top + Scale(80),
+            static_cast<int>(
+                client.bottom) -
+                Scale(64));
 
-    int maximum =
-        settings_layout::
-            MaxScrollOffset(
-                full,
-                static_cast<int>(
-                    client.bottom),
-                dpi_);
+    return {
+        Scale(
+            kSidebarWidthLogical),
+        top,
+        static_cast<int>(
+            client.right),
+        bottom,
+    };
+}
+
+int SettingsWindow::HotkeyContentBottom() const {
+    const int globalTop =
+        Scale(140);
+    const int globalBottom =
+        globalTop +
+        HotkeyGroupHeight(true);
+    const int launcherTop =
+        globalBottom +
+        Scale(54);
+
+    return launcherTop +
+        HotkeyGroupHeight(false) +
+        Scale(8);
+}
+
+void SettingsWindow::UpdatePageScrollBar() {
+    if (!hwnd_) {
+        return;
+    }
+
+    if (page_ == Page::General) {
+        RECT client{};
+        GetClientRect(
+            hwnd_,
+            &client);
+
+        auto full =
+            BuildGeneralLayout(0);
+
+        int maximum =
+            settings_layout::
+                MaxScrollOffset(
+                    full,
+                    static_cast<int>(
+                        client.bottom),
+                    dpi_);
+
+        ShowScrollBar(
+            hwnd_,
+            SB_VERT,
+            maximum > 0);
+
+        // Showing the scrollbar changes the client width and can switch the
+        // General page into its narrow stacked layout. Recalculate once using
+        // the final client area before clamping the scroll position.
+        GetClientRect(
+            hwnd_,
+            &client);
+
+        full =
+            BuildGeneralLayout(0);
+
+        maximum =
+            settings_layout::
+                MaxScrollOffset(
+                    full,
+                    static_cast<int>(
+                        client.bottom),
+                    dpi_);
+
+        generalScrollOffset_ =
+            std::clamp(
+                generalScrollOffset_,
+                0,
+                maximum);
+
+        SCROLLINFO info{};
+        info.cbSize =
+            sizeof(info);
+        info.fMask =
+            SIF_RANGE |
+            SIF_PAGE |
+            SIF_POS;
+        info.nMin = 0;
+        info.nMax =
+            std::max(
+                0,
+                full.contentBottom +
+                    Scale(10) - 1);
+        info.nPage =
+            static_cast<UINT>(
+                std::max(
+                    1,
+                    static_cast<int>(
+                        client.bottom)));
+        info.nPos =
+            generalScrollOffset_;
+
+        SetScrollInfo(
+            hwnd_,
+            SB_VERT,
+            &info,
+            TRUE);
+        return;
+    }
+
+    if (page_ == Page::Hotkeys) {
+        const RECT viewport =
+            HotkeyScrollViewport();
+
+        const int pageHeight =
+            std::max(
+                1,
+                viewport.bottom -
+                    viewport.top);
+        const int contentHeight =
+            std::max(
+                1,
+                HotkeyContentBottom() -
+                    viewport.top);
+        const int maximum =
+            std::max(
+                0,
+                contentHeight -
+                    pageHeight);
+
+        hotkeyScrollOffset_ =
+            std::clamp(
+                hotkeyScrollOffset_,
+                0,
+                maximum);
+
+        ShowScrollBar(
+            hwnd_,
+            SB_VERT,
+            maximum > 0);
+
+        SCROLLINFO info{};
+        info.cbSize =
+            sizeof(info);
+        info.fMask =
+            SIF_RANGE |
+            SIF_PAGE |
+            SIF_POS;
+        info.nMin = 0;
+        info.nMax =
+            contentHeight - 1;
+        info.nPage =
+            static_cast<UINT>(
+                pageHeight);
+        info.nPos =
+            hotkeyScrollOffset_;
+
+        SetScrollInfo(
+            hwnd_,
+            SB_VERT,
+            &info,
+            TRUE);
+        return;
+    }
 
     ShowScrollBar(
         hwnd_,
         SB_VERT,
-        maximum > 0);
-
-    // Showing the scrollbar changes the client width and can switch the
-    // General page into its narrow stacked layout. Recalculate once using
-    // the final client area before clamping the scroll position.
-    GetClientRect(
-        hwnd_,
-        &client);
-
-    full =
-        BuildGeneralLayout(0);
-
-    maximum =
-        settings_layout::
-            MaxScrollOffset(
-                full,
-                static_cast<int>(
-                    client.bottom),
-                dpi_);
-
-    generalScrollOffset_ =
-        std::clamp(
-            generalScrollOffset_,
-            0,
-            maximum);
-
-    SCROLLINFO info{};
-    info.cbSize =
-        sizeof(info);
-    info.fMask =
-        SIF_RANGE |
-        SIF_PAGE |
-        SIF_POS;
-    info.nMin = 0;
-    info.nMax =
-        std::max(
-            0,
-            full.contentBottom +
-                Scale(10) - 1);
-    info.nPage =
-        static_cast<UINT>(
-            std::max(
-                1,
-                static_cast<int>(
-                    client.bottom)));
-    info.nPos =
-        generalScrollOffset_;
-
-    SetScrollInfo(
-        hwnd_,
-        SB_VERT,
-        &info,
-        TRUE);
+        FALSE);
 }
 
-void SettingsWindow::ScrollGeneral(
+void SettingsWindow::ScrollCurrentPage(
     int delta) {
 
-    if (page_ != Page::General ||
+    if ((page_ != Page::General &&
+         page_ != Page::Hotkeys) ||
         delta == 0) {
         return;
     }
 
-    UpdateGeneralScrollBar();
+    UpdatePageScrollBar();
 
     SCROLLINFO info{};
     info.cbSize =
@@ -3734,20 +3826,22 @@ void SettingsWindow::ScrollGeneral(
                     info.nPage) +
                 1);
 
+    int& offset =
+        page_ == Page::General
+            ? generalScrollOffset_
+            : hotkeyScrollOffset_;
+
     const int next =
         std::clamp(
-            generalScrollOffset_ +
-                delta,
+            offset + delta,
             0,
             maximum);
 
-    if (next ==
-        generalScrollOffset_) {
+    if (next == offset) {
         return;
     }
 
-    generalScrollOffset_ =
-        next;
+    offset = next;
 
     Layout();
 
@@ -3760,6 +3854,88 @@ void SettingsWindow::ScrollGeneral(
             RDW_ALLCHILDREN |
             RDW_UPDATENOW);
 }
+
+void SettingsWindow::
+ClipHotkeyControlsToViewport() {
+    if (page_ != Page::Hotkeys) {
+        return;
+    }
+
+    const RECT viewport =
+        HotkeyScrollViewport();
+
+    for (HWND control :
+         hotkeyControls_) {
+        if (!control ||
+            control ==
+                hotkeyResetAll_) {
+            continue;
+        }
+
+        RECT rect{};
+        GetWindowRect(
+            control,
+            &rect);
+
+        MapWindowPoints(
+            HWND_DESKTOP,
+            hwnd_,
+            reinterpret_cast<POINT*>(
+                &rect),
+            2);
+
+        RECT visible{};
+
+        if (!IntersectRect(
+                &visible,
+                &rect,
+                &viewport)) {
+            SetWindowRgn(
+                control,
+                nullptr,
+                FALSE);
+            ShowWindow(
+                control,
+                SW_HIDE);
+            continue;
+        }
+
+        ShowWindow(
+            control,
+            SW_SHOW);
+
+        HRGN region =
+            CreateRectRgn(
+                visible.left -
+                    rect.left,
+                visible.top -
+                    rect.top,
+                visible.right -
+                    rect.left,
+                visible.bottom -
+                    rect.top);
+
+        if (region &&
+            !SetWindowRgn(
+                control,
+                region,
+                TRUE)) {
+            DeleteObject(
+                region);
+        }
+    }
+
+    if (hotkeyResetAll_) {
+        SetWindowRgn(
+            hotkeyResetAll_,
+            nullptr,
+            FALSE);
+        ShowWindow(
+            hotkeyResetAll_,
+            SW_SHOW);
+    }
+}
+
 
 RECT SettingsWindow::BehaviorCardRect() const {
     const auto metrics =
@@ -3804,7 +3980,7 @@ RECT SettingsWindow::PlacementCardRect() const {
 void SettingsWindow::Layout() {
     if (!hwnd_) return;
 
-    UpdateGeneralScrollBar();
+    UpdatePageScrollBar();
 
     RECT client{};
     GetClientRect(
@@ -4092,11 +4268,15 @@ void SettingsWindow::Layout() {
             Scale(10);
         const int inner =
             Scale(18);
+        const int scroll =
+            hotkeyScrollOffset_;
 
         const int globalTitleTop =
-            Scale(108);
+            Scale(108) -
+            scroll;
         const int globalCardTop =
-            Scale(140);
+            Scale(140) -
+            scroll;
         const int globalHeight =
             HotkeyGroupHeight(true);
         const int globalCardBottom =
@@ -4154,9 +4334,6 @@ void SettingsWindow::Layout() {
                 cardRight -
                 inner -
                 toggleWidth;
-
-            // Reserve the switch column even for required actions so every
-            // shortcut capture button shares the same left/right baseline.
             const int captureX =
                 toggleX -
                 controlGap -
@@ -4242,26 +4419,31 @@ void SettingsWindow::Layout() {
                 launcherTop +=
                     rowHeight;
             }
-
         }
-
-        const int launcherCardBottom =
-            launcherCardTop +
-            HotkeyGroupHeight(false);
 
         const int resetAllWidth =
             Scale(184);
+        const int resetAllHeight =
+            Scale(34);
+        const int resetAllTop =
+            std::max(
+                Scale(120),
+                static_cast<int>(
+                    client.bottom) -
+                    Scale(18) -
+                    resetAllHeight);
 
         MoveWindow(
             hotkeyResetAll_,
             cardRight -
                 inner -
                 resetAllWidth,
-            launcherCardBottom +
-                Scale(14),
+            resetAllTop,
             resetAllWidth,
-            Scale(34),
+            resetAllHeight,
             TRUE);
+
+        ClipHotkeyControlsToViewport();
     }
 
     if (page_ == Page::Providers) {
@@ -5737,6 +5919,379 @@ void SettingsWindow::DrawUpdateStatus(
 }
 
 
+void SettingsWindow::DrawComboSurface(
+    HWND combo,
+    HDC dc) {
+
+    RECT rect{};
+    GetClientRect(
+        combo,
+        &rect);
+
+    HBRUSH outer =
+        CreateSolidBrush(
+            kCardBackground);
+    FillRect(
+        dc,
+        &rect,
+        outer);
+    DeleteObject(outer);
+
+    RECT surface =
+        rect;
+    InflateRect(
+        &surface,
+        -1,
+        -1);
+
+    const bool enabled =
+        IsWindowEnabled(combo) != FALSE;
+    const bool active =
+        GetFocus() == combo ||
+        SendMessageW(
+            combo,
+            CB_GETDROPPEDSTATE,
+            0,
+            0) != 0;
+
+    const COLORREF borderColor =
+        active
+            ? kAccent
+            : kBorder;
+    const COLORREF fillColor =
+        RGB(255, 255, 255);
+
+    HBRUSH fill =
+        CreateSolidBrush(
+            fillColor);
+    HPEN border =
+        CreatePen(
+            PS_SOLID,
+            1,
+            borderColor);
+
+    HGDIOBJ oldBrush =
+        SelectObject(
+            dc,
+            fill);
+    HGDIOBJ oldPen =
+        SelectObject(
+            dc,
+            border);
+
+    const int radius =
+        Scale(5);
+
+    RoundRect(
+        dc,
+        surface.left,
+        surface.top,
+        surface.right,
+        surface.bottom,
+        radius,
+        radius);
+
+    SelectObject(
+        dc,
+        oldBrush);
+    SelectObject(
+        dc,
+        oldPen);
+    DeleteObject(fill);
+    DeleteObject(border);
+
+    const int arrowWidth =
+        Scale(30);
+    const int arrowLeft =
+        std::max(
+            surface.left,
+            surface.right -
+                arrowWidth);
+
+    HPEN divider =
+        CreatePen(
+            PS_SOLID,
+            1,
+            kBorder);
+    oldPen =
+        SelectObject(
+            dc,
+            divider);
+
+    MoveToEx(
+        dc,
+        arrowLeft,
+        surface.top + Scale(5),
+        nullptr);
+    LineTo(
+        dc,
+        arrowLeft,
+        surface.bottom - Scale(5));
+
+    const int centerX =
+        arrowLeft +
+        (surface.right -
+         arrowLeft) / 2;
+    const int centerY =
+        surface.top +
+        (surface.bottom -
+         surface.top) / 2;
+
+    POINT arrow[3]{
+        {
+            centerX - Scale(4),
+            centerY - Scale(2),
+        },
+        {
+            centerX,
+            centerY + Scale(2),
+        },
+        {
+            centerX + Scale(4),
+            centerY - Scale(2),
+        },
+    };
+
+    Polyline(
+        dc,
+        arrow,
+        3);
+
+    SelectObject(
+        dc,
+        oldPen);
+    DeleteObject(divider);
+
+    wchar_t text[256]{};
+    const LRESULT selected =
+        SendMessageW(
+            combo,
+            CB_GETCURSEL,
+            0,
+            0);
+
+    if (selected != CB_ERR) {
+        SendMessageW(
+            combo,
+            CB_GETLBTEXT,
+            static_cast<WPARAM>(
+                selected),
+            reinterpret_cast<LPARAM>(
+                text));
+    }
+
+    RECT textRect{
+        surface.left + Scale(10),
+        surface.top,
+        arrowLeft - Scale(8),
+        surface.bottom,
+    };
+
+    SetBkMode(
+        dc,
+        TRANSPARENT);
+    SetTextColor(
+        dc,
+        enabled
+            ? kText
+            : kMuted);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            dc,
+            normalFont_);
+
+    DrawTextW(
+        dc,
+        text,
+        -1,
+        &textRect,
+        DT_LEFT |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        dc,
+        oldFont);
+}
+
+void SettingsWindow::DrawComboItem(
+    const DRAWITEMSTRUCT& item) {
+
+    RECT rect =
+        item.rcItem;
+
+    const bool selected =
+        (item.itemState &
+         ODS_SELECTED) != 0;
+
+    const COLORREF background =
+        selected
+            ? RGB(231, 242, 252)
+            : RGB(255, 255, 255);
+
+    HBRUSH fill =
+        CreateSolidBrush(
+            background);
+    FillRect(
+        item.hDC,
+        &rect,
+        fill);
+    DeleteObject(fill);
+
+    if (item.itemID ==
+            static_cast<UINT>(-1)) {
+        return;
+    }
+
+    wchar_t text[256]{};
+
+    SendMessageW(
+        item.hwndItem,
+        CB_GETLBTEXT,
+        item.itemID,
+        reinterpret_cast<LPARAM>(
+            text));
+
+    RECT textRect =
+        rect;
+    textRect.left +=
+        Scale(10);
+    textRect.right -=
+        Scale(10);
+
+    SetBkMode(
+        item.hDC,
+        TRANSPARENT);
+    SetTextColor(
+        item.hDC,
+        kText);
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            item.hDC,
+            normalFont_);
+
+    DrawTextW(
+        item.hDC,
+        text,
+        -1,
+        &textRect,
+        DT_LEFT |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_END_ELLIPSIS |
+            DT_NOPREFIX);
+
+    SelectObject(
+        item.hDC,
+        oldFont);
+}
+
+LRESULT CALLBACK
+SettingsWindow::ComboSubclassProc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    UINT_PTR subclassId,
+    DWORD_PTR refData) {
+
+    auto* self =
+        reinterpret_cast<
+            SettingsWindow*>(
+                refData);
+
+    if (!self) {
+        return DefSubclassProc(
+            hwnd,
+            message,
+            wParam,
+            lParam);
+    }
+
+    switch (message) {
+    case WM_PAINT: {
+        PAINTSTRUCT paint{};
+        HDC dc =
+            BeginPaint(
+                hwnd,
+                &paint);
+
+        self->DrawComboSurface(
+            hwnd,
+            dc);
+
+        EndPaint(
+            hwnd,
+            &paint);
+        return 0;
+    }
+
+    case WM_PRINTCLIENT:
+        self->DrawComboSurface(
+            hwnd,
+            reinterpret_cast<HDC>(
+                wParam));
+        return 0;
+
+    case CB_SETCURSEL:
+    case CB_SHOWDROPDOWN:
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
+    case WM_ENABLE: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        InvalidateRect(
+            hwnd,
+            nullptr,
+            FALSE);
+
+        return result;
+    }
+
+    case WM_LBUTTONUP: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        InvalidateRect(
+            hwnd,
+            nullptr,
+            FALSE);
+
+        return result;
+    }
+
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(
+            hwnd,
+            ComboSubclassProc,
+            subclassId);
+        break;
+
+    default:
+        break;
+    }
+
+    return DefSubclassProc(
+        hwnd,
+        message,
+        wParam,
+        lParam);
+}
+
+
 void SettingsWindow::DrawGeneralToggle(
     const DRAWITEMSTRUCT& item) {
 
@@ -6971,6 +7526,24 @@ LRESULT SettingsWindow::HandleMessage(
         break;
     }
 
+    case WM_MEASUREITEM: {
+        auto* measure =
+            reinterpret_cast<
+                MEASUREITEMSTRUCT*>(
+                    lParam);
+
+        if (measure &&
+            measure->CtlType ==
+                ODT_COMBOBOX) {
+            measure->itemHeight =
+                static_cast<UINT>(
+                    Scale(30));
+            return TRUE;
+        }
+
+        break;
+    }
+
     case WM_DRAWITEM: {
         const auto* item =
             reinterpret_cast<
@@ -6979,6 +7552,13 @@ LRESULT SettingsWindow::HandleMessage(
 
         if (!item) {
             break;
+        }
+
+        if (item->CtlType ==
+                ODT_COMBOBOX) {
+            DrawComboItem(
+                *item);
+            return TRUE;
         }
 
         if (item->CtlType ==
@@ -7060,7 +7640,8 @@ LRESULT SettingsWindow::HandleMessage(
     }
 
     case WM_VSCROLL:
-        if (page_ == Page::General) {
+        if (page_ == Page::General ||
+            page_ == Page::Hotkeys) {
             SCROLLINFO info{};
             info.cbSize =
                 sizeof(info);
@@ -7072,8 +7653,12 @@ LRESULT SettingsWindow::HandleMessage(
                 SB_VERT,
                 &info);
 
+            const int current =
+                page_ == Page::General
+                    ? generalScrollOffset_
+                    : hotkeyScrollOffset_;
             int next =
-                generalScrollOffset_;
+                current;
 
             switch (LOWORD(wParam)) {
             case SB_LINEUP:
@@ -7113,20 +7698,21 @@ LRESULT SettingsWindow::HandleMessage(
                 return 0;
             }
 
-            ScrollGeneral(
+            ScrollCurrentPage(
                 next -
-                generalScrollOffset_);
+                    current);
         }
         return 0;
 
     case WM_MOUSEWHEEL:
-        if (page_ == Page::General) {
+        if (page_ == Page::General ||
+            page_ == Page::Hotkeys) {
             const int wheel =
                 GET_WHEEL_DELTA_WPARAM(
                     wParam);
 
             if (wheel != 0) {
-                ScrollGeneral(
+                ScrollCurrentPage(
                     -(wheel *
                       Scale(72)) /
                     WHEEL_DELTA);
@@ -7311,8 +7897,21 @@ LRESULT SettingsWindow::HandleMessage(
                     contentRight -
                         contentLeft,
                     Scale(560));
+            const RECT viewport =
+                HotkeyScrollViewport();
+            const int saved =
+                SaveDC(dc);
+
+            IntersectClipRect(
+                dc,
+                viewport.left,
+                viewport.top,
+                viewport.right,
+                viewport.bottom);
+
             const int globalTop =
-                Scale(140);
+                Scale(140) -
+                hotkeyScrollOffset_;
             const int globalHeight =
                 HotkeyGroupHeight(true);
             const int launcherTop =
@@ -7424,6 +8023,38 @@ LRESULT SettingsWindow::HandleMessage(
             drawGroupSeparators(
                 false,
                 launcherTop);
+
+            RestoreDC(
+                dc,
+                saved);
+
+            HPEN footerLine =
+                CreatePen(
+                    PS_SOLID,
+                    1,
+                    kBorder);
+            HGDIOBJ oldFooterPen =
+                SelectObject(
+                    dc,
+                    footerLine);
+
+            MoveToEx(
+                dc,
+                contentLeft,
+                viewport.bottom +
+                    Scale(5),
+                nullptr);
+            LineTo(
+                dc,
+                cardRight,
+                viewport.bottom +
+                    Scale(5));
+
+            SelectObject(
+                dc,
+                oldFooterPen);
+            DeleteObject(
+                footerLine);
         } else if (
             page_ == Page::Providers) {
             drawCard(
@@ -7622,6 +8253,7 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_DPICHANGED: {
         dpi_ = HIWORD(wParam);
         generalScrollOffset_ = 0;
+        hotkeyScrollOffset_ = 0;
 
         const auto* suggested =
             reinterpret_cast<RECT*>(

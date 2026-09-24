@@ -28,7 +28,7 @@ For every run record Windows edition/build, CPU architecture, display resolution
 ## Startup and portable data
 
 - [ ] Extract the ZIP to a normal user-writable folder and start ALTRunNext.exe.
-- [ ] Default startup remains silent: launcher is hidden and the tray icon is present.
+- [ ] Fresh-install startup follows the configured Startup behavior; the current default shows a lightweight startup notification without revealing the Launcher.
 - [ ] data/ is created/used beside the portable executable and remains writable.
 - [ ] Starting from a read-only location shows the existing data-directory warning rather than corrupting data.
 - [ ] Closing/restarting preserves settings, commands and usage.
@@ -175,6 +175,24 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] With tray hidden, Alt+S still reaches Shortcut Manager and Alt+F4 or an enabled Exit action can terminate the process.
 - [ ] Launcher monitor plus Launcher / Settings / Shortcut Manager placement preferences remain unchanged.
 - [ ] Classic appearance at 100/125/150/175/200% is pixel-identical to alpha.4.9 outside Settings.
+
+## v0.8.0-alpha.5.2 Settings UX validation
+
+- [ ] Startup notification source/title reads ALTRun Next; body is “已在后台启动” plus “按 <current activation hotkey> 呼出” with no duplicated product name.
+- [ ] Change the primary activation hotkey and restart; startup notification shows the new binding.
+- [ ] Settings dropdowns for Startup behavior, Launcher monitor, Launcher/Settings/Shortcut Manager position, Launcher style and Interface language share the same Next-themed closed surface, arrow area and dropdown-row styling.
+- [ ] Dropdown text remains vertically centered at 100/125/150/175/200% scaling and no native-looking square border leaks through.
+- [ ] Hotkeys page shows a vertical scrollbar when its action cards exceed the viewport; mouse wheel and scrollbar thumb both expose every action.
+- [ ] “恢复全部默认快捷键” remains fixed in the bottom action area while the hotkey cards scroll behind the content viewport and never overlap it.
+- [ ] Leaving and returning to Hotkeys starts at the top and does not leave clipped/hidden controls from the prior scroll position.
+- [ ] Default Alt+S opens Shortcut Manager while Launcher is hidden.
+- [ ] With system tray icon disabled, Alt+S still opens Shortcut Manager.
+- [ ] Repeated Alt+S activates/restores the existing Shortcut Manager rather than creating duplicate windows.
+- [ ] Rebind Open Shortcut Manager to another free modified chord; the new chord works globally and Alt+S stops working.
+- [ ] Attempt an occupied global chord; save fails and the previous working Shortcut Manager binding remains registered.
+- [ ] Restore all hotkeys restores Alt+S and it works immediately without restart.
+- [ ] Exit ALTRun Next and confirm the Shortcut Manager global chord is released for other applications.
+- [ ] Classic launcher appearance at 100/125/150/175/200% remains identical to alpha.4.9.
 
 ## Release assets
 

@@ -146,6 +146,13 @@ private:
         UINT message,
         WPARAM wParam,
         LPARAM lParam);
+    static LRESULT CALLBACK ComboSubclassProc(
+        HWND hwnd,
+        UINT message,
+        WPARAM wParam,
+        LPARAM lParam,
+        UINT_PTR subclassId,
+        DWORD_PTR refData);
 
     LRESULT HandleMessage(
         UINT message,
@@ -266,6 +273,11 @@ private:
     void DrawHotkeyToggle(
         const DRAWITEMSTRUCT& item,
         std::size_t rowIndex);
+    void DrawComboItem(
+        const DRAWITEMSTRUCT& item);
+    void DrawComboSurface(
+        HWND combo,
+        HDC dc);
     void DrawSwitchGlyph(
         HDC dc,
         const RECT& rect,
@@ -290,6 +302,8 @@ private:
     HWND CreateCheckbox(
         const wchar_t* text,
         UINT id);
+    HWND CreateThemedComboBox(
+        UINT id);
 
     [[nodiscard]] bool
     ToggleChecked(UINT id) const;
@@ -297,8 +311,13 @@ private:
     settings_layout::GeneralLayoutMetrics
     BuildGeneralLayout(
         int scrollOffset) const;
-    void UpdateGeneralScrollBar();
-    void ScrollGeneral(int delta);
+    void UpdatePageScrollBar();
+    void ScrollCurrentPage(int delta);
+    [[nodiscard]] RECT
+    HotkeyScrollViewport() const;
+    [[nodiscard]] int
+    HotkeyContentBottom() const;
+    void ClipHotkeyControlsToViewport();
 
     [[nodiscard]] RECT
     BehaviorCardRect() const;
@@ -421,6 +440,7 @@ private:
     Page page_{Page::General};
     bool syncing_{false};
     int generalScrollOffset_{0};
+    int hotkeyScrollOffset_{0};
     std::string capturingHotkeyActionId_;
     std::unordered_map<std::string, bool>
         pendingProviderStates_;

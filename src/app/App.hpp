@@ -242,6 +242,9 @@ private:
     static constexpr int
         kAuxiliaryHotkeyId = 0xA172;
 
+    static constexpr int
+        kShortcutManagerHotkeyId = 0xA173;
+
     static constexpr UINT
         kProviderRefreshMessage =
             WM_APP + 0x171;
@@ -277,6 +280,10 @@ private:
         const std::vector<std::string>& modifiers,
         std::string_view key);
     bool RebindAuxiliaryHotkey(
+        bool enabled,
+        const std::vector<std::string>& modifiers,
+        std::string_view key);
+    bool RebindShortcutManagerHotkey(
         bool enabled,
         const std::vector<std::string>& modifiers,
         std::string_view key);
@@ -407,6 +414,12 @@ private:
     UINT currentAuxiliaryHotkeyModifiers_{0};
     UINT currentAuxiliaryHotkeyVk_{0};
     DWORD auxiliaryHotkeyLastError_{
+        ERROR_SUCCESS};
+
+    bool shortcutManagerHotkeyRegistered_{false};
+    UINT currentShortcutManagerHotkeyModifiers_{0};
+    UINT currentShortcutManagerHotkeyVk_{0};
+    DWORD shortcutManagerHotkeyLastError_{
         ERROR_SUCCESS};
 };
 

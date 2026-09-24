@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.2 — Settings UX & Global Shortcut Manager Hotkey
+
+Alpha.5.2 closes the first real-desktop regressions found after the Settings cleanup. **Open Shortcut Manager** is now a true Windows global hotkey rather than a Launcher-only chord: the default **Alt+S** is registered with `RegisterHotKey`, works while the Launcher is hidden, can be rebound transactionally, is restored with defaults, and is unregistered cleanly on exit.
+
+The Hotkeys page now has its own vertical scrolling model. Global/Launcher action cards scroll inside the content viewport, while **恢复全部默认快捷键 / Reset all hotkeys** remains fixed in the bottom action area instead of being pushed against or beyond the window edge as actions are added.
+
+All seven Settings dropdowns now use one native Win32 themed ComboBox path with consistent Next borders, typography, selection rows and arrow treatment: Startup behavior, Launcher monitor, the three window-placement selectors, Launcher style and Interface language. The implementation remains lightweight Win32/GDI and does not add a UI framework.
+
+Startup notification copy is reduced to **ALTRun Next / 已在后台启动 / 按 <当前唤起热键> 呼出**. The executable FileDescription is also normalized to **ALTRun Next**, removing the old “classic lightweight launcher” notification source label.
+
+Settings schema remains **10**. Classic launcher geometry/HiDPI assets, providers, Everything, updater and Modern Compact remain frozen. Windows fixed FileVersion/ProductVersion is `0.8.0.172`.
+
 ## v0.8.0-alpha.5.1 — Settings Behavior Cleanup
 
 Alpha.5 turns the General page into a product-level Settings model instead of exposing Launcher implementation details. The page now has three focused groups: **Windows 与启动 / Windows & startup**, **搜索与执行 / Search & execution**, and **窗口位置 / Window placement**.

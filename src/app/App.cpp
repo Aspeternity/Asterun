@@ -244,6 +244,14 @@ App::~App() {
             false;
     }
 
+    if (shortcutManagerHotkeyRegistered_) {
+        UnregisterHotKey(
+            nullptr,
+            kShortcutManagerHotkeyId);
+        shortcutManagerHotkeyRegistered_ =
+            false;
+    }
+
     if (singleInstanceMutex_) {
         CloseHandle(singleInstanceMutex_);
         singleInstanceMutex_ = nullptr;
@@ -392,6 +400,27 @@ int App::Run() {
             MB_ICONWARNING | MB_OK);
     }
 
+    const auto shortcutManagerBinding =
+        EffectiveHotkeyBinding(
+            settingsStore_.Data()
+                .hotkeyBindings,
+            hotkey_actions::
+                kOpenShortcutManager);
+
+    if (!RebindShortcutManagerHotkey(
+            shortcutManagerBinding.enabled,
+            shortcutManagerBinding.modifiers,
+            shortcutManagerBinding.key)) {
+        MessageBoxW(
+            nullptr,
+            settingsStore_.Data().language ==
+                    Language::ZhCN
+                ? L"“打开快捷项管理”全局快捷键注册失败。请检查该组合键是否已被其他程序占用。"
+                : L"The global Shortcut Manager hotkey could not be registered. Check whether another application already uses the binding.",
+            L"ALTRun Next",
+            MB_ICONWARNING | MB_OK);
+    }
+
     if (providers::IsEnabled(
             settingsStore_.Data()
                 .providerEnabled,
@@ -515,25 +544,33 @@ int App::Run() {
         }
 
         if (msg.message == WM_HOTKEY &&
-            msg.hwnd == nullptr &&
-            (msg.wParam ==
-                 static_cast<WPARAM>(
-                     kGlobalHotkeyId) ||
-             msg.wParam ==
-                 static_cast<WPARAM>(
-                     kAuxiliaryHotkeyId))) {
-
-            if (window_) {
-                // Capture the foreground Windows context before ALTRun Next
-                // takes focus. Hiding an already-visible launcher must not
-                // replace the session snapshot with ALTRun Next itself.
-                if (!window_->IsVisible()) {
-                    CaptureActivationContext();
-                }
-
-                window_->Toggle();
+            msg.hwnd == nullptr) {
+            if (msg.wParam ==
+                    static_cast<WPARAM>(
+                        kShortcutManagerHotkeyId)) {
+                ShowShortcutManager();
+                continue;
             }
-            continue;
+
+            if (msg.wParam ==
+                    static_cast<WPARAM>(
+                        kGlobalHotkeyId) ||
+                msg.wParam ==
+                    static_cast<WPARAM>(
+                        kAuxiliaryHotkeyId)) {
+
+                if (window_) {
+                    // Capture the foreground Windows context before ALTRun Next
+                    // takes focus. Hiding an already-visible launcher must not
+                    // replace the session snapshot with ALTRun Next itself.
+                    if (!window_->IsVisible()) {
+                        CaptureActivationContext();
+                    }
+
+                    window_->Toggle();
+                }
+                continue;
+            }
         }
 
         TranslateMessage(&msg);
@@ -2183,52 +2220,71 @@ void App::FlushDetectedProviderChanges() {
 bool App::RestoreDefaultSettings() {
     const Settings previous =
         settingsStore_.Data();
-
     const Settings defaults{};
 
-    // Release the optional binding first. An auxiliary hotkey may have
-    // been configured to the default primary binding (Alt + Space) while
-    // the primary used another key. Resetting in the opposite order would
-    // make RegisterHotKey report a false conflict against our own process.
-    if (!RebindAuxiliaryHotkey(
+    const auto previousShortcutManager =
+        EffectiveHotkeyBinding(
+            previous.hotkeyBindings,
+            hotkey_actions::
+                kOpenShortcutManager);
+    const auto defaultShortcutManager =
+        EffectiveHotkeyBinding(
+            defaults.hotkeyBindings,
+            hotkey_actions::
+                kOpenShortcutManager);
+
+    // Release optional global bindings first so old custom chords cannot
+    // collide with default chords owned by this process during reset.
+    if (!RebindShortcutManagerHotkey(
+            false,
+            defaultShortcutManager.modifiers,
+            defaultShortcutManager.key) ||
+        !RebindAuxiliaryHotkey(
             false,
             defaults.auxiliaryHotkeyModifiers,
             defaults.auxiliaryHotkeyKey)) {
         return false;
     }
 
+    const auto rollbackHotkeys =
+        [&]() {
+            RebindGlobalHotkey(
+                previous.hotkeyModifiers,
+                previous.hotkeyKey);
+            RebindAuxiliaryHotkey(
+                previous.auxiliaryHotkeyEnabled,
+                previous.auxiliaryHotkeyModifiers,
+                previous.auxiliaryHotkeyKey);
+            RebindShortcutManagerHotkey(
+                previousShortcutManager.enabled,
+                previousShortcutManager.modifiers,
+                previousShortcutManager.key);
+        };
+
     if (!RebindGlobalHotkey(
             defaults.hotkeyModifiers,
             defaults.hotkeyKey)) {
+        rollbackHotkeys();
+        return false;
+    }
 
-        RebindAuxiliaryHotkey(
-            previous.auxiliaryHotkeyEnabled,
-            previous.auxiliaryHotkeyModifiers,
-            previous.auxiliaryHotkeyKey);
+    if (!RebindShortcutManagerHotkey(
+            defaultShortcutManager.enabled,
+            defaultShortcutManager.modifiers,
+            defaultShortcutManager.key)) {
+        rollbackHotkeys();
         return false;
     }
 
     if (!ApplySendToRegistration(false)) {
-        RebindGlobalHotkey(
-            previous.hotkeyModifiers,
-            previous.hotkeyKey);
-        RebindAuxiliaryHotkey(
-            previous.auxiliaryHotkeyEnabled,
-            previous.auxiliaryHotkeyModifiers,
-            previous.auxiliaryHotkeyKey);
+        rollbackHotkeys();
         return false;
     }
 
     if (!ApplyStartupRegistration(false)) {
         ApplySendToRegistration(
             previous.addToSendToMenu);
-        RebindGlobalHotkey(
-            previous.hotkeyModifiers,
-            previous.hotkeyKey);
-        RebindAuxiliaryHotkey(
-            previous.auxiliaryHotkeyEnabled,
-            previous.auxiliaryHotkeyModifiers,
-            previous.auxiliaryHotkeyKey);
+        rollbackHotkeys();
         return false;
     }
 
@@ -2237,15 +2293,7 @@ bool App::RestoreDefaultSettings() {
             previous.startWithWindows);
         ApplySendToRegistration(
             previous.addToSendToMenu);
-
-        RebindGlobalHotkey(
-            previous.hotkeyModifiers,
-            previous.hotkeyKey);
-        RebindAuxiliaryHotkey(
-            previous.auxiliaryHotkeyEnabled,
-            previous.auxiliaryHotkeyModifiers,
-            previous.auxiliaryHotkeyKey);
-
+        rollbackHotkeys();
         return false;
     }
 
@@ -2449,6 +2497,109 @@ bool App::RebindAuxiliaryHotkey(
     }
 
     auxiliaryHotkeyLastError_ =
+        registrationError != ERROR_SUCCESS
+            ? registrationError
+            : ERROR_HOTKEY_ALREADY_REGISTERED;
+
+    return false;
+}
+
+bool App::RebindShortcutManagerHotkey(
+    bool enabled,
+    const std::vector<std::string>& modifiers,
+    std::string_view key) {
+
+    if (!enabled) {
+        if (shortcutManagerHotkeyRegistered_) {
+            UnregisterHotKey(
+                nullptr,
+                kShortcutManagerHotkeyId);
+        }
+
+        shortcutManagerHotkeyRegistered_ = false;
+        currentShortcutManagerHotkeyModifiers_ = 0;
+        currentShortcutManagerHotkeyVk_ = 0;
+        shortcutManagerHotkeyLastError_ =
+            ERROR_SUCCESS;
+        return true;
+    }
+
+    const UINT newModifiers =
+        hotkey::ModifiersFromNames(
+            modifiers);
+    const UINT newVk =
+        hotkey::KeyFromName(key);
+
+    constexpr UINT kModifierMask =
+        MOD_ALT | MOD_CONTROL |
+        MOD_SHIFT | MOD_WIN;
+
+    if (newVk == 0 ||
+        (newModifiers &
+         kModifierMask) == 0) {
+        shortcutManagerHotkeyLastError_ =
+            ERROR_INVALID_PARAMETER;
+        return false;
+    }
+
+    const bool hadOld =
+        shortcutManagerHotkeyRegistered_;
+    const UINT oldModifiers =
+        currentShortcutManagerHotkeyModifiers_;
+    const UINT oldVk =
+        currentShortcutManagerHotkeyVk_;
+
+    if (hadOld) {
+        UnregisterHotKey(
+            nullptr,
+            kShortcutManagerHotkeyId);
+        shortcutManagerHotkeyRegistered_ =
+            false;
+    }
+
+    SetLastError(ERROR_SUCCESS);
+
+    if (RegisterHotKey(
+            nullptr,
+            kShortcutManagerHotkeyId,
+            newModifiers,
+            newVk)) {
+        currentShortcutManagerHotkeyModifiers_ =
+            newModifiers;
+        currentShortcutManagerHotkeyVk_ =
+            newVk;
+        shortcutManagerHotkeyRegistered_ =
+            true;
+        shortcutManagerHotkeyLastError_ =
+            ERROR_SUCCESS;
+        return true;
+    }
+
+    const DWORD registrationError =
+        GetLastError();
+
+    if (hadOld &&
+        oldVk != 0 &&
+        RegisterHotKey(
+            nullptr,
+            kShortcutManagerHotkeyId,
+            oldModifiers,
+            oldVk)) {
+        currentShortcutManagerHotkeyModifiers_ =
+            oldModifiers;
+        currentShortcutManagerHotkeyVk_ =
+            oldVk;
+        shortcutManagerHotkeyRegistered_ =
+            true;
+    } else {
+        currentShortcutManagerHotkeyModifiers_ =
+            0;
+        currentShortcutManagerHotkeyVk_ = 0;
+        shortcutManagerHotkeyRegistered_ =
+            false;
+    }
+
+    shortcutManagerHotkeyLastError_ =
         registrationError != ERROR_SUCCESS
             ? registrationError
             : ERROR_HOTKEY_ALREADY_REGISTERED;
@@ -2750,6 +2901,15 @@ bool App::SetHotkeyBinding(
                 binding.enabled,
                 binding.modifiers,
                 binding.key);
+    } else if (
+        actionId ==
+        hotkey_actions::
+            kOpenShortcutManager) {
+        rebound =
+            RebindShortcutManagerHotkey(
+                binding.enabled,
+                binding.modifiers,
+                binding.key);
     }
 
     if (!rebound) {
@@ -2770,6 +2930,14 @@ bool App::SetHotkeyBinding(
             hotkey_actions::
                 kActivateSecondary) {
             RebindAuxiliaryHotkey(
+                previous.enabled,
+                previous.modifiers,
+                previous.key);
+        } else if (
+            actionId ==
+            hotkey_actions::
+                kOpenShortcutManager) {
+            RebindShortcutManagerHotkey(
                 previous.enabled,
                 previous.modifiers,
                 previous.key);
@@ -2800,8 +2968,12 @@ bool App::ResetHotkeyBindings() {
     const auto oldAuxiliary =
         EffectiveHotkeyBinding(
             previous,
+            hotkey_actions::kActivateSecondary);
+    const auto oldShortcutManager =
+        EffectiveHotkeyBinding(
+            previous,
             hotkey_actions::
-                kActivateSecondary);
+                kOpenShortcutManager);
 
     const auto primary =
         EffectiveHotkeyBinding(
@@ -2810,10 +2982,20 @@ bool App::ResetHotkeyBindings() {
     const auto auxiliary =
         EffectiveHotkeyBinding(
             defaults,
+            hotkey_actions::kActivateSecondary);
+    const auto shortcutManager =
+        EffectiveHotkeyBinding(
+            defaults,
             hotkey_actions::
-                kActivateSecondary);
+                kOpenShortcutManager);
 
-    if (!RebindAuxiliaryHotkey(
+    // Release optional global bindings before rebuilding defaults so an old
+    // custom chord cannot collide with another default owned by this process.
+    if (!RebindShortcutManagerHotkey(
+            false,
+            shortcutManager.modifiers,
+            shortcutManager.key) ||
+        !RebindAuxiliaryHotkey(
             false,
             auxiliary.modifiers,
             auxiliary.key)) {
@@ -2827,13 +3009,21 @@ bool App::ResetHotkeyBindings() {
             oldAuxiliary.enabled,
             oldAuxiliary.modifiers,
             oldAuxiliary.key);
+        RebindShortcutManagerHotkey(
+            oldShortcutManager.enabled,
+            oldShortcutManager.modifiers,
+            oldShortcutManager.key);
         return false;
     }
 
     if (!RebindAuxiliaryHotkey(
             auxiliary.enabled,
             auxiliary.modifiers,
-            auxiliary.key)) {
+            auxiliary.key) ||
+        !RebindShortcutManagerHotkey(
+            shortcutManager.enabled,
+            shortcutManager.modifiers,
+            shortcutManager.key)) {
         RebindGlobalHotkey(
             oldPrimary.modifiers,
             oldPrimary.key);
@@ -2841,6 +3031,10 @@ bool App::ResetHotkeyBindings() {
             oldAuxiliary.enabled,
             oldAuxiliary.modifiers,
             oldAuxiliary.key);
+        RebindShortcutManagerHotkey(
+            oldShortcutManager.enabled,
+            oldShortcutManager.modifiers,
+            oldShortcutManager.key);
         return false;
     }
 
@@ -2853,6 +3047,10 @@ bool App::ResetHotkeyBindings() {
             oldAuxiliary.enabled,
             oldAuxiliary.modifiers,
             oldAuxiliary.key);
+        RebindShortcutManagerHotkey(
+            oldShortcutManager.enabled,
+            oldShortcutManager.modifiers,
+            oldShortcutManager.key);
         return false;
     }
 
@@ -2863,6 +3061,7 @@ bool App::ResetHotkeyBindings() {
 
     return true;
 }
+
 
 bool App::IsHotkeyActionRegistered(
     std::string_view actionId) const {
@@ -2882,6 +3081,19 @@ bool App::IsHotkeyActionRegistered(
 
         return !binding.enabled ||
             auxiliaryHotkeyRegistered_;
+    }
+
+    if (actionId ==
+        hotkey_actions::
+            kOpenShortcutManager) {
+        const auto binding =
+            EffectiveHotkeyBinding(
+                settingsStore_.Data()
+                    .hotkeyBindings,
+                actionId);
+
+        return !binding.enabled ||
+            shortcutManagerHotkeyRegistered_;
     }
 
     const auto binding =
@@ -2905,6 +3117,12 @@ DWORD App::HotkeyActionLastError(
         hotkey_actions::
             kActivateSecondary) {
         return auxiliaryHotkeyLastError_;
+    }
+
+    if (actionId ==
+        hotkey_actions::
+            kOpenShortcutManager) {
+        return shortcutManagerHotkeyLastError_;
     }
 
     return ERROR_SUCCESS;

@@ -13,7 +13,7 @@ int main() {
     assert(
         MatchHotkeyAction(
             defaults,
-            HotkeyScope::Launcher,
+            HotkeyScope::Global,
             "s",
             false,true,false,false) ==
         std::optional<std::string>(
@@ -65,6 +65,18 @@ int main() {
         !ValidateHotkeyBinding(
             hotkey_actions::kActivate,
             {true,{},"space"}));
+
+    assert(
+        !ValidateHotkeyBinding(
+            hotkey_actions::
+                kOpenShortcutManager,
+            {true,{},"s"}));
+
+    assert(
+        ValidateHotkeyBinding(
+            hotkey_actions::
+                kOpenShortcutManager,
+            {true,{"alt"},"s"}));
 
     assert(
         !ValidateHotkeyBinding(
