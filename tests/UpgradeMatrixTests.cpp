@@ -72,15 +72,34 @@ void AssertBindingMatches(
     const Settings& settings,
     const nlohmann::json& bindings,
     std::string_view actionId) {
-    assert(bindings.contains(
-        std::string(actionId)));
-
-    const auto& expected =
-        bindings[std::string(actionId)];
     const auto actual =
         EffectiveHotkeyBinding(
             settings.hotkeyBindings,
             actionId);
+
+    if (!bindings.contains(
+            std::string(actionId))) {
+        const auto* descriptor =
+            FindHotkeyAction(
+                actionId);
+        assert(descriptor);
+
+        auto expected =
+            descriptor->defaultBinding;
+        CanonicalizeHotkeyBinding(
+            expected);
+
+        assert(actual.enabled ==
+            expected.enabled);
+        assert(actual.key ==
+            expected.key);
+        assert(actual.modifiers ==
+            expected.modifiers);
+        return;
+    }
+
+    const auto& expected =
+        bindings[std::string(actionId)];
 
     assert(
         actual.enabled ==
