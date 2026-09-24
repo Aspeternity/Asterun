@@ -424,9 +424,7 @@ SearchEngine::PinyinMatchScore(
                 1,
                 full.score - 45);
 
-        if (relevance::BetterMatch(
-                full,
-                best)) {
+        if (full.score > best.score) {
             best = full;
         }
     }
@@ -443,9 +441,7 @@ SearchEngine::PinyinMatchScore(
                 1,
                 initials.score - 20);
 
-        if (relevance::BetterMatch(
-                initials,
-                best)) {
+        if (initials.score > best.score) {
             best = initials;
         }
     }
@@ -464,9 +460,7 @@ SearchEngine::PinyinMatchScore(
             true,
         };
 
-        if (relevance::BetterMatch(
-                hybrid,
-                best)) {
+        if (hybrid.score > best.score) {
             best = hybrid;
         }
     }

@@ -861,7 +861,7 @@ void AssertCleanInstall(
     assert(providers::IsEnabled(
         store.Data().providerEnabled,
         providers::kAppPaths));
-    assert(providers::IsEnabled(
+    assert(!providers::IsEnabled(
         store.Data().providerEnabled,
         providers::kPath));
     assert(!providers::IsEnabled(
