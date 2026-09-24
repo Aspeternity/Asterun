@@ -99,51 +99,77 @@ void AssertCommonFields(
     const nlohmann::json& root) {
     const auto& general =
         root.at("general");
+
     assert(
         settings.startWithWindows ==
-        general.at("startWithWindows").get<bool>());
-    assert(
-        settings.showOnStartup ==
-        general.at("showOnStartup").get<bool>());
-    assert(
-        settings.hideAfterLaunch ==
-        general.at("hideAfterLaunch").get<bool>());
-    assert(
-        settings.clearQueryOnShow ==
-        general.at("clearQueryOnShow").get<bool>());
-    assert(
-        settings.hideOnFocusLost ==
-        general.at("hideOnFocusLost").get<bool>());
-    assert(
-        settings.showTrayIcon ==
-        general.at("showTrayIcon").get<bool>());
-    assert(
-        settings.popupMonitor ==
-        general.at("popupMonitor").get<std::string>());
+        general.at("startWithWindows")
+            .get<bool>());
 
-    const auto& behavior =
-        root.at("behavior");
-    if (behavior.contains("pinyinSearch")) {
-        assert(
-            settings.pinyinSearch ==
-            behavior.at("pinyinSearch").get<bool>());
-    } else {
-        assert(settings.pinyinSearch);
+    StartupBehavior expectedStartup =
+        StartupBehavior::Notification;
+
+    if (general.contains(
+            "startupBehavior")) {
+        const std::string value =
+            general.at("startupBehavior")
+                .get<std::string>();
+
+        if (value == "silent") {
+            expectedStartup =
+                StartupBehavior::Silent;
+        } else if (
+            value == "show-launcher") {
+            expectedStartup =
+                StartupBehavior::ShowLauncher;
+        }
+    } else if (
+        general.contains(
+            "showOnStartup")) {
+        expectedStartup =
+            general.at("showOnStartup")
+                .get<bool>()
+                ? StartupBehavior::
+                      ShowLauncher
+                : StartupBehavior::
+                      Silent;
     }
 
     assert(
-        settings.wildcardMatching ==
-        behavior.at("wildcardMatching").get<bool>());
+        settings.startupBehavior ==
+        expectedStartup);
+
+    assert(
+        settings.showTrayIcon ==
+        general.value(
+            "showTrayIcon",
+            true));
+    assert(
+        settings.addToSendToMenu ==
+        general.value(
+            "addToSendToMenu",
+            false));
+    assert(
+        settings.popupMonitor ==
+        general.value(
+            "popupMonitor",
+            std::string("cursor")));
+
+    const auto& behavior =
+        root.at("behavior");
+
+    assert(
+        settings.pinyinSearch ==
+        behavior.value(
+            "pinyinSearch",
+            true));
     assert(
         settings.numericQuickLaunch ==
-        behavior.at("numericQuickLaunch").get<bool>());
-    assert(
-        settings.numericQuickLaunchOrder ==
-        behavior.at("numericQuickLaunchOrder")
-            .get<std::string>());
+        behavior.at("numericQuickLaunch")
+            .get<bool>());
     assert(
         settings.executeSingleResultImmediately ==
-        behavior.at("executeSingleResultImmediately")
+        behavior.at(
+            "executeSingleResultImmediately")
             .get<bool>());
 
     const auto& appearance =

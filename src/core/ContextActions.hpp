@@ -31,4 +31,8 @@ EvaluateLauncherContextActions(
 ShortcutSeedFromLauncherResult(
     const LauncherResult& result);
 
+[[nodiscard]] Command
+ShortcutSeedFromFileSystemPath(
+    std::wstring_view path);
+
 } // namespace altrun

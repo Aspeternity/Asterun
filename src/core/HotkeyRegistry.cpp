@@ -177,6 +177,8 @@ HotkeyActionRegistry() {
         {std::string(hotkey_actions::kActivate),HotkeyScope::Global,true,true,{true,{"alt"},"space"}},
         {std::string(hotkey_actions::kActivateSecondary),HotkeyScope::Global,false,false,{false,{},"pause"}},
         {std::string(hotkey_actions::kOpenSettings),HotkeyScope::Launcher,false,false,{true,{},"f2"}},
+        {std::string(hotkey_actions::kOpenShortcutManager),HotkeyScope::Launcher,false,false,{true,{"alt"},"s"}},
+        {std::string(hotkey_actions::kExitApplication),HotkeyScope::Launcher,false,false,{false,{},"f12"}},
         {std::string(hotkey_actions::kNavigateCurrentFileManager),HotkeyScope::Launcher,false,false,{true,{"ctrl"},"enter"}},
         {std::string(hotkey_actions::kCopySelectedTarget),HotkeyScope::Launcher,false,false,{true,{"ctrl","shift"},"c"}},
     };

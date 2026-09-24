@@ -42,6 +42,287 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.5 must keep provider-cache schemaVersion 2")
+
+    settings_h = read("src/core/Settings.hpp")
+    settings_cpp = read("src/core/Settings.cpp")
+    settings_window_h = read("src/ui/SettingsWindow.hpp")
+    settings_window_cpp = read("src/ui/SettingsWindow.cpp")
+    settings_layout = read("src/core/SettingsLayout.cpp")
+    app_h = read("src/app/App.hpp")
+    app_cpp = read("src/app/App.cpp")
+    main_cpp = read("src/main.cpp")
+    launcher_h = read("src/ui/LauncherWindow.hpp")
+    launcher_cpp = read("src/ui/LauncherWindow.cpp")
+    hotkey_h = read("src/core/HotkeyRegistry.hpp")
+    hotkey_cpp = read("src/core/HotkeyRegistry.cpp")
+    context_h = read("src/core/ContextActions.hpp")
+    context_cpp = read("src/core/ContextActions.cpp")
+    ipc_h = read("src/platform/InstanceIpc.hpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    ui_tests = read("tests/ConfigCoreTests.cpp")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    generator = read("scripts/generate_classic_hidpi_assets.py")
+
+    for token in (
+        "enum class StartupBehavior",
+        "StartupBehavior::Notification",
+        "bool addToSendToMenu{false}",
+        "SetStartupBehavior(",
+        "SetAddToSendToMenu(",
+        "SetPopupMonitor(",
+    ):
+        if token not in settings_h:
+            fail(f"v0.8 alpha.5 settings model missing: {token}")
+
+    removed_runtime_tokens = (
+        "showOnStartup",
+        "hideAfterLaunch",
+        "clearQueryOnShow",
+        "hideOnFocusLost",
+        "wildcardMatching",
+        "numericQuickLaunchOrder",
+    )
+    for path, text in (
+        ("Settings.hpp", settings_h),
+        ("SettingsWindow.hpp", settings_window_h),
+        ("SettingsWindow.cpp", settings_window_cpp),
+        ("App.hpp", app_h),
+        ("App.cpp", app_cpp),
+        ("LauncherWindow.hpp", launcher_h),
+        ("LauncherWindow.cpp", launcher_cpp),
+    ):
+        for token in removed_runtime_tokens:
+            if token in text:
+                fail(
+                    f"v0.8 alpha.5 removed pseudo-setting returned "
+                    f"in {path}: {token}"
+                )
+
+    for token in (
+        '"startupBehavior"',
+        '"addToSendToMenu"',
+        "StartupBehaviorName(",
+        "NormalizeStartupBehavior(",
+        "load.schemaVersion >= 10",
+        '"showOnStartup"',
+    ):
+        if token not in settings_cpp:
+            fail(f"v0.8 alpha.5 schema migration missing: {token}")
+
+    save_tail = settings_cpp[settings_cpp.find("bool SettingsStore::Save()"):]
+    for forbidden in (
+        '"hideAfterLaunch"',
+        '"clearQueryOnShow"',
+        '"hideOnFocusLost"',
+        '"wildcardMatching"',
+        '"numericQuickLaunchOrder"',
+        '"showOnStartup"',
+    ):
+        if forbidden in save_tail:
+            fail(f"v0.8 alpha.5 serializer still writes {forbidden}")
+
+    for token in (
+        'T(L"Windows 与启动", L"Windows & startup")',
+        'T(L"启动行为", L"Startup behavior")',
+        'T(L"添加到“发送到”菜单", L"Add to “Send to” menu")',
+        'T(L"搜索与执行", L"Search & execution")',
+        'T(L"静默启动", L"Start silently")',
+        'T(L"显示启动通知", L"Show startup notification")',
+        'T(L"显示启动器", L"Show launcher")',
+        "kIdStartupBehavior",
+        "kIdAddToSendToMenu",
+    ):
+        if token not in settings_window_cpp and token not in settings_window_h:
+            fail(f"v0.8 alpha.5 General UI contract missing: {token}")
+
+    if "scale(kToggleRowLogical) * 3" not in settings_layout:
+        fail("v0.8 alpha.5 Windows/startup card layout is not 3 toggles + combo")
+    if "scale(kToggleRowLogical) * 4" not in settings_layout:
+        fail("v0.8 alpha.5 Search/execution card layout is not four toggles")
+
+    for token in (
+        "kOpenShortcutManager",
+        "kExitApplication",
+    ):
+        if token not in hotkey_h or token not in hotkey_cpp:
+            fail(f"v0.8 alpha.5 Hotkey Registry missing {token}")
+
+    for token in (
+        'kOpenShortcutManager),HotkeyScope::Launcher,false,false,{true,{"alt"},"s"}',
+        'kExitApplication),HotkeyScope::Launcher,false,false,{false,{},"f12"}',
+    ):
+        if token not in hotkey_cpp:
+            fail(f"v0.8 alpha.5 hotkey default changed: {token}")
+
+    for token in (
+        "ShortcutSeedFromFileSystemPath(",
+        "SuggestShortcutTitle(",
+        "InferShortcutCommandType(",
+    ):
+        if token not in context_h and token not in context_cpp:
+            fail(f"v0.8 alpha.5 SendTo shortcut seed missing: {token}")
+
+    for token in (
+        'L"--add-shortcut"',
+        "shortcutPaths",
+    ):
+        if token not in main_cpp:
+            fail(f"v0.8 alpha.5 command-line SendTo contract missing: {token}")
+
+    for token in (
+        "kLauncherWindowClass",
+        "kAddShortcutCopyData",
+    ):
+        if token not in ipc_h:
+            fail(f"v0.8 alpha.5 instance IPC contract missing: {token}")
+
+    for token in (
+        "FOLDERID_SendTo",
+        "CLSID_ShellLink",
+        'SetArguments(\n                L"--add-shortcut")',
+        "ForwardShortcutRequestsToExistingInstance",
+        "SendMessageTimeoutW(",
+        "WM_COPYDATA",
+        "ApplySendToRegistration(",
+        "StartupBehavior::ShowLauncher",
+        "StartupBehavior::Notification",
+        "ShowStartupNotification(",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.5 App integration missing: {token}")
+
+    for token in (
+        "WM_COPYDATA",
+        "kAddShortcutCopyData",
+        "QueueNewShortcutForPath(",
+        "ProcessPendingShortcutPaths(",
+        "NIF_INFO",
+        "NIIF_NOSOUND",
+        "NIN_BALLOONTIMEOUT",
+        "NIN_BALLOONHIDE",
+        'QuickLaunchIndexForDigit(\n            digit,\n            "one-to-zero")',
+        "SetWindowTextW(edit_, L\"\")",
+        "case WM_CLOSE:",
+    ):
+        if token not in launcher_cpp:
+            fail(f"v0.8 alpha.5 Launcher behavior missing: {token}")
+
+    if "true,\n            settingsStore_.Data()\n                .pinyinSearch" not in app_cpp:
+        fail("v0.8 alpha.5 wildcard matching is not permanently enabled")
+
+    for token in (
+        "settings-schema9-behavior-cleanup.json",
+        "StartupBehavior::ShowLauncher",
+        'schema10Text.find("\\\"showOnStartup\\\"")',
+    ):
+        if token not in ui_tests:
+            fail(f"v0.8 alpha.5 schema-10 migration coverage missing: {token}")
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"),
+            "--verify",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp":
+            "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp":
+            "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp":
+            "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp":
+            "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp":
+            "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,80",
+        "PRODUCTVERSION 0,8,0,80",
+        "0.8.0-alpha.5",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5 resource version missing: {token}")
+    if 'version="0.8.0.80"' not in manifest:
+        fail("v0.8 alpha.5 manifest fixed version must be 0.8.0.80")
+
+    for token in (
+        '"0.8.0-alpha.4.9"',
+        '"0.8.0-alpha.5"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5 Settings behavior validation",
+        "添加到“发送到”菜单",
+        "静默启动 / 显示启动通知 / 显示启动器",
+        "default Alt+S",
+        "100/125/150/175/200%",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5 desktop checklist missing: {token}")
+
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    for token in (
+        "v0.8.0-alpha.5 — Settings Behavior Cleanup",
+        "Settings schema is **10**",
+        "WM_COPYDATA",
+        "0.8.0.80",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5 README missing: {token}")
+    if "## 0.8.0-alpha.5" not in changelog:
+        fail("v0.8 alpha.5 changelog entry missing")
+    if "v0.8.0-alpha.5 cleans the Settings product model" not in roadmap:
+        fail("v0.8 alpha.5 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5 Settings behavior cleanup verified:",
+        "| schema 10",
+        "| pseudo-settings removed",
+        "| startup behavior + notification",
+        "| SendTo + single-instance IPC",
+        "| Shortcut Manager + Exit hotkeys",
+        "| Classic HiDPI assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.4.9":
     import hashlib
     import subprocess

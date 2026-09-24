@@ -20,17 +20,22 @@ enum class Language {
     EnUS,
 };
 
+enum class StartupBehavior {
+    Silent,
+    Notification,
+    ShowLauncher,
+};
+
 struct Settings {
     UiStyle uiStyle{UiStyle::Classic};
     Language language{Language::ZhCN};
     bool showResultIcons{false};
 
     bool startWithWindows{false};
-    bool showOnStartup{false};
-    bool hideAfterLaunch{true};
-    bool clearQueryOnShow{true};
-    bool hideOnFocusLost{true};
+    StartupBehavior startupBehavior{
+        StartupBehavior::Notification};
     bool showTrayIcon{true};
+    bool addToSendToMenu{false};
     std::string popupMonitor{"cursor"};
     std::string launcherPlacement{"top"};
     std::string settingsPlacement{"center"};
@@ -60,9 +65,7 @@ struct Settings {
         DefaultHotkeyBindings()};
 
     bool pinyinSearch{true};
-    bool wildcardMatching{false};
     bool numericQuickLaunch{false};
-    std::string numericQuickLaunchOrder{"one-to-zero"};
     bool executeSingleResultImmediately{false};
 
     ProviderEnableMap providerEnabled{
@@ -86,7 +89,12 @@ public:
     void SetLanguage(Language language);
     bool SetShowResultIcons(bool enabled);
     bool SetStartWithWindows(bool enabled);
-    bool SetShowOnStartup(bool enabled);
+    bool SetStartupBehavior(
+        StartupBehavior behavior);
+    bool SetShowTrayIcon(bool enabled);
+    bool SetAddToSendToMenu(bool enabled);
+    bool SetPopupMonitor(
+        std::string popupMonitor);
     bool SetHotkey(
         std::vector<std::string> modifiers,
         std::string key);
@@ -99,9 +107,7 @@ public:
         HotkeyBinding binding);
     bool ResetHotkeyBindings();
     bool SetClassicBehavior(
-        bool wildcardMatching,
         bool numericQuickLaunch,
-        std::string numericQuickLaunchOrder,
         bool executeSingleResultImmediately,
         bool pinyinSearch);
     bool SetProviderEnabled(
@@ -126,12 +132,6 @@ public:
         int x,
         int y);
     bool ResetDefaults();
-    void SetGeneral(
-        bool hideAfterLaunch,
-        bool clearQueryOnShow,
-        bool hideOnFocusLost,
-        bool showTrayIcon,
-        std::string popupMonitor);
 
     [[nodiscard]] const Settings&
     Data() const noexcept {

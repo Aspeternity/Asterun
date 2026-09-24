@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5
+
+- Rebuilt General Settings around Windows & startup, Search & execution, and Window placement; removed six implementation-detail settings from UI and schema.
+- Added three-state Startup behavior with silent, native startup notification, and show-launcher modes; fresh installs default to notification while schema-9 migration preserves the previous show-on-startup intent.
+- Added opt-in Windows SendTo integration backed by an ALTRun Next.lnk, --add-shortcut command-line mode, bounded single-instance WM_COPYDATA forwarding, and the existing confirmed New Shortcut editor.
+- Made launcher session behavior intrinsic: reveal clears the query, successful execution hides, focus loss hides outside modal/context operations, wildcard syntax is always enabled, and numeric quick-launch numbering is fixed to 1–9,0.
+- Added Open Shortcut Manager (Alt+S) and disabled-by-default Exit ALTRun Next actions to the centralized Hotkey Registry.
+- Retained all four window-placement preferences and the optional system-tray icon.
+- Migrated settings schemaVersion from 9 to 10 and stopped serializing showOnStartup, hideAfterLaunch, clearQueryOnShow, hideOnFocusLost, wildcardMatching, and numericQuickLaunchOrder.
+- Kept Classic HiDPI assets and all non-Settings architecture frozen; Windows fixed FileVersion/ProductVersion is `0.8.0.80`.
+
 ## 0.8.0-alpha.4.9
 
 - Preserved the original 25×25 Classic Logo/X resources byte-for-byte for the 100% tier and added deterministic 31/38/44/50px HiDPI tiers for 125/150/175/200%.

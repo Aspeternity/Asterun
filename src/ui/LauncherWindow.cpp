@@ -7,6 +7,7 @@
 #include "../core/HotkeyRegistry.hpp"
 #include "../core/ResultMerger.hpp"
 #include "../platform/Hotkey.hpp"
+#include "../platform/InstanceIpc.hpp"
 #include "../platform/ShellActions.hpp"
 #include "../platform/WinUtil.hpp"
 #include "ShortcutEditorDialog.hpp"
@@ -33,7 +34,8 @@ namespace altrun {
 
 namespace {
 
-constexpr wchar_t kWindowClass[] = L"ALTRunNext.Launcher";
+constexpr const wchar_t* kWindowClass =
+    instance_ipc::kLauncherWindowClass;
 constexpr wchar_t kWindowTitle[] = L"ALTRun Next";
 
 constexpr DWORD kDwmWindowCornerPreference = 33;
@@ -1439,21 +1441,18 @@ void LauncherWindow::Show() {
     // Do not carry an interrupted IME composition across launcher hides.
     imeComposing_ = false;
 
-    if (app_.SettingsData().clearQueryOnShow) {
-        // A fresh invocation must not carry the previous visible session's
-        // result selection into the newly cleared query. SetWindowTextW sends
-        // EN_CHANGE synchronously, so clear the list selection first; the
-        // resulting rebuild will deterministically select row 0.
-        if (list_) {
-            SendMessageW(
-                list_,
-                LB_SETCURSEL,
-                static_cast<WPARAM>(-1),
-                0);
-        }
-
-        SetWindowTextW(edit_, L"");
+    // Every reveal starts a fresh launcher session. Clear selection before
+    // SetWindowTextW because EN_CHANGE rebuilds synchronously and should
+    // deterministically select the new query's best result.
+    if (list_) {
+        SendMessageW(
+            list_,
+            LB_SETCURSEL,
+            static_cast<WPARAM>(-1),
+            0);
     }
+
+    SetWindowTextW(edit_, L"");
 
     Reposition();
 
@@ -2232,9 +2231,7 @@ void LauncherWindow::ExecuteResultAt(
 
     if (app_.ExecuteResult(
             results_[resultIndex],
-            intent) &&
-        app_.SettingsData()
-            .hideAfterLaunch) {
+            intent)) {
         Hide();
     }
 }
@@ -2279,25 +2276,12 @@ int LauncherWindow::QuickLaunchIndexForKey(
     return classic_behavior::
         QuickLaunchIndexForDigit(
             digit,
-            app_.SettingsData()
-                .numericQuickLaunchOrder);
+            "one-to-zero");
 }
 
 std::wstring
 LauncherWindow::ResultNumberLabel(
     std::size_t resultIndex) const {
-
-    if (app_.SettingsData()
-            .numericQuickLaunchOrder ==
-        "zero-to-nine") {
-
-        return resultIndex < 10
-            ? std::to_wstring(
-                  static_cast<
-                      unsigned long long>(
-                      resultIndex))
-            : L"";
-    }
 
     if (resultIndex >= 10) {
         return L"";
@@ -2311,22 +2295,50 @@ LauncherWindow::ResultNumberLabel(
                   resultIndex + 1));
 }
 
-void LauncherWindow::AddTrayIcon() {
-    if (!app_.SettingsData().showTrayIcon || trayIconAdded_) return;
+void LauncherWindow::AddTrayIcon(
+    bool force) {
+    if (trayIconAdded_ ||
+        (!force &&
+         !app_.SettingsData()
+              .showTrayIcon)) {
+        return;
+    }
 
     NOTIFYICONDATAW data{};
     data.cbSize = sizeof(data);
     data.hWnd = hwnd_;
     data.uID = 1;
-    data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
-    data.uCallbackMessage = kTrayMessage;
-    data.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
-    wcscpy_s(data.szTip, L"ALTRun Next");
-    Shell_NotifyIconW(NIM_ADD, &data);
+    data.uFlags =
+        NIF_MESSAGE |
+        NIF_ICON |
+        NIF_TIP;
+    data.uCallbackMessage =
+        kTrayMessage;
+    data.hIcon =
+        LoadIconW(
+            nullptr,
+            IDI_APPLICATION);
+    wcscpy_s(
+        data.szTip,
+        L"ALTRun Next");
 
-    data.uVersion = NOTIFYICON_VERSION_4;
-    Shell_NotifyIconW(NIM_SETVERSION, &data);
+    if (!Shell_NotifyIconW(
+            NIM_ADD,
+            &data)) {
+        return;
+    }
+
+    data.uVersion =
+        NOTIFYICON_VERSION_4;
+    Shell_NotifyIconW(
+        NIM_SETVERSION,
+        &data);
+
     trayIconAdded_ = true;
+    notificationOnlyTrayIcon_ =
+        force &&
+        !app_.SettingsData()
+             .showTrayIcon;
 }
 
 void LauncherWindow::RemoveTrayIcon() {
@@ -2338,6 +2350,128 @@ void LauncherWindow::RemoveTrayIcon() {
     data.uID = 1;
     Shell_NotifyIconW(NIM_DELETE, &data);
     trayIconAdded_ = false;
+    notificationOnlyTrayIcon_ = false;
+}
+
+void LauncherWindow::ShowStartupNotification(
+    std::wstring_view activationHotkey) {
+    if (!hwnd_) {
+        return;
+    }
+
+    AddTrayIcon(true);
+
+    if (!trayIconAdded_) {
+        return;
+    }
+
+    const bool zh =
+        app_.SettingsData().language ==
+        Language::ZhCN;
+
+    std::wstring message =
+        zh
+            ? L"ALTRun Next 已启动"
+            : L"ALTRun Next is running";
+
+    if (!activationHotkey.empty()) {
+        message +=
+            zh
+                ? L"\n按 "
+                : L"\nPress ";
+        message += activationHotkey;
+        message +=
+            zh
+                ? L" 呼出"
+                : L" to show the launcher";
+    }
+
+    NOTIFYICONDATAW data{};
+    data.cbSize = sizeof(data);
+    data.hWnd = hwnd_;
+    data.uID = 1;
+    data.uFlags = NIF_INFO;
+    data.dwInfoFlags =
+        NIIF_INFO |
+        NIIF_NOSOUND;
+
+    wcsncpy_s(
+        data.szInfoTitle,
+        L"ALTRun Next",
+        _TRUNCATE);
+    wcsncpy_s(
+        data.szInfo,
+        message.c_str(),
+        _TRUNCATE);
+
+    Shell_NotifyIconW(
+        NIM_MODIFY,
+        &data);
+}
+
+void LauncherWindow::QueueNewShortcutForPath(
+    std::wstring path) {
+    if (path.empty()) {
+        return;
+    }
+
+    pendingShortcutPaths_.push_back(
+        std::move(path));
+
+    if (hwnd_ &&
+        !contextActionModalActive_) {
+        PostMessageW(
+            hwnd_,
+            kShortcutIpcMessage,
+            0,
+            0);
+    }
+}
+
+void LauncherWindow::ShowNewShortcutForPath(
+    std::wstring_view path) {
+    const Command seed =
+        ShortcutSeedFromFileSystemPath(
+            path);
+
+    contextActionModalActive_ = true;
+    const bool changed =
+        ShortcutEditorDialog::ShowNew(
+            app_,
+            instance_,
+            hwnd_,
+            seed);
+    contextActionModalActive_ = false;
+
+    if (changed) {
+        RefreshResults();
+    }
+}
+
+void LauncherWindow::
+ProcessPendingShortcutPaths() {
+    if (contextActionModalActive_ ||
+        pendingShortcutPaths_.empty()) {
+        return;
+    }
+
+    std::wstring path =
+        std::move(
+            pendingShortcutPaths_
+                .front());
+    pendingShortcutPaths_.pop_front();
+
+    Hide();
+    ShowNewShortcutForPath(
+        path);
+
+    if (!pendingShortcutPaths_.empty()) {
+        PostMessageW(
+            hwnd_,
+            kShortcutIpcMessage,
+            0,
+            0);
+    }
 }
 
 void LauncherWindow::ApplyGeneralSettings() {
@@ -2648,9 +2782,7 @@ void LauncherWindow::ShowResultContextMenu(
         [&](LauncherExecutionIntent intent) {
             if (app_.ExecuteResult(
                     result,
-                    intent) &&
-                app_.SettingsData()
-                    .hideAfterLaunch) {
+                    intent)) {
                 Hide();
             }
         };
@@ -2948,6 +3080,17 @@ LRESULT LauncherWindow::HandleEditMessage(
                 } else if (
                     *actionId ==
                     hotkey_actions::
+                        kOpenShortcutManager) {
+                    Hide();
+                    app_.ShowShortcutManager();
+                } else if (
+                    *actionId ==
+                    hotkey_actions::
+                        kExitApplication) {
+                    DestroyWindow(hwnd_);
+                } else if (
+                    *actionId ==
+                    hotkey_actions::
                         kNavigateCurrentFileManager) {
                     ExecuteSelection(
                         LauncherExecutionIntent::
@@ -3135,6 +3278,57 @@ LRESULT LauncherWindow::HandleMessage(
             break;
         }
         break;
+
+    case WM_COPYDATA: {
+        const auto* copyData =
+            reinterpret_cast<
+                const COPYDATASTRUCT*>(
+                    lParam);
+
+        if (!copyData ||
+            copyData->dwData !=
+                instance_ipc::
+                    kAddShortcutCopyData ||
+            !copyData->lpData ||
+            copyData->cbData <
+                sizeof(wchar_t) ||
+            copyData->cbData %
+                sizeof(wchar_t) != 0 ||
+            copyData->cbData >
+                32768 *
+                    sizeof(wchar_t)) {
+            return FALSE;
+        }
+
+        const auto* text =
+            static_cast<
+                const wchar_t*>(
+                    copyData->lpData);
+        const std::size_t count =
+            copyData->cbData /
+            sizeof(wchar_t);
+
+        std::size_t length = 0;
+        while (length < count &&
+               text[length] != L'\0') {
+            ++length;
+        }
+
+        if (length == 0 ||
+            length == count) {
+            return FALSE;
+        }
+
+        QueueNewShortcutForPath(
+            std::wstring(
+                text,
+                length));
+        return TRUE;
+    }
+
+    case WM_CLOSE:
+        DestroyWindow(hwnd_);
+        return 0;
 
     case WM_CONTEXTMENU: {
         const HWND target =
@@ -3726,29 +3920,58 @@ LRESULT LauncherWindow::HandleMessage(
     case WM_ACTIVATE:
         if (LOWORD(wParam) == WA_INACTIVE &&
             IsWindowVisible(hwnd_) &&
-            app_.SettingsData().hideOnFocusLost &&
             !contextActionModalActive_) {
             Hide();
         }
         break;
 
+    case kShortcutIpcMessage:
+        ProcessPendingShortcutPaths();
+        return 0;
+
     case kIconReadyMessage:
         HandleResultIconCompletions();
         return 0;
 
-    case kTrayMessage:
-        if (LOWORD(lParam) == WM_LBUTTONDBLCLK) {
+    case kTrayMessage: {
+        const UINT event =
+            LOWORD(lParam);
+
+        if (event ==
+            NIN_BALLOONUSERCLICK) {
+            const bool temporary =
+                notificationOnlyTrayIcon_;
+            Show();
+            if (temporary) {
+                RemoveTrayIcon();
+            }
+            return 0;
+        }
+
+        if ((event ==
+                 NIN_BALLOONHIDE ||
+             event ==
+                 NIN_BALLOONTIMEOUT) &&
+            notificationOnlyTrayIcon_) {
+            RemoveTrayIcon();
+            return 0;
+        }
+
+        if (event ==
+            WM_LBUTTONDBLCLK) {
             Show();
             return 0;
         }
-        if (LOWORD(lParam) == WM_RBUTTONUP ||
-            LOWORD(lParam) == WM_CONTEXTMENU) {
+
+        if (event == WM_RBUTTONUP ||
+            event == WM_CONTEXTMENU) {
             POINT point{};
             GetCursorPos(&point);
             ShowTrayMenu(point);
             return 0;
         }
         break;
+    }
 
     case WM_DESTROY:
         RemoveTrayIcon();

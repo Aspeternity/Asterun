@@ -12,6 +12,8 @@ namespace hotkey_actions {
 inline constexpr std::string_view kActivate = "launcher.activate";
 inline constexpr std::string_view kActivateSecondary = "launcher.activateSecondary";
 inline constexpr std::string_view kOpenSettings = "launcher.openSettings";
+inline constexpr std::string_view kOpenShortcutManager = "launcher.openShortcutManager";
+inline constexpr std::string_view kExitApplication = "launcher.exitApplication";
 inline constexpr std::string_view kNavigateCurrentFileManager = "result.navigateCurrentFileManager";
 inline constexpr std::string_view kCopySelectedTarget = "result.copySelectedTarget";
 }

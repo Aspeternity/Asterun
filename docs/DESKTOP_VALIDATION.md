@@ -160,6 +160,22 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Move the launcher across monitors with different scaling and confirm the selected tier changes with Per-Monitor V2 without stale glyph size or redraw artifacts.
 - [ ] Test one non-standard scale if available; it may resample from the next larger tier, but must never fall back to enlarging a smaller tier while a larger tier exists.
 
+## v0.8.0-alpha.5 Settings behavior validation
+
+- [ ] General shows exactly three groups: Windows 与启动, 搜索与执行, 窗口位置.
+- [ ] Windows 与启动 contains 开机启动, 启动行为, 显示系统托盘图标, 添加到“发送到”菜单 — no helper text below SendTo.
+- [ ] 启动行为 offers 静默启动 / 显示启动通知 / 显示启动器 and persists across restart.
+- [ ] 显示启动通知 does not reveal Launcher; the notification shows the current primary activation hotkey. With tray hidden, its temporary icon disappears after the balloon closes.
+- [ ] Every normal Launcher reveal clears the previous query; successful execution hides; focus loss hides except while a modal/context action is active.
+- [ ] * / ? wildcard queries work without a Settings switch. Numeric quick launch, when enabled, uses fixed 1–9,0 numbering.
+- [ ] Enabling 添加到“发送到”菜单 creates ALTRun Next in Windows Send To. Sending a file/folder opens the confirmed New Shortcut editor prefilled with that target.
+- [ ] Send To works while ALTRun Next is already running and does not show the duplicate-instance warning.
+- [ ] Disabling SendTo removes the shell entry. Reset settings also removes it.
+- [ ] Hotkeys include 打开快捷项管理 (default Alt+S) and 退出 ALTRun Next (disabled by default).
+- [ ] With tray hidden, Alt+S still reaches Shortcut Manager and Alt+F4 or an enabled Exit action can terminate the process.
+- [ ] Launcher monitor plus Launcher / Settings / Shortcut Manager placement preferences remain unchanged.
+- [ ] Classic appearance at 100/125/150/175/200% is pixel-identical to alpha.4.9 outside Settings.
+
 ## Release assets
 
 For the candidate tag:

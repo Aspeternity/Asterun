@@ -336,16 +336,17 @@ int main() {
         config::kSettingsSchemaVersion);
 
     assert(!featureSettings.Data().startWithWindows);
-    assert(!featureSettings.Data().showOnStartup);
+    assert(
+        featureSettings.Data()
+            .startupBehavior ==
+        StartupBehavior::Notification);
+    assert(featureSettings.Data().showTrayIcon);
+    assert(!featureSettings.Data().addToSendToMenu);
     assert(!featureSettings.Data().auxiliaryHotkeyEnabled);
     assert(featureSettings.Data().auxiliaryHotkeyKey == "pause");
     assert(featureSettings.Data().pinyinSearch);
     assert(!featureSettings.Data().showResultIcons);
-    assert(!featureSettings.Data().wildcardMatching);
     assert(!featureSettings.Data().numericQuickLaunch);
-    assert(
-        featureSettings.Data().numericQuickLaunchOrder ==
-        "one-to-zero");
     assert(
         !featureSettings.Data()
              .executeSingleResultImmediately);
@@ -365,8 +366,14 @@ int main() {
     assert(featureSettings.SetStartWithWindows(true));
     assert(featureSettings.Data().startWithWindows);
 
-    assert(featureSettings.SetShowOnStartup(true));
-    assert(featureSettings.Data().showOnStartup);
+    assert(featureSettings.SetStartupBehavior(
+        StartupBehavior::ShowLauncher));
+    assert(
+        featureSettings.Data()
+            .startupBehavior ==
+        StartupBehavior::ShowLauncher);
+    assert(featureSettings.SetAddToSendToMenu(true));
+    assert(featureSettings.Data().addToSendToMenu);
 
     assert(featureSettings.SetShowResultIcons(true));
     assert(featureSettings.Data().showResultIcons);
@@ -396,16 +403,9 @@ int main() {
     assert(featureSettings.SetClassicBehavior(
         true,
         true,
-        "zero-to-nine",
-        true,
         false));
     assert(!featureSettings.Data().pinyinSearch);
-    assert(featureSettings.Data().wildcardMatching);
     assert(featureSettings.Data().numericQuickLaunch);
-    assert(
-        featureSettings.Data()
-            .numericQuickLaunchOrder ==
-        "zero-to-nine");
     assert(
         featureSettings.Data()
             .executeSingleResultImmediately);
@@ -413,20 +413,11 @@ int main() {
     assert(featureSettings.SetClassicBehavior(
         false,
         false,
-        "zero-to-nine",
-        false,
         true));
     assert(featureSettings.Data().pinyinSearch);
     assert(
         !featureSettings.Data()
-             .wildcardMatching);
-    assert(
-        !featureSettings.Data()
              .numericQuickLaunch);
-    assert(
-        featureSettings.Data()
-            .numericQuickLaunchOrder ==
-        "zero-to-nine");
     assert(
         !featureSettings.Data()
              .executeSingleResultImmediately);
@@ -434,19 +425,11 @@ int main() {
     assert(featureSettings.SetClassicBehavior(
         false,
         false,
-        "unexpected-order",
-        false,
         true));
-    assert(
-        featureSettings.Data()
-            .numericQuickLaunchOrder ==
-        "one-to-zero");
 
     // Restore the enabled matrix used by the reload assertions below.
     assert(featureSettings.SetClassicBehavior(
         true,
-        true,
-        "zero-to-nine",
         true,
         false));
 
@@ -496,7 +479,11 @@ int main() {
         providers::kPath));
     assert(
         providerSettingsReloaded.Data()
-            .showOnStartup);
+            .startupBehavior ==
+        StartupBehavior::ShowLauncher);
+    assert(
+        providerSettingsReloaded.Data()
+            .addToSendToMenu);
     assert(
         providerSettingsReloaded.Data()
             .showResultIcons);
@@ -516,14 +503,7 @@ int main() {
              .pinyinSearch);
     assert(
         providerSettingsReloaded.Data()
-            .wildcardMatching);
-    assert(
-        providerSettingsReloaded.Data()
             .numericQuickLaunch);
-    assert(
-        providerSettingsReloaded.Data()
-            .numericQuickLaunchOrder ==
-        "zero-to-nine");
     assert(
         providerSettingsReloaded.Data()
             .executeSingleResultImmediately);
@@ -567,7 +547,63 @@ int main() {
         providerSettingsReloaded.Data()
             .shortcutManagerLastY == 666);
 
-    // schema-8 window-placement settings migrate to schema 9. Existing
+    // Schema 9 exposed launcher lifecycle details as user settings.
+    // Schema 10 converts only the meaningful startup choice and drops the
+    // pseudo-settings from the rewritten document.
+    const auto schema9BehaviorPath =
+        data / "settings-schema9-behavior-cleanup.json";
+
+    WriteText(
+        schema9BehaviorPath,
+        "{\n"
+        "  \"schemaVersion\": 9,\n"
+        "  \"general\": {\n"
+        "    \"startWithWindows\": false,\n"
+        "    \"showOnStartup\": true,\n"
+        "    \"hideAfterLaunch\": false,\n"
+        "    \"clearQueryOnShow\": false,\n"
+        "    \"hideOnFocusLost\": false,\n"
+        "    \"showTrayIcon\": true,\n"
+        "    \"popupMonitor\": \"cursor\"\n"
+        "  },\n"
+        "  \"behavior\": {\n"
+        "    \"pinyinSearch\": true,\n"
+        "    \"wildcardMatching\": false,\n"
+        "    \"numericQuickLaunch\": true,\n"
+        "    \"numericQuickLaunchOrder\": \"zero-to-nine\",\n"
+        "    \"executeSingleResultImmediately\": false\n"
+        "  }\n"
+        "}\n");
+
+    SettingsStore schema9Behavior(
+        schema9BehaviorPath);
+    schema9Behavior.Load();
+
+    assert(schema9Behavior.WasMigratedFromOlderSchema());
+    assert(schema9Behavior.MigratedFromSchemaVersion() == 9);
+    assert(
+        schema9Behavior.Data().startupBehavior ==
+        StartupBehavior::ShowLauncher);
+    assert(schema9Behavior.Data().numericQuickLaunch);
+
+    const std::string schema10Text =
+        ReadText(schema9BehaviorPath);
+    assert(schema10Text.find("\"startupBehavior\"") !=
+        std::string::npos);
+    assert(schema10Text.find("\"showOnStartup\"") ==
+        std::string::npos);
+    assert(schema10Text.find("\"hideAfterLaunch\"") ==
+        std::string::npos);
+    assert(schema10Text.find("\"clearQueryOnShow\"") ==
+        std::string::npos);
+    assert(schema10Text.find("\"hideOnFocusLost\"") ==
+        std::string::npos);
+    assert(schema10Text.find("\"wildcardMatching\"") ==
+        std::string::npos);
+    assert(schema10Text.find("\"numericQuickLaunchOrder\"") ==
+        std::string::npos);
+
+    // schema-8 window-placement settings migrate through to the current schema. Existing
     // launcher/settings choices survive; Shortcut Manager receives the new
     // centered default and an invalid last-position marker.
     const auto schema8PlacementPath =
@@ -1060,12 +1096,6 @@ int main() {
 
     assert(
         !alphaReloaded.Data()
-             .showOnStartup);
-    assert(
-        !alphaReloaded.Data()
-             .wildcardMatching);
-    assert(
-        !alphaReloaded.Data()
              .numericQuickLaunch);
 
     const auto upgradedAlphaSettings =
@@ -1136,15 +1166,6 @@ int main() {
             .startWithWindows);
     assert(
         !v041FromV040.Data()
-             .hideAfterLaunch);
-    assert(
-        !v041FromV040.Data()
-             .clearQueryOnShow);
-    assert(
-        !v041FromV040.Data()
-             .hideOnFocusLost);
-    assert(
-        !v041FromV040.Data()
              .showTrayIcon);
     assert(
         v041FromV040.Data()
@@ -1200,20 +1221,10 @@ int main() {
 
     assert(
         !v041FromV040.Data()
-             .showOnStartup);
-    assert(
-        !v041FromV040.Data()
              .auxiliaryHotkeyEnabled);
     assert(
         !v041FromV040.Data()
-             .wildcardMatching);
-    assert(
-        !v041FromV040.Data()
              .numericQuickLaunch);
-    assert(
-        v041FromV040.Data()
-            .numericQuickLaunchOrder ==
-        "one-to-zero");
     assert(
         !v041FromV040.Data()
              .executeSingleResultImmediately);
@@ -1496,7 +1507,11 @@ int main() {
 
     assert(featureSettings.ResetDefaults());
     assert(!featureSettings.Data().startWithWindows);
-    assert(!featureSettings.Data().showOnStartup);
+    assert(
+        featureSettings.Data().startupBehavior ==
+        StartupBehavior::Notification);
+    assert(featureSettings.Data().showTrayIcon);
+    assert(!featureSettings.Data().addToSendToMenu);
     assert(
         !featureSettings.Data()
              .auxiliaryHotkeyEnabled);
@@ -1511,14 +1526,7 @@ int main() {
     assert(featureSettings.Data().pinyinSearch);
     assert(
         !featureSettings.Data()
-             .wildcardMatching);
-    assert(
-        !featureSettings.Data()
              .numericQuickLaunch);
-    assert(
-        featureSettings.Data()
-            .numericQuickLaunchOrder ==
-        "one-to-zero");
     assert(
         !featureSettings.Data()
              .executeSingleResultImmediately);

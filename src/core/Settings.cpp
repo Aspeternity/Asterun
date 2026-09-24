@@ -76,6 +76,54 @@ const char* LanguageName(
         : "zh-CN";
 }
 
+const char* StartupBehaviorName(
+    StartupBehavior behavior) {
+
+    switch (behavior) {
+    case StartupBehavior::Silent:
+        return "silent";
+    case StartupBehavior::ShowLauncher:
+        return "show-launcher";
+    case StartupBehavior::Notification:
+    default:
+        return "notification";
+    }
+}
+
+StartupBehavior NormalizeStartupBehavior(
+    std::string value) {
+    value = LowerAscii(
+        TrimAscii(
+            std::move(value)));
+
+    if (value == "silent") {
+        return StartupBehavior::Silent;
+    }
+
+    if (value == "show-launcher" ||
+        value == "launcher") {
+        return StartupBehavior::
+            ShowLauncher;
+    }
+
+    return StartupBehavior::
+        Notification;
+}
+
+std::string NormalizePopupMonitor(
+    std::string value) {
+    value = LowerAscii(
+        TrimAscii(
+            std::move(value)));
+
+    if (value == "active" ||
+        value == "primary") {
+        return value;
+    }
+
+    return "cursor";
+}
+
 std::string NormalizeLauncherPlacement(
     std::string value) {
     value = LowerAscii(
@@ -350,36 +398,46 @@ bool SettingsStore::LoadJson() {
                     "startWithWindows",
                     settings_
                         .startWithWindows);
-            settings_.showOnStartup =
-                general.value(
-                    "showOnStartup",
-                    settings_
-                        .showOnStartup);
-            settings_.hideAfterLaunch =
-                general.value(
-                    "hideAfterLaunch",
-                    settings_
-                        .hideAfterLaunch);
-            settings_.clearQueryOnShow =
-                general.value(
-                    "clearQueryOnShow",
-                    settings_
-                        .clearQueryOnShow);
-            settings_.hideOnFocusLost =
-                general.value(
-                    "hideOnFocusLost",
-                    settings_
-                        .hideOnFocusLost);
+
+            if (load.schemaVersion >= 10) {
+                settings_.startupBehavior =
+                    NormalizeStartupBehavior(
+                        general.value(
+                            "startupBehavior",
+                            std::string(
+                                StartupBehaviorName(
+                                    settings_
+                                        .startupBehavior))));
+                settings_.addToSendToMenu =
+                    general.value(
+                        "addToSendToMenu",
+                        settings_
+                            .addToSendToMenu);
+            } else if (
+                general.contains(
+                    "showOnStartup") &&
+                general["showOnStartup"]
+                    .is_boolean()) {
+                settings_.startupBehavior =
+                    general["showOnStartup"]
+                        .get<bool>()
+                        ? StartupBehavior::
+                              ShowLauncher
+                        : StartupBehavior::
+                              Silent;
+            }
+
             settings_.showTrayIcon =
                 general.value(
                     "showTrayIcon",
                     settings_
                         .showTrayIcon);
             settings_.popupMonitor =
-                general.value(
-                    "popupMonitor",
-                    settings_
-                        .popupMonitor);
+                NormalizePopupMonitor(
+                    general.value(
+                        "popupMonitor",
+                        settings_
+                            .popupMonitor));
         }
 
         if (root.contains("windowPlacement") &&
@@ -644,29 +702,11 @@ bool SettingsStore::LoadJson() {
                     settings_
                         .pinyinSearch);
 
-            settings_.wildcardMatching =
-                behavior.value(
-                    "wildcardMatching",
-                    settings_
-                        .wildcardMatching);
-
             settings_.numericQuickLaunch =
                 behavior.value(
                     "numericQuickLaunch",
                     settings_
                         .numericQuickLaunch);
-
-            const std::string numericOrder =
-                LowerAscii(
-                    behavior.value(
-                        "numericQuickLaunchOrder",
-                        settings_
-                            .numericQuickLaunchOrder));
-
-            settings_.numericQuickLaunchOrder =
-                numericOrder == "zero-to-nine"
-                    ? "zero-to-nine"
-                    : "one-to-zero";
 
             settings_
                 .executeSingleResultImmediately =
@@ -885,18 +925,16 @@ bool SettingsStore::Save() const {
         {"general", {
             {"startWithWindows",
              settings_.startWithWindows},
-            {"showOnStartup",
-             settings_.showOnStartup},
-            {"hideAfterLaunch",
-             settings_.hideAfterLaunch},
-            {"clearQueryOnShow",
-             settings_.clearQueryOnShow},
-            {"hideOnFocusLost",
-             settings_.hideOnFocusLost},
+            {"startupBehavior",
+             StartupBehaviorName(
+                 settings_.startupBehavior)},
             {"showTrayIcon",
              settings_.showTrayIcon},
+            {"addToSendToMenu",
+             settings_.addToSendToMenu},
             {"popupMonitor",
-             settings_.popupMonitor}
+             NormalizePopupMonitor(
+                 settings_.popupMonitor)}
         }},
         // Compatibility mirror retained so schema-3 binaries can still
         // read the user's global bindings during a read-only downgrade.
@@ -922,13 +960,8 @@ bool SettingsStore::Save() const {
         {"behavior", {
             {"pinyinSearch",
              settings_.pinyinSearch},
-            {"wildcardMatching",
-             settings_.wildcardMatching},
             {"numericQuickLaunch",
              settings_.numericQuickLaunch},
-            {"numericQuickLaunchOrder",
-             settings_
-                 .numericQuickLaunchOrder},
             {"executeSingleResultImmediately",
              settings_
                  .executeSingleResultImmediately}
@@ -1059,14 +1092,90 @@ bool SettingsStore::SetStartWithWindows(
     return true;
 }
 
-bool SettingsStore::SetShowOnStartup(
-    bool enabled) {
+bool SettingsStore::SetStartupBehavior(
+    StartupBehavior behavior) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
 
     const Settings previous =
         settings_;
 
-    settings_.showOnStartup =
+    settings_.startupBehavior =
+        behavior;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::SetShowTrayIcon(
+    bool enabled) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.showTrayIcon =
         enabled;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::SetAddToSendToMenu(
+    bool enabled) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.addToSendToMenu =
+        enabled;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::SetPopupMonitor(
+    std::string popupMonitor) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    popupMonitor =
+        NormalizePopupMonitor(
+            std::move(popupMonitor));
+
+    if (settings_.popupMonitor ==
+        popupMonitor) {
+        return true;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.popupMonitor =
+        std::move(popupMonitor);
 
     if (!Save()) {
         settings_ = previous;
@@ -1162,31 +1271,19 @@ bool SettingsStore::ResetHotkeyBindings() {
 }
 
 bool SettingsStore::SetClassicBehavior(
-    bool wildcardMatching,
     bool numericQuickLaunch,
-    std::string numericQuickLaunchOrder,
     bool executeSingleResultImmediately,
     bool pinyinSearch) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
 
     const Settings previous =
         settings_;
 
-    settings_.wildcardMatching =
-        wildcardMatching;
     settings_.numericQuickLaunch =
         numericQuickLaunch;
-
-    numericQuickLaunchOrder =
-        LowerAscii(
-            std::move(
-                numericQuickLaunchOrder));
-
-    settings_.numericQuickLaunchOrder =
-        numericQuickLaunchOrder ==
-                "zero-to-nine"
-            ? "zero-to-nine"
-            : "one-to-zero";
-
     settings_
         .executeSingleResultImmediately =
             executeSingleResultImmediately;
@@ -1427,34 +1524,5 @@ bool SettingsStore::ResetDefaults() {
     return true;
 }
 
-void SettingsStore::SetGeneral(
-    bool hideAfterLaunch,
-    bool clearQueryOnShow,
-    bool hideOnFocusLost,
-    bool showTrayIcon,
-    std::string popupMonitor) {
-
-    if (readOnlyDueToNewerSchema_) {
-        return;
-    }
-
-    const Settings previous =
-        settings_;
-
-    settings_.hideAfterLaunch =
-        hideAfterLaunch;
-    settings_.clearQueryOnShow =
-        clearQueryOnShow;
-    settings_.hideOnFocusLost =
-        hideOnFocusLost;
-    settings_.showTrayIcon =
-        showTrayIcon;
-    settings_.popupMonitor =
-        std::move(popupMonitor);
-
-    if (!Save()) {
-        settings_ = previous;
-    }
-}
 
 } // namespace altrun

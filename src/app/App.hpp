@@ -38,7 +38,9 @@ class App {
 public:
     explicit App(
         HINSTANCE instance,
-        std::wstring startupHealthEvent = {});
+        std::wstring startupHealthEvent = {},
+        std::vector<std::wstring>
+            startupShortcutPaths = {});
     ~App();
 
     int Run();
@@ -119,7 +121,12 @@ public:
     void SetLanguage(Language language);
     bool SetShowResultIcons(bool enabled);
     bool SetStartWithWindows(bool enabled);
-    bool SetShowOnStartup(bool enabled);
+    bool SetStartupBehavior(
+        StartupBehavior behavior);
+    bool SetShowTrayIcon(bool enabled);
+    bool SetAddToSendToMenu(bool enabled);
+    bool SetPopupMonitor(
+        std::string popupMonitor);
     bool SetHotkeySettings(
         std::vector<std::string> modifiers,
         std::string key);
@@ -138,9 +145,7 @@ public:
     HotkeyActionLastError(
         std::string_view actionId) const noexcept;
     bool SetClassicBehavior(
-        bool wildcardMatching,
         bool numericQuickLaunch,
-        std::string numericQuickLaunchOrder,
         bool executeSingleResultImmediately,
         bool pinyinSearch);
     bool SetProviderEnabled(
@@ -195,13 +200,6 @@ public:
     AuxiliaryHotkeyLastError() const noexcept {
         return auxiliaryHotkeyLastError_;
     }
-
-    void SetGeneralSettings(
-        bool hideAfterLaunch,
-        bool clearQueryOnShow,
-        bool hideOnFocusLost,
-        bool showTrayIcon,
-        std::string popupMonitor);
 
     void ShowSettings();
     void ShowAbout();
@@ -271,6 +269,10 @@ private:
         bool forceRunAsAdmin = false);
     bool ApplyStartupRegistration(
         bool enabled) const;
+    bool ApplySendToRegistration(
+        bool enabled) const;
+    bool ForwardShortcutRequestsToExistingInstance()
+        const;
     bool RebindGlobalHotkey(
         const std::vector<std::string>& modifiers,
         std::string_view key);
@@ -387,6 +389,10 @@ private:
     bool updateSettingsChangedSinceCheck_{false};
     bool updateInstallWhenReady_{false};
     std::wstring startupHealthEvent_;
+    std::vector<std::wstring>
+        startupShortcutPaths_;
+    bool suppressStartupPresentation_{
+        false};
 
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};

@@ -212,6 +212,31 @@ EvaluateLauncherContextActions(
     return actions;
 }
 
+Command ShortcutSeedFromFileSystemPath(
+    std::wstring_view path) {
+    Command command;
+
+    command.keyword.clear();
+    command.target =
+        TrimWide(path);
+    command.type =
+        InferShortcutCommandType(
+            command.target);
+    command.title =
+        SuggestShortcutTitle(
+            command.target,
+            command.type);
+    command.icon = L"auto";
+    command.enabled = true;
+    command.runAsAdmin = false;
+    command.pinned = false;
+    command.source =
+        CommandSource::User;
+    command.basePriority = 120;
+
+    return command;
+}
+
 Command ShortcutSeedFromLauncherResult(
     const LauncherResult& result) {
     Command command;

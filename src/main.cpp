@@ -6,6 +6,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -17,6 +18,8 @@ struct StartupArguments {
     bool managedEverythingServiceEnabled{
         false};
     std::wstring updateHealthEvent;
+    std::vector<std::wstring>
+        shortcutPaths;
     bool valid{true};
 };
 
@@ -35,6 +38,30 @@ StartupArguments ParseArguments() {
     }
 
     if (argc == 1) {
+        LocalFree(argv);
+        return result;
+    }
+
+    if (argc >= 3 &&
+        std::wstring_view(argv[1]) ==
+            L"--add-shortcut") {
+        result.shortcutPaths.reserve(
+            static_cast<std::size_t>(
+                argc - 2));
+
+        for (int index = 2;
+             index < argc;
+             ++index) {
+            if (argv[index] &&
+                *argv[index] != L'\0') {
+                result.shortcutPaths
+                    .emplace_back(
+                        argv[index]);
+            }
+        }
+
+        result.valid =
+            !result.shortcutPaths.empty();
         LocalFree(argv);
         return result;
     }
@@ -158,7 +185,8 @@ int WINAPI wWinMain(
 
     altrun::App app(
         instance,
-        arguments.updateHealthEvent);
+        arguments.updateHealthEvent,
+        arguments.shortcutPaths);
     const int result = app.Run();
 
     if (SUCCEEDED(comResult)) {

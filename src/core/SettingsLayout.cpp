@@ -59,7 +59,9 @@ GeneralLayoutMetrics BuildGeneralLayout(
         scale(kFirstCardTopLogical);
     const int behaviorBottom =
         behaviorTop +
-        scale(kToggleRowLogical) * 7;
+        scale(kToggleRowLogical) * 3 +
+        scale(
+            ui::kSettingsComboRowLogical);
 
     const int searchTitleTop =
         behaviorBottom +
@@ -69,7 +71,7 @@ GeneralLayoutMetrics BuildGeneralLayout(
         scale(30);
     const int searchBottom =
         searchTop +
-        scale(kToggleRowLogical) * 5;
+        scale(kToggleRowLogical) * 4;
 
     const int placementTitleTop =
         searchBottom +

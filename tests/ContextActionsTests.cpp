@@ -155,6 +155,31 @@ int main() {
         assert(!actions.locateInExplorer);
     }
 
+    {
+        const Command fileSeed =
+            ShortcutSeedFromFileSystemPath(
+                L"D:\\Tools\\My App.exe");
+        assert(fileSeed.keyword.empty());
+        assert(fileSeed.title == L"My App");
+        assert(
+            fileSeed.target ==
+            L"D:\\Tools\\My App.exe");
+        assert(
+            fileSeed.type ==
+            CommandType::Application);
+        assert(
+            fileSeed.source ==
+            CommandSource::User);
+
+        const Command folderSeed =
+            ShortcutSeedFromFileSystemPath(
+                L"D:\\Work\\Projects\\");
+        assert(folderSeed.title == L"Projects");
+        assert(
+            folderSeed.type ==
+            CommandType::Folder);
+    }
+
     assert(
         CanRevealTargetInExplorer(
             L"%WINDIR%\\System32\\cmd.exe"));

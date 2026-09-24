@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5 — Settings Behavior Cleanup
+
+Alpha.5 turns the General page into a product-level Settings model instead of exposing Launcher implementation details. The page now has three focused groups: **Windows 与启动 / Windows & startup**, **搜索与执行 / Search & execution**, and **窗口位置 / Window placement**.
+
+Windows & startup contains only four real choices: Start with Windows, the three-state **启动行为 / Startup behavior** (silent / startup notification / show launcher), Show system tray icon, and **添加到“发送到”菜单 / Add to “Send to” menu**. Fresh installs default to a lightweight native startup notification; schema-9 users retain their old show-on-startup intent during schema-10 migration.
+
+Search & execution keeps result icons, Pinyin search, numeric quick launch, and single-result immediate execution. Successful execution now always hides the Launcher, every reveal starts with a clean query, focus loss hides the Launcher unless a modal/context action owns focus, wildcard syntax is always available, and numeric quick launch is permanently **1–9, 0**. The removed pseudo-settings are no longer serialized.
+
+Send To integration creates a normal Windows SendTo .lnk only when explicitly enabled. Explorer launches ALTRunNext.exe --add-shortcut <path>; a second instance forwards the request to the existing Launcher through bounded WM_COPYDATA, and the normal New Shortcut editor opens prefilled instead of silently creating data. The centralized Hotkey Registry adds **打开快捷项管理 / Open Shortcut Manager** (Alt+S by default) plus **退出 ALTRun Next / Exit ALTRun Next** (disabled by default).
+
+Settings schema is **10**. Classic ALTRun geometry, HiDPI 25/31/38/44/50px glyph resources, providers, Everything, updater and Modern Compact remain frozen. Windows fixed FileVersion/ProductVersion is `0.8.0.80`.
+
 ## v0.8.0-alpha.4.9 — Classic HiDPI Glyph Assets
 
 Alpha.4.9 keeps the original Classic Logo and Close artwork but removes the visible high-DPI block enlargement seen during the 100/125/150/175/200% real-Windows audit. The original 25×25 BMPs remain byte-for-byte unchanged and are still used at 100%; four deterministic higher-resolution resource tiers are added for the standard high-DPI targets: **31 / 38 / 44 / 50 px**.

@@ -41,6 +41,10 @@ public:
     void ApplyGeneralSettings();
     void ApplyResultIconPreference();
     void Toggle();
+    void ShowStartupNotification(
+        std::wstring_view activationHotkey);
+    void QueueNewShortcutForPath(
+        std::wstring path);
 
     [[nodiscard]] bool
     IsVisible() const noexcept {
@@ -51,6 +55,7 @@ public:
 private:
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kIconReadyMessage = WM_APP + 18;
+    static constexpr UINT kShortcutIpcMessage = WM_APP + 19;
     static constexpr UINT kMenuShow = 40001;
     static constexpr UINT kMenuReload = 40002;
     static constexpr UINT kMenuSettings = 40003;
@@ -132,8 +137,12 @@ private:
     [[nodiscard]] std::wstring ResultNumberLabel(
         std::size_t resultIndex) const;
     void MoveSelection(int delta);
-    void AddTrayIcon();
+    void AddTrayIcon(
+        bool force = false);
     void RemoveTrayIcon();
+    void ProcessPendingShortcutPaths();
+    void ShowNewShortcutForPath(
+        std::wstring_view path);
     void ShowTrayMenu(POINT point);
     void ShowResultContextMenu(
         POINT point);
@@ -183,6 +192,8 @@ private:
         resultIconJobs_;
     std::deque<ResultIconCompletion>
         resultIconCompletions_;
+    std::deque<std::wstring>
+        pendingShortcutPaths_;
     std::mutex resultIconWorkerMutex_;
     std::condition_variable
         resultIconWorkerCv_;
@@ -191,6 +202,7 @@ private:
     std::uint64_t resultIconEpoch_{0};
     std::uint64_t resultIconCacheTick_{0};
     bool trayIconAdded_{false};
+    bool notificationOnlyTrayIcon_{false};
     bool firstRevealPending_{true};
     bool imeComposing_{false};
     bool contextActionModalActive_{false};

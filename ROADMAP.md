@@ -233,6 +233,7 @@ In progress:
 - v0.8.0-alpha.4.7 makes Classic a lean visual skin: native BMP background loading, no runtime GDI+ JPEG decode, one cached bitmap DC, and allocation-free Classic row backgrounds/separators
 - v0.8.0-alpha.4.8 performs the Classic DPI audit: one cached constexpr geometry contract drives 100%/125%/150%/200% layout, row/divider/title/glyph metrics are regression-tested, and real-Windows Per-Monitor V2 visual validation remains mandatory before changing bitmap scaling policy
 - v0.8.0-alpha.4.9 keeps the original Classic Logo/X design while adding deterministic alpha-aware 25/31/38/44/50px DPI resource tiers; 100% remains byte-identical and standard 125/150/175/200% no longer enlarge the 25px bitmap at runtime
+- v0.8.0-alpha.5 cleans the Settings product model: three-state startup behavior, opt-in SendTo integration, intrinsic launcher lifecycle/search semantics, two new hotkey actions, and schema-10 removal of pseudo-settings while retaining all window placement preferences
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

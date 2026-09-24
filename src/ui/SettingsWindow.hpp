@@ -61,26 +61,19 @@ private:
     static constexpr UINT
         kIdStartWithWindows = 51100;
     static constexpr UINT
-        kIdHideAfterLaunch = 51101;
-    static constexpr UINT
-        kIdClearQueryOnShow = 51102;
-    static constexpr UINT
-        kIdHideOnFocusLost = 51103;
-    static constexpr UINT
         kIdShowTrayIcon = 51104;
     static constexpr UINT
         kIdPopupMonitor = 51105;
     static constexpr UINT
-        kIdShowOnStartup = 51106;
+        kIdStartupBehavior = 51106;
     static constexpr UINT
         kIdLauncherPlacement = 51107;
     static constexpr UINT
         kIdSettingsPlacement = 51108;
     static constexpr UINT
         kIdShortcutManagerPlacement = 51109;
-
     static constexpr UINT
-        kIdWildcardMatching = 51130;
+        kIdAddToSendToMenu = 51110;
 
     static constexpr UINT
         kIdHotkeyResetAll = 51705;
@@ -94,8 +87,6 @@ private:
         kIdNumericQuickLaunch = 51131;
     static constexpr UINT
         kIdExecuteSingleResult = 51132;
-    static constexpr UINT
-        kIdNumericQuickLaunchOrder = 51133;
     static constexpr UINT
         kIdPinyinSearch = 51134;
 
@@ -191,6 +182,7 @@ private:
         UINT id);
     void ToggleProviderSetting(
         UINT id);
+    void ApplyStartupBehaviorControl();
     void ApplyMonitorControl();
     void ApplyWindowPlacementControls();
     void ApplyClassicBehaviorControl(
@@ -344,19 +336,15 @@ private:
 
     HWND generalBehaviorTitle_{};
     HWND startWithWindows_{};
-    HWND showOnStartup_{};
-    HWND hideAfterLaunch_{};
-    HWND clearQueryOnShow_{};
-    HWND hideOnFocusLost_{};
+    HWND startupBehaviorLabel_{};
+    HWND startupBehavior_{};
     HWND showTrayIcon_{};
-    HWND showResultIcons_{};
+    HWND addToSendToMenu_{};
     HWND searchBehaviorTitle_{};
+    HWND showResultIcons_{};
     HWND pinyinSearch_{};
-    HWND wildcardMatching_{};
     HWND numericQuickLaunch_{};
     HWND executeSingleResult_{};
-    HWND numericQuickLaunchOrderLabel_{};
-    HWND numericQuickLaunchOrder_{};
 
     HWND hotkeyGlobalTitle_{};
     HWND hotkeyLauncherTitle_{};

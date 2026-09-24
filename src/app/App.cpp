@@ -12,6 +12,7 @@
 #include "../core/WebAction.hpp"
 #include "Version.hpp"
 #include "../platform/Hotkey.hpp"
+#include "../platform/InstanceIpc.hpp"
 #include "../platform/WinClipboard.hpp"
 #include "../platform/WinUtil.hpp"
 #include "../ui/LauncherWindow.hpp"
@@ -19,8 +20,11 @@
 #include "../ui/ShortcutManagerWindow.hpp"
 
 #include <shellapi.h>
+#include <shlobj.h>
+#include <shobjidl.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <fstream>
@@ -73,6 +77,49 @@ CommandDetail(
     }
 
     return detail;
+}
+
+std::wstring FormatHotkeyBindingForStartup(
+    const HotkeyBinding& binding) {
+    std::wstring result;
+
+    const auto append =
+        [&](std::wstring_view value) {
+            if (!result.empty()) {
+                result += L" + ";
+            }
+            result += value;
+        };
+
+    for (const auto& modifier :
+         binding.modifiers) {
+        if (modifier == "ctrl") {
+            append(L"Ctrl");
+        } else if (modifier == "alt") {
+            append(L"Alt");
+        } else if (modifier == "shift") {
+            append(L"Shift");
+        } else if (modifier == "win") {
+            append(L"Win");
+        }
+    }
+
+    const UINT key =
+        hotkey::KeyFromName(
+            binding.key);
+
+    if (key != 0) {
+        append(
+            hotkey::KeyDisplayName(
+                key));
+    } else {
+        append(
+            std::wstring(
+                binding.key.begin(),
+                binding.key.end()));
+    }
+
+    return result;
 }
 
 bool ProbeDirectoryWritable(
@@ -128,7 +175,9 @@ bool ProbeDirectoryWritable(
 
 App::App(
     HINSTANCE instance,
-    std::wstring startupHealthEvent)
+    std::wstring startupHealthEvent,
+    std::vector<std::wstring>
+        startupShortcutPaths)
     : instance_(instance),
       baseDirectory_(win::ExecutableDirectory()),
       dataDirectory_(baseDirectory_ / "data"),
@@ -143,7 +192,12 @@ App::App(
           baseDirectory_ / "dict"),
       startupHealthEvent_(
           std::move(
-              startupHealthEvent)) {}
+              startupHealthEvent)),
+      startupShortcutPaths_(
+          std::move(
+              startupShortcutPaths)),
+      suppressStartupPresentation_(
+          !startupHealthEvent_.empty()) {}
 
 App::~App() {
     StopUpdateReconcileTimer();
@@ -240,6 +294,21 @@ int App::Run() {
     }
 
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        if (!startupShortcutPaths_.empty()) {
+            if (ForwardShortcutRequestsToExistingInstance()) {
+                return 0;
+            }
+
+            MessageBoxW(
+                nullptr,
+                settingsStore_.Data().language == Language::ZhCN
+                    ? L"ALTRun Next 已经在运行，但无法把“发送到”请求交给现有实例。"
+                    : L"ALTRun Next is already running, but the Send To request could not be forwarded to the existing instance.",
+                L"ALTRun Next",
+                MB_ICONWARNING | MB_OK);
+            return 1;
+        }
+
         MessageBoxW(
             nullptr,
             settingsStore_.Data().language == Language::ZhCN
@@ -267,6 +336,12 @@ int App::Run() {
 
     ApplyStartupRegistration(
         settingsStore_.Data().startWithWindows);
+
+    if (settingsStore_.Data()
+            .addToSendToMenu) {
+        ApplySendToRegistration(true);
+    }
+
     commandStore_.Reload(
         settingsStore_.Data()
             .providerEnabled);
@@ -326,8 +401,35 @@ int App::Run() {
         StartEverythingBootstrap(false);
     }
 
-    if (settingsStore_.Data().showOnStartup) {
-        window_->Show();
+    if (!startupShortcutPaths_.empty()) {
+        for (const auto& path :
+             startupShortcutPaths_) {
+            window_->
+                QueueNewShortcutForPath(
+                    path);
+        }
+    } else if (
+        !suppressStartupPresentation_) {
+        switch (settingsStore_.Data()
+                    .startupBehavior) {
+        case StartupBehavior::ShowLauncher:
+            window_->Show();
+            break;
+        case StartupBehavior::Notification: {
+            const auto binding =
+                EffectiveHotkeyBinding(
+                    settingsStore_.Data()
+                        .hotkeyBindings,
+                    hotkey_actions::kActivate);
+            window_->ShowStartupNotification(
+                FormatHotkeyBindingForStartup(
+                    binding));
+            break;
+        }
+        case StartupBehavior::Silent:
+        default:
+            break;
+        }
     }
 
     // Cached provider results are already searchable. Refresh automatic
@@ -513,8 +615,7 @@ std::vector<LauncherResult> App::Search(
             usageStore_.Data(),
             query,
             limit,
-            settingsStore_.Data()
-                .wildcardMatching,
+            true,
             settingsStore_.Data()
                 .pinyinSearch);
 
@@ -2107,7 +2208,20 @@ bool App::RestoreDefaultSettings() {
         return false;
     }
 
+    if (!ApplySendToRegistration(false)) {
+        RebindGlobalHotkey(
+            previous.hotkeyModifiers,
+            previous.hotkeyKey);
+        RebindAuxiliaryHotkey(
+            previous.auxiliaryHotkeyEnabled,
+            previous.auxiliaryHotkeyModifiers,
+            previous.auxiliaryHotkeyKey);
+        return false;
+    }
+
     if (!ApplyStartupRegistration(false)) {
+        ApplySendToRegistration(
+            previous.addToSendToMenu);
         RebindGlobalHotkey(
             previous.hotkeyModifiers,
             previous.hotkeyKey);
@@ -2121,6 +2235,8 @@ bool App::RestoreDefaultSettings() {
     if (!settingsStore_.ResetDefaults()) {
         ApplyStartupRegistration(
             previous.startWithWindows);
+        ApplySendToRegistration(
+            previous.addToSendToMenu);
 
         RebindGlobalHotkey(
             previous.hotkeyModifiers,
@@ -2475,13 +2591,84 @@ bool App::RepairGlobalHotkey(
     return primary && auxiliary;
 }
 
-bool App::SetShowOnStartup(
+bool App::SetStartupBehavior(
+    StartupBehavior behavior) {
+
+    if (!settingsStore_
+             .SetStartupBehavior(
+                 behavior)) {
+        return false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
+bool App::SetShowTrayIcon(
     bool enabled) {
 
     if (!settingsStore_
-             .SetShowOnStartup(
+             .SetShowTrayIcon(
                  enabled)) {
         return false;
+    }
+
+    if (window_) {
+        window_->ApplyGeneralSettings();
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
+bool App::SetAddToSendToMenu(
+    bool enabled) {
+
+    const bool previous =
+        settingsStore_.Data()
+            .addToSendToMenu;
+
+    if (!ApplySendToRegistration(
+            enabled)) {
+        return false;
+    }
+
+    if (!settingsStore_
+             .SetAddToSendToMenu(
+                 enabled)) {
+        ApplySendToRegistration(
+            previous);
+        return false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
+bool App::SetPopupMonitor(
+    std::string popupMonitor) {
+
+    if (!settingsStore_
+             .SetPopupMonitor(
+                 std::move(
+                     popupMonitor))) {
+        return false;
+    }
+
+    if (window_) {
+        window_->ApplyGeneralSettings();
     }
 
     if (settingsWindow_) {
@@ -2724,9 +2911,7 @@ DWORD App::HotkeyActionLastError(
 }
 
 bool App::SetClassicBehavior(
-    bool wildcardMatching,
     bool numericQuickLaunch,
-    std::string numericQuickLaunchOrder,
     bool executeSingleResultImmediately,
     bool pinyinSearch) {
 
@@ -2736,10 +2921,7 @@ bool App::SetClassicBehavior(
 
     if (!settingsStore_
              .SetClassicBehavior(
-                 wildcardMatching,
                  numericQuickLaunch,
-                 std::move(
-                     numericQuickLaunchOrder),
                  executeSingleResultImmediately,
                  pinyinSearch)) {
         return false;
@@ -3380,24 +3562,6 @@ bool App::StartUpdateDownloadAndInstall() {
     return true;
 }
 
-void App::SetGeneralSettings(
-    bool hideAfterLaunch,
-    bool clearQueryOnShow,
-    bool hideOnFocusLost,
-    bool showTrayIcon,
-    std::string popupMonitor) {
-
-    settingsStore_.SetGeneral(
-        hideAfterLaunch,
-        clearQueryOnShow,
-        hideOnFocusLost,
-        showTrayIcon,
-        std::move(popupMonitor));
-
-    if (window_) window_->ApplyGeneralSettings();
-    if (settingsWindow_) settingsWindow_->RefreshFromSettings();
-}
-
 bool App::SetWindowPlacementSettings(
     std::string launcherPlacement,
     std::string settingsPlacement,
@@ -3527,6 +3691,177 @@ bool App::ApplyStartupRegistration(
 
     RegCloseKey(key);
     return success;
+}
+
+bool App::ApplySendToRegistration(
+    bool enabled) const {
+
+    PWSTR sendToRaw = nullptr;
+
+    const HRESULT folderResult =
+        SHGetKnownFolderPath(
+            FOLDERID_SendTo,
+            KF_FLAG_CREATE,
+            nullptr,
+            &sendToRaw);
+
+    if (FAILED(folderResult) ||
+        !sendToRaw) {
+        CoTaskMemFree(sendToRaw);
+        return false;
+    }
+
+    std::filesystem::path linkPath(
+        sendToRaw);
+    CoTaskMemFree(sendToRaw);
+
+    linkPath /= L"ALTRun Next.lnk";
+
+    if (!enabled) {
+        std::error_code ec;
+        std::filesystem::remove(
+            linkPath,
+            ec);
+        return !ec;
+    }
+
+    std::array<wchar_t, 32768>
+        executable{};
+
+    const DWORD length =
+        GetModuleFileNameW(
+            nullptr,
+            executable.data(),
+            static_cast<DWORD>(
+                executable.size()));
+
+    if (length == 0 ||
+        length >= executable.size()) {
+        return false;
+    }
+
+    IShellLinkW* shellLink =
+        nullptr;
+
+    const HRESULT createResult =
+        CoCreateInstance(
+            CLSID_ShellLink,
+            nullptr,
+            CLSCTX_INPROC_SERVER,
+            IID_PPV_ARGS(
+                &shellLink));
+
+    if (FAILED(createResult) ||
+        !shellLink) {
+        return false;
+    }
+
+    bool success =
+        SUCCEEDED(
+            shellLink->SetPath(
+                executable.data())) &&
+        SUCCEEDED(
+            shellLink->SetArguments(
+                L"--add-shortcut")) &&
+        SUCCEEDED(
+            shellLink->SetWorkingDirectory(
+                baseDirectory_.c_str())) &&
+        SUCCEEDED(
+            shellLink->SetIconLocation(
+                executable.data(),
+                0)) &&
+        SUCCEEDED(
+            shellLink->SetDescription(
+                L"Add to ALTRun Next shortcuts"));
+
+    IPersistFile* persist =
+        nullptr;
+
+    if (success) {
+        success =
+            SUCCEEDED(
+                shellLink->QueryInterface(
+                    IID_PPV_ARGS(
+                        &persist)));
+    }
+
+    if (success &&
+        persist) {
+        success =
+            SUCCEEDED(
+                persist->Save(
+                    linkPath.c_str(),
+                    TRUE));
+    }
+
+    if (persist) {
+        persist->Release();
+    }
+    shellLink->Release();
+
+    return success;
+}
+
+bool App::
+ForwardShortcutRequestsToExistingInstance()
+    const {
+
+    HWND target = nullptr;
+
+    for (int attempt = 0;
+         attempt < 40 && !target;
+         ++attempt) {
+        target =
+            FindWindowW(
+                instance_ipc::
+                    kLauncherWindowClass,
+                nullptr);
+
+        if (!target) {
+            Sleep(50);
+        }
+    }
+
+    if (!target) {
+        return false;
+    }
+
+    for (const auto& path :
+         startupShortcutPaths_) {
+        if (path.empty()) {
+            continue;
+        }
+
+        COPYDATASTRUCT copyData{};
+        copyData.dwData =
+            instance_ipc::
+                kAddShortcutCopyData;
+        copyData.cbData =
+            static_cast<DWORD>(
+                (path.size() + 1) *
+                sizeof(wchar_t));
+        copyData.lpData =
+            const_cast<wchar_t*>(
+                path.c_str());
+
+        DWORD_PTR result = 0;
+
+        if (!SendMessageTimeoutW(
+                target,
+                WM_COPYDATA,
+                0,
+                reinterpret_cast<LPARAM>(
+                    &copyData),
+                SMTO_ABORTIFHUNG |
+                    SMTO_BLOCK,
+                3000,
+                &result) ||
+            result == 0) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void App::ShowSettings() {

@@ -666,208 +666,87 @@ void SettingsWindow::CreateControls() {
 }
 
 void SettingsWindow::CreateGeneralPage() {
-    generalBehaviorTitle_ =
-        CreateStatic(L"");
+    generalBehaviorTitle_ = CreateStatic(L"");
+    startWithWindows_ = CreateCheckboxRow(L"", kIdStartWithWindows);
 
-    startWithWindows_ =
-        CreateCheckboxRow(
-            L"",
-            kIdStartWithWindows);
-    showOnStartup_ =
-        CreateCheckboxRow(
-            L"",
-            kIdShowOnStartup);
-    hideAfterLaunch_ =
-        CreateCheckboxRow(
-            L"",
-            kIdHideAfterLaunch);
-    clearQueryOnShow_ =
-        CreateCheckboxRow(
-            L"",
-            kIdClearQueryOnShow);
-    hideOnFocusLost_ =
-        CreateCheckboxRow(
-            L"",
-            kIdHideOnFocusLost);
-    showTrayIcon_ =
-        CreateCheckboxRow(
-            L"",
-            kIdShowTrayIcon);
-    showResultIcons_ =
-        CreateCheckboxRow(
-            L"",
-            kIdShowResultIcons);
+    startupBehaviorLabel_ = CreateStatic(L"");
+    startupBehavior_ = CreateWindowExW(
+        0, L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+            CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 0, 0, 0, hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(kIdStartupBehavior)),
+        instance_, nullptr);
 
-    searchBehaviorTitle_ =
-        CreateStatic(L"");
+    showTrayIcon_ = CreateCheckboxRow(L"", kIdShowTrayIcon);
+    addToSendToMenu_ = CreateCheckboxRow(L"", kIdAddToSendToMenu);
 
-    pinyinSearch_ =
-        CreateCheckboxRow(
-            L"",
-            kIdPinyinSearch);
-    wildcardMatching_ =
-        CreateCheckboxRow(
-            L"",
-            kIdWildcardMatching);
-    numericQuickLaunch_ =
-        CreateCheckboxRow(
-            L"",
-            kIdNumericQuickLaunch);
-    executeSingleResult_ =
-        CreateCheckboxRow(
-            L"",
-            kIdExecuteSingleResult);
+    searchBehaviorTitle_ = CreateStatic(L"");
+    showResultIcons_ = CreateCheckboxRow(L"", kIdShowResultIcons);
+    pinyinSearch_ = CreateCheckboxRow(L"", kIdPinyinSearch);
+    numericQuickLaunch_ = CreateCheckboxRow(L"", kIdNumericQuickLaunch);
+    executeSingleResult_ = CreateCheckboxRow(L"", kIdExecuteSingleResult);
 
-    numericQuickLaunchOrderLabel_ =
-        CreateStatic(L"");
+    placementSectionTitle_ = CreateStatic(L"");
+    popupMonitorLabel_ = CreateStatic(L"");
+    popupMonitorDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
+    popupMonitor_ = CreateWindowExW(
+        0, L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+            CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 0, 0, 0, hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(kIdPopupMonitor)),
+        instance_, nullptr);
 
-    numericQuickLaunchOrder_ =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdNumericQuickLaunchOrder)),
-            instance_,
-            nullptr);
+    launcherPlacementLabel_ = CreateStatic(L"");
+    launcherPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
+    launcherPlacement_ = CreateWindowExW(
+        0, L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+            CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 0, 0, 0, hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(kIdLauncherPlacement)),
+        instance_, nullptr);
 
-    placementSectionTitle_ =
-        CreateStatic(L"");
+    settingsPlacementLabel_ = CreateStatic(L"");
+    settingsPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
+    settingsPlacement_ = CreateWindowExW(
+        0, L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+            CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 0, 0, 0, hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(kIdSettingsPlacement)),
+        instance_, nullptr);
 
-    popupMonitorLabel_ =
-        CreateStatic(L"");
-    popupMonitorDescription_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-    popupMonitor_ =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdPopupMonitor)),
-            instance_,
-            nullptr);
+    shortcutManagerPlacementLabel_ = CreateStatic(L"");
+    shortcutManagerPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
+    shortcutManagerPlacement_ = CreateWindowExW(
+        0, L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+            CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 0, 0, 0, hwnd_,
+        reinterpret_cast<HMENU>(
+            static_cast<UINT_PTR>(kIdShortcutManagerPlacement)),
+        instance_, nullptr);
 
-    launcherPlacementLabel_ =
-        CreateStatic(L"");
-    launcherPlacementDescription_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-    launcherPlacement_ =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdLauncherPlacement)),
-            instance_,
-            nullptr);
-
-    settingsPlacementLabel_ =
-        CreateStatic(L"");
-    settingsPlacementDescription_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-    settingsPlacement_ =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdSettingsPlacement)),
-            instance_,
-            nullptr);
-
-    shortcutManagerPlacementLabel_ =
-        CreateStatic(L"");
-    shortcutManagerPlacementDescription_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-    shortcutManagerPlacement_ =
-        CreateWindowExW(
-            0,
-            L"COMBOBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE |
-                WS_TABSTOP |
-                CBS_DROPDOWNLIST |
-                WS_VSCROLL,
-            0, 0, 0, 0,
-            hwnd_,
-            reinterpret_cast<HMENU>(
-                static_cast<UINT_PTR>(
-                    kIdShortcutManagerPlacement)),
-            instance_,
-            nullptr);
-
-    generalNote_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
+    generalNote_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
 
     generalControls_ = {
-        generalBehaviorTitle_,
-        startWithWindows_,
-        showOnStartup_,
-        hideAfterLaunch_,
-        clearQueryOnShow_,
-        hideOnFocusLost_,
-        showTrayIcon_,
-        showResultIcons_,
-        searchBehaviorTitle_,
-        pinyinSearch_,
-        wildcardMatching_,
-        numericQuickLaunch_,
-        executeSingleResult_,
-        numericQuickLaunchOrderLabel_,
-        numericQuickLaunchOrder_,
+        generalBehaviorTitle_, startWithWindows_,
+        startupBehaviorLabel_, startupBehavior_,
+        showTrayIcon_, addToSendToMenu_,
+        searchBehaviorTitle_, showResultIcons_, pinyinSearch_,
+        numericQuickLaunch_, executeSingleResult_,
         placementSectionTitle_,
-        popupMonitorLabel_,
-        popupMonitorDescription_,
-        popupMonitor_,
-        launcherPlacementLabel_,
-        launcherPlacementDescription_,
-        launcherPlacement_,
-        settingsPlacementLabel_,
-        settingsPlacementDescription_,
-        settingsPlacement_,
-        shortcutManagerPlacementLabel_,
-        shortcutManagerPlacementDescription_,
-        shortcutManagerPlacement_,
-        generalNote_,
+        popupMonitorLabel_, popupMonitorDescription_, popupMonitor_,
+        launcherPlacementLabel_, launcherPlacementDescription_, launcherPlacement_,
+        settingsPlacementLabel_, settingsPlacementDescription_, settingsPlacement_,
+        shortcutManagerPlacementLabel_, shortcutManagerPlacementDescription_,
+        shortcutManagerPlacement_, generalNote_,
     };
 }
 
@@ -1254,18 +1133,14 @@ void SettingsWindow::ApplyFonts() {
         navAbout_,
         pageDescription_,
         startWithWindows_,
-        showOnStartup_,
-        hideAfterLaunch_,
-        clearQueryOnShow_,
-        hideOnFocusLost_,
+        startupBehaviorLabel_,
+        startupBehavior_,
         showTrayIcon_,
+        addToSendToMenu_,
         showResultIcons_,
         pinyinSearch_,
-        wildcardMatching_,
         numericQuickLaunch_,
         executeSingleResult_,
-        numericQuickLaunchOrderLabel_,
-        numericQuickLaunchOrder_,
         popupMonitorLabel_,
         popupMonitorDescription_,
         popupMonitor_,
@@ -1428,75 +1303,25 @@ void SettingsWindow::ApplyLanguage() {
         L"Next");
     SetWindowTextW(
         generalBehaviorTitle_,
-        T(L"启动器行为",
-          L"Launcher behavior"));
-    SetWindowTextW(
-        startWithWindows_,
-        T(L"开机启动",
-          L"Start with Windows"));
-    SetWindowTextW(
-        showOnStartup_,
-        T(L"启动时显示启动器",
-          L"Show launcher on startup"));
-    SetWindowTextW(
-        hideAfterLaunch_,
-        T(L"执行后自动隐藏",
-          L"Hide after launch"));
-    SetWindowTextW(
-        clearQueryOnShow_,
-        T(L"呼出时清空搜索",
-          L"Clear query on open"));
-    SetWindowTextW(
-        hideOnFocusLost_,
-        T(L"失去焦点时隐藏",
-          L"Hide when focus is lost"));
-    SetWindowTextW(
-        showTrayIcon_,
-        T(L"显示系统托盘图标",
-          L"Show system tray icon"));
-    SetWindowTextW(
-        showResultIcons_,
-        T(L"显示搜索结果图标",
-          L"Show search result icons"));
+        T(L"Windows 与启动", L"Windows & startup"));
+    SetWindowTextW(startWithWindows_, T(L"开机启动", L"Start with Windows"));
+    SetWindowTextW(startupBehaviorLabel_, T(L"启动行为", L"Startup behavior"));
+    SendMessageW(startupBehavior_, CB_RESETCONTENT, 0, 0);
+    SendMessageW(startupBehavior_, CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(T(L"静默启动", L"Start silently")));
+    SendMessageW(startupBehavior_, CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(T(L"显示启动通知", L"Show startup notification")));
+    SendMessageW(startupBehavior_, CB_ADDSTRING, 0,
+        reinterpret_cast<LPARAM>(T(L"显示启动器", L"Show launcher")));
+    SetWindowTextW(showTrayIcon_, T(L"显示系统托盘图标", L"Show system tray icon"));
+    SetWindowTextW(addToSendToMenu_, T(L"添加到“发送到”菜单", L"Add to “Send to” menu"));
 
-    SetWindowTextW(
-        searchBehaviorTitle_,
-        T(L"搜索行为",
-          L"Search behavior"));
-    SetWindowTextW(
-        pinyinSearch_,
-        T(L"启用拼音搜索",
-          L"Enable Pinyin search"));
-    SetWindowTextW(
-        wildcardMatching_,
-        T(L"允许 * / ? 通配符",
-          L"Enable * / ? wildcards"));
-    SetWindowTextW(
-        numericQuickLaunch_,
-        T(L"数字键快速执行结果",
-          L"Quick launch with number keys"));
-    SetWindowTextW(
-        executeSingleResult_,
-        T(L"仅剩一个结果时立即执行",
-          L"Execute immediately when one result remains"));
-    SetWindowTextW(
-        numericQuickLaunchOrderLabel_,
-        T(L"数字顺序",
-          L"Number order"));
-
-    SendMessageW(
-        numericQuickLaunchOrder_,
-        CB_RESETCONTENT, 0, 0);
-    SendMessageW(
-        numericQuickLaunchOrder_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            L"1–9, 0"));
-    SendMessageW(
-        numericQuickLaunchOrder_,
-        CB_ADDSTRING, 0,
-        reinterpret_cast<LPARAM>(
-            L"0–9"));
+    SetWindowTextW(searchBehaviorTitle_, T(L"搜索与执行", L"Search & execution"));
+    SetWindowTextW(showResultIcons_, T(L"显示搜索结果图标", L"Show search result icons"));
+    SetWindowTextW(pinyinSearch_, T(L"启用拼音搜索", L"Enable Pinyin search"));
+    SetWindowTextW(numericQuickLaunch_, T(L"数字键快速执行结果", L"Quick launch with number keys"));
+    SetWindowTextW(executeSingleResult_,
+        T(L"仅剩一个结果时立即执行", L"Execute immediately when one result remains"));
 
     SetWindowTextW(
         placementSectionTitle_,
@@ -1828,6 +1653,11 @@ void SettingsWindow::RefreshFromSettings() {
     const auto& settings =
         app_.SettingsData();
 
+    int startupBehaviorIndex = 1;
+    if (settings.startupBehavior == StartupBehavior::Silent) startupBehaviorIndex = 0;
+    else if (settings.startupBehavior == StartupBehavior::ShowLauncher) startupBehaviorIndex = 2;
+    SendMessageW(startupBehavior_, CB_SETCURSEL, startupBehaviorIndex, 0);
+
     int monitorIndex = 0;
     if (settings.popupMonitor == "active") {
         monitorIndex = 1;
@@ -1933,45 +1763,17 @@ void SettingsWindow::RefreshFromSettings() {
             : BST_UNCHECKED,
         0);
 
-    SendMessageW(
-        numericQuickLaunchOrder_,
-        CB_SETCURSEL,
-        settings.numericQuickLaunchOrder ==
-                "zero-to-nine"
-            ? 1
-            : 0,
-        0);
-
-    EnableWindow(
-        numericQuickLaunchOrder_,
-        settings.numericQuickLaunch
-            ? TRUE
-            : FALSE);
-
     RefreshHotkeyPage();
     RefreshUpdateStatus();
     SyncUpdateStatusTimer();
 
     for (HWND control :
-         std::array<HWND, 18>{
-             startWithWindows_,
-             showOnStartup_,
-             hideAfterLaunch_,
-             clearQueryOnShow_,
-             hideOnFocusLost_,
-             showTrayIcon_,
-             showResultIcons_,
-             pinyinSearch_,
-             wildcardMatching_,
-             numericQuickLaunch_,
-             executeSingleResult_,
-             providerStartMenu_,
-             providerPackaged_,
-             providerAppPaths_,
-             providerPath_,
-             providerEverything_,
-             updateAutoCheck_,
-             updatePrerelease_}) {
+         std::array<HWND, 14>{
+             startWithWindows_, showTrayIcon_, addToSendToMenu_,
+             showResultIcons_, pinyinSearch_, numericQuickLaunch_,
+             executeSingleResult_, providerStartMenu_, providerPackaged_,
+             providerAppPaths_, providerPath_, providerEverything_,
+             updateAutoCheck_, updatePrerelease_}) {
         if (control) {
             InvalidateRect(
                 control,
@@ -2001,11 +1803,14 @@ std::wstring SettingsWindow::HotkeyActionLabel(
             L"辅助唤起",
             L"Secondary activation");
     }
-    if (actionId ==
-        hotkey_actions::kOpenSettings) {
-        return T(
-            L"打开设置",
-            L"Open Settings");
+    if (actionId == hotkey_actions::kOpenSettings) {
+        return T(L"打开设置", L"Open Settings");
+    }
+    if (actionId == hotkey_actions::kOpenShortcutManager) {
+        return T(L"打开快捷项管理", L"Open Shortcut Manager");
+    }
+    if (actionId == hotkey_actions::kExitApplication) {
+        return T(L"退出 ALTRun Next", L"Exit ALTRun Next");
     }
     if (actionId ==
         hotkey_actions::
@@ -3198,84 +3003,26 @@ void SettingsWindow::ShowPage(Page page) {
             RDW_UPDATENOW);
 }
 
-void SettingsWindow::ApplyClassicBehaviorControl(
-    UINT id) {
-
+void SettingsWindow::ApplyClassicBehaviorControl(UINT id) {
     if (syncing_) return;
-
-    const auto settings =
-        app_.SettingsData();
-
-    bool pinyinSearch =
-        settings.pinyinSearch;
-    bool wildcardMatching =
-        settings.wildcardMatching;
-    bool numericQuickLaunch =
-        settings.numericQuickLaunch;
-    bool executeSingleResult =
-        settings
-            .executeSingleResultImmediately;
+    bool pinyinSearch = app_.SettingsData().pinyinSearch;
+    bool numericQuickLaunch = app_.SettingsData().numericQuickLaunch;
+    bool executeSingleResult = app_.SettingsData().executeSingleResultImmediately;
 
     switch (id) {
-    case kIdPinyinSearch:
-        pinyinSearch =
-            !pinyinSearch;
-        break;
-    case kIdWildcardMatching:
-        wildcardMatching =
-            !wildcardMatching;
-        break;
-    case kIdNumericQuickLaunch:
-        numericQuickLaunch =
-            !numericQuickLaunch;
-        break;
-    case kIdExecuteSingleResult:
-        executeSingleResult =
-            !executeSingleResult;
-        break;
-    case kIdNumericQuickLaunchOrder:
-    case 0:
-        break;
-    default:
-        return;
+    case kIdPinyinSearch: pinyinSearch = !pinyinSearch; break;
+    case kIdNumericQuickLaunch: numericQuickLaunch = !numericQuickLaunch; break;
+    case kIdExecuteSingleResult: executeSingleResult = !executeSingleResult; break;
+    case 0: break;
+    default: return;
     }
 
-    const int orderIndex =
-        static_cast<int>(
-            SendMessageW(
-                numericQuickLaunchOrder_,
-                CB_GETCURSEL,
-                0,
-                0));
-
-    const std::string order =
-        orderIndex == 1
-            ? "zero-to-nine"
-            : "one-to-zero";
-
-    if (!app_.SetClassicBehavior(
-            wildcardMatching,
-            numericQuickLaunch,
-            order,
-            executeSingleResult,
-            pinyinSearch)) {
-
-        MessageBoxW(
-            hwnd_,
-            T(L"无法保存搜索行为设置。",
-              L"Unable to save search-behavior settings."),
-            L"ALTRun Next",
-            MB_OK | MB_ICONERROR);
-
+    if (!app_.SetClassicBehavior(numericQuickLaunch, executeSingleResult, pinyinSearch)) {
+        MessageBoxW(hwnd_,
+            T(L"无法保存搜索与执行设置。", L"Unable to save search and execution settings."),
+            L"ALTRun Next", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
-        return;
     }
-
-    EnableWindow(
-        numericQuickLaunchOrder_,
-        numericQuickLaunch
-            ? TRUE
-            : FALSE);
 }
 
 
@@ -3462,76 +3209,20 @@ void SettingsWindow::RestoreDefaultSettings() {
 
 void SettingsWindow::ToggleGeneralSetting(UINT id) {
     if (syncing_) return;
-
     const auto settings = app_.SettingsData();
-
-    bool hideAfterLaunch = settings.hideAfterLaunch;
-    bool clearQueryOnShow = settings.clearQueryOnShow;
-    bool hideOnFocusLost = settings.hideOnFocusLost;
-    bool showTrayIcon = settings.showTrayIcon;
-
+    bool success = true;
     switch (id) {
-    case kIdStartWithWindows:
-        if (!app_.SetStartWithWindows(
-                !settings.startWithWindows)) {
-            MessageBoxW(
-                hwnd_,
-                T(L"无法更新 Windows 开机启动项。",
-                  L"Unable to update the Windows startup entry."),
-                L"ALTRun Next",
-                MB_OK | MB_ICONERROR);
-            RefreshFromSettings();
-        }
-        return;
-
-    case kIdShowOnStartup:
-        if (!app_.SetShowOnStartup(
-                !settings.showOnStartup)) {
-            MessageBoxW(
-                hwnd_,
-                T(L"无法保存启动时显示设置。",
-                  L"Unable to save the show-on-startup setting."),
-                L"ALTRun Next",
-                MB_OK | MB_ICONERROR);
-            RefreshFromSettings();
-        }
-        return;
-
-    case kIdShowResultIcons:
-        if (!app_.SetShowResultIcons(
-                !settings.showResultIcons)) {
-            MessageBoxW(
-                hwnd_,
-                T(L"无法保存搜索结果图标设置。",
-                  L"Unable to save the result-icon setting."),
-                L"ALTRun Next",
-                MB_OK | MB_ICONERROR);
-            RefreshFromSettings();
-        }
-        return;
-
-    case kIdHideAfterLaunch:
-        hideAfterLaunch = !hideAfterLaunch;
-        break;
-    case kIdClearQueryOnShow:
-        clearQueryOnShow = !clearQueryOnShow;
-        break;
-    case kIdHideOnFocusLost:
-        hideOnFocusLost = !hideOnFocusLost;
-        break;
-    case kIdShowTrayIcon:
-        showTrayIcon = !showTrayIcon;
-        break;
-    default:
-        return;
+    case kIdStartWithWindows: success = app_.SetStartWithWindows(!settings.startWithWindows); break;
+    case kIdShowTrayIcon: success = app_.SetShowTrayIcon(!settings.showTrayIcon); break;
+    case kIdAddToSendToMenu: success = app_.SetAddToSendToMenu(!settings.addToSendToMenu); break;
+    case kIdShowResultIcons: success = app_.SetShowResultIcons(!settings.showResultIcons); break;
+    default: return;
     }
-
-    app_.SetGeneralSettings(
-        hideAfterLaunch,
-        clearQueryOnShow,
-        hideOnFocusLost,
-        showTrayIcon,
-        settings.popupMonitor);
+    if (!success) {
+        MessageBoxW(hwnd_, T(L"无法保存此设置。", L"Unable to save this setting."),
+            L"ALTRun Next", MB_OK | MB_ICONERROR);
+        RefreshFromSettings();
+    }
 }
 
 
@@ -3723,37 +3414,33 @@ void SettingsWindow::CommitPendingProviderChanges() {
     }
 }
 
+void SettingsWindow::ApplyStartupBehaviorControl() {
+    if (syncing_) return;
+    const int index = static_cast<int>(SendMessageW(startupBehavior_, CB_GETCURSEL, 0, 0));
+    StartupBehavior behavior = StartupBehavior::Notification;
+    if (index == 0) behavior = StartupBehavior::Silent;
+    else if (index == 2) behavior = StartupBehavior::ShowLauncher;
+    if (!app_.SetStartupBehavior(behavior)) {
+        MessageBoxW(hwnd_, T(L"无法保存启动行为设置。", L"Unable to save startup behavior."),
+            L"ALTRun Next", MB_OK | MB_ICONERROR);
+        RefreshFromSettings();
+    }
+}
+
+
 void SettingsWindow::ApplyMonitorControl() {
     if (syncing_) return;
-
-    const auto settings =
-        app_.SettingsData();
-
-    const int monitorIndex =
-        static_cast<int>(
-            SendMessageW(
-                popupMonitor_,
-                CB_GETCURSEL,
-                0,
-                0));
-
-    std::string popupMonitor =
-        "cursor";
-
-    if (monitorIndex == 1) {
-        popupMonitor = "active";
-    } else if (monitorIndex == 2) {
-        popupMonitor = "primary";
+    const int monitorIndex = static_cast<int>(SendMessageW(popupMonitor_, CB_GETCURSEL, 0, 0));
+    std::string popupMonitor = "cursor";
+    if (monitorIndex == 1) popupMonitor = "active";
+    else if (monitorIndex == 2) popupMonitor = "primary";
+    if (!app_.SetPopupMonitor(std::move(popupMonitor))) {
+        MessageBoxW(hwnd_, T(L"无法保存启动器显示器设置。", L"Unable to save the launcher monitor setting."),
+            L"ALTRun Next", MB_OK | MB_ICONERROR);
+        RefreshFromSettings();
     }
-
-    app_.SetGeneralSettings(
-        settings.hideAfterLaunch,
-        settings.clearQueryOnShow,
-        settings.hideOnFocusLost,
-        settings.showTrayIcon,
-        std::move(
-            popupMonitor));
 }
+
 
 void SettingsWindow::ApplyWindowPlacementControls() {
     if (syncing_) return;
@@ -3875,20 +3562,10 @@ bool SettingsWindow::ToggleChecked(
         };
 
     switch (id) {
-    case kIdStartWithWindows:
-        return settings.startWithWindows;
-    case kIdShowOnStartup:
-        return settings.showOnStartup;
-    case kIdHideAfterLaunch:
-        return settings.hideAfterLaunch;
-    case kIdClearQueryOnShow:
-        return settings.clearQueryOnShow;
-    case kIdHideOnFocusLost:
-        return settings.hideOnFocusLost;
-    case kIdShowTrayIcon:
-        return settings.showTrayIcon;
-    case kIdShowResultIcons:
-        return settings.showResultIcons;
+    case kIdStartWithWindows: return settings.startWithWindows;
+    case kIdShowTrayIcon: return settings.showTrayIcon;
+    case kIdAddToSendToMenu: return settings.addToSendToMenu;
+    case kIdShowResultIcons: return settings.showResultIcons;
     case kIdUpdateAutoCheck:
         return settings.autoCheckUpdates;
     case kIdUpdatePrerelease:
@@ -3896,8 +3573,6 @@ bool SettingsWindow::ToggleChecked(
             UpdateChannel::Development;
     case kIdPinyinSearch:
         return settings.pinyinSearch;
-    case kIdWildcardMatching:
-        return settings.wildcardMatching;
     case kIdNumericQuickLaunch:
         return settings.numericQuickLaunch;
     case kIdExecuteSingleResult:
@@ -4266,97 +3941,38 @@ void SettingsWindow::Layout() {
             Scale(26),
             TRUE);
 
-        const int toggleHeight =
-            Scale(
-                settings_layout::
-                    kToggleRowLogical);
+        const int toggleHeight = Scale(settings_layout::kToggleRowLogical);
+        const int comboRowHeight = Scale(ui::kSettingsComboRowLogical);
+        const int behaviorX = metrics.behavior.left + Scale(1);
+        const int behaviorWidth = metrics.behavior.right - metrics.behavior.left - Scale(2);
 
-        const int behaviorX =
-            metrics.behavior.left +
-            Scale(1);
-        const int behaviorWidth =
-            metrics.behavior.right -
-            metrics.behavior.left -
-            Scale(2);
+        MoveWindow(startWithWindows_, behaviorX, metrics.behavior.top + Scale(1),
+            behaviorWidth, toggleHeight, TRUE);
 
-        std::array<HWND, 7> behaviorRows{
-            startWithWindows_,
-            showOnStartup_,
-            hideAfterLaunch_,
-            clearQueryOnShow_,
-            hideOnFocusLost_,
-            showTrayIcon_,
-            showResultIcons_,
-        };
+        const int startupTop = metrics.behavior.top + toggleHeight;
+        const int comboWidth = Scale(180);
+        const int comboX = metrics.behavior.right - comboWidth - Scale(18);
+        const int labelX = metrics.behavior.left + Scale(18);
+        MoveWindow(startupBehaviorLabel_, labelX, startupTop + Scale(15),
+            std::max(Scale(150), comboX - labelX - Scale(16)), Scale(24), TRUE);
+        MoveWindow(startupBehavior_, comboX, startupTop + Scale(10),
+            comboWidth, Scale(180), TRUE);
 
-        for (std::size_t i = 0;
-             i < behaviorRows.size();
-             ++i) {
-            MoveWindow(
-                behaviorRows[i],
-                behaviorX,
-                metrics.behavior.top +
-                    Scale(1) +
-                    static_cast<int>(i) *
-                        toggleHeight,
-                behaviorWidth,
-                toggleHeight,
-                TRUE);
-        }
+        const int trayTop = startupTop + comboRowHeight;
+        MoveWindow(showTrayIcon_, behaviorX, trayTop, behaviorWidth, toggleHeight, TRUE);
+        MoveWindow(addToSendToMenu_, behaviorX, trayTop + toggleHeight,
+            behaviorWidth, toggleHeight, TRUE);
 
-        const int searchX =
-            metrics.search.left +
-            Scale(1);
-        const int searchWidth =
-            metrics.search.right -
-            metrics.search.left -
-            Scale(2);
-
+        const int searchX = metrics.search.left + Scale(1);
+        const int searchWidth = metrics.search.right - metrics.search.left - Scale(2);
         std::array<HWND, 4> searchRows{
-            pinyinSearch_,
-            wildcardMatching_,
-            numericQuickLaunch_,
-            executeSingleResult_,
+            showResultIcons_, pinyinSearch_, numericQuickLaunch_, executeSingleResult_,
         };
-
-        for (std::size_t i = 0;
-             i < searchRows.size();
-             ++i) {
-            MoveWindow(
-                searchRows[i],
-                searchX,
-                metrics.search.top +
-                    Scale(1) +
-                    static_cast<int>(i) *
-                        toggleHeight,
-                searchWidth,
-                toggleHeight,
-                TRUE);
+        for (std::size_t i = 0; i < searchRows.size(); ++i) {
+            MoveWindow(searchRows[i], searchX,
+                metrics.search.top + Scale(1) + static_cast<int>(i) * toggleHeight,
+                searchWidth, toggleHeight, TRUE);
         }
-
-        const int orderTop =
-            metrics.search.top +
-            toggleHeight * 4;
-
-        MoveWindow(
-            numericQuickLaunchOrderLabel_,
-            metrics.search.left +
-                Scale(18),
-            orderTop +
-                Scale(13),
-            Scale(150),
-            Scale(24),
-            TRUE);
-
-        MoveWindow(
-            numericQuickLaunchOrder_,
-            metrics.search.right -
-                Scale(118),
-            orderTop +
-                Scale(9),
-            Scale(100),
-            Scale(180),
-            TRUE);
 
         MoveWindow(
             placementSectionTitle_,
@@ -6138,50 +5754,14 @@ void SettingsWindow::DrawGeneralToggle(
     const wchar_t* title = L"";
 
     switch (id) {
-    case kIdStartWithWindows:
-        title =
-            T(L"开机启动",
-              L"Start with Windows");
-        break;
-    case kIdShowOnStartup:
-        title =
-            T(L"启动时显示启动器",
-              L"Show launcher on startup");
-        break;
-    case kIdHideAfterLaunch:
-        title =
-            T(L"执行后自动隐藏",
-              L"Hide after launch");
-        break;
-    case kIdClearQueryOnShow:
-        title =
-            T(L"呼出时清空搜索",
-              L"Clear query on open");
-        break;
-    case kIdHideOnFocusLost:
-        title =
-            T(L"失去焦点时隐藏",
-              L"Hide when focus is lost");
-        break;
-    case kIdShowTrayIcon:
-        title =
-            T(L"显示系统托盘图标",
-              L"Show system tray icon");
-        break;
-    case kIdShowResultIcons:
-        title =
-            T(L"显示搜索结果图标",
-              L"Show search result icons");
-        break;
+    case kIdStartWithWindows: title = T(L"开机启动", L"Start with Windows"); break;
+    case kIdShowTrayIcon: title = T(L"显示系统托盘图标", L"Show system tray icon"); break;
+    case kIdAddToSendToMenu: title = T(L"添加到“发送到”菜单", L"Add to “Send to” menu"); break;
+    case kIdShowResultIcons: title = T(L"显示搜索结果图标", L"Show search result icons"); break;
     case kIdPinyinSearch:
         title =
             T(L"启用拼音搜索",
               L"Enable Pinyin search");
-        break;
-    case kIdWildcardMatching:
-        title =
-            T(L"允许 * / ? 通配符",
-              L"Enable * / ? wildcards");
         break;
     case kIdNumericQuickLaunch:
         title =
@@ -6948,7 +6528,7 @@ LRESULT SettingsWindow::HandleMessage(
 
             for (HWND combo :
                  std::array<HWND, 7>{
-                     numericQuickLaunchOrder_,
+                     startupBehavior_,
                      popupMonitor_,
                      launcherPlacement_,
                      settingsPlacement_,
@@ -7203,11 +6783,8 @@ LRESULT SettingsWindow::HandleMessage(
             return 0;
 
         case kIdStartWithWindows:
-        case kIdShowOnStartup:
-        case kIdHideAfterLaunch:
-        case kIdClearQueryOnShow:
-        case kIdHideOnFocusLost:
         case kIdShowTrayIcon:
+        case kIdAddToSendToMenu:
         case kIdShowResultIcons:
             if (toggleActivated) {
                 ToggleGeneralSetting(id);
@@ -7216,7 +6793,6 @@ LRESULT SettingsWindow::HandleMessage(
             return 0;
 
         case kIdPinyinSearch:
-        case kIdWildcardMatching:
         case kIdNumericQuickLaunch:
         case kIdExecuteSingleResult:
             if (toggleActivated) {
@@ -7225,10 +6801,9 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdNumericQuickLaunchOrder:
+        case kIdStartupBehavior:
             if (notify == CBN_SELCHANGE) {
-                ApplyClassicBehaviorControl(
-                    kIdNumericQuickLaunchOrder);
+                ApplyStartupBehaviorControl();
             }
             return 0;
 
@@ -7414,14 +6989,10 @@ LRESULT SettingsWindow::HandleMessage(
         }
 
         if (item->CtlID == kIdStartWithWindows ||
-            item->CtlID == kIdShowOnStartup ||
-            item->CtlID == kIdHideAfterLaunch ||
-            item->CtlID == kIdClearQueryOnShow ||
-            item->CtlID == kIdHideOnFocusLost ||
             item->CtlID == kIdShowTrayIcon ||
+            item->CtlID == kIdAddToSendToMenu ||
             item->CtlID == kIdShowResultIcons ||
             item->CtlID == kIdPinyinSearch ||
-            item->CtlID == kIdWildcardMatching ||
             item->CtlID == kIdNumericQuickLaunch ||
             item->CtlID == kIdExecuteSingleResult ||
             item->CtlID == kIdProviderStartMenu ||
@@ -7941,7 +7512,7 @@ LRESULT SettingsWindow::HandleMessage(
 
         const bool cardStatic =
             control ==
-                numericQuickLaunchOrderLabel_ ||
+                startupBehaviorLabel_ ||
             control == popupMonitorLabel_ ||
             control ==
                 launcherPlacementLabel_ ||

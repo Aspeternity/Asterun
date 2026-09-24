@@ -184,7 +184,10 @@ int main() {
             scale(
                 settings_layout::
                     kToggleRowLogical) *
-                7);
+                3 +
+            scale(
+                ui::
+                    kSettingsComboRowLogical));
 
         assert(
             layout.search.bottom -
@@ -192,7 +195,7 @@ int main() {
             scale(
                 settings_layout::
                     kToggleRowLogical) *
-                5);
+                4);
 
         assert(
             layout.search.top >

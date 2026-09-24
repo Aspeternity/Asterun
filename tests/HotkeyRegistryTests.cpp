@@ -8,7 +8,25 @@ using namespace altrun;
 
 int main() {
     const auto defaults=DefaultHotkeyBindings();
-    assert(defaults.size()==5);
+    assert(defaults.size()==7);
+
+    assert(
+        MatchHotkeyAction(
+            defaults,
+            HotkeyScope::Launcher,
+            "s",
+            false,true,false,false) ==
+        std::optional<std::string>(
+            std::string(
+                hotkey_actions::
+                    kOpenShortcutManager)));
+
+    assert(
+        !EffectiveHotkeyBinding(
+             defaults,
+             hotkey_actions::
+                 kExitApplication)
+             .enabled);
 
     assert(
         MatchHotkeyAction(
