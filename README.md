@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.9 — Unified Table Resize Controller
+
+Alpha.5.9 removes the mixed native/custom resize state machine that remained after alpha.5.8. `UiListView` is now the single owner of a column-resize gesture from divider hit-test through mouse capture, preview, cancel and final commit.
+
+The native `WC_HEADER` remains the column/layout/accessibility model but no longer starts resize gestures: `HDS_FULLDRAG` is removed, `HDS_NOSIZING` is set, and divider mouse-down is consumed by the shared Header subclass instead of being forwarded into the native tracking engine. The shared controller keeps the ±4-logical-pixel hit zone, captures the mouse itself, clamps the first three columns against their existing minimums, moves one 2-logical-pixel child guide, and commits the dragged column plus elastic Target/Status exactly once on release.
+
+Shortcut Manager and Path Conversion no longer own `HDN_BEGINTRACK` / `HDN_TRACK` / `HDN_ITEMCHANGING` / `HDN_ENDTRACK` resize state. Their duplicated tracking fields and clamp paths are removed; they now provide only initial/default layout and a small shared resize policy. The guide is parented to the ListView so its lifetime and coordinates stay inside the same component.
+
+Static alpha.5.6 Table visuals, alpha.5.7 discoverability, default widths, minimum widths, business behavior, ComboBoxes, Hotkeys and Classic launcher geometry remain frozen. Windows fixed FileVersion/ProductVersion is `0.8.0.179`.
+
 ## v0.8.0-alpha.5.8 — Table Resize Guide Fix
 
 Alpha.5.8 fixes the real-Windows drag artifacts found in alpha.5.7 without changing the approved Table Surface or deferred column-width model. The resize preview is no longer drawn directly into the ListView/Header DC and no longer relies on invalidating previously painted strips.

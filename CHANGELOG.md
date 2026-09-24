@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.9
+
+- Replaced the mixed native Header + consumer HDN resize flow with one shared `UiListView` resize controller.
+- Disabled native Header sizing with `HDS_NOSIZING` and removed `HDS_FULLDRAG`; divider mouse-down no longer enters the native tracking state machine.
+- Moved hit testing, mouse capture, preview clamping, capture-loss cancellation and one-shot final commit into the shared Header subclass.
+- Removed Shortcut Manager and Path Conversion `columnTracking_`, tracked-column state, `ClampTrackedColumnWidth` and `HandleHeaderNotification` resize paths.
+- Added a shared logical-pixel resize policy for the first three resizable columns plus the elastic Target/Status column.
+- Reparented the 2-logical-pixel preview guide to the ListView so guide geometry and lifetime belong to the same component.
+- Preserved validated grow/shrink commit ordering to avoid transient horizontal overflow/bottom flash.
+- Preserved alpha.5.6 Table visuals, alpha.5.7 hit zone/cursor, default/minimum widths and all frozen business behavior.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.179`.
+
 ## 0.8.0-alpha.5.8
 
 - Replaced direct ListView/Header DC resize-guide painting with a dedicated shared overlay child window.

@@ -42,6 +42,143 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.9":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.9 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 2:
+        fail("v0.8 alpha.5.9 must keep provider-cache schemaVersion 2")
+
+    ui_list_h = read("src/ui/UiListView.hpp")
+    ui_list_cpp = read("src/ui/UiListView.cpp")
+    manager_h = read("src/ui/ShortcutManagerWindow.hpp")
+    manager_cpp = read("src/ui/ShortcutManagerWindow.cpp")
+    converter_h = read("src/ui/ShortcutPathConverterDialog.hpp")
+    converter_cpp = read("src/ui/ShortcutPathConverterDialog.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in ("NextListColumnResizePolicy", "ConfigureNextListColumnResize(", "NextListHasUserAdjustedColumns("):
+        if token not in ui_list_h:
+            fail(f"v0.8 alpha.5.9 shared resize contract missing: {token}")
+
+    for forbidden in ("UpdateNextListResizeGuide(", "ClearNextListResizeGuide("):
+        if forbidden in ui_list_h:
+            fail(f"v0.8 alpha.5.9 obsolete public resize API returned: {forbidden}")
+
+    for token in (
+        "HDS_NOSIZING", "SetCapture(", "ReleaseCapture(", "WM_CAPTURECHANGED",
+        "WM_CANCELMODE", "BeginNextListColumnResize(", "UpdateNextListColumnResize(",
+        "EndNextListColumnResize(", "CancelNextListColumnResize(",
+        "CommitNextListColumnResize(", "ClampNextListColumnResizeWidth(",
+        "ShowNextListResizeGuide(", "HideResizeGuide(", "userAdjustedColumns",
+        "WS_EX_NOPARENTNOTIFY",
+    ):
+        if token not in ui_list_cpp:
+            fail(f"v0.8 alpha.5.9 unified resize controller missing: {token}")
+
+    for forbidden in ("draggingDivider", "UpdateNextListResizeGuide(", "ClearNextListResizeGuide("):
+        if forbidden in ui_list_cpp:
+            fail(f"v0.8 alpha.5.9 mixed resize ownership returned: {forbidden}")
+
+    if "headerStyle &=\n            ~static_cast<LONG_PTR>(\n                HDS_FULLDRAG)" not in ui_list_cpp:
+        fail("v0.8 alpha.5.9 must explicitly remove HDS_FULLDRAG")
+    if "headerStyle |=\n            static_cast<LONG_PTR>(\n                HDS_NOSIZING)" not in ui_list_cpp:
+        fail("v0.8 alpha.5.9 must disable native Header sizing")
+
+    for path, header_text, source_text in (
+        ("ShortcutManager", manager_h, manager_cpp),
+        ("PathConverter", converter_h, converter_cpp),
+    ):
+        for token in (
+            "columnTracking_", "trackedColumn_", "trackedColumnWidth_",
+            "customColumnWidths_", "adjustingColumnWidths_",
+            "ClampTrackedColumnWidth(", "HandleHeaderNotification(",
+            "ui::UpdateNextListResizeGuide(", "ui::ClearNextListResizeGuide(",
+        ):
+            if token in header_text or token in source_text:
+                fail(f"v0.8 alpha.5.9 {path} still owns resize state: {token}")
+        for token in ("ui::ConfigureNextListColumnResize(", "NextListHasUserAdjustedColumns("):
+            if token not in source_text:
+                fail(f"v0.8 alpha.5.9 {path} shared resize route missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.9 frozen Classic asset changed: {path}")
+
+    for token in ("FILEVERSION 0,8,0,179", "PRODUCTVERSION 0,8,0,179", "0.8.0-alpha.5.9"):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.9 resource version missing: {token}")
+    if 'version="0.8.0.179"' not in manifest:
+        fail("v0.8 alpha.5.9 manifest fixed version must be 0.8.0.179")
+
+    for token in ('"0.8.0-alpha.5.8"', '"0.8.0-alpha.5.9"', "UpdateChannel::Stable"):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.9 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.9 unified resize-controller validation",
+        "exactly one preview guide moves", "pre-drag widths remain unchanged",
+        "native Header tracking marks", "100/125/150/175/200%",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.9 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.9 — Unified Table Resize Controller",
+        "single owner of a column-resize gesture", "HDS_NOSIZING", "0.8.0.179",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.9 README missing: {token}")
+    if "## 0.8.0-alpha.5.9" not in changelog:
+        fail("v0.8 alpha.5.9 changelog entry missing")
+    if "v0.8.0-alpha.5.9 unifies Table resize ownership" not in roadmap:
+        fail("v0.8 alpha.5.9 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.9 Unified Table Resize Controller verified:",
+        "| UiListView is the only resize owner",
+        "| native Header sizing and HDN tracking removed",
+        "| one child guide + one-shot elastic commit",
+        "| consumer tracking state deleted",
+        "| schema 10 + Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.8":
     import hashlib
     import subprocess

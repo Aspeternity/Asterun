@@ -358,11 +358,6 @@ ReleaseWindowResources() {
     filter_ = nullptr;
     list_ = nullptr;
 
-    customColumnWidths_ = false;
-    adjustingColumnWidths_ = false;
-    columnTracking_ = false;
-    trackedColumn_ = -1;
-    trackedColumnWidth_ = -1;
     suppressFilterRefresh_ = false;
     visibleIds_.clear();
 }
@@ -1245,6 +1240,23 @@ void ShortcutManagerWindow::RecreateFonts() {
             semiboldFont_
                 ? semiboldFont_
                 : font_);
+
+        ui::NextListColumnResizePolicy
+            resizePolicy{};
+        resizePolicy.resizableColumnCount =
+            3;
+        resizePolicy.elasticColumn =
+            3;
+        resizePolicy.minimumLogicalWidths =
+            {
+                kKeywordColumnMinimumLogical,
+                kNameColumnMinimumLogical,
+                kTypeColumnMinimumLogical,
+                kTargetColumnMinimumLogical,
+            };
+        ui::ConfigureNextListColumnResize(
+            list_,
+            resizePolicy);
     }
 }
 
@@ -1353,106 +1365,15 @@ ApplyConfiguredPlacement() {
             SWP_NOACTIVATE);
 }
 
-int ShortcutManagerWindow::
-ClampTrackedColumnWidth(
-    int column,
-    int proposedWidth) const {
-    if (!list_ ||
-        column < 0 ||
-        column >= 3) {
-        return proposedWidth;
-    }
-
-    HWND header =
-        ListView_GetHeader(
-            list_);
-
-    RECT client{};
-
-    if (header) {
-        GetClientRect(
-            header,
-            &client);
-    } else {
-        GetClientRect(
-            list_,
-            &client);
-    }
-
-    const int contentWidth =
-        std::max(
-            1,
-            static_cast<int>(
-                client.right -
-                client.left));
-
-    const std::array<int, 3>
-        minimums{
-            Scale(
-                kKeywordColumnMinimumLogical),
-            Scale(
-                kNameColumnMinimumLogical),
-            Scale(
-                kTypeColumnMinimumLogical),
-        };
-
-    const int minimumTarget =
-        Scale(
-            kTargetColumnMinimumLogical);
-
-    int otherWidth = 0;
-
-    for (int index = 0;
-         index < 3;
-         ++index) {
-        if (index == column) {
-            continue;
-        }
-
-        otherWidth +=
-            std::max(
-                minimums[
-                    static_cast<
-                        std::size_t>(
-                            index)],
-                ListView_GetColumnWidth(
-                    list_,
-                    index));
-    }
-
-    const int maximum =
-        std::max(
-            minimums[
-                static_cast<
-                    std::size_t>(
-                        column)],
-            contentWidth -
-                minimumTarget -
-                otherWidth);
-
-    return std::clamp(
-        proposedWidth,
-        minimums[
-            static_cast<
-                std::size_t>(
-                    column)],
-        maximum);
-}
-
-
 void ShortcutManagerWindow::
-UpdateColumnWidths(
-    int resizedColumn,
-    int proposedWidth) {
-    if (!list_ ||
-        adjustingColumnWidths_) {
+UpdateColumnWidths() {
+    if (!list_) {
         return;
     }
 
     HWND header =
         ListView_GetHeader(
             list_);
-
     RECT client{};
 
     if (header) {
@@ -1470,41 +1391,33 @@ UpdateColumnWidths(
             1,
             static_cast<int>(
                 client.right -
-                client.left));
+                    client.left));
 
     const std::array<int, 3>
         minimums{
-            Scale(
-                kKeywordColumnMinimumLogical),
-            Scale(
-                kNameColumnMinimumLogical),
-            Scale(
-                kTypeColumnMinimumLogical),
+            Scale(kKeywordColumnMinimumLogical),
+            Scale(kNameColumnMinimumLogical),
+            Scale(kTypeColumnMinimumLogical),
         };
-
     const int minimumTarget =
-        Scale(
-            kTargetColumnMinimumLogical);
-
+        Scale(kTargetColumnMinimumLogical);
     std::array<int, 3> widths{};
 
-    if (!customColumnWidths_ &&
-        resizedColumn < 0) {
+    if (!ui::
+            NextListHasUserAdjustedColumns(
+                list_)) {
         widths[0] =
             std::max(
                 minimums[0],
-                Scale(
-                    kKeywordColumnDefaultLogical));
+                Scale(kKeywordColumnDefaultLogical));
         widths[1] =
             std::max(
                 minimums[1],
-                Scale(
-                    kNameColumnDefaultLogical));
+                Scale(kNameColumnDefaultLogical));
         widths[2] =
             std::max(
                 minimums[2],
-                Scale(
-                    kTypeColumnDefaultLogical));
+                Scale(kTypeColumnDefaultLogical));
     } else {
         for (int index = 0;
              index < 3;
@@ -1519,16 +1432,6 @@ UpdateColumnWidths(
         }
     }
 
-    if (resizedColumn >= 0 &&
-        resizedColumn < 3 &&
-        proposedWidth >= 0) {
-        widths[
-            static_cast<
-                std::size_t>(
-                    resizedColumn)] =
-            proposedWidth;
-    }
-
     for (std::size_t index = 0;
          index < widths.size();
          ++index) {
@@ -1538,100 +1441,54 @@ UpdateColumnWidths(
                 widths[index]);
     }
 
-    const int minimumFirstThree =
-        minimums[0] +
-        minimums[1] +
-        minimums[2];
-
     const int firstThreeLimit =
         std::max(
-            minimumFirstThree,
+            minimums[0] +
+                minimums[1] +
+                minimums[2],
             contentWidth -
                 minimumTarget);
+    int firstThreeTotal =
+        widths[0] +
+        widths[1] +
+        widths[2];
 
-    if (resizedColumn >= 0 &&
-        resizedColumn < 3) {
-        const int otherWidth =
-            widths[
-                static_cast<
-                    std::size_t>(
-                        (resizedColumn +
-                         1) % 3)] +
-            widths[
-                static_cast<
-                    std::size_t>(
-                        (resizedColumn +
-                         2) % 3)];
-
-        const int maximum =
-            std::max(
-                minimums[
-                    static_cast<
-                        std::size_t>(
-                            resizedColumn)],
-                firstThreeLimit -
-                    otherWidth);
-
-        widths[
-            static_cast<
-                std::size_t>(
-                    resizedColumn)] =
-            std::clamp(
-                widths[
-                    static_cast<
-                        std::size_t>(
-                            resizedColumn)],
-                minimums[
-                    static_cast<
-                        std::size_t>(
-                            resizedColumn)],
-                maximum);
-    } else {
-        int firstThreeTotal =
-            widths[0] +
-            widths[1] +
-            widths[2];
-
-        if (firstThreeTotal >
-            firstThreeLimit) {
-            int excess =
-                firstThreeTotal -
+    if (firstThreeTotal >
+        firstThreeLimit) {
+        int excess =
+            firstThreeTotal -
                 firstThreeLimit;
 
-            for (int index :
-                 std::array<int, 3>{
-                     1,
-                     0,
-                     2}) {
-                if (excess <= 0) {
-                    break;
-                }
-
-                const auto position =
-                    static_cast<
-                        std::size_t>(
-                            index);
-
-                const int capacity =
-                    std::max(
-                        0,
-                        widths[position] -
-                            minimums[
-                                position]);
-
-                const int amount =
-                    std::min(
-                        excess,
-                        capacity);
-
-                widths[position] -=
-                    amount;
-                excess -= amount;
+        for (int index :
+             std::array<int, 3>{
+                 1,
+                 0,
+                 2}) {
+            if (excess <= 0) {
+                break;
             }
+
+            const auto position =
+                static_cast<
+                    std::size_t>(
+                        index);
+            const int capacity =
+                std::max(
+                    0,
+                    widths[position] -
+                        minimums[position]);
+            const int amount =
+                std::min(
+                    excess,
+                    capacity);
+
+            widths[position] -=
+                amount;
+            excess -= amount;
         }
     }
 
-    const int firstThreeTotal =
+    firstThreeTotal =
         widths[0] +
         widths[1] +
         widths[2];
@@ -1641,20 +1498,13 @@ UpdateColumnWidths(
             1,
             contentWidth -
                 firstThreeTotal);
-
-    adjustingColumnWidths_ =
-        true;
-
     const int currentTarget =
         ListView_GetColumnWidth(
             list_,
             3);
 
-    // When the dragged column grows, shrink Target first so the temporary
-    // sum never exceeds the Header client width and cannot flash a horizontal
-    // scrollbar. When the dragged column shrinks, grow Target after the first
-    // three columns are committed.
-    if (target < currentTarget) {
+    if (target <
+        currentTarget) {
         ListView_SetColumnWidth(
             list_,
             3,
@@ -1680,261 +1530,14 @@ UpdateColumnWidths(
         }
     }
 
-    if (target >= currentTarget &&
+    if (target >=
+            currentTarget &&
         currentTarget != target) {
         ListView_SetColumnWidth(
             list_,
             3,
             target);
     }
-
-    adjustingColumnWidths_ =
-        false;
-}
-
-bool ShortcutManagerWindow::
-HandleHeaderNotification(
-    LPARAM lParam,
-    LRESULT& result) {
-    if (!list_ ||
-        adjustingColumnWidths_) {
-        return false;
-    }
-
-    auto* notification =
-        reinterpret_cast<NMHDR*>(
-            lParam);
-
-    if (!notification) {
-        return false;
-    }
-
-    const int code =
-        static_cast<int>(
-            notification->code);
-
-    const bool beginTrack =
-        code == HDN_BEGINTRACKA ||
-        code == HDN_BEGINTRACKW;
-    const bool itemChanging =
-        code == HDN_ITEMCHANGINGA ||
-        code == HDN_ITEMCHANGINGW;
-    const bool track =
-        code == HDN_TRACKA ||
-        code == HDN_TRACKW;
-    const bool itemChanged =
-        code == HDN_ITEMCHANGEDA ||
-        code == HDN_ITEMCHANGEDW;
-    const bool endTrack =
-        code == HDN_ENDTRACKA ||
-        code == HDN_ENDTRACKW;
-    const bool dividerDoubleClick =
-        code == HDN_DIVIDERDBLCLICKA ||
-        code == HDN_DIVIDERDBLCLICKW;
-
-    if (!beginTrack &&
-        !itemChanging &&
-        !track &&
-        !itemChanged &&
-        !endTrack &&
-        !dividerDoubleClick) {
-        return false;
-    }
-
-    HWND headerWindow =
-        ListView_GetHeader(
-            list_);
-
-    if (notification->hwndFrom !=
-            headerWindow &&
-        notification->idFrom !=
-            kIdList) {
-        return false;
-    }
-
-    auto* header =
-        reinterpret_cast<
-            NMHEADERW*>(
-                lParam);
-
-    if (!header ||
-        header->iItem < 0 ||
-        header->iItem > 3) {
-        return false;
-    }
-
-    const int column =
-        header->iItem;
-
-    if (column == 3) {
-        if (beginTrack ||
-            itemChanging ||
-            track ||
-            dividerDoubleClick) {
-            result = TRUE;
-            return true;
-        }
-
-        return false;
-    }
-
-    if (column < 0 ||
-        column >= 3) {
-        return false;
-    }
-
-    if (beginTrack) {
-        columnTracking_ = true;
-        trackedColumn_ = column;
-        trackedColumnWidth_ =
-            ListView_GetColumnWidth(
-                list_,
-                column);
-
-        ui::UpdateNextListResizeGuide(
-            list_,
-            column,
-            trackedColumnWidth_);
-
-        result = FALSE;
-        return true;
-    }
-
-    if (track &&
-        columnTracking_ &&
-        trackedColumn_ == column &&
-        header->pitem &&
-        (header->pitem->mask &
-         HDI_WIDTH) != 0) {
-        const int clamped =
-            ClampTrackedColumnWidth(
-                column,
-                header->pitem->cxy);
-
-        header->pitem->cxy =
-            clamped;
-        trackedColumnWidth_ =
-            clamped;
-
-        ui::UpdateNextListResizeGuide(
-            list_,
-            column,
-            clamped);
-
-        // HDS_FULLDRAG suppresses the legacy native tracker. The subsequent
-        // HDN_ITEMCHANGING path rejects live width commits, so only the shared
-        // overlay guide moves until HDN_ENDTRACK commits the final widths.
-        result = FALSE;
-        return true;
-    }
-
-    if (itemChanging &&
-        header->pitem &&
-        (header->pitem->mask &
-         HDI_WIDTH) != 0) {
-        const int clamped =
-            ClampTrackedColumnWidth(
-                column,
-                header->pitem->cxy);
-
-        header->pitem->cxy =
-            clamped;
-
-        if (columnTracking_ &&
-            trackedColumn_ == column) {
-            trackedColumnWidth_ =
-                clamped;
-
-            ui::UpdateNextListResizeGuide(
-                list_,
-                column,
-                clamped);
-
-            // Reject the Header's final native resize. HDN_ENDTRACK commits
-            // the dragged column and elastic Target together in one step.
-            result = TRUE;
-            return true;
-        }
-
-        // Divider auto-size is not a drag. Apply the constrained result once
-        // and reject the native one-column commit so Target remains elastic.
-        customColumnWidths_ =
-            true;
-        UpdateColumnWidths(
-            column,
-            clamped);
-
-        result = TRUE;
-        return true;
-    }
-
-    if (endTrack &&
-        columnTracking_ &&
-        trackedColumn_ == column) {
-        int finalWidth =
-            trackedColumnWidth_;
-
-        if (header->pitem &&
-            (header->pitem->mask &
-             HDI_WIDTH) != 0) {
-            finalWidth =
-                ClampTrackedColumnWidth(
-                    column,
-                    header->pitem->cxy);
-        }
-
-        columnTracking_ =
-            false;
-        trackedColumn_ = -1;
-        trackedColumnWidth_ = -1;
-        customColumnWidths_ =
-            true;
-
-        UpdateColumnWidths(
-            column,
-            finalWidth);
-
-        ui::ClearNextListResizeGuide(
-            list_);
-
-        RedrawWindow(
-            list_,
-            nullptr,
-            nullptr,
-            RDW_INVALIDATE |
-                RDW_ERASE |
-                RDW_ALLCHILDREN |
-                RDW_UPDATENOW);
-
-        result = FALSE;
-        return true;
-    }
-
-    if (dividerDoubleClick) {
-        // Let the native Header calculate the desired auto-size. Its
-        // subsequent HDN_ITEMCHANGING is intercepted above and committed
-        // together with the elastic Target.
-        result = FALSE;
-        return false;
-    }
-
-    if (itemChanged &&
-        !columnTracking_ &&
-        header->pitem &&
-        (header->pitem->mask &
-         HDI_WIDTH) != 0) {
-        // ApplyLanguage() changes only HDI_TEXT. Treating that notification as
-        // a user resize made customColumnWidths_ true before the first Layout,
-        // so the intended 16/24/14/46 defaults were silently skipped.
-        customColumnWidths_ =
-            true;
-        UpdateColumnWidths(
-            column);
-        result = FALSE;
-        return true;
-    }
-
-    return false;
 }
 
 void ShortcutManagerWindow::
@@ -2739,19 +2342,6 @@ ChildSubclassProc(
     }
 
     if (self &&
-        hwnd == self->list_ &&
-        message == WM_NOTIFY) {
-        LRESULT headerResult = 0;
-
-        if (self->
-                HandleHeaderNotification(
-                    lParam,
-                    headerResult)) {
-            return headerResult;
-        }
-    }
-
-    if (self &&
         hwnd == self->filter_) {
         if (message == WM_SETFOCUS ||
             message == WM_KILLFOCUS ||
@@ -3056,17 +2646,9 @@ LRESULT ShortcutManagerWindow::HandleMessage(
         break;
 
     case WM_NOTIFY: {
-        LRESULT headerResult = 0;
-
-        if (HandleHeaderNotification(
-                lParam,
-                headerResult)) {
-            return headerResult;
-        }
-
-        // The shared Header subclass owns all visible Header painting.
-        // Swallow any remaining Header notifications here so they can never
-        // fall through into the ListView's NM_CUSTOMDRAW/business handlers.
+        // The shared Header subclass owns visible Header painting and all
+        // resize gestures. Header notifications are not a resize control flow.
+        // Swallow them so they never fall through into ListView handlers.
         const auto* headerNotification =
             reinterpret_cast<NMHDR*>(
                 lParam);

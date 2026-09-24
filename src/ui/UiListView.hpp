@@ -1,9 +1,18 @@
 #pragma once
 
+#include <array>
+
 #include <windows.h>
 #include <commctrl.h>
 
 namespace altrun::ui {
+
+struct NextListColumnResizePolicy {
+    int resizableColumnCount{0};
+    int elasticColumn{-1};
+    std::array<int, 4>
+        minimumLogicalWidths{};
+};
 
 void InitializeNextListView(
     HWND list,
@@ -11,13 +20,14 @@ void InitializeNextListView(
     HFONT bodyFont,
     HFONT headerFont);
 
-void UpdateNextListResizeGuide(
+void ConfigureNextListColumnResize(
     HWND list,
-    int column,
-    int proposedWidth);
+    const NextListColumnResizePolicy&
+        policy);
 
-void ClearNextListResizeGuide(
-    HWND list);
+[[nodiscard]] bool
+NextListHasUserAdjustedColumns(
+    HWND list) noexcept;
 
 [[nodiscard]] COLORREF
 NextListRowBackground(

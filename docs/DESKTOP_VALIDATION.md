@@ -278,6 +278,23 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Expanded alpha.5.7 ±4 logical-pixel hit zone and resize cursor remain easy to discover.
 - [ ] Repeat at 100/125/150/175/200% scaling; guide width and alignment remain crisp with no trail.
 - [ ] Alpha.5.6 Table visuals, alpha.5.4 ComboBoxes, Hotkeys, Checkbox rendering and Classic launcher remain unchanged.
+## v0.8.0-alpha.5.9 unified resize-controller validation
+
+- [ ] Shortcut Manager: slowly cross all three resizable Header boundaries; the existing ±4 logical-pixel hit zone and `IDC_SIZEWE` cursor remain easy to discover.
+- [ ] Drag each divider rapidly left/right for several seconds; exactly one preview guide moves and actual column geometry stays stationary until release.
+- [ ] Release normally over the Header, body, outside the table and outside the window; a successful mouse-up commits exactly once and leaves no residual line.
+- [ ] Interrupt a drag with Alt+Tab, window deactivation or another capture owner; the guide disappears, the pre-drag widths remain unchanged, and no later notification resurrects the guide.
+- [ ] Repeated fast drag/release cycles never show native Header tracking marks, black divider fragments, blue trails, blue blocks or bottom-bar flashes.
+- [ ] Drag a column to both minimum and maximum limits; the preview and final divider remain aligned, Target/Status retains its minimum, and no horizontal scrollbar flashes.
+- [ ] Verify grow ordering and shrink ordering produce no transient overflow.
+- [ ] Path Conversion repeats the same behavior for Field / Current path / Converted path; Status remains elastic and directly non-resizable.
+- [ ] Divider double-click is inert in both tables and never re-enters the native Header resize engine.
+- [ ] Resize each window after manually resizing columns; user-adjusted first-three widths remain stable while only the elastic final column absorbs available width changes.
+- [ ] Repeat at 100/125/150/175/200% scaling; Header height, hit zone, guide alignment, row padding and Path Conversion checkbox remain crisp.
+- [ ] Shortcut Manager filtering, New/Edit/Delete/Test/Path Conversion, double-click editing, right-click actions, Ctrl+N/Ctrl+F/Ctrl+Enter/Delete remain unchanged.
+- [ ] Path Conversion grouped rows, Rescan, Apply selected and conversion results remain unchanged.
+- [ ] Alpha.5.6 Table visuals, alpha.5.4 ComboBoxes, Hotkeys and Classic launcher visuals remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

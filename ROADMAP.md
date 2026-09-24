@@ -241,6 +241,7 @@ In progress:
 - v0.8.0-alpha.5.6 turns that foundation into a real Next Table Surface: the native Header remains only as the interaction/resize engine while a shared 34-logical-pixel custom surface removes permanent grid dividers and classic Header chrome
 - v0.8.0-alpha.5.7 polishes Table interaction: wider divider hit zones, explicit resize cursor/hover feedback, shared drag guide and deferred one-shot column commits for both Shortcut Manager and Path Conversion
 - v0.8.0-alpha.5.8 replaces the paint-based drag guide with a dedicated overlay window and suppresses the native tracker, removing real-Windows drag trails while preserving one-shot column commits
+- v0.8.0-alpha.5.9 unifies Table resize ownership inside UiListView: native Header sizing/HDN tracking is cut off, shared capture/preview/clamp/elastic commit becomes the only resize state machine, and consumer tracking code is removed
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
