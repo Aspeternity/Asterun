@@ -160,7 +160,7 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Move the launcher across monitors with different scaling and confirm the selected tier changes with Per-Monitor V2 without stale glyph size or redraw artifacts.
 - [ ] Test one non-standard scale if available; it may resample from the next larger tier, but must never fall back to enlarging a smaller tier while a larger tier exists.
 
-## v0.8.0-alpha.5 Settings behavior validation
+## v0.8.0-alpha.5.1 Settings behavior validation
 
 - [ ] General shows exactly three groups: Windows 与启动, 搜索与执行, 窗口位置.
 - [ ] Windows 与启动 contains 开机启动, 启动行为, 显示系统托盘图标, 添加到“发送到”菜单 — no helper text below SendTo.

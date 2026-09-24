@@ -42,7 +42,7 @@ channel = match.group(4)
 
 
 
-if version == "0.8.0-alpha.5":
+if version == "0.8.0-alpha.5.1":
     import hashlib
     import subprocess
 
@@ -270,7 +270,7 @@ if version == "0.8.0-alpha.5":
     for token in (
         "FILEVERSION 0,8,0,80",
         "PRODUCTVERSION 0,8,0,80",
-        "0.8.0-alpha.5",
+        "0.8.0-alpha.5.1",
     ):
         if token not in resources:
             fail(f"v0.8 alpha.5 resource version missing: {token}")
@@ -279,14 +279,14 @@ if version == "0.8.0-alpha.5":
 
     for token in (
         '"0.8.0-alpha.4.9"',
-        '"0.8.0-alpha.5"',
+        '"0.8.0-alpha.5.1"',
         "UpdateChannel::Stable",
     ):
         if token not in update_tests:
             fail(f"v0.8 alpha.5 update-policy coverage missing: {token}")
 
     for token in (
-        "v0.8.0-alpha.5 Settings behavior validation",
+        "v0.8.0-alpha.5.1 Settings behavior validation",
         "添加到“发送到”菜单",
         "静默启动 / 显示启动通知 / 显示启动器",
         "default Alt+S",
@@ -299,20 +299,20 @@ if version == "0.8.0-alpha.5":
     changelog = read("CHANGELOG.md")
     roadmap = read("ROADMAP.md")
     for token in (
-        "v0.8.0-alpha.5 — Settings Behavior Cleanup",
+        "v0.8.0-alpha.5.1 — Settings Behavior Cleanup",
         "Settings schema is **10**",
         "WM_COPYDATA",
         "0.8.0.80",
     ):
         if token not in readme:
             fail(f"v0.8 alpha.5 README missing: {token}")
-    if "## 0.8.0-alpha.5" not in changelog:
+    if "## 0.8.0-alpha.5.1" not in changelog:
         fail("v0.8 alpha.5 changelog entry missing")
-    if "v0.8.0-alpha.5 cleans the Settings product model" not in roadmap:
+    if "v0.8.0-alpha.5.1 cleans the Settings product model" not in roadmap:
         fail("v0.8 alpha.5 roadmap entry missing")
 
     print(
-        "v0.8.0-alpha.5 Settings behavior cleanup verified:",
+        "v0.8.0-alpha.5.1 Settings behavior cleanup verified:",
         "| schema 10",
         "| pseudo-settings removed",
         "| startup behavior + notification",

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0-alpha.5
+## 0.8.0-alpha.5.1
 
 - Rebuilt General Settings around Windows & startup, Search & execution, and Window placement; removed six implementation-detail settings from UI and schema.
 - Added three-state Startup behavior with silent, native startup notification, and show-launcher modes; fresh installs default to notification while schema-9 migration preserves the previous show-on-startup intent.

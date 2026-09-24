@@ -23,7 +23,7 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
-## v0.8.0-alpha.5 — Settings Behavior Cleanup
+## v0.8.0-alpha.5.1 — Settings Behavior Cleanup
 
 Alpha.5 turns the General page into a product-level Settings model instead of exposing Launcher implementation details. The page now has three focused groups: **Windows 与启动 / Windows & startup**, **搜索与执行 / Search & execution**, and **窗口位置 / Window placement**.
 

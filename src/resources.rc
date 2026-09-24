@@ -32,11 +32,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Aspeternity\0"
             VALUE "FileDescription", "ALTRun Next - classic lightweight launcher\0"
-            VALUE "FileVersion", "0.8.0-alpha.5\0"
+            VALUE "FileVersion", "0.8.0-alpha.5.1\0"
             VALUE "InternalName", "ALTRunNext\0"
             VALUE "OriginalFilename", "ALTRunNext.exe\0"
             VALUE "ProductName", "ALTRun Next\0"
-            VALUE "ProductVersion", "0.8.0-alpha.5\0"
+            VALUE "ProductVersion", "0.8.0-alpha.5.1\0"
         END
     END
     BLOCK "VarFileInfo"
