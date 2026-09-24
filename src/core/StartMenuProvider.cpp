@@ -181,6 +181,7 @@ bool IsDeveloperEntry(
 
 struct StartMenuInspection {
     std::wstring resolvedTarget;
+    std::wstring arguments;
     LaunchTargetKind targetKind{
         LaunchTargetKind::Unknown};
     LaunchSurfaceClass surface{
@@ -220,6 +221,8 @@ InspectStartMenuEntry(
 
         result.resolvedTarget =
             shortcut->target;
+        result.arguments =
+            shortcut->arguments;
         result.targetKind =
             shortcut->targetKind;
         result.targetResolved = true;
@@ -257,6 +260,7 @@ InspectStartMenuEntry(
             result.surface,
             result.targetKind,
             result.targetResolved,
+            result.arguments,
         });
 
     return result;
@@ -388,6 +392,14 @@ void StartMenuProvider::ScanPath(
                 command.title);
         command.target =
             it->path().wstring();
+        command.activationKind =
+            LaunchActivationKind::
+                ShellExecute;
+        command.canonicalIdentity =
+            BuildCanonicalLaunchIdentity(
+                command.activationKind,
+                inspection.resolvedTarget,
+                inspection.arguments);
         command.type =
             CommandType::Application;
         command.icon = L"auto";

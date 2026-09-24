@@ -1,5 +1,6 @@
 #pragma once
 
+#include "LaunchCatalog.hpp"
 #include "LaunchSurface.hpp"
 
 #include <string_view>
@@ -30,6 +31,8 @@ enum class LaunchAdmissionReason {
     Documentation,
     Maintenance,
     Auxiliary,
+    ProductInfo,
+    InternalComponent,
     DocumentTarget,
     WebTarget,
     TargetResolutionFailed,
@@ -49,6 +52,9 @@ struct LaunchCandidate {
     LaunchTargetKind targetKind{
         LaunchTargetKind::Unknown};
     bool targetResolved{false};
+    std::wstring_view arguments;
+    PackagedVisibilityEvidence
+        packagedVisibility;
 };
 
 struct LaunchAdmission {
@@ -71,6 +77,10 @@ IsDocumentationLikeTitle(
 
 [[nodiscard]] bool
 IsMaintenanceLikeTitle(
+    std::wstring_view title);
+
+[[nodiscard]] bool
+IsProductInfoLikeTitle(
     std::wstring_view title);
 
 [[nodiscard]] bool

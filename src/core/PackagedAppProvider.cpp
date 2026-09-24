@@ -10,6 +10,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <knownfolders.h>
+#include <propkey.h>
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <wrl/client.h>
@@ -33,6 +34,8 @@ using Microsoft::WRL::ComPtr;
 struct ShellApp {
     std::wstring title;
     std::wstring target;
+    PackagedVisibilityEvidence
+        visibility;
 };
 
 class ComApartment final {
@@ -180,9 +183,46 @@ EnumerateAppsFolder() {
             continue;
         }
 
+        PackagedVisibilityEvidence
+            visibility;
+
+        SFGAOF attributes{};
+
+        if (SUCCEEDED(
+                item->GetAttributes(
+                    static_cast<SFGAOF>(
+                        SFGAO_HIDDEN |
+                        SFGAO_SYSTEM),
+                    &attributes))) {
+            visibility.hidden =
+                (attributes &
+                 SFGAO_HIDDEN) != 0;
+            visibility.system =
+                (attributes &
+                 SFGAO_SYSTEM) != 0;
+        }
+
+        ComPtr<IShellItem2> item2;
+
+        if (SUCCEEDED(
+                item.As(&item2)) &&
+            item2) {
+            BOOL value = FALSE;
+
+            if (SUCCEEDED(
+                    item2->GetBool(
+                        PKEY_AppUserModel_PreventPinning,
+                        &value))) {
+                visibility.preventPinning =
+                    value != FALSE;
+            }
+
+        }
+
         apps.push_back({
             std::move(title),
             std::move(target),
+            visibility,
         });
     }
 
@@ -264,6 +304,8 @@ PackagedAppProvider::DiscoverDetailed() const {
                 initialSurface,
                 targetKind,
                 true,
+                {},
+                app.visibility,
             });
 
         diagnostics.Record(
@@ -294,6 +336,13 @@ PackagedAppProvider::DiscoverDetailed() const {
 
         command.target =
             std::move(app.target);
+        command.activationKind =
+            ActivationKindForCatalogTarget(
+                command.target);
+        command.canonicalIdentity =
+            BuildCanonicalLaunchIdentity(
+                command.activationKind,
+                command.target);
         command.type =
             CommandType::Application;
         command.icon = L"auto";

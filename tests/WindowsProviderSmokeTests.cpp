@@ -137,6 +137,13 @@ int main() {
             liveTarget.wstring();
         live.source =
             CommandSource::AppPaths;
+        live.activationKind =
+            LaunchActivationKind::
+                ShellExecute;
+        live.canonicalIdentity =
+            BuildCanonicalLaunchIdentity(
+                live.activationKind,
+                live.target);
         live.enabled = true;
         entry.commands.push_back(live);
 
@@ -148,6 +155,13 @@ int main() {
             missingTarget.wstring();
         stale.source =
             CommandSource::AppPaths;
+        stale.activationKind =
+            LaunchActivationKind::
+                ShellExecute;
+        stale.canonicalIdentity =
+            BuildCanonicalLaunchIdentity(
+                stale.activationKind,
+                stale.target);
         stale.enabled = true;
         entry.commands.push_back(stale);
 
@@ -306,6 +320,29 @@ int main() {
                     assert(
                         !LooksLikeWebTarget(
                             command.target));
+
+                    if (IsPackagedApplicationId(
+                            command.target)) {
+                        assert(
+                            command.activationKind ==
+                            LaunchActivationKind::
+                                PackagedApplication);
+                        assert(
+                            command.canonicalIdentity
+                                .starts_with(
+                                    L"aumid:"));
+                    }
+                }
+
+                if (descriptor.id ==
+                        providers::kStartMenu ||
+                    descriptor.id ==
+                        providers::kAppPaths ||
+                    descriptor.id ==
+                        providers::kPath) {
+                    assert(
+                        !command.canonicalIdentity
+                             .empty());
                 }
             }
         }

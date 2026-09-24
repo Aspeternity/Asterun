@@ -99,6 +99,7 @@ add_library(altrun_core STATIC
     src/core/HotkeyRegistry.cpp
     src/core/LauncherActionPolicy.cpp
     src/core/LauncherResult.cpp
+    src/core/LaunchCatalog.cpp
     src/core/LaunchSurface.cpp
     src/core/LaunchCandidate.cpp
     src/core/RelevancePolicy.cpp
@@ -462,6 +463,26 @@ if(BUILD_TESTING)
     add_test(
         NAME launch_candidate_tests
         COMMAND launch_candidate_tests
+    )
+
+    add_executable(
+        launch_catalog_tests
+        tests/LaunchCatalogTests.cpp
+    )
+    target_link_libraries(
+        launch_catalog_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        launch_catalog_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        launch_catalog_tests
+    )
+    add_test(
+        NAME launch_catalog_tests
+        COMMAND launch_catalog_tests
     )
 
     add_executable(

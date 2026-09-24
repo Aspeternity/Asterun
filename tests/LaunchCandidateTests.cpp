@@ -51,6 +51,58 @@ int main() {
             EvaluateLaunchCandidate({
                 LaunchCandidateSource::
                     StartMenu,
+                L"关于 Java",
+                L"C:\\Program Files\\Java\\javacpl.exe",
+                LaunchSurfaceClass::
+                    PrimaryApplication,
+                LaunchTargetKind::
+                    GuiExecutable,
+                true,
+            });
+
+        assert(!decision.admit);
+        assert(
+            decision.reason ==
+            LaunchAdmissionReason::
+                ProductInfo);
+    }
+
+    {
+        PackagedVisibilityEvidence
+            visibility;
+        visibility.preventPinning = true;
+        visibility.system = true;
+
+        LaunchCandidate candidate{
+            LaunchCandidateSource::
+                AppsFolder,
+            L"Internal Action",
+            L"Vendor.Package_abc!InternalAction",
+            LaunchSurfaceClass::
+                PrimaryApplication,
+            LaunchTargetKind::
+                ShellApplication,
+            true,
+        };
+        candidate.packagedVisibility =
+            visibility;
+
+        const auto decision =
+            EvaluateLaunchCandidate(
+                candidate);
+
+        assert(!decision.admit);
+        assert(
+            decision.reason ==
+            LaunchAdmissionReason::
+                InternalComponent);
+    }
+
+    {
+        const auto decision =
+            EvaluateLaunchCandidate({
+                LaunchCandidateSource::
+                    StartMenu,
                 L"WinRAR",
                 L"C:\\Program Files\\WinRAR\\WinRAR.exe",
                 LaunchSurfaceClass::
@@ -209,6 +261,12 @@ int main() {
         L"Uninstall Product"));
     assert(IsMaintenanceLikeTitle(
         L"产品更新程序"));
+    assert(IsProductInfoLikeTitle(
+        L"About Java"));
+    assert(IsProductInfoLikeTitle(
+        L"关于 Java"));
+    assert(!IsProductInfoLikeTitle(
+        L"AboutTime"));
 
     assert(
         InferTextTargetKind(

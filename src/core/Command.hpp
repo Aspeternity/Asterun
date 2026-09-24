@@ -1,5 +1,6 @@
 #pragma once
 
+#include "LaunchCatalog.hpp"
 #include "LaunchSurface.hpp"
 
 #include <string>
@@ -37,6 +38,10 @@ struct Command {
     std::wstring target;
     std::wstring arguments;
     std::wstring workingDirectory;
+    LaunchActivationKind activationKind{
+        LaunchActivationKind::
+            ShellExecute};
+    std::wstring canonicalIdentity;
     RuntimeInputMode runtimeInputMode{
         RuntimeInputMode::None};
     std::wstring icon{L"auto"};

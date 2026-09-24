@@ -1578,6 +1578,11 @@ int main() {
         L"C:\\ProgramData\\Test App.lnk";
     cachedStart.source =
         CommandSource::StartMenu;
+    cachedStart.activationKind =
+        LaunchActivationKind::
+            ShellExecute;
+    cachedStart.canonicalIdentity =
+        L"file:c:\\apps\\test.exe";
     cachedStart.surfaceClass =
         LaunchSurfaceClass::SystemUtility;
     cachedStart.basePriority = 0;
@@ -1639,6 +1644,17 @@ int main() {
         startCache->second
             .commands[0]
             .aliases.size() == 1);
+    assert(
+        startCache->second
+            .commands[0]
+            .activationKind ==
+        LaunchActivationKind::
+            ShellExecute);
+    assert(
+        startCache->second
+            .commands[0]
+            .canonicalIdentity ==
+        L"file:c:\\apps\\test.exe");
 
     Command cachedPackaged;
     cachedPackaged.id =
@@ -1651,6 +1667,11 @@ int main() {
         L"Test.Package_abc!App";
     cachedPackaged.source =
         CommandSource::PackagedApp;
+    cachedPackaged.activationKind =
+        LaunchActivationKind::
+            PackagedApplication;
+    cachedPackaged.canonicalIdentity =
+        L"aumid:test.package_abc!app";
     cachedPackaged.basePriority = -5;
 
     ProviderCacheEntry packagedEntry;
@@ -1695,7 +1716,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 7,\n"
+        "  \"schemaVersion\": 8,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1724,17 +1745,16 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 6 may contain candidates admitted only through the temporary
-    // ExecutableUnknown fallback. Rebuild generated state after removing
-    // that fallback so strict target admission owns the cache again.
-    const auto staleSchema6ProviderCache =
+    // Schema 7 predates canonical launch identity and activation
+    // semantics. Generated state must rebuild rather than guess those fields.
+    const auto staleSchema7ProviderCache =
         data /
-        "provider-cache-schema6-stale.json";
+        "provider-cache-schema7-stale.json";
 
     WriteText(
-        staleSchema6ProviderCache,
+        staleSchema7ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 6,\n"
+        "  \"schemaVersion\": 7,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1751,11 +1771,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema6Cache(
-        staleSchema6ProviderCache);
+    ProviderCache staleSchema7Cache(
+        staleSchema7ProviderCache);
 
     assert(
-        staleSchema6Cache.Load().empty());
+        staleSchema7Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

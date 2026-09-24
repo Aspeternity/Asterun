@@ -16,7 +16,8 @@ Command Make(
     std::wstring keyword,
     std::wstring target,
     CommandSource source,
-    bool enabled = true) {
+    bool enabled = true,
+    std::wstring canonicalIdentity = {}) {
 
     Command command;
     command.id = std::move(id);
@@ -25,6 +26,8 @@ Command Make(
     command.target = std::move(target);
     command.source = source;
     command.enabled = enabled;
+    command.canonicalIdentity =
+        std::move(canonicalIdentity);
     return command;
 }
 
@@ -271,38 +274,124 @@ int main() {
     }
 
     {
-        // Provider dedupe must be stable even after the user promotes the
-        // winning Start Menu entry into a personal shortcut. The lower
-        // App Paths executable must not "revive" just because the Start Menu
-        // target is now suppressed by an exact-target user shortcut.
+        // Canonical identity, not display text, owns provider dedupe.
+        const auto chromeIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellExecute,
+                L"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe");
+
+        const std::vector<Command> providers{
+            Make(
+                L"start:googlechrome",
+                L"Google Chrome",
+                L"googlechrome",
+                L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Google Chrome.lnk",
+                CommandSource::StartMenu,
+                true,
+                chromeIdentity),
+            Make(
+                L"apppath:chrome",
+                L"chrome",
+                L"chrome",
+                L"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                CommandSource::AppPaths,
+                true,
+                chromeIdentity),
+        };
+
+        const auto merged =
+            MergeCommands(
+                {},
+                providers);
+
+        assert(merged.commands.size() == 1);
+        assert(HasId(
+            merged.commands,
+            L"start:googlechrome"));
+        assert(
+            merged.stats.suppressedAppPaths ==
+            1);
+    }
+
+    {
+        // A distinct launch action on the same executable is not the same
+        // catalog identity and must survive provider canonicalization.
+        const auto normalIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellExecute,
+                L"C:\\Apps\\Browser.exe");
+
+        const auto privateIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellExecute,
+                L"C:\\Apps\\Browser.exe",
+                L"--incognito");
+
+        const std::vector<Command> providers{
+            Make(
+                L"apppath:browser",
+                L"Browser",
+                L"browser",
+                L"C:\\Apps\\Browser.exe",
+                CommandSource::AppPaths,
+                true,
+                normalIdentity),
+            Make(
+                L"start:browser-private",
+                L"Browser Private",
+                L"browserprivate",
+                L"C:\\Start\\Browser Private.lnk",
+                CommandSource::StartMenu,
+                true,
+                privateIdentity),
+        };
+
+        const auto merged =
+            MergeCommands(
+                {},
+                providers);
+
+        assert(merged.commands.size() == 2);
+    }
+
+    {
+        // Preserve the old user-promotion invariant without carrying a
+        // product-specific TeamSpeak fixture.
+        const auto providerIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellExecute,
+                L"C:\\Apps\\ChatClient.exe");
+
         const std::vector<Command> users{
             Make(
-                L"user:ts3",
-                L"TeamSpeak 3 Client",
-                L"ts3",
-                L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\TeamSpeak 3 Client.lnk",
+                L"user:chat",
+                L"Chat Client",
+                L"chat",
+                L"C:\\Start\\Chat Client.lnk",
                 CommandSource::User),
         };
 
         const std::vector<Command> providers{
             Make(
-                L"start:teamspeak3",
-                L"TeamSpeak 3 Client",
-                L"teamspeak3client",
-                L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\TeamSpeak 3 Client.lnk",
-                CommandSource::StartMenu),
+                L"start:chat",
+                L"Chat Client",
+                L"chatclient",
+                L"C:\\Start\\Chat Client.lnk",
+                CommandSource::StartMenu,
+                true,
+                providerIdentity),
             Make(
-                L"apppath:teamspeak3",
-                L"TeamSpeak 3 Client",
-                L"teamspeak3client",
-                L"D:\\TeamSpeak 3 Client\\ts3client_win64.exe",
-                CommandSource::AppPaths),
-            Make(
-                L"start:teamspeak6",
-                L"TeamSpeak",
-                L"teamspeak",
-                L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\TeamSpeak.lnk",
-                CommandSource::StartMenu),
+                L"apppath:chat",
+                L"chatclient",
+                L"chatclient",
+                L"C:\\Apps\\ChatClient.exe",
+                CommandSource::AppPaths,
+                true,
+                providerIdentity),
         };
 
         const auto merged =
@@ -310,23 +399,16 @@ int main() {
                 users,
                 providers);
 
-        assert(merged.commands.size() == 2);
+        assert(merged.commands.size() == 1);
         assert(HasId(
             merged.commands,
-            L"user:ts3"));
-        assert(HasId(
-            merged.commands,
-            L"start:teamspeak6"));
-        assert(!HasId(
-            merged.commands,
-            L"start:teamspeak3"));
-        assert(!HasId(
-            merged.commands,
-            L"apppath:teamspeak3"));
+            L"user:chat"));
         assert(
-            merged.stats.suppressedStartMenu == 1);
+            merged.stats.suppressedStartMenu ==
+            1);
         assert(
-            merged.stats.suppressedAppPaths == 1);
+            merged.stats.suppressedAppPaths ==
+            1);
     }
 
     std::cout

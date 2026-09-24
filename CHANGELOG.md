@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.21
+
+- Added provider-neutral `LaunchCatalog` ownership for activation semantics, canonical launch identity and packaged visibility evidence.
+- Added `Command::activationKind` and `Command::canonicalIdentity`; Provider Cache schema is now 8 and requires canonical identity for generated commands.
+- Start Menu identity resolves the `.lnk` target plus embedded arguments while preserving the `.lnk` as the actual execution target.
+- App Paths/PATH generate executable identities; AppsFolder generates AUMID identities.
+- CommandMerge now deduplicates provider entries by canonical identity before legacy display-name fallback, fixing Start Menu/App Paths duplicates such as Google Chrome without fuzzy-name guessing.
+- AppsFolder AUMIDs launch through native `IApplicationActivationManager::ActivateApplication`; ShellExecute remains the path for Win32 shortcuts/files/URIs.
+- Added structural internal-packaged admission using Shell HIDDEN or SYSTEM + PreventPinning evidence.
+- Added generic ProductInfo admission role for action-like About/关于 entries instead of per-product blacklists.
+- Replaced the TeamSpeak-specific merge fixture with generic promotion/identity tests and kept all temporary root-cause diagnostic code removed.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.191`.
 ## 0.8.0-alpha.5.20
 
 - Removed `LaunchTargetKind::ExecutableUnknown` and the file-exists/GetBinaryType fallback added in alpha.5.17 after real-machine diagnostics proved TeamSpeak 6 is a normal GUI executable and alpha.5.16 admission already accepts it.

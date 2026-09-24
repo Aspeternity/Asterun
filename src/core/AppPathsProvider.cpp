@@ -326,6 +326,13 @@ void EnumerateAppPathsKey(
             win::CompactKeyword(
                 command.title);
         command.target = target;
+        command.activationKind =
+            LaunchActivationKind::
+                ShellExecute;
+        command.canonicalIdentity =
+            BuildCanonicalLaunchIdentity(
+                command.activationKind,
+                command.target);
         command.type =
             CommandType::Application;
         command.icon = L"auto";

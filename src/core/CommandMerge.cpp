@@ -145,6 +145,13 @@ bool IsDuplicateOf(
         return false;
     }
 
+    if (!incoming.canonicalIdentity.empty() &&
+        !existing.canonicalIdentity.empty() &&
+        incoming.canonicalIdentity ==
+            existing.canonicalIdentity) {
+        return true;
+    }
+
     const std::wstring incomingName =
         NameKey(incoming);
 

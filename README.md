@@ -23,6 +23,19 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.21 — Intelligent Launch Catalog
+
+Alpha.5.21 changes the provider pipeline from name/target collection toward a launch catalog with explicit identity, activation semantics and positive admission evidence. Provider results now carry a canonical launch identity plus an activation kind; generated Provider Cache schema is bumped to 8 so those fields are always rebuilt from live Windows data instead of guessed from older snapshots.
+
+Canonical identity is based on what will actually be launched, not merely on the provider display text. Start Menu shortcuts resolve their real target and embedded arguments for identity while preserving the original `.lnk` for execution; App Paths/PATH use their executable target; packaged apps use the AUMID. CommandMerge prefers canonical identity before its legacy same-name fallback, so a `Google Chrome.lnk` and the matching `chrome.exe` collapse to the higher-priority Start Menu representation, while the same executable with meaningful arguments such as `--incognito` remains a distinct launch action.
+
+Activation semantics are also explicit. File/shortcut/URI targets continue through ShellExecute, while AppsFolder AUMIDs use the native `IApplicationActivationManager::ActivateApplication` path. This fixes packaged/system entries such as Clock and Settings being incorrectly treated as filesystem paths. User shortcuts promoted from older packaged-provider entries derive AUMID activation at launch time so no user-command schema rewrite is required.
+
+Positive admission gains structural packaged-app evidence. AppsFolder items marked HIDDEN, or carrying both the Shell SYSTEM attribute and `PKEY_AppUserModel_PreventPinning`, are classified as internal activation surfaces and rejected before indexing. Product-information entries are classified by generic action semantics (`About <product>` / `关于 <产品>`) and rejected as `ProductInfo`; this is a role rule, not a Java/product blacklist. Existing documentation/maintenance/auxiliary rules remain provider-neutral.
+
+Cleanup is part of this version: the product-specific TeamSpeak merge fixture used during earlier investigation is replaced by generic identity/promotion regressions; the temporary alpha.5.19 diagnostic path and the disproven ExecutableUnknown fallback remain absent. New tests cover canonical identity, packaged visibility evidence, Chrome-style provider dedupe, argument-distinct actions, ProductInfo/InternalComponent admission and provider-cache persistence.
+
+Classic UI/geometry, ProviderIndex atomic publication, relevance matching, Everything, numeric Quick Launch and table ownership are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.191`.
 ## v0.8.0-alpha.5.20 — Evidence-backed Admission Cleanup
 
 Alpha.5.20 removes the temporary `ExecutableUnknown` admission fallback introduced in alpha.5.17. Real-machine alpha.5.19 diagnostics proved that the installed TeamSpeak 6 shortcut resolves normally, its target exists, the PE optional-header magic is PE32+ (`0x020B`), the subsystem is Windows GUI, the reproduced alpha.5.16 target kind is `GuiExecutable`, and alpha.5.16 admission returns admitted. The fallback was therefore unrelated to that incident and is deleted instead of being retained as a speculative compatibility path.

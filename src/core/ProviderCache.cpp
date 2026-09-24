@@ -14,7 +14,7 @@ namespace altrun {
 
 namespace {
 
-constexpr int kProviderCacheSchemaVersion = 7;
+constexpr int kProviderCacheSchemaVersion = 8;
 
 const char* TypeName(
     CommandType type) {
@@ -203,6 +203,18 @@ ParseCommand(
             item.value(
                 "workingDirectory",
                 std::string{}));
+    command.activationKind =
+        ParseLaunchActivationKind(
+            item.value(
+                "activation",
+                std::string{}),
+            LaunchActivationKind::
+                ShellExecute);
+    command.canonicalIdentity =
+        text::FromUtf8(
+            item.value(
+                "canonicalIdentity",
+                std::string{}));
     command.icon =
         text::FromUtf8(
             item.value(
@@ -245,7 +257,8 @@ ParseCommand(
 
     if (command.id.empty() ||
         command.title.empty() ||
-        command.target.empty()) {
+        command.target.empty() ||
+        command.canonicalIdentity.empty()) {
         return std::nullopt;
     }
 
@@ -287,6 +300,12 @@ nlohmann::json CommandJson(
         {"target", text::ToUtf8(command.target)},
         {"arguments", text::ToUtf8(command.arguments)},
         {"workingDirectory", text::ToUtf8(command.workingDirectory)},
+        {"activation",
+         LaunchActivationKindName(
+             command.activationKind)},
+        {"canonicalIdentity",
+         text::ToUtf8(
+             command.canonicalIdentity)},
         {"icon", text::ToUtf8(command.icon)},
         {"enabled", command.enabled},
         {"runAsAdmin", command.runAsAdmin},

@@ -48,6 +48,41 @@ constexpr UINT_PTR
     kUpdateReconcileTimerId =
         0xA175;
 
+[[nodiscard]] HRESULT
+ActivatePackagedApplication(
+    const std::wstring& appUserModelId,
+    const std::wstring& arguments) {
+
+    IApplicationActivationManager*
+        manager = nullptr;
+
+    const HRESULT createResult =
+        CoCreateInstance(
+            CLSID_ApplicationActivationManager,
+            nullptr,
+            CLSCTX_INPROC_SERVER,
+            IID_PPV_ARGS(&manager));
+
+    if (FAILED(createResult) ||
+        manager == nullptr) {
+        return createResult;
+    }
+
+    DWORD processId = 0;
+
+    const HRESULT activateResult =
+        manager->ActivateApplication(
+            appUserModelId.c_str(),
+            arguments.empty()
+                ? nullptr
+                : arguments.c_str(),
+            AO_NONE,
+            &processId);
+
+    manager->Release();
+    return activateResult;
+}
+
 [[nodiscard]] std::string_view
 ProviderIdForCommand(
     CommandSource source) {
@@ -4423,11 +4458,32 @@ bool App::LaunchCommand(
         resolved.type ==
         CommandType::Folder;
 
+    LaunchActivationKind activationKind =
+        resolved.activationKind;
+
+    // User shortcuts created from a packaged provider predate the catalog
+    // activation field. Derive AUMID semantics from the target so promoted
+    // packaged apps keep launching correctly without a user-schema rewrite.
+    if (activationKind ==
+            LaunchActivationKind::
+                ShellExecute &&
+        IsPackagedApplicationId(
+            resolved.target)) {
+        activationKind =
+            LaunchActivationKind::
+                PackagedApplication;
+    }
+
     const std::wstring target =
-        win::ResolvePortablePath(
-            resolved.target,
-            baseDirectory_,
-            bareTargetIsPath);
+        activationKind ==
+                LaunchActivationKind::
+                    PackagedApplication
+            ? win::ExpandEnvironment(
+                  resolved.target)
+            : win::ResolvePortablePath(
+                  resolved.target,
+                  baseDirectory_,
+                  bareTargetIsPath);
 
     // Arguments deliberately remain environment-expanded only. v0.7
     // path portability does not rewrite or reinterpret argument tokens.
@@ -4448,6 +4504,46 @@ bool App::LaunchCommand(
             DefaultShortcutWorkingDirectory(
                 resolved.type,
                 target);
+    }
+
+    if (activationKind ==
+        LaunchActivationKind::
+            PackagedApplication) {
+
+        const HRESULT result =
+            ActivatePackagedApplication(
+                target,
+                args);
+
+        if (FAILED(result)) {
+            std::wstring message =
+                std::wstring(
+                    Text(
+                        TextId::
+                            UnableToLaunch)) +
+                L"\n" +
+                target +
+                L"\n\n" +
+                win::FormatWin32Error(
+                    static_cast<DWORD>(
+                        result));
+
+            MessageBoxW(
+                nullptr,
+                message.c_str(),
+                L"ALTRun Next",
+                MB_ICONERROR | MB_OK);
+
+            return false;
+        }
+
+        if (recordUsage &&
+            !command.id.empty()) {
+            usageStore_.Record(
+                command.id);
+        }
+
+        return true;
     }
 
     SHELLEXECUTEINFOW info{};

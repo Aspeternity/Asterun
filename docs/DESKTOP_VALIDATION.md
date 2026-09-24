@@ -440,6 +440,18 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Confirm there is no `--diagnose-shortcut` product path and no temporary launch-target diagnostic JSON is produced during normal use.
 - [ ] Classic visuals/geometry, table resize, numeric Quick Launch, pinyin, Everything and result ranking remain unchanged.
 
+## v0.8.0-alpha.5.21 Intelligent Launch Catalog validation
+
+- [ ] Upgrade from alpha.5.20. Provider Cache schema 8 rebuilds once; the alpha.5.18 Building gate must still prevent a partial first-launch index.
+- [ ] Search `chro`: only one normal Google Chrome representation should remain. Prefer the Start Menu title/shortcut when both Start Menu and App Paths resolve to the same `chrome.exe` identity.
+- [ ] Verify a distinct shortcut to the same executable with meaningful arguments is not incorrectly merged with the normal application.
+- [ ] Launch `时钟` and `设置` from Windows Apps results. Both must activate normally; no `系统找不到指定的文件` error for an AUMID target.
+- [ ] Search for `关于 Java` / equivalent product About entry: ProductInfo actions should not enter the normal catalog; no Java-specific blacklist is used.
+- [ ] Recheck the previously observed `单击以执行` / similar internal Windows activation surface. Entries carrying Windows hidden/internal shell evidence should be absent while normal packaged apps remain.
+- [ ] Search `team`: TeamSpeak 3 and TeamSpeak/TeamSpeak 6 remain simultaneously present after the schema-8 strict rebuild; there is no TeamSpeak-specific production or merge-test logic.
+- [ ] Recheck WinRAR documentation/What's New, uninstall/update/helper/native-messaging entries: existing positive-admission hygiene remains intact.
+- [ ] Classic visuals/geometry, table resize, numeric Quick Launch, pinyin, Everything and result ranking remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

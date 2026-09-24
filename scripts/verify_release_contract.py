@@ -42,6 +42,258 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.21":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.21 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 8:
+        fail("v0.8 alpha.5.21 must rebuild generated Provider Cache at schemaVersion 8")
+
+    command_h = read("src/core/Command.hpp")
+    catalog_h = read("src/core/LaunchCatalog.hpp")
+    catalog_cpp = read("src/core/LaunchCatalog.cpp")
+    candidate_h = read("src/core/LaunchCandidate.hpp")
+    candidate_cpp = read("src/core/LaunchCandidate.cpp")
+    start_cpp = read("src/core/StartMenuProvider.cpp")
+    packaged_cpp = read("src/core/PackagedAppProvider.cpp")
+    apppaths_cpp = read("src/core/AppPathsProvider.cpp")
+    path_cpp = read("src/core/PathProvider.cpp")
+    merge_cpp = read("src/core/CommandMerge.cpp")
+    app_cpp = read("src/app/App.cpp")
+    cache_cpp = read("src/core/ProviderCache.cpp")
+    merge_tests = read("tests/CommandMergeTests.cpp")
+    catalog_tests = read("tests/LaunchCatalogTests.cpp")
+    candidate_tests = read("tests/LaunchCandidateTests.cpp")
+    provider_tests = read("tests/WindowsProviderSmokeTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    cmake = read("CMakeLists.txt")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "LaunchActivationKind",
+        "activationKind",
+        "canonicalIdentity",
+    ):
+        if token not in command_h:
+            fail(f"v0.8 alpha.5.21 Command catalog field missing: {token}")
+
+    for token in (
+        "PackagedVisibilityEvidence",
+        "IsStrongInternalPackagedEntry",
+        "IsPackagedApplicationId",
+        "ActivationKindForCatalogTarget",
+        "BuildCanonicalLaunchIdentity",
+    ):
+        if token not in catalog_h or token not in catalog_cpp:
+            fail(f"v0.8 alpha.5.21 LaunchCatalog ownership missing: {token}")
+
+    for token in (
+        "ProductInfo",
+        "InternalComponent",
+        "IsProductInfoLikeTitle",
+        "IsStrongInternalPackagedEntry",
+    ):
+        if token not in candidate_h + candidate_cpp:
+            fail(f"v0.8 alpha.5.21 positive-admission role missing: {token}")
+
+    for name, text in (
+        ("Start Menu", start_cpp),
+        ("App Paths", apppaths_cpp),
+        ("PATH", path_cpp),
+        ("Windows Apps", packaged_cpp),
+    ):
+        if "canonicalIdentity" not in text or "BuildCanonicalLaunchIdentity" not in text:
+            fail(f"v0.8 alpha.5.21 {name} must publish canonical launch identity")
+
+    for token in (
+        "PKEY_AppUserModel_PreventPinning",
+        "SFGAO_HIDDEN",
+        "SFGAO_SYSTEM",
+        "PackagedApplication",
+    ):
+        if token not in packaged_cpp:
+            fail(f"v0.8 alpha.5.21 packaged visibility/activation evidence missing: {token}")
+
+    for token in (
+        "canonicalIdentity",
+        "incoming.canonicalIdentity ==",
+    ):
+        if token not in merge_cpp:
+            fail(f"v0.8 alpha.5.21 identity-driven provider merge missing: {token}")
+
+    for token in (
+        "IApplicationActivationManager",
+        "ActivateApplication(",
+        "PackagedApplication",
+        "IsPackagedApplicationId",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.5.21 packaged activation path missing: {token}")
+
+    for token in (
+        '"activation"',
+        '"canonicalIdentity"',
+        "ParseLaunchActivationKind",
+        "LaunchActivationKindName",
+    ):
+        if token not in cache_cpp:
+            fail(f"v0.8 alpha.5.21 Provider Cache catalog persistence missing: {token}")
+
+    for token in (
+        "Google Chrome",
+        "--incognito",
+        "canonicalIdentity",
+    ):
+        if token not in merge_tests:
+            fail(f"v0.8 alpha.5.21 canonical merge regression missing: {token}")
+
+    if "TeamSpeak" in merge_tests or "TeamSpeak" in candidate_tests:
+        fail("v0.8 alpha.5.21 must remove no-longer-needed TeamSpeak-specific investigation fixtures")
+
+    for token in (
+        "PackagedVisibilityEvidence",
+        "BuildCanonicalLaunchIdentity",
+        "PackagedApplication",
+    ):
+        if token not in catalog_tests:
+            fail(f"v0.8 alpha.5.21 LaunchCatalog regression missing: {token}")
+
+    for token in (
+        "关于 Java",
+        "ProductInfo",
+        "InternalComponent",
+    ):
+        if token not in candidate_tests:
+            fail(f"v0.8 alpha.5.21 role admission regression missing: {token}")
+
+    for token in (
+        "activationKind",
+        "canonicalIdentity",
+        "IsPackagedApplicationId",
+    ):
+        if token not in provider_tests:
+            fail(f"v0.8 alpha.5.21 Windows provider catalog smoke missing: {token}")
+
+    for token in (
+        "provider-cache-schema7-stale.json",
+        "staleSchema7Cache.Load().empty()",
+        "canonicalIdentity",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.21 schema-7 catalog rebuild regression missing: {token}")
+
+    for token in (
+        "src/core/LaunchCatalog.cpp",
+        "launch_catalog_tests",
+    ):
+        if token not in cmake:
+            fail(f"v0.8 alpha.5.21 CMake catalog ownership missing: {token}")
+
+    for forbidden in (
+        "ExecutableUnknown",
+        "--diagnose-shortcut",
+        "legacyAlpha516Kind",
+        "launch-target-diagnostic.json",
+    ):
+        if forbidden in command_h + catalog_h + catalog_cpp + app_cpp + merge_tests + candidate_tests:
+            fail(f"v0.8 alpha.5.21 obsolete investigation/fallback code returned: {forbidden}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.21 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,191",
+        "PRODUCTVERSION 0,8,0,191",
+        "0.8.0-alpha.5.21",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.21 resource version missing: {token}")
+
+    if 'version="0.8.0.191"' not in manifest:
+        fail("v0.8 alpha.5.21 manifest fixed version must be 0.8.0.191")
+
+    for token in (
+        '"0.8.0-alpha.5.20"',
+        '"0.8.0-alpha.5.21"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.21 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.21 Intelligent Launch Catalog validation",
+        "Google Chrome",
+        "时钟",
+        "设置",
+        "关于 Java",
+        "单击以执行",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.21 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.21 — Intelligent Launch Catalog",
+        "canonical launch identity",
+        "IApplicationActivationManager",
+        "0.8.0.191",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.21 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.21" not in changelog:
+        fail("v0.8 alpha.5.21 changelog entry missing")
+
+    if "v0.8.0-alpha.5.21 establishes an Intelligent Launch Catalog" not in roadmap:
+        fail("v0.8 alpha.5.21 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.21 Intelligent Launch Catalog verified:",
+        "| canonical identity",
+        "| native packaged activation",
+        "| structural internal-app evidence",
+        "| ProductInfo role admission",
+        "| TeamSpeak investigation fixtures cleaned",
+        "| Provider Cache schema 8",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.20":
     import hashlib
     import subprocess

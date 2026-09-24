@@ -253,6 +253,7 @@ In progress:
 - v0.8.0-alpha.5.18 makes static-provider publication stateful and observable: incomplete startup snapshots stay Building and hidden until one atomic publish, while bounded admission diagnostics preserve why candidates were rejected
 - v0.8.0-alpha.5.19 freezes admission behavior and adds a temporary exact legacy-vs-current launch-target trace so the TeamSpeak 6 false-negative can be proven before retaining or removing ExecutableUnknown
 - v0.8.0-alpha.5.20 removes the disproven ExecutableUnknown fallback and temporary probe, rebuilds generated cache under strict admission, and locks empty-cache startup behind the alpha.5.18 Building gate
+- v0.8.0-alpha.5.21 establishes an Intelligent Launch Catalog: canonical identity owns provider dedupe, activation semantics distinguish AUMID from ShellExecute, and structural/role evidence prevents internal/product-info surfaces from entering the normal index
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

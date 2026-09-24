@@ -296,6 +296,43 @@ bool IsMaintenanceLikeTitle(
             });
 }
 
+bool IsProductInfoLikeTitle(
+    std::wstring_view title) {
+
+    const std::wstring lower =
+        Lower(title);
+
+    std::size_t first = 0;
+    std::size_t last = lower.size();
+
+    while (first < last &&
+           std::iswspace(lower[first])) {
+        ++first;
+    }
+
+    while (last > first &&
+           std::iswspace(
+               lower[last - 1])) {
+        --last;
+    }
+
+    const std::wstring_view trimmed(
+        lower.data() + first,
+        last - first);
+
+    if (trimmed == L"about" ||
+        trimmed.starts_with(L"about ")) {
+        return true;
+    }
+
+    // Chinese product information entries are conventionally titled
+    // "关于 <product>" or "关于<product>". Treat the semantic action as a
+    // role, not as a product-name blacklist.
+    return
+        trimmed.size() > 2 &&
+        trimmed.starts_with(L"关于");
+}
+
 bool LooksLikeWebTarget(
     std::wstring_view target) {
 
@@ -397,6 +434,10 @@ const char* LaunchAdmissionReasonName(
         return "maintenance";
     case LaunchAdmissionReason::Auxiliary:
         return "auxiliary";
+    case LaunchAdmissionReason::ProductInfo:
+        return "product-info";
+    case LaunchAdmissionReason::InternalComponent:
+        return "internal-component";
     case LaunchAdmissionReason::DocumentTarget:
         return "document-target";
     case LaunchAdmissionReason::WebTarget:
@@ -428,6 +469,22 @@ LaunchAdmission EvaluateLaunchCandidate(
         decision.reason =
             LaunchAdmissionReason::
                 MissingIdentity;
+        return decision;
+    }
+
+    if (IsStrongInternalPackagedEntry(
+            candidate.packagedVisibility)) {
+        decision.reason =
+            LaunchAdmissionReason::
+                InternalComponent;
+        return decision;
+    }
+
+    if (IsProductInfoLikeTitle(
+            candidate.title)) {
+        decision.reason =
+            LaunchAdmissionReason::
+                ProductInfo;
         return decision;
     }
 

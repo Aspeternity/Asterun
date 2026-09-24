@@ -441,6 +441,13 @@ PathProvider::DiscoverDetailed() const {
             }
 
             command.target = target;
+            command.activationKind =
+                LaunchActivationKind::
+                    ShellExecute;
+            command.canonicalIdentity =
+                BuildCanonicalLaunchIdentity(
+                    command.activationKind,
+                    command.target);
             command.type =
                 CommandType::Application;
             command.icon = L"auto";
