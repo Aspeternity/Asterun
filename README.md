@@ -23,6 +23,15 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.22 — Provider Monitor Performance Hygiene
+
+Alpha.5.22 keeps the Intelligent Launch Catalog behavior from alpha.5.21 while removing unnecessary background Shell work from packaged-app monitoring.
+
+Windows Apps discovery still performs full classification when the index is actually rebuilt: it reads HIDDEN/SYSTEM Shell attributes and `PKEY_AppUserModel_PreventPinning`, then applies the same Positive Admission, canonical identity and activation semantics as alpha.5.21. The 5-second Provider Monitor fingerprint no longer performs those classification/property queries. It enumerates only the stable AppsFolder title + target identity needed to detect a source change.
+
+The AppsFolder implementation now has one shared enumerator with two consumers: `EnumerateAppsFolderDetailed()` for real discovery/admission and `AppsFolderFingerprintItems()` for monitoring. The fingerprint path stores only per-item hashes rather than a temporary vector of full ShellApp objects, reducing temporary allocation and COM/Shell property traffic during idle monitoring.
+
+No search-hot-path code, ranking logic, Provider Cache format, catalog admission rule or activation behavior changes in this version. Provider Cache remains schema 8. Classic UI/geometry and all alpha.5.21 functional behavior stay frozen. Windows fixed FileVersion/ProductVersion is `0.8.0.192`.
 ## v0.8.0-alpha.5.21 — Intelligent Launch Catalog
 
 Alpha.5.21 changes the provider pipeline from name/target collection toward a launch catalog with explicit identity, activation semantics and positive admission evidence. Provider results now carry a canonical launch identity plus an activation kind; generated Provider Cache schema is bumped to 8 so those fields are always rebuilt from live Windows data instead of guessed from older snapshots.

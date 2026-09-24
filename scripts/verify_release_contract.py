@@ -42,6 +42,152 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.22":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.22 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 8:
+        fail("v0.8 alpha.5.22 must preserve Provider Cache schemaVersion 8")
+
+    packaged_cpp = read("src/core/PackagedAppProvider.cpp")
+    app_cpp = read("src/app/App.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "ReadVisibilityEvidence(",
+        "VisitAppsFolder(",
+        "EnumerateAppsFolderDetailed()",
+        "AppsFolderFingerprintItems()",
+    ):
+        if token not in packaged_cpp:
+            fail(f"v0.8 alpha.5.22 packaged monitor split missing: {token}")
+
+    change_token = packaged_cpp.split(
+        "PackagedAppProvider::ChangeToken() const",
+        1,
+    )[1]
+    if "AppsFolderFingerprintItems()" not in change_token:
+        fail("v0.8 alpha.5.22 ChangeToken must use lightweight AppsFolder fingerprinting")
+    for forbidden in (
+        "ReadVisibilityEvidence(",
+        "PKEY_AppUserModel_PreventPinning",
+        "SFGAO_HIDDEN",
+        "SFGAO_SYSTEM",
+        "EnumerateAppsFolderDetailed()",
+    ):
+        if forbidden in change_token:
+            fail(
+                "v0.8 alpha.5.22 ChangeToken must not perform discovery-only "
+                f"Shell classification work: {forbidden}"
+            )
+
+    discovery = packaged_cpp.split(
+        "PackagedAppProvider::DiscoverDetailed() const",
+        1,
+    )[1].split(
+        "PackagedAppProvider::ChangeToken() const",
+        1,
+    )[0]
+    if "EnumerateAppsFolderDetailed()" not in discovery:
+        fail("v0.8 alpha.5.22 discovery must retain full visibility evidence")
+
+    for token in (
+        "IApplicationActivationManager",
+        "ActivateApplication(",
+    ):
+        if token not in app_cpp:
+            fail(f"v0.8 alpha.5.22 packaged activation regressed: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.22 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,192",
+        "PRODUCTVERSION 0,8,0,192",
+        "0.8.0-alpha.5.22",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.22 resource version missing: {token}")
+
+    if 'version="0.8.0.192"' not in manifest:
+        fail("v0.8 alpha.5.22 manifest fixed version must be 0.8.0.192")
+
+    for token in (
+        '"0.8.0-alpha.5.21"',
+        '"0.8.0-alpha.5.22"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.22 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.22 Provider monitor performance hygiene validation",
+        "1–5 minutes",
+        "working-set memory",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.22 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.22 — Provider Monitor Performance Hygiene",
+        "AppsFolderFingerprintItems()",
+        "0.8.0.192",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.22 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.22" not in changelog:
+        fail("v0.8 alpha.5.22 changelog entry missing")
+
+    if "v0.8.0-alpha.5.22 separates expensive AppsFolder classification" not in roadmap:
+        fail("v0.8 alpha.5.22 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.22 Provider Monitor Performance Hygiene verified:",
+        "| detailed discovery preserved",
+        "| lightweight AppsFolder fingerprint",
+        "| no discovery-only Shell property reads in ChangeToken",
+        "| Provider Cache schema 8 preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.21":
     import hashlib
     import subprocess

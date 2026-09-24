@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0-alpha.5.22
+
+- Split Windows Apps enumeration into detailed discovery/admission and lightweight monitor fingerprint consumers.
+- Provider Monitor no longer reads HIDDEN/SYSTEM or `PKEY_AppUserModel_PreventPinning` every 5 seconds; those Shell properties are queried only during actual discovery.
+- ChangeToken now stores only compact per-item hashes while enumerating AppsFolder instead of building a temporary full ShellApp vector.
+- Kept Intelligent Launch Catalog identity, packaged activation, positive admission, search/ranking and Provider Cache schema 8 unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.192`.
 ## 0.8.0-alpha.5.21
 
 - Added provider-neutral `LaunchCatalog` ownership for activation semantics, canonical launch identity and packaged visibility evidence.

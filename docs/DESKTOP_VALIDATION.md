@@ -452,6 +452,16 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck WinRAR documentation/What's New, uninstall/update/helper/native-messaging entries: existing positive-admission hygiene remains intact.
 - [ ] Classic visuals/geometry, table resize, numeric Quick Launch, pinyin, Everything and result ranking remain unchanged.
 
+## v0.8.0-alpha.5.22 Provider monitor performance hygiene validation
+
+- [ ] Upgrade from alpha.5.21. Provider Cache stays schema 8; no forced catalog rebuild is caused by this version alone.
+- [ ] Leave ALTRun Next idle for at least 1–5 minutes with Windows Apps enabled. Task Manager CPU should remain effectively idle between brief provider-monitor checks; there should be no sustained CPU activity.
+- [ ] Compare idle behavior with alpha.5.21 on the same machine if practical; the packaged provider monitor should perform less Shell/COM work while preserving change detection.
+- [ ] Install/remove or otherwise change a visible Windows Apps entry, wait for the normal provider monitor cycle, and confirm the catalog still refreshes.
+- [ ] Recheck `时钟` and `设置` launch correctly, Chrome remains deduplicated, ProductInfo/internal surfaces remain filtered, and TeamSpeak 3/6 remain present.
+- [ ] Recheck repeated launcher invocation and continuous typing: search responsiveness is unchanged because no new work was added to the search hot path.
+- [ ] Record working-set memory after 30 seconds idle for comparison with the existing alpha.5.x baseline.
+
 ## Release assets
 
 For the candidate tag:

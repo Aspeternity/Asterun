@@ -81,11 +81,59 @@ std::wstring NormalizeTarget(
     return normalized;
 }
 
-std::vector<ShellApp>
-EnumerateAppsFolder() {
+PackagedVisibilityEvidence
+ReadVisibilityEvidence(
+    IShellItem* item) {
+
+    PackagedVisibilityEvidence
+        visibility;
+
+    if (item == nullptr) {
+        return visibility;
+    }
+
+    SFGAOF attributes{};
+
+    if (SUCCEEDED(
+            item->GetAttributes(
+                static_cast<SFGAOF>(
+                    SFGAO_HIDDEN |
+                    SFGAO_SYSTEM),
+                &attributes))) {
+        visibility.hidden =
+            (attributes &
+             SFGAO_HIDDEN) != 0;
+        visibility.system =
+            (attributes &
+             SFGAO_SYSTEM) != 0;
+    }
+
+    ComPtr<IShellItem2> item2;
+
+    if (SUCCEEDED(
+            item->QueryInterface(
+                IID_PPV_ARGS(
+                    &item2))) &&
+        item2) {
+        BOOL value = FALSE;
+
+        if (SUCCEEDED(
+                item2->GetBool(
+                    PKEY_AppUserModel_PreventPinning,
+                    &value))) {
+            visibility.preventPinning =
+                value != FALSE;
+        }
+    }
+
+    return visibility;
+}
+
+template <typename Visitor>
+void VisitAppsFolder(
+    Visitor&& visitor) {
 
     ComApartment apartment;
-    std::vector<ShellApp> apps;
 
     ComPtr<IShellItem> appsFolder;
 
@@ -184,50 +232,61 @@ EnumerateAppsFolder() {
             continue;
         }
 
-        PackagedVisibilityEvidence
-            visibility;
-
-        SFGAOF attributes{};
-
-        if (SUCCEEDED(
-                item->GetAttributes(
-                    static_cast<SFGAOF>(
-                        SFGAO_HIDDEN |
-                        SFGAO_SYSTEM),
-                    &attributes))) {
-            visibility.hidden =
-                (attributes &
-                 SFGAO_HIDDEN) != 0;
-            visibility.system =
-                (attributes &
-                 SFGAO_SYSTEM) != 0;
-        }
-
-        ComPtr<IShellItem2> item2;
-
-        if (SUCCEEDED(
-                item.As(&item2)) &&
-            item2) {
-            BOOL value = FALSE;
-
-            if (SUCCEEDED(
-                    item2->GetBool(
-                        PKEY_AppUserModel_PreventPinning,
-                        &value))) {
-                visibility.preventPinning =
-                    value != FALSE;
-            }
-
-        }
-
-        apps.push_back({
+        visitor(
+            item.Get(),
             std::move(title),
-            std::move(target),
-            visibility,
-        });
+            std::move(target));
     }
+}
+
+std::vector<ShellApp>
+EnumerateAppsFolderDetailed() {
+
+    std::vector<ShellApp> apps;
+
+    VisitAppsFolder(
+        [&](IShellItem* item,
+            std::wstring title,
+            std::wstring target) {
+
+            apps.push_back({
+                std::move(title),
+                std::move(target),
+                ReadVisibilityEvidence(
+                    item),
+            });
+        });
 
     return apps;
+}
+
+std::vector<std::uint64_t>
+AppsFolderFingerprintItems() {
+
+    std::vector<std::uint64_t> items;
+
+    VisitAppsFolder(
+        [&](IShellItem*,
+            std::wstring title,
+            std::wstring target) {
+
+            std::uint64_t itemHash =
+                fingerprint::kOffset;
+
+            fingerprint::Mix(
+                itemHash,
+                title);
+
+            fingerprint::Mix(
+                itemHash,
+                NormalizeTarget(
+                    target));
+
+            items.push_back(
+                itemHash);
+        });
+
+    return items;
 }
 
 } // namespace
@@ -260,7 +319,7 @@ PackagedAppProvider::DiscoverDetailed() const {
         seenTargets;
 
     for (auto app :
-         EnumerateAppsFolder()) {
+         EnumerateAppsFolderDetailed()) {
 
         const std::wstring targetKey =
             NormalizeTarget(
@@ -367,26 +426,11 @@ PackagedAppProvider::DiscoverDetailed() const {
 std::uint64_t
 PackagedAppProvider::ChangeToken() const {
 
-    std::vector<std::uint64_t> items;
-
-    for (const auto& app :
-         EnumerateAppsFolder()) {
-
-        std::uint64_t itemHash =
-            fingerprint::kOffset;
-
-        fingerprint::Mix(
-            itemHash,
-            app.title);
-
-        fingerprint::Mix(
-            itemHash,
-            NormalizeTarget(
-                app.target));
-
-        items.push_back(
-            itemHash);
-    }
+    // Provider monitoring runs every few seconds. Fingerprinting only needs
+    // stable app identity; expensive Shell visibility/property queries belong
+    // exclusively to full discovery/admission.
+    auto items =
+        AppsFolderFingerprintItems();
 
     std::sort(
         items.begin(),
