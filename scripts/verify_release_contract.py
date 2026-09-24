@@ -287,7 +287,7 @@ if version == "0.8.0-alpha.5.2":
     roadmap = read("ROADMAP.md")
     for token in (
         "v0.8.0-alpha.5.2 — Settings UX & Global Shortcut Manager Hotkey",
-        "real Windows global hotkey",
+        "true Windows global hotkey",
         "all seven Settings dropdowns",
         "0.8.0.172",
     ):
