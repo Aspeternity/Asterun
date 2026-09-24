@@ -3741,13 +3741,15 @@ void SettingsWindow::UpdatePageScrollBar() {
         const int pageHeight =
             std::max(
                 1,
-                viewport.bottom -
-                    viewport.top);
+                static_cast<int>(
+                    viewport.bottom -
+                    viewport.top));
         const int contentHeight =
             std::max(
                 1,
                 HotkeyContentBottom() -
-                    viewport.top);
+                    static_cast<int>(
+                        viewport.top));
         const int maximum =
             std::max(
                 0,
