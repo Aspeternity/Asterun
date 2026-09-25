@@ -4,6 +4,7 @@
 #include "LaunchRole.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
+#include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/WinUtil.hpp"
 
 #define WIN32_LEAN_AND_MEAN
