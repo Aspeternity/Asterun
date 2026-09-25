@@ -459,7 +459,7 @@ int main() {
         assert(
             HasToken(
                 tokens,
-                L"performance test"));
+                L"performancetest"));
     }
 
     {
