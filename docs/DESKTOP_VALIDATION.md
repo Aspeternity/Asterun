@@ -578,6 +578,24 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Verify the versioned prerelease is still published and contains x64/ARM64 ZIPs, SHA256SUMS.txt and update-manifest.json.
 - [ ] Provider Cache stays schema 12; search/catalog behavior and frozen Classic UI/geometry are unchanged.
 
+## v0.8.0-alpha.5.31 Alternate / Suite Utility validation
+
+- [ ] Upgrade from alpha.5.30. Provider Cache rebuilds once under schema 13; settings, user commands and usage remain unchanged.
+- [ ] Search only a suite family prefix. Quick Launch/Safe Mode/no-plugins variants corroborated by the primary must not appear.
+- [ ] Explicitly search quick/safe/no-plugins wording. The corresponding AlternateLaunch entries remain reachable.
+- [ ] Validate an alternate shortcut placed in a different Start Menu subfolder. Same canonical primary target + variant arguments must still classify StrongMatchOnly.
+- [ ] Validate an alternate entry with a different target but a title base matching the clear primary. It should classify Medium/StrongMatchOnly rather than requiring identical menu location.
+- [ ] An isolated unrelated “Quick Launch” entry with no primary relationship must remain Low/Normal.
+- [ ] Task Scheduler / Job Scheduler / Sync Manager / automation/maintenance utility-style entries should be StrongMatchOnly when evidence is explicit.
+- [ ] A bare Sync/Scheduler/Automation/Maintenance cue remains Normal without suite context and becomes SuiteUtility only when corroborated by a related primary.
+- [ ] Verify token-aware weak matching: an unrelated `async` title must not be treated as `sync`.
+- [ ] Search a suite containing both Composer (or another independent companion) and Composer Sync. The independent companion remains Normal; family query suppresses Sync, while explicit `sync` finds it.
+- [ ] Validate an opaque-title diagnostic whose Version Resource description/internal name contains generic diagnostic/problem-report/support/recovery evidence. Family query suppresses it, while its family-stripped entry name remains usable as explicit intent.
+- [ ] User shortcuts remain authoritative and are never rewritten by Alternate/SuiteUtility calibration.
+- [ ] Inspect `data/provider-cache.json`: schema is 13 and the new `suite-utility` role persists by name.
+- [ ] Recheck Settings/Benchmark suppression from alpha.5.29, App Paths/PATH/AppsFolder, Everything merge, pinyin, usage ranking, idle CPU/memory and frozen Classic repaint/geometry behavior.
+- [ ] No commercial product name may appear in production role rules or new generic role regressions.
+
 ## Release assets
 
 For the candidate tag:

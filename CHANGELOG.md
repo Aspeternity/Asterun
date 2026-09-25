@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.5.31
+
+- Added provider-neutral `SuiteUtility` for user-invoked suite auxiliaries such as task/job schedulers, synchronization managers/tools, automation utilities and maintenance consoles.
+- High-information utility phrases classify directly at Medium confidence; ambiguous single words such as Sync/Scheduler/Automation/Maintenance stay Low/Normal until corroborated by a related suite primary.
+- Weak ASCII utility cues use token-aware matching, so unrelated words such as `async` cannot accidentally trigger `sync`.
+- `AlternateLaunch` relationship inference no longer requires strict same-group/location context. A variant can be corroborated by the same canonical activation target, the same normalized family, or a title base that matches a clear primary application.
+- Same canonical target gives High-confidence AlternateLaunch; family/title-base corroboration gives Medium. An isolated Quick Launch/Safe Mode phrase remains Low/Normal.
+- Diagnostic evidence now recognizes generic problem-report/support/recovery/diagnostic-assistant metadata without any product-name rule. Opaque metadata-driven diagnostic/utility entries keep only their family-stripped entry-name intent so they remain explicitly searchable.
+- Independent Composer/Renderer/Editor/Encoder-style companions remain Normal; a weak `Sync` companion becomes StrongMatchOnly only with suite-primary context.
+- Provider Cache advances to schema 13 to rebuild alpha.5.30 role/token state under the completed Alternate/SuiteUtility model.
+- SearchEngine, ResultRanking, usage, pinyin, Everything, provider monitoring and frozen Classic UI/geometry are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.201`.
+
 ## 0.8.0-alpha.5.30
 
 - Fixed the rolling `dev-latest` release path that could leave a GitHub Draft Release behind while CI still reported success, causing installed prerelease clients to receive HTTP 404 for `update-manifest.json`.

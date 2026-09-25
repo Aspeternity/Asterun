@@ -1127,6 +1127,429 @@ int main() {
     }
 
     {
+        auto evidence =
+            BaseEvidence(
+                L"Acme Task Scheduler 2026",
+                L"C:/Program Files/Acme/Tools/Tool.exe");
+
+        evidence.executable.productName =
+            L"Acme Studio";
+
+        const auto decision =
+            ClassifyApplicationRole(
+                evidence);
+
+        assert(
+            decision.role ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            decision.confidence ==
+            RoleConfidence::Medium);
+        assert(
+            decision.visibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                decision.distinctiveTokens,
+                L"task scheduler"));
+    }
+
+    {
+        auto evidence =
+            BaseEvidence(
+                L"Acme Sync",
+                L"C:/Program Files/Acme/Tools/Sync.exe");
+
+        const auto decision =
+            ClassifyApplicationRole(
+                evidence);
+
+        // A weak utility word is not enough to suppress a standalone entry.
+        assert(
+            decision.role ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            decision.confidence ==
+            RoleConfidence::Low);
+        assert(
+            decision.visibility ==
+            CatalogVisibility::Normal);
+        assert(
+            HasToken(
+                decision.distinctiveTokens,
+                L"sync"));
+
+        auto asyncEvidence =
+            BaseEvidence(
+                L"Acme Async Studio",
+                L"C:/Program Files/Acme/Async.exe");
+
+        const auto asyncDecision =
+            ClassifyApplicationRole(
+                asyncEvidence);
+
+        // Weak "sync" matching is token-aware; "async" must not trigger it.
+        assert(
+            asyncDecision.role !=
+            ApplicationRole::
+                SuiteUtility);
+    }
+
+    {
+        auto evidence =
+            BaseEvidence(
+                L"Fabrikam X9 2026",
+                L"C:/Program Files/Fabrikam/X9.exe");
+
+        evidence.executable.productName =
+            L"Fabrikam Suite";
+        evidence.executable.fileDescription =
+            L"Diagnostic Utility";
+        evidence.executable.internalName =
+            L"Problem Reporter";
+
+        const auto decision =
+            ClassifyApplicationRole(
+                evidence);
+
+        assert(
+            decision.role ==
+            ApplicationRole::
+                DiagnosticTool);
+        assert(
+            decision.confidence ==
+            RoleConfidence::High);
+        assert(
+            decision.visibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        // Opaque metadata-driven roles retain only the family-stripped entry
+        // name so a user can still explicitly reach the tool.
+        assert(
+            HasToken(
+                decision.distinctiveTokens,
+                L"x9"));
+        assert(
+            !HasToken(
+                decision.distinctiveTokens,
+                L"fabrikam"));
+    }
+
+    {
+        // Alternate variants can be related by activation identity or title
+        // even when Start Menu grouping differs.
+        Command primary;
+        primary.source =
+            CommandSource::StartMenu;
+        primary.title =
+            L"Contoso Studio 2026";
+        primary.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Studio.exe";
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\studio.exe";
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            L"family:contosostudio|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\contoso studio 2026";
+
+        Command crossGroupQuick;
+        crossGroupQuick.source =
+            CommandSource::StartMenu;
+        crossGroupQuick.title =
+            L"Contoso Studio 2026 Quick Launch";
+        crossGroupQuick.target =
+            primary.target;
+        crossGroupQuick.arguments =
+            L"--quick";
+        crossGroupQuick.canonicalIdentity =
+            primary.canonicalIdentity +
+            L"|args:--quick";
+        crossGroupQuick.applicationRole =
+            ApplicationRole::
+                AlternateLaunch;
+        crossGroupQuick.roleConfidence =
+            RoleConfidence::Low;
+        crossGroupQuick.catalogVisibility =
+            CatalogVisibility::Normal;
+        crossGroupQuick.catalogGroupKey =
+            L"family:contosotools|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\contoso tools 2026";
+        crossGroupQuick.distinctiveTokens = {
+            L"contoso",
+            L"quick",
+        };
+
+        Command crossGroupSafe;
+        crossGroupSafe.source =
+            CommandSource::StartMenu;
+        crossGroupSafe.title =
+            L"Contoso Studio 2026 Safe Mode";
+        crossGroupSafe.target =
+            L"C:\\Program Files\\Contoso\\Tools\\Safe.exe";
+        crossGroupSafe.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\tools\\safe.exe";
+        crossGroupSafe.applicationRole =
+            ApplicationRole::
+                AlternateLaunch;
+        crossGroupSafe.roleConfidence =
+            RoleConfidence::Low;
+        crossGroupSafe.catalogVisibility =
+            CatalogVisibility::Normal;
+        crossGroupSafe.catalogGroupKey =
+            L"family:contososafe|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\contoso safe";
+        crossGroupSafe.distinctiveTokens = {
+            L"contoso",
+            L"safe",
+        };
+
+        Command isolatedQuick;
+        isolatedQuick.source =
+            CommandSource::StartMenu;
+        isolatedQuick.title =
+            L"Fabrikam Quick Launch";
+        isolatedQuick.target =
+            L"C:\\Program Files\\Fabrikam\\Quick.exe";
+        isolatedQuick.canonicalIdentity =
+            L"file:c:\\program files\\fabrikam\\quick.exe";
+        isolatedQuick.applicationRole =
+            ApplicationRole::
+                AlternateLaunch;
+        isolatedQuick.roleConfidence =
+            RoleConfidence::Low;
+        isolatedQuick.catalogVisibility =
+            CatalogVisibility::Normal;
+        isolatedQuick.catalogGroupKey =
+            L"family:fabrikam|root:c:\\program files\\fabrikam";
+
+        Command userQuick =
+            crossGroupQuick;
+        userQuick.source =
+            CommandSource::User;
+        userQuick.title =
+            L"My Quick Contoso";
+        userQuick.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        userQuick.roleConfidence =
+            RoleConfidence::High;
+        userQuick.catalogVisibility =
+            CatalogVisibility::Normal;
+
+        std::vector<Command*> commands{
+            &primary,
+            &crossGroupQuick,
+            &crossGroupSafe,
+            &isolatedQuick,
+            &userQuick,
+        };
+
+        CalibrateCatalogRoleContext(
+            commands);
+
+        assert(
+            crossGroupQuick.applicationRole ==
+            ApplicationRole::
+                AlternateLaunch);
+        assert(
+            crossGroupQuick.roleConfidence ==
+            RoleConfidence::High);
+        assert(
+            crossGroupQuick.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                crossGroupQuick
+                    .distinctiveTokens,
+                L"quick launch"));
+
+        assert(
+            crossGroupSafe.applicationRole ==
+            ApplicationRole::
+                AlternateLaunch);
+        assert(
+            crossGroupSafe.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            crossGroupSafe.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                crossGroupSafe
+                    .distinctiveTokens,
+                L"safe mode"));
+
+        // Phrase alone remains insufficient.
+        assert(
+            isolatedQuick.roleConfidence ==
+            RoleConfidence::Low);
+        assert(
+            isolatedQuick.catalogVisibility ==
+            CatalogVisibility::Normal);
+
+        // User shortcuts remain explicit authority.
+        assert(
+            userQuick.applicationRole ==
+            ApplicationRole::
+                PrimaryApplication);
+        assert(
+            userQuick.catalogVisibility ==
+            CatalogVisibility::Normal);
+    }
+
+    {
+        const std::wstring group =
+            L"family:contosostudio|root:c:\\program files\\contoso\\studio";
+
+        Command primary;
+        primary.source =
+            CommandSource::StartMenu;
+        primary.title =
+            L"Contoso Studio 2026";
+        primary.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Studio.exe";
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\studio.exe";
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            group;
+
+        Command composer;
+        composer.source =
+            CommandSource::StartMenu;
+        composer.title =
+            L"Contoso Studio Composer 2026";
+        composer.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Composer.exe";
+        composer.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\composer.exe";
+        composer.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        composer.roleConfidence =
+            RoleConfidence::Medium;
+        composer.catalogVisibility =
+            CatalogVisibility::Normal;
+        composer.catalogGroupKey =
+            group;
+
+        Command composerSync;
+        composerSync.source =
+            CommandSource::StartMenu;
+        composerSync.title =
+            L"Contoso Studio Composer Sync 2026";
+        composerSync.target =
+            L"C:\\Program Files\\Contoso\\Studio\\ComposerSync.exe";
+        composerSync.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\composersync.exe";
+        composerSync.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        composerSync.roleConfidence =
+            RoleConfidence::Medium;
+        composerSync.catalogVisibility =
+            CatalogVisibility::Normal;
+        composerSync.catalogGroupKey =
+            group;
+        composerSync.distinctiveTokens = {
+            L"composer",
+            L"sync",
+        };
+
+        Command taskScheduler;
+        taskScheduler.source =
+            CommandSource::StartMenu;
+        taskScheduler.title =
+            L"Contoso Studio Task Scheduler 2026";
+        taskScheduler.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Scheduler.exe";
+        taskScheduler.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\scheduler.exe";
+        taskScheduler.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        taskScheduler.roleConfidence =
+            RoleConfidence::High;
+        taskScheduler.catalogVisibility =
+            CatalogVisibility::Normal;
+        taskScheduler.catalogGroupKey =
+            group;
+        taskScheduler.distinctiveTokens = {
+            L"contoso",
+            L"scheduler",
+        };
+
+        std::vector<Command*> commands{
+            &primary,
+            &composer,
+            &composerSync,
+            &taskScheduler,
+        };
+
+        CalibrateCatalogRoleContext(
+            commands);
+
+        assert(
+            composer.applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            composer.catalogVisibility ==
+            CatalogVisibility::Normal);
+
+        assert(
+            composerSync.applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            composerSync.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            composerSync.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            composerSync
+                .distinctiveTokens
+                .size() == 1);
+        assert(
+            composerSync
+                .distinctiveTokens[0] ==
+            L"sync");
+
+        assert(
+            taskScheduler.applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            taskScheduler.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            taskScheduler.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                taskScheduler
+                    .distinctiveTokens,
+                L"task scheduler"));
+    }
+
+    {
         assert(
             ParseApplicationRole(
                 ApplicationRoleName(
@@ -1141,6 +1564,13 @@ int main() {
                         AlternateLaunch)) ==
             ApplicationRole::
                 AlternateLaunch);
+        assert(
+            ParseApplicationRole(
+                ApplicationRoleName(
+                    ApplicationRole::
+                        SuiteUtility)) ==
+            ApplicationRole::
+                SuiteUtility);
         assert(
             ParseRoleConfidence(
                 RoleConfidenceName(

@@ -1586,7 +1586,7 @@ int main() {
     cachedStart.surfaceClass =
         LaunchSurfaceClass::SystemUtility;
     cachedStart.applicationRole =
-        ApplicationRole::DiagnosticTool;
+        ApplicationRole::SuiteUtility;
     cachedStart.roleConfidence =
         RoleConfidence::High;
     cachedStart.catalogVisibility =
@@ -1671,7 +1671,7 @@ int main() {
         startCache->second
             .commands[0]
             .applicationRole ==
-        ApplicationRole::DiagnosticTool);
+        ApplicationRole::SuiteUtility);
     assert(
         startCache->second
             .commands[0]
@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 12,\n"
+        "  \"schemaVersion\": 13,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,17 +1788,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 11 still treats EXE ProductName as the primary suite identity.
-    // Generated state must rebuild so Start Menu suite context, role-specific
-    // intent tokens and publication-time role normalization are recomputed.
-    const auto staleSchema11ProviderCache =
+    // Schema 12 predates SuiteUtility and cross-group alternate relationship
+    // completion. Generated state must rebuild so utility/alternate roles and
+    // their query-intent tokens are recomputed.
+    const auto staleSchema12ProviderCache =
         data /
-        "provider-cache-schema11-stale.json";
+        "provider-cache-schema12-stale.json";
 
     WriteText(
-        staleSchema11ProviderCache,
+        staleSchema12ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 11,\n"
+        "  \"schemaVersion\": 12,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1815,11 +1815,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema11Cache(
-        staleSchema11ProviderCache);
+    ProviderCache staleSchema12Cache(
+        staleSchema12ProviderCache);
 
     assert(
-        staleSchema11Cache.Load().empty());
+        staleSchema12Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

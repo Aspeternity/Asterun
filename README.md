@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.31 — Alternate / Suite Utility Role Completion
+
+Alpha.5.31 completes two role classes exposed by real multi-entry suites without adding product-specific filtering. `SuiteUtility` represents user-invoked auxiliary tools that are useful when explicitly requested but should not normally accompany a plain family-name query: task/job schedulers, synchronization managers/tools, automation utilities and maintenance consoles. Complete role phrases reach Medium confidence directly. Ambiguous words such as `sync`, `scheduler`, `automation` and `maintenance` remain Low/Normal in isolation and are promoted only when a related family/location also exposes a clear primary application.
+
+Alternate launch variants are now modeled as activation relationships rather than requiring an exact catalog-location match. A Quick Launch/Safe Mode/no-plugins style entry can be corroborated by the same canonical target, the same normalized suite family, or a title base matching a clear primary application. Sharing the primary canonical target is High-confidence evidence; family/title-base corroboration is Medium. The phrase alone remains insufficient, so an unrelated application containing “Quick Launch” is not automatically suppressed.
+
+Diagnostic metadata evidence is extended with generic problem-report, support-utility/assistant and recovery-tool phrases. No opaque product token is recognized by production code. When metadata identifies a restrictive diagnostic or suite utility whose title itself has no semantic role phrase, the entry may retain only its already family-stripped residual name as explicit intent, keeping the tool reachable without letting the suite prefix re-admit it.
+
+Independent companion applications remain Normal. SearchEngine and ranking are unchanged; all role/context work still happens at discovery/catalog publication. Provider Cache advances to schema 13 and rebuilds once. Windows fixed FileVersion/ProductVersion is `0.8.0.201`.
+
 ## v0.8.0-alpha.5.30 — Self-Verifying Development Release
 
 Alpha.5.30 hardens the rolling prerelease/update pipeline. A real-machine update check exposed that `dev-latest` could exist as a GitHub Draft Release even though the main build and publish job were green. Authenticated CI could still see the release, while the anonymous URL used by installed ALTRun Next clients returned HTTP 404 for `update-manifest.json`.

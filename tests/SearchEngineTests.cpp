@@ -1013,6 +1013,248 @@ int main(int argc, char** argv) {
                 3));
     }
 
+    {
+        // End-to-end role completion regression: a family query keeps the
+        // primary and independent companion, while weak suite utilities and
+        // cross-group alternate variants require their own explicit intent.
+        const std::wstring group =
+            L"family:contosostudio|root:c:\\program files\\contoso\\studio";
+
+        Command primary =
+            MakeCommand(
+                L"role-primary",
+                L"contosostudio2026",
+                L"Contoso Studio 2026",
+                L"C:\\Program Files\\Contoso\\Studio\\Studio.exe",
+                0);
+        primary.source =
+            CommandSource::StartMenu;
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            group;
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\studio.exe";
+
+        Command composer =
+            MakeCommand(
+                L"role-composer",
+                L"contosostudiocomposer2026",
+                L"Contoso Studio Composer 2026",
+                L"C:\\Program Files\\Contoso\\Studio\\Composer.exe",
+                1);
+        composer.source =
+            CommandSource::StartMenu;
+        composer.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        composer.roleConfidence =
+            RoleConfidence::Medium;
+        composer.catalogVisibility =
+            CatalogVisibility::Normal;
+        composer.catalogGroupKey =
+            group;
+        composer.distinctiveTokens = {
+            L"composer",
+        };
+        composer.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\composer.exe";
+
+        Command composerSync =
+            MakeCommand(
+                L"role-sync",
+                L"contosostudiocomposersync2026",
+                L"Contoso Studio Composer Sync 2026",
+                L"C:\\Program Files\\Contoso\\Studio\\ComposerSync.exe",
+                2);
+        composerSync.source =
+            CommandSource::StartMenu;
+        composerSync.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        composerSync.roleConfidence =
+            RoleConfidence::Medium;
+        composerSync.catalogVisibility =
+            CatalogVisibility::Normal;
+        composerSync.catalogGroupKey =
+            group;
+        composerSync.distinctiveTokens = {
+            L"composer",
+            L"sync",
+        };
+        composerSync.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\composersync.exe";
+
+        Command taskScheduler =
+            MakeCommand(
+                L"role-scheduler",
+                L"contosostudiotaskscheduler2026",
+                L"Contoso Studio Task Scheduler 2026",
+                L"C:\\Program Files\\Contoso\\Studio\\Scheduler.exe",
+                3);
+        taskScheduler.source =
+            CommandSource::StartMenu;
+        taskScheduler.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        taskScheduler.roleConfidence =
+            RoleConfidence::High;
+        taskScheduler.catalogVisibility =
+            CatalogVisibility::Normal;
+        taskScheduler.catalogGroupKey =
+            group;
+        taskScheduler.distinctiveTokens = {
+            L"contoso",
+            L"scheduler",
+        };
+        taskScheduler.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\scheduler.exe";
+
+        Command quick =
+            MakeCommand(
+                L"role-quick",
+                L"contosostudio2026quicklaunch",
+                L"Contoso Studio 2026 Quick Launch",
+                primary.target,
+                4);
+        quick.source =
+            CommandSource::StartMenu;
+        quick.applicationRole =
+            ApplicationRole::
+                AlternateLaunch;
+        quick.roleConfidence =
+            RoleConfidence::Low;
+        quick.catalogVisibility =
+            CatalogVisibility::Normal;
+        quick.catalogGroupKey =
+            L"family:contosotools|root:c:\\program files\\contoso\\tools";
+        quick.arguments =
+            L"--quick";
+        quick.canonicalIdentity =
+            primary.canonicalIdentity +
+            L"|args:--quick";
+        quick.distinctiveTokens = {
+            L"contoso",
+            L"quick",
+        };
+
+        std::vector<Command> roleCommands{
+            primary,
+            composer,
+            composerSync,
+            taskScheduler,
+            quick,
+        };
+
+        std::vector<Command*> roleViews;
+        for (auto& command :
+             roleCommands) {
+            roleViews.push_back(
+                &command);
+        }
+
+        CalibrateCatalogRoleContext(
+            roleViews);
+
+        assert(
+            roleCommands[2]
+                .applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            roleCommands[3]
+                .applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            roleCommands[4]
+                .applicationRole ==
+            ApplicationRole::
+                AlternateLaunch);
+
+        const auto family =
+            engine.Search(
+                roleCommands,
+                usage,
+                L"co",
+                20);
+
+        assert(
+            ContainsCommand(
+                family,
+                0));
+        assert(
+            ContainsCommand(
+                family,
+                1));
+        assert(
+            !ContainsCommand(
+                family,
+                2));
+        assert(
+            !ContainsCommand(
+                family,
+                3));
+        assert(
+            !ContainsCommand(
+                family,
+                4));
+
+        const auto composerOnly =
+            engine.Search(
+                roleCommands,
+                usage,
+                L"composer",
+                20);
+
+        assert(
+            ContainsCommand(
+                composerOnly,
+                1));
+        assert(
+            !ContainsCommand(
+                composerOnly,
+                2));
+
+        const auto syncIntent =
+            engine.Search(
+                roleCommands,
+                usage,
+                L"sync",
+                20);
+        assert(
+            ContainsCommand(
+                syncIntent,
+                2));
+
+        const auto schedulerIntent =
+            engine.Search(
+                roleCommands,
+                usage,
+                L"task",
+                20);
+        assert(
+            ContainsCommand(
+                schedulerIntent,
+                3));
+
+        const auto quickIntent =
+            engine.Search(
+                roleCommands,
+                usage,
+                L"quick",
+                20);
+        assert(
+            ContainsCommand(
+                quickIntent,
+                4));
+    }
+
     auto wildcardDisabled =
         engine.Search(
             commands,

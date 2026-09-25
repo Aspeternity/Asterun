@@ -14,6 +14,7 @@ enum class ApplicationRole {
     PrimaryApplication,
     CompanionApplication,
     AlternateLaunch,
+    SuiteUtility,
     UserTool,
     ConfigurationTool,
     DiagnosticTool,
