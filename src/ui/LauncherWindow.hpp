@@ -260,6 +260,7 @@ private:
     std::size_t maxResults_{
         ui::kClassicLauncherMetrics.maxResults};
     std::wstring titleText_{};
+    std::wstring previewText_{};
     std::uint64_t searchGeneration_{0};
     std::vector<LauncherResult>
         staticResults_;

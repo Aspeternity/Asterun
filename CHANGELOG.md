@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0-alpha.5.24
+
+- Added `WS_CLIPCHILDREN` to the launcher parent so Classic background/title paints cannot run underneath native EDIT/LISTBOX/preview children.
+- Reworked Preview/Title updates into cached state: identical title/command text no longer sends redundant `WM_SETTEXT` or parent invalidations.
+- Removed the no-result whole-window invalidation path; Classic title refresh now targets only the title band with `RDW_NOERASE | RDW_NOCHILDREN`.
+- Live result rebuilds no longer toggle `WM_SETREDRAW` when row count is unchanged and skip LISTBOX repaint entirely when rendered rows/selection are unchanged.
+- Result repaint is restricted to the actually changed row span, making repeated no-result typing and backspace a visual no-op.
+- Classic geometry/assets, search/ranking, numeric Quick Launch, provider catalog behavior and Provider Cache schema 8 remain unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.194`.
+
 ## 0.8.0-alpha.5.23
 
 - Removed per-keystroke `LB_RESETCONTENT` from the owner-drawn launcher result list.

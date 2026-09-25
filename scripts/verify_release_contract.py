@@ -42,6 +42,161 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.24":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.24 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 8:
+        fail("v0.8 alpha.5.24 must preserve Provider Cache schemaVersion 8")
+
+    launcher_cpp = read("src/ui/LauncherWindow.cpp")
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    rebuild = launcher_cpp.split(
+        "void LauncherWindow::RebuildVisibleResults(",
+        1,
+    )[1].split(
+        "void LauncherWindow::UpdatePreview()",
+        1,
+    )[0]
+    preview = launcher_cpp.split(
+        "void LauncherWindow::UpdatePreview()",
+        1,
+    )[1].split(
+        "void LauncherWindow::MoveSelection",
+        1,
+    )[0]
+
+    if "LB_RESETCONTENT" in rebuild:
+        fail("v0.8 alpha.5.24 result rebuild must not reset the whole LISTBOX")
+
+    for token in (
+        "const bool countChanged",
+        "if (countChanged)",
+        "dirtyFirst",
+        "dirtyLastExclusive",
+        "sameRenderedRow",
+        "RDW_NOERASE",
+    ):
+        if token not in rebuild:
+            fail(f"v0.8 alpha.5.24 dirty-row repaint isolation missing: {token}")
+
+    if "InvalidateRect(\n        list_" in rebuild:
+        fail("v0.8 alpha.5.24 must not unconditionally invalidate the full LISTBOX")
+
+    for token in (
+        "previewText_",
+        "previewChanged",
+        "titleChanged",
+        "RDW_NOERASE",
+        "RDW_NOCHILDREN",
+    ):
+        if token not in preview:
+            fail(f"v0.8 alpha.5.24 preview/title repaint cache missing: {token}")
+
+    if "InvalidateRect(\n            hwnd_,\n            nullptr" in preview:
+        fail("v0.8 alpha.5.24 preview path must not invalidate the full launcher")
+
+    if "WS_CLIPCHILDREN" not in launcher_cpp:
+        fail("v0.8 alpha.5.24 launcher parent must clip child controls during paint")
+
+    if "std::wstring previewText_{};" not in launcher_hpp:
+        fail("v0.8 alpha.5.24 must cache preview text")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.24 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,194",
+        "PRODUCTVERSION 0,8,0,194",
+        "0.8.0-alpha.5.24",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.24 resource version missing: {token}")
+
+    if 'version="0.8.0.194"' not in manifest:
+        fail("v0.8 alpha.5.24 manifest fixed version must be 0.8.0.194")
+
+    for token in (
+        '"0.8.0-alpha.5.23"',
+        '"0.8.0-alpha.5.24"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.24 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.24 Classic repaint-isolation validation",
+        "2dsfs",
+        "SOLIDWORKS suite-role admission remains explicitly outside alpha.5.24",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.24 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.24 — Classic Repaint Isolation",
+        "WS_CLIPCHILDREN",
+        "0.8.0.194",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.24 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.24" not in changelog:
+        fail("v0.8 alpha.5.24 changelog entry missing")
+
+    if "v0.8.0-alpha.5.24 isolates Classic parent/title/preview/result repaint domains" not in roadmap:
+        fail("v0.8 alpha.5.24 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.24 Classic Repaint Isolation verified:",
+        "| parent uses WS_CLIPCHILDREN",
+        "| preview/title updates are cached",
+        "| no full-window no-result invalidation",
+        "| unchanged result surfaces skip repaint",
+        "| row-count redraw suspension is conditional",
+        "| dirty-row repaint uses RDW_NOERASE",
+        "| Provider Cache schema 8 preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.23":
     import hashlib
     import subprocess

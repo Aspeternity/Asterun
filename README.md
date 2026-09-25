@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.24 — Classic Repaint Isolation
+
+Alpha.5.24 closes the remaining Classic typing/backspace flash after alpha.5.23 removed full LISTBOX resets. The residual flash came from two independent repaint paths: Preview/Title updates could invalidate the whole layered parent (the historical 33 px title band overlaps the EDIT top by 3 px), and the result list still performed redraw work even when a repeated no-result query produced exactly the same empty surface.
+
+The launcher parent now uses `WS_CLIPCHILDREN`, so background/title painting never runs underneath native child controls. Preview/title state is cached and only changed text sends `WM_SETTEXT`; the no-result path no longer invalidates the full window. Classic title refresh is isolated with `RDW_NOERASE | RDW_NOCHILDREN`. Result rebuilding also avoids `WM_SETREDRAW` when the row count is unchanged and skips LISTBOX repaint completely when rendered rows and selection did not change, while real changes invalidate only the affected row span.
+
+This version does not change Classic geometry/assets, ranking, Everything semantics, numeric Quick Launch, catalog admission or Provider Cache schema 8. Windows fixed FileVersion/ProductVersion is `0.8.0.194`.
+
 ## v0.8.0-alpha.5.23 — Classic Live Result Repaint Hygiene
 
 Alpha.5.23 fixes the visible flash seen while typing in the frozen Classic launcher without changing its geometry or visual design. The result LISTBOX is owner-drawn, so its native string payload is only a set of row slots; recreating every slot with `LB_RESETCONTENT` on every query change was unnecessary and forced an erase/repaint cycle through the layered Classic window.

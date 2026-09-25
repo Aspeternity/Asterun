@@ -474,6 +474,19 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck 时钟/设置 activation, Chrome dedupe and TeamSpeak 3/6 presence. SOLIDWORKS suite-role filtering is not claimed by this version and remains a later Intelligent Launch Catalog step.
 - [ ] Classic geometry/assets and Provider Cache schema 8 remain unchanged.
 
+## v0.8.0-alpha.5.24 Classic repaint-isolation validation
+
+- [ ] Classic: type `s` then continue quickly through `so` / `sol` / `solidworks`. The EDIT/title area must remain visually stable while results change.
+- [ ] Classic: type a nonsense query such as `2dsfs` until zero results, continue typing several characters, then backspace repeatedly while remaining at zero results. There must be no whole-window or input-area flash.
+- [ ] Transition repeatedly between result-bearing and zero-result queries. The LISTBOX must clear/fill without stale rows, blank stripes, background flashes or input-area redraw.
+- [ ] Hold Backspace through a result-bearing query into the empty query and then type again at normal and very fast speed.
+- [ ] With Everything enabled, repeat while asynchronous results arrive; selection preservation and delayed merges must not reintroduce parent/input flicker.
+- [ ] With result icons both enabled and disabled, first-use icon arrival must repaint only result rows.
+- [ ] Recheck Up/Down/Tab wrapping, numeric Quick Launch timing, single-result immediate execution and IME composition behavior.
+- [ ] Recheck idle CPU remains effectively 0%, working set stays near the observed ~7 MB idle / ~11 MB post-search baseline without continuous growth, and alpha.5.22 provider-monitor behavior does not regress.
+- [ ] Recheck 时钟/设置 activation, Chrome dedupe and TeamSpeak 3/6 presence. SOLIDWORKS suite-role admission remains explicitly outside alpha.5.24.
+- [ ] Classic geometry/assets and Provider Cache schema 8 remain unchanged.
+
 ## Release assets
 
 For the candidate tag:

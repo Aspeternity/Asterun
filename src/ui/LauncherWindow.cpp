@@ -479,6 +479,10 @@ bool LauncherWindow::Create() {
 
     const DWORD windowStyle =
         WS_POPUP |
+        // Parent background painting must never run underneath the native
+        // EDIT/LISTBOX/preview children. This is especially important for
+        // Classic's layered/color-key surface while live search is repainting.
+        WS_CLIPCHILDREN |
         (IsModern()
             ? WS_BORDER
             : 0);
@@ -2010,107 +2014,229 @@ void LauncherWindow::RebuildVisibleResults(
             dynamicResults_,
             maxResults_);
 
-    // The owner-drawn LISTBOX stores row slots only; all visible content
-    // comes from results_. Resetting all slots for every keystroke forced a
-    // full erase/recreate cycle through the layered Classic window.
-    SendMessageW(
-        list_,
-        WM_SETREDRAW,
-        FALSE,
-        0);
+    const auto sameRenderedRow =
+        [](const LauncherResult& left,
+           const LauncherResult& right) {
+            return left.kind == right.kind &&
+                left.title == right.title &&
+                left.subtitle == right.subtitle &&
+                left.iconSource == right.iconSource;
+        };
 
-    LRESULT rowCount =
-        SendMessageW(
-            list_,
-            LB_GETCOUNT,
-            0,
-            0);
+    const std::size_t oldCount =
+        results_.size();
+    const std::size_t newCount =
+        nextResults.size();
+    const std::size_t overlap =
+        std::min(
+            oldCount,
+            newCount);
 
-    if (rowCount == LB_ERR) {
-        rowCount = 0;
-    }
+    std::size_t dirtyFirst =
+        std::max(
+            oldCount,
+            newCount);
+    std::size_t dirtyLastExclusive = 0;
 
-    while (static_cast<std::size_t>(
-               rowCount) >
-           nextResults.size()) {
-        SendMessageW(
-            list_,
-            LB_DELETESTRING,
-            static_cast<WPARAM>(
-                rowCount - 1),
-            0);
-        --rowCount;
-    }
+    const auto markDirty =
+        [&](std::size_t index) {
+            dirtyFirst =
+                std::min(
+                    dirtyFirst,
+                    index);
+            dirtyLastExclusive =
+                std::max(
+                    dirtyLastExclusive,
+                    index + 1);
+        };
 
-    while (static_cast<std::size_t>(
-               rowCount) <
-           nextResults.size()) {
-        if (SendMessageW(
-                list_,
-                LB_ADDSTRING,
-                0,
-                reinterpret_cast<LPARAM>(
-                    L"")) == LB_ERR) {
-            break;
+    for (std::size_t index = 0;
+         index < overlap;
+         ++index) {
+        if (!sameRenderedRow(
+                results_[index],
+                nextResults[index])) {
+            markDirty(index);
         }
-        ++rowCount;
+    }
+
+    if (oldCount != newCount) {
+        dirtyFirst =
+            std::min(
+                dirtyFirst,
+                overlap);
+        dirtyLastExclusive =
+            std::max(
+                dirtyLastExclusive,
+                std::max(
+                    oldCount,
+                    newCount));
+    }
+
+    std::size_t selection = 0;
+
+    if (!nextResults.empty() &&
+        preserveSelection &&
+        !selectedId.empty()) {
+        const auto it =
+            std::find_if(
+                nextResults.begin(),
+                nextResults.end(),
+                [&](const LauncherResult&
+                        result) {
+                    return result.id ==
+                               selectedId &&
+                        result.providerId ==
+                               selectedProvider;
+                });
+
+        if (it !=
+            nextResults.end()) {
+            selection =
+                static_cast<std::size_t>(
+                    std::distance(
+                        nextResults.begin(),
+                        it));
+        }
+    }
+
+    const LRESULT nextSelection =
+        nextResults.empty()
+            ? LB_ERR
+            : static_cast<LRESULT>(
+                  selection);
+
+    if (previous != nextSelection) {
+        if (previous != LB_ERR &&
+            static_cast<std::size_t>(
+                previous) < oldCount) {
+            markDirty(
+                static_cast<std::size_t>(
+                    previous));
+        }
+
+        if (nextSelection != LB_ERR) {
+            markDirty(
+                static_cast<std::size_t>(
+                    nextSelection));
+        }
+    }
+
+    // Row-count mutations are the only operations that need redraw
+    // suspension. For the common live-typing case where the visible count is
+    // unchanged, never toggle WM_SETREDRAW at all.
+    const bool countChanged =
+        oldCount != newCount;
+
+    if (countChanged) {
+        SendMessageW(
+            list_,
+            WM_SETREDRAW,
+            FALSE,
+            0);
+
+        LRESULT rowCount =
+            SendMessageW(
+                list_,
+                LB_GETCOUNT,
+                0,
+                0);
+
+        if (rowCount == LB_ERR) {
+            rowCount = 0;
+        }
+
+        while (static_cast<std::size_t>(
+                   rowCount) >
+               newCount) {
+            SendMessageW(
+                list_,
+                LB_DELETESTRING,
+                static_cast<WPARAM>(
+                    rowCount - 1),
+                0);
+            --rowCount;
+        }
+
+        while (static_cast<std::size_t>(
+                   rowCount) <
+               newCount) {
+            if (SendMessageW(
+                    list_,
+                    LB_ADDSTRING,
+                    0,
+                    reinterpret_cast<LPARAM>(
+                        L"")) == LB_ERR) {
+                break;
+            }
+            ++rowCount;
+        }
     }
 
     results_ =
         std::move(nextResults);
 
-    if (!results_.empty()) {
-        std::size_t selection = 0;
-
-        if (preserveSelection &&
-            !selectedId.empty()) {
-            const auto it =
-                std::find_if(
-                    results_.begin(),
-                    results_.end(),
-                    [&](const LauncherResult&
-                            result) {
-                        return result.id ==
-                                   selectedId &&
-                            result.providerId ==
-                                   selectedProvider;
-                    });
-
-            if (it != results_.end()) {
-                selection =
-                    static_cast<std::size_t>(
-                        std::distance(
-                            results_.begin(),
-                            it));
-            }
-        }
-
+    if (previous != nextSelection) {
         SendMessageW(
             list_,
             LB_SETCURSEL,
-            static_cast<WPARAM>(
-                selection),
-            0);
-    } else {
-        SendMessageW(
-            list_,
-            LB_SETCURSEL,
-            static_cast<WPARAM>(-1),
+            nextSelection == LB_ERR
+                ? static_cast<WPARAM>(-1)
+                : static_cast<WPARAM>(
+                      nextSelection),
             0);
     }
 
-    SendMessageW(
-        list_,
-        WM_SETREDRAW,
-        TRUE,
-        0);
+    if (countChanged) {
+        SendMessageW(
+            list_,
+            WM_SETREDRAW,
+            TRUE,
+            0);
+    }
 
-    // WM_DRAWITEM paints each result-row background itself. Avoid a separate
-    // erase pass so rapid typing can coalesce into a clean deferred repaint.
-    InvalidateRect(
-        list_,
-        nullptr,
-        FALSE);
+    // If the rendered rows and selection did not change, do not repaint the
+    // LISTBOX at all. This makes repeated no-result typing/deletion a true
+    // no-op on the visual surface.
+    if (dirtyLastExclusive >
+        dirtyFirst) {
+        RECT dirty{};
+        GetClientRect(
+            list_,
+            &dirty);
+
+        const LRESULT itemHeight =
+            SendMessageW(
+                list_,
+                LB_GETITEMHEIGHT,
+                0,
+                0);
+
+        if (itemHeight != LB_ERR &&
+            itemHeight > 0) {
+            dirty.top =
+                std::min<LONG>(
+                    dirty.bottom,
+                    static_cast<LONG>(
+                        dirtyFirst *
+                        static_cast<std::size_t>(
+                            itemHeight)));
+            dirty.bottom =
+                std::min<LONG>(
+                    dirty.bottom,
+                    static_cast<LONG>(
+                        dirtyLastExclusive *
+                        static_cast<std::size_t>(
+                            itemHeight)));
+        }
+
+        RedrawWindow(
+            list_,
+            &dirty,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_NOERASE);
+    }
 
     UpdatePreview();
 
@@ -2138,6 +2264,9 @@ void LauncherWindow::UpdatePreview() {
         return;
     }
 
+    std::wstring nextTitle;
+    std::wstring nextPreview;
+
     const LRESULT selected =
         SendMessageW(
             list_,
@@ -2145,97 +2274,116 @@ void LauncherWindow::UpdatePreview() {
             0,
             0);
 
-    if (selected == LB_ERR ||
+    if (selected != LB_ERR &&
         static_cast<std::size_t>(
-            selected) >=
+            selected) <
             results_.size()) {
+        const auto& result =
+            results_[
+                static_cast<std::size_t>(
+                    selected)];
+
+        const std::wstring primary =
+            PrimaryResultText(result);
+
+        const std::wstring title =
+            result.subtitle.empty()
+                ? primary
+                : result.subtitle;
+
+        bool bracketTitle =
+            IsFileSystemResult(
+                result);
+
+        if (!bracketTitle &&
+            !result.target.empty()) {
+            bracketTitle =
+                std::filesystem::path(
+                    result.target)
+                    .has_parent_path();
+        }
+
+        if (bracketTitle) {
+            nextTitle.push_back(L'[');
+        }
+
+        nextTitle += title;
+
+        if (bracketTitle) {
+            nextTitle.push_back(L']');
+        }
+
+        if (!IsModern() &&
+            !IsFileSystemResult(
+                result)) {
+            nextPreview =
+                app_.SettingsData()
+                        .language ==
+                    Language::ZhCN
+                    ? L"命令="
+                    : L"CMD=";
+        }
+
+        nextPreview +=
+            result.detail.empty()
+                ? result.target
+                : result.detail;
+    }
+
+    const bool previewChanged =
+        nextPreview !=
+        previewText_;
+    const bool titleChanged =
+        nextTitle !=
+        titleText_;
+
+    if (previewChanged) {
+        previewText_ =
+            std::move(
+                nextPreview);
+
+        // WM_SETTEXT invalidates native STATIC controls. Do not send it for
+        // identical text; in particular, repeated empty-result queries must
+        // not keep repainting the command area.
         SetWindowTextW(
             preview_,
-            L"");
+            previewText_.c_str());
         SetWindowTextW(
             classicPreview_,
-            L"");
-        titleText_.clear();
-        InvalidateRect(
-            hwnd_,
-            nullptr,
-            FALSE);
+            previewText_.c_str());
+    }
+
+    if (!titleChanged) {
         return;
     }
 
-    const auto& result =
-        results_[
-            static_cast<std::size_t>(
-                selected)];
-
-    const std::wstring primary =
-        PrimaryResultText(result);
-
-    const std::wstring title =
-        result.subtitle.empty()
-            ? primary
-            : result.subtitle;
-
-    bool bracketTitle =
-        IsFileSystemResult(
-            result);
-
-    if (!bracketTitle &&
-        !result.target.empty()) {
-        bracketTitle =
-            std::filesystem::path(
-                result.target)
-                .has_parent_path();
-    }
-
-    titleText_.clear();
-
-    if (bracketTitle) {
-        titleText_.push_back(L'[');
-    }
-
-    titleText_ += title;
-
-    if (bracketTitle) {
-        titleText_.push_back(L']');
-    }
-
-    std::wstring preview;
-
-    if (!IsModern() &&
-        !IsFileSystemResult(
-            result)) {
-        preview =
-            app_.SettingsData()
-                    .language ==
-                Language::ZhCN
-                ? L"命令="
-                : L"CMD=";
-    }
-
-    preview +=
-        result.detail.empty()
-            ? result.target
-            : result.detail;
-
-    SetWindowTextW(
-        preview_,
-        preview.c_str());
-    SetWindowTextW(
-        classicPreview_,
-        preview.c_str());
+    titleText_ =
+        std::move(
+            nextTitle);
 
     if (!IsModern()) {
-        RECT titleRect{};
-        GetClientRect(
-            hwnd_,
-            &titleRect);
-        titleRect.bottom =
-            DpiScale(33);
-        InvalidateRect(
+        const RECT close =
+            ClassicCloseRect();
+
+        RECT titleRect{
+            classicDpiMetrics_
+                .titleTextLeft,
+            0,
+            close.left,
+            classicDpiMetrics_
+                .titleHeight,
+        };
+
+        // Repaint only the title surface. WS_CLIPCHILDREN plus
+        // RDW_NOCHILDREN prevents the title refresh from touching the EDIT
+        // that begins at y=30 even though the historical title band is 33px.
+        RedrawWindow(
             hwnd_,
             &titleRect,
-            FALSE);
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_NOERASE |
+                RDW_NOCHILDREN);
     }
 }
 
