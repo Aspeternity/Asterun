@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.5.27
+
+- Calibrated launch-role evidence without adding any product-specific blacklist or SearchEngine rule.
+- High-information title phrases such as performance/benchmark tests, settings/configuration wizards, diagnostics, updaters, download managers and their Chinese equivalents now provide at least Medium-confidence role evidence; ambiguous single words remain conservative.
+- Added cross-entry catalog context at catalog publication: a weak auxiliary role can rise to Medium only when a related product/location group already contains a clear primary application.
+- Added `ApplicationRole::AlternateLaunch` for suite convenience/variant entries such as Quick Launch, Safe Mode and no-plugins launchers. Group context is required; matching the primary activation target or carrying arguments strengthens confidence.
+- Independent companion applications remain `Normal`; grouping is evidence and never collapses a suite to one executable.
+- Added semantic distinctive-intent tokens for contiguous CJK/role phrases so `StrongMatchOnly` entries remain explicitly searchable without doing semantic work while typing.
+- Context calibration runs on a transient provider snapshot during catalog publication. Provider Cache stores base discovery evidence, so enable/disable/refresh changes cannot leave stale contextual promotions behind.
+- Provider Cache schema is bumped to 10 to force alpha.5.25/alpha.5.26 role decisions to rebuild under the calibrated evidence model.
+- SearchEngine, ResultRanking, usage scoring, pinyin, Everything and Classic geometry/repaint behavior are unchanged.
+- Added generic Contoso/Fabrikam/Acme regressions for weak-vs-strong evidence, related group context, multiple companion preservation, alternate launch entries and user-shortcut non-interference.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.197`.
+
 ## 0.8.0-alpha.5.26
 
 - Activated the schema-9 launch-role evidence model in static application query admission.

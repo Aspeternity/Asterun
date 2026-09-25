@@ -259,7 +259,8 @@ In progress:
 - v0.8.0-alpha.5.24 isolates Classic parent/title/preview/result repaint domains, removes redundant no-result redraws, and clips parent painting away from native child controls
 - v0.8.0-alpha.5.25 introduces provider-neutral launch-role evidence, cached executable metadata, conservative product grouping and schema-9 persisted role decisions without yet changing query admission/ranking
 - v0.8.0-alpha.5.26 consumes schema-9 CatalogVisibility in SearchEngine: family-name queries keep normal applications, StrongMatchOnly entries require distinctive intent, Hidden generated entries stay suppressed, and user shortcuts remain authoritative
-- next Intelligent Launch Catalog step: validate real-machine role/group evidence, then make StrongMatchOnly/Hidden behavior depend on explicit distinctive query intent rather than product-name blacklists
+- v0.8.0-alpha.5.27 calibrates role evidence and catalog context: high-information role phrases reach Medium confidence, weak auxiliary cues can be corroborated only by a related group with a clear primary app, AlternateLaunch models convenience/variant entry points, semantic distinctive tokens cover contiguous CJK intent, and schema-10 rebuilds stale role decisions without changing SearchEngine
+- next Intelligent Launch Catalog step: validate alpha.5.27 on real multi-entry suites, then refine only evidence gaps demonstrated by generic counterexamples
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

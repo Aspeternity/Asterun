@@ -1,6 +1,7 @@
 #include "LaunchRole.hpp"
 
 #include "LaunchCatalog.hpp"
+#include "Command.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
 namespace altrun {
@@ -212,7 +214,7 @@ NormalizedPath(
 }
 
 void AddSignal(
-    std::array<RoleScore, 17>& scores,
+    std::array<RoleScore, 18>& scores,
     ApplicationRole role,
     int strength,
     EvidenceField field,
@@ -263,6 +265,8 @@ void AddSignal(
         return 95;
     case ApplicationRole::ConfigurationTool:
         return 90;
+    case ApplicationRole::AlternateLaunch:
+        return 80;
     case ApplicationRole::CompanionApplication:
         return 70;
     case ApplicationRole::PrimaryApplication:
@@ -297,8 +301,27 @@ ConfidenceFor(
     return RoleConfidence::Low;
 }
 
+[[nodiscard]] int SemanticStrength(
+    std::wstring_view value,
+    EvidenceField field,
+    int strength,
+    std::initializer_list<
+        std::wstring_view> strongPhrases) {
+
+    if (field == EvidenceField::Title &&
+        ContainsAny(
+            value,
+            strongPhrases)) {
+        return std::max(
+            strength,
+            3);
+    }
+
+    return strength;
+}
+
 void AddTextSignals(
-    std::array<RoleScore, 17>& scores,
+    std::array<RoleScore, 18>& scores,
     std::wstring_view value,
     EvidenceField field,
     int strength) {
@@ -315,7 +338,14 @@ void AddTextSignals(
         AddSignal(
             scores,
             ApplicationRole::Uninstaller,
-            strength,
+            SemanticStrength(
+                value,
+                field,
+                strength,
+                {L"uninstaller",
+                 L"uninstall wizard",
+                 L"卸载程序",
+                 L"卸载向导"}),
             field);
     }
 
@@ -329,7 +359,15 @@ void AddTextSignals(
         AddSignal(
             scores,
             ApplicationRole::Installer,
-            strength,
+            SemanticStrength(
+                value,
+                field,
+                strength,
+                {L"installer",
+                 L"installation wizard",
+                 L"setup wizard",
+                 L"安装程序",
+                 L"安装向导"}),
             field);
     }
 
@@ -343,7 +381,15 @@ void AddTextSignals(
         AddSignal(
             scores,
             ApplicationRole::Updater,
-            strength,
+            SemanticStrength(
+                value,
+                field,
+                strength,
+                {L"updater",
+                 L"update manager",
+                 L"update helper",
+                 L"更新程序",
+                 L"升级程序"}),
             field);
     }
 
@@ -353,11 +399,21 @@ void AddTextSignals(
              L"download manager",
              L"background download",
              L"下载程序",
-             L"下载管理"})) {
+             L"下载管理",
+             L"后台下载"})) {
         AddSignal(
             scores,
             ApplicationRole::Downloader,
-            strength,
+            SemanticStrength(
+                value,
+                field,
+                strength,
+                {L"downloader",
+                 L"download manager",
+                 L"background download",
+                 L"下载程序",
+                 L"下载管理",
+                 L"后台下载"}),
             field);
     }
 
@@ -368,7 +424,15 @@ void AddTextSignals(
         AddSignal(
             scores,
             ApplicationRole::RepairTool,
-            strength,
+            SemanticStrength(
+                value,
+                field,
+                strength,
+                {L"repair tool",
+                 L"repair utility",
+                 L"repair wizard",
+                 L"修复工具",
+                 L"修复向导"}),
             field);
     }
 
@@ -383,7 +447,18 @@ void AddTextSignals(
         AddSignal(
             scores,
             ApplicationRole::ConfigurationTool,
-            strength,
+            SemanticStrength(
+                value,
+                field,
+                strength,
+                {L"settings wizard",
+                 L"configuration wizard",
+                 L"settings utility",
+                 L"configuration utility",
+                 L"设置向导",
+                 L"配置向导",
+                 L"设置工具",
+                 L"配置工具"}),
             field);
     }
 
@@ -399,7 +474,18 @@ void AddTextSignals(
         AddSignal(
             scores,
             ApplicationRole::DiagnosticTool,
-            strength,
+            SemanticStrength(
+                value,
+                field,
+                strength,
+                {L"diagnostics",
+                 L"diagnostic tool",
+                 L"diagnostic utility",
+                 L"troubleshooter",
+                 L"health check",
+                 L"诊断工具",
+                 L"诊断程序",
+                 L"故障排除"}),
             field);
     }
 
@@ -414,7 +500,16 @@ void AddTextSignals(
         AddSignal(
             scores,
             ApplicationRole::BenchmarkTool,
-            strength,
+            SemanticStrength(
+                value,
+                field,
+                strength,
+                {L"performance test",
+                 L"performance benchmark",
+                 L"benchmark test",
+                 L"stress test",
+                 L"性能测试",
+                 L"基准测试"}),
             field);
     }
 
@@ -465,6 +560,324 @@ void AddTextSignals(
     }
 }
 
+void AppendDistinctivePhraseTokens(
+    std::wstring_view value,
+    std::vector<std::wstring>& tokens) {
+
+    const std::wstring lower =
+        Lower(value);
+
+    for (const std::wstring_view phrase : {
+             L"settings",
+             L"configuration",
+             L"configurator",
+             L"preferences",
+             L"settings wizard",
+             L"configuration wizard",
+             L"设置",
+             L"配置",
+             L"设置向导",
+             L"配置向导",
+             L"diagnostic",
+             L"diagnostics",
+             L"troubleshoot",
+             L"troubleshooter",
+             L"health check",
+             L"诊断",
+             L"故障排除",
+             L"benchmark",
+             L"performance test",
+             L"performance benchmark",
+             L"stress test",
+             L"性能测试",
+             L"基准测试",
+             L"updater",
+             L"update manager",
+             L"update helper",
+             L"更新程序",
+             L"升级程序",
+             L"downloader",
+             L"download manager",
+             L"background download",
+             L"下载程序",
+             L"下载管理",
+             L"后台下载",
+             L"repair",
+             L"修复",
+             L"quick launch",
+             L"quick start",
+             L"safe mode",
+             L"no plugins",
+             L"without plugins",
+             L"disable plugins",
+             L"64-bit launcher",
+             L"32-bit launcher",
+             L"快速启动",
+             L"快速开始",
+             L"安全模式",
+             L"无插件",
+             L"禁用插件"}) {
+
+        if (lower.find(phrase) ==
+            std::wstring::npos) {
+            continue;
+        }
+
+        const std::wstring token(
+            phrase);
+
+        if (std::find(
+                tokens.begin(),
+                tokens.end(),
+                token) ==
+            tokens.end()) {
+            tokens.push_back(
+                token);
+        }
+    }
+}
+
+struct CatalogGroupParts {
+    std::wstring product;
+    std::wstring locationKind;
+    std::wstring location;
+
+    [[nodiscard]] bool Valid()
+        const noexcept {
+        return !product.empty() &&
+            !locationKind.empty() &&
+            !location.empty();
+    }
+};
+
+[[nodiscard]] CatalogGroupParts
+ParseCatalogGroupKeyParts(
+    std::wstring_view key) {
+
+    constexpr std::wstring_view
+        kProductPrefix = L"product:";
+    constexpr std::wstring_view
+        kRootPrefix = L"root:";
+    constexpr std::wstring_view
+        kMenuPrefix = L"menu:";
+
+    CatalogGroupParts parts;
+
+    if (!key.starts_with(
+            kProductPrefix)) {
+        return parts;
+    }
+
+    const std::size_t separator =
+        key.find(
+            L'|',
+            kProductPrefix.size());
+
+    if (separator ==
+        std::wstring_view::npos) {
+        return parts;
+    }
+
+    parts.product =
+        std::wstring(
+            key.substr(
+                kProductPrefix.size(),
+                separator -
+                    kProductPrefix.size()));
+
+    const std::wstring_view tail =
+        key.substr(separator + 1);
+
+    if (tail.starts_with(
+            kRootPrefix)) {
+        parts.locationKind = L"root";
+        parts.location =
+            std::wstring(
+                tail.substr(
+                    kRootPrefix.size()));
+    } else if (tail.starts_with(
+                   kMenuPrefix)) {
+        parts.locationKind = L"menu";
+        parts.location =
+            std::wstring(
+                tail.substr(
+                    kMenuPrefix.size()));
+    }
+
+    return parts;
+}
+
+[[nodiscard]] std::wstring
+ParentCatalogLocation(
+    std::wstring_view value) {
+
+    const std::size_t slash =
+        value.find_last_of(L'\\');
+
+    if (slash ==
+            std::wstring_view::npos ||
+        slash <= 2) {
+        return {};
+    }
+
+    return std::wstring(
+        value.substr(0, slash));
+}
+
+[[nodiscard]] bool
+IsCatalogLocationAncestor(
+    std::wstring_view parent,
+    std::wstring_view child) {
+
+    return parent.size() <
+            child.size() &&
+        child.starts_with(parent) &&
+        child[parent.size()] == L'\\';
+}
+
+[[nodiscard]] bool
+RelatedCatalogLocation(
+    std::wstring_view left,
+    std::wstring_view right) {
+
+    if (left == right) {
+        return true;
+    }
+
+    if (IsCatalogLocationAncestor(
+            left,
+            right) ||
+        IsCatalogLocationAncestor(
+            right,
+            left)) {
+        return true;
+    }
+
+    const std::wstring leftParent =
+        ParentCatalogLocation(left);
+    const std::wstring rightParent =
+        ParentCatalogLocation(right);
+
+    return !leftParent.empty() &&
+        leftParent == rightParent;
+}
+
+[[nodiscard]] bool
+SameCatalogContext(
+    const Command& left,
+    const Command& right) {
+
+    if (left.catalogGroupKey.empty() ||
+        right.catalogGroupKey.empty()) {
+        return false;
+    }
+
+    if (left.catalogGroupKey ==
+        right.catalogGroupKey) {
+        return true;
+    }
+
+    const CatalogGroupParts a =
+        ParseCatalogGroupKeyParts(
+            left.catalogGroupKey);
+    const CatalogGroupParts b =
+        ParseCatalogGroupKeyParts(
+            right.catalogGroupKey);
+
+    return a.Valid() &&
+        b.Valid() &&
+        a.product == b.product &&
+        a.locationKind ==
+            b.locationKind &&
+        RelatedCatalogLocation(
+            a.location,
+            b.location);
+}
+
+[[nodiscard]] std::wstring
+CatalogProductKey(
+    const Command& command) {
+
+    return ParseCatalogGroupKeyParts(
+               command.catalogGroupKey)
+        .product;
+}
+
+[[nodiscard]] bool
+IsContextPromotableRole(
+    ApplicationRole role) noexcept {
+
+    switch (role) {
+    case ApplicationRole::ConfigurationTool:
+    case ApplicationRole::DiagnosticTool:
+    case ApplicationRole::BenchmarkTool:
+    case ApplicationRole::Installer:
+    case ApplicationRole::Uninstaller:
+    case ApplicationRole::Updater:
+    case ApplicationRole::Downloader:
+    case ApplicationRole::RepairTool:
+        return true;
+
+    case ApplicationRole::Unknown:
+    case ApplicationRole::PrimaryApplication:
+    case ApplicationRole::CompanionApplication:
+    case ApplicationRole::AlternateLaunch:
+    case ApplicationRole::UserTool:
+    case ApplicationRole::Documentation:
+    case ApplicationRole::ProductInfo:
+    case ApplicationRole::BackgroundComponent:
+    case ApplicationRole::ServiceComponent:
+    case ApplicationRole::InternalComponent:
+        return false;
+    }
+
+    return false;
+}
+
+[[nodiscard]] bool
+LooksLikeAlternateLaunch(
+    std::wstring_view title) {
+
+    return ContainsAny(
+        title,
+        {L"quick launch",
+         L"quick start",
+         L"safe mode",
+         L"no plugins",
+         L"without plugins",
+         L"disable plugins",
+         L"64-bit launcher",
+         L"32-bit launcher",
+         L"快速启动",
+         L"快速开始",
+         L"安全模式",
+         L"无插件",
+         L"禁用插件"});
+}
+
+[[nodiscard]] std::wstring
+BaseCanonicalIdentity(
+    const Command& command) {
+
+    if (!command.canonicalIdentity
+             .empty()) {
+        const std::size_t args =
+            command.canonicalIdentity
+                .find(L"|args:");
+
+        return command.canonicalIdentity
+            .substr(
+                0,
+                args);
+    }
+
+    return NormalizedPath(
+        std::filesystem::path(
+            command.target));
+}
+
+
+
 } // namespace
 
 const char* ApplicationRoleName(
@@ -476,6 +889,8 @@ const char* ApplicationRoleName(
         return "primary-application";
     case ApplicationRole::CompanionApplication:
         return "companion-application";
+    case ApplicationRole::AlternateLaunch:
+        return "alternate-launch";
     case ApplicationRole::UserTool:
         return "user-tool";
     case ApplicationRole::ConfigurationTool:
@@ -515,11 +930,12 @@ ApplicationRole ParseApplicationRole(
     static constexpr std::array<
         std::pair<std::string_view,
                   ApplicationRole>,
-        17>
+        18>
         values{{
             {"unknown", ApplicationRole::Unknown},
             {"primary-application", ApplicationRole::PrimaryApplication},
             {"companion-application", ApplicationRole::CompanionApplication},
+            {"alternate-launch", ApplicationRole::AlternateLaunch},
             {"user-tool", ApplicationRole::UserTool},
             {"configuration-tool", ApplicationRole::ConfigurationTool},
             {"diagnostic-tool", ApplicationRole::DiagnosticTool},
@@ -633,6 +1049,7 @@ CatalogVisibility CatalogVisibilityForRole(
     }
 
     switch (role) {
+    case ApplicationRole::AlternateLaunch:
     case ApplicationRole::ConfigurationTool:
     case ApplicationRole::DiagnosticTool:
     case ApplicationRole::BenchmarkTool:
@@ -735,6 +1152,14 @@ BuildDistinctiveTokens(
             }),
         titleTokens.end());
 
+    // CJK product/role text is often contiguous, so ordinary tokenization
+    // cannot always separate family text from explicit role intent. Persist
+    // generic semantic role phrases as additional distinctive tokens during
+    // discovery; query admission can then stay I/O-free and product-neutral.
+    AppendDistinctivePhraseTokens(
+        evidence.displayTitle,
+        titleTokens);
+
     return titleTokens;
 }
 
@@ -742,7 +1167,7 @@ ApplicationRoleDecision
 ClassifyApplicationRole(
     const LaunchEvidence& evidence) {
 
-    std::array<RoleScore, 17>
+    std::array<RoleScore, 18>
         scores{};
 
     if (IsStrongInternalPackagedEntry(
@@ -979,6 +1404,172 @@ ClassifyApplicationRole(
             evidence);
 
     return decision;
+}
+
+void CalibrateCatalogRoleContext(
+    std::vector<Command*>& commands) {
+
+    std::unordered_map<
+        std::wstring,
+        std::vector<Command*>>
+        byProduct;
+
+    for (Command* command :
+         commands) {
+        if (command == nullptr ||
+            command->source ==
+                CommandSource::User) {
+            continue;
+        }
+
+        const std::wstring product =
+            CatalogProductKey(
+                *command);
+
+        if (!product.empty()) {
+            byProduct[product]
+                .push_back(command);
+        }
+    }
+
+    for (auto& [product, entries] :
+         byProduct) {
+        (void)product;
+
+        for (Command* candidate :
+             entries) {
+            if (candidate == nullptr ||
+                candidate->source ==
+                    CommandSource::User ||
+                candidate->applicationRole ==
+                    ApplicationRole::
+                        PrimaryApplication) {
+                continue;
+            }
+
+            Command* primary = nullptr;
+
+            for (Command* peer :
+                 entries) {
+                if (peer == nullptr ||
+                    peer == candidate ||
+                    peer->applicationRole !=
+                        ApplicationRole::
+                            PrimaryApplication ||
+                    peer->roleConfidence ==
+                        RoleConfidence::Low ||
+                    !SameCatalogContext(
+                        *candidate,
+                        *peer)) {
+                    continue;
+                }
+
+                primary = peer;
+                break;
+            }
+
+            if (primary == nullptr) {
+                continue;
+            }
+
+            // A weak role word such as "settings" stays conservative in
+            // isolation. Inside a product/location group that already has a
+            // clear primary application, the same cue becomes corroborated
+            // catalog evidence. Independent companion names (Encoder,
+            // Composer, Render, Editor, etc.) produce no such role cue.
+            LaunchEvidence titleEvidence;
+            titleEvidence.source =
+                LaunchCandidateSource::
+                    StartMenu;
+            titleEvidence.displayTitle =
+                candidate->title;
+            titleEvidence.targetKind =
+                LaunchTargetKind::
+                    GuiExecutable;
+
+            const ApplicationRoleDecision
+                titleDecision =
+                    ClassifyApplicationRole(
+                        titleEvidence);
+
+            if ((candidate
+                     ->applicationRole ==
+                         ApplicationRole::
+                             Unknown ||
+                 candidate
+                     ->applicationRole ==
+                         ApplicationRole::
+                             CompanionApplication) &&
+                IsContextPromotableRole(
+                    titleDecision.role)) {
+                candidate->applicationRole =
+                    titleDecision.role;
+                candidate->roleConfidence =
+                    RoleConfidence::Medium;
+                candidate->catalogVisibility =
+                    CatalogVisibilityForRole(
+                        candidate
+                            ->applicationRole,
+                        candidate
+                            ->roleConfidence);
+                continue;
+            }
+
+            if (IsContextPromotableRole(
+                    candidate
+                        ->applicationRole) &&
+                candidate->roleConfidence ==
+                    RoleConfidence::Low) {
+                candidate->roleConfidence =
+                    RoleConfidence::Medium;
+                candidate->catalogVisibility =
+                    CatalogVisibilityForRole(
+                        candidate
+                            ->applicationRole,
+                        candidate
+                            ->roleConfidence);
+                continue;
+            }
+
+            if ((candidate
+                     ->applicationRole ==
+                         ApplicationRole::
+                             Unknown ||
+                 candidate
+                     ->applicationRole ==
+                         ApplicationRole::
+                             CompanionApplication) &&
+                LooksLikeAlternateLaunch(
+                    candidate->title)) {
+
+                const bool sameTarget =
+                    !BaseCanonicalIdentity(
+                         *candidate)
+                         .empty() &&
+                    BaseCanonicalIdentity(
+                        *candidate) ==
+                        BaseCanonicalIdentity(
+                            *primary);
+
+                candidate->applicationRole =
+                    ApplicationRole::
+                        AlternateLaunch;
+                candidate->roleConfidence =
+                    sameTarget ||
+                            !candidate
+                                 ->arguments
+                                 .empty()
+                        ? RoleConfidence::High
+                        : RoleConfidence::Medium;
+                candidate->catalogVisibility =
+                    CatalogVisibilityForRole(
+                        candidate
+                            ->applicationRole,
+                        candidate
+                            ->roleConfidence);
+            }
+        }
+    }
 }
 
 } // namespace altrun

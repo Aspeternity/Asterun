@@ -42,6 +42,184 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.27":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.27 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 10:
+        fail("v0.8 alpha.5.27 must use Provider Cache schemaVersion 10")
+
+    role_hpp = read("src/core/LaunchRole.hpp")
+    role_cpp = read("src/core/LaunchRole.cpp")
+    command_store = read("src/core/CommandStore.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    result_ranking = read("src/core/ResultRanking.cpp")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "AlternateLaunch",
+        "CalibrateCatalogRoleContext(",
+    ):
+        if token not in role_hpp or token not in role_cpp:
+            fail(f"v0.8 alpha.5.27 role/context model missing: {token}")
+
+    for token in (
+        "SemanticStrength(",
+        "AppendDistinctivePhraseTokens(",
+        "SameCatalogContext(",
+        "LooksLikeAlternateLaunch(",
+        "performance test",
+        "settings wizard",
+        "性能测试",
+        "设置向导",
+    ):
+        if token not in role_cpp:
+            fail(f"v0.8 alpha.5.27 calibrated evidence missing: {token}")
+
+    for token in (
+        "providerCommands",
+        "contextualViews",
+        "CalibrateCatalogRoleContext(",
+        "transient copy",
+    ):
+        if token not in command_store:
+            fail(f"v0.8 alpha.5.27 catalog-publication calibration missing: {token}")
+
+    if "ClassifyApplicationRole(" in search_cpp or "CalibrateCatalogRoleContext(" in search_cpp:
+        fail("v0.8 alpha.5.27 role/context inference must stay out of SearchEngine")
+
+    if "catalogVisibility" in result_ranking or "distinctiveTokens" in result_ranking:
+        fail("v0.8 alpha.5.27 catalog visibility must not move into ResultRanking")
+
+    for token in (
+        "Acme Performance Test 2026",
+        "Acme 设置向导 2026",
+        "Contoso Studio Settings",
+        "Contoso Studio Benchmark",
+        "Contoso Studio Diagnostics",
+        "Contoso Studio Download Manager",
+        "Contoso Studio Quick Launch",
+        "Contoso Studio Safe Mode",
+        "Contoso Studio Editor",
+        "Contoso Studio Renderer",
+        "ApplicationRole::AlternateLaunch",
+        "CalibrateCatalogRoleContext(",
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.27 generic role regression missing: {token}")
+
+    forbidden_products = (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    )
+    production_and_role_tests = (role_cpp + role_tests).lower()
+    for product in forbidden_products:
+        if product in production_and_role_tests:
+            fail(f"v0.8 alpha.5.27 product-specific role rule/fixture found: {product}")
+
+    for token in (
+        '\\"schemaVersion\\": 10',
+        "staleSchema9ProviderCache",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.27 Provider Cache schema regression missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.27 frozen Classic asset changed: {asset_path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,197",
+        "PRODUCTVERSION 0,8,0,197",
+        "0.8.0-alpha.5.27",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.27 resource version missing: {token}")
+
+    if 'version="0.8.0.197"' not in manifest:
+        fail("v0.8 alpha.5.27 manifest fixed version must be 0.8.0.197")
+
+    for token in (
+        '"0.8.0-alpha.5.26"',
+        '"0.8.0-alpha.5.27"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.27 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.27 Role Evidence Calibration + Catalog Context validation",
+        "schema 10",
+        "AlternateLaunch",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.27 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.27 — Role Evidence Calibration + Catalog Context",
+        "Provider Cache advances to schema 10",
+        "0.8.0.197",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.27 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.27" not in changelog:
+        fail("v0.8 alpha.5.27 changelog entry missing")
+
+    if "v0.8.0-alpha.5.27 calibrates role evidence and catalog context" not in roadmap:
+        fail("v0.8 alpha.5.27 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.27 Role Evidence Calibration + Catalog Context verified:",
+        "| Provider Cache schema 10 rebuild",
+        "| high-information title evidence calibrated",
+        "| weak role words require catalog corroboration",
+        "| AlternateLaunch context modeled",
+        "| multiple companions preserved",
+        "| SearchEngine/ResultRanking unchanged",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.26":
     import hashlib
     import subprocess

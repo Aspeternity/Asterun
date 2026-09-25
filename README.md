@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.27 — Role Evidence Calibration + Catalog Context
+
+Alpha.5.27 fixes the evidence-quality bottleneck exposed by alpha.5.26 without adding another query-time filter. High-information role phrases such as performance/benchmark tests, settings/configuration wizards, diagnostics, updaters and download managers now carry enough title evidence to reach at least `Medium` confidence on their own. Ambiguous single words such as a bare `settings` remain conservative when seen in isolation.
+
+Catalog grouping now contributes real corroborating evidence during catalog publication. A weak configuration/diagnostic/benchmark/update/download/repair role may rise to `Medium` only when the same product identity and a related install/menu location also contain a clear `PrimaryApplication`. Related locations may be the exact location, a parent/child location or sibling locations under the same product root. This is deliberately contextual: independent suite applications such as editors, renderers and encoders remain ordinary `CompanionApplication` entries.
+
+The role model also gains `AlternateLaunch` for convenience or variant entry points such as Quick Launch, Safe Mode and no-plugins launchers. An alternate phrase alone is not enough: the entry must also belong to a related catalog group with a clear primary application. Sharing the primary activation target or carrying explicit arguments raises confidence further. Medium/High alternate entries are `StrongMatchOnly`, not deleted, so explicit intent still reaches them.
+
+Distinctive intent is strengthened at discovery time as well. Generic semantic role phrases are persisted alongside ordinary title tokens, including contiguous CJK phrases that tokenization cannot reliably separate from a product name. The SearchEngine remains unchanged and still consumes only cached visibility/token fields while typing.
+
+Context calibration is performed on a transient provider snapshot in `CommandStore` immediately before merge/publication. Provider Cache keeps the base per-entry evidence, which means enabling/disabling or refreshing providers always recomputes context instead of accumulating stale promotions. Because alpha.5.27 changes the meaning of cached role decisions, generated Provider Cache advances to schema 10 and rebuilds once on upgrade.
+
+No real product name is recognized by the classifier. The regression fixtures remain generic Contoso/Fabrikam/Acme cases, user-authored shortcuts remain authoritative, and grouping never means “keep only one app.” Search ranking, usage scoring, pinyin, Everything, provider monitoring and frozen Classic UI/geometry are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.197`.
+
 ## v0.8.0-alpha.5.26 — Role-aware Query Admission
 
 Alpha.5.26 turns the provider-neutral role evidence introduced in alpha.5.25 into a query-admission policy. The implementation is deliberately generic: it does not recognize any named commercial product. Instead, every discovered command already carries `CatalogVisibility` plus precomputed `distinctiveTokens`, and SearchEngine now uses those fields before the existing LaunchSurface and ranking layers.

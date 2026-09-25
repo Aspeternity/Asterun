@@ -13,6 +13,7 @@ enum class ApplicationRole {
     Unknown,
     PrimaryApplication,
     CompanionApplication,
+    AlternateLaunch,
     UserTool,
     ConfigurationTool,
     DiagnosticTool,
@@ -132,5 +133,12 @@ BuildDistinctiveTokens(
 [[nodiscard]] ApplicationRoleDecision
 ClassifyApplicationRole(
     const LaunchEvidence& evidence);
+
+struct Command;
+
+// Applies cross-entry catalog context after provider discovery/cache loading.
+// This never performs I/O and is intended for catalog publication, not query.
+void CalibrateCatalogRoleContext(
+    std::vector<Command*>& commands);
 
 } // namespace altrun

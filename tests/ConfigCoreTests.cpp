@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 9,\n"
+        "  \"schemaVersion\": 10,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,16 +1788,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 8 predates launch-role evidence and catalog visibility.
-    // Generated state must rebuild rather than guess those fields.
-    const auto staleSchema8ProviderCache =
+    // Schema 9 predates role-evidence calibration and contextual catalog
+    // semantics. Generated state must rebuild instead of retaining stale
+    // Low-confidence decisions from alpha.5.25/alpha.5.26.
+    const auto staleSchema9ProviderCache =
         data /
-        "provider-cache-schema8-stale.json";
+        "provider-cache-schema9-stale.json";
 
     WriteText(
-        staleSchema8ProviderCache,
+        staleSchema9ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 8,\n"
+        "  \"schemaVersion\": 9,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1814,11 +1815,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema8Cache(
-        staleSchema8ProviderCache);
+    ProviderCache staleSchema9Cache(
+        staleSchema9ProviderCache);
 
     assert(
-        staleSchema8Cache.Load().empty());
+        staleSchema9Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

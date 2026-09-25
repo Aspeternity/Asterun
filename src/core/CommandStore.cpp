@@ -462,10 +462,14 @@ void CommandStore::RebuildMergedCommands(
         }
     }
 
-    std::vector<const Command*>
-        providerViews;
+    // Contextual role calibration is a catalog-publication step. Work on a
+    // transient copy so Provider Cache keeps the base discovery evidence and
+    // context can be recomputed deterministically when providers are enabled,
+    // disabled or refreshed. Search never performs this inference.
+    std::vector<Command>
+        providerCommands;
 
-    providerViews.reserve(
+    providerCommands.reserve(
         rawProviderCount);
 
     for (const auto& descriptor :
@@ -490,9 +494,36 @@ void CommandStore::RebuildMergedCommands(
 
         for (const auto& command :
              it->second.commands) {
-            providerViews.push_back(
-                &command);
+            providerCommands.push_back(
+                command);
         }
+    }
+
+    std::vector<Command*>
+        contextualViews;
+
+    contextualViews.reserve(
+        providerCommands.size());
+
+    for (auto& command :
+         providerCommands) {
+        contextualViews.push_back(
+            &command);
+    }
+
+    CalibrateCatalogRoleContext(
+        contextualViews);
+
+    std::vector<const Command*>
+        providerViews;
+
+    providerViews.reserve(
+        providerCommands.size());
+
+    for (const auto& command :
+         providerCommands) {
+        providerViews.push_back(
+            &command);
     }
 
     providerCommandCount_ =

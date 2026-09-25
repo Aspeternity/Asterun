@@ -516,6 +516,24 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck alpha.5.24 typing/backspace repaint isolation and Classic geometry/assets.
 - [ ] Validate any observed SolidWorks/other-suite improvement only as a real-world example of the generic model; there must be no product-specific production rule.
 
+## v0.8.0-alpha.5.27 Role Evidence Calibration + Catalog Context validation
+
+- [ ] Upgrade from alpha.5.26. Generated Provider Cache should rebuild once under schema 10; settings, user commands and usage schemas remain unchanged.
+- [ ] Search a shared family/product name in a real multi-entry suite. Entries with clear performance/settings/diagnostic/download roles should no longer appear merely because they share the family name once they classify `StrongMatchOnly`.
+- [ ] Explicitly search the distinctive role intent (for example performance, benchmark, settings, configuration, diagnostics or download wording). The corresponding `StrongMatchOnly` entry must remain reachable.
+- [ ] Verify a high-information title phrase such as Performance Test / Settings Wizard / 性能测试 / 设置向导 is at least Medium confidence even when executable metadata provides no second role field.
+- [ ] Verify an isolated entry containing only a weak generic word such as `Settings` is not automatically promoted by that word alone; catalog context must supply the corroboration.
+- [ ] In a related product/location group containing a clear primary application, verify weak Settings/Benchmark/Diagnostics/Download roles can be calibrated to Medium and become `StrongMatchOnly`.
+- [ ] Verify Quick Launch / Safe Mode / no-plugins style entries become `AlternateLaunch` only when a related group also contains a clear primary application. Same-target/argument evidence may strengthen confidence.
+- [ ] Verify two or more legitimate companion applications (for example generic Editor/Renderer/Encoder fixtures) remain present and `Normal`; group membership must never collapse a suite to one executable.
+- [ ] Verify high-confidence updater/service/internal roles remain hidden under the existing visibility policy.
+- [ ] A user-created shortcut to any generated target must remain searchable and must not be rewritten by catalog-context calibration.
+- [ ] Inspect `data/provider-cache.json`: schema is 10 and contains base role/confidence/visibility/group/token evidence. Contextual promotion is recomputed at catalog publication rather than accumulated into cached state.
+- [ ] Recheck short-query relevance, pinyin, Usage ranking, Everything merge, provider ordering and explicit wildcard/path behavior; alpha.5.27 does not change SearchEngine or ResultRanking.
+- [ ] Leave ALTRun Next idle and type rapidly after the catalog is warm. No executable, registry, Shell, grouping or filesystem work should occur on the keystroke path; idle CPU/memory behavior should remain near the alpha.5.26 baseline.
+- [ ] Recheck alpha.5.24 typing/backspace repaint isolation and frozen Classic geometry/assets.
+- [ ] Use any installed commercial suite only as real-world evidence. There must be no product-name-specific production rule or regression fixture.
+
 ## Release assets
 
 For the candidate tag:

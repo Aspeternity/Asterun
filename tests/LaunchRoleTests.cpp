@@ -1,3 +1,4 @@
+#include "core/Command.hpp"
 #include "core/LaunchRole.hpp"
 
 #include <algorithm>
@@ -341,6 +342,380 @@ int main() {
     }
 
     {
+        auto evidence =
+            BaseEvidence(
+                L"Acme Performance Test 2026",
+                L"C:/Program Files/Acme/App.exe");
+
+        const auto decision =
+            ClassifyApplicationRole(
+                evidence);
+
+        assert(
+            decision.role ==
+            ApplicationRole::BenchmarkTool);
+        assert(
+            decision.confidence ==
+            RoleConfidence::Medium);
+        assert(
+            decision.visibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                decision.distinctiveTokens,
+                L"performance test"));
+    }
+
+    {
+        auto evidence =
+            BaseEvidence(
+                L"Acme 设置向导 2026",
+                L"C:/Program Files/Acme/App.exe");
+
+        const auto decision =
+            ClassifyApplicationRole(
+                evidence);
+
+        assert(
+            decision.role ==
+            ApplicationRole::
+                ConfigurationTool);
+        assert(
+            decision.confidence ==
+            RoleConfidence::Medium);
+        assert(
+            decision.visibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                decision.distinctiveTokens,
+                L"设置向导"));
+    }
+
+    {
+        auto evidence =
+            BaseEvidence(
+                L"Acme Settings",
+                L"C:/Program Files/Acme/App.exe");
+
+        const auto decision =
+            ClassifyApplicationRole(
+                evidence);
+
+        // A generic single role word remains conservative without catalog
+        // corroboration.
+        assert(
+            decision.role ==
+            ApplicationRole::
+                ConfigurationTool);
+        assert(
+            decision.confidence ==
+            RoleConfidence::Low);
+        assert(
+            decision.visibility ==
+            CatalogVisibility::Normal);
+    }
+
+    {
+        const std::wstring group =
+            L"product:contosostudio|root:c:\\program files\\contoso\\studio";
+
+        Command primary;
+        primary.source =
+            CommandSource::StartMenu;
+        primary.title =
+            L"Contoso Studio";
+        primary.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Studio.exe";
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\studio.exe";
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            group;
+
+        Command settings;
+        settings.source =
+            CommandSource::StartMenu;
+        settings.title =
+            L"Contoso Studio Settings";
+        settings.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Config\\Settings.exe";
+        settings.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\config\\settings.exe";
+        settings.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        settings.roleConfidence =
+            RoleConfidence::Low;
+        settings.catalogVisibility =
+            CatalogVisibility::Normal;
+        settings.catalogGroupKey =
+            L"product:contosostudio|root:c:\\program files\\contoso\\studio\\config";
+
+        Command benchmark;
+        benchmark.source =
+            CommandSource::StartMenu;
+        benchmark.title =
+            L"Contoso Studio Benchmark";
+        benchmark.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Tools\\Bench.exe";
+        benchmark.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\tools\\bench.exe";
+        benchmark.applicationRole =
+            ApplicationRole::
+                BenchmarkTool;
+        benchmark.roleConfidence =
+            RoleConfidence::Low;
+        benchmark.catalogVisibility =
+            CatalogVisibility::Normal;
+        benchmark.catalogGroupKey =
+            L"product:contosostudio|root:c:\\program files\\contoso\\studio\\tools";
+
+        Command diagnostics;
+        diagnostics.source =
+            CommandSource::StartMenu;
+        diagnostics.title =
+            L"Contoso Studio Diagnostics";
+        diagnostics.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Diag.exe";
+        diagnostics.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\diag.exe";
+        diagnostics.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        diagnostics.roleConfidence =
+            RoleConfidence::Low;
+        diagnostics.catalogVisibility =
+            CatalogVisibility::Normal;
+        diagnostics.catalogGroupKey =
+            group;
+
+        Command downloader;
+        downloader.source =
+            CommandSource::StartMenu;
+        downloader.title =
+            L"Contoso Studio Download Manager";
+        downloader.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Download.exe";
+        downloader.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\download.exe";
+        downloader.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        downloader.roleConfidence =
+            RoleConfidence::Low;
+        downloader.catalogVisibility =
+            CatalogVisibility::Normal;
+        downloader.catalogGroupKey =
+            group;
+
+        Command editor;
+        editor.source =
+            CommandSource::StartMenu;
+        editor.title =
+            L"Contoso Studio Editor";
+        editor.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Editor.exe";
+        editor.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\editor.exe";
+        editor.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        editor.roleConfidence =
+            RoleConfidence::Medium;
+        editor.catalogVisibility =
+            CatalogVisibility::Normal;
+        editor.catalogGroupKey =
+            group;
+
+        Command renderer;
+        renderer.source =
+            CommandSource::StartMenu;
+        renderer.title =
+            L"Contoso Studio Renderer";
+        renderer.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Render\\Renderer.exe";
+        renderer.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\render\\renderer.exe";
+        renderer.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        renderer.roleConfidence =
+            RoleConfidence::Medium;
+        renderer.catalogVisibility =
+            CatalogVisibility::Normal;
+        renderer.catalogGroupKey =
+            L"product:contosostudio|root:c:\\program files\\contoso\\studio\\render";
+
+        Command quickLaunch;
+        quickLaunch.source =
+            CommandSource::StartMenu;
+        quickLaunch.title =
+            L"Contoso Studio Quick Launch";
+        quickLaunch.target =
+            primary.target;
+        quickLaunch.arguments =
+            L"--quick";
+        quickLaunch.canonicalIdentity =
+            primary.canonicalIdentity +
+            L"|args:--quick";
+        quickLaunch.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        quickLaunch.roleConfidence =
+            RoleConfidence::Low;
+        quickLaunch.catalogVisibility =
+            CatalogVisibility::Normal;
+        quickLaunch.catalogGroupKey =
+            group;
+
+        Command safeMode;
+        safeMode.source =
+            CommandSource::StartMenu;
+        safeMode.title =
+            L"Contoso Studio Safe Mode";
+        safeMode.target =
+            L"C:\\Program Files\\Contoso\\Studio\\Safe.exe";
+        safeMode.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\safe.exe";
+        safeMode.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        safeMode.roleConfidence =
+            RoleConfidence::Low;
+        safeMode.catalogVisibility =
+            CatalogVisibility::Normal;
+        safeMode.catalogGroupKey =
+            group;
+
+        Command userShortcut;
+        userShortcut.source =
+            CommandSource::User;
+        userShortcut.title =
+            L"My Contoso Settings";
+        userShortcut.applicationRole =
+            ApplicationRole::
+                ConfigurationTool;
+        userShortcut.roleConfidence =
+            RoleConfidence::Low;
+        userShortcut.catalogVisibility =
+            CatalogVisibility::Normal;
+        userShortcut.catalogGroupKey =
+            group;
+
+        std::vector<Command*> commands{
+            &primary,
+            &settings,
+            &benchmark,
+            &diagnostics,
+            &downloader,
+            &editor,
+            &renderer,
+            &quickLaunch,
+            &safeMode,
+            &userShortcut,
+        };
+
+        CalibrateCatalogRoleContext(
+            commands);
+
+        for (const Command* auxiliary :
+             std::vector<const Command*>{
+                 &settings,
+                 &benchmark,
+                 &diagnostics,
+                 &downloader}) {
+            assert(
+                auxiliary->roleConfidence ==
+                RoleConfidence::Medium);
+            assert(
+                auxiliary
+                    ->catalogVisibility ==
+                CatalogVisibility::
+                    StrongMatchOnly);
+        }
+
+        assert(
+            settings.applicationRole ==
+            ApplicationRole::
+                ConfigurationTool);
+        assert(
+            benchmark.applicationRole ==
+            ApplicationRole::
+                BenchmarkTool);
+        assert(
+            diagnostics.applicationRole ==
+            ApplicationRole::
+                DiagnosticTool);
+        assert(
+            downloader.applicationRole ==
+            ApplicationRole::
+                Downloader);
+
+        // Independent applications in the same suite remain normal
+        // companions; catalog grouping is evidence, never a one-app filter.
+        assert(
+            editor.applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            editor.catalogVisibility ==
+            CatalogVisibility::Normal);
+        assert(
+            renderer.applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            renderer.catalogVisibility ==
+            CatalogVisibility::Normal);
+
+        assert(
+            quickLaunch.applicationRole ==
+            ApplicationRole::
+                AlternateLaunch);
+        assert(
+            quickLaunch.roleConfidence ==
+            RoleConfidence::High);
+        assert(
+            quickLaunch.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+
+        assert(
+            safeMode.applicationRole ==
+            ApplicationRole::
+                AlternateLaunch);
+        assert(
+            safeMode.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            safeMode.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+
+        // User-authored entries are explicit intent and are never rewritten
+        // by automatic catalog context.
+        assert(
+            userShortcut.applicationRole ==
+            ApplicationRole::
+                ConfigurationTool);
+        assert(
+            userShortcut.roleConfidence ==
+            RoleConfidence::Low);
+        assert(
+            userShortcut.catalogVisibility ==
+            CatalogVisibility::Normal);
+    }
+
+    {
         assert(
             ParseApplicationRole(
                 ApplicationRoleName(
@@ -348,6 +723,13 @@ int main() {
                         DiagnosticTool)) ==
             ApplicationRole::
                 DiagnosticTool);
+        assert(
+            ParseApplicationRole(
+                ApplicationRoleName(
+                    ApplicationRole::
+                        AlternateLaunch)) ==
+            ApplicationRole::
+                AlternateLaunch);
         assert(
             ParseRoleConfidence(
                 RoleConfidenceName(
