@@ -109,8 +109,8 @@ if version == "0.8.0-alpha.5.26":
 
     for token in (
         "Contoso Studio",
-        "CatalogVisibility::StrongMatchOnly",
-        "CatalogVisibility::Hidden",
+        "StrongMatchOnly",
+        "Hidden",
         "performance",
         "settings",
         "Standalone Diagnostics",
