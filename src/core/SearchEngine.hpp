@@ -113,6 +113,18 @@ private:
         const Command& command,
         std::wstring_view normalizedPattern);
 
+    [[nodiscard]] static bool
+    HasDistinctiveCatalogIntent(
+        const Command& command,
+        std::wstring_view query);
+
+    [[nodiscard]] static bool
+    AdmitCatalogEntry(
+        const Command& command,
+        std::wstring_view query,
+        const relevance::Match& match,
+        bool explicitSyntax);
+
     PinyinSearch pinyin_;
 };
 

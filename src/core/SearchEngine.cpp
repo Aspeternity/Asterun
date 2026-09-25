@@ -641,6 +641,109 @@ SearchEngine::CommandWildcardScore(
     return best;
 }
 
+bool SearchEngine::HasDistinctiveCatalogIntent(
+    const Command& command,
+    std::wstring_view query) {
+
+    if (command.distinctiveTokens.empty()) {
+        return false;
+    }
+
+    const std::wstring normalizedQuery =
+        relevance::Normalize(query);
+
+    if (normalizedQuery.empty()) {
+        return false;
+    }
+
+    const auto queryTokens =
+        relevance::QueryTokens(query);
+
+    for (const auto& distinctive :
+         command.distinctiveTokens) {
+
+        const std::wstring normalizedDistinctive =
+            relevance::Normalize(
+                distinctive);
+
+        if (normalizedDistinctive.size() < 2) {
+            continue;
+        }
+
+        // Covers compact queries such as "contosoperformance" while still
+        // requiring the query to name the auxiliary entry's distinctive
+        // intent rather than only the shared product/family name.
+        if (normalizedQuery.find(
+                normalizedDistinctive) !=
+            std::wstring::npos) {
+            return true;
+        }
+
+        for (const auto& token :
+             queryTokens) {
+            if (token.size() < 2) {
+                continue;
+            }
+
+            if (normalizedDistinctive ==
+                    token ||
+                normalizedDistinctive
+                    .starts_with(token)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool SearchEngine::AdmitCatalogEntry(
+    const Command& command,
+    std::wstring_view query,
+    const relevance::Match& match,
+    bool explicitSyntax) {
+
+    // A user-authored shortcut is explicit intent and must never be hidden by
+    // automatically inferred catalog roles.
+    if (command.source ==
+        CommandSource::User) {
+        return true;
+    }
+
+    switch (command.catalogVisibility) {
+    case CatalogVisibility::Normal:
+        return true;
+
+    case CatalogVisibility::Hidden:
+        return false;
+
+    case CatalogVisibility::StrongMatchOnly:
+        break;
+    }
+
+    if (relevance::Normalize(query).empty()) {
+        return false;
+    }
+
+    if (explicitSyntax) {
+        return true;
+    }
+
+    // If the user typed the complete discovered entry name/keyword/alias,
+    // that is explicit enough even when grouping metadata could not derive
+    // distinctive tokens.
+    if (match.kind ==
+            relevance::MatchKind::Exact &&
+        match.field !=
+            relevance::MatchField::Target) {
+        return true;
+    }
+
+    return HasDistinctiveCatalogIntent(
+        command,
+        query);
+}
+
 std::vector<SearchResult>
 SearchEngine::Search(
     const std::vector<Command>& commands,
@@ -698,7 +801,12 @@ SearchEngine::Search(
         relevance::Match match{};
 
         if (normalizedQuery.empty()) {
-            if (!relevance::
+            if (!AdmitCatalogEntry(
+                    command,
+                    query,
+                    match,
+                    false) ||
+                !relevance::
                     AdmitLaunchSurface(
                         command.surfaceClass,
                         query,
@@ -782,6 +890,11 @@ SearchEngine::Search(
             }
 
             if (!match ||
+                !AdmitCatalogEntry(
+                    command,
+                    query,
+                    match,
+                    explicitSyntax) ||
                 !relevance::
                     AdmitLaunchSurface(
                         command.surfaceClass,

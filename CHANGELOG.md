@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.5.26
+
+- Activated the schema-9 launch-role evidence model in static application query admission.
+- `CatalogVisibility::Normal` keeps existing behavior; `StrongMatchOnly` entries are suppressed on shared family/product-name queries and reappear only for distinctive entry intent, exact full-entry queries, or explicit wildcard/path syntax.
+- `CatalogVisibility::Hidden` entries stay out of normal Launcher search even on exact/wildcard queries; filesystem search remains available through Everything.
+- User-authored shortcuts remain authoritative and bypass generated catalog suppression.
+- Distinctive intent uses the precomputed `distinctiveTokens` from alpha.5.25 only; no file, registry, Version Resource or catalog rebuild work was added to the keystroke hot path.
+- Role-aware admission happens before existing LaunchSurface admission and before ranking. Relevance scoring, usage scoring, provider ordering and ResultRanking are unchanged.
+- Added generic Contoso search regressions for primary/companion preservation, family-name suppression, explicit benchmark/settings access, hidden updater behavior and user-shortcut authority.
+- No SolidWorks/Adobe/Autodesk/TeamSpeak or other product-specific search rule was added.
+- Provider Cache remains schema 9; Classic geometry/assets and repaint behavior are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.196`.
+
 ## 0.8.0-alpha.5.25
 
 - Added the provider-neutral Launch Role Evidence Model with separate `ApplicationRole`, `RoleConfidence` and `CatalogVisibility` concepts instead of overloading search-surface classification.

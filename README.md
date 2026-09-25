@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.26 — Role-aware Query Admission
+
+Alpha.5.26 turns the provider-neutral role evidence introduced in alpha.5.25 into a query-admission policy. The implementation is deliberately generic: it does not recognize any named commercial product. Instead, every discovered command already carries `CatalogVisibility` plus precomputed `distinctiveTokens`, and SearchEngine now uses those fields before the existing LaunchSurface and ranking layers.
+
+`Normal` entries behave exactly as before. `StrongMatchOnly` entries are omitted when the query only expresses the shared product/family name, but are admitted when the user names a distinctive part of that entry (for example a generic performance/settings/download token), types the complete entry exactly, or uses explicit wildcard/path syntax. `Hidden` entries remain out of ordinary Launcher application search; they are not deleted from the machine and can still be reached through the filesystem/Everything path when appropriate. User-created shortcuts always bypass automatic visibility suppression because they represent explicit user intent.
+
+The hot path stays intentionally small: alpha.5.26 only compares the normalized query against the already-cached distinctive tokens. It performs no executable metadata reads, registry access, Shell enumeration, Version Resource parsing, product grouping or provider refresh during typing. Relevance scores, usage weights, pinyin matching, provider priority and unified ResultRanking are unchanged.
+
+This is the generic mechanism intended to address large Windows software suites that expose main applications alongside settings, diagnostics, benchmarks, download managers and maintenance surfaces. The regression fixtures use fictional Contoso applications; there is no product-specific rule for SolidWorks, Adobe, Autodesk, TeamSpeak or any other real application family.
+
+Provider Cache stays at schema 9. Classic UI/geometry/repaint isolation and fixed assets are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.196`.
+
 ## v0.8.0-alpha.5.25 — Launch Role Evidence Model
 
 Alpha.5.25 builds the second-stage Intelligent Launch Catalog foundation without turning one observed application suite into a special case. Catalog entries now carry three independent concepts: `ApplicationRole` answers what an entry is, `RoleConfidence` records how strongly the evidence supports that inference, and `CatalogVisibility` records the future presentation policy. This keeps semantic classification separate from the existing `LaunchSurfaceClass` search/ranking tier.

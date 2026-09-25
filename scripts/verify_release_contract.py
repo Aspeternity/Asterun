@@ -42,6 +42,170 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.26":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.26 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 9:
+        fail("v0.8 alpha.5.26 must preserve Provider Cache schemaVersion 9")
+
+    search_hpp = read("src/core/SearchEngine.hpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    result_ranking = read("src/core/ResultRanking.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    command_hpp = read("src/core/Command.hpp")
+    provider_cache = read("src/core/ProviderCache.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "HasDistinctiveCatalogIntent(",
+        "AdmitCatalogEntry(",
+    ):
+        if token not in search_hpp or token not in search_cpp:
+            fail(f"v0.8 alpha.5.26 search admission helper missing: {token}")
+
+    for token in (
+        "command.catalogVisibility",
+        "CatalogVisibility::Normal",
+        "CatalogVisibility::StrongMatchOnly",
+        "CatalogVisibility::Hidden",
+        "command.distinctiveTokens",
+        "CommandSource::User",
+        "explicitSyntax",
+        "MatchKind::Exact",
+        "MatchField::Target",
+    ):
+        if token not in search_cpp:
+            fail(f"v0.8 alpha.5.26 role-aware query admission missing: {token}")
+
+    if "catalogVisibility" in result_ranking or "distinctiveTokens" in result_ranking:
+        fail("v0.8 alpha.5.26 visibility belongs to query admission, not ResultRanking")
+
+    for token in (
+        "applicationRole",
+        "roleConfidence",
+        "catalogVisibility",
+        "catalogGroupKey",
+        "distinctiveTokens",
+    ):
+        if token not in command_hpp or token not in provider_cache:
+            fail(f"v0.8 alpha.5.26 schema-9 role persistence regressed: {token}")
+
+    for token in (
+        "Contoso Studio",
+        "CatalogVisibility::StrongMatchOnly",
+        "CatalogVisibility::Hidden",
+        "performance",
+        "settings",
+        "Standalone Diagnostics",
+        "My Hidden Utility",
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.26 generic query-admission regression missing: {token}")
+
+    for token in (
+        "family",
+        "performancePrefix",
+        "familySettings",
+        "hiddenExact",
+        "hiddenWildcard",
+        "exactFallback",
+        "userAuthority",
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.26 search scenario missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.26 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,196",
+        "PRODUCTVERSION 0,8,0,196",
+        "0.8.0-alpha.5.26",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.26 resource version missing: {token}")
+
+    if 'version="0.8.0.196"' not in manifest:
+        fail("v0.8 alpha.5.26 manifest fixed version must be 0.8.0.196")
+
+    for token in (
+        '"0.8.0-alpha.5.25"',
+        '"0.8.0-alpha.5.26"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.26 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.26 Role-aware Query Admission validation",
+        "Provider Cache remains schema 9",
+        "user intent overrides automatic catalog visibility",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.26 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.26 — Role-aware Query Admission",
+        "StrongMatchOnly",
+        "0.8.0.196",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.26 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.26" not in changelog:
+        fail("v0.8 alpha.5.26 changelog entry missing")
+
+    if "v0.8.0-alpha.5.26 consumes schema-9 CatalogVisibility in SearchEngine" not in roadmap:
+        fail("v0.8 alpha.5.26 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.26 Role-aware Query Admission verified:",
+        "| Provider Cache schema 9 preserved",
+        "| StrongMatchOnly requires distinctive intent",
+        "| Hidden generated entries suppressed",
+        "| user shortcuts authoritative",
+        "| admission occurs before existing ranking",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.25":
     import hashlib
     import subprocess

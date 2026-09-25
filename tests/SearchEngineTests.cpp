@@ -401,6 +401,299 @@ int main(int argc, char** argv) {
             3));
     }
 
+    // Catalog visibility is a query-admission policy, not another
+    // product-specific ranking score. Shared family-name searches keep
+    // normal apps while StrongMatchOnly entries require distinctive intent.
+    {
+        std::vector<Command>
+            catalogCommands{
+                MakeCommand(
+                    L"c1",
+                    L"contosostudio",
+                    L"Contoso Studio",
+                    L"ContosoStudio.exe",
+                    0),
+                MakeCommand(
+                    L"c2",
+                    L"contosostudioencoder",
+                    L"Contoso Studio Encoder",
+                    L"Encoder.exe",
+                    1),
+                MakeCommand(
+                    L"c3",
+                    L"contosostudioperformancetest",
+                    L"Contoso Studio Performance Test",
+                    L"Benchmark.exe",
+                    2),
+                MakeCommand(
+                    L"c4",
+                    L"contosostudiosettings",
+                    L"Contoso Studio Settings",
+                    L"Config.exe",
+                    3),
+                MakeCommand(
+                    L"c5",
+                    L"contosostudiodownloadmanager",
+                    L"Contoso Studio Download Manager",
+                    L"Downloader.exe",
+                    4),
+                MakeCommand(
+                    L"c6",
+                    L"contosostudioupdater",
+                    L"Contoso Studio Updater",
+                    L"Updater.exe",
+                    5),
+                MakeCommand(
+                    L"c7",
+                    L"standalonediagnostics",
+                    L"Standalone Diagnostics",
+                    L"Diagnostics.exe",
+                    6),
+                MakeCommand(
+                    L"c8",
+                    L"myhiddenutility",
+                    L"My Hidden Utility",
+                    L"MyHiddenUtility.exe",
+                    7),
+            };
+
+        for (std::size_t index = 0;
+             index < 7;
+             ++index) {
+            catalogCommands[index].source =
+                CommandSource::StartMenu;
+            catalogCommands[index]
+                .surfaceClass =
+                LaunchSurfaceClass::
+                    PrimaryApplication;
+            catalogCommands[index]
+                .basePriority = 0;
+        }
+
+        catalogCommands[0]
+            .applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        catalogCommands[0]
+            .catalogVisibility =
+            CatalogVisibility::Normal;
+
+        catalogCommands[1]
+            .applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        catalogCommands[1]
+            .catalogVisibility =
+            CatalogVisibility::Normal;
+
+        catalogCommands[2]
+            .applicationRole =
+            ApplicationRole::BenchmarkTool;
+        catalogCommands[2]
+            .catalogVisibility =
+            CatalogVisibility::
+                StrongMatchOnly;
+        catalogCommands[2]
+            .distinctiveTokens = {
+                L"performance",
+                L"test",
+            };
+
+        catalogCommands[3]
+            .applicationRole =
+            ApplicationRole::
+                ConfigurationTool;
+        catalogCommands[3]
+            .catalogVisibility =
+            CatalogVisibility::
+                StrongMatchOnly;
+        catalogCommands[3]
+            .distinctiveTokens = {
+                L"settings",
+            };
+
+        catalogCommands[4]
+            .applicationRole =
+            ApplicationRole::Downloader;
+        catalogCommands[4]
+            .catalogVisibility =
+            CatalogVisibility::
+                StrongMatchOnly;
+        catalogCommands[4]
+            .distinctiveTokens = {
+                L"download",
+                L"manager",
+            };
+
+        catalogCommands[5]
+            .applicationRole =
+            ApplicationRole::Updater;
+        catalogCommands[5]
+            .catalogVisibility =
+            CatalogVisibility::Hidden;
+        catalogCommands[5]
+            .distinctiveTokens = {
+                L"updater",
+            };
+
+        // StrongMatchOnly remains explicitly reachable when grouping could
+        // not derive distinctive tokens but the complete entry itself is
+        // typed exactly.
+        catalogCommands[6]
+            .applicationRole =
+            ApplicationRole::DiagnosticTool;
+        catalogCommands[6]
+            .catalogVisibility =
+            CatalogVisibility::
+                StrongMatchOnly;
+        catalogCommands[6]
+            .distinctiveTokens.clear();
+
+        // User-authored commands are authoritative even if stale/generated
+        // metadata ever carries a restrictive visibility value.
+        catalogCommands[7]
+            .catalogVisibility =
+            CatalogVisibility::Hidden;
+
+        const auto family =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"contoso studio",
+                20);
+
+        assert(ContainsCommand(
+            family,
+            0));
+        assert(ContainsCommand(
+            family,
+            1));
+        assert(!ContainsCommand(
+            family,
+            2));
+        assert(!ContainsCommand(
+            family,
+            3));
+        assert(!ContainsCommand(
+            family,
+            4));
+        assert(!ContainsCommand(
+            family,
+            5));
+
+        const auto performance =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"performance",
+                20);
+        assert(ContainsCommand(
+            performance,
+            2));
+
+        const auto performancePrefix =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"perf",
+                20);
+        assert(ContainsCommand(
+            performancePrefix,
+            2));
+
+        const auto familyPerformance =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"contoso studio performance",
+                20);
+        assert(ContainsCommand(
+            familyPerformance,
+            2));
+
+        const auto settings =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"settings",
+                20);
+        assert(ContainsCommand(
+            settings,
+            3));
+
+        const auto familySettings =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"contoso studio settings",
+                20);
+        assert(ContainsCommand(
+            familySettings,
+            3));
+
+        const auto oneLetter =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"s",
+                20);
+        assert(!ContainsCommand(
+            oneLetter,
+            3));
+
+        const auto wildcardSettings =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"*settings*",
+                20,
+                true);
+        assert(ContainsCommand(
+            wildcardSettings,
+            3));
+
+        const auto hiddenExact =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"Contoso Studio Updater",
+                20);
+        assert(!ContainsCommand(
+            hiddenExact,
+            5));
+
+        const auto hiddenWildcard =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"*Updater*",
+                20,
+                true);
+        assert(!ContainsCommand(
+            hiddenWildcard,
+            5));
+
+        const auto exactFallback =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"Standalone Diagnostics",
+                20);
+        assert(ContainsCommand(
+            exactFallback,
+            6));
+
+        const auto userAuthority =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"My Hidden Utility",
+                20);
+        assert(ContainsCommand(
+            userAuthority,
+            7));
+    }
+
     auto wildcardDisabled =
         engine.Search(
             commands,

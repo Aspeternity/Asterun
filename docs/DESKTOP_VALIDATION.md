@@ -501,6 +501,21 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Observe a multi-entry installed software suite only as evidence validation. Do not judge alpha.5.25 by whether auxiliary suite entries are suppressed: role-aware StrongMatchOnly/Hidden query admission is intentionally deferred to the next stage.
 - [ ] No product-specific blacklist/rule should exist for SolidWorks, TeamSpeak or any other real application family.
 
+## v0.8.0-alpha.5.26 Role-aware Query Admission validation
+
+- [ ] Upgrade from alpha.5.25. Provider Cache remains schema 9; there should be no schema-triggered full rebuild caused by alpha.5.26 itself.
+- [ ] Search the shared family/product name of a real multi-entry installed suite. Normal primary/companion applications should remain, while entries already classified `StrongMatchOnly` should no longer appear merely because they share the product name.
+- [ ] Explicitly search a distinctive auxiliary intent such as its settings/configuration, performance/benchmark, diagnostic or download-manager wording. The corresponding `StrongMatchOnly` entry should become searchable.
+- [ ] Type the complete title of a `StrongMatchOnly` entry and confirm it remains reachable even when distinctive grouping metadata is incomplete.
+- [ ] Entries classified `Hidden` (for example a high-confidence updater/service/internal component) should not appear in normal Launcher search even when its complete title or a wildcard is entered.
+- [ ] A user-created shortcut to any such target must remain searchable; user intent overrides automatic catalog visibility.
+- [ ] With wildcard/path syntax enabled, verify `StrongMatchOnly` entries can still be explicitly addressed while `Hidden` generated entries remain excluded.
+- [ ] Recheck a product with multiple legitimate applications/companions: role-aware admission must not collapse the suite to one executable.
+- [ ] Recheck pinyin, short-query relevance, Usage ranking, Everything merge and provider ordering; alpha.5.26 does not change their scoring.
+- [ ] Leave the app idle and type rapidly after the catalog is warm. CPU/memory behavior should stay near the alpha.5.25 baseline because query admission only reads cached enum/token fields.
+- [ ] Recheck alpha.5.24 typing/backspace repaint isolation and Classic geometry/assets.
+- [ ] Validate any observed SolidWorks/other-suite improvement only as a real-world example of the generic model; there must be no product-specific production rule.
+
 ## Release assets
 
 For the candidate tag:
