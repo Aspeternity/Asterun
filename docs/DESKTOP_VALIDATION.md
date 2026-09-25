@@ -630,6 +630,21 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck idle CPU/memory and frozen Classic UI/geometry.
 - [ ] Recheck the alpha.5.30 anonymous dev-latest publication contract remains green.
 
+## v0.8.0-alpha.5.34 Launch Surface Evidence Completion validation
+
+- [ ] Upgrade from alpha.5.33. Provider Cache rebuilds once under schema 16; settings, user commands and usage remain unchanged.
+- [ ] Find a Start Menu management shortcut whose .lnk resolves to Windows control.exe with a /name-style argument rather than directly into an Administrative/Windows Tools filesystem folder; it is classified as SystemUtility.
+- [ ] Verify MMC-backed management shortcuts remain searchable but carry SystemUtility rather than PrimaryApplication semantics.
+- [ ] Verify a Control_RunDLL/.cpl shortcut and an ms-settings URI surface are classified as SystemUtility when present.
+- [ ] Verify an explorer-hosted or direct ::{...}/shell:::{...} namespace shortcut is classified structurally without any title rule.
+- [ ] A normal application named similarly to a Windows broker but installed outside the Windows directory must not become SystemUtility from its leaf filename alone.
+- [ ] A normal shell:AppsFolder application remains an application surface and is not treated as a generic namespace utility.
+- [ ] Repeat the alpha.5.33 short-query case where a genuine PrimaryApplication prefix and a SystemUtility prefix both match; the primary application should naturally rank ahead because the surface evidence is now correct, not because either title was blacklisted.
+- [ ] Inspect data/provider-cache.json: schema is 16 and the corrected surfaceClass persists after restart.
+- [ ] Confirm Start Menu discovery may inspect Shell/PIDL data during refresh, but typing performs no new Shell, filesystem, registry or executable-metadata I/O.
+- [ ] Recheck alpha.5.33 1-2 ASCII BoundaryPrefix suppression and 3-character recovery, alpha.5.32 catalog-role behavior, Everything merge, pinyin, usage scoring, wildcard/path syntax, idle CPU/memory and frozen Classic UI/geometry.
+- [ ] Recheck the alpha.5.30 anonymous dev-latest publication contract remains green.
+
 ## Release assets
 
 For the candidate tag:

@@ -18,6 +18,54 @@ using namespace altrun;
 
 namespace {
 
+std::filesystem::path
+WindowsDirectoryExecutable(
+    const wchar_t* fileName) {
+
+    std::vector<wchar_t> buffer(
+        32768,
+        L'\0');
+
+    const UINT length =
+        GetWindowsDirectoryW(
+            buffer.data(),
+            static_cast<UINT>(
+                buffer.size()));
+
+    assert(length > 0);
+    assert(length < buffer.size());
+
+    return std::filesystem::path(
+               std::wstring(
+                   buffer.data(),
+                   length)) /
+        fileName;
+}
+
+std::filesystem::path
+WindowsSystemExecutable(
+    const wchar_t* fileName) {
+
+    std::vector<wchar_t> buffer(
+        32768,
+        L'\0');
+
+    const UINT length =
+        GetSystemDirectoryW(
+            buffer.data(),
+            static_cast<UINT>(
+                buffer.size()));
+
+    assert(length > 0);
+    assert(length < buffer.size());
+
+    return std::filesystem::path(
+               std::wstring(
+                   buffer.data(),
+                   length)) /
+        fileName;
+}
+
 std::filesystem::path CurrentExecutable() {
     std::vector<wchar_t> buffer(
         32768,
@@ -95,6 +143,81 @@ int wmain() {
 
     const auto executable =
         CurrentExecutable();
+
+    const auto control =
+        WindowsSystemExecutable(
+            L"control.exe");
+    const auto mmc =
+        WindowsSystemExecutable(
+            L"mmc.exe");
+    const auto explorer =
+        WindowsDirectoryExecutable(
+            L"explorer.exe");
+    const auto rundll32 =
+        WindowsSystemExecutable(
+            L"rundll32.exe");
+
+    assert(
+        win::ClassifyShellActivationSurface(
+            control.wstring(),
+            L"/name Microsoft.AdministrativeTools",
+            L"") ==
+        LaunchSurfaceClass::
+            SystemUtility);
+
+    assert(
+        win::ClassifyShellActivationSurface(
+            mmc.wstring(),
+            L"eventvwr.msc",
+            L"") ==
+        LaunchSurfaceClass::
+            SystemUtility);
+
+    assert(
+        win::ClassifyShellActivationSurface(
+            explorer.wstring(),
+            L"shell:::{00000000-0000-0000-0000-000000000000}",
+            L"") ==
+        LaunchSurfaceClass::
+            SystemUtility);
+
+    assert(
+        win::ClassifyShellActivationSurface(
+            rundll32.wstring(),
+            L"shell32.dll,Control_RunDLL appwiz.cpl",
+            L"") ==
+        LaunchSurfaceClass::
+            SystemUtility);
+
+    assert(
+        win::ClassifyShellActivationSurface(
+            L"ms-settings:display",
+            L"",
+            L"") ==
+        LaunchSurfaceClass::
+            SystemUtility);
+
+    assert(
+        !win::ClassifyShellActivationSurface(
+            executable.wstring(),
+            L"/name Microsoft.AdministrativeTools",
+            L""));
+
+    const auto fakeControl =
+        root /
+        "control.exe";
+
+    assert(
+        !win::ClassifyShellActivationSurface(
+            fakeControl.wstring(),
+            L"",
+            L""));
+
+    assert(
+        !win::ClassifyShellActivationSurface(
+            L"shell:AppsFolder\\Contoso.App!App",
+            L"",
+            L""));
 
     assert(
         win::InspectLaunchTarget(

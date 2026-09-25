@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 15,\n"
+        "  \"schemaVersion\": 16,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,17 +1788,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 14 predates resolved-target Start Menu surface refinement.
-    // Generated state must rebuild so root-level shortcuts that resolve into
-    // administrative/developer tool locations get the correct surface class.
-    const auto staleSchema14ProviderCache =
+    // Schema 15 predates Shell/PIDL Start Menu surface refinement.
+    // Generated state must rebuild so broker/namespace shortcuts acquire the
+    // same structural SystemUtility semantics as filesystem-resolved tools.
+    const auto staleSchema15ProviderCache =
         data /
-        "provider-cache-schema14-stale.json";
+        "provider-cache-schema15-stale.json";
 
     WriteText(
-        staleSchema14ProviderCache,
+        staleSchema15ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 14,\n"
+        "  \"schemaVersion\": 15,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1815,11 +1815,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema14Cache(
-        staleSchema14ProviderCache);
+    ProviderCache staleSchema15Cache(
+        staleSchema15ProviderCache);
 
     assert(
-        staleSchema14Cache.Load().empty());
+        staleSchema15Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

@@ -194,6 +194,153 @@ MetadataCacheKey(
     return key;
 }
 
+[[nodiscard]] std::wstring
+LowerTrimmed(
+    std::wstring_view value) {
+
+    std::size_t first = 0;
+    std::size_t last = value.size();
+
+    while (first < last &&
+           std::iswspace(value[first])) {
+        ++first;
+    }
+
+    while (last > first &&
+           std::iswspace(value[last - 1])) {
+        --last;
+    }
+
+    std::wstring result(
+        value.substr(
+            first,
+            last - first));
+
+    std::transform(
+        result.begin(),
+        result.end(),
+        result.begin(),
+        [](wchar_t ch) {
+            return static_cast<wchar_t>(
+                std::towlower(ch));
+        });
+
+    return result;
+}
+
+[[nodiscard]] bool
+IsShellNamespaceActivation(
+    std::wstring_view value) {
+
+    const std::wstring lower =
+        LowerTrimmed(value);
+
+    return
+        lower.find(L"shell:::{") !=
+            std::wstring::npos ||
+        lower.find(L"::{") !=
+            std::wstring::npos ||
+        lower.find(
+            L"shell:controlpanelfolder") !=
+            std::wstring::npos;
+}
+
+[[nodiscard]] std::wstring
+WindowsDirectoryKey() {
+
+    std::vector<wchar_t> buffer(
+        32768,
+        L'\0');
+
+    const UINT length =
+        GetWindowsDirectoryW(
+            buffer.data(),
+            static_cast<UINT>(
+                buffer.size()));
+
+    if (length == 0 ||
+        length >= buffer.size()) {
+        return {};
+    }
+
+    return MetadataCacheKey(
+        std::filesystem::path(
+            std::wstring(
+                buffer.data(),
+                length)));
+}
+
+[[nodiscard]] bool
+IsTrustedWindowsExecutable(
+    std::wstring_view target,
+    std::wstring_view fileName) {
+
+    if (target.empty()) {
+        return false;
+    }
+
+    const std::filesystem::path
+        path(target);
+
+    std::wstring leaf =
+        path.filename().wstring();
+
+    std::transform(
+        leaf.begin(),
+        leaf.end(),
+        leaf.begin(),
+        [](wchar_t ch) {
+            return static_cast<wchar_t>(
+                std::towlower(ch));
+        });
+
+    std::wstring expected(fileName);
+
+    std::transform(
+        expected.begin(),
+        expected.end(),
+        expected.begin(),
+        [](wchar_t ch) {
+            return static_cast<wchar_t>(
+                std::towlower(ch));
+        });
+
+    if (leaf != expected) {
+        return false;
+    }
+
+    static const std::wstring
+        windowsDirectory =
+            WindowsDirectoryKey();
+
+    if (windowsDirectory.empty()) {
+        return false;
+    }
+
+    const std::wstring key =
+        MetadataCacheKey(path);
+
+    const std::wstring windowsRoot =
+        windowsDirectory +
+        L"\\" +
+        expected;
+
+    const std::wstring system32 =
+        windowsDirectory +
+        L"\\system32\\" +
+        expected;
+
+    const std::wstring syswow64 =
+        windowsDirectory +
+        L"\\syswow64\\" +
+        expected;
+
+    return
+        key == windowsRoot ||
+        key == system32 ||
+        key == syswow64;
+}
+
 struct MetadataCacheEntry {
     std::uintmax_t fileSize{0};
     std::filesystem::file_time_type
@@ -519,28 +666,34 @@ InspectShellLink(
             buffer.data());
     }
 
-    if (target.empty()) {
-        PIDLIST_ABSOLUTE pidl = nullptr;
+    // Preserve the Shell PIDL parsing identity even when GetPath() also
+    // returns a broker executable. Windows Start Menu links can route through
+    // control.exe / explorer.exe while the PIDL carries the actual namespace.
+    std::wstring shellParsingName;
+    PIDLIST_ABSOLUTE pidl = nullptr;
+
+    if (SUCCEEDED(
+            shellLink->GetIDList(
+                &pidl)) &&
+        pidl != nullptr) {
+
+        PWSTR raw = nullptr;
 
         if (SUCCEEDED(
-                shellLink->GetIDList(
-                    &pidl)) &&
-            pidl != nullptr) {
-
-            PWSTR raw = nullptr;
-
-            if (SUCCEEDED(
-                    SHGetNameFromIDList(
-                        pidl,
-                        SIGDN_DESKTOPABSOLUTEPARSING,
-                        &raw)) &&
-                raw != nullptr) {
-                target.assign(raw);
-                CoTaskMemFree(raw);
-            }
-
-            CoTaskMemFree(pidl);
+                SHGetNameFromIDList(
+                    pidl,
+                    SIGDN_DESKTOPABSOLUTEPARSING,
+                    &raw)) &&
+            raw != nullptr) {
+            shellParsingName.assign(raw);
+            CoTaskMemFree(raw);
         }
+
+        CoTaskMemFree(pidl);
+    }
+
+    if (target.empty()) {
+        target = shellParsingName;
     }
 
     if (target.empty()) {
@@ -550,6 +703,8 @@ InspectShellLink(
     ShortcutTarget result;
     result.target =
         std::move(target);
+    result.shellParsingName =
+        std::move(shellParsingName);
 
     std::fill(
         buffer.begin(),
@@ -586,6 +741,77 @@ InspectShellLink(
             result.target);
 
     return result;
+}
+
+std::optional<LaunchSurfaceClass>
+ClassifyShellActivationSurface(
+    std::wstring_view target,
+    std::wstring_view arguments,
+    std::wstring_view shellParsingName) {
+
+    const std::wstring lowerTarget =
+        LowerTrimmed(target);
+
+    const std::wstring lowerArguments =
+        LowerTrimmed(arguments);
+
+    // URI-native Windows Settings links are shell-owned system surfaces.
+    if (lowerTarget.starts_with(
+            L"ms-settings:") ||
+        lowerArguments.starts_with(
+            L"ms-settings:")) {
+        return LaunchSurfaceClass::
+            SystemUtility;
+    }
+
+    // These are Windows-owned brokers, not product-name heuristics. Restrict
+    // executable recognition to the Windows directory so an unrelated app
+    // named control.exe/mmc.exe cannot inherit SystemUtility semantics.
+    if (IsTrustedWindowsExecutable(
+            target,
+            L"control.exe") ||
+        IsTrustedWindowsExecutable(
+            target,
+            L"mmc.exe")) {
+        return LaunchSurfaceClass::
+            SystemUtility;
+    }
+
+    if (IsTrustedWindowsExecutable(
+            target,
+            L"rundll32.exe") &&
+        (lowerArguments.find(
+             L"control_rundll") !=
+             std::wstring::npos ||
+         lowerArguments.find(
+             L".cpl") !=
+             std::wstring::npos)) {
+        return LaunchSurfaceClass::
+            SystemUtility;
+    }
+
+    // A direct namespace target has no ordinary filesystem application
+    // identity. Explorer is treated similarly only when its arguments/PIDL
+    // actually name a Shell namespace; normal Explorer folder launches stay
+    // outside this rule.
+    if (IsShellNamespaceActivation(
+            target)) {
+        return LaunchSurfaceClass::
+            SystemUtility;
+    }
+
+    if (IsTrustedWindowsExecutable(
+            target,
+            L"explorer.exe") &&
+        (IsShellNamespaceActivation(
+             arguments) ||
+         IsShellNamespaceActivation(
+             shellParsingName))) {
+        return LaunchSurfaceClass::
+            SystemUtility;
+    }
+
+    return std::nullopt;
 }
 
 } // namespace altrun::win

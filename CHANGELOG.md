@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.34
+
+- Completed Start Menu launch-surface evidence for Windows shell shortcuts whose user-facing destination is carried by broker activation semantics instead of a direct filesystem target.
+- Shell-link inspection now preserves the PIDL desktop-absolute parsing name even when GetPath() returns a broker executable.
+- Discovery recognizes trusted Windows-directory control.exe and mmc.exe surfaces, Control_RunDLL/.cpl invocations, ms-settings URIs, direct Shell namespaces and explorer-hosted namespace activation as SystemUtility evidence.
+- Broker executable recognition is path-constrained to the Windows directory; an unrelated executable with the same leaf name is not reclassified.
+- Start Menu surface refinement now considers publication path, resolved target path, PIDL parsing path and shell activation semantics before caching surfaceClass.
+- SearchEngine, RelevancePolicy and ResultRanking remain I/O-free and unchanged on the keystroke path.
+- Provider Cache advances to schema 16 so alpha.5.33 cached surface classes rebuild once.
+- Catalog Role/Visibility, short-query precision, usage, pinyin, Everything and frozen Classic UI/geometry are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.204`.
+
 ## 0.8.0-alpha.5.33
 
 - Added a dedicated Short Query Precision policy for 1-2 character ASCII queries without changing longer-query behavior.

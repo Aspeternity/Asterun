@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.34 — Launch Surface Evidence Completion
+
+Alpha.5.34 completes the Start Menu surface-evidence path exposed by real Windows shell shortcuts. A shortcut does not always resolve directly into a Windows Tools or Administrative Tools filesystem location: Windows can publish a root-level .lnk whose executable target is a shell-owned broker such as control.exe, mmc.exe, rundll32.exe or explorer.exe, while arguments or the Shell PIDL carry the actual management namespace.
+
+Shell-link inspection now preserves the PIDL desktop-absolute parsing identity even when GetPath() also returns an executable. Discovery combines shortcut location, resolved filesystem location, PIDL parsing identity and trusted Windows shell activation semantics. Windows-owned control/MMC surfaces, Control_RunDLL invocations, ms-settings URIs and direct/explorer Shell namespaces can therefore become SystemUtility without recognizing the shortcut title or any commercial product name. Executable broker rules are restricted to binaries under the Windows directory so an unrelated application named control.exe or mmc.exe does not inherit system semantics.
+
+All of this work remains in Start Menu discovery/refresh. SearchEngine, RelevancePolicy and ResultRanking continue to consume only cached fields while typing, so there is no new filesystem, registry or Shell work on the keystroke path. Provider Cache advances to schema 16 to rebuild persisted surfaceClass values once. Catalog roles, short-query precision, usage scoring, pinyin, Everything and frozen Classic UI/geometry are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.204`.
+
 ## v0.8.0-alpha.5.33 — Short Query Precision
 
 Alpha.5.33 separates short-query relevance from the catalog-role work completed in alpha.5.32. The remaining real-machine noise came from the generic lexical matcher: two ASCII characters were allowed to match a later word boundary, so queries such as `so` or `ad` could reach unrelated entries only because a later word began with Sources/Admin/Advanced/Additional.

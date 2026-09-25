@@ -13,6 +13,7 @@ struct ShortcutTarget {
     std::wstring target;
     std::wstring arguments;
     std::wstring workingDirectory;
+    std::wstring shellParsingName;
     LaunchTargetKind targetKind{
         LaunchTargetKind::Unknown};
 };
@@ -29,5 +30,12 @@ InspectExecutableMetadata(
     ShortcutTarget>
 InspectShellLink(
     const std::filesystem::path& path);
+
+[[nodiscard]] std::optional<
+    LaunchSurfaceClass>
+ClassifyShellActivationSurface(
+    std::wstring_view target,
+    std::wstring_view arguments,
+    std::wstring_view shellParsingName);
 
 } // namespace altrun::win

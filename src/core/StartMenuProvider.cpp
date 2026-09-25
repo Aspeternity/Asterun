@@ -183,6 +183,7 @@ bool IsDeveloperEntry(
 struct StartMenuInspection {
     std::wstring resolvedTarget;
     std::wstring arguments;
+    std::wstring shellParsingName;
     LaunchTargetKind targetKind{
         LaunchTargetKind::Unknown};
     LaunchSurfaceClass surface{
@@ -225,6 +226,8 @@ InspectStartMenuEntry(
             shortcut->target;
         result.arguments =
             shortcut->arguments;
+        result.shellParsingName =
+            shortcut->shellParsingName;
         result.targetKind =
             shortcut->targetKind;
         result.targetResolved = true;
@@ -242,28 +245,46 @@ InspectStartMenuEntry(
             title,
             result.resolvedTarget);
 
-    // A root-level Start Menu shortcut can resolve into Windows Tools /
-    // Administrative Tools / Developer Tools even when the shortcut itself
-    // is not stored inside that folder. Classify from both sides of the
-    // shortcut relationship so the cached launch surface reflects the real
-    // destination instead of only the publication location.
+    // Start Menu structure can live in three places: the publication path,
+    // a resolved filesystem target, or Shell activation semantics/PIDL state.
+    // Resolve all of it during discovery so SearchEngine only consumes the
+    // cached enum while typing.
     const std::filesystem::path
         resolvedTargetPath(
             result.resolvedTarget);
 
+    const std::filesystem::path
+        shellParsingPath(
+            result.shellParsingName);
+
+    const auto shellSurface =
+        win::ClassifyShellActivationSurface(
+            result.resolvedTarget,
+            result.arguments,
+            result.shellParsingName);
+
     if (IsAdministrativeEntry(path) ||
         IsAdministrativeEntry(
-            resolvedTargetPath)) {
+            resolvedTargetPath) ||
+        (!result.shellParsingName.empty() &&
+         IsAdministrativeEntry(
+             shellParsingPath))) {
         result.surface =
             LaunchSurfaceClass::
                 SystemUtility;
     } else if (
         IsDeveloperEntry(path) ||
         IsDeveloperEntry(
-            resolvedTargetPath)) {
+            resolvedTargetPath) ||
+        (!result.shellParsingName.empty() &&
+         IsDeveloperEntry(
+             shellParsingPath))) {
         result.surface =
             LaunchSurfaceClass::
                 DeveloperTool;
+    } else if (shellSurface) {
+        result.surface =
+            *shellSurface;
     }
 
     result.admission =
