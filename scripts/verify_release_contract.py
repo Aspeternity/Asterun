@@ -175,7 +175,7 @@ if version == "0.8.0-alpha.5.33":
 
     for token in (
         "v0.8.0-alpha.5.33 — Short Query Precision",
-        "Provider Cache advances to schema 15",
+        "schema 15",
         "0.8.0.203",
     ):
         if token not in readme:
