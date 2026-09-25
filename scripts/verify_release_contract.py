@@ -42,6 +42,205 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.37":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.37 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 19:
+        fail("v0.8 alpha.5.37 must use Provider Cache schemaVersion 19")
+
+    role_cpp = read("src/core/LaunchRole.cpp")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    ranking_cpp = read("src/core/ResultRanking.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    workflow = read(".github/workflows/build.yml")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "IsUtilityContainerToken(",
+        "IsUtilityContainerName(",
+        "CatalogMenuFamilyStem(",
+        "IsUtilityContainerCatalogGroup(",
+        "SharesPrimaryInstallDirectory(",
+        "utilityContainerCorroborated",
+        "clearFamilyPrimary",
+        'L"library manager"',
+        'L"库管理器"',
+        "residualIdentityRole",
+    ):
+        if token not in role_cpp:
+            fail(f"v0.8 alpha.5.37 utility-container implementation missing: {token}")
+
+    for token in (
+        "Acme Studio Tools 2026",
+        "Acme Studio 工具 2026",
+        "Acme Studio Routing Library Manager 2026",
+        "Contoso Tools Inspector 2026",
+        "Inspector.exe",
+        'L"routing"',
+        "SuiteUtility",
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.37 role regression missing: {token}")
+
+    for token in (
+        "utility-primary",
+        "utility-inspector",
+        "utility-library-manager",
+        "utility-treehouse",
+        'L"routing"',
+        "SuiteUtility",
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.37 SearchEngine regression missing: {token}")
+
+    for token in (
+        "CatalogMenuFamilyStem",
+        "IsUtilityContainerCatalogGroup",
+        "SharesPrimaryInstallDirectory",
+        "library manager",
+    ):
+        if token in search_cpp or token in ranking_cpp:
+            fail(f"v0.8 alpha.5.37 catalog inference leaked into query/ranking hot path: {token}")
+
+    for product in (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    ):
+        if product in role_cpp.lower():
+            fail(f"v0.8 alpha.5.37 product-specific production rule found: {product}")
+
+    for token in (
+        '\\"schemaVersion\\": 19',
+        "staleSchema18ProviderCache",
+        '\\"schemaVersion\\": 18',
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.37 Provider Cache regression missing: {token}")
+
+    development_start = workflow.find("  development-release:")
+    if development_start < 0:
+        fail("v0.8 alpha.5.37 development-release job missing")
+    development = workflow[development_start:]
+    for token in (
+        "cancel-in-progress: false",
+        "Verify dev-latest public update contract",
+        "PUBLIC_MANIFEST_URL=",
+        "cmp -s update-manifest.json public-update-manifest.json",
+        "-F draft=false",
+        "shared hosted-runner IPs",
+        "unauthenticated API",
+    ):
+        if token not in development:
+            fail(f"v0.8 alpha.5.37 dev-latest verification regressed: {token}")
+
+    if "PUBLIC_RELEASE_URL=" in development:
+        fail("v0.8 alpha.5.37 must not restore anonymous GitHub API metadata dependency")
+
+    for token in (
+        "FILEVERSION 0,8,0,207",
+        "PRODUCTVERSION 0,8,0,207",
+        "0.8.0-alpha.5.37",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.37 resource version missing: {token}")
+
+    if 'version="0.8.0.207"' not in manifest:
+        fail("v0.8 alpha.5.37 manifest fixed version must be 0.8.0.207")
+
+    for token in (
+        '"0.8.0-alpha.5.36"',
+        '"0.8.0-alpha.5.37"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.37 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.37 Utility Container Corroboration validation",
+        "schema 19",
+        "suite-utility",
+        "Tools",
+        "Utilities",
+        "工具",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.37 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.37 — Utility Container Corroboration",
+        "schema 19",
+        "0.8.0.207",
+        "Tools",
+        "Utilities",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.37 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.37" not in changelog:
+        fail("v0.8 alpha.5.37 changelog entry missing")
+
+    if "v0.8.0-alpha.5.37 adds utility-container corroboration" not in roadmap:
+        fail("v0.8 alpha.5.37 roadmap entry missing")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.37 frozen Classic asset changed: {asset_path}")
+
+    print(
+        "v0.8.0-alpha.5.37 Utility Container Corroboration verified:",
+        "| Provider Cache schema 19 rebuild",
+        "| generic Tools/Utilities/工具 family normalization",
+        "| clear non-utility primary corroboration",
+        "| sidecar or management semantic evidence",
+        "| independent subdirectory apps preserved",
+        "| residual explicit intent preserved",
+        "| SearchEngine/ResultRanking hot path unchanged",
+        "| no product blacklist",
+        "| dev-latest public verification preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.36":
     import hashlib
     import subprocess

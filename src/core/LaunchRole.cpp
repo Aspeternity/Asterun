@@ -360,6 +360,89 @@ StartMenuSuiteName(
         : leaf;
 }
 
+[[nodiscard]] bool
+IsUtilityContainerToken(
+    std::wstring_view token) {
+
+    const std::wstring compact =
+        Compact(token);
+
+    return
+        compact == L"tool" ||
+        compact == L"tools" ||
+        compact == L"utility" ||
+        compact == L"utilities" ||
+        compact == L"工具" ||
+        compact == L"实用工具";
+}
+
+[[nodiscard]] bool
+IsUtilityContainerName(
+    std::wstring_view value) {
+
+    const auto tokens =
+        Tokens(value);
+
+    for (auto it = tokens.rbegin();
+         it != tokens.rend();
+         ++it) {
+        if (IsFamilyVersionToken(
+                *it)) {
+            continue;
+        }
+
+        return IsUtilityContainerToken(
+            *it);
+    }
+
+    return false;
+}
+
+[[nodiscard]] std::wstring
+CatalogMenuFamilyStem(
+    std::wstring_view suiteName) {
+
+    auto tokens =
+        Tokens(suiteName);
+
+    tokens.erase(
+        std::remove_if(
+            tokens.begin(),
+            tokens.end(),
+            [](const std::wstring& token) {
+                return
+                    IsFamilyVersionToken(
+                        token);
+            }),
+        tokens.end());
+
+    bool strippedContainer = false;
+
+    while (!tokens.empty() &&
+           IsUtilityContainerToken(
+               tokens.back())) {
+        tokens.pop_back();
+        strippedContainer = true;
+    }
+
+    if (!strippedContainer ||
+        tokens.empty()) {
+        return NormalizeFamilyStem(
+            suiteName);
+    }
+
+    std::wstring result;
+
+    for (const auto& token : tokens) {
+        result += Compact(token);
+    }
+
+    return result.empty()
+        ? NormalizeFamilyStem(
+              suiteName)
+        : result;
+}
+
 [[nodiscard]] std::vector<std::wstring>
 FamilyIdentityNames(
     const LaunchEvidence& evidence) {
@@ -603,6 +686,14 @@ HasContextualSuiteUtilityPhrase(
          L"service administrator",
          L"service console",
          L"service utility",
+         L"library manager",
+         L"library administrator",
+         L"library console",
+         L"library utility",
+         L"库管理器",
+         L"库管理员",
+         L"库控制台",
+         L"库工具",
          L"网络监视器",
          L"网络监控",
          L"许可证管理器",
@@ -1118,6 +1209,14 @@ void AppendDistinctivePhraseTokens(
              L"service administrator",
              L"service console",
              L"service utility",
+             L"library manager",
+             L"library administrator",
+             L"library console",
+             L"library utility",
+             L"库管理器",
+             L"库管理员",
+             L"库控制台",
+             L"库工具",
              L"网络监视器",
              L"网络监控",
              L"许可证管理器",
@@ -1349,6 +1448,39 @@ ParentCatalogLocation(
 
     return std::wstring(
         value.substr(0, slash));
+}
+
+[[nodiscard]] std::wstring
+CatalogLocationLeaf(
+    std::wstring_view value) {
+
+    const std::size_t slash =
+        value.find_last_of(L'\\');
+
+    if (slash ==
+        std::wstring_view::npos) {
+        return std::wstring(value);
+    }
+
+    return std::wstring(
+        value.substr(
+            slash + 1));
+}
+
+[[nodiscard]] bool
+IsUtilityContainerCatalogGroup(
+    const Command& command) {
+
+    const CatalogGroupParts parts =
+        ParseCatalogGroupKeyParts(
+            command.catalogGroupKey);
+
+    return
+        parts.Valid() &&
+        parts.locationKind == L"menu" &&
+        IsUtilityContainerName(
+            CatalogLocationLeaf(
+                parts.location));
 }
 
 [[nodiscard]] bool
@@ -1877,6 +2009,36 @@ HasSuiteTargetTopology(
             anchorPath);
 }
 
+[[nodiscard]] bool
+SharesPrimaryInstallDirectory(
+    const Command& candidate,
+    const Command& primary) {
+
+    const std::wstring candidatePath =
+        CanonicalTargetPath(
+            candidate);
+    const std::wstring primaryPath =
+        CanonicalTargetPath(
+            primary);
+
+    if (candidatePath.empty() ||
+        primaryPath.empty() ||
+        candidatePath ==
+            primaryPath) {
+        return false;
+    }
+
+    const std::wstring candidateParent =
+        PathParent(candidatePath);
+    const std::wstring primaryParent =
+        PathParent(primaryPath);
+
+    return
+        !candidateParent.empty() &&
+        candidateParent ==
+            primaryParent;
+}
+
 [[nodiscard]] std::vector<std::wstring>
 SuiteTopologyDelta(
     const Command& candidate,
@@ -2230,7 +2392,7 @@ std::wstring BuildCatalogGroupKey(
         StartMenuSuiteName(
             evidence.startMenuFolder);
     const std::wstring menuFamily =
-        NormalizeFamilyStem(
+        CatalogMenuFamilyStem(
             menuSuite);
     const std::wstring menu =
         NormalizedPath(
@@ -2536,17 +2698,37 @@ QueryIntentTokensForRole(
     // name. In that case the already family-stripped residual is the safest
     // explicit entry-name intent (for example a generic "Acme RX" fixture
     // leaves only "rx"). Family identity itself is never restored here.
+    const bool residualIdentityRole =
+        role ==
+            ApplicationRole::
+                DiagnosticTool ||
+        role ==
+            ApplicationRole::
+                SuiteUtility ||
+        role ==
+            ApplicationRole::
+                SuiteSubordinate;
+
     if (semanticTokens.empty() &&
-        (role ==
-             ApplicationRole::
-                 DiagnosticTool ||
-         role ==
-             ApplicationRole::
-                 SuiteUtility ||
-         role ==
-             ApplicationRole::
-                 SuiteSubordinate)) {
+        residualIdentityRole) {
         return residualTokens;
+    }
+
+    if (residualIdentityRole) {
+        for (auto& token :
+             residualTokens) {
+            if (token.empty() ||
+                std::find(
+                    semanticTokens.begin(),
+                    semanticTokens.end(),
+                    token) !=
+                    semanticTokens.end()) {
+                continue;
+            }
+
+            semanticTokens.push_back(
+                std::move(token));
+        }
     }
 
     return semanticTokens;
@@ -3041,6 +3223,12 @@ void CalibrateCatalogRoleContext(
             }
 
             Command* primary = nullptr;
+            Command* clearFamilyPrimary =
+                nullptr;
+
+            const bool utilityContainer =
+                IsUtilityContainerCatalogGroup(
+                    *candidate);
 
             for (Command* peer :
                  entries) {
@@ -3057,13 +3245,33 @@ void CalibrateCatalogRoleContext(
                     continue;
                 }
 
-                primary = peer;
-                break;
+                if (primary == nullptr) {
+                    primary = peer;
+                }
+
+                if (peer->roleConfidence ==
+                        RoleConfidence::High &&
+                    !IsUtilityContainerCatalogGroup(
+                        *peer)) {
+                    clearFamilyPrimary =
+                        peer;
+                    break;
+                }
             }
 
             if (primary == nullptr) {
                 continue;
             }
+
+            // A Tools/Utilities Start Menu folder is structural context, not
+            // a verdict. It can connect a sibling suite folder back to the
+            // clear application family, but suppression still requires either
+            // explicit utility semantics or a real-target sidecar relation.
+            const bool
+                utilityContainerCorroborated =
+                    utilityContainer &&
+                    clearFamilyPrimary !=
+                        nullptr;
 
             // Weak semantic words become actionable evidence only when the
             // same family/location also exposes a clear primary application.
@@ -3094,6 +3302,12 @@ void CalibrateCatalogRoleContext(
                 HasContextualSuiteUtilityPhrase(
                     candidate->title);
 
+            const bool sidecarUtilitySurface =
+                utilityContainerCorroborated &&
+                SharesPrimaryInstallDirectory(
+                    *candidate,
+                    *clearFamilyPrimary);
+
             const bool identityRole =
                 candidate->applicationRole ==
                     ApplicationRole::Unknown ||
@@ -3114,6 +3328,22 @@ void CalibrateCatalogRoleContext(
                           ServiceComponent));
 
             if (identityRole &&
+                sidecarUtilitySurface) {
+                applyRole(
+                    *candidate,
+                    ApplicationRole::
+                        SuiteUtility,
+                    RoleConfidence::Medium);
+                continue;
+            }
+
+            const bool semanticPrimaryContext =
+                utilityContainer
+                    ? utilityContainerCorroborated
+                    : primary != nullptr;
+
+            if (identityRole &&
+                semanticPrimaryContext &&
                 IsContextPromotableRole(
                     titleDecision.role)) {
                 applyRole(

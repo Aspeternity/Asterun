@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.37 — Utility Container Corroboration
+
+Alpha.5.37 adds one more conservative catalog-evidence layer for suites that publish a normal application folder beside a sibling `Tools` / `Utilities` / `工具` folder. Folder membership is treated only as structural context: it never hides an entry by itself.
+
+For Start Menu catalog grouping, a terminal generic utility-container token is removed from the group family only, so sibling folders such as `Acme Studio 2026` and `Acme Studio Tools 2026` can share `family:acmestudio` while their actual menu locations remain distinct. The visible title and family-identity evidence are not rewritten. A candidate inside the utility container is promoted to `SuiteUtility + Medium + StrongMatchOnly` only when a related High-confidence primary exists outside that container and one additional signal agrees: either the title carries a generic management/utility semantic such as library management, or the real resolved executable is a sidecar in the primary application's install directory.
+
+This deliberately preserves independent applications that happen to live in a Tools folder but have their own installed subdirectory and no utility semantic. An isolated Tools/Utilities folder also cannot self-promote its own entries without a clear related primary. Restrictive suite/diagnostic roles now merge safe family-stripped residual identity with semantic intent, so a management surface can still be found by its own distinguishing word instead of only by the generic role phrase.
+
+The work remains publication-time and I/O-free over already discovered Commands. SearchEngine and ResultRanking are unchanged; no filesystem, metadata, Shell or MSI work is added while typing. Provider Cache advances to schema 19 because catalogGroupKey, role and intent-token state can change. Windows fixed FileVersion/ProductVersion is `0.8.0.207`.
+
 ## v0.8.0-alpha.5.36 — Advertised Shortcut Resolution + Target Topology
 
 Alpha.5.36 fixes the real target-evidence failure exposed by alpha.5.35 on Windows Installer suites. An advertised Start Menu shortcut can make `IShellLink::GetPath()` point at an opaque `Windows\\Installer\\...\\newshortcut...` proxy rather than the installed application binary. That proxy is valid for Windows activation, but it is the wrong identity for catalog metadata and suite topology.

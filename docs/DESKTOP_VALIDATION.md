@@ -678,6 +678,24 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck alpha.5.34 SystemUtility evidence, alpha.5.33 short-query precision, Everything merge, pinyin, wildcard/path syntax, usage scoring, idle CPU/memory and frozen Classic UI/geometry.
 - [ ] Recheck the dev-latest public-manifest publication contract.
 
+## v0.8.0-alpha.5.37 Utility Container Corroboration validation
+
+- [ ] Upgrade from alpha.5.36. Provider Cache rebuilds once under schema 19; settings, user commands and usage remain unchanged.
+- [ ] A normal suite folder and a sibling `Tools`, `Utilities` or `工具` folder now share the same catalog family while retaining different `menu:` locations.
+- [ ] Merely living inside the utility folder does not suppress an entry.
+- [ ] A utility-folder entry whose resolved executable is a sidecar in the clear primary application's install directory becomes `suite-utility + medium + strong-match-only`.
+- [ ] A utility-folder entry with a generic management surface such as `Library Manager` becomes `suite-utility + medium + strong-match-only` when the related clear primary exists, even if its executable is in a nested manager directory.
+- [ ] An independent entry in the same utility folder with its own installed subdirectory and no generic utility semantics remains Normal.
+- [ ] An isolated Tools/Utilities folder with no clear related primary cannot self-promote or suppress its entries.
+- [ ] A plain suite-family query excludes corroborated SuiteUtility entries but keeps the independent entry.
+- [ ] Searching a restrictive entry by its own family-stripped identity word re-admits it; a management surface must be reachable by its distinguishing word as well as the generic role phrase.
+- [ ] Inspect `data/provider-cache.json`: schema is 19, utility-folder `catalogGroupKey` uses the base suite family, and corrected role/visibility/distinctiveTokens persist after restart.
+- [ ] Recheck alpha.5.36 advertised-shortcut targets and SuiteSubordinate behavior; utility-container changes must not restore proxy identities or child entries to family queries.
+- [ ] Confirm no product-name blacklist was introduced and ambiguous opaque entries without structural/semantic corroboration remain visible.
+- [ ] Confirm all utility-container calibration is publication-time only; typing adds no filesystem, metadata, Shell, MSI or catalog-analysis I/O.
+- [ ] Recheck short-query precision, SystemUtility ordering, Everything merge, pinyin, wildcard/path syntax, usage scoring, idle CPU/memory and frozen Classic UI/geometry.
+- [ ] Recheck the dev-latest public-manifest publication contract.
+
 ## Release assets
 
 For the candidate tag:

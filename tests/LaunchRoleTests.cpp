@@ -1786,6 +1786,236 @@ int main() {
     }
 
     {
+        // Utility-container corroboration is structural context, not a folder
+        // blacklist. "Tools"/"Utilities" sibling folders normalize to the
+        // same catalog family as the clear application folder, but an entry
+        // is restrictive only with independent semantic or target evidence.
+        auto mainEvidence =
+            BaseEvidence(
+                L"Acme Studio 2026",
+                L"C:/Program Files/Acme/Studio/Studio.exe");
+        mainEvidence.startMenuFolder =
+            L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs/Acme Studio 2026";
+        mainEvidence.executable.productName =
+            L"Acme Studio 2026";
+
+        auto toolsEvidence =
+            BaseEvidence(
+                L"Acme Studio Inspector 2026",
+                L"C:/Program Files/Acme/Studio/Inspector.exe");
+        toolsEvidence.startMenuFolder =
+            L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs/Acme Studio Tools 2026";
+
+        auto cnToolsEvidence =
+            BaseEvidence(
+                L"Acme Studio Inspector 2026",
+                L"C:/Program Files/Acme/Studio/Inspector.exe");
+        cnToolsEvidence.startMenuFolder =
+            L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs/Acme Studio 工具 2026";
+
+        const std::wstring mainGroup =
+            BuildCatalogGroupKey(
+                mainEvidence);
+        const std::wstring toolsGroup =
+            BuildCatalogGroupKey(
+                toolsEvidence);
+        const std::wstring cnToolsGroup =
+            BuildCatalogGroupKey(
+                cnToolsEvidence);
+
+        assert(
+            mainGroup.starts_with(
+                L"family:acmestudio|menu:"));
+        assert(
+            toolsGroup.starts_with(
+                L"family:acmestudio|menu:"));
+        assert(
+            cnToolsGroup.starts_with(
+                L"family:acmestudio|menu:"));
+        assert(mainGroup != toolsGroup);
+
+        Command primary;
+        primary.source =
+            CommandSource::StartMenu;
+        primary.title =
+            L"Acme Studio 2026";
+        primary.target =
+            L"C:\\Program Files\\Acme\\Studio\\Studio.exe";
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\studio.exe";
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            mainGroup;
+
+        Command inspector;
+        inspector.source =
+            CommandSource::StartMenu;
+        inspector.title =
+            L"Acme Studio Inspector 2026";
+        inspector.target =
+            L"C:\\Program Files\\Acme\\Studio\\Inspector.exe";
+        inspector.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\inspector.exe";
+        inspector.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        inspector.roleConfidence =
+            RoleConfidence::Medium;
+        inspector.catalogVisibility =
+            CatalogVisibility::Normal;
+        inspector.catalogGroupKey =
+            toolsGroup;
+        inspector.distinctiveTokens = {
+            L"inspector",
+        };
+
+        Command libraryManager;
+        libraryManager.source =
+            CommandSource::StartMenu;
+        libraryManager.title =
+            L"Acme Studio Routing Library Manager 2026";
+        libraryManager.target =
+            L"C:\\Program Files\\Acme\\Studio\\Managers\\Library.exe";
+        libraryManager.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\managers\\library.exe";
+        libraryManager.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        libraryManager.roleConfidence =
+            RoleConfidence::Medium;
+        libraryManager.catalogVisibility =
+            CatalogVisibility::Normal;
+        libraryManager.catalogGroupKey =
+            toolsGroup;
+        libraryManager.distinctiveTokens = {
+            L"routing",
+            L"library",
+            L"manager",
+        };
+
+        Command treehouse;
+        treehouse.source =
+            CommandSource::StartMenu;
+        treehouse.title =
+            L"Acme Studio Treehouse 2026";
+        treehouse.target =
+            L"C:\\Program Files\\Acme\\Studio\\Treehouse\\Treehouse.exe";
+        treehouse.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\treehouse\\treehouse.exe";
+        treehouse.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        treehouse.roleConfidence =
+            RoleConfidence::Medium;
+        treehouse.catalogVisibility =
+            CatalogVisibility::Normal;
+        treehouse.catalogGroupKey =
+            toolsGroup;
+        treehouse.distinctiveTokens = {
+            L"treehouse",
+        };
+
+        Command isolatedTool;
+        isolatedTool.source =
+            CommandSource::StartMenu;
+        isolatedTool.title =
+            L"Contoso Tools Inspector 2026";
+        isolatedTool.target =
+            L"C:\\Program Files\\Contoso\\Inspector.exe";
+        isolatedTool.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\inspector.exe";
+        isolatedTool.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        isolatedTool.roleConfidence =
+            RoleConfidence::Medium;
+        isolatedTool.catalogVisibility =
+            CatalogVisibility::Normal;
+        isolatedTool.catalogGroupKey =
+            L"family:contoso|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\contoso tools 2026";
+        isolatedTool.distinctiveTokens = {
+            L"inspector",
+        };
+
+        std::vector<Command*> commands{
+            &primary,
+            &inspector,
+            &libraryManager,
+            &treehouse,
+            &isolatedTool,
+        };
+
+        CalibrateCatalogRoleContext(
+            commands);
+
+        // Same-directory sidecar + utility container + clear primary is
+        // sufficient structural corroboration even for an opaque entry name.
+        assert(
+            inspector.applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            inspector.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            inspector.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                inspector
+                    .distinctiveTokens,
+                L"inspector"));
+
+        // A generic management phrase in the utility container is another
+        // independent path. Family-stripped residual identity stays explicit
+        // so users can search "routing", not only "library manager".
+        assert(
+            libraryManager.applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            libraryManager.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                libraryManager
+                    .distinctiveTokens,
+                L"library manager"));
+        assert(
+            HasToken(
+                libraryManager
+                    .distinctiveTokens,
+                L"routing"));
+
+        // Folder membership alone must not suppress a genuine standalone
+        // companion with its own installed subdirectory.
+        assert(
+            treehouse.applicationRole ==
+            ApplicationRole::
+                PrimaryApplication);
+        assert(
+            treehouse.catalogVisibility ==
+            CatalogVisibility::Normal);
+
+        // Nor can a Tools folder self-promote without a clear related primary.
+        assert(
+            isolatedTool.applicationRole ==
+            ApplicationRole::
+                PrimaryApplication);
+        assert(
+            isolatedTool.catalogVisibility ==
+            CatalogVisibility::Normal);
+    }
+
+    {
         // Generic suite topology: a child launch surface is restrictive only
         // when its family-stripped title identity and an independent resolved
         // target relationship both extend a normal companion. The target can

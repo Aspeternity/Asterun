@@ -1617,6 +1617,164 @@ int main(int argc, char** argv) {
     }
 
     {
+        // Utility-container evidence must affect admission, not lexical
+        // matching. Family queries hide corroborated sidecars/management
+        // surfaces while explicit child identity still re-admits them.
+        const std::wstring mainGroup =
+            L"family:acmestudio|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\acme studio 2026";
+        const std::wstring toolsGroup =
+            L"family:acmestudio|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\acme studio tools 2026";
+
+        auto makeUtilityCommand =
+            [&](std::wstring id,
+                std::wstring title,
+                std::wstring target,
+                std::vector<std::wstring>
+                    tokens,
+                int order) {
+                Command command =
+                    MakeCommand(
+                        std::move(id),
+                        relevance::Normalize(
+                            title),
+                        title,
+                        target,
+                        order);
+
+                command.source =
+                    CommandSource::StartMenu;
+                command.applicationRole =
+                    ApplicationRole::
+                        PrimaryApplication;
+                command.roleConfidence =
+                    RoleConfidence::Medium;
+                command.catalogVisibility =
+                    CatalogVisibility::Normal;
+                command.catalogGroupKey =
+                    toolsGroup;
+                command.distinctiveTokens =
+                    std::move(tokens);
+                command.canonicalIdentity =
+                    L"file:" +
+                    relevance::Normalize(
+                        target);
+                return command;
+            };
+
+        Command primary =
+            MakeCommand(
+                L"utility-primary",
+                L"acmestudio2026",
+                L"Acme Studio 2026",
+                L"C:\\Program Files\\Acme\\Studio\\Studio.exe",
+                0);
+        primary.source =
+            CommandSource::StartMenu;
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            mainGroup;
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\studio.exe";
+
+        std::vector<Command> utility{
+            primary,
+            makeUtilityCommand(
+                L"utility-inspector",
+                L"Acme Studio Inspector 2026",
+                L"C:\\Program Files\\Acme\\Studio\\Inspector.exe",
+                {L"inspector"},
+                1),
+            makeUtilityCommand(
+                L"utility-library-manager",
+                L"Acme Studio Routing Library Manager 2026",
+                L"C:\\Program Files\\Acme\\Studio\\Managers\\Library.exe",
+                {L"routing", L"library", L"manager"},
+                2),
+            makeUtilityCommand(
+                L"utility-treehouse",
+                L"Acme Studio Treehouse 2026",
+                L"C:\\Program Files\\Acme\\Studio\\Treehouse\\Treehouse.exe",
+                {L"treehouse"},
+                3),
+        };
+
+        // MakeCanonical-style normalization in the test helper does not model
+        // Windows path separators, so use explicit canonical identities.
+        utility[1].canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\inspector.exe";
+        utility[2].canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\managers\\library.exe";
+        utility[3].canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\treehouse\\treehouse.exe";
+
+        std::vector<Command*> views;
+        for (auto& command : utility) {
+            views.push_back(&command);
+        }
+
+        CalibrateCatalogRoleContext(
+            views);
+
+        assert(
+            utility[1].applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            utility[2].applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            utility[3].applicationRole ==
+            ApplicationRole::
+                PrimaryApplication);
+
+        const auto family =
+            engine.Search(
+                utility,
+                usage,
+                L"ac",
+                20);
+
+        assert(ContainsCommand(family, 0));
+        assert(!ContainsCommand(family, 1));
+        assert(!ContainsCommand(family, 2));
+        assert(ContainsCommand(family, 3));
+
+        const auto inspector =
+            engine.Search(
+                utility,
+                usage,
+                L"inspector",
+                20);
+
+        assert(ContainsCommand(inspector, 1));
+
+        const auto routing =
+            engine.Search(
+                utility,
+                usage,
+                L"routing",
+                20);
+
+        assert(ContainsCommand(routing, 2));
+
+        const auto treehouse =
+            engine.Search(
+                utility,
+                usage,
+                L"treehouse",
+                20);
+
+        assert(ContainsCommand(treehouse, 3));
+    }
+
+    {
         const std::wstring group =
             L"family:fabrikamstudio|root:c:\\program files\\fabrikam\\studio";
 

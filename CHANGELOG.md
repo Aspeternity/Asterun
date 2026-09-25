@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.5.37
+
+- Treat sibling Start Menu `Tools` / `Utilities` / `工具` folders as structural utility-container evidence instead of product-specific vocabulary.
+- Normalize only the catalog group family by removing a terminal generic utility-container token, allowing a tools folder to correlate with a clear sibling suite primary while preserving the original menu location and display identity.
+- Require a related High-confidence non-utility primary before utility-container evidence can suppress anything.
+- Promote a utility-container entry only when a second signal agrees: generic management/utility semantics or a resolved executable sidecar in the primary install directory.
+- Add weak contextual library-management semantics, including Simplified Chinese equivalents; isolated entries remain Low/Normal until catalog corroboration exists.
+- Preserve independent entries in utility folders when they have their own installed subdirectory and no generic utility semantics.
+- Merge family-stripped residual identity into SuiteUtility/DiagnosticTool/SuiteSubordinate explicit intent so users can re-admit a restrictive entry by its own distinguishing word.
+- Add fictional English/Chinese utility-folder, sidecar, library-manager, independent-subdirectory and no-primary regressions plus SearchEngine re-admission coverage.
+- Provider Cache advances to schema 19; SearchEngine/ResultRanking and frozen Classic UI/geometry are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.207`.
+
 ## 0.8.0-alpha.5.36
 
 - Resolve Windows Installer advertised Start Menu shortcuts to their installed component path for discovery evidence using `MsiGetShortcutTargetW` + `MsiGetComponentPathW`.

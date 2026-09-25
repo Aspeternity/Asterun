@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 18,\n"
+        "  \"schemaVersion\": 19,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,17 +1788,18 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 17 predates advertised-shortcut target resolution and
-    // directory-backed suite topology. Generated state must rebuild so cached
-    // canonical identities, metadata, roles and child intent use real targets.
-    const auto staleSchema17ProviderCache =
+    // Schema 18 predates utility-container family normalization and
+    // contextual sidecar/management-surface calibration. Generated state must
+    // rebuild so sibling Tools/Utilities folders share the real suite family
+    // and restrictive utility roles/tokens are recalculated once.
+    const auto staleSchema18ProviderCache =
         data /
-        "provider-cache-schema17-stale.json";
+        "provider-cache-schema18-stale.json";
 
     WriteText(
-        staleSchema17ProviderCache,
+        staleSchema18ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 17,\n"
+        "  \"schemaVersion\": 18,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1815,11 +1816,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema17Cache(
-        staleSchema17ProviderCache);
+    ProviderCache staleSchema18Cache(
+        staleSchema18ProviderCache);
 
     assert(
-        staleSchema17Cache.Load().empty());
+        staleSchema18Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =
