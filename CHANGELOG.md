@@ -7,6 +7,7 @@
 - MSI resolution is side-effect free: no feature-use, configure, repair, provide-component or installation call is made during discovery.
 - Replace metadata-sensitive suite title identity with catalog-family-stripped display-title identity.
 - Generalize suite target corroboration to executable-stem extension or a nearby sibling install-directory-segment extension.
+- Parse cached canonical file identities with Windows separator semantics independent of the host OS, so Linux core CI exercises the same directory topology as Windows runtime discovery.
 - Preserve conservative admission: title containment alone, shared family alone or an unrelated target does not produce `SuiteSubordinate`.
 - Add regressions for normal non-advertised shortcuts, executable-stem topology, directory-segment topology, metadata-token drift and title-only false positives.
 - Provider Cache advances to schema 18.

@@ -1628,7 +1628,7 @@ SuiteTitleIdentity(
             command));
 }
 
-[[nodiscard]] std::filesystem::path
+[[nodiscard]] std::wstring
 CanonicalTargetPath(
     const Command& command) {
 
@@ -1652,9 +1652,98 @@ CanonicalTargetPath(
         return {};
     }
 
-    return std::filesystem::path(
-               identity)
-        .lexically_normal();
+    std::transform(
+        identity.begin(),
+        identity.end(),
+        identity.begin(),
+        [](wchar_t ch) {
+            if (ch == L'/') {
+                return L'\\';
+            }
+
+            return static_cast<wchar_t>(
+                std::towlower(ch));
+        });
+
+    while (identity.size() > 3 &&
+           identity.back() == L'\\') {
+        identity.pop_back();
+    }
+
+    return identity;
+}
+
+[[nodiscard]] std::wstring_view
+PathLeaf(
+    std::wstring_view path) {
+
+    const std::size_t separator =
+        path.find_last_of(
+            L"\\/");
+
+    if (separator ==
+        std::wstring_view::npos) {
+        return path;
+    }
+
+    return path.substr(
+        separator + 1);
+}
+
+[[nodiscard]] std::wstring
+PathParent(
+    std::wstring_view path) {
+
+    while (path.size() > 3 &&
+           (path.back() == L'\\' ||
+            path.back() == L'/')) {
+        path.remove_suffix(1);
+    }
+
+    const std::size_t separator =
+        path.find_last_of(
+            L"\\/");
+
+    if (separator ==
+        std::wstring_view::npos) {
+        return {};
+    }
+
+    if (separator == 2 &&
+        path.size() >= 3 &&
+        path[1] == L':') {
+        return std::wstring(
+            path.substr(
+                0,
+                3));
+    }
+
+    return std::wstring(
+        path.substr(
+            0,
+            separator));
+}
+
+[[nodiscard]] std::wstring
+PathStem(
+    std::wstring_view path) {
+
+    std::wstring_view leaf =
+        PathLeaf(path);
+
+    const std::size_t extension =
+        leaf.find_last_of(L'.');
+
+    if (extension !=
+            std::wstring_view::npos &&
+        extension > 0) {
+        leaf =
+            leaf.substr(
+                0,
+                extension);
+    }
+
+    return Compact(leaf);
 }
 
 [[nodiscard]] bool
@@ -1675,21 +1764,15 @@ StrictIdentityExtension(
 
 [[nodiscard]] bool
 HasExecutableStemTopology(
-    const std::filesystem::path&
-        candidatePath,
-    const std::filesystem::path&
-        anchorPath) {
+    std::wstring_view candidatePath,
+    std::wstring_view anchorPath) {
 
     const std::wstring candidateStem =
-        Compact(
-            candidatePath
-                .stem()
-                .wstring());
+        PathStem(
+            candidatePath);
     const std::wstring anchorStem =
-        Compact(
-            anchorPath
-                .stem()
-                .wstring());
+        PathStem(
+            anchorPath);
 
     return StrictIdentityExtension(
         anchorStem,
@@ -1698,16 +1781,21 @@ HasExecutableStemTopology(
 
 [[nodiscard]] bool
 HasDirectorySegmentTopology(
-    const std::filesystem::path&
-        candidatePath,
-    const std::filesystem::path&
-        anchorPath) {
+    std::wstring_view candidatePath,
+    std::wstring_view anchorPath) {
 
-    auto candidateDirectory =
-        candidatePath.parent_path();
-    auto anchorDirectory =
-        anchorPath.parent_path();
+    std::wstring candidateDirectory =
+        PathParent(
+            candidatePath);
+    std::wstring anchorDirectory =
+        PathParent(
+            anchorPath);
 
+    // Canonical launch identities are Windows paths even when core tests run
+    // on a non-Windows host. Parse their separators lexically instead of
+    // delegating to std::filesystem, whose native separator rules would treat
+    // backslashes as ordinary characters on POSIX.
+    //
     // Walk only a few equal trailing directories (for example "bin") before
     // comparing the first differing sibling segment. This catches installed
     // layouts such as "Visualize" -> "Visualize Boost" without turning a
@@ -1722,28 +1810,24 @@ HasDirectorySegmentTopology(
 
         const std::wstring candidateLeaf =
             Compact(
-                candidateDirectory
-                    .filename()
-                    .wstring());
+                PathLeaf(
+                    candidateDirectory));
         const std::wstring anchorLeaf =
             Compact(
-                anchorDirectory
-                    .filename()
-                    .wstring());
+                PathLeaf(
+                    anchorDirectory));
 
         if (StrictIdentityExtension(
                 anchorLeaf,
                 candidateLeaf)) {
             const std::wstring
                 candidateParent =
-                    NormalizedPath(
-                        candidateDirectory
-                            .parent_path());
+                    PathParent(
+                        candidateDirectory);
             const std::wstring
                 anchorParent =
-                    NormalizedPath(
-                        anchorDirectory
-                            .parent_path());
+                    PathParent(
+                        anchorDirectory);
 
             return
                 !anchorParent.empty() &&
@@ -1757,11 +1841,11 @@ HasDirectorySegmentTopology(
         }
 
         candidateDirectory =
-            candidateDirectory
-                .parent_path();
+            PathParent(
+                candidateDirectory);
         anchorDirectory =
-            anchorDirectory
-                .parent_path();
+            PathParent(
+                anchorDirectory);
     }
 
     return false;
