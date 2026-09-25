@@ -1760,6 +1760,11 @@ int main() {
                 L"network monitor"));
         assert(
             HasToken(
+                networkMonitor
+                    .distinctiveTokens,
+                L"monitor"));
+        assert(
+            HasToken(
                 licenseManager
                     .distinctiveTokens,
                 L"license manager"));

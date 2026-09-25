@@ -1169,6 +1169,40 @@ void AppendDistinctivePhraseTokens(
         }
     }
 
+    const auto appendIntent =
+        [&](std::wstring token) {
+            if (token.empty() ||
+                std::find(
+                    tokens.begin(),
+                    tokens.end(),
+                    token) !=
+                    tokens.end()) {
+                return;
+            }
+
+            tokens.push_back(
+                std::move(token));
+        };
+
+    if (ContainsAny(
+            value,
+            {L"network monitor",
+             L"network monitoring"})) {
+        appendIntent(L"monitor");
+    }
+
+    if (ContainsAny(
+            value,
+            {L"网络监视器"})) {
+        appendIntent(L"监视器");
+    }
+
+    if (ContainsAny(
+            value,
+            {L"网络监控"})) {
+        appendIntent(L"监控");
+    }
+
     for (const std::wstring_view word : {
              L"scheduler",
              L"sync",
