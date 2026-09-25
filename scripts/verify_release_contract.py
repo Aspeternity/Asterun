@@ -84,9 +84,9 @@ if version == "0.8.0-alpha.5.40":
             fail(f"v0.8 alpha.5.40 opaque topology implementation missing: {token}")
 
     for token in (
-        "Acme Studio R8 2026",
-        "Acme Studio Y6 2026",
-        'L"r8"',
+        "Acme Studio QX 2026",
+        "Acme Studio YZ 2026",
+        'L"qx"',
         "rootDistantOpaque",
     ):
         if token not in role_tests:

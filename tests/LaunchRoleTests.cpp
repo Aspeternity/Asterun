@@ -2018,11 +2018,11 @@ int main() {
         rootOpaque.source =
             CommandSource::StartMenu;
         rootOpaque.title =
-            L"Acme Studio R8 2026";
+            L"Acme Studio QX 2026";
         rootOpaque.target =
-            L"C:\\Program Files\\Acme\\Studio\\R8.exe";
+            L"C:\\Program Files\\Acme\\Studio\\QX.exe";
         rootOpaque.canonicalIdentity =
-            L"file:c:\\program files\\acme\\studio\\r8.exe";
+            L"file:c:\\program files\\acme\\studio\\qx.exe";
         rootOpaque.applicationRole =
             ApplicationRole::
                 PrimaryApplication;
@@ -2033,18 +2033,18 @@ int main() {
         rootOpaque.catalogGroupKey =
             mainGroup;
         rootOpaque.distinctiveTokens = {
-            L"r8",
+            L"qx",
         };
 
         Command rootDistantOpaque;
         rootDistantOpaque.source =
             CommandSource::StartMenu;
         rootDistantOpaque.title =
-            L"Acme Studio Y6 2026";
+            L"Acme Studio YZ 2026";
         rootDistantOpaque.target =
-            L"C:\\Program Files\\Acme\\Standalone\\Y6.exe";
+            L"C:\\Program Files\\Acme\\Standalone\\YZ.exe";
         rootDistantOpaque.canonicalIdentity =
-            L"file:c:\\program files\\acme\\standalone\\y6.exe";
+            L"file:c:\\program files\\acme\\standalone\\yz.exe";
         rootDistantOpaque.applicationRole =
             ApplicationRole::
                 PrimaryApplication;
@@ -2055,7 +2055,7 @@ int main() {
         rootDistantOpaque.catalogGroupKey =
             mainGroup;
         rootDistantOpaque.distinctiveTokens = {
-            L"y6",
+            L"yz",
         };
 
         Command isolatedTool;
@@ -2194,7 +2194,7 @@ int main() {
             HasToken(
                 rootOpaque
                     .distinctiveTokens,
-                L"r8"));
+                L"qx"));
 
         // The same opaque naming remains non-suppressive when the resolved
         // target is outside the primary installation tree.
