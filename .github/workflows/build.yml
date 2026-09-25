@@ -148,7 +148,10 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: altrun-development-release
-      cancel-in-progress: true
+      # Do not kill a release while gh is creating/uploading it. An interrupted
+      # publish can leave a draft release whose public asset URL returns 404.
+      # Stale queued runs are rejected by the main-SHA checks below instead.
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -193,25 +196,155 @@ jobs:
           cat update-manifest.json
 
       - name: Publish dev-latest prerelease
+        id: publish-dev
         if: steps.current.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release delete dev-latest --yes --cleanup-tag || true
+          set -euo pipefail
+
+          # The job can wait in the release concurrency queue. Re-check main
+          # immediately before mutating the rolling release so an older green
+          # build can never overwrite a newer one.
+          git fetch origin main
+          if [[ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]]; then
+            echo "A newer main commit exists; skip dev-latest publication."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           git tag -f dev-latest "$GITHUB_SHA"
           git push origin refs/tags/dev-latest --force
-          gh release create dev-latest \
-            ALTRunNext-x64.zip \
-            ALTRunNext-ARM64.zip \
-            SHA256SUMS.txt \
+
+          # Draft releases are intentionally found through the authenticated
+          # releases collection. GET /releases/tags/dev-latest returns 404 for
+          # a draft, which is exactly the client-visible failure this guards.
+          RELEASE_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.tag_name == "dev-latest") | .id' | head -n 1)"
+
+          if [[ -n "$RELEASE_ID" ]]; then
+            echo "Reusing dev-latest release id $RELEASE_ID."
+
+            # Recover any orphan draft first so the rolling update endpoint
+            # stays public while assets are replaced. Manifest is uploaded
+            # last, so clients either see the previous coherent manifest or
+            # the new coherent manifest.
+            gh api --method PATCH \
+              "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+              -F draft=false \
+              -F prerelease=true \
+              -f name="ALTRun Next Development Build" \
+              -f body="Rolling prerelease built from main at commit $GITHUB_SHA. This release is replaced automatically after every successful main build." \
+              >/dev/null
+
+            gh release upload dev-latest \
+              ALTRunNext-x64.zip \
+              ALTRunNext-ARM64.zip \
+              SHA256SUMS.txt \
+              --clobber
+            gh release upload dev-latest \
+              update-manifest.json \
+              --clobber
+          else
+            # Bootstrap as an explicit draft, upload all assets, then publish
+            # via API. This makes the draft -> public transition observable
+            # and testable instead of relying on gh release create internals.
+            gh release create dev-latest \
+              ALTRunNext-x64.zip \
+              ALTRunNext-ARM64.zip \
+              SHA256SUMS.txt \
+              update-manifest.json \
+              --draft \
+              --prerelease \
+              --title "ALTRun Next Development Build" \
+              --notes "Rolling prerelease built from main at commit $GITHUB_SHA. This release is replaced automatically after every successful main build."
+
+            RELEASE_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq '.[] | select(.tag_name == "dev-latest") | .id' | head -n 1)"
+            test -n "$RELEASE_ID"
+          fi
+
+          # Explicitly publish after every upload path. The CI must never
+          # consider dev-latest healthy merely because gh exited successfully.
+          gh api --method PATCH \
+            "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -F draft=false \
+            -F prerelease=true \
+            -f name="ALTRun Next Development Build" \
+            -f body="Rolling prerelease built from main at commit $GITHUB_SHA. This release is replaced automatically after every successful main build." \
+            >/dev/null
+
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify dev-latest public update contract
+        if: steps.publish-dev.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          RELEASE_ID="${{ steps.publish-dev.outputs.release_id }}"
+
+          # Authenticated state verification catches draft/prerelease mistakes.
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            > authenticated-dev-release.json
+          jq -e \
+            --arg tag "dev-latest" \
+            '.tag_name == $tag and .draft == false and .prerelease == true' \
+            authenticated-dev-release.json \
+            >/dev/null
+
+          REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/dev-latest" | awk '{print $1}')"
+          test "$REMOTE_SHA" = "$GITHUB_SHA"
+
+          jq -e \
+            --arg version "$VERSION" \
+            --arg commit "$GITHUB_SHA" \
+            '.schemaVersion == 1 and .version == $version and .commit == $commit and .prerelease == true' \
             update-manifest.json \
-            --prerelease \
-            --title "ALTRun Next Development Build" \
-            --notes "Rolling prerelease built from main at commit $GITHUB_SHA. This release is replaced automatically after every successful main build."
+            >/dev/null
+
+          # Verify the exact anonymous endpoints used by installed clients.
+          # Draft releases return 404 here even though authenticated gh/API
+          # calls can still see them.
+          PUBLIC_RELEASE_URL="https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/dev-latest"
+          PUBLIC_MANIFEST_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/dev-latest/update-manifest.json"
+
+          rm -f public-dev-release.json public-update-manifest.json
+          verified=false
+          for attempt in $(seq 1 20); do
+            if curl --location --fail --silent --show-error \
+                "$PUBLIC_RELEASE_URL" \
+                -o public-dev-release.json &&
+               curl --location --fail --silent --show-error \
+                "$PUBLIC_MANIFEST_URL" \
+                -o public-update-manifest.json &&
+               jq -e \
+                '.tag_name == "dev-latest" and .draft == false and .prerelease == true' \
+                public-dev-release.json \
+                >/dev/null &&
+               cmp -s update-manifest.json public-update-manifest.json; then
+              verified=true
+              break
+            fi
+
+            rm -f public-dev-release.json public-update-manifest.json
+            sleep 3
+          done
+
+          if [[ "$verified" != "true" ]]; then
+            echo "dev-latest did not become publicly coherent within the verification window."
+            exit 1
+          fi
+
+          echo "dev-latest is public, coherent, and anonymously downloadable."
 
       - name: Publish versioned release
-        if: steps.current.outputs.publish == 'true'
+        if: steps.publish-dev.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash

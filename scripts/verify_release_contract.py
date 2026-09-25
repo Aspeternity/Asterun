@@ -42,6 +42,156 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.30":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.30 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 12:
+        fail("v0.8 alpha.5.30 must keep Provider Cache schemaVersion 12")
+
+    workflow = read(".github/workflows/build.yml")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    update_docs = read("docs/UPDATE_SYSTEM.md")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    development_start = workflow.find("  development-release:")
+    if development_start < 0:
+        fail("v0.8 alpha.5.30 development-release job missing")
+    development = workflow[development_start:]
+
+    for token in (
+        "cancel-in-progress: false",
+        "id: publish-dev",
+        'git fetch origin main',
+        'published=false',
+        'repos/$GITHUB_REPOSITORY/releases?per_page=100',
+        'select(.tag_name == "dev-latest")',
+        "gh release upload dev-latest",
+        "--clobber",
+        "--draft",
+        "-F draft=false",
+        "-F prerelease=true",
+        "Verify dev-latest public update contract",
+        "authenticated-dev-release.json",
+        "PUBLIC_RELEASE_URL=",
+        "PUBLIC_MANIFEST_URL=",
+        "public-dev-release.json",
+        "public-update-manifest.json",
+        "cmp -s update-manifest.json public-update-manifest.json",
+        "dev-latest is public, coherent, and anonymously downloadable.",
+        "if: steps.publish-dev.outputs.published == 'true'",
+    ):
+        if token not in development:
+            fail(f"v0.8 alpha.5.30 dev-latest publication contract missing: {token}")
+
+    if "cancel-in-progress: true" in development:
+        fail("v0.8 alpha.5.30 development release must not be cancelled mid-publish")
+
+    if "gh release delete dev-latest --yes --cleanup-tag" in development:
+        fail("v0.8 alpha.5.30 must not rely on tag-based deletion for orphan Draft releases")
+
+    for token in (
+        "FILEVERSION 0,8,0,200",
+        "PRODUCTVERSION 0,8,0,200",
+        "0.8.0-alpha.5.30",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.30 resource version missing: {token}")
+
+    if 'version="0.8.0.200"' not in manifest:
+        fail("v0.8 alpha.5.30 manifest fixed version must be 0.8.0.200")
+
+    for token in (
+        '"0.8.0-alpha.5.29"',
+        '"0.8.0-alpha.5.30"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.30 update-policy coverage missing: {token}")
+
+    for token in (
+        "Rolling development release publication",
+        "Draft Release",
+        "HTTP 404",
+        "byte-match",
+    ):
+        if token not in update_docs:
+            fail(f"v0.8 alpha.5.30 update-system docs missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.30 Development Release / Updater validation",
+        "HTTP 404",
+        "draft=false",
+        "schema 12",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.30 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.30 — Self-Verifying Development Release",
+        "Provider Cache remains schema 12",
+        "0.8.0.200",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.30 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.30" not in changelog:
+        fail("v0.8 alpha.5.30 changelog entry missing")
+
+    if "v0.8.0-alpha.5.30 closes a distribution false-green" not in roadmap:
+        fail("v0.8 alpha.5.30 roadmap entry missing")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.30 frozen Classic asset changed: {asset_path}")
+
+    print(
+        "v0.8.0-alpha.5.30 Self-Verifying Development Release verified:",
+        "| Provider Cache schema 12 unchanged",
+        "| non-cancellable rolling publication",
+        "| orphan Draft recovery",
+        "| explicit draft=false publication",
+        "| anonymous public Release/manifest verification",
+        "| byte-identical public manifest",
+        "| stale-main guard",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.29":
     import hashlib
     import subprocess

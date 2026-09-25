@@ -565,6 +565,19 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck idle CPU/memory and alpha.5.24 Classic typing/backspace repaint isolation.
 - [ ] No commercial product name may appear in production role/group rules or new regression fixtures.
 
+## v0.8.0-alpha.5.30 Development Release / Updater validation
+
+- [ ] Start from an installed alpha.5.28/alpha.5.29 build with “接收预发布版本更新” enabled and click check/retry. The update check must no longer report HTTP 404 for `update-manifest.json`.
+- [ ] GitHub `dev-latest` must be a public prerelease, never Draft, after a green main run.
+- [ ] Anonymous GET of `/repos/Aspeternity/ALTRunNext/releases/tags/dev-latest` must succeed and report `draft=false`, `prerelease=true`.
+- [ ] Anonymous GET of `/releases/download/dev-latest/update-manifest.json` must return HTTP 200.
+- [ ] The public manifest `version` and `commit` must equal the current VERSION and main/dev-latest tag SHA.
+- [ ] The public manifest bytes must match the CI-generated manifest; package names and SHA-256 fields remain valid.
+- [ ] Trigger/observe consecutive main pushes. A queued stale release run must skip publication rather than overwrite a newer main commit, and an in-progress publish must not be cancelled midway.
+- [ ] If an orphan `dev-latest` Draft release exists before a run, the next successful main publish must repair it to public instead of leaving the client endpoint at 404.
+- [ ] Verify the versioned prerelease is still published and contains x64/ARM64 ZIPs, SHA256SUMS.txt and update-manifest.json.
+- [ ] Provider Cache stays schema 12; search/catalog behavior and frozen Classic UI/geometry are unchanged.
+
 ## Release assets
 
 For the candidate tag:

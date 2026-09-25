@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.5.30
+
+- Fixed the rolling `dev-latest` release path that could leave a GitHub Draft Release behind while CI still reported success, causing installed prerelease clients to receive HTTP 404 for `update-manifest.json`.
+- Development-release concurrency no longer cancels a publish in progress. Queued stale runs are rejected by main-SHA checks instead, preventing interruption during GitHub release creation/upload.
+- The publish step re-checks `origin/main` immediately before mutating `dev-latest`, so an older green build cannot overwrite a newer main commit after waiting in the release queue.
+- Existing `dev-latest` releases, including orphan drafts, are discovered through the authenticated Releases collection and repaired in place rather than relying on tag-based deletion that cannot reliably address drafts.
+- Rolling assets are replaced with the manifest uploaded last, preserving a coherent client contract during publication.
+- Bootstrap publication explicitly creates a draft and then explicitly PATCHes `draft=false`; both bootstrap and reuse paths finish with an explicit public/prerelease state update.
+- CI now verifies the authenticated release state, `dev-latest` tag SHA, local manifest version/commit, the anonymous public Release API endpoint, and the exact anonymous manifest download URL used by installed clients.
+- The downloaded public manifest must byte-match the locally generated manifest. A Draft/404/stale/mismatched rolling release now turns CI red instead of producing a false green build.
+- Provider Cache remains schema 12; launcher search/catalog behavior is unchanged from alpha.5.29.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.200`.
+
 ## 0.8.0-alpha.5.29
 
 - Hardened the entire launch-role evidence pipeline after real-machine validation showed that alpha.5.28 could still leave suite auxiliaries visible for a shared family prefix.

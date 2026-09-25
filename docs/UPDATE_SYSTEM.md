@@ -18,6 +18,28 @@ Prerelease binaries default to Development. Stable binaries default to Stable. T
 
 Automatic checks are throttled by `data/update/update-state.json` to at most once per 24 hours. Runtime status/progress is not persisted into settings.
 
+## Rolling development release publication
+
+`dev-latest` is part of the updater contract, not merely a convenience GitHub Release. The client anonymously reads:
+
+```text
+https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/update-manifest.json
+```
+
+A GitHub Draft Release is invisible at that endpoint and returns HTTP 404 even when authenticated CI can still enumerate the draft. The main workflow therefore treats publication as a verified transaction:
+
+1. release publication is serialized and is not cancelled midway;
+2. `origin/main` is rechecked immediately before mutating `dev-latest`;
+3. an existing release is found through the authenticated Releases collection, which includes orphan drafts;
+4. the rolling tag is forced to the current main commit;
+5. an orphan draft is repaired to `draft=false` / `prerelease=true`;
+6. package/checksum assets are replaced first and `update-manifest.json` is uploaded last;
+7. bootstrap uses an explicit draft followed by an explicit publish PATCH;
+8. CI anonymously downloads the public release metadata and manifest from the same endpoints used by installed clients;
+9. the public manifest must byte-match the locally generated manifest and its version/commit must match VERSION/GITHUB_SHA.
+
+Any Draft state, HTTP 404, stale tag, stale manifest or content mismatch fails the workflow.
+
 ## Release manifest
 
 CI creates `update-manifest.json` after both architecture packages are built and SHA-256 checked:

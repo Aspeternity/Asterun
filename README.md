@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.30 — Self-Verifying Development Release
+
+Alpha.5.30 hardens the rolling prerelease/update pipeline. A real-machine update check exposed that `dev-latest` could exist as a GitHub Draft Release even though the main build and publish job were green. Authenticated CI could still see the release, while the anonymous URL used by installed ALTRun Next clients returned HTTP 404 for `update-manifest.json`.
+
+The development-release job is now non-cancellable once publication begins. Older queued jobs are rejected by SHA checks instead, including a second `origin/main` check immediately before touching the rolling release. This prevents an interrupted GitHub release upload from becoming the normal control flow and prevents a stale green build from overwriting a newer main revision.
+
+`dev-latest` is repaired/published explicitly. CI discovers an existing release through the authenticated Releases collection so orphan Draft releases are visible, forces the rolling tag to the current commit, repairs `draft=false` / `prerelease=true`, replaces package/checksum assets, and uploads `update-manifest.json` last. A missing rolling release is bootstrapped as an explicit draft and then explicitly published through the GitHub Releases API.
+
+Most importantly, publication success is no longer inferred from the exit code of `gh release create`. Before the workflow can finish green it verifies the authenticated release state and tag SHA, validates the generated manifest against VERSION/GITHUB_SHA, then anonymously requests both `/releases/tags/dev-latest` and the exact `/releases/download/dev-latest/update-manifest.json` endpoint used by the client. The public manifest must byte-match the generated manifest. HTTP 404, Draft state, stale tag/commit or mismatched content now fails CI.
+
+No updater protocol or launcher/catalog algorithm changed in this version. Provider Cache remains schema 12. Windows fixed FileVersion/ProductVersion is `0.8.0.200`.
+
 ## v0.8.0-alpha.5.29 — Catalog Evidence Pipeline Hardening
 
 Alpha.5.29 is a structural correction to the launch-catalog evidence model. Real multi-entry Windows suites demonstrated that EXE Version Resource `ProductName` cannot be treated as the suite-family authority: the main application, benchmark, settings wizard, launcher and companion tools may all report different product names even though Windows groups them under one Start Menu suite folder.
