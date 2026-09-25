@@ -1118,7 +1118,7 @@ std::vector<std::wstring>
 BuildDistinctiveTokens(
     const LaunchEvidence& evidence) {
 
-    auto titleTokens =
+    const auto titleTokens =
         Tokens(
             evidence.displayTitle);
 
@@ -1138,29 +1138,243 @@ BuildDistinctiveTokens(
                     .wstring());
     }
 
-    titleTokens.erase(
-        std::remove_if(
-            titleTokens.begin(),
-            titleTokens.end(),
-            [&](const std::wstring& token) {
-                return IsVersionToken(token) ||
-                    std::find(
-                        familyTokens.begin(),
-                        familyTokens.end(),
-                        token) !=
-                        familyTokens.end();
-            }),
-        titleTokens.end());
+    // Distinctive tokens are an admission boundary: a shared family prefix
+    // must never survive inside one otherwise-contiguous token. Windows
+    // shortcuts frequently expose names such as
+    // "Contoso2025性能测试" or "Contoso2025快速启动", where ordinary
+    // whitespace token subtraction cannot separate family/version from role.
+    std::wstring familyStem;
 
-    // CJK product/role text is often contiguous, so ordinary tokenization
-    // cannot always separate family text from explicit role intent. Persist
-    // generic semantic role phrases as additional distinctive tokens during
-    // discovery; query admission can then stay I/O-free and product-neutral.
+    for (const auto& token :
+         familyTokens) {
+        if (IsVersionToken(token)) {
+            continue;
+        }
+
+        familyStem +=
+            Compact(token);
+    }
+
+    const auto trimLikelyVersionSuffix =
+        [](std::wstring& value) {
+            if (value.empty()) {
+                return;
+            }
+
+            std::size_t digitStart =
+                value.size();
+
+            while (digitStart > 0 &&
+                   std::iswdigit(
+                       value[digitStart - 1])) {
+                --digitStart;
+            }
+
+            const std::size_t digits =
+                value.size() -
+                digitStart;
+
+            if (digits >= 4) {
+                value.resize(
+                    digitStart);
+                return;
+            }
+
+            if (digits > 0 &&
+                digitStart > 0 &&
+                value[digitStart - 1] ==
+                    L'v') {
+                value.resize(
+                    digitStart - 1);
+            }
+        };
+
+    trimLikelyVersionSuffix(
+        familyStem);
+
+    std::vector<std::wstring>
+        distinctiveTokens;
+
+    const auto appendUnique =
+        [&](std::wstring token) {
+            if (token.empty() ||
+                IsVersionToken(token)) {
+                return;
+            }
+
+            if (std::find(
+                    distinctiveTokens
+                        .begin(),
+                    distinctiveTokens
+                        .end(),
+                    token) ==
+                distinctiveTokens.end()) {
+                distinctiveTokens
+                    .push_back(
+                        std::move(token));
+            }
+        };
+
+    const auto trimVersionEdges =
+        [&](std::wstring& token) {
+            bool changed = true;
+
+            while (changed &&
+                   !token.empty()) {
+                changed = false;
+
+                for (const auto& version :
+                     familyTokens) {
+                    if (!IsVersionToken(
+                            version)) {
+                        continue;
+                    }
+
+                    const std::wstring
+                        compactVersion =
+                            Compact(
+                                version);
+
+                    if (compactVersion
+                            .empty()) {
+                        continue;
+                    }
+
+                    if (token.starts_with(
+                            compactVersion)) {
+                        token.erase(
+                            0,
+                            compactVersion
+                                .size());
+                        changed = true;
+                    }
+
+                    if (token.ends_with(
+                            compactVersion)) {
+                        token.resize(
+                            token.size() -
+                            compactVersion
+                                .size());
+                        changed = true;
+                    }
+                }
+            }
+
+            if (token.empty()) {
+                return;
+            }
+
+            std::size_t prefixDigits = 0;
+
+            while (prefixDigits <
+                       token.size() &&
+                   std::iswdigit(
+                       token[
+                           prefixDigits])) {
+                ++prefixDigits;
+            }
+
+            if (prefixDigits >= 4) {
+                token.erase(
+                    0,
+                    prefixDigits);
+            }
+
+            if (token.empty()) {
+                return;
+            }
+
+            std::size_t suffixStart =
+                token.size();
+
+            while (suffixStart > 0 &&
+                   std::iswdigit(
+                       token[
+                           suffixStart -
+                           1])) {
+                --suffixStart;
+            }
+
+            if (token.size() -
+                    suffixStart >=
+                4) {
+                token.resize(
+                    suffixStart);
+            }
+        };
+
+    std::size_t familyConsumed = 0;
+
+    for (const auto& rawToken :
+         titleTokens) {
+        if (IsVersionToken(
+                rawToken)) {
+            continue;
+        }
+
+        std::wstring token =
+            Compact(rawToken);
+
+        if (token.empty()) {
+            continue;
+        }
+
+        if (!familyStem.empty() &&
+            familyConsumed <
+                familyStem.size()) {
+
+            const std::wstring_view
+                remaining(
+                    familyStem.data() +
+                        familyConsumed,
+                    familyStem.size() -
+                        familyConsumed);
+
+            if (remaining.starts_with(
+                    token)) {
+                familyConsumed +=
+                    token.size();
+                continue;
+            }
+
+            if (token.starts_with(
+                    remaining)) {
+                token.erase(
+                    0,
+                    remaining.size());
+                familyConsumed =
+                    familyStem.size();
+
+                trimVersionEdges(
+                    token);
+                appendUnique(
+                    std::move(token));
+                continue;
+            }
+        }
+
+        // Still remove exact family pieces when a display name places the
+        // product after a distinctive prefix rather than at the beginning.
+        if (std::find(
+                familyTokens.begin(),
+                familyTokens.end(),
+                rawToken) !=
+            familyTokens.end()) {
+            continue;
+        }
+
+        appendUnique(
+            Lower(rawToken));
+    }
+
+    // Semantic phrases remain explicit role intent and are deliberately
+    // added after family stripping. This also preserves CJK role intent after
+    // a contaminated family+version+role token has been reduced.
     AppendDistinctivePhraseTokens(
         evidence.displayTitle,
-        titleTokens);
+        distinctiveTokens);
 
-    return titleTokens;
+    return distinctiveTokens;
 }
 
 ApplicationRoleDecision

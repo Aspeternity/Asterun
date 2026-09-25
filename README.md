@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.28 — Distinctive Intent Isolation
+
+Alpha.5.28 fixes the reason alpha.5.27 could classify an auxiliary suite entry correctly yet still show it for a short shared-family query. The bug was in the producer of `distinctiveTokens`, not in SearchEngine.
+
+Windows shortcut titles are not always cleanly separated words. A title may effectively look like `Contoso性能测试2025` or `Contoso2025快速启动`. The previous token builder only removed family tokens when a title token exactly equaled a family token. A contiguous title therefore persisted the entire family-prefixed string as “distinctive”. Because StrongMatchOnly intentionally accepts prefixes of distinctive intent, a short family query such as `co` could then re-admit the auxiliary entry.
+
+The catalog now strips the shared family identity from the beginning of a contiguous token before it is cached as distinctive intent. Known product-version tokens and likely four-digit version/year affixes at the residual edges are removed as well. Generic semantic role phrases are appended after that isolation step, so explicit performance/settings/diagnostic/quick-launch intent remains searchable even for compact CJK names.
+
+SearchEngine itself is unchanged. The architectural invariant is now stronger: `distinctiveTokens` are responsible for carrying entry-specific intent, and must not contain a shared family prefix that can bypass `StrongMatchOnly`. This keeps the keystroke path as small as before.
+
+Provider Cache advances to schema 11 because alpha.5.27 schema-10 caches may already contain contaminated tokens. Upgrade rebuilds generated provider state once. Tests use fictional Contoso/Fabrikam/Acme compact-title cases; no named commercial product is recognized by production code.
+
+Classic UI/geometry, role/context calibration, ResultRanking, usage scoring, pinyin, Everything and provider monitoring are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.198`.
+
 ## v0.8.0-alpha.5.27 — Role Evidence Calibration + Catalog Context
 
 Alpha.5.27 fixes the evidence-quality bottleneck exposed by alpha.5.26 without adding another query-time filter. High-information role phrases such as performance/benchmark tests, settings/configuration wizards, diagnostics, updaters and download managers now carry enough title evidence to reach at least `Medium` confidence on their own. Ambiguous single words such as a bare `settings` remain conservative when seen in isolation.

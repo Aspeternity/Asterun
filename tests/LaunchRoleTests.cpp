@@ -397,6 +397,102 @@ int main() {
     {
         auto evidence =
             BaseEvidence(
+                L"Contoso性能测试2025",
+                L"C:/Program Files/Contoso/App.exe");
+
+        evidence.executable.productName =
+            L"Contoso 2025";
+
+        const auto decision =
+            ClassifyApplicationRole(
+                evidence);
+
+        assert(
+            decision.role ==
+            ApplicationRole::
+                BenchmarkTool);
+        assert(
+            decision.visibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                decision.distinctiveTokens,
+                L"性能测试"));
+        assert(
+            std::none_of(
+                decision
+                    .distinctiveTokens
+                    .begin(),
+                decision
+                    .distinctiveTokens
+                    .end(),
+                [](const std::wstring&
+                       token) {
+                    return token.starts_with(
+                        L"contoso");
+                }));
+    }
+
+    {
+        auto evidence =
+            BaseEvidence(
+                L"FabrikamStudioPerformanceTest2026",
+                L"C:/Program Files/Fabrikam/Studio.exe");
+
+        evidence.executable.productName =
+            L"Fabrikam Studio 2026";
+
+        const auto tokens =
+            BuildDistinctiveTokens(
+                evidence);
+
+        assert(
+            std::none_of(
+                tokens.begin(),
+                tokens.end(),
+                [](const std::wstring&
+                       token) {
+                    return token.starts_with(
+                        L"fabrikam");
+                }));
+        assert(
+            HasToken(
+                tokens,
+                L"performance test"));
+    }
+
+    {
+        auto evidence =
+            BaseEvidence(
+                L"Acme2025快速启动",
+                L"C:/Program Files/Acme/App.exe");
+
+        evidence.executable.productName =
+            L"Acme";
+
+        const auto tokens =
+            BuildDistinctiveTokens(
+                evidence);
+
+        assert(
+            std::none_of(
+                tokens.begin(),
+                tokens.end(),
+                [](const std::wstring&
+                       token) {
+                    return token.starts_with(
+                        L"acme");
+                }));
+        assert(
+            HasToken(
+                tokens,
+                L"快速启动"));
+    }
+
+    {
+        auto evidence =
+            BaseEvidence(
                 L"Acme Settings",
                 L"C:/Program Files/Acme/App.exe");
 

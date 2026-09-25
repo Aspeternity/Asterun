@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.28
+
+- Fixed a catalog-intent isolation bug where a `StrongMatchOnly` entry could still be admitted by a short shared-family prefix when Windows exposed family + version + role as one contiguous title token.
+- `BuildDistinctiveTokens()` now removes family identity even when it is embedded at the beginning of a contiguous token, rather than only removing whole tokens that exactly equal a family word.
+- Known family version tokens and likely four-digit version/year affixes are stripped from the residual token after family removal, so entries such as generic `Contoso性能测试2025` persist role intent instead of `Contoso...` family intent.
+- Semantic role phrases are appended only after family stripping, preserving explicit performance/settings/quick-launch intent for CJK and compact Windows shortcut titles.
+- SearchEngine admission logic is unchanged; the fix restores the intended invariant that cached `distinctiveTokens` contain entry-specific intent rather than shared family identity.
+- Provider Cache schema advances to 11 so schema-10 contaminated tokens from alpha.5.27 are rebuilt once on upgrade.
+- Added generic compact-family regressions for CJK, no-space English and version-interleaved alternate-launch titles, plus an end-to-end SearchEngine regression proving a two-letter family prefix no longer re-admits a `StrongMatchOnly` entry while explicit role intent and exact full-title queries still work.
+- No product-specific rule or blacklist was added; Classic UI/geometry, ResultRanking, usage, pinyin, Everything and provider monitoring are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.198`.
+
 ## 0.8.0-alpha.5.27
 
 - Calibrated launch-role evidence without adding any product-specific blacklist or SearchEngine rule.

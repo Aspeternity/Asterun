@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 10,\n"
+        "  \"schemaVersion\": 11,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,17 +1788,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 9 predates role-evidence calibration and contextual catalog
-    // semantics. Generated state must rebuild instead of retaining stale
-    // Low-confidence decisions from alpha.5.25/alpha.5.26.
-    const auto staleSchema9ProviderCache =
+    // Schema 10 can contain family-contaminated distinctive tokens from
+    // alpha.5.27. Generated state must rebuild so StrongMatchOnly admission
+    // cannot be reopened by a shared family prefix.
+    const auto staleSchema10ProviderCache =
         data /
-        "provider-cache-schema9-stale.json";
+        "provider-cache-schema10-stale.json";
 
     WriteText(
-        staleSchema9ProviderCache,
+        staleSchema10ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 9,\n"
+        "  \"schemaVersion\": 10,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1815,11 +1815,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema9Cache(
-        staleSchema9ProviderCache);
+    ProviderCache staleSchema10Cache(
+        staleSchema10ProviderCache);
 
     assert(
-        staleSchema9Cache.Load().empty());
+        staleSchema10Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

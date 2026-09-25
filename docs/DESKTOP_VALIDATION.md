@@ -534,6 +534,21 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck alpha.5.24 typing/backspace repaint isolation and frozen Classic geometry/assets.
 - [ ] Use any installed commercial suite only as real-world evidence. There must be no product-name-specific production rule or regression fixture.
 
+## v0.8.0-alpha.5.28 Distinctive Intent Isolation validation
+
+- [ ] Upgrade from alpha.5.27. Generated Provider Cache must rebuild once under schema 11; settings, user commands and usage schemas remain unchanged.
+- [ ] Search a short shared-family prefix in a suite containing compact titles that join family + version + CJK/role text. StrongMatchOnly auxiliary entries must not reappear merely because their display title starts with that family.
+- [ ] Explicitly search the auxiliary role intent (for example 性能测试 / 设置向导 / performance / settings / quick launch). The corresponding StrongMatchOnly entry must remain reachable.
+- [ ] Type the complete auxiliary entry title exactly and confirm exact full-title fallback still reaches StrongMatchOnly.
+- [ ] Inspect `data/provider-cache.json`: schema is 11 and `distinctiveTokens` for compact auxiliary titles must not contain the shared family prefix.
+- [ ] Verify ordinary spaced English suite names still retain useful entry-specific tokens such as encoder/editor/render while family tokens are removed.
+- [ ] Verify compact no-space English titles and CJK titles both isolate family identity correctly.
+- [ ] Recheck multiple legitimate CompanionApplication entries remain Normal; this version changes token isolation, not role suppression policy.
+- [ ] Recheck Hidden updater/service/internal behavior, user-shortcut authority, wildcard/path explicit access, pinyin, Usage ranking and Everything merge.
+- [ ] Recheck idle CPU/memory and typing latency; SearchEngine performs no new grouping, metadata or token-building work during input.
+- [ ] Recheck frozen Classic geometry/assets and alpha.5.24 repaint isolation.
+- [ ] No commercial product name should appear in new production rules or new role-model regressions.
+
 ## Release assets
 
 For the candidate tag:

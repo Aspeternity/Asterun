@@ -42,6 +42,174 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.28":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.28 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 11:
+        fail("v0.8 alpha.5.28 must use Provider Cache schemaVersion 11")
+
+    role_cpp = read("src/core/LaunchRole.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    result_ranking = read("src/core/ResultRanking.cpp")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "familyStem",
+        "familyConsumed",
+        "trimLikelyVersionSuffix",
+        "trimVersionEdges",
+        "AppendDistinctivePhraseTokens(",
+        "shared family prefix",
+    ):
+        if token not in role_cpp:
+            fail(f"v0.8 alpha.5.28 distinctive isolation missing: {token}")
+
+    for token in (
+        "Contoso性能测试2025",
+        "FabrikamStudioPerformanceTest2026",
+        "Acme2025快速启动",
+        "std::none_of",
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.28 compact-title role regression missing: {token}")
+
+    for token in (
+        "Contoso性能测试2025",
+        "familyPrefix",
+        "rolePrefix",
+        "exactCompact",
+        "ClassifyApplicationRole(",
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.28 end-to-end admission regression missing: {token}")
+
+    if "BuildDistinctiveTokens(" in search_cpp or "familyStem" in search_cpp:
+        fail("v0.8 alpha.5.28 token construction must stay out of SearchEngine")
+
+    for token in (
+        "HasDistinctiveCatalogIntent(",
+        "AdmitCatalogEntry(",
+        "normalizedDistinctive",
+    ):
+        if token not in search_cpp:
+            fail(f"v0.8 alpha.5.28 existing SearchEngine admission regressed: {token}")
+
+    if "catalogVisibility" in result_ranking or "distinctiveTokens" in result_ranking:
+        fail("v0.8 alpha.5.28 catalog admission must not move into ResultRanking")
+
+    forbidden_products = (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    )
+    production_and_role_tests = (role_cpp + role_tests).lower()
+    for product in forbidden_products:
+        if product in production_and_role_tests:
+            fail(f"v0.8 alpha.5.28 product-specific role rule/fixture found: {product}")
+
+    for token in (
+        '\\"schemaVersion\\": 11',
+        "staleSchema10ProviderCache",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.28 Provider Cache schema regression missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.28 frozen Classic asset changed: {asset_path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,198",
+        "PRODUCTVERSION 0,8,0,198",
+        "0.8.0-alpha.5.28",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.28 resource version missing: {token}")
+
+    if 'version="0.8.0.198"' not in manifest:
+        fail("v0.8 alpha.5.28 manifest fixed version must be 0.8.0.198")
+
+    for token in (
+        '"0.8.0-alpha.5.27"',
+        '"0.8.0-alpha.5.28"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.28 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.28 Distinctive Intent Isolation validation",
+        "schema 11",
+        "distinctiveTokens",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.28 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.28 — Distinctive Intent Isolation",
+        "Provider Cache advances to schema 11",
+        "0.8.0.198",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.28 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.28" not in changelog:
+        fail("v0.8 alpha.5.28 changelog entry missing")
+
+    if "v0.8.0-alpha.5.28 restores distinctive-intent isolation" not in roadmap:
+        fail("v0.8 alpha.5.28 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.28 Distinctive Intent Isolation verified:",
+        "| Provider Cache schema 11 rebuild",
+        "| compact family/version prefixes removed from distinctive tokens",
+        "| explicit role intent preserved",
+        "| family-prefix re-admission regression covered",
+        "| SearchEngine/ResultRanking policy unchanged",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.27":
     import hashlib
     import subprocess

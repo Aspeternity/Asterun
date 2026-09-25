@@ -1,3 +1,4 @@
+#include "core/LaunchRole.hpp"
 #include "core/SearchEngine.hpp"
 
 #include <algorithm>
@@ -692,6 +693,93 @@ int main(int argc, char** argv) {
         assert(ContainsCommand(
             userAuthority,
             7));
+    }
+
+    // A StrongMatchOnly entry whose Windows display title joins family,
+    // version and CJK role text into one token must not let a family prefix
+    // masquerade as distinctive intent.
+    {
+        LaunchEvidence evidence;
+        evidence.source =
+            LaunchCandidateSource::
+                StartMenu;
+        evidence.displayTitle =
+            L"Contoso性能测试2025";
+        evidence.resolvedTarget =
+            L"C:\\Program Files\\Contoso\\Bench.exe";
+        evidence.installRootHint =
+            L"C:\\Program Files\\Contoso";
+        evidence.targetKind =
+            LaunchTargetKind::
+                GuiExecutable;
+        evidence.executable.productName =
+            L"Contoso 2025";
+
+        const auto decision =
+            ClassifyApplicationRole(
+                evidence);
+
+        Command compactCjk =
+            MakeCommand(
+                L"compact-cjk",
+                L"contoso性能测试2025",
+                L"Contoso性能测试2025",
+                L"C:\\Program Files\\Contoso\\Bench.exe",
+                0);
+
+        compactCjk.source =
+            CommandSource::StartMenu;
+        compactCjk.surfaceClass =
+            LaunchSurfaceClass::
+                PrimaryApplication;
+        compactCjk.basePriority = 0;
+        compactCjk.applicationRole =
+            decision.role;
+        compactCjk.roleConfidence =
+            decision.confidence;
+        compactCjk.catalogVisibility =
+            decision.visibility;
+        compactCjk.distinctiveTokens =
+            decision.distinctiveTokens;
+
+        std::vector<Command>
+            compactCommands{
+                compactCjk,
+            };
+
+        const auto familyPrefix =
+            engine.Search(
+                compactCommands,
+                usage,
+                L"co",
+                10);
+
+        assert(
+            familyPrefix.empty());
+
+        const auto rolePrefix =
+            engine.Search(
+                compactCommands,
+                usage,
+                L"性能",
+                10);
+
+        assert(
+            ContainsCommand(
+                rolePrefix,
+                0));
+
+        const auto exactCompact =
+            engine.Search(
+                compactCommands,
+                usage,
+                L"Contoso性能测试2025",
+                10);
+
+        assert(
+            ContainsCommand(
+                exactCompact,
+                0));
     }
 
     auto wildcardDisabled =
