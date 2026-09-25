@@ -102,11 +102,9 @@ if version == "0.8.0-alpha.5.33":
     for token in (
         "resolvedTargetPath",
         "IsAdministrativeEntry(path) ||",
-        "IsAdministrativeEntry(",
+        "IsAdministrativeEntry(\n            resolvedTargetPath)",
         "IsDeveloperEntry(path) ||",
-        "IsDeveloperEntry(",
-        "shortcut publication path",
-        "real destination",
+        "IsDeveloperEntry(\n            resolvedTargetPath)",
     ):
         if token not in start_menu_cpp:
             fail(f"v0.8 alpha.5.33 resolved-target Start Menu surface evidence missing: {token}")
