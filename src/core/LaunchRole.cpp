@@ -2064,6 +2064,34 @@ IsNearbyPrimaryInstallTree(
 }
 
 [[nodiscard]] bool
+IsOpaqueAuxiliaryIdentity(
+    const std::vector<std::wstring>&
+        residualTokens) {
+
+    if (residualTokens.size() != 1) {
+        return false;
+    }
+
+    const std::wstring token =
+        Compact(
+            residualTokens.front());
+
+    if (token.size() < 2 ||
+        token.size() > 5 ||
+        IsFamilyVersionToken(token)) {
+        return false;
+    }
+
+    return std::all_of(
+        token.begin(),
+        token.end(),
+        [](wchar_t ch) {
+            return
+                std::iswalnum(ch) != 0;
+        });
+}
+
+[[nodiscard]] bool
 HasOpaqueCommandIdentity(
     const Command& command) {
 
@@ -2871,34 +2899,6 @@ void AppendContextualResidualIdentity(
 }
 
 } // namespace
-
-[[nodiscard]] bool
-IsOpaqueAuxiliaryIdentity(
-    const std::vector<std::wstring>&
-        residualTokens) {
-
-    if (residualTokens.size() != 1) {
-        return false;
-    }
-
-    const std::wstring token =
-        Compact(
-            residualTokens.front());
-
-    if (token.size() < 2 ||
-        token.size() > 5 ||
-        IsFamilyVersionToken(token)) {
-        return false;
-    }
-
-    return std::all_of(
-        token.begin(),
-        token.end(),
-        [](wchar_t ch) {
-            return
-                std::iswalnum(ch) != 0;
-        });
-}
 
 ApplicationRoleDecision
 ClassifyApplicationRole(
