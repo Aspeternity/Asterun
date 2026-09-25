@@ -237,8 +237,13 @@ Match MatchText(
         IsAsciiQuery(
             normalizedQuery);
 
+    // One- and two-character ASCII queries are too ambiguous for generic
+    // word-boundary recall. Keep exact/field-prefix/initials/pinyin behavior,
+    // but require three characters before matching a later word boundary.
+    // This prevents short queries from reaching unrelated "... Admin",
+    // "... Advanced", "... Additional" or "... Sources" words.
     if (!asciiQuery ||
-        normalizedQuery.size() >= 2) {
+        normalizedQuery.size() >= 3) {
 
         for (std::size_t i = 1;
              i < field.size();

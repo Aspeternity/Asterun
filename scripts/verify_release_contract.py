@@ -42,6 +42,189 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.33":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.33 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 15:
+        fail("v0.8 alpha.5.33 must use Provider Cache schemaVersion 15")
+
+    relevance_cpp = read("src/core/RelevancePolicy.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    ranking_cpp = read("src/core/ResultRanking.cpp")
+    start_menu_cpp = read("src/core/StartMenuProvider.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    workflow = read(".github/workflows/build.yml")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "One- and two-character ASCII queries are too ambiguous",
+        "normalizedQuery.size() >= 3",
+        "BoundaryPrefix",
+    ):
+        if token not in relevance_cpp:
+            fail(f"v0.8 alpha.5.33 short-query policy missing: {token}")
+
+    for token in (
+        "shortPrecision",
+        "Xbox App Admin Server",
+        "Security Advanced Firewall",
+        "Install Additional Tool",
+        "ODBC Data Sources",
+        "Solitaire Casual Games",
+        "adminBoundary",
+        "sourcesBoundary",
+        'L"ad"',
+        'L"so"',
+        'L"adm"',
+        'L"sou"',
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.33 short-query regression missing: {token}")
+
+    for token in (
+        "resolvedTargetPath",
+        "IsAdministrativeEntry(path) ||",
+        "IsAdministrativeEntry(",
+        "IsDeveloperEntry(path) ||",
+        "IsDeveloperEntry(",
+        "shortcut publication path",
+        "real destination",
+    ):
+        if token not in start_menu_cpp:
+            fail(f"v0.8 alpha.5.33 resolved-target Start Menu surface evidence missing: {token}")
+
+    if "normalizedQuery.size() >= 3" in search_cpp:
+        fail("v0.8 alpha.5.33 short-query policy must stay centralized in RelevancePolicy")
+
+    if "BoundaryPrefix" in ranking_cpp and "MatchKindTier" not in ranking_cpp:
+        fail("v0.8 alpha.5.33 must not add ad-hoc short-query ranking hacks")
+
+    for product in (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    ):
+        if product in (relevance_cpp + start_menu_cpp).lower():
+            fail(f"v0.8 alpha.5.33 product-specific production rule found: {product}")
+
+    for token in (
+        '\\"schemaVersion\\": 15',
+        "staleSchema14ProviderCache",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.33 Provider Cache regression missing: {token}")
+
+    development_start = workflow.find("  development-release:")
+    if development_start < 0:
+        fail("v0.8 alpha.5.33 development-release job missing")
+    development = workflow[development_start:]
+    for token in (
+        "cancel-in-progress: false",
+        "Verify dev-latest public update contract",
+        "PUBLIC_MANIFEST_URL=",
+        "cmp -s update-manifest.json public-update-manifest.json",
+        "-F draft=false",
+    ):
+        if token not in development:
+            fail(f"v0.8 alpha.5.33 dev-latest verification regressed: {token}")
+
+    for token in (
+        "FILEVERSION 0,8,0,203",
+        "PRODUCTVERSION 0,8,0,203",
+        "0.8.0-alpha.5.33",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.33 resource version missing: {token}")
+
+    if 'version="0.8.0.203"' not in manifest:
+        fail("v0.8 alpha.5.33 manifest fixed version must be 0.8.0.203")
+
+    for token in (
+        '"0.8.0-alpha.5.32"',
+        '"0.8.0-alpha.5.33"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.33 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.33 Short Query Precision validation",
+        "schema 15",
+        "BoundaryPrefix",
+        "resolved target",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.33 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.33 — Short Query Precision",
+        "Provider Cache advances to schema 15",
+        "0.8.0.203",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.33 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.33" not in changelog:
+        fail("v0.8 alpha.5.33 changelog entry missing")
+
+    if "v0.8.0-alpha.5.33 separates short-query precision" not in roadmap:
+        fail("v0.8 alpha.5.33 roadmap entry missing")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.33 frozen Classic asset changed: {asset_path}")
+
+    print(
+        "v0.8.0-alpha.5.33 Short Query Precision verified:",
+        "| Provider Cache schema 15 rebuild",
+        "| 1-2 ASCII BoundaryPrefix suppression",
+        "| exact/prefix/alias/initials preserved",
+        "| 3-character BoundaryPrefix preserved",
+        "| resolved-target Start Menu structural surfaces",
+        "| no product blacklist",
+        "| dev-latest public verification preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.32":
     import hashlib
     import subprocess

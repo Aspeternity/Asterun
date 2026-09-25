@@ -242,12 +242,25 @@ InspectStartMenuEntry(
             title,
             result.resolvedTarget);
 
-    if (IsAdministrativeEntry(path)) {
+    // A root-level Start Menu shortcut can resolve into Windows Tools /
+    // Administrative Tools / Developer Tools even when the shortcut itself
+    // is not stored inside that folder. Classify from both sides of the
+    // shortcut relationship so the cached launch surface reflects the real
+    // destination instead of only the publication location.
+    const std::filesystem::path
+        resolvedTargetPath(
+            result.resolvedTarget);
+
+    if (IsAdministrativeEntry(path) ||
+        IsAdministrativeEntry(
+            resolvedTargetPath)) {
         result.surface =
             LaunchSurfaceClass::
                 SystemUtility;
     } else if (
-        IsDeveloperEntry(path)) {
+        IsDeveloperEntry(path) ||
+        IsDeveloperEntry(
+            resolvedTargetPath)) {
         result.surface =
             LaunchSurfaceClass::
                 DeveloperTool;

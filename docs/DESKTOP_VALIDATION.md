@@ -612,6 +612,24 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck alpha.5.31 Quick Launch, Scheduler/Sync, Composer-vs-Composer-Sync behavior, Settings/Benchmark suppression, App Paths/PATH/AppsFolder, Everything merge, pinyin, usage ranking, idle CPU/memory and frozen Classic UI.
 - [ ] Recheck the alpha.5.30 anonymous dev-latest publication contract remains green.
 
+## v0.8.0-alpha.5.33 Short Query Precision validation
+
+- [ ] Upgrade from alpha.5.32. Provider Cache rebuilds once under schema 15; settings, user commands and usage remain unchanged.
+- [ ] With representative normal applications whose names genuinely begin with two ASCII characters, a two-character query still returns them by whole-field prefix.
+- [ ] A two-character query must not return an otherwise unrelated entry only because a later word begins with those characters (for example generic Admin / Advanced / Additional / Sources cases).
+- [ ] Explicit two-character aliases and user shortcuts still work.
+- [ ] Two-character derived initials remain available (for example a multi-word app addressed by its initials).
+- [ ] Existing pinyin-initial behavior remains available for short Latin queries.
+- [ ] Repeat the same later-word query with three ASCII characters; BoundaryPrefix recall should resume.
+- [ ] Verify a root-level Start Menu shortcut resolving into Windows Tools / Administrative Tools / System Tools is classified as SystemUtility even when the shortcut file itself is not stored in that folder.
+- [ ] Verify a root-level shortcut resolving into Developer Tools / Visual Studio Tools / Windows Kits / SDK is classified as DeveloperTool.
+- [ ] A normal root-level application whose resolved target is outside those structural locations remains PrimaryApplication.
+- [ ] Search ordering should naturally place a genuine primary-app prefix ahead of a SystemUtility prefix when both match the same short query; do not use title/product blacklists.
+- [ ] Recheck alpha.5.32 family suppression and explicit monitor/license/service recovery, alpha.5.31 alternate/suite-utility behavior, Everything merge, pinyin, usage ranking and wildcard/path syntax.
+- [ ] Confirm no extra filesystem/registry/Shell work occurs per keystroke; resolved-target surface refinement occurs only during Start Menu discovery.
+- [ ] Recheck idle CPU/memory and frozen Classic UI/geometry.
+- [ ] Recheck the alpha.5.30 anonymous dev-latest publication contract remains green.
+
 ## Release assets
 
 For the candidate tag:

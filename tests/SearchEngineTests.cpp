@@ -402,6 +402,159 @@ int main(int argc, char** argv) {
             3));
     }
 
+    // Short ASCII precision: 1-2 characters may use exact, whole-field
+    // prefix and initials, but must not recall arbitrary later word
+    // boundaries. Three-character queries restore BoundaryPrefix behavior.
+    {
+        std::vector<Command>
+            shortPrecision{
+                MakeCommand(
+                    L"sp1",
+                    L"adorneditor",
+                    L"Adorn Editor",
+                    L"adorn.exe",
+                    0),
+                MakeCommand(
+                    L"sp2",
+                    L"administrativetools",
+                    L"Administrative Tools",
+                    L"admin-tools.lnk",
+                    1),
+                MakeCommand(
+                    L"sp3",
+                    L"xboxappadminserver",
+                    L"Xbox App Admin Server",
+                    L"xbox-admin.exe",
+                    2),
+                MakeCommand(
+                    L"sp4",
+                    L"securityadvancedfirewall",
+                    L"Security Advanced Firewall",
+                    L"security.exe",
+                    3),
+                MakeCommand(
+                    L"sp5",
+                    L"installadditionaltool",
+                    L"Install Additional Tool",
+                    L"install-tool.exe",
+                    4),
+                MakeCommand(
+                    L"sp6",
+                    L"odbcdatasources",
+                    L"ODBC Data Sources",
+                    L"odbc.exe",
+                    5),
+                MakeCommand(
+                    L"sp7",
+                    L"solitairecasualgames",
+                    L"Solitaire Casual Games",
+                    L"solitaire.exe",
+                    6),
+                MakeCommand(
+                    L"sp8",
+                    L"utility",
+                    L"Utility",
+                    L"utility.exe",
+                    7),
+            };
+
+        for (auto& command :
+             shortPrecision) {
+            command.source =
+                CommandSource::StartMenu;
+            command.surfaceClass =
+                LaunchSurfaceClass::
+                    PrimaryApplication;
+            command.basePriority = 0;
+        }
+
+        shortPrecision[1].surfaceClass =
+            LaunchSurfaceClass::
+                SystemUtility;
+        shortPrecision[7].source =
+            CommandSource::User;
+        shortPrecision[7].aliases = {
+            L"ad",
+        };
+
+        const auto ad =
+            engine.Search(
+                shortPrecision,
+                usage,
+                L"ad",
+                20);
+
+        assert(
+            ContainsCommand(
+                ad,
+                0));
+        assert(
+            ContainsCommand(
+                ad,
+                1));
+        assert(
+            !ContainsCommand(
+                ad,
+                2));
+        assert(
+            !ContainsCommand(
+                ad,
+                3));
+        assert(
+            !ContainsCommand(
+                ad,
+                4));
+        assert(
+            ContainsCommand(
+                ad,
+                7));
+
+        // Explicit user alias remains authoritative even under short-query
+        // tightening.
+        assert(
+            ad.front()
+                .commandIndex == 7);
+
+        const auto so =
+            engine.Search(
+                shortPrecision,
+                usage,
+                L"so",
+                20);
+
+        assert(
+            !ContainsCommand(
+                so,
+                5));
+        assert(
+            ContainsCommand(
+                so,
+                6));
+
+        // Boundary-prefix recall resumes at three ASCII characters.
+        const auto adminBoundary =
+            engine.Search(
+                shortPrecision,
+                usage,
+                L"adm",
+                20);
+        assert(
+            ContainsCommand(
+                adminBoundary,
+                2));
+
+        const auto sourcesBoundary =
+            engine.Search(
+                shortPrecision,
+                usage,
+                L"sou",
+                20);
+        assert(
+            ContainsCommand(
+                sourcesBoundary,
+                5));
+    }
+
     // Catalog visibility is a query-admission policy, not another
     // product-specific ranking score. Shared family-name searches keep
     // normal apps while StrongMatchOnly entries require distinctive intent.

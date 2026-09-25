@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.33
+
+- Added a dedicated Short Query Precision policy for 1-2 character ASCII queries without changing longer-query behavior.
+- Exact matches, whole-field prefixes, explicit aliases/user shortcuts, derived initials and pinyin remain available at 1-2 characters.
+- Generic later-word BoundaryPrefix recall now requires at least 3 ASCII characters, preventing short queries from surfacing unrelated words such as Admin / Advanced / Additional / Sources inside otherwise unrelated entries.
+- Three-character boundary-prefix queries continue to work, preserving fast partial-word discovery once the query is specific enough.
+- Start Menu surface classification now considers both the shortcut publication path and its resolved target path. A root-level shortcut that points into Windows/Administrative/System/Developer tool locations can therefore inherit SystemUtility/DeveloperTool semantics.
+- The resolved-target refinement happens only during provider discovery; the keystroke path gains no I/O or catalog work.
+- Provider Cache advances to schema 15 so cached Start Menu surface classes are rebuilt under the resolved-target structural model.
+- Catalog Role, CatalogVisibility, ResultRanking, usage, pinyin, Everything, provider monitoring and frozen Classic UI/geometry are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.203`.
+
 ## 0.8.0-alpha.5.32
 
 - Completed another provider-neutral layer of residual suite-utility evidence for management/monitoring surfaces that should be reachable explicitly but should not accompany a plain suite-family query.

@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 14,\n"
+        "  \"schemaVersion\": 15,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,17 +1788,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 13 predates residual suite-utility evidence completion.
-    // Generated state must rebuild so monitor/license/service-management
-    // roles and their query-intent tokens are recomputed.
-    const auto staleSchema13ProviderCache =
+    // Schema 14 predates resolved-target Start Menu surface refinement.
+    // Generated state must rebuild so root-level shortcuts that resolve into
+    // administrative/developer tool locations get the correct surface class.
+    const auto staleSchema14ProviderCache =
         data /
-        "provider-cache-schema13-stale.json";
+        "provider-cache-schema14-stale.json";
 
     WriteText(
-        staleSchema13ProviderCache,
+        staleSchema14ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 13,\n"
+        "  \"schemaVersion\": 14,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1815,11 +1815,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema13Cache(
-        staleSchema13ProviderCache);
+    ProviderCache staleSchema14Cache(
+        staleSchema14ProviderCache);
 
     assert(
-        staleSchema13Cache.Load().empty());
+        staleSchema14Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

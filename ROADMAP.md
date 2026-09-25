@@ -265,7 +265,8 @@ In progress:
 - v0.8.0-alpha.5.30 closes a distribution false-green: dev-latest publication is non-cancellable, repairs orphan Draft releases explicitly, uploads the manifest last, and CI anonymously verifies the exact public Release/manifest endpoints before green
 - v0.8.0-alpha.5.31 completes Alternate/SuiteUtility roles: canonical-target/family/title-base evidence can corroborate alternate variants across catalog locations, weak Sync/Scheduler/Automation/Maintenance cues require suite context, diagnostic metadata evidence expands generically, and schema-13 rebuilds role/token state
 - v0.8.0-alpha.5.32 completes generic residual management evidence: network monitoring, license/licensing management and user-facing service-management surfaces require suite-primary corroboration, can repair misleading component metadata, and schema-14 rebuilds role/token state without guessing ambiguous product vocabulary
-- next Intelligent Launch Catalog step: validate alpha.5.32 on real suites; if Catalog residuals are now acceptable, move to Short Query Precision/System Surface Noise as a separate relevance layer
+- v0.8.0-alpha.5.33 separates short-query precision from Catalog roles: 1-2 ASCII queries no longer use generic later-word BoundaryPrefix recall, three-character boundary search remains intact, Start Menu classification also consumes resolved-target tool structure, and schema-15 rebuilds cached surface classes
+- next relevance step: validate alpha.5.33 on real short queries and only then tune ranking/usage behavior if any remaining noise is genuinely ordering rather than admission
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

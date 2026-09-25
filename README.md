@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.33 — Short Query Precision
+
+Alpha.5.33 separates short-query relevance from the catalog-role work completed in alpha.5.32. The remaining real-machine noise came from the generic lexical matcher: two ASCII characters were allowed to match a later word boundary, so queries such as `so` or `ad` could reach unrelated entries only because a later word began with Sources/Admin/Advanced/Additional.
+
+For one- and two-character ASCII queries, ALTRun Next now keeps only the high-intent forms already available in the relevance engine: exact match, whole-field prefix, explicit alias/user shortcut, derived initials and pinyin. Generic `BoundaryPrefix` begins at three ASCII characters. This is a global query-specificity rule rather than a product or Windows-component blacklist, and longer queries preserve the existing search behavior.
+
+Start Menu structural evidence is also refined at discovery time. Surface classification now examines both the shortcut path and the shortcut's resolved target path. A shortcut published at the Programs root but resolving into Windows Tools / Administrative Tools / System Tools / Developer Tools can therefore carry the correct SystemUtility or DeveloperTool surface instead of appearing as a normal primary application. This structural work is cached and never runs on the keyboard hot path.
+
+Because surfaceClass is persisted in Provider Cache, the cache advances to schema 15 and rebuilds once. Catalog Role and CatalogVisibility are unchanged from alpha.5.32; ResultRanking, usage, pinyin, Everything and frozen Classic UI/geometry are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.203`.
+
 ## v0.8.0-alpha.5.32 — Catalog Residual Evidence Completion
 
 Alpha.5.32 extends the catalog role model only where the remaining evidence is generic enough to justify it. The new residual evidence covers user-facing network monitoring, license/licensing management and service-management surfaces. These phrases are deliberately weak evidence: a standalone application called `Network Monitor` or `Service Manager` remains `Low + Normal`; the entry becomes `SuiteUtility + Medium + StrongMatchOnly` only when catalog context also contains a clear related primary application.
