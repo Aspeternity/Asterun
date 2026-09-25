@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 17,\n"
+        "  \"schemaVersion\": 18,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,17 +1788,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 16 predates suite-topology role/token calibration.
-    // Generated state must rebuild so parent/child companion relationships
-    // become cached SuiteSubordinate entries with delta-only intent tokens.
-    const auto staleSchema16ProviderCache =
+    // Schema 17 predates advertised-shortcut target resolution and
+    // directory-backed suite topology. Generated state must rebuild so cached
+    // canonical identities, metadata, roles and child intent use real targets.
+    const auto staleSchema17ProviderCache =
         data /
-        "provider-cache-schema16-stale.json";
+        "provider-cache-schema17-stale.json";
 
     WriteText(
-        staleSchema16ProviderCache,
+        staleSchema17ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 16,\n"
+        "  \"schemaVersion\": 17,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1815,11 +1815,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema16Cache(
-        staleSchema16ProviderCache);
+    ProviderCache staleSchema17Cache(
+        staleSchema17ProviderCache);
 
     assert(
-        staleSchema16Cache.Load().empty());
+        staleSchema17Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

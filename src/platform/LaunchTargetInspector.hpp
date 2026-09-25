@@ -14,6 +14,7 @@ struct ShortcutTarget {
     std::wstring arguments;
     std::wstring workingDirectory;
     std::wstring shellParsingName;
+    bool advertisedTargetResolved{false};
     LaunchTargetKind targetKind{
         LaunchTargetKind::Unknown};
 };

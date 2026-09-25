@@ -1787,9 +1787,10 @@ int main() {
 
     {
         // Generic suite topology: a child launch surface is restrictive only
-        // when both its family-stripped title identity and its executable stem
-        // extend a normal companion. No product name or child-role vocabulary
-        // is required.
+        // when its family-stripped title identity and an independent resolved
+        // target relationship both extend a normal companion. The target can
+        // corroborate through executable stem or nearby install-directory
+        // structure; no product vocabulary is required.
         const std::wstring group =
             L"family:acmestudio|root:c:\\program files\\acme\\studio";
 
@@ -1862,11 +1863,26 @@ int main() {
                 L"Visualize",
                 {L"visualize"});
 
+        // Exercise the directory-segment branch with unrelated executable
+        // names. Metadata-derived distinctive tokens are intentionally equal
+        // so the child intent must fall back to the stable display-title delta.
+        visualize.target =
+            L"C:\\Program Files\\Acme\\Visualize\\VisualizeApp.exe";
+        visualize.canonicalIdentity =
+            L"file:c:\\program files\\acme\\visualize\\visualizeapp.exe";
+        visualize.distinctiveTokens = {
+            L"metadataalias",
+        };
+
         Command visualizeBoost =
             makeCompanion(
                 L"Acme Studio Visualize Boost 2026",
-                L"VisualizeBoost",
-                {L"visualize", L"boost"});
+                L"BoostWorker",
+                {L"metadataalias"});
+        visualizeBoost.target =
+            L"C:\\Program Files\\Acme\\Visualize Boost\\BoostWorker.exe";
+        visualizeBoost.canonicalIdentity =
+            L"file:c:\\program files\\acme\\visualize boost\\boostworker.exe";
 
         Command routing =
             makeCompanion(
@@ -1955,8 +1971,9 @@ int main() {
             routing.catalogVisibility ==
             CatalogVisibility::Normal);
 
-        // Title containment by itself is also insufficient; the resolved
-        // executable identity must corroborate the parent/child relation.
+        // Title containment by itself is also insufficient; neither the
+        // executable stem nor a nearby install-directory segment corroborates
+        // this parent/child relation.
         assert(
             titleOnlyExtension
                 .applicationRole ==

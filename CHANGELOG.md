@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.5.36
+
+- Resolve Windows Installer advertised Start Menu shortcuts to their installed component path for discovery evidence using `MsiGetShortcutTargetW` + `MsiGetComponentPathW`.
+- Keep launch behavior unchanged: Start Menu commands still execute the original `.lnk` via ShellItem; only canonical identity, metadata and catalog evidence use the installed target.
+- MSI resolution is side-effect free: no feature-use, configure, repair, provide-component or installation call is made during discovery.
+- Replace metadata-sensitive suite title identity with catalog-family-stripped display-title identity.
+- Generalize suite target corroboration to executable-stem extension or a nearby sibling install-directory-segment extension.
+- Preserve conservative admission: title containment alone, shared family alone or an unrelated target does not produce `SuiteSubordinate`.
+- Add regressions for normal non-advertised shortcuts, executable-stem topology, directory-segment topology, metadata-token drift and title-only false positives.
+- Provider Cache advances to schema 18.
+- SearchEngine/ResultRanking and frozen Classic UI/geometry are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.206`.
+
 ## 0.8.0-alpha.5.35
 
 - Added a provider-neutral `SuiteSubordinate` catalog role for child launch surfaces inside multi-entry application suites.

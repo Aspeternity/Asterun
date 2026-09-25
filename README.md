@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.36 — Advertised Shortcut Resolution + Target Topology
+
+Alpha.5.36 fixes the real target-evidence failure exposed by alpha.5.35 on Windows Installer suites. An advertised Start Menu shortcut can make `IShellLink::GetPath()` point at an opaque `Windows\\Installer\\...\\newshortcut...` proxy rather than the installed application binary. That proxy is valid for Windows activation, but it is the wrong identity for catalog metadata and suite topology.
+
+Start Menu discovery now detects advertised MSI shortcuts with `MsiGetShortcutTargetW` and resolves the installed component path with the side-effect-free `MsiGetComponentPathW`. The resolver accepts only a real local/source launchable file. It never calls feature-use, repair, provide-component, or install APIs. The command still executes the original `.lnk` through ShellItem activation; only discovery evidence, canonical identity, metadata and catalog classification use the resolved installed target.
+
+Suite topology is also generalized from "title + executable-stem prefix" to "title + resolved-target topology". The title identity is derived from the stable catalog-family/display-title relationship rather than depending on metadata-sensitive distinctive tokens. The independent target corroboration may come from either an executable-stem extension or a nearby sibling install-directory segment extension, so layouts such as a base app beside a named child directory can be recognized without product vocabulary. Title containment alone remains insufficient.
+
+All MSI inspection and filesystem validation stay in provider discovery/refresh. SearchEngine and ResultRanking remain unchanged and I/O-free while typing. Provider Cache advances to schema 18 so alpha.5.35 proxy canonical identities and role/token state rebuild once. Windows fixed FileVersion/ProductVersion is `0.8.0.206`.
+
 ## v0.8.0-alpha.5.35 — Suite Member Topology
 
 Alpha.5.35 closes the next catalog-quality gap exposed after short-query and Windows-surface work: several entries in one installed suite can all be legitimate prefix matches, yet some are child launch surfaces of another user-facing companion rather than independent applications.

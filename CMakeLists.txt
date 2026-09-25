@@ -231,6 +231,7 @@ if(WIN32)
         uxtheme
         uuid
         version
+        msi
         winhttp
         bcrypt
     )
@@ -953,6 +954,7 @@ if(BUILD_TESTING)
                 advapi32
                 uuid
                 version
+                msi
         )
 
         target_compile_definitions(
@@ -1001,6 +1003,7 @@ if(BUILD_TESTING)
                 ole32
                 uuid
                 version
+                msi
         )
 
         target_compile_definitions(

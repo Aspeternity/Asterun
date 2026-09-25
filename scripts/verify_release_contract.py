@@ -42,6 +42,263 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.36":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.36 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 18:
+        fail("v0.8 alpha.5.36 must use Provider Cache schemaVersion 18")
+
+    cmake = read("CMakeLists.txt")
+    inspector_hpp = read("src/platform/LaunchTargetInspector.hpp")
+    inspector_cpp = read("src/platform/LaunchTargetInspector.cpp")
+    inspector_tests = read("tests/LaunchTargetInspectorTests.cpp")
+    start_menu_cpp = read("src/core/StartMenuProvider.cpp")
+    role_cpp = read("src/core/LaunchRole.cpp")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    ranking_cpp = read("src/core/ResultRanking.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    workflow = read(".github/workflows/build.yml")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "advertisedTargetResolved",
+        "shellParsingName",
+    ):
+        if token not in inspector_hpp:
+            fail(f"v0.8 alpha.5.36 shortcut evidence contract missing: {token}")
+
+    for token in (
+        "#include <msi.h>",
+        "ResolveAdvertisedShortcutTarget(",
+        "MsiGetShortcutTargetW(",
+        "MAX_FEATURE_CHARS + 1",
+        "MsiGetComponentPathW(",
+        "INSTALLSTATE_LOCAL",
+        "INSTALLSTATE_SOURCE",
+        "IsInstalledLaunchTarget(",
+        "is_regular_file(",
+        "advertisedTargetResolved",
+    ):
+        if token not in inspector_cpp:
+            fail(f"v0.8 alpha.5.36 advertised-shortcut resolver missing: {token}")
+
+    for forbidden in (
+        "MsiProvideComponentW(",
+        "MsiUseFeatureW(",
+        "MsiConfigureFeatureW(",
+        "MsiInstallProductW(",
+    ):
+        if forbidden in inspector_cpp:
+            fail(f"v0.8 alpha.5.36 discovery must stay side-effect free: {forbidden}")
+
+    if "\n        msi\n" not in cmake or cmake.count("\n                msi\n") < 2:
+        fail("v0.8 alpha.5.36 Msi.lib must link launcher + Windows inspector/smoke tests")
+
+    for token in (
+        "command.target =\n            it->path().wstring();",
+        "LaunchActivationKind::\n                ShellItem",
+        "inspection.resolvedTarget",
+        "BuildCanonicalLaunchIdentity(",
+    ):
+        if token not in start_menu_cpp:
+            fail(f"v0.8 alpha.5.36 original-link activation contract missing: {token}")
+
+    for token in (
+        "SuiteTitleIdentity(",
+        "CanonicalTargetPath(",
+        "StrictIdentityExtension(",
+        "HasExecutableStemTopology(",
+        "HasDirectorySegmentTopology(",
+        "HasSuiteTargetTopology(",
+        "SuiteTopologyDelta(",
+        "NormalizedPath(",
+        "anchorLength =\n                        SuiteTitleIdentity(",
+    ):
+        if token not in role_cpp:
+            fail(f"v0.8 alpha.5.36 target topology implementation missing: {token}")
+
+    for token in (
+        "advertisedTargetResolved",
+        "app->target",
+        "executable",
+    ):
+        if token not in inspector_tests:
+            fail(f"v0.8 alpha.5.36 ordinary-link regression missing: {token}")
+
+    for token in (
+        "Acme Studio Composer Player 2026",
+        "VisualizeApp.exe",
+        "Visualize Boost\\\\BoostWorker.exe",
+        "metadataalias",
+        "IndependentPro",
+        'L"player"',
+        'L"boost"',
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.36 role topology regression missing: {token}")
+
+    for token in (
+        "topology-composer-player",
+        "VisualizeApp.exe",
+        "Visualize Boost\\\\BoostWorker.exe",
+        "metadataalias",
+        "topology-title-only",
+        'L"boost"',
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.36 search topology regression missing: {token}")
+
+    for hot_path in (
+        search_cpp,
+        ranking_cpp,
+    ):
+        for token in (
+            "MsiGetShortcutTarget",
+            "MsiGetComponentPath",
+            "HasDirectorySegmentTopology",
+            "ResolveAdvertisedShortcutTarget",
+        ):
+            if token in hot_path:
+                fail(f"v0.8 alpha.5.36 discovery/topology work leaked into hot path: {token}")
+
+    for product in (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    ):
+        if product in (inspector_cpp + start_menu_cpp + role_cpp).lower():
+            fail(f"v0.8 alpha.5.36 product-specific production rule found: {product}")
+
+    for token in (
+        '\\"schemaVersion\\": 18',
+        "staleSchema17ProviderCache",
+        '\\"schemaVersion\\": 17',
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.36 Provider Cache regression missing: {token}")
+
+    development_start = workflow.find("  development-release:")
+    if development_start < 0:
+        fail("v0.8 alpha.5.36 development-release job missing")
+    development = workflow[development_start:]
+    for token in (
+        "cancel-in-progress: false",
+        "Verify dev-latest public update contract",
+        "PUBLIC_MANIFEST_URL=",
+        "cmp -s update-manifest.json public-update-manifest.json",
+        "-F draft=false",
+        "shared hosted-runner IPs",
+        "unauthenticated API",
+    ):
+        if token not in development:
+            fail(f"v0.8 alpha.5.36 dev-latest verification regressed: {token}")
+
+    if "PUBLIC_RELEASE_URL=" in development:
+        fail("v0.8 alpha.5.36 must not restore anonymous GitHub API metadata dependency")
+
+    for token in (
+        "FILEVERSION 0,8,0,206",
+        "PRODUCTVERSION 0,8,0,206",
+        "0.8.0-alpha.5.36",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.36 resource version missing: {token}")
+
+    if 'version="0.8.0.206"' not in manifest:
+        fail("v0.8 alpha.5.36 manifest fixed version must be 0.8.0.206")
+
+    for token in (
+        '"0.8.0-alpha.5.35"',
+        '"0.8.0-alpha.5.36"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.36 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.36 Advertised Shortcut Resolution + Target Topology validation",
+        "schema 18",
+        "newshortcut",
+        "suite-subordinate",
+        "child-only delta",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.36 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.36 — Advertised Shortcut Resolution + Target Topology",
+        "MsiGetShortcutTargetW",
+        "MsiGetComponentPathW",
+        "schema 18",
+        "0.8.0.206",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.36 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.36" not in changelog:
+        fail("v0.8 alpha.5.36 changelog entry missing")
+
+    if "v0.8.0-alpha.5.36 corrects the real target-evidence layer" not in roadmap:
+        fail("v0.8 alpha.5.36 roadmap entry missing")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.36 frozen Classic asset changed: {asset_path}")
+
+    print(
+        "v0.8.0-alpha.5.36 Advertised Shortcut Resolution + Target Topology verified:",
+        "| Provider Cache schema 18 rebuild",
+        "| side-effect-free MSI advertised target resolution",
+        "| original .lnk activation preserved",
+        "| display-title + real-target topology",
+        "| executable-stem/directory corroboration",
+        "| metadata-token drift regression",
+        "| SearchEngine/ResultRanking hot path unchanged",
+        "| no product blacklist",
+        "| dev-latest public verification preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.35":
     import hashlib
     import subprocess

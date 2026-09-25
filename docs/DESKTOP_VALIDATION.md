@@ -660,6 +660,24 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Confirm catalog topology adds no Shell/filesystem/registry/metadata work while typing and frozen Classic UI/geometry is unchanged.
 - [ ] Recheck idle CPU/memory and the dev-latest public-manifest publication contract.
 
+## v0.8.0-alpha.5.36 Advertised Shortcut Resolution + Target Topology validation
+
+- [ ] Upgrade from alpha.5.35. Provider Cache rebuilds once under schema 18; settings, user commands and usage remain unchanged.
+- [ ] For a Windows Installer advertised Start Menu shortcut that previously cached a `C:\\Windows\\Installer\\...\\newshortcut...` identity, the Start Menu cache now records the real installed launchable component path as `canonicalIdentity`.
+- [ ] Launch that same result and verify Windows still executes the original Start Menu `.lnk`; advertised-target resolution must not change activation behavior.
+- [ ] No scan, startup or rebuild operation triggers an MSI repair/configuration dialog, source prompt, install action or feature-usage side effect.
+- [ ] A normal non-advertised `.lnk` keeps the same resolved target and launch behavior as alpha.5.35.
+- [ ] In a real suite with base and child executables whose stems extend (for example generic `Composer.exe -> ComposerPlayer.exe` topology), the child becomes `suite-subordinate` while the base remains a normal companion.
+- [ ] In a real suite where executable names do not extend but nearby install-directory segments do (generic `Visualize -> Visualize Boost` topology), the child can still become `suite-subordinate`.
+- [ ] A plain family prefix does not show a successfully classified subordinate; searching the child-only delta still re-admits it, and exact full-title search still works.
+- [ ] A title-only extension whose real executable and nearby directory structure do not corroborate the parent remains a normal companion.
+- [ ] Metadata changes from resolving the real executable must not break child intent: title identity comes from catalog family + display title, and the cached subordinate intent contains only the child delta.
+- [ ] Inspect `data/provider-cache.json`: schema is 18, affected Start Menu canonical identities no longer point at MSI proxy executables, and corrected role/visibility/token state persists after restart.
+- [ ] Recheck ambiguous one-off entries separately; alpha.5.36 must not hide an entry solely because of an opaque product word or short name.
+- [ ] Confirm MSI/filesystem work occurs only during provider discovery/refresh; typing adds no MSI, filesystem, registry or metadata I/O.
+- [ ] Recheck alpha.5.34 SystemUtility evidence, alpha.5.33 short-query precision, Everything merge, pinyin, wildcard/path syntax, usage scoring, idle CPU/memory and frozen Classic UI/geometry.
+- [ ] Recheck the dev-latest public-manifest publication contract.
+
 ## Release assets
 
 For the candidate tag:

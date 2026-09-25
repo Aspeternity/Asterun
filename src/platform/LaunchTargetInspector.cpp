@@ -3,6 +3,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <msi.h>
 #include <shlobj.h>
 #include <winver.h>
 #include <shobjidl.h>
@@ -243,6 +244,104 @@ IsShellNamespaceActivation(
         lower.find(
             L"shell:controlpanelfolder") !=
             std::wstring::npos;
+}
+
+[[nodiscard]] bool
+IsInstalledLaunchTarget(
+    std::wstring_view target) {
+
+    if (target.empty()) {
+        return false;
+    }
+
+    const std::filesystem::path
+        path(target);
+
+    std::error_code ec;
+
+    if (!std::filesystem::
+            is_regular_file(
+                path,
+                ec) ||
+        ec) {
+        return false;
+    }
+
+    return InspectLaunchTarget(
+               target) !=
+        LaunchTargetKind::Unknown;
+}
+
+[[nodiscard]] std::optional<
+    std::wstring>
+ResolveAdvertisedShortcutTarget(
+    const std::filesystem::path& shortcut) {
+
+    std::array<wchar_t, 39>
+        productCode{};
+    std::array<
+        wchar_t,
+        MAX_FEATURE_CHARS + 1>
+        featureId{};
+    std::array<wchar_t, 39>
+        componentCode{};
+
+    if (MsiGetShortcutTargetW(
+            shortcut.c_str(),
+            productCode.data(),
+            featureId.data(),
+            componentCode.data()) !=
+        ERROR_SUCCESS) {
+        return std::nullopt;
+    }
+
+    if (productCode.front() == L'\0' ||
+        componentCode.front() == L'\0') {
+        return std::nullopt;
+    }
+
+    // Do not call MsiUseFeature/MsiProvideComponent here. Discovery must stay
+    // side-effect free: no feature usage increments, repair, source prompts,
+    // or installation activity just because the launcher enumerates entries.
+    std::vector<wchar_t> buffer(
+        32768,
+        L'\0');
+
+    DWORD length =
+        static_cast<DWORD>(
+            buffer.size());
+
+    const INSTALLSTATE state =
+        MsiGetComponentPathW(
+            productCode.data(),
+            componentCode.data(),
+            buffer.data(),
+            &length);
+
+    if (state != INSTALLSTATE_LOCAL &&
+        state != INSTALLSTATE_SOURCE) {
+        return std::nullopt;
+    }
+
+    if (length == 0 ||
+        length >= buffer.size() ||
+        buffer.front() == L'\0') {
+        return std::nullopt;
+    }
+
+    std::wstring resolved(
+        buffer.data(),
+        length);
+
+    // MSI components can use registry key paths. Only replace the Shell-link
+    // evidence target when Windows Installer resolves to a real launchable
+    // file; otherwise retain the normal IShellLink target.
+    if (!IsInstalledLaunchTarget(
+            resolved)) {
+        return std::nullopt;
+    }
+
+    return resolved;
 }
 
 [[nodiscard]] std::wstring
@@ -701,8 +800,19 @@ InspectShellLink(
     }
 
     ShortcutTarget result;
-    result.target =
-        std::move(target);
+
+    if (const auto advertisedTarget =
+            ResolveAdvertisedShortcutTarget(
+                path)) {
+        result.target =
+            *advertisedTarget;
+        result.advertisedTargetResolved =
+            true;
+    } else {
+        result.target =
+            std::move(target);
+    }
+
     result.shellParsingName =
         std::move(shellParsingName);
 

@@ -260,6 +260,17 @@ int wmain() {
     assert(app.has_value());
     assert(help.has_value());
 
+    // Ordinary Shell links must stay on the normal IShellLink path. The MSI
+    // probe is evidence-only and must not rewrite non-advertised shortcuts.
+    assert(
+        !app->advertisedTargetResolved);
+    assert(
+        !help->advertisedTargetResolved);
+    assert(
+        std::filesystem::path(
+            app->target) ==
+        executable);
+
     assert(
         app->targetKind ==
         LaunchTargetKind::

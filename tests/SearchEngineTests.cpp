@@ -1514,6 +1514,22 @@ int main(int argc, char** argv) {
                 6),
         };
 
+        topology[3].target =
+            L"C:\\Program Files\\Acme\\Visualize\\VisualizeApp.exe";
+        topology[3].canonicalIdentity =
+            L"file:c:\\program files\\acme\\visualize\\visualizeapp.exe";
+        topology[3].distinctiveTokens = {
+            L"metadataalias",
+        };
+
+        topology[4].target =
+            L"C:\\Program Files\\Acme\\Visualize Boost\\BoostWorker.exe";
+        topology[4].canonicalIdentity =
+            L"file:c:\\program files\\acme\\visualize boost\\boostworker.exe";
+        topology[4].distinctiveTokens = {
+            L"metadataalias",
+        };
+
         std::vector<Command*> views;
         for (auto& command : topology) {
             views.push_back(&command);
@@ -1530,6 +1546,14 @@ int main(int argc, char** argv) {
             topology[4].applicationRole ==
             ApplicationRole::
                 SuiteSubordinate);
+        assert(
+            topology[4]
+                .distinctiveTokens
+                .size() == 1);
+        assert(
+            topology[4]
+                .distinctiveTokens[0] ==
+            L"boost");
         assert(
             topology[5].applicationRole ==
             ApplicationRole::

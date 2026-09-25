@@ -1601,7 +1601,35 @@ JoinTokens(
 }
 
 [[nodiscard]] std::wstring
-CanonicalTargetStem(
+SuiteTitleIdentity(
+    const Command& command) {
+
+    const std::wstring title =
+        NormalizeFamilyStem(
+            command.title);
+    const std::wstring family =
+        CatalogFamilyKey(
+            command);
+
+    if (!family.empty() &&
+        title.size() >
+            family.size() &&
+        title.starts_with(
+            family)) {
+        return title.substr(
+            family.size());
+    }
+
+    // Metadata-derived distinctive tokens can legitimately change once a
+    // shortcut resolves to its real executable. Fall back to them only when
+    // the catalog-family prefix cannot be removed from the display title.
+    return JoinTokens(
+        NormalizedDistinctiveTokens(
+            command));
+}
+
+[[nodiscard]] std::filesystem::path
+CanonicalTargetPath(
     const Command& command) {
 
     std::wstring identity =
@@ -1620,10 +1648,149 @@ CanonicalTargetStem(
         0,
         kFilePrefix.size());
 
-    return Compact(
-        std::filesystem::path(identity)
-            .stem()
-            .wstring());
+    if (identity.empty()) {
+        return {};
+    }
+
+    return std::filesystem::path(
+               identity)
+        .lexically_normal();
+}
+
+[[nodiscard]] bool
+StrictIdentityExtension(
+    std::wstring_view anchor,
+    std::wstring_view candidate) {
+
+    return
+        anchor.size() >= 3 &&
+        candidate.size() >
+            anchor.size() &&
+        candidate.starts_with(
+            anchor) &&
+        candidate.size() -
+                anchor.size() >=
+            2;
+}
+
+[[nodiscard]] bool
+HasExecutableStemTopology(
+    const std::filesystem::path&
+        candidatePath,
+    const std::filesystem::path&
+        anchorPath) {
+
+    const std::wstring candidateStem =
+        Compact(
+            candidatePath
+                .stem()
+                .wstring());
+    const std::wstring anchorStem =
+        Compact(
+            anchorPath
+                .stem()
+                .wstring());
+
+    return StrictIdentityExtension(
+        anchorStem,
+        candidateStem);
+}
+
+[[nodiscard]] bool
+HasDirectorySegmentTopology(
+    const std::filesystem::path&
+        candidatePath,
+    const std::filesystem::path&
+        anchorPath) {
+
+    auto candidateDirectory =
+        candidatePath.parent_path();
+    auto anchorDirectory =
+        anchorPath.parent_path();
+
+    // Walk only a few equal trailing directories (for example "bin") before
+    // comparing the first differing sibling segment. This catches installed
+    // layouts such as "Visualize" -> "Visualize Boost" without turning a
+    // distant common ancestor into suite-parent evidence.
+    for (int depth = 0;
+         depth < 4;
+         ++depth) {
+        if (candidateDirectory.empty() ||
+            anchorDirectory.empty()) {
+            return false;
+        }
+
+        const std::wstring candidateLeaf =
+            Compact(
+                candidateDirectory
+                    .filename()
+                    .wstring());
+        const std::wstring anchorLeaf =
+            Compact(
+                anchorDirectory
+                    .filename()
+                    .wstring());
+
+        if (StrictIdentityExtension(
+                anchorLeaf,
+                candidateLeaf)) {
+            const std::wstring
+                candidateParent =
+                    NormalizedPath(
+                        candidateDirectory
+                            .parent_path());
+            const std::wstring
+                anchorParent =
+                    NormalizedPath(
+                        anchorDirectory
+                            .parent_path());
+
+            return
+                !anchorParent.empty() &&
+                candidateParent ==
+                    anchorParent;
+        }
+
+        if (candidateLeaf !=
+            anchorLeaf) {
+            return false;
+        }
+
+        candidateDirectory =
+            candidateDirectory
+                .parent_path();
+        anchorDirectory =
+            anchorDirectory
+                .parent_path();
+    }
+
+    return false;
+}
+
+[[nodiscard]] bool
+HasSuiteTargetTopology(
+    const Command& candidate,
+    const Command& anchor) {
+
+    const auto candidatePath =
+        CanonicalTargetPath(
+            candidate);
+    const auto anchorPath =
+        CanonicalTargetPath(
+            anchor);
+
+    if (candidatePath.empty() ||
+        anchorPath.empty()) {
+        return false;
+    }
+
+    return
+        HasExecutableStemTopology(
+            candidatePath,
+            anchorPath) ||
+        HasDirectorySegmentTopology(
+            candidatePath,
+            anchorPath);
 }
 
 [[nodiscard]] std::vector<std::wstring>
@@ -1634,8 +1801,33 @@ SuiteTopologyDelta(
     if (!SameCatalogContext(
             candidate,
             anchor) ||
-        candidate.canonicalIdentity ==
-            anchor.canonicalIdentity) {
+        BaseCanonicalIdentity(
+            candidate) ==
+            BaseCanonicalIdentity(
+                anchor)) {
+        return {};
+    }
+
+    const std::wstring candidateIdentity =
+        SuiteTitleIdentity(
+            candidate);
+    const std::wstring anchorIdentity =
+        SuiteTitleIdentity(
+            anchor);
+
+    if (!StrictIdentityExtension(
+            anchorIdentity,
+            candidateIdentity)) {
+        return {};
+    }
+
+    const std::wstring titleDelta =
+        candidateIdentity.substr(
+            anchorIdentity.size());
+
+    if (!HasSuiteTargetTopology(
+            candidate,
+            anchor)) {
         return {};
     }
 
@@ -1646,49 +1838,8 @@ SuiteTopologyDelta(
         NormalizedDistinctiveTokens(
             anchor);
 
-    if (candidateTokens.empty() ||
-        anchorTokens.empty()) {
-        return {};
-    }
-
-    const std::wstring candidateIdentity =
-        JoinTokens(candidateTokens);
-    const std::wstring anchorIdentity =
-        JoinTokens(anchorTokens);
-
-    if (anchorIdentity.size() < 3 ||
-        candidateIdentity.size() <=
-            anchorIdentity.size() ||
-        !candidateIdentity.starts_with(
-            anchorIdentity)) {
-        return {};
-    }
-
-    const std::wstring titleDelta =
-        candidateIdentity.substr(
-            anchorIdentity.size());
-
-    if (titleDelta.size() < 2) {
-        return {};
-    }
-
-    const std::wstring candidateTarget =
-        CanonicalTargetStem(candidate);
-    const std::wstring anchorTarget =
-        CanonicalTargetStem(anchor);
-
-    if (anchorTarget.size() < 3 ||
-        candidateTarget.size() <=
-            anchorTarget.size() ||
-        !candidateTarget.starts_with(
-            anchorTarget) ||
-        candidateTarget.size() -
-                anchorTarget.size() <
-            2) {
-        return {};
-    }
-
     bool tokenPrefix =
+        !anchorTokens.empty() &&
         anchorTokens.size() <
             candidateTokens.size();
 
@@ -1712,6 +1863,11 @@ SuiteTopologyDelta(
             candidateTokens.end());
     }
 
+    // The display-title delta is deliberately independent of executable
+    // metadata. After an advertised shortcut is resolved, ProductName and
+    // FileDescription can change the family-stripped metadata tokens while
+    // the user-visible child intent (for example "player" or "boost") stays
+    // stable.
     return {titleDelta};
 }
 
@@ -2902,13 +3058,11 @@ void CalibrateCatalogRoleContext(
     // structural relationships agree:
     //   1) its family-stripped display identity strictly extends another
     //      normal companion in the same catalog context; and
-    //   2) its resolved executable stem strictly extends that companion's
-    //      executable stem.
+    //   2) the real resolved target independently extends that companion by
+    //      executable stem or by a nearby installed directory segment.
     //
-    // This catches generic parent/child launch surfaces such as a base
-    // companion plus a Player/Boost-style child without teaching ALTRun Next
-    // any product vocabulary. Opaque one-off companions remain Normal unless
-    // separate evidence exists.
+    // Target topology is intentionally independent from product vocabulary.
+    // Opaque one-off companions remain Normal unless separate evidence exists.
     std::vector<SuiteTopologyDecision>
         topologyDecisions;
 
@@ -2951,9 +3105,8 @@ void CalibrateCatalogRoleContext(
 
                 const std::size_t
                     anchorLength =
-                        JoinTokens(
-                            NormalizedDistinctiveTokens(
-                                *anchorCommand))
+                        SuiteTitleIdentity(
+                            *anchorCommand)
                             .size();
 
                 if (anchorLength <=
