@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.40
+
+- Extend opaque auxiliary corroboration beyond generic Tools/Utilities folders without introducing product vocabulary.
+- A short family-stripped identity remains non-suppressive by itself; publication now requires the same catalog context, a clear High-confidence primary, and a resolved target that is either a same-directory sidecar or a shallow descendant of the primary install directory.
+- Preserve opaque entries in unrelated install trees and longer independent companions as Normal.
+- Multi-token search now reuses already-cached distinctive identity when ordinary token matching fails, so an exact short residual such as generic `Q7` works in both `q7` and `acme studio q7` without reopening global one/two-character BoundaryPrefix recall.
+- StrongMatchOnly distinctive prefixes remain protected by the family/distinctive admission boundary.
+- Provider Cache advances to schema 21 so stale schema-20 Normal role decisions rebuild under the new publication-time structural rule.
+- SearchEngine remains cache-only and I/O-free; Classic UI/geometry and ResultRanking are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.210`.
+
 ## 0.8.0-alpha.5.39
 
 - Separate shared family intent from entry-owned distinctive intent at the final StrongMatchOnly admission boundary.

@@ -957,12 +957,63 @@ SearchEngine::Search(
                 for (const auto& token :
                      queryTokens) {
 
-                    const auto tokenMatch =
+                    auto tokenMatch =
                         CommandTextScore(
                             command,
                             token,
                             allowPinyin,
                             allowTarget);
+
+                    // Multi-token intent must use the same already-cached
+                    // distinctive identity as a standalone query. This is
+                    // especially important for exact two-character residuals:
+                    // global short BoundaryPrefix recall stays closed, while
+                    // "family q7" can still express the restrictive entry's
+                    // own identity. StrongMatchOnly prefixes remain subject to
+                    // the family/distinctive admission boundary.
+                    if (!tokenMatch) {
+                        for (const auto& distinctive :
+                             command.distinctiveTokens) {
+
+                            auto intentMatch =
+                                relevance::MatchText(
+                                    distinctive,
+                                    token);
+
+                            if (!intentMatch) {
+                                continue;
+                            }
+
+                            const bool exactDistinctive =
+                                intentMatch.kind ==
+                                relevance::MatchKind::
+                                    Exact;
+                            const bool restrictiveIntent =
+                                command.catalogVisibility ==
+                                CatalogVisibility::
+                                    StrongMatchOnly;
+
+                            if (restrictiveIntent &&
+                                !HasDistinctiveCatalogIntent(
+                                    command,
+                                    token)) {
+                                continue;
+                            }
+
+                            if (!exactDistinctive &&
+                                !restrictiveIntent) {
+                                continue;
+                            }
+
+                            intentMatch.field =
+                                relevance::MatchField::
+                                    Alias;
+
+                            tokenMatch =
+                                intentMatch;
+                            break;
+                        }
+                    }
 
                     if (!tokenMatch) {
                         allTokensMatched =

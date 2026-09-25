@@ -42,6 +42,165 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.40":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.40 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 21:
+        fail("v0.8 alpha.5.40 must use Provider Cache schemaVersion 21")
+
+    role_cpp = read("src/core/LaunchRole.cpp")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    ranking_cpp = read("src/core/ResultRanking.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "opaqueAuxiliarySurface",
+        "clearFamilyPrimary != nullptr",
+        "SharesPrimaryInstallDirectory(",
+        "IsNearbyPrimaryInstallTree(",
+        "HasOpaqueCommandIdentity(",
+    ):
+        if token not in role_cpp:
+            fail(f"v0.8 alpha.5.40 opaque topology implementation missing: {token}")
+
+    for token in (
+        "Acme Studio R8 2026",
+        "Acme Studio Y6 2026",
+        'L"r8"',
+        "rootDistantOpaque",
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.40 role regression missing: {token}")
+
+    for token in (
+        "Multi-token intent must use the same already-cached",
+        "HasDistinctiveCatalogIntent(",
+        'L"contoso studio q7"',
+        "opaqueOneLetter",
+    ):
+        if token not in search_cpp + search_tests:
+            fail(f"v0.8 alpha.5.40 multi-token distinctive regression missing: {token}")
+
+    for forbidden in (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    ):
+        if forbidden in role_cpp.lower() or forbidden in search_cpp.lower():
+            fail(f"v0.8 alpha.5.40 product-specific production rule found: {forbidden}")
+
+    for token in (
+        '\\"schemaVersion\\": 21',
+        "staleSchema20ProviderCache",
+        '\\"schemaVersion\\": 20',
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.40 Provider Cache regression missing: {token}")
+
+    for token in (
+        "FILEVERSION 0,8,0,210",
+        "PRODUCTVERSION 0,8,0,210",
+        "0.8.0-alpha.5.40",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.40 resource version missing: {token}")
+
+    if 'version="0.8.0.210"' not in manifest:
+        fail("v0.8 alpha.5.40 manifest fixed version must be 0.8.0.210")
+
+    for token in (
+        '"0.8.0-alpha.5.39"',
+        '"0.8.0-alpha.5.40"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.40 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.40 Opaque Suite Topology + Multi-Token Distinctive Intent validation",
+        "schema 21",
+        "Family + exact short residual identity",
+        "cache-only",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.40 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.40 — Opaque Suite Topology + Multi-Token Distinctive Intent",
+        "schema 21",
+        "0.8.0.210",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.40 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.40" not in changelog:
+        fail("v0.8 alpha.5.40 changelog entry missing")
+
+    if "v0.8.0-alpha.5.40 extends opaque structural corroboration" not in roadmap:
+        fail("v0.8 alpha.5.40 roadmap entry missing")
+
+    if any(token in ranking_cpp for token in (
+        "HasOpaqueCommandIdentity",
+        "IsNearbyPrimaryInstallTree",
+        "SharesPrimaryInstallDirectory",
+    )):
+        fail("v0.8 alpha.5.40 catalog inference leaked into ResultRanking")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.40 frozen Classic asset changed: {asset_path}")
+
+    print(
+        "v0.8.0-alpha.5.40 Opaque Suite Topology + Multi-Token Distinctive Intent verified:",
+        "| Provider Cache schema 21 rebuild",
+        "| same-context opaque install-topology corroboration",
+        "| multi-token cached distinctive identity",
+        "| global short-query precision preserved",
+        "| no product blacklist",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.39":
     import hashlib
     import subprocess

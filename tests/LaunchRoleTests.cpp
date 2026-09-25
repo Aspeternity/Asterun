@@ -2014,6 +2014,50 @@ int main() {
             L"treehouse",
         };
 
+        Command rootOpaque;
+        rootOpaque.source =
+            CommandSource::StartMenu;
+        rootOpaque.title =
+            L"Acme Studio R8 2026";
+        rootOpaque.target =
+            L"C:\\Program Files\\Acme\\Studio\\R8.exe";
+        rootOpaque.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\r8.exe";
+        rootOpaque.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        rootOpaque.roleConfidence =
+            RoleConfidence::Medium;
+        rootOpaque.catalogVisibility =
+            CatalogVisibility::Normal;
+        rootOpaque.catalogGroupKey =
+            mainGroup;
+        rootOpaque.distinctiveTokens = {
+            L"r8",
+        };
+
+        Command rootDistantOpaque;
+        rootDistantOpaque.source =
+            CommandSource::StartMenu;
+        rootDistantOpaque.title =
+            L"Acme Studio Y6 2026";
+        rootDistantOpaque.target =
+            L"C:\\Program Files\\Acme\\Standalone\\Y6.exe";
+        rootDistantOpaque.canonicalIdentity =
+            L"file:c:\\program files\\acme\\standalone\\y6.exe";
+        rootDistantOpaque.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        rootDistantOpaque.roleConfidence =
+            RoleConfidence::Medium;
+        rootDistantOpaque.catalogVisibility =
+            CatalogVisibility::Normal;
+        rootDistantOpaque.catalogGroupKey =
+            mainGroup;
+        rootDistantOpaque.distinctiveTokens = {
+            L"y6",
+        };
+
         Command isolatedTool;
         isolatedTool.source =
             CommandSource::StartMenu;
@@ -2043,6 +2087,8 @@ int main() {
             &opaqueAuxiliary,
             &distantOpaque,
             &treehouse,
+            &rootOpaque,
+            &rootDistantOpaque,
             &isolatedTool,
         };
 
@@ -2128,6 +2174,36 @@ int main() {
                 PrimaryApplication);
         assert(
             treehouse.catalogVisibility ==
+            CatalogVisibility::Normal);
+
+        // The generic opaque rule also applies in the main suite folder:
+        // same catalog context + clear High primary + same install directory
+        // is sufficient structural corroboration without a Tools folder.
+        assert(
+            rootOpaque.applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            rootOpaque.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            rootOpaque.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                rootOpaque
+                    .distinctiveTokens,
+                L"r8"));
+
+        // The same opaque naming remains non-suppressive when the resolved
+        // target is outside the primary installation tree.
+        assert(
+            rootDistantOpaque.applicationRole ==
+            ApplicationRole::
+                PrimaryApplication);
+        assert(
+            rootDistantOpaque.catalogVisibility ==
             CatalogVisibility::Normal);
 
         // Nor can a Tools folder self-promote without a clear related primary.

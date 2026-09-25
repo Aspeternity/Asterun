@@ -3444,9 +3444,10 @@ void CalibrateCatalogRoleContext(
             // A Tools/Utilities Start Menu folder is structural context, not
             // a verdict. It can connect a sibling suite folder back to the
             // clear application family, but suppression still requires either
-            // explicit utility semantics, a real-target sidecar relation, or
-            // an opaque short identity located shallowly inside the primary's
-            // install tree.
+            // explicit utility semantics or a real-target sidecar relation.
+            // Opaque identity uses the stricter suite-context + install-tree
+            // corroboration below and therefore does not require a generic
+            // utility-folder name.
             const bool
                 utilityContainerCorroborated =
                     utilityContainer &&
@@ -3488,13 +3489,24 @@ void CalibrateCatalogRoleContext(
                     *candidate,
                     *clearFamilyPrimary);
 
+            // Opaque naming is never evidence by itself. A short residual
+            // identity can become restrictive outside a Tools/Utilities
+            // container only when two independent structural relationships
+            // agree: Windows catalog context already ties it to a clear
+            // High-confidence primary, and the resolved executable is either
+            // a same-directory sidecar or a shallow descendant of that
+            // primary's install directory. This keeps unrelated install trees
+            // and longer independent companions Normal.
             const bool opaqueAuxiliarySurface =
-                utilityContainerCorroborated &&
+                clearFamilyPrimary != nullptr &&
                 HasOpaqueCommandIdentity(
                     *candidate) &&
-                IsNearbyPrimaryInstallTree(
-                    *candidate,
-                    *clearFamilyPrimary);
+                (SharesPrimaryInstallDirectory(
+                     *candidate,
+                     *clearFamilyPrimary) ||
+                 IsNearbyPrimaryInstallTree(
+                     *candidate,
+                     *clearFamilyPrimary));
 
             const bool identityRole =
                 candidate->applicationRole ==

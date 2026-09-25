@@ -609,6 +609,12 @@ int main(int argc, char** argv) {
                     L"My Hidden Utility",
                     L"MyHiddenUtility.exe",
                     7),
+                MakeCommand(
+                    L"c9",
+                    L"contosostudioq7",
+                    L"Contoso Studio Q7",
+                    L"Q7.exe",
+                    8),
             };
 
         for (std::size_t index = 0;
@@ -724,6 +730,28 @@ int main(int argc, char** argv) {
             .catalogVisibility =
             CatalogVisibility::Hidden;
 
+        catalogCommands[8].source =
+            CommandSource::StartMenu;
+        catalogCommands[8]
+            .surfaceClass =
+            LaunchSurfaceClass::
+                PrimaryApplication;
+        catalogCommands[8]
+            .applicationRole =
+            ApplicationRole::
+                SuiteUtility;
+        catalogCommands[8]
+            .catalogVisibility =
+            CatalogVisibility::
+                StrongMatchOnly;
+        catalogCommands[8]
+            .catalogGroupKey =
+                catalogGroup;
+        catalogCommands[8]
+            .distinctiveTokens = {
+                L"q7",
+            };
+
         const auto family =
             engine.Search(
                 catalogCommands,
@@ -749,6 +777,9 @@ int main(int argc, char** argv) {
         assert(!ContainsCommand(
             family,
             5));
+        assert(!ContainsCommand(
+            family,
+            8));
 
         const auto familyPrefix =
             engine.Search(
@@ -811,6 +842,36 @@ int main(int argc, char** argv) {
         assert(ContainsCommand(
             familyPerformance,
             2));
+
+        const auto opaqueExact =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"q7",
+                20);
+        assert(ContainsCommand(
+            opaqueExact,
+            8));
+
+        const auto familyOpaque =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"contoso studio q7",
+                20);
+        assert(ContainsCommand(
+            familyOpaque,
+            8));
+
+        const auto opaqueOneLetter =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"q",
+                20);
+        assert(!ContainsCommand(
+            opaqueOneLetter,
+            8));
 
         const auto settings =
             engine.Search(

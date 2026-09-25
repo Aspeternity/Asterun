@@ -722,6 +722,21 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Confirm the keystroke path performs cached string matching only: no filesystem, Shell/MSI, EXE metadata or catalog-role inference.
 - [ ] Confirm no product/vendor/abbreviation rule was added and Classic UI/geometry is unchanged.
 
+## v0.8.0-alpha.5.40 Opaque Suite Topology + Multi-Token Distinctive Intent validation
+
+- [ ] Upgrade from alpha.5.39. Provider Cache rebuilds once under schema 21; settings, user commands and usage remain unchanged.
+- [ ] A short opaque entry in the same normal suite Start Menu context becomes `suite-utility + medium + strong-match-only` only when a clear High-confidence primary exists and the resolved target is a same-directory sidecar or shallow descendant of the primary install directory.
+- [ ] The same short opaque identity in an unrelated install tree remains Normal.
+- [ ] Longer independent companions remain Normal even when they share the same suite context/install tree.
+- [ ] A family query hides the corroborated opaque auxiliary while keeping the primary and independent companions.
+- [ ] The short residual identity alone re-admits the auxiliary.
+- [ ] Family + exact short residual identity re-admits the auxiliary.
+- [ ] A one-character residual prefix does not re-admit it and global one/two-character BoundaryPrefix behavior remains unchanged.
+- [ ] Inspect `data/provider-cache.json`: schema is 21 and the corrected role/visibility/distinctiveTokens persist after restart.
+- [ ] Confirm no product/vendor/abbreviation rule was added.
+- [ ] Confirm the keystroke path remains cache-only: no filesystem, Shell/MSI, EXE metadata or role inference.
+- [ ] Recheck utility-container, advertised-shortcut, suite-subordinate, Everything, pinyin, wildcard/path syntax, usage scoring, idle CPU/memory and frozen Classic UI/geometry.
+
 ## Release assets
 
 For the candidate tag:

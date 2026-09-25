@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.40 — Opaque Suite Topology + Multi-Token Distinctive Intent
+
+Alpha.5.40 closes the two real-machine gaps left after alpha.5.39. First, an opaque auxiliary no longer needs to live under a generically named Tools/Utilities/工具 Start Menu folder before structural suite evidence can be used. Opaque naming still contributes no role evidence by itself: promotion to `SuiteUtility + Medium + StrongMatchOnly` requires a clear High-confidence primary in the same catalog context plus a resolved executable that is either a same-directory sidecar or a shallow descendant of the primary application's install directory. An unrelated install tree remains Normal, and longer independent companions remain untouched.
+
+Second, multi-token search now consumes the same cached distinctive identity used by standalone explicit searches. An exact short residual such as generic `Q7` can therefore satisfy `acme studio q7` even though ordinary one/two-character later-word BoundaryPrefix recall remains disabled. The family-only gate still blocks a shared suite prefix from re-admitting a restrictive entry.
+
+Provider Cache advances to schema 21 so old Normal role decisions are rebuilt once. The keystroke path adds only cache-resident string matching: no filesystem, Shell/MSI, executable metadata or role inference is performed while typing. Classic UI/geometry and ResultRanking remain unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.210`.
+
 ## v0.8.0-alpha.5.39 — Family-Distinctive Intent Boundary
 
 Alpha.5.39 closes the final StrongMatchOnly admission leak found during real-machine validation. A restrictive entry may carry cached distinctive text from several discovery/publication paths, but a shared suite-family query is not explicit intent for that entry.

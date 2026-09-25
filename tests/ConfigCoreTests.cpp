@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 20,\n"
+        "  \"schemaVersion\": 21,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1787,6 +1787,31 @@ int main() {
             std::string(
                 providers::kStartMenu))
             .commands.empty());
+
+    // Schema 20 predates same-context opaque install-topology
+    // corroboration. Rebuild generated state so a previously Normal opaque
+    // suite sidecar can receive the current publication-time role decision.
+    const auto staleSchema20ProviderCache =
+        data /
+        "provider-cache-schema20-stale.json";
+
+    WriteText(
+        staleSchema20ProviderCache,
+        "{\n"
+        "  \"schemaVersion\": 20,\n"
+        "  \"providers\": {\n"
+        "    \"windows.startmenu\": {\n"
+        "      \"generatedAtUnix\": 1700000255,\n"
+        "      \"commands\": []\n"
+        "    }\n"
+        "  }\n"
+        "}\n");
+
+    ProviderCache staleSchema20Cache(
+        staleSchema20ProviderCache);
+
+    assert(
+        staleSchema20Cache.Load().empty());
 
     // Schema 19 predates opaque auxiliary corroboration and ProductName
     // semantic evidence. Generated state must rebuild so short opaque entries
