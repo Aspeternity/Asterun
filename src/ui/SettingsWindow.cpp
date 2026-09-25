@@ -1,3 +1,4 @@
+#include "Feedback.hpp"
 #include "SettingsWindow.hpp"
 
 #include "TopLevelWindowPresentation.hpp"
@@ -350,7 +351,7 @@ bool SettingsWindow::EnsureCreated() {
         return true;
     }
 
-    MessageBoxW(
+    altrun::ui::ShowMessage(
         nullptr,
         T(L"无法创建设置窗口。",
           L"Could not create the Settings window."),
@@ -680,6 +681,7 @@ void SettingsWindow::CreateGeneralPage() {
             kCardBackground);
 
     showTrayIcon_ = CreateCheckboxRow(L"", kIdShowTrayIcon);
+    soundEnabled_ = CreateCheckboxRow(L"", kIdSoundEnabled);
     addToSendToMenu_ = CreateCheckboxRow(L"", kIdAddToSendToMenu);
 
     searchBehaviorTitle_ = CreateStatic(L"");
@@ -730,7 +732,7 @@ void SettingsWindow::CreateGeneralPage() {
     generalControls_ = {
         generalBehaviorTitle_, startWithWindows_,
         startupBehaviorLabel_, startupBehavior_,
-        showTrayIcon_, addToSendToMenu_,
+        showTrayIcon_, soundEnabled_, addToSendToMenu_,
         searchBehaviorTitle_, showResultIcons_, pinyinSearch_,
         numericQuickLaunch_, executeSingleResult_,
         placementSectionTitle_,
@@ -1108,6 +1110,7 @@ void SettingsWindow::ApplyFonts() {
         startupBehaviorLabel_,
         startupBehavior_,
         showTrayIcon_,
+        soundEnabled_,
         addToSendToMenu_,
         showResultIcons_,
         pinyinSearch_,
@@ -1299,6 +1302,7 @@ void SettingsWindow::ApplyLanguage() {
         reinterpret_cast<LPARAM>(T(L"显示启动通知", L"Show startup notification")));
     SendMessageW(startupBehavior_, CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(T(L"显示启动器", L"Show launcher")));
+    SetWindowTextW(soundEnabled_, T(L"提示音", L"Sound effects"));
     SetWindowTextW(showTrayIcon_, T(L"显示系统托盘图标", L"Show system tray icon"));
     SetWindowTextW(addToSendToMenu_, T(L"添加到“发送到”菜单", L"Add to “Send to” menu"));
 
@@ -1754,8 +1758,8 @@ void SettingsWindow::RefreshFromSettings() {
     SyncUpdateStatusTimer();
 
     for (HWND control :
-         std::array<HWND, 14>{
-             startWithWindows_, showTrayIcon_, addToSendToMenu_,
+         std::array<HWND, 15>{
+             startWithWindows_, showTrayIcon_, soundEnabled_, addToSendToMenu_,
              showResultIcons_, pinyinSearch_, numericQuickLaunch_,
              executeSingleResult_, providerStartMenu_, providerPackaged_,
              providerAppPaths_, providerPath_, providerEverything_,
@@ -2510,7 +2514,7 @@ void SettingsWindow::ResetHotkeyAction(
 
 void SettingsWindow::ResetAllHotkeys() {
     const int answer =
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"恢复全部默认快捷键？\n\n主热键将恢复为 Alt + Space，辅助热键关闭，启动器内动作恢复默认组合。",
               L"Reset every hotkey to defaults?\n\nPrimary activation returns to Alt + Space, secondary activation is disabled and launcher actions regain their defaults."),
@@ -2524,7 +2528,7 @@ void SettingsWindow::ResetAllHotkeys() {
     }
 
     if (!app_.ResetHotkeyBindings()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"恢复失败。默认全局热键可能已被其他程序占用，原有可用绑定已恢复。",
               L"Reset failed. Another app may own a default global shortcut; the previous working bindings were restored."),
@@ -2711,7 +2715,7 @@ void SettingsWindow::AcquireEverything() {
     }
 
     const int answer =
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"ALTRun Next 会先尝试复用本机已有的 Everything。\n\n如果需要自己的托管便携版，会从 voidtools 官方获取 Everything 1.4.1.1032 标准版（不是 Lite）并校验 SHA-256。托管版会安装 / 启动 Everything Service 来完成 NTFS 索引，以普通用户后台运行，并隐藏 Everything 托盘图标。\n\n首次安装服务时 Windows 会弹出一次 UAC，请确认后继续。\n\n继续吗？",
               L"ALTRun Next will first try to reuse an existing Everything copy.\n\nIf its managed portable copy is needed, it will fetch the official Everything 1.4.1.1032 standard build (not Lite) from voidtools and verify SHA-256. The managed copy installs / starts the Everything Service for NTFS indexing, runs in the background as a standard user, and hides the Everything tray icon.\n\nWindows will show one UAC prompt when the service is first installed.\n\nContinue?"),
@@ -3008,7 +3012,7 @@ void SettingsWindow::ApplyClassicBehaviorControl(UINT id) {
     }
 
     if (!app_.SetClassicBehavior(numericQuickLaunch, executeSingleResult, pinyinSearch)) {
-        MessageBoxW(hwnd_,
+        altrun::ui::ShowMessage(hwnd_,
             T(L"无法保存搜索与执行设置。", L"Unable to save search and execution settings."),
             L"ALTRun Next", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
@@ -3051,7 +3055,7 @@ void SettingsWindow::ImportCommands() {
             &imported,
             &skipped)) {
 
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"导入失败，原数据未被替换。",
               L"Import failed. Existing data was not replaced."),
@@ -3117,7 +3121,7 @@ void SettingsWindow::ExportCommands() {
     if (!app_.ExportUserCommands(
             std::filesystem::path(file.data()))) {
 
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"导出失败。",
               L"Export failed."),
@@ -3134,7 +3138,7 @@ void SettingsWindow::ExportCommands() {
 
 void SettingsWindow::ClearUsageHistory() {
     const int answer =
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"确定清空全部使用次数和最近使用时间吗？\n\n快捷项本身不会被删除。",
               L"Clear all launch counts and recent-use timestamps?\n\nShortcuts themselves will not be deleted."),
@@ -3144,7 +3148,7 @@ void SettingsWindow::ClearUsageHistory() {
     if (answer != IDYES) return;
 
     if (!app_.ClearUsageHistory()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"清空使用历史失败。",
               L"Failed to clear usage history."),
@@ -3170,7 +3174,7 @@ void SettingsWindow::RebuildProgramIndex() {
 
 void SettingsWindow::RestoreDefaultSettings() {
     const int answer =
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"确定恢复默认设置吗？\n\n不会删除你的快捷项和使用历史。",
               L"Restore default settings?\n\nYour shortcuts and usage history will not be deleted."),
@@ -3180,7 +3184,7 @@ void SettingsWindow::RestoreDefaultSettings() {
     if (answer != IDYES) return;
 
     if (!app_.RestoreDefaultSettings()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"恢复失败。默认热键 Alt + Space 可能发生冲突，或系统设置无法写入。",
               L"Restore failed. The default Alt + Space hotkey may be unavailable, or a system setting could not be written."),
@@ -3203,13 +3207,14 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
     bool success = true;
     switch (id) {
     case kIdStartWithWindows: success = app_.SetStartWithWindows(!settings.startWithWindows); break;
+    case kIdSoundEnabled: success = app_.SetSoundEnabled(!settings.soundEnabled); break;
     case kIdShowTrayIcon: success = app_.SetShowTrayIcon(!settings.showTrayIcon); break;
     case kIdAddToSendToMenu: success = app_.SetAddToSendToMenu(!settings.addToSendToMenu); break;
     case kIdShowResultIcons: success = app_.SetShowResultIcons(!settings.showResultIcons); break;
     default: return;
     }
     if (!success) {
-        MessageBoxW(hwnd_, T(L"无法保存此设置。", L"Unable to save this setting."),
+        altrun::ui::ShowMessage(hwnd_, T(L"无法保存此设置。", L"Unable to save this setting."),
             L"ALTRun Next", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
     }
@@ -3391,7 +3396,7 @@ void SettingsWindow::CommitPendingProviderChanges() {
     RefreshFromSettings();
 
     if (failed) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             everythingFailed
                 ? T(L"部分搜索来源未能应用；Everything 托管模式可能需要 Windows 管理员权限。未成功的开关已恢复实际状态。",
@@ -3411,7 +3416,7 @@ void SettingsWindow::ApplyStartupBehaviorControl() {
     if (index == 0) behavior = StartupBehavior::Silent;
     else if (index == 2) behavior = StartupBehavior::ShowLauncher;
     if (!app_.SetStartupBehavior(behavior)) {
-        MessageBoxW(hwnd_, T(L"无法保存启动行为设置。", L"Unable to save startup behavior."),
+        altrun::ui::ShowMessage(hwnd_, T(L"无法保存启动行为设置。", L"Unable to save startup behavior."),
             L"ALTRun Next", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
     }
@@ -3425,7 +3430,7 @@ void SettingsWindow::ApplyMonitorControl() {
     if (monitorIndex == 1) popupMonitor = "active";
     else if (monitorIndex == 2) popupMonitor = "primary";
     if (!app_.SetPopupMonitor(std::move(popupMonitor))) {
-        MessageBoxW(hwnd_, T(L"无法保存启动器显示器设置。", L"Unable to save the launcher monitor setting."),
+        altrun::ui::ShowMessage(hwnd_, T(L"无法保存启动器显示器设置。", L"Unable to save the launcher monitor setting."),
             L"ALTRun Next", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
     }
@@ -3477,7 +3482,7 @@ void SettingsWindow::ApplyWindowPlacementControls() {
                 settingsIndex),
             placementMode(
                 shortcutManagerIndex))) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"无法保存窗口位置设置。",
               L"Unable to save window placement settings."),
@@ -3553,6 +3558,7 @@ bool SettingsWindow::ToggleChecked(
 
     switch (id) {
     case kIdStartWithWindows: return settings.startWithWindows;
+    case kIdSoundEnabled: return settings.soundEnabled;
     case kIdShowTrayIcon: return settings.showTrayIcon;
     case kIdAddToSendToMenu: return settings.addToSendToMenu;
     case kIdShowResultIcons: return settings.showResultIcons;
@@ -4203,7 +4209,9 @@ void SettingsWindow::Layout() {
 
         const int trayTop = startupTop + comboRowHeight;
         MoveWindow(showTrayIcon_, behaviorX, trayTop, behaviorWidth, toggleHeight, TRUE);
-        MoveWindow(addToSendToMenu_, behaviorX, trayTop + toggleHeight,
+        MoveWindow(soundEnabled_, behaviorX, trayTop + toggleHeight,
+            behaviorWidth, toggleHeight, TRUE);
+        MoveWindow(addToSendToMenu_, behaviorX, trayTop + 2 * toggleHeight,
             behaviorWidth, toggleHeight, TRUE);
 
         const int searchX = metrics.search.left + Scale(1);
@@ -6037,6 +6045,7 @@ void SettingsWindow::DrawGeneralToggle(
 
     switch (id) {
     case kIdStartWithWindows: title = T(L"开机启动", L"Start with Windows"); break;
+    case kIdSoundEnabled: title = T(L"提示音", L"Sound effects"); break;
     case kIdShowTrayIcon: title = T(L"显示系统托盘图标", L"Show system tray icon"); break;
     case kIdAddToSendToMenu: title = T(L"添加到“发送到”菜单", L"Add to “Send to” menu"); break;
     case kIdShowResultIcons: title = T(L"显示搜索结果图标", L"Show search result icons"); break;
@@ -6395,7 +6404,7 @@ void SettingsWindow::TogglePrereleaseUpdates() {
     if (!app_.SetUpdateSettings(
             settings.autoCheckUpdates,
             nextChannel)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"无法保存更新设置。",
               L"Could not save update settings."),
@@ -7065,6 +7074,7 @@ LRESULT SettingsWindow::HandleMessage(
             return 0;
 
         case kIdStartWithWindows:
+        case kIdSoundEnabled:
         case kIdShowTrayIcon:
         case kIdAddToSendToMenu:
         case kIdShowResultIcons:
@@ -7198,7 +7208,7 @@ LRESULT SettingsWindow::HandleMessage(
                 if (!app_.SetUpdateSettings(
                         !settings.autoCheckUpdates,
                         settings.updateChannel)) {
-                    MessageBoxW(
+                    altrun::ui::ShowMessage(
                         hwnd_,
                         T(L"无法保存更新设置。",
                           L"Could not save update settings."),
@@ -7297,6 +7307,7 @@ LRESULT SettingsWindow::HandleMessage(
         }
 
         if (item->CtlID == kIdStartWithWindows ||
+            item->CtlID == kIdSoundEnabled ||
             item->CtlID == kIdShowTrayIcon ||
             item->CtlID == kIdAddToSendToMenu ||
             item->CtlID == kIdShowResultIcons ||

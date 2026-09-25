@@ -1,3 +1,4 @@
+#include "Feedback.hpp"
 #include "LauncherWindow.hpp"
 #include "../ResourceIds.h"
 
@@ -1447,6 +1448,7 @@ void LauncherWindow::Show() {
         return;
     }
 
+    const bool wasVisible = IsWindowVisible(hwnd_) != FALSE;
     CancelPendingNumericIntent();
     lastTextInputTick_ = 0;
 
@@ -1484,6 +1486,7 @@ void LauncherWindow::Show() {
     SetFocus(edit_);
     SendMessageW(edit_, EM_SETSEL, 0, -1);
     RefreshResults();
+    if (!wasVisible && IsWindowVisible(hwnd_)) ui::PlayFeedback(FeedbackCue::Reveal);
 }
 
 void LauncherWindow::Hide() {
@@ -2781,9 +2784,9 @@ void LauncherWindow::ShowStartupNotification(
         message.c_str(),
         _TRUNCATE);
 
-    Shell_NotifyIconW(
-        NIM_MODIFY,
-        &data);
+    if (Shell_NotifyIconW(NIM_MODIFY, &data)) {
+        ui::PlayFeedback(FeedbackCue::Startup);
+    }
 }
 
 void LauncherWindow::QueueNewShortcutForPath(
@@ -3227,7 +3230,7 @@ void LauncherWindow::ShowResultContextMenu(
                 app_.BaseDirectory(),
                 result.kind ==
                     ResultKind::Folder)) {
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 hwnd_,
                 zh
                     ? L"无法打开目标所在目录。目标可能已移动、删除，或不是文件系统路径。"
@@ -3246,45 +3249,9 @@ void LauncherWindow::ShowResultContextMenu(
         return;
 
     case kResultContextDeleteShortcut: {
-        std::wstring display =
-            result.subtitle.empty()
-                ? result.title
-                : result.subtitle;
-
-        std::wstring message =
-            zh
-                ? L"确定删除快捷项“"
-                : L"Delete shortcut \"";
-        message += display;
-        message +=
-            zh
-                ? L"”吗？\n\n此操作会立即写入 commands.json。"
-                : L"\"?\n\nThe change will be written to commands.json immediately.";
-
         contextActionModalActive_ = true;
-        const int answer =
-            MessageBoxW(
-                hwnd_,
-                message.c_str(),
-                zh
-                    ? L"删除快捷项"
-                    : L"Delete shortcut",
-                MB_YESNO |
-                    MB_ICONWARNING);
+        app_.ConfirmDeleteUserCommand(hwnd_, result.id);
         contextActionModalActive_ = false;
-
-        if (answer == IDYES &&
-            !app_.DeleteUserCommand(
-                result.id)) {
-            MessageBoxW(
-                hwnd_,
-                zh
-                    ? L"删除失败。"
-                    : L"Delete failed.",
-                L"ALTRun Next",
-                MB_OK |
-                    MB_ICONERROR);
-        }
         return;
     }
 
@@ -3417,6 +3384,11 @@ LRESULT LauncherWindow::HandleEditMessage(
         message ==
             WM_IME_ENDCOMPOSITION) {
         imeComposing_ = false;
+    }
+
+    if (message == WM_CHAR && !imeComposing_ &&
+        (wParam == L'\r' || wParam == L'\t' || wParam == 27)) {
+        return 0;
     }
 
     if (message == WM_CHAR ||

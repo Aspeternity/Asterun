@@ -1,3 +1,4 @@
+#include "Feedback.hpp"
 #include "ShortcutPathConverterDialog.hpp"
 
 #include "TopLevelWindowPresentation.hpp"
@@ -705,7 +706,7 @@ bool ShortcutPathConverterDialog::Show(
         owner);
 
     if (!dialog.Create()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             owner,
             app.SettingsData().language ==
                     Language::ZhCN
@@ -2900,7 +2901,7 @@ void ShortcutPathConverterDialog::ApplySelected() {
 
     if (!app_.ApplyUserCommandPathUpdates(
             updates)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"写入 commands.json 失败，原数据已保留。",
               L"Failed to write commands.json. Existing data was preserved."),

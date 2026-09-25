@@ -1,3 +1,4 @@
+#include "Feedback.hpp"
 #include "ShortcutEditorDialog.hpp"
 
 #include "TopLevelWindowPresentation.hpp"
@@ -484,7 +485,7 @@ bool ShortcutEditorDialog::Show(
     if (!dialog.Create(
             commandId,
             nullptr)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             owner,
             app.SettingsData().language ==
                     Language::ZhCN
@@ -511,7 +512,7 @@ bool ShortcutEditorDialog::ShowNew(
     if (!dialog.Create(
             {},
             &seed)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             owner,
             app.SettingsData().language ==
                     Language::ZhCN
@@ -2821,7 +2822,7 @@ bool ShortcutEditorDialog::Save() {
 
     if (command.keyword.empty() ||
         command.target.empty()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"快捷词和目标为必填项。",
               L"Keywords and target are required."),
@@ -2836,7 +2837,7 @@ bool ShortcutEditorDialog::Save() {
             RuntimeInputMode::None &&
         !CanAcceptRuntimeInput(
             command)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"当前目标类型无法自动放置运行时输入。\n\n请在目标、固定参数或工作目录中加入 {input}。",
               L"This target type has no automatic location for runtime input.\n\nAdd {input} to the target, fixed arguments or working directory."),
@@ -2867,7 +2868,7 @@ bool ShortcutEditorDialog::Save() {
               L"\".\n\nSave anyway?");
 
         const int answer =
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 hwnd_,
                 message.c_str(),
                 T(L"快捷词冲突",
@@ -2901,7 +2902,7 @@ bool ShortcutEditorDialog::Save() {
     }
 
     if (!saved) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"写入 commands.json 失败，原数据未被替换。",
               L"Failed to write commands.json. Existing data was not replaced."),
@@ -2922,7 +2923,7 @@ void ShortcutEditorDialog::Test() {
         CollectCommand();
 
     if (command.target.empty()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"请先填写目标。",
               L"Enter a target first."),
@@ -2937,7 +2938,7 @@ void ShortcutEditorDialog::Test() {
             RuntimeInputMode::None &&
         !CanAcceptRuntimeInput(
             command)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"当前运行时输入配置不完整，请先加入 {input} 或改用应用程序/命令行自动追加。",
               L"Runtime input is incomplete. Add {input}, or use Application/Command line auto-append."),
@@ -2955,7 +2956,7 @@ void ShortcutEditorDialog::Test() {
     if (command.runtimeInputMode !=
             RuntimeInputMode::None &&
         runtimeInput.empty()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"请先填写“测试输入”，这样可以直接验证动态参数。",
               L"Enter Test input first to verify the dynamic argument."),

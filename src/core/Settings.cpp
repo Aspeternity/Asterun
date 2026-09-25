@@ -427,6 +427,7 @@ bool SettingsStore::LoadJson() {
                               Silent;
             }
 
+            settings_.soundEnabled = general.value("soundEnabled", settings_.soundEnabled);
             settings_.showTrayIcon =
                 general.value(
                     "showTrayIcon",
@@ -948,6 +949,7 @@ bool SettingsStore::Save() const {
             {"startupBehavior",
              StartupBehaviorName(
                  settings_.startupBehavior)},
+            {"soundEnabled", settings_.soundEnabled},
             {"showTrayIcon",
              settings_.showTrayIcon},
             {"addToSendToMenu",
@@ -1144,6 +1146,27 @@ bool SettingsStore::SetShowTrayIcon(
         settings_;
 
     settings_.showTrayIcon =
+        enabled;
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::SetSoundEnabled(
+    bool enabled) {
+
+    if (readOnlyDueToNewerSchema_) {
+        return false;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_.soundEnabled =
         enabled;
 
     if (!Save()) {

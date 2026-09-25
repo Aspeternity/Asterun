@@ -1,3 +1,4 @@
+#include "../ui/Feedback.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -2112,7 +2113,7 @@ PerformUninstall(
                    ? L"ALTRun Next 已卸载完成。\n\n托管 Everything 和后台服务已移除；用户数据仍保留在原目录的 data 文件夹中。"
                    : L"ALTRun Next has been uninstalled.\n\nManaged Everything and its service were removed. User data remains in the original data folder.");
 
-    MessageBoxW(
+    altrun::ui::ShowMessage(
         nullptr,
         message.c_str(),
         L"ALTRun Next",
@@ -2139,7 +2140,7 @@ BeginUninstall() {
 
     if (!ValidateInstallRoot(
             install)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             ChineseUi()
                 ? L"无法确认 ALTRun Next 安装目录，卸载已取消。"
@@ -2151,7 +2152,7 @@ BeginUninstall() {
     }
 
     const int confirm =
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             ChineseUi()
                 ? L"将卸载 ALTRun Next，并移除由 ALTRun Next 安装的 Everything 客户端及 Windows Service。\n\n你自己安装的外部 Everything 不会被修改。\n\n是否继续？"
@@ -2166,7 +2167,7 @@ BeginUninstall() {
     }
 
     const int dataChoice =
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             ChineseUi()
                 ? L"是否同时删除设置、快捷词、使用记录等用户数据？\n\n“是” = 全部删除\n“否” = 保留 data 用户数据\n“取消” = 退出卸载"
@@ -2322,7 +2323,7 @@ BeginUninstall() {
 
         if (error !=
             ERROR_CANCELLED) {
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 nullptr,
                 ChineseUi()
                     ? L"无法启动管理员卸载程序。"
@@ -2355,7 +2356,7 @@ BeginUninstall() {
             info.hProcess);
 
         if (!brokerOk) {
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 nullptr,
                 ChineseUi()
                     ? L"无法完成卸载前的资源管理器释放。"
@@ -2430,7 +2431,7 @@ int WINAPI wWinMain(
                     gRemovalFailureLockOwners;
             }
 
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 nullptr,
                 message.c_str(),
                 L"ALTRun Next",

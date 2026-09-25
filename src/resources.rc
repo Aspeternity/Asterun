@@ -13,9 +13,14 @@ IDB_CLASSIC_SHORTCUT_200 BITMAP "resources/classic_shortcut_200.bmp"
 IDB_CLASSIC_CLOSE_200 BITMAP "resources/classic_close_200.bmp"
 IDB_CLASSIC_BACKGROUND BITMAP "resources/classic_bg.bmp"
 
+IDW_STARTUP WAVE "resources/feedback_startup.wav"
+IDW_REVEAL WAVE "resources/feedback_reveal.wav"
+IDW_EXECUTE WAVE "resources/feedback_execute.wav"
+IDW_FAILURE WAVE "resources/feedback_failure.wav"
+
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,8,0,213
- PRODUCTVERSION 0,8,0,213
+ FILEVERSION 0,8,0,214
+ PRODUCTVERSION 0,8,0,214
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -32,11 +37,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Aspeternity\0"
             VALUE "FileDescription", "ALTRun Next\0"
-            VALUE "FileVersion", "0.8.0-alpha.5.43\0"
+            VALUE "FileVersion", "0.8.0-alpha.5.44\0"
             VALUE "InternalName", "ALTRunNext\0"
             VALUE "OriginalFilename", "ALTRunNext.exe\0"
             VALUE "ProductName", "ALTRun Next\0"
-            VALUE "ProductVersion", "0.8.0-alpha.5.43\0"
+            VALUE "ProductVersion", "0.8.0-alpha.5.44\0"
         END
     END
     BLOCK "VarFileInfo"

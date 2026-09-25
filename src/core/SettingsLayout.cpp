@@ -59,7 +59,7 @@ GeneralLayoutMetrics BuildGeneralLayout(
         scale(kFirstCardTopLogical);
     const int behaviorBottom =
         behaviorTop +
-        scale(kToggleRowLogical) * 3 +
+        scale(kToggleRowLogical) * 4 +
         scale(
             ui::kSettingsComboRowLogical);
 

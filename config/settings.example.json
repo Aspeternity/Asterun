@@ -1,13 +1,12 @@
 {
-  "schemaVersion": 9,
+  "schemaVersion": 11,
   "general": {
     "startWithWindows": false,
-    "showOnStartup": false,
-    "hideAfterLaunch": true,
-    "clearQueryOnShow": true,
-    "hideOnFocusLost": true,
     "showTrayIcon": true,
-    "popupMonitor": "cursor"
+    "popupMonitor": "cursor",
+    "startupBehavior": "notification",
+    "soundEnabled": true,
+    "addToSendToMenu": false
   },
   "hotkey": {
     "modifiers": [

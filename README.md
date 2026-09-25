@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.44 — Consistent Confirmation + Sound Feedback
+
+Launcher and Shortcut Manager now share one native Delete / Cancel confirmation, with Cancel focused by default and the same canonical shortcut name. The dialog explains that the target file is retained. Both entry points share deletion and failure handling.
+
+General has a single **Sound effects / 提示音** toggle, enabled by default, with no preview button. Four original embedded PCM cues provide startup-notification, hidden-to-visible launcher, successful launch and operation-failure feedback. A visible launcher does not replay its reveal cue; silent startup stays silent, and startup-to-launcher plays only its reveal cue. Typing, navigation, hiding, normal confirmation and background refresh stay quiet. Playback is asynchronous, short, rate-limited and never queued. Turning sound off immediately stops playback. Application prompts use one native dialog layer without stock Windows warning sounds; OS UAC audio remains Windows-controlled. Canceling elevation is not an application error. The uninstaller uses silent prompts.
+
+Settings schema **11** migrates existing settings with sounds enabled; Commands **2**, Usage **2** and Provider Cache **22** remain unchanged. Original ALTRun's `Popup.wav` playback was inspected as a behavior reference; no third-party sound recording is redistributed. Windows fixed FileVersion/ProductVersion is `0.8.0.214`. Real-Windows sound, modal focus and DPI validation are required before closeout.
+
 ## v0.8.0-alpha.5.43 — Query-Scoped Usage + Packaged Entry Integrity
 
 Search ranking now learns from the exact normalized query used when an application successfully launches. Repeated `s` selections can change the `s` ranking, while launches through `st` cannot change it. Numeric quick launches capture the query when the result is selected, including delayed execution. Existing global usage counts remain available for empty-query ordering; prior counts have no inferred query context. Successful new search launches build bounded per-command query history (at most eight queries, up to 32 characters each). Explicit path/wildcard searches do not create query history. Usage data advances to schema 2; Provider Cache remains schema 22. Search is still memory-only while typing.

@@ -8,6 +8,20 @@ Automated CI covers compilation, Config/Search tests, provider smoke tests, hotk
 
 The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
+## v0.8.0-alpha.5.44 Confirmation + Sound Feedback validation
+
+- [ ] Launcher and Manager deletion show the same canonical name, Delete / Cancel buttons and target-file-retained text. Cancel has initial focus; Enter, Esc and X retain the shortcut. Explicit Delete removes only the shortcut; no success popup or sound.
+- [ ] Long and empty-title shortcut names are readable (keyword fallback); nested modal focus returns correctly to Launcher/Manager, including provider refresh while the dialog is open.
+- [ ] General shows 提示音 / Sound effects with one toggle and no preview button; rapid clicks, page changes and 100/125/150/175/200% DPI preserve state and scrolling. Placement controls remain reachable.
+- [ ] Upgrade from schema 10 enables sound while preserving startup mode and other preferences. Disable, restart and confirm the choice persists. Reset defaults enables sound. A failed settings write leaves the old preference intact.
+- [ ] Notification startup plays one startup cue; Show launcher startup plays one reveal cue; Silent startup plays none. Updating with suppressed startup presentation stays quiet.
+- [ ] Hidden-to-visible Launcher plays one short cue; requesting an already-visible Launcher does not. Rapid hide/reveal and launch never queue an audio backlog.
+- [ ] Successful ordinary, packaged and numeric/delayed launches each play one execution cue. Canceling UAC is silent; a genuine failure produces one failure cue and readable error dialog.
+- [ ] Typing, Enter with no results, Tab, Escape, navigation, ordinary confirmation, saving/deleting successfully and background refresh produce no warning beep.
+- [ ] Sound off stops any current cue immediately; launch/error dialogs and all subsequent application actions remain silent. Windows UAC and other applications retain their own sound policies.
+- [ ] Uninstaller confirmations remain silent and retain default buttons, cancellation and foreground behavior. Validate on real Windows; no destructive uninstall is needed for sound testing.
+- [ ] `s`/`st` query isolation, packaged entry integrity and Classic frozen visuals remain intact. Settings schema 11; Commands 2, Usage 2, Provider Cache 22; fixed version 0.8.0.214.
+
 ## Test matrix
 
 Record each environment that was actually tested.

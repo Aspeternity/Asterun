@@ -276,7 +276,9 @@ In progress:
 - v0.8.0-alpha.5.41 adds Common Files structural corroboration for suite-owned opaque helpers in a related utility container, after real-machine cache evidence showed that the primary and helper can be installed on different drives; Provider Cache schema 22 rebuilds generated roles
 - v0.8.0-alpha.5.42 adds bounded usage ranking among comparable intent matches: two or more launches contribute a stable frequency bonus while stronger match kinds, launch surfaces and fields retain precedence; existing usage schema 1 and Provider Cache schema 22 remain unchanged
 - v0.8.0-alpha.5.43 separates ranking history by successful normalized query after real-machine `s`/`st` launches demonstrated cross-query interference; also suppresses a packaged application's noninteractive App Paths EXE only when the enabled packaged provider supplies the corresponding AUMID. Usage schema 2 migrates old global counts; Provider Cache schema remains 22
-- next relevance step: verify persisted `s` ordering remains unchanged by `st` launches, and validate package AUMID entry still launches while its internal App Paths executable is absent
+- alpha.5.43 real-machine closeout: per-query ordering isolation and packaged AUMID/internal App Paths entry validation passed.
+- v0.8.0-alpha.5.44 unifies native shortcut-deletion confirmation and introduces a default-on General sound preference with original startup/reveal/execute/failure cues; Settings schema 11.
+- next desktop step: validate alpha.5.44 confirmation, sound preference persistence, startup modes, fast keyboard execution and General scrolling; application identity/icons and tray refinement follow before Modern Compact.
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

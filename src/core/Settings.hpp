@@ -35,6 +35,7 @@ struct Settings {
     StartupBehavior startupBehavior{
         StartupBehavior::Notification};
     bool showTrayIcon{true};
+    bool soundEnabled{true};
     bool addToSendToMenu{false};
     std::string popupMonitor{"cursor"};
     std::string launcherPlacement{"top"};
@@ -92,6 +93,7 @@ public:
     bool SetStartupBehavior(
         StartupBehavior behavior);
     bool SetShowTrayIcon(bool enabled);
+    bool SetSoundEnabled(bool enabled);
     bool SetAddToSendToMenu(bool enabled);
     bool SetPopupMonitor(
         std::string popupMonitor);

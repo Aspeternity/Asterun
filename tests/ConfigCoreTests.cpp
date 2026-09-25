@@ -1,4 +1,5 @@
 #include "core/ConfigIO.hpp"
+#include "core/FeedbackPolicy.hpp"
 #include "core/ProviderCache.hpp"
 #include "core/ProviderFingerprint.hpp"
 #include "core/Settings.hpp"
@@ -46,6 +47,24 @@ std::string ReadText(
 } // namespace
 
 int main() {
+    {
+        FeedbackPolicy feedback;
+        assert(!feedback.Accept(FeedbackCue::Reveal, 1));
+        feedback.SetEnabled(true);
+        assert(feedback.Accept(FeedbackCue::Reveal, 1));
+        assert(!feedback.Accept(FeedbackCue::Reveal, 2));
+        // A fast launch still receives its own feedback after a reveal.
+        assert(feedback.Accept(FeedbackCue::Execute, 3));
+        assert(feedback.Accept(FeedbackCue::Failure, 4));
+        assert(!feedback.Accept(FeedbackCue::Failure, 503));
+        assert(feedback.Accept(FeedbackCue::Failure, 504));
+        feedback.SetEnabled(false);
+        assert(!feedback.Accept(FeedbackCue::Startup, 1000));
+        assert(!feedback.Accept(FeedbackCue::Execute, 1000));
+        feedback.SetEnabled(true);
+        assert(feedback.Accept(FeedbackCue::Reveal, 1001));
+    }
+
     {
         const settings_layout::Rect work{
             0,
@@ -366,6 +385,7 @@ int main() {
             .startupBehavior ==
         StartupBehavior::Notification);
     assert(featureSettings.Data().showTrayIcon);
+    assert(featureSettings.Data().soundEnabled);
     assert(!featureSettings.Data().addToSendToMenu);
     assert(!featureSettings.Data().auxiliaryHotkeyEnabled);
     assert(featureSettings.Data().auxiliaryHotkeyKey == "pause");
@@ -387,6 +407,35 @@ int main() {
         featureSettings.Data()
             .shortcutManagerPlacement ==
         "center");
+
+    // Schema-10 migration supplies soundEnabled=true without changing startup mode.
+    const auto soundSettingsPath = data / "settings-sound-migration.json";
+    WriteText(soundSettingsPath,
+        R"({"schemaVersion":10,"general":{"startupBehavior":"silent"}})");
+    SettingsStore soundSettings(soundSettingsPath);
+    soundSettings.Load();
+    assert(soundSettings.Data().soundEnabled);
+    assert(soundSettings.Data().startupBehavior == StartupBehavior::Silent);
+    assert(soundSettings.SetSoundEnabled(false));
+    SettingsStore soundReloaded(soundSettingsPath);
+    soundReloaded.Load();
+    assert(!soundReloaded.Data().soundEnabled);
+    assert(soundReloaded.Data().startupBehavior == StartupBehavior::Silent);
+    // A failed write must roll back the live preference as well as the file.
+    const auto blockedSoundPath = data / "blocked-sound";
+    WriteText(blockedSoundPath, "not a directory");
+    SettingsStore blockedSound(blockedSoundPath / "settings.json");
+    assert(!blockedSound.SetSoundEnabled(false));
+    assert(blockedSound.Data().soundEnabled);
+    const auto futureSoundPath = data / "future-sound.json";
+    WriteText(futureSoundPath,
+        R"({"schemaVersion":999,"general":{"soundEnabled":false}})");
+    const auto futureSoundBefore = ReadText(futureSoundPath);
+    SettingsStore futureSound(futureSoundPath);
+    futureSound.Load();
+    assert(futureSound.IsReadOnlyDueToNewerSchema());
+    assert(!futureSound.SetSoundEnabled(true));
+    assert(ReadText(futureSoundPath) == futureSoundBefore);
 
     assert(featureSettings.SetStartWithWindows(true));
     assert(featureSettings.Data().startWithWindows);
@@ -1560,6 +1609,7 @@ int main() {
         featureSettings.Data().startupBehavior ==
         StartupBehavior::Notification);
     assert(featureSettings.Data().showTrayIcon);
+    assert(featureSettings.Data().soundEnabled);
     assert(!featureSettings.Data().addToSendToMenu);
     assert(
         !featureSettings.Data()

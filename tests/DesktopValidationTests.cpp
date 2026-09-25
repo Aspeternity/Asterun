@@ -184,7 +184,7 @@ int main() {
             scale(
                 settings_layout::
                     kToggleRowLogical) *
-                3 +
+                4 +
             scale(
                 ui::
                     kSettingsComboRowLogical));

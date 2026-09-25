@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0-alpha.5.44
+
+- Share shortcut deletion confirmation, canonical display name, cancel default, and failure handling across Launcher and Shortcut Manager.
+- Add General sound preference (default on, no preview button) with transactional persistence, schema-10 migration and schema-11 downgrade protection.
+- Add original embedded startup/reveal/execute/failure PCM cues with asynchronous playback, duplicate suppression and immediate mute.
+- Route application prompts through silent native dialogs and consume translated launcher control characters to prevent default edit beeps. Canceling UAC is silent.
+- Preserve Classic geometry and search behavior. Commands schema 2, Usage schema 2, Provider Cache schema 22; Windows fixed version `0.8.0.214`.
+
 ## 0.8.0-alpha.5.43
 
 - Learn bounded usage per successful query and command. `s` and `st` no longer transfer ranking preference to one another; global history remains for empty queries.

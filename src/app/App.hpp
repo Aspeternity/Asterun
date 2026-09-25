@@ -138,6 +138,8 @@ public:
     bool SetStartupBehavior(
         StartupBehavior behavior);
     bool SetShowTrayIcon(bool enabled);
+    bool SetSoundEnabled(bool enabled);
+    bool ConfirmDeleteUserCommand(HWND owner, std::wstring id);
     bool SetAddToSendToMenu(bool enabled);
     bool SetPopupMonitor(
         std::string popupMonitor);

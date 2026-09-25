@@ -42,12 +42,12 @@ channel = match.group(4)
 
 
 
-if version == "0.8.0-alpha.5.43":
+if version in ("0.8.0-alpha.5.43", "0.8.0-alpha.5.44"):
     import hashlib
     import subprocess
 
     expected_schemas = {
-        "kSettingsSchemaVersion": 10,
+        "kSettingsSchemaVersion": 11 if version.endswith(".44") else 10,
         "kCommandsSchemaVersion": 2,
         "kUsageSchemaVersion": 2,
     }
@@ -159,14 +159,15 @@ if version == "0.8.0-alpha.5.43":
             fail(f"v0.8 alpha.5.43 Provider Cache regression missing: {token}")
 
     for token in (
-        "FILEVERSION 0,8,0,213",
-        "PRODUCTVERSION 0,8,0,213",
-        "0.8.0-alpha.5.43",
+        "FILEVERSION 0,8,0," + ("214" if version.endswith(".44") else "213"),
+        "PRODUCTVERSION 0,8,0," + ("214" if version.endswith(".44") else "213"),
+        version,
     ):
         if token not in resources:
             fail(f"v0.8 alpha.5.43 resource version missing: {token}")
 
-    if 'version="0.8.0.213"' not in manifest:
+    fixed_version = "0.8.0.214" if version.endswith(".44") else "0.8.0.213"
+    if f'version="{fixed_version}"' not in manifest:
         fail("v0.8 alpha.5.43 manifest fixed version must be 0.8.0.213")
 
     for token in (
@@ -229,8 +230,21 @@ if version == "0.8.0-alpha.5.43":
         if git_blob_sha(asset_path) != expected:
             fail(f"v0.8 alpha.5.43 frozen Classic asset changed: {asset_path}")
 
+    if version.endswith(".44"):
+        if json.loads(read("config/settings.example.json"))["schemaVersion"] != 11:
+            fail("sound settings sample must use schema 11")
+        for path in ("src/app/App.cpp", "src/ui/LauncherWindow.cpp", "src/ui/SettingsWindow.cpp",
+                     "src/ui/ShortcutManagerWindow.cpp", "src/ui/ShortcutEditorDialog.cpp",
+                     "src/ui/ShortcutPathConverterDialog.cpp", "src/uninstaller/UninstallMain.cpp"):
+            if "MessageBoxW(" in read(path):
+                fail(f"stock system-sound dialog bypasses feedback policy: {path}")
+        subprocess.run([sys.executable, str(ROOT / "scripts/generate_feedback_sounds.py"), "--verify"], check=True)
+        for path in ("README.md", "ROADMAP.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
+            if "0.8.0-alpha.5.44" not in read(path):
+                fail(f"missing current release documentation: {path}")
+
     print(
-        "v0.8.0-alpha.5.43 Query-Scoped Usage + Packaged Entry Integrity verified:",
+        version + " shared release contract verified:",
         "| Provider Cache schema 22 unchanged",
         "| Usage schema 2 query migration",
         "| per-query bounded comparable-intent ranking",

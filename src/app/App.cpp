@@ -1,3 +1,4 @@
+#include "../ui/Feedback.hpp"
 #include "App.hpp"
 
 #include "../core/EverythingProvider.hpp"
@@ -315,6 +316,7 @@ int App::Run() {
     uiThreadId_ = GetCurrentThreadId();
 
     settingsStore_.Load();
+    ui::SetFeedbackEnabled(settingsStore_.Data().soundEnabled);
 
     if (providers::IsEnabled(
             settingsStore_.Data()
@@ -335,7 +337,7 @@ int App::Run() {
             L"Local\\Aspeternity.ALTRunNext.SingleInstance.v1");
 
     if (!singleInstanceMutex_) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             L"Unable to create the ALTRun Next single-instance guard.",
             L"ALTRun Next",
@@ -349,7 +351,7 @@ int App::Run() {
                 return 0;
             }
 
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 nullptr,
                 settingsStore_.Data().language == Language::ZhCN
                     ? L"ALTRun Next 已经在运行，但无法把“发送到”请求交给现有实例。"
@@ -359,7 +361,7 @@ int App::Run() {
             return 1;
         }
 
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             settingsStore_.Data().language == Language::ZhCN
                 ? L"ALTRun Next 已经在运行。\n\n请检查系统托盘，避免多个实例同时抢占全局热键。"
@@ -377,7 +379,7 @@ int App::Run() {
     ULONG packagedChangeNotifyId = 0;
 
     if (!dataDirectoryWritable_) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             settingsStore_.Data().language == Language::ZhCN
                 ? L"ALTRun Next 的 data 目录当前不可写。\n\n程序仍会继续运行，但设置、快捷项和使用记录可能无法保存。请将程序移动到可写目录或检查文件夹权限。"
@@ -402,7 +404,7 @@ int App::Run() {
 
     window_ = std::make_unique<LauncherWindow>(*this, instance_);
     if (!window_->Create()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             Text(TextId::CreateWindowFailed).data(),
             L"ALTRun Next",
@@ -419,7 +421,7 @@ int App::Run() {
     if (!RebindGlobalHotkey(
             settingsStore_.Data().hotkeyModifiers,
             settingsStore_.Data().hotkeyKey)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             Text(TextId::HotkeyBusy).data(),
             L"ALTRun Next",
@@ -434,7 +436,7 @@ int App::Run() {
             settingsStore_.Data()
                 .auxiliaryHotkeyKey)) {
 
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             settingsStore_.Data().language ==
                     Language::ZhCN
@@ -455,7 +457,7 @@ int App::Run() {
             shortcutManagerBinding.enabled,
             shortcutManagerBinding.modifiers,
             shortcutManagerBinding.key)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             settingsStore_.Data().language ==
                     Language::ZhCN
@@ -1295,6 +1297,22 @@ bool App::UpdateUserCommand(
         shortcutManagerWindow_->Refresh(id);
     }
     return true;
+}
+
+bool App::ConfirmDeleteUserCommand(HWND owner, std::wstring id) {
+    const auto& commands = UserCommands();
+    const auto it = std::find_if(commands.begin(), commands.end(),
+        [&id](const Command& command) { return command.id == id; });
+    if (it == commands.end()) return false;
+    // Snapshot before entering the modal message loop: publication may refresh lists.
+    const std::wstring name = it->title.empty() ? it->keyword : it->title;
+    const bool zh = SettingsData().language == Language::ZhCN;
+    if (!ui::ConfirmShortcutDeletion(owner, name, zh)) return false;
+    if (DeleteUserCommand(id)) return true;
+    ui::ShowMessage(owner,
+        zh ? L"无法删除快捷项，请重试。" : L"Unable to delete the shortcut. Please try again.",
+        zh ? L"删除快捷项" : L"Delete shortcut", MB_OK | MB_ICONERROR);
+    return false;
 }
 
 bool App::DeleteUserCommand(
@@ -2747,6 +2765,8 @@ bool App::RestoreDefaultSettings() {
         return false;
     }
 
+    ui::SetFeedbackEnabled(settingsStore_.Data().soundEnabled);
+
     if (previous.updateChannel !=
         settingsStore_.Data()
             .updateChannel) {
@@ -3206,6 +3226,13 @@ bool App::SetStartupBehavior(
             RefreshFromSettings();
     }
 
+    return true;
+}
+
+bool App::SetSoundEnabled(bool enabled) {
+    if (!settingsStore_.SetSoundEnabled(enabled)) return false;
+    ui::SetFeedbackEnabled(enabled);
+    if (settingsWindow_) settingsWindow_->RefreshFromSettings();
     return true;
 }
 
@@ -4537,7 +4564,7 @@ void App::ShowSettings() {
         settingsWindow_ = std::make_unique<SettingsWindow>(*this, instance_);
         if (!settingsWindow_->Create()) {
             settingsWindow_.reset();
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 nullptr,
                 L"Unable to create Settings window.",
                 L"ALTRun Next",
@@ -4554,7 +4581,7 @@ void App::ShowAbout() {
         settingsWindow_ = std::make_unique<SettingsWindow>(*this, instance_);
         if (!settingsWindow_->Create()) {
             settingsWindow_.reset();
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 nullptr,
                 L"Unable to create Settings window.",
                 L"ALTRun Next",
@@ -4669,7 +4696,7 @@ bool App::ExecuteResult(
             return true;
         }
 
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             std::wstring(
                 Text(
@@ -4760,10 +4787,12 @@ bool App::ExecuteResult(
                 usageStore_.Record(source.id, query);
             }
         }
+        ui::PlayFeedback(FeedbackCue::Execute);
         return true;
     }
 
     const DWORD error = GetLastError();
+    if (error == ERROR_CANCELLED) return false;
     std::wstring message =
         std::wstring(Text(TextId::UnableToLaunch)) +
         L"\n" +
@@ -4771,7 +4800,7 @@ bool App::ExecuteResult(
         L"\n\n" +
         win::FormatWin32Error(error);
 
-    MessageBoxW(
+    altrun::ui::ShowMessage(
         nullptr,
         message.c_str(),
         L"ALTRun Next",
@@ -4810,7 +4839,7 @@ bool App::LaunchCommand(
                 .CurrentFilesystemFolder();
 
         if (folder.empty()) {
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 nullptr,
                 settingsStore_.Data().language ==
                         Language::ZhCN
@@ -4909,7 +4938,7 @@ bool App::LaunchCommand(
                     static_cast<DWORD>(
                         result));
 
-            MessageBoxW(
+            altrun::ui::ShowMessage(
                 nullptr,
                 message.c_str(),
                 L"ALTRun Next",
@@ -4924,6 +4953,7 @@ bool App::LaunchCommand(
                 command.id, query);
         }
 
+        ui::PlayFeedback(FeedbackCue::Execute);
         return true;
     }
 
@@ -4943,6 +4973,7 @@ bool App::LaunchCommand(
 
     if (!ShellExecuteExW(&info)) {
         const DWORD error = GetLastError();
+        if (error == ERROR_CANCELLED) return false;
         std::wstring message =
             std::wstring(Text(TextId::UnableToLaunch)) +
             L"\n" +
@@ -4950,7 +4981,7 @@ bool App::LaunchCommand(
             L"\n\n" +
             win::FormatWin32Error(error);
 
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             message.c_str(),
             L"ALTRun Next",
@@ -4965,6 +4996,7 @@ bool App::LaunchCommand(
             command.id, query);
     }
 
+    ui::PlayFeedback(FeedbackCue::Execute);
     return true;
 }
 

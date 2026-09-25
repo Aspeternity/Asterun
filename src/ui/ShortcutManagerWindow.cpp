@@ -1,3 +1,4 @@
+#include "Feedback.hpp"
 #include "ShortcutManagerWindow.hpp"
 
 #include "ShortcutEditorDialog.hpp"
@@ -702,7 +703,7 @@ void ShortcutManagerWindow::ApplyLanguage() {
 void ShortcutManagerWindow::Show(
     std::wstring_view preferredId) {
     if (!Create()) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             nullptr,
             T(L"无法创建快捷项管理窗口。",
               L"Could not create the Shortcut Manager."),
@@ -1974,45 +1975,7 @@ void ShortcutManagerWindow::DeleteSelected() {
         return;
     }
 
-    std::wstring message =
-        T(L"确定要删除“",
-          L"Delete \"");
-
-    message +=
-        command->title.empty()
-            ? command->keyword
-            : command->title;
-
-    message +=
-        T(L"”吗？\n\n删除后无法撤销。",
-          L"\"?\n\nThis action cannot be undone.");
-
-    if (MessageBoxW(
-            hwnd_,
-            message.c_str(),
-            T(L"删除快捷项",
-              L"Delete shortcut"),
-            MB_YESNO |
-                MB_ICONWARNING) !=
-        IDYES) {
-        return;
-    }
-
-    const std::wstring id =
-        command->id;
-
-    if (!app_.DeleteUserCommand(id)) {
-        MessageBoxW(
-            hwnd_,
-            T(L"删除失败。",
-              L"Delete failed."),
-            L"ALTRun Next",
-            MB_OK |
-                MB_ICONERROR);
-        return;
-    }
-
-    Refresh();
+    app_.ConfirmDeleteUserCommand(hwnd_, command->id);
 }
 
 void ShortcutManagerWindow::TestSelected() {
@@ -2047,7 +2010,7 @@ void ShortcutManagerWindow::LocateSelected() {
             app_.BaseDirectory(),
             command->type ==
                 CommandType::Folder)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"无法打开目标所在目录。目标可能已移动、删除，或不是文件系统路径。",
               L"Could not open the target location. It may have moved, been deleted, or may not be a filesystem path."),
@@ -2068,7 +2031,7 @@ void ShortcutManagerWindow::CopySelectedTarget() {
 
     if (!win::SetClipboardUnicodeText(
             command->target)) {
-        MessageBoxW(
+        altrun::ui::ShowMessage(
             hwnd_,
             T(L"无法复制目标到剪贴板。",
               L"Could not copy the target to the clipboard."),

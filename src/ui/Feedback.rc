@@ -1,0 +1,4 @@
+#include <windows.h>
+#include "../ResourceIds.h"
+
+IDR_FEEDBACK_CONTEXT RT_MANIFEST "ui/Feedback.manifest"

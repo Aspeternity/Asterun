@@ -197,6 +197,8 @@ if(WIN32)
         src/platform/WindowsContext.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
+        src/ui/Feedback.cpp
+        src/ui/Feedback.rc
         src/ui/SettingsWindow.cpp
         src/ui/ShortcutEditorDialog.cpp
         src/ui/ShortcutManagerWindow.cpp
@@ -222,6 +224,7 @@ if(WIN32)
         ole32
         oleaut32
         comctl32
+        winmm
         comdlg32
         advapi32
         user32
@@ -308,7 +311,11 @@ if(WIN32)
         ALTRunNextUninstaller
         WIN32
         src/uninstaller/UninstallMain.cpp
+        src/ui/Feedback.cpp
+        src/ui/Feedback.rc
     )
+
+    target_include_directories(ALTRunNextUninstaller PRIVATE src)
 
     target_compile_definitions(
         ALTRunNextUninstaller
@@ -330,6 +337,8 @@ if(WIN32)
             ole32
             oleaut32
             rstrtmgr
+            comctl32
+            winmm
             user32
     )
 
@@ -929,6 +938,23 @@ if(BUILD_TESTING)
     )
 
     if(WIN32)
+        add_executable(feedback_runtime_tests
+            tests/FeedbackRuntimeTests.cpp
+            src/ui/Feedback.cpp
+            src/ui/Feedback.rc
+        )
+        target_include_directories(feedback_runtime_tests PRIVATE src)
+        target_link_libraries(feedback_runtime_tests PRIVATE user32 comctl32 winmm)
+        target_compile_definitions(feedback_runtime_tests PRIVATE
+            UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
+            _WIN32_WINNT=0x0A00 WINVER=0x0A00)
+        if(MSVC)
+            target_compile_options(feedback_runtime_tests PRIVATE /W4 /permissive- /utf-8 /EHsc)
+        endif()
+        altrun_enable_test_assertions(feedback_runtime_tests)
+        add_test(NAME feedback_runtime_tests COMMAND feedback_runtime_tests)
+        set_tests_properties(feedback_runtime_tests PROPERTIES TIMEOUT 15)
+
         add_executable(windows_provider_smoke_tests
             tests/WindowsProviderSmokeTests.cpp
             src/core/AppPathsProvider.cpp

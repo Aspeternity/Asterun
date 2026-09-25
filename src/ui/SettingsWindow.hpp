@@ -74,6 +74,7 @@ private:
         kIdShortcutManagerPlacement = 51109;
     static constexpr UINT
         kIdAddToSendToMenu = 51110;
+    static constexpr UINT kIdSoundEnabled = 51111;
 
     static constexpr UINT
         kIdHotkeyResetAll = 51705;
@@ -345,6 +346,7 @@ private:
     HWND startupBehaviorLabel_{};
     HWND startupBehavior_{};
     HWND showTrayIcon_{};
+    HWND soundEnabled_{};
     HWND addToSendToMenu_{};
     HWND searchBehaviorTitle_{};
     HWND showResultIcons_{};

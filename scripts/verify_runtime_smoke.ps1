@@ -125,8 +125,12 @@ try {
         Get-Content $settingsPath -Raw |
         ConvertFrom-Json
 
-    if ($migratedSettings.schemaVersion -ne 10) {
-        throw "Packaged runtime did not migrate schema-2 settings to schema 10."
+    if ($migratedSettings.schemaVersion -ne 11) {
+        throw "Packaged runtime did not migrate schema-2 settings to schema 11."
+    }
+
+    if ($migratedSettings.general.soundEnabled -ne $true) {
+        throw "Settings migration must enable application sounds by default."
     }
 
     if ($migratedSettings.general.startupBehavior -ne "silent") {
