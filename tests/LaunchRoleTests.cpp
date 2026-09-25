@@ -612,10 +612,12 @@ int main() {
                 StrongMatchOnly);
         assert(
             benchmarkDecision
-                .distinctiveTokens ==
-            std::vector<std::wstring>{
-                L"性能测试",
-            });
+                .distinctiveTokens
+                .size() == 1);
+        assert(
+            benchmarkDecision
+                .distinctiveTokens[0] ==
+            L"性能测试");
 
         assert(
             settingsDecision.role ==
