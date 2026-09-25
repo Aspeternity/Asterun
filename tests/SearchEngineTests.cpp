@@ -782,6 +782,237 @@ int main(int argc, char** argv) {
                 0));
     }
 
+    // End-to-end suite regression: helper EXEs may report unrelated ProductName
+    // values while Windows exposes them under one Start Menu suite folder.
+    // Family-prefix search must keep real companion apps but suppress explicit
+    // auxiliary/alternate entries until their own intent is typed.
+    {
+        const std::filesystem::path menuFolder =
+            L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs/Contoso Studio 2026";
+
+        const auto makeEvidence =
+            [&](std::wstring title,
+                std::wstring target,
+                std::wstring productName) {
+                LaunchEvidence evidence;
+                evidence.source =
+                    LaunchCandidateSource::
+                        StartMenu;
+                evidence.displayTitle =
+                    std::move(title);
+                evidence.resolvedTarget =
+                    std::move(target);
+                evidence.startMenuFolder =
+                    menuFolder;
+                evidence.installRootHint =
+                    std::filesystem::path(
+                        evidence.resolvedTarget)
+                        .parent_path();
+                evidence.targetKind =
+                    LaunchTargetKind::
+                        GuiExecutable;
+                evidence.executable
+                    .productName =
+                    std::move(productName);
+                return evidence;
+            };
+
+        auto primaryEvidence =
+            makeEvidence(
+                L"Contoso Studio 2026",
+                L"C:/Program Files/Contoso/Studio/Studio.exe",
+                L"Contoso Main Application 2026");
+        auto benchmarkEvidence =
+            makeEvidence(
+                L"Contoso Studio 性能测试 2026",
+                L"C:/Program Files/Contoso/Tools/Bench.exe",
+                L"Contoso Benchmark Utility");
+        auto settingsEvidence =
+            makeEvidence(
+                L"Contoso Studio 设置向导 2026",
+                L"C:/Program Files/Contoso/Setup/Config.exe",
+                L"Contoso Configuration Manager");
+        auto quickEvidence =
+            makeEvidence(
+                L"Contoso Studio 2026 快速启动",
+                L"C:/Program Files/Contoso/Studio/Studio.exe",
+                L"Contoso Launcher");
+        auto composerEvidence =
+            makeEvidence(
+                L"Contoso Studio Composer 2026",
+                L"C:/Program Files/Contoso/Composer/Composer.exe",
+                L"Contoso Composer");
+
+        const auto primaryRole =
+            ClassifyApplicationRole(
+                primaryEvidence);
+        const auto benchmarkRole =
+            ClassifyApplicationRole(
+                benchmarkEvidence);
+        const auto settingsRole =
+            ClassifyApplicationRole(
+                settingsEvidence);
+        const auto quickRole =
+            ClassifyApplicationRole(
+                quickEvidence);
+        const auto composerRole =
+            ClassifyApplicationRole(
+                composerEvidence);
+
+        auto makeCatalogCommand =
+            [&](std::wstring id,
+                const LaunchEvidence& evidence,
+                const ApplicationRoleDecision&
+                    role,
+                int order) {
+                Command command =
+                    MakeCommand(
+                        std::move(id),
+                        evidence.displayTitle,
+                        evidence.displayTitle,
+                        evidence.resolvedTarget,
+                        order);
+
+                command.source =
+                    CommandSource::
+                        StartMenu;
+                command.surfaceClass =
+                    LaunchSurfaceClass::
+                        PrimaryApplication;
+                command.basePriority = 0;
+                command.applicationRole =
+                    role.role;
+                command.roleConfidence =
+                    role.confidence;
+                command.catalogVisibility =
+                    role.visibility;
+                command.catalogGroupKey =
+                    role.catalogGroupKey;
+                command.distinctiveTokens =
+                    role.distinctiveTokens;
+                command.canonicalIdentity =
+                    L"file:" +
+                    relevance::Normalize(
+                        evidence.resolvedTarget);
+                return command;
+            };
+
+        std::vector<Command> suite{
+            makeCatalogCommand(
+                L"suite-primary",
+                primaryEvidence,
+                primaryRole,
+                0),
+            makeCatalogCommand(
+                L"suite-benchmark",
+                benchmarkEvidence,
+                benchmarkRole,
+                1),
+            makeCatalogCommand(
+                L"suite-settings",
+                settingsEvidence,
+                settingsRole,
+                2),
+            makeCatalogCommand(
+                L"suite-quick",
+                quickEvidence,
+                quickRole,
+                3),
+            makeCatalogCommand(
+                L"suite-composer",
+                composerEvidence,
+                composerRole,
+                4),
+        };
+
+        suite[3].arguments =
+            L"--quick";
+        suite[3].canonicalIdentity =
+            suite[0].canonicalIdentity +
+            L"|args:--quick";
+
+        std::vector<Command*> views;
+
+        for (auto& command : suite) {
+            views.push_back(&command);
+        }
+
+        CalibrateCatalogRoleContext(
+            views);
+
+        const auto familyPrefix =
+            engine.Search(
+                suite,
+                usage,
+                L"co",
+                20);
+
+        assert(
+            ContainsCommand(
+                familyPrefix,
+                0));
+        assert(
+            !ContainsCommand(
+                familyPrefix,
+                1));
+        assert(
+            !ContainsCommand(
+                familyPrefix,
+                2));
+        assert(
+            !ContainsCommand(
+                familyPrefix,
+                3));
+        assert(
+            ContainsCommand(
+                familyPrefix,
+                4));
+
+        const auto benchmarkIntent =
+            engine.Search(
+                suite,
+                usage,
+                L"性能",
+                20);
+        assert(
+            ContainsCommand(
+                benchmarkIntent,
+                1));
+
+        const auto settingsIntent =
+            engine.Search(
+                suite,
+                usage,
+                L"设置",
+                20);
+        assert(
+            ContainsCommand(
+                settingsIntent,
+                2));
+
+        const auto quickIntent =
+            engine.Search(
+                suite,
+                usage,
+                L"快速",
+                20);
+        assert(
+            ContainsCommand(
+                quickIntent,
+                3));
+
+        const auto quickExact =
+            engine.Search(
+                suite,
+                usage,
+                L"Contoso Studio 2026 快速启动",
+                20);
+        assert(
+            ContainsCommand(
+                quickExact,
+                3));
+    }
+
     auto wildcardDisabled =
         engine.Search(
             commands,

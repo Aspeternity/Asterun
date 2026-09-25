@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cstddef>
 #include <cwctype>
 #include <filesystem>
 #include <initializer_list>
@@ -168,6 +169,203 @@ std::vector<std::wstring> Tokens(
     return sawDigit;
 }
 
+[[nodiscard]] bool
+IsFamilyVersionToken(
+    std::wstring_view token) {
+
+    if (IsVersionToken(token)) {
+        return true;
+    }
+
+    const std::wstring lower =
+        Lower(token);
+
+    const auto prefixedDigits =
+        [&](std::wstring_view prefix) {
+            if (!lower.starts_with(prefix) ||
+                lower.size() <= prefix.size()) {
+                return false;
+            }
+
+            return std::all_of(
+                lower.begin() +
+                    static_cast<
+                        std::ptrdiff_t>(
+                            prefix.size()),
+                lower.end(),
+                [](wchar_t ch) {
+                    return
+                        std::iswdigit(ch) != 0 ||
+                        ch == L'.';
+                });
+        };
+
+    return prefixedDigits(L"sp") ||
+        prefixedDigits(L"r") ||
+        prefixedDigits(L"version") ||
+        prefixedDigits(L"release");
+}
+
+[[nodiscard]] std::wstring
+NormalizeFamilyStem(
+    std::wstring_view value) {
+
+    const auto tokens =
+        Tokens(value);
+
+    std::wstring stem;
+
+    for (const auto& token : tokens) {
+        if (IsFamilyVersionToken(token)) {
+            continue;
+        }
+
+        stem += Compact(token);
+    }
+
+    if (stem.empty()) {
+        stem = Compact(value);
+    }
+
+    if (stem.empty()) {
+        return stem;
+    }
+
+    std::size_t digitStart =
+        stem.size();
+
+    while (digitStart > 0 &&
+           std::iswdigit(
+               stem[digitStart - 1])) {
+        --digitStart;
+    }
+
+    if (stem.size() - digitStart >= 4) {
+        stem.resize(digitStart);
+    }
+
+    return stem;
+}
+
+[[nodiscard]] bool
+IsGenericStartMenuFamily(
+    std::wstring_view value) {
+
+    const std::wstring compact =
+        Compact(value);
+
+    return compact.empty() ||
+        compact == L"programs" ||
+        compact == L"startmenu" ||
+        compact == L"accessories" ||
+        compact == L"windowstools" ||
+        compact == L"administrativetools" ||
+        compact == L"systemtools" ||
+        compact == L"developertools" ||
+        compact == L"程序" ||
+        compact == L"附件" ||
+        compact == L"管理工具" ||
+        compact == L"系统工具";
+}
+
+[[nodiscard]] std::wstring
+StartMenuSuiteName(
+    const std::filesystem::path& folder) {
+
+    if (folder.empty()) {
+        return {};
+    }
+
+    bool afterPrograms = false;
+
+    for (const auto& component : folder) {
+        const std::wstring name =
+            component.wstring();
+
+        if (Compact(name) == L"programs") {
+            afterPrograms = true;
+            continue;
+        }
+
+        if (afterPrograms &&
+            !IsGenericStartMenuFamily(name)) {
+            return name;
+        }
+    }
+
+    const std::wstring leaf =
+        folder.filename().wstring();
+
+    return IsGenericStartMenuFamily(leaf)
+        ? std::wstring{}
+        : leaf;
+}
+
+[[nodiscard]] std::vector<std::wstring>
+FamilyIdentityNames(
+    const LaunchEvidence& evidence) {
+
+    std::vector<std::wstring> names;
+
+    const std::wstring menuSuite =
+        StartMenuSuiteName(
+            evidence.startMenuFolder);
+
+    if (!menuSuite.empty()) {
+        // Windows' Start Menu suite folder is shared across the entries the
+        // user perceives as one installed family. Once that evidence exists,
+        // a helper EXE's private ProductName must not expand the shared family
+        // and accidentally consume distinctive names such as Composer,
+        // Renderer, Benchmark or Launcher.
+        names.push_back(
+            menuSuite);
+        return names;
+    }
+
+    if (!evidence.executable
+             .productName.empty()) {
+        names.push_back(
+            evidence.executable
+                .productName);
+    }
+
+    return names;
+}
+
+[[nodiscard]] std::vector<std::wstring>
+FamilyIdentityStems(
+    const LaunchEvidence& evidence) {
+
+    std::vector<std::wstring> stems;
+
+    for (const auto& name :
+         FamilyIdentityNames(evidence)) {
+        const std::wstring stem =
+            NormalizeFamilyStem(name);
+
+        if (stem.empty() ||
+            std::find(
+                stems.begin(),
+                stems.end(),
+                stem) != stems.end()) {
+            continue;
+        }
+
+        stems.push_back(stem);
+    }
+
+    std::sort(
+        stems.begin(),
+        stems.end(),
+        [](const std::wstring& left,
+           const std::wstring& right) {
+            return left.size() >
+                right.size();
+        });
+
+    return stems;
+}
+
 [[nodiscard]] std::wstring
 NormalizedPath(
     const std::filesystem::path& path) {
@@ -292,9 +490,7 @@ ConfidenceFor(
         return RoleConfidence::High;
     }
 
-    if (score.points >= 3 ||
-        (score.points >= 3 &&
-         fieldCount >= 2)) {
+    if (score.points >= 3) {
         return RoleConfidence::Medium;
     }
 
@@ -312,9 +508,12 @@ ConfidenceFor(
         ContainsAny(
             value,
             strongPhrases)) {
+        // A complete high-information role phrase must outrank the
+        // generic "title == ProductName" primary-app relationship. It still
+        // remains Medium confidence because it is only one evidence field.
         return std::max(
             strength,
-            3);
+            5);
     }
 
     return strength;
@@ -603,7 +802,39 @@ void AppendDistinctivePhraseTokens(
              L"下载管理",
              L"后台下载",
              L"repair",
+             L"repair tool",
+             L"repair wizard",
              L"修复",
+             L"修复工具",
+             L"修复向导",
+             L"installer",
+             L"installation wizard",
+             L"setup wizard",
+             L"安装程序",
+             L"安装向导",
+             L"uninstall",
+             L"uninstaller",
+             L"uninstall wizard",
+             L"卸载",
+             L"卸载程序",
+             L"卸载向导",
+             L"documentation",
+             L"manual",
+             L"user guide",
+             L"release notes",
+             L"readme",
+             L"online help",
+             L"文档",
+             L"手册",
+             L"帮助",
+             L"about",
+             L"关于",
+             L"background",
+             L"broker",
+             L"后台",
+             L"service",
+             L"daemon",
+             L"服务",
              L"quick launch",
              L"quick start",
              L"safe mode",
@@ -638,13 +869,13 @@ void AppendDistinctivePhraseTokens(
 }
 
 struct CatalogGroupParts {
-    std::wstring product;
+    std::wstring family;
     std::wstring locationKind;
     std::wstring location;
 
     [[nodiscard]] bool Valid()
         const noexcept {
-        return !product.empty() &&
+        return !family.empty() &&
             !locationKind.empty() &&
             !location.empty();
     }
@@ -655,7 +886,9 @@ ParseCatalogGroupKeyParts(
     std::wstring_view key) {
 
     constexpr std::wstring_view
-        kProductPrefix = L"product:";
+        kFamilyPrefix = L"family:";
+    constexpr std::wstring_view
+        kLegacyProductPrefix = L"product:";
     constexpr std::wstring_view
         kRootPrefix = L"root:";
     constexpr std::wstring_view
@@ -663,27 +896,38 @@ ParseCatalogGroupKeyParts(
 
     CatalogGroupParts parts;
 
-    if (!key.starts_with(
-            kProductPrefix)) {
+    std::size_t prefixSize = 0;
+
+    if (key.starts_with(
+            kFamilyPrefix)) {
+        prefixSize =
+            kFamilyPrefix.size();
+    } else if (key.starts_with(
+                   kLegacyProductPrefix)) {
+        // Parsing the old spelling is harmless for transient/test Commands;
+        // Provider Cache schema upgrades still rebuild generated state.
+        prefixSize =
+            kLegacyProductPrefix.size();
+    } else {
         return parts;
     }
 
     const std::size_t separator =
         key.find(
             L'|',
-            kProductPrefix.size());
+            prefixSize);
 
     if (separator ==
         std::wstring_view::npos) {
         return parts;
     }
 
-    parts.product =
+    parts.family =
         std::wstring(
             key.substr(
-                kProductPrefix.size(),
+                prefixSize,
                 separator -
-                    kProductPrefix.size()));
+                    prefixSize));
 
     const std::wstring_view tail =
         key.substr(separator + 1);
@@ -786,7 +1030,7 @@ SameCatalogContext(
 
     return a.Valid() &&
         b.Valid() &&
-        a.product == b.product &&
+        a.family == b.family &&
         a.locationKind ==
             b.locationKind &&
         RelatedCatalogLocation(
@@ -795,15 +1039,16 @@ SameCatalogContext(
 }
 
 [[nodiscard]] std::wstring
-CatalogProductKey(
+CatalogFamilyKey(
     const Command& command) {
 
     return ParseCatalogGroupKeyParts(
                command.catalogGroupKey)
-        .product;
+        .family;
 }
 
 [[nodiscard]] bool
+IsContextPromotableRole[[nodiscard]] bool
 IsContextPromotableRole(
     ApplicationRole role) noexcept {
 
@@ -1080,12 +1325,34 @@ CatalogVisibility CatalogVisibilityForRole(
 
 std::wstring BuildCatalogGroupKey(
     const LaunchEvidence& evidence) {
-    const std::wstring product =
-        Compact(
+
+    const std::wstring menuSuite =
+        StartMenuSuiteName(
+            evidence.startMenuFolder);
+    const std::wstring menuFamily =
+        NormalizeFamilyStem(
+            menuSuite);
+    const std::wstring menu =
+        NormalizedPath(
+            evidence.startMenuFolder);
+
+    // For Start Menu entries, Windows' own suite folder is the most stable
+    // cross-executable context. Do not let a helper EXE's private ProductName
+    // split one installed suite into unrelated groups.
+    if (!menuFamily.empty() &&
+        !menu.empty()) {
+        return L"family:" +
+            menuFamily +
+            L"|menu:" +
+            menu;
+    }
+
+    const std::wstring productFamily =
+        NormalizeFamilyStem(
             evidence.executable
                 .productName);
 
-    if (product.empty()) {
+    if (productFamily.empty()) {
         return {};
     }
 
@@ -1094,21 +1361,10 @@ std::wstring BuildCatalogGroupKey(
             evidence.installRootHint);
 
     if (!root.empty()) {
-        return L"product:" +
-            product +
+        return L"family:" +
+            productFamily +
             L"|root:" +
             root;
-    }
-
-    const std::wstring menu =
-        NormalizedPath(
-            evidence.startMenuFolder);
-
-    if (!menu.empty()) {
-        return L"product:" +
-            product +
-            L"|menu:" +
-            menu;
     }
 
     return {};
@@ -1122,96 +1378,71 @@ BuildDistinctiveTokens(
         Tokens(
             evidence.displayTitle);
 
+    const auto identityNames =
+        FamilyIdentityNames(
+            evidence);
+    const auto familyStems =
+        FamilyIdentityStems(
+            evidence);
+
     std::vector<std::wstring>
-        familyTokens =
-            Tokens(
-                evidence.executable
-                    .productName);
+        familyWords;
+    std::vector<std::wstring>
+        versionTokens;
 
-    if (familyTokens.empty() &&
-        !evidence.startMenuFolder
-             .empty()) {
-        familyTokens =
-            Tokens(
-                evidence.startMenuFolder
-                    .filename()
-                    .wstring());
-    }
+    for (const auto& name :
+         identityNames) {
+        for (const auto& token :
+             Tokens(name)) {
+            const std::wstring compact =
+                Compact(token);
 
-    // Distinctive tokens are an admission boundary: a shared family prefix
-    // must never survive inside one otherwise-contiguous token. Windows
-    // shortcuts frequently expose names such as
-    // "Contoso2025性能测试" or "Contoso2025快速启动", where ordinary
-    // whitespace token subtraction cannot separate family/version from role.
-    std::wstring familyStem;
+            if (compact.empty()) {
+                continue;
+            }
 
-    for (const auto& token :
-         familyTokens) {
-        if (IsVersionToken(token)) {
-            continue;
+            if (IsFamilyVersionToken(
+                    token)) {
+                if (std::find(
+                        versionTokens.begin(),
+                        versionTokens.end(),
+                        compact) ==
+                    versionTokens.end()) {
+                    versionTokens.push_back(
+                        compact);
+                }
+                continue;
+            }
+
+            if (std::find(
+                    familyWords.begin(),
+                    familyWords.end(),
+                    compact) ==
+                familyWords.end()) {
+                familyWords.push_back(
+                    compact);
+            }
         }
-
-        familyStem +=
-            Compact(token);
     }
 
-    const auto trimLikelyVersionSuffix =
-        [](std::wstring& value) {
-            if (value.empty()) {
-                return;
-            }
-
-            std::size_t digitStart =
-                value.size();
-
-            while (digitStart > 0 &&
-                   std::iswdigit(
-                       value[digitStart - 1])) {
-                --digitStart;
-            }
-
-            const std::size_t digits =
-                value.size() -
-                digitStart;
-
-            if (digits >= 4) {
-                value.resize(
-                    digitStart);
-                return;
-            }
-
-            if (digits > 0 &&
-                digitStart > 0 &&
-                value[digitStart - 1] ==
-                    L'v') {
-                value.resize(
-                    digitStart - 1);
-            }
-        };
-
-    trimLikelyVersionSuffix(
-        familyStem);
-
     std::vector<std::wstring>
-        distinctiveTokens;
+        residualTokens;
 
     const auto appendUnique =
         [&](std::wstring token) {
             if (token.empty() ||
-                IsVersionToken(token)) {
+                IsFamilyVersionToken(
+                    token)) {
                 return;
             }
 
             if (std::find(
-                    distinctiveTokens
-                        .begin(),
-                    distinctiveTokens
-                        .end(),
+                    residualTokens.begin(),
+                    residualTokens.end(),
                     token) ==
-                distinctiveTokens.end()) {
-                distinctiveTokens
-                    .push_back(
-                        std::move(token));
+                residualTokens.end()) {
+                residualTokens.push_back(
+                    std::move(token));
             }
         };
 
@@ -1224,37 +1455,24 @@ BuildDistinctiveTokens(
                 changed = false;
 
                 for (const auto& version :
-                     familyTokens) {
-                    if (!IsVersionToken(
-                            version)) {
-                        continue;
-                    }
-
-                    const std::wstring
-                        compactVersion =
-                            Compact(
-                                version);
-
-                    if (compactVersion
-                            .empty()) {
+                     versionTokens) {
+                    if (version.empty()) {
                         continue;
                     }
 
                     if (token.starts_with(
-                            compactVersion)) {
+                            version)) {
                         token.erase(
                             0,
-                            compactVersion
-                                .size());
+                            version.size());
                         changed = true;
                     }
 
                     if (token.ends_with(
-                            compactVersion)) {
+                            version)) {
                         token.resize(
                             token.size() -
-                            compactVersion
-                                .size());
+                            version.size());
                         changed = true;
                     }
                 }
@@ -1303,11 +1521,10 @@ BuildDistinctiveTokens(
             }
         };
 
-    std::size_t familyConsumed = 0;
-
     for (const auto& rawToken :
          titleTokens) {
-        if (IsVersionToken(
+
+        if (IsFamilyVersionToken(
                 rawToken)) {
             continue;
         }
@@ -1319,47 +1536,36 @@ BuildDistinctiveTokens(
             continue;
         }
 
-        if (!familyStem.empty() &&
-            familyConsumed <
-                familyStem.size()) {
-
-            const std::wstring_view
-                remaining(
-                    familyStem.data() +
-                        familyConsumed,
-                    familyStem.size() -
-                        familyConsumed);
-
-            if (remaining.starts_with(
-                    token)) {
-                familyConsumed +=
-                    token.size();
-                continue;
-            }
-
-            if (token.starts_with(
-                    remaining)) {
-                token.erase(
-                    0,
-                    remaining.size());
-                familyConsumed =
-                    familyStem.size();
-
-                trimVersionEdges(
-                    token);
-                appendUnique(
-                    std::move(token));
-                continue;
-            }
+        if (std::find(
+                familyWords.begin(),
+                familyWords.end(),
+                token) !=
+            familyWords.end()) {
+            continue;
         }
 
-        // Still remove exact family pieces when a display name places the
-        // product after a distinctive prefix rather than at the beginning.
-        if (std::find(
-                familyTokens.begin(),
-                familyTokens.end(),
-                rawToken) !=
-            familyTokens.end()) {
+        const auto stemIt =
+            std::find_if(
+                familyStems.begin(),
+                familyStems.end(),
+                [&](const std::wstring&
+                        stem) {
+                    return
+                        !stem.empty() &&
+                        token.size() >
+                            stem.size() &&
+                        token.starts_with(
+                            stem);
+                });
+
+        if (stemIt !=
+            familyStems.end()) {
+            token.erase(
+                0,
+                stemIt->size());
+            trimVersionEdges(token);
+            appendUnique(
+                std::move(token));
             continue;
         }
 
@@ -1367,15 +1573,68 @@ BuildDistinctiveTokens(
             Lower(rawToken));
     }
 
-    // Semantic phrases remain explicit role intent and are deliberately
-    // added after family stripping. This also preserves CJK role intent after
-    // a contaminated family+version+role token has been reduced.
-    AppendDistinctivePhraseTokens(
-        evidence.displayTitle,
-        distinctiveTokens);
-
-    return distinctiveTokens;
+    return residualTokens;
 }
+
+namespace {
+
+[[nodiscard]] bool
+RoleUsesExplicitSemanticIntent(
+    ApplicationRole role) noexcept {
+
+    switch (role) {
+    case ApplicationRole::AlternateLaunch:
+    case ApplicationRole::ConfigurationTool:
+    case ApplicationRole::DiagnosticTool:
+    case ApplicationRole::BenchmarkTool:
+    case ApplicationRole::Installer:
+    case ApplicationRole::Uninstaller:
+    case ApplicationRole::Updater:
+    case ApplicationRole::Downloader:
+    case ApplicationRole::RepairTool:
+    case ApplicationRole::Documentation:
+    case ApplicationRole::ProductInfo:
+    case ApplicationRole::BackgroundComponent:
+    case ApplicationRole::ServiceComponent:
+    case ApplicationRole::InternalComponent:
+        return true;
+
+    case ApplicationRole::Unknown:
+    case ApplicationRole::PrimaryApplication:
+    case ApplicationRole::CompanionApplication:
+    case ApplicationRole::UserTool:
+        return false;
+    }
+
+    return false;
+}
+
+[[nodiscard]] std::vector<std::wstring>
+QueryIntentTokensForRole(
+    std::wstring_view title,
+    ApplicationRole role,
+    std::vector<std::wstring>
+        residualTokens) {
+
+    if (!RoleUsesExplicitSemanticIntent(
+            role)) {
+        return residualTokens;
+    }
+
+    std::vector<std::wstring>
+        semanticTokens;
+
+    AppendDistinctivePhraseTokens(
+        title,
+        semanticTokens);
+
+    // Restrictive catalog roles must be re-admitted by role-specific intent,
+    // never by an arbitrary residual title token. Exact full-title and
+    // explicit wildcard/path syntax remain handled by SearchEngine.
+    return semanticTokens;
+}
+
+} // namespace
 
 ApplicationRoleDecision
 ClassifyApplicationRole(
@@ -1465,91 +1724,122 @@ ClassifyApplicationRole(
         evidence.executable
             .fileDescription;
 
-    if (!product.empty()) {
-        if (SameCompact(
-                evidence.displayTitle,
-                product)) {
-            AddSignal(
-                scores,
-                ApplicationRole::
-                    PrimaryApplication,
-                2,
-                EvidenceField::Title);
-            AddSignal(
-                scores,
-                ApplicationRole::
-                    PrimaryApplication,
-                2,
-                EvidenceField::
-                    ProductRelation);
+    const auto familyNames =
+        FamilyIdentityNames(
+            evidence);
+
+    const auto residualTokens =
+        BuildDistinctiveTokens(
+            evidence);
+
+    const std::wstring compactTitle =
+        Compact(
+            evidence.displayTitle);
+    const std::wstring normalizedTitleFamily =
+        NormalizeFamilyStem(
+            evidence.displayTitle);
+
+    bool titleMatchesFamily = false;
+    bool titleExtendsFamily = false;
+
+    for (const auto& family :
+         familyNames) {
+        const std::wstring familyStem =
+            NormalizeFamilyStem(
+                family);
+
+        if (familyStem.empty()) {
+            continue;
         }
 
-        if (SameCompact(
-                description,
-                product)) {
-            AddSignal(
-                scores,
-                ApplicationRole::
-                    PrimaryApplication,
-                3,
-                EvidenceField::
-                    Description);
+        if (normalizedTitleFamily ==
+            familyStem) {
+            titleMatchesFamily = true;
+            break;
         }
 
-        const bool titleExtension =
-            StartsWithCompact(
-                evidence.displayTitle,
-                product);
-
-        const bool descriptionExtension =
-            StartsWithCompact(
-                description,
-                product);
-
-        const auto distinctive =
-            BuildDistinctiveTokens(
-                evidence);
-
-        if ((titleExtension ||
-             descriptionExtension) &&
-            distinctive.empty()) {
-            AddSignal(
-                scores,
-                ApplicationRole::
-                    PrimaryApplication,
-                2,
-                EvidenceField::
-                    ProductRelation);
-            AddSignal(
-                scores,
-                ApplicationRole::
-                    PrimaryApplication,
-                2,
-                titleExtension
-                    ? EvidenceField::Title
-                    : EvidenceField::
-                          Description);
-        } else if (
-            (titleExtension ||
-             descriptionExtension) &&
-            !distinctive.empty()) {
-            AddSignal(
-                scores,
-                ApplicationRole::
-                    CompanionApplication,
-                2,
-                EvidenceField::
-                    ProductRelation);
-            AddSignal(
-                scores,
-                ApplicationRole::
-                    CompanionApplication,
-                1,
-                titleExtension
-                    ? EvidenceField::Title
-                    : EvidenceField::
-                          Description);
+        if (compactTitle.size() >
+                familyStem.size() &&
+            compactTitle.starts_with(
+                familyStem)) {
+            titleExtendsFamily = true;
         }
+    }
+
+    if (titleMatchesFamily) {
+        AddSignal(
+            scores,
+            ApplicationRole::
+                PrimaryApplication,
+            2,
+            EvidenceField::Title);
+        AddSignal(
+            scores,
+            ApplicationRole::
+                PrimaryApplication,
+            2,
+            EvidenceField::
+                ProductRelation);
+    }
+
+    if (!product.empty() &&
+        SameCompact(
+            description,
+            product)) {
+        AddSignal(
+            scores,
+            ApplicationRole::
+                PrimaryApplication,
+            3,
+            EvidenceField::
+                Description);
+    }
+
+    const bool descriptionExtension =
+        !product.empty() &&
+        StartsWithCompact(
+            description,
+            product);
+
+    if ((titleExtendsFamily ||
+         descriptionExtension) &&
+        residualTokens.empty()) {
+        AddSignal(
+            scores,
+            ApplicationRole::
+                PrimaryApplication,
+            2,
+            EvidenceField::
+                ProductRelation);
+        AddSignal(
+            scores,
+            ApplicationRole::
+                PrimaryApplication,
+            2,
+            titleExtendsFamily
+                ? EvidenceField::Title
+                : EvidenceField::
+                      Description);
+    } else if (
+        (titleExtendsFamily ||
+         descriptionExtension) &&
+        !residualTokens.empty()) {
+        AddSignal(
+            scores,
+            ApplicationRole::
+                CompanionApplication,
+            2,
+            EvidenceField::
+                ProductRelation);
+        AddSignal(
+            scores,
+            ApplicationRole::
+                CompanionApplication,
+            1,
+            titleExtendsFamily
+                ? EvidenceField::Title
+                : EvidenceField::
+                      Description);
     }
 
     if (evidence.source ==
@@ -1614,8 +1904,10 @@ ClassifyApplicationRole(
             evidence);
 
     decision.distinctiveTokens =
-        BuildDistinctiveTokens(
-            evidence);
+        QueryIntentTokensForRole(
+            evidence.displayTitle,
+            decision.role,
+            residualTokens);
 
     return decision;
 }
@@ -1623,10 +1915,87 @@ ClassifyApplicationRole(
 void CalibrateCatalogRoleContext(
     std::vector<Command*>& commands) {
 
+    const auto applyRole =
+        [](Command& command,
+           ApplicationRole role,
+           RoleConfidence confidence) {
+            command.applicationRole =
+                role;
+            command.roleConfidence =
+                confidence;
+            command.catalogVisibility =
+                CatalogVisibilityForRole(
+                    role,
+                    confidence);
+            command.distinctiveTokens =
+                QueryIntentTokensForRole(
+                    command.title,
+                    role,
+                    std::move(
+                        command
+                            .distinctiveTokens));
+        };
+
+    // Publication-time invariant repair: provider-specific metadata must not
+    // be able to turn an explicit high-information role title back into a
+    // Normal primary/companion entry. This pass is I/O-free and only
+    // re-evaluates the already-cached display title.
+    for (Command* command :
+         commands) {
+        if (command == nullptr ||
+            command->source ==
+                CommandSource::User) {
+            continue;
+        }
+
+        LaunchEvidence titleEvidence;
+        titleEvidence.source =
+            LaunchCandidateSource::
+                StartMenu;
+        titleEvidence.displayTitle =
+            command->title;
+        titleEvidence.targetKind =
+            LaunchTargetKind::
+                GuiExecutable;
+
+        const ApplicationRoleDecision
+            titleDecision =
+                ClassifyApplicationRole(
+                    titleEvidence);
+
+        if (!IsContextPromotableRole(
+                titleDecision.role) ||
+            titleDecision.confidence ==
+                RoleConfidence::Low) {
+            continue;
+        }
+
+        const bool normalIdentityRole =
+            command->applicationRole ==
+                ApplicationRole::Unknown ||
+            command->applicationRole ==
+                ApplicationRole::
+                    PrimaryApplication ||
+            command->applicationRole ==
+                ApplicationRole::
+                    CompanionApplication;
+
+        if (normalIdentityRole ||
+            (command->applicationRole ==
+                 titleDecision.role &&
+             command->roleConfidence ==
+                 RoleConfidence::Low)) {
+            applyRole(
+                *command,
+                titleDecision.role,
+                titleDecision.confidence);
+        }
+    }
+
     std::unordered_map<
         std::wstring,
         std::vector<Command*>>
-        byProduct;
+        byFamily;
 
     for (Command* command :
          commands) {
@@ -1636,28 +2005,25 @@ void CalibrateCatalogRoleContext(
             continue;
         }
 
-        const std::wstring product =
-            CatalogProductKey(
+        const std::wstring family =
+            CatalogFamilyKey(
                 *command);
 
-        if (!product.empty()) {
-            byProduct[product]
+        if (!family.empty()) {
+            byFamily[family]
                 .push_back(command);
         }
     }
 
-    for (auto& [product, entries] :
-         byProduct) {
-        (void)product;
+    for (auto& [family, entries] :
+         byFamily) {
+        (void)family;
 
         for (Command* candidate :
              entries) {
             if (candidate == nullptr ||
                 candidate->source ==
-                    CommandSource::User ||
-                candidate->applicationRole ==
-                    ApplicationRole::
-                        PrimaryApplication) {
+                    CommandSource::User) {
                 continue;
             }
 
@@ -1686,11 +2052,10 @@ void CalibrateCatalogRoleContext(
                 continue;
             }
 
-            // A weak role word such as "settings" stays conservative in
-            // isolation. Inside a product/location group that already has a
-            // clear primary application, the same cue becomes corroborated
-            // catalog evidence. Independent companion names (Encoder,
-            // Composer, Render, Editor, etc.) produce no such role cue.
+            // Weak semantic words become actionable evidence only when the
+            // same family/location also exposes a clear primary application.
+            // Independent Editor/Renderer/Composer-style companions have no
+            // such role cue and remain untouched.
             LaunchEvidence titleEvidence;
             titleEvidence.source =
                 LaunchCandidateSource::
@@ -1706,26 +2071,23 @@ void CalibrateCatalogRoleContext(
                     ClassifyApplicationRole(
                         titleEvidence);
 
-            if ((candidate
-                     ->applicationRole ==
-                         ApplicationRole::
-                             Unknown ||
-                 candidate
-                     ->applicationRole ==
-                         ApplicationRole::
-                             CompanionApplication) &&
+            const bool identityRole =
+                candidate->applicationRole ==
+                    ApplicationRole::Unknown ||
+                candidate->applicationRole ==
+                    ApplicationRole::
+                        PrimaryApplication ||
+                candidate->applicationRole ==
+                    ApplicationRole::
+                        CompanionApplication;
+
+            if (identityRole &&
                 IsContextPromotableRole(
                     titleDecision.role)) {
-                candidate->applicationRole =
-                    titleDecision.role;
-                candidate->roleConfidence =
-                    RoleConfidence::Medium;
-                candidate->catalogVisibility =
-                    CatalogVisibilityForRole(
-                        candidate
-                            ->applicationRole,
-                        candidate
-                            ->roleConfidence);
+                applyRole(
+                    *candidate,
+                    titleDecision.role,
+                    RoleConfidence::Medium);
                 continue;
             }
 
@@ -1734,25 +2096,15 @@ void CalibrateCatalogRoleContext(
                         ->applicationRole) &&
                 candidate->roleConfidence ==
                     RoleConfidence::Low) {
-                candidate->roleConfidence =
-                    RoleConfidence::Medium;
-                candidate->catalogVisibility =
-                    CatalogVisibilityForRole(
-                        candidate
-                            ->applicationRole,
-                        candidate
-                            ->roleConfidence);
+                applyRole(
+                    *candidate,
+                    candidate
+                        ->applicationRole,
+                    RoleConfidence::Medium);
                 continue;
             }
 
-            if ((candidate
-                     ->applicationRole ==
-                         ApplicationRole::
-                             Unknown ||
-                 candidate
-                     ->applicationRole ==
-                         ApplicationRole::
-                             CompanionApplication) &&
+            if (identityRole &&
                 LooksLikeAlternateLaunch(
                     candidate->title)) {
 
@@ -1765,22 +2117,16 @@ void CalibrateCatalogRoleContext(
                         BaseCanonicalIdentity(
                             *primary);
 
-                candidate->applicationRole =
+                applyRole(
+                    *candidate,
                     ApplicationRole::
-                        AlternateLaunch;
-                candidate->roleConfidence =
+                        AlternateLaunch,
                     sameTarget ||
                             !candidate
                                  ->arguments
                                  .empty()
                         ? RoleConfidence::High
-                        : RoleConfidence::Medium;
-                candidate->catalogVisibility =
-                    CatalogVisibilityForRole(
-                        candidate
-                            ->applicationRole,
-                        candidate
-                            ->roleConfidence);
+                        : RoleConfidence::Medium);
             }
         }
     }

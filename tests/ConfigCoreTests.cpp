@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 11,\n"
+        "  \"schemaVersion\": 12,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,17 +1788,17 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 10 can contain family-contaminated distinctive tokens from
-    // alpha.5.27. Generated state must rebuild so StrongMatchOnly admission
-    // cannot be reopened by a shared family prefix.
-    const auto staleSchema10ProviderCache =
+    // Schema 11 still treats EXE ProductName as the primary suite identity.
+    // Generated state must rebuild so Start Menu suite context, role-specific
+    // intent tokens and publication-time role normalization are recomputed.
+    const auto staleSchema11ProviderCache =
         data /
-        "provider-cache-schema10-stale.json";
+        "provider-cache-schema11-stale.json";
 
     WriteText(
-        staleSchema10ProviderCache,
+        staleSchema11ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 10,\n"
+        "  \"schemaVersion\": 11,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1815,11 +1815,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema10Cache(
-        staleSchema10ProviderCache);
+    ProviderCache staleSchema11Cache(
+        staleSchema11ProviderCache);
 
     assert(
-        staleSchema10Cache.Load().empty());
+        staleSchema11Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

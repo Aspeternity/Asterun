@@ -549,6 +549,22 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck frozen Classic geometry/assets and alpha.5.24 repaint isolation.
 - [ ] No commercial product name should appear in new production rules or new role-model regressions.
 
+## v0.8.0-alpha.5.29 Catalog Evidence Pipeline Hardening validation
+
+- [ ] Upgrade from alpha.5.28. Provider Cache must rebuild once under schema 12; settings, usage and user-command schemas remain unchanged.
+- [ ] In a Start Menu suite where helper EXEs report different ProductName values, search only the shared family prefix. Explicit benchmark/settings/diagnostic/download helpers classified StrongMatchOnly must not appear.
+- [ ] Explicitly search each helper role term. StrongMatchOnly entries must remain reachable, and exact full-title fallback must still work.
+- [ ] Verify Quick Launch / Safe Mode / no-plugins variants become AlternateLaunch only when a related suite primary exists; they must not be suppressed by the phrase alone in isolation.
+- [ ] Verify Composer/Renderer/Editor/Encoder-style independent companion applications remain Normal even when their EXE ProductName differs from the suite folder name.
+- [ ] Verify a helper whose own ProductName equals its “Performance Test” or “Settings Wizard” title is still classified by the high-information semantic role rather than PrimaryApplication.
+- [ ] Inspect `data/provider-cache.json`: schema is 12. Start Menu catalogGroupKey values should use normalized `family:...|menu:...` context and restrictive role `distinctiveTokens` should contain role intent rather than the shared family prefix.
+- [ ] Verify nested Start Menu subfolders under one suite remain context-related while generic folders such as Programs/Windows Tools do not manufacture a suite family.
+- [ ] Verify user-created shortcuts remain authoritative and unaffected by automatic role/context normalization.
+- [ ] Recheck App Paths/PATH/AppsFolder discovery, cross-provider canonical deduplication, Everything merge, pinyin, usage ranking and explicit wildcard/path syntax.
+- [ ] Recheck startup/background refresh: no new filesystem, EXE metadata, registry or Shell work may occur on the keystroke path.
+- [ ] Recheck idle CPU/memory and alpha.5.24 Classic typing/backspace repaint isolation.
+- [ ] No commercial product name may appear in production role/group rules or new regression fixtures.
+
 ## Release assets
 
 For the candidate tag:

@@ -23,6 +23,20 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.29 — Catalog Evidence Pipeline Hardening
+
+Alpha.5.29 is a structural correction to the launch-catalog evidence model. Real multi-entry Windows suites demonstrated that EXE Version Resource `ProductName` cannot be treated as the suite-family authority: the main application, benchmark, settings wizard, launcher and companion tools may all report different product names even though Windows groups them under one Start Menu suite folder.
+
+For Start Menu entries, the user-facing suite folder is now first-class family evidence. It is not merely a fallback for a missing ProductName. The first non-generic folder below `Programs` becomes the shared family boundary, version tokens are normalized away, and nested suite folders remain related by location. If no reliable Start Menu suite exists, non-Start-Menu providers continue to use normalized ProductName plus install root.
+
+The token model is also split conceptually. Residual title tokens are used for identity/companion reasoning, while restrictive catalog roles persist only explicit semantic query intent. This prevents a family/title residual from being interpreted as permission to re-admit a `StrongMatchOnly` helper for a short family prefix. Exact full-title and explicit wildcard/path access remain available through the existing SearchEngine policy.
+
+High-information title phrases now outrank the generic “title equals ProductName” primary relationship. A benchmark/settings/diagnostic/download helper whose own EXE metadata happens to name that helper is no longer promoted to a Normal primary application merely because the two strings match. Single-field semantic evidence remains Medium confidence rather than being treated as high certainty.
+
+Catalog publication performs one additional I/O-free normalization pass over cached command titles before group context is applied. This repairs explicit high-information roles independently of provider metadata, then uses normalized family/location context only for genuinely ambiguous weak roles and AlternateLaunch entries. Independent Composer/Renderer/Editor/Encoder-style companions are not suppressed merely because they share a suite.
+
+Provider Cache advances to schema 12 so alpha.5.28 schema-11 role/group/token state is rebuilt once. SearchEngine, ranking, pinyin, Everything, provider monitoring and frozen Classic UI/geometry are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.199`.
+
 ## v0.8.0-alpha.5.28 — Distinctive Intent Isolation
 
 Alpha.5.28 fixes the reason alpha.5.27 could classify an auxiliary suite entry correctly yet still show it for a short shared-family query. The bug was in the producer of `distinctiveTokens`, not in SearchEngine.

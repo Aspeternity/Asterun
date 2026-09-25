@@ -42,6 +42,186 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.29":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.29 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 12:
+        fail("v0.8 alpha.5.29 must use Provider Cache schemaVersion 12")
+
+    role_cpp = read("src/core/LaunchRole.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    result_ranking = read("src/core/ResultRanking.cpp")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "StartMenuSuiteName(",
+        "FamilyIdentityNames(",
+        "FamilyIdentityStems(",
+        "family:",
+        "QueryIntentTokensForRole(",
+        "RoleUsesExplicitSemanticIntent(",
+        "Publication-time invariant repair",
+        "byFamily",
+        "shared family",
+    ):
+        if token not in role_cpp:
+            fail(f"v0.8 alpha.5.29 catalog evidence hardening missing: {token}")
+
+    if "return std::max(\n            strength,\n            5);" not in role_cpp:
+        fail("v0.8 alpha.5.29 high-information title evidence must outrank generic primary identity")
+
+    for token in (
+        "Contoso Studio 性能测试 2026",
+        "Contoso Studio 设置向导 2026",
+        "Contoso Studio 2026 快速启动",
+        "Contoso Studio Composer 2026",
+        "Contoso Benchmark Utility",
+        "Contoso Configuration Manager",
+        "stalePrimary",
+        "family:contosostudio|menu:",
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.29 generic suite regression missing: {token}")
+
+    for token in (
+        "helper EXEs may report unrelated ProductName",
+        "benchmarkIntent",
+        "settingsIntent",
+        "quickIntent",
+        "ContainsCommand",
+        "CalibrateCatalogRoleContext(",
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.29 end-to-end suite search regression missing: {token}")
+
+    if "BuildDistinctiveTokens(" in search_cpp or "StartMenuSuiteName(" in search_cpp:
+        fail("v0.8 alpha.5.29 discovery/catalog reasoning must stay out of SearchEngine")
+
+    for token in (
+        "HasDistinctiveCatalogIntent(",
+        "AdmitCatalogEntry(",
+    ):
+        if token not in search_cpp:
+            fail(f"v0.8 alpha.5.29 existing SearchEngine admission regressed: {token}")
+
+    if "catalogVisibility" in result_ranking or "distinctiveTokens" in result_ranking:
+        fail("v0.8 alpha.5.29 catalog admission must not move into ResultRanking")
+
+    forbidden_products = (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    )
+    production_and_role_tests = (role_cpp + role_tests).lower()
+    for product in forbidden_products:
+        if product in production_and_role_tests:
+            fail(f"v0.8 alpha.5.29 product-specific rule/fixture found: {product}")
+
+    for token in (
+        '\\"schemaVersion\\": 12',
+        "staleSchema11ProviderCache",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.29 Provider Cache schema regression missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.29 frozen Classic asset changed: {asset_path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,199",
+        "PRODUCTVERSION 0,8,0,199",
+        "0.8.0-alpha.5.29",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.29 resource version missing: {token}")
+
+    if 'version="0.8.0.199"' not in manifest:
+        fail("v0.8 alpha.5.29 manifest fixed version must be 0.8.0.199")
+
+    for token in (
+        '"0.8.0-alpha.5.28"',
+        '"0.8.0-alpha.5.29"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.29 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.29 Catalog Evidence Pipeline Hardening validation",
+        "schema 12",
+        "family:...|menu:",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.29 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.29 — Catalog Evidence Pipeline Hardening",
+        "Provider Cache advances to schema 12",
+        "0.8.0.199",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.29 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.29" not in changelog:
+        fail("v0.8 alpha.5.29 changelog entry missing")
+
+    if "v0.8.0-alpha.5.29 hardens the evidence pipeline end to end" not in roadmap:
+        fail("v0.8 alpha.5.29 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.29 Catalog Evidence Pipeline Hardening verified:",
+        "| Provider Cache schema 12 rebuild",
+        "| Start Menu suite family authority",
+        "| role-specific query intent",
+        "| semantic title precedence",
+        "| publication-time normalization",
+        "| independent companions preserved",
+        "| SearchEngine/ResultRanking unchanged",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.28":
     import hashlib
     import subprocess

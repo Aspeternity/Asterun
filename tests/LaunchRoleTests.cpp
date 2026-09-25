@@ -139,11 +139,20 @@ int main() {
         assert(
             HasToken(
                 decision.distinctiveTokens,
-                L"performance"));
+                L"performance test"));
         assert(
-            HasToken(
-                decision.distinctiveTokens,
-                L"test"));
+            std::none_of(
+                decision
+                    .distinctiveTokens
+                    .begin(),
+                decision
+                    .distinctiveTokens
+                    .end(),
+                [](const std::wstring&
+                       token) {
+                    return token.starts_with(
+                        L"contoso");
+                }));
     }
 
     {
@@ -512,6 +521,310 @@ int main() {
         assert(
             decision.visibility ==
             CatalogVisibility::Normal);
+    }
+
+    {
+        // A suite helper can have a completely different EXE ProductName.
+        // Start Menu suite context must still isolate the shared family and
+        // group all entries without product-specific knowledge.
+        const std::filesystem::path menuFolder =
+            L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs/Contoso Studio 2026";
+
+        auto primary =
+            BaseEvidence(
+                L"Contoso Studio 2026",
+                L"C:/Program Files/Contoso/Studio/Studio.exe");
+        primary.startMenuFolder =
+            menuFolder;
+        primary.executable.productName =
+            L"Contoso Main Application 2026";
+
+        auto benchmark =
+            BaseEvidence(
+                L"Contoso Studio 性能测试 2026",
+                L"C:/Program Files/Contoso/Tools/Bench.exe");
+        benchmark.startMenuFolder =
+            menuFolder;
+        benchmark.executable.productName =
+            L"Contoso Benchmark Utility";
+
+        auto settings =
+            BaseEvidence(
+                L"Contoso Studio 设置向导 2026",
+                L"C:/Program Files/Contoso/Setup/Config.exe");
+        settings.startMenuFolder =
+            menuFolder;
+        settings.executable.productName =
+            L"Contoso Configuration Manager";
+
+        auto composer =
+            BaseEvidence(
+                L"Contoso Studio Composer 2026",
+                L"C:/Program Files/Contoso/Composer/Composer.exe");
+        composer.startMenuFolder =
+            menuFolder;
+        composer.executable.productName =
+            L"Contoso Composer";
+
+        auto quick =
+            BaseEvidence(
+                L"Contoso Studio 2026 快速启动",
+                L"C:/Program Files/Contoso/Studio/Studio.exe");
+        quick.startMenuFolder =
+            menuFolder;
+        quick.executable.productName =
+            L"Contoso Launcher";
+
+        const auto primaryDecision =
+            ClassifyApplicationRole(
+                primary);
+        const auto benchmarkDecision =
+            ClassifyApplicationRole(
+                benchmark);
+        const auto settingsDecision =
+            ClassifyApplicationRole(
+                settings);
+        const auto composerDecision =
+            ClassifyApplicationRole(
+                composer);
+        const auto quickDecision =
+            ClassifyApplicationRole(
+                quick);
+
+        assert(
+            primaryDecision.role ==
+            ApplicationRole::
+                PrimaryApplication);
+        assert(
+            primaryDecision.confidence !=
+            RoleConfidence::Low);
+
+        assert(
+            benchmarkDecision.role ==
+            ApplicationRole::
+                BenchmarkTool);
+        assert(
+            benchmarkDecision.confidence ==
+            RoleConfidence::Medium);
+        assert(
+            benchmarkDecision.visibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            benchmarkDecision
+                .distinctiveTokens ==
+            std::vector<std::wstring>{
+                L"性能测试",
+            });
+
+        assert(
+            settingsDecision.role ==
+            ApplicationRole::
+                ConfigurationTool);
+        assert(
+            settingsDecision.confidence ==
+            RoleConfidence::Medium);
+        assert(
+            settingsDecision.visibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                settingsDecision
+                    .distinctiveTokens,
+                L"设置向导"));
+
+        assert(
+            composerDecision.role ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            composerDecision.visibility ==
+            CatalogVisibility::Normal);
+        assert(
+            HasToken(
+                composerDecision
+                    .distinctiveTokens,
+                L"composer"));
+
+        assert(
+            primaryDecision.catalogGroupKey ==
+            benchmarkDecision.catalogGroupKey);
+        assert(
+            primaryDecision.catalogGroupKey ==
+            settingsDecision.catalogGroupKey);
+        assert(
+            primaryDecision.catalogGroupKey ==
+            composerDecision.catalogGroupKey);
+        assert(
+            primaryDecision.catalogGroupKey ==
+            quickDecision.catalogGroupKey);
+        assert(
+            primaryDecision.catalogGroupKey
+                .starts_with(
+                    L"family:contosostudio|menu:"));
+
+        // AlternateLaunch remains contextual: the phrase alone does not
+        // suppress it before a primary sibling is known.
+        assert(
+            quickDecision.visibility ==
+            CatalogVisibility::Normal);
+
+        Command primaryCommand;
+        primaryCommand.source =
+            CommandSource::StartMenu;
+        primaryCommand.title =
+            primary.displayTitle;
+        primaryCommand.target =
+            primary.resolvedTarget;
+        primaryCommand.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\studio\\studio.exe";
+        primaryCommand.applicationRole =
+            primaryDecision.role;
+        primaryCommand.roleConfidence =
+            primaryDecision.confidence;
+        primaryCommand.catalogVisibility =
+            primaryDecision.visibility;
+        primaryCommand.catalogGroupKey =
+            primaryDecision.catalogGroupKey;
+        primaryCommand.distinctiveTokens =
+            primaryDecision.distinctiveTokens;
+
+        Command quickCommand;
+        quickCommand.source =
+            CommandSource::StartMenu;
+        quickCommand.title =
+            quick.displayTitle;
+        quickCommand.target =
+            primaryCommand.target;
+        quickCommand.arguments =
+            L"--quick";
+        quickCommand.canonicalIdentity =
+            primaryCommand.canonicalIdentity +
+            L"|args:--quick";
+        quickCommand.applicationRole =
+            quickDecision.role;
+        quickCommand.roleConfidence =
+            quickDecision.confidence;
+        quickCommand.catalogVisibility =
+            quickDecision.visibility;
+        quickCommand.catalogGroupKey =
+            quickDecision.catalogGroupKey;
+        quickCommand.distinctiveTokens =
+            quickDecision.distinctiveTokens;
+
+        Command composerCommand;
+        composerCommand.source =
+            CommandSource::StartMenu;
+        composerCommand.title =
+            composer.displayTitle;
+        composerCommand.target =
+            composer.resolvedTarget;
+        composerCommand.canonicalIdentity =
+            L"file:c:\\program files\\contoso\\composer\\composer.exe";
+        composerCommand.applicationRole =
+            composerDecision.role;
+        composerCommand.roleConfidence =
+            composerDecision.confidence;
+        composerCommand.catalogVisibility =
+            composerDecision.visibility;
+        composerCommand.catalogGroupKey =
+            composerDecision.catalogGroupKey;
+        composerCommand.distinctiveTokens =
+            composerDecision.distinctiveTokens;
+
+        std::vector<Command*> contextual{
+            &primaryCommand,
+            &quickCommand,
+            &composerCommand,
+        };
+
+        CalibrateCatalogRoleContext(
+            contextual);
+
+        assert(
+            quickCommand.applicationRole ==
+            ApplicationRole::
+                AlternateLaunch);
+        assert(
+            quickCommand.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                quickCommand
+                    .distinctiveTokens,
+                L"快速启动"));
+        assert(
+            std::none_of(
+                quickCommand
+                    .distinctiveTokens
+                    .begin(),
+                quickCommand
+                    .distinctiveTokens
+                    .end(),
+                [](const std::wstring&
+                       token) {
+                    return token.starts_with(
+                        L"contoso");
+                }));
+
+        assert(
+            composerCommand.applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            composerCommand.catalogVisibility ==
+            CatalogVisibility::Normal);
+    }
+
+    {
+        // High-information title evidence must repair a stale/over-generic
+        // Primary role even without any catalog group.
+        Command stalePrimary;
+        stalePrimary.source =
+            CommandSource::StartMenu;
+        stalePrimary.title =
+            L"Acme Performance Test 2026";
+        stalePrimary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        stalePrimary.roleConfidence =
+            RoleConfidence::High;
+        stalePrimary.catalogVisibility =
+            CatalogVisibility::Normal;
+        stalePrimary.distinctiveTokens = {
+            L"acmeperformancetest2026",
+        };
+
+        std::vector<Command*> commands{
+            &stalePrimary,
+        };
+
+        CalibrateCatalogRoleContext(
+            commands);
+
+        assert(
+            stalePrimary.applicationRole ==
+            ApplicationRole::
+                BenchmarkTool);
+        assert(
+            stalePrimary.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            stalePrimary.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                stalePrimary
+                    .distinctiveTokens,
+                L"performance test"));
+        assert(
+            !HasToken(
+                stalePrimary
+                    .distinctiveTokens,
+                L"acmeperformancetest2026"));
     }
 
     {

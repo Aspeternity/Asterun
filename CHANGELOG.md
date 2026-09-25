@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.5.29
+
+- Hardened the entire launch-role evidence pipeline after real-machine validation showed that alpha.5.28 could still leave suite auxiliaries visible for a shared family prefix.
+- Start Menu suite structure is now first-class family evidence rather than a fallback used only when EXE ProductName is empty. Helper executables may carry unrelated ProductName values without splitting one installed suite into unrelated catalog groups.
+- When a reliable Start Menu suite folder exists, a helper EXE ProductName can no longer expand the shared family identity and consume legitimate companion names such as Composer, Renderer, Editor or Encoder.
+- High-information title phrases now outrank generic title/ProductName primary-app identity while remaining Medium confidence when title is the only evidence. A helper whose own ProductName equals its Performance Test or Settings Wizard title no longer becomes a Normal PrimaryApplication.
+- Distinctive title residuals and restrictive query intent are separated. StrongMatchOnly/Hidden roles now persist only explicit semantic role intent; arbitrary family/title residuals cannot reopen them through a short product prefix.
+- Catalog grouping now uses a normalized family key. Start Menu entries prefer the suite folder plus menu location; non-Start-Menu providers fall back to normalized ProductName plus install root.
+- Catalog publication adds an I/O-free title-evidence normalization pass before group context. Explicit high-information roles are repaired even if provider metadata previously labeled them Primary/Companion/Unknown.
+- Weak role words still require a related family/location with a clear primary app. AlternateLaunch remains contextual; independent companion apps remain Normal.
+- Provider Cache advances to schema 12 so schema-11 ProductName-centric family/group/token decisions rebuild once on upgrade.
+- SearchEngine, ResultRanking, usage scoring, pinyin, Everything, provider monitoring and frozen Classic UI/geometry remain unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.199`.
+
 ## 0.8.0-alpha.5.28
 
 - Fixed a catalog-intent isolation bug where a `StrongMatchOnly` entry could still be admitted by a short shared-family prefix when Windows exposed family + version + role as one contiguous title token.
