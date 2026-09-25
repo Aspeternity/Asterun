@@ -1048,7 +1048,6 @@ CatalogFamilyKey(
 }
 
 [[nodiscard]] bool
-IsContextPromotableRole[[nodiscard]] bool
 IsContextPromotableRole(
     ApplicationRole role) noexcept {
 
