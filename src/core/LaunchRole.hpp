@@ -13,6 +13,7 @@ enum class ApplicationRole {
     Unknown,
     PrimaryApplication,
     CompanionApplication,
+    SuiteSubordinate,
     AlternateLaunch,
     SuiteUtility,
     UserTool,

@@ -42,6 +42,203 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.35":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.35 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 17:
+        fail("v0.8 alpha.5.35 must use Provider Cache schemaVersion 17")
+
+    role_hpp = read("src/core/LaunchRole.hpp")
+    role_cpp = read("src/core/LaunchRole.cpp")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    ranking_cpp = read("src/core/ResultRanking.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    workflow = read(".github/workflows/build.yml")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    if "SuiteSubordinate" not in role_hpp:
+        fail("v0.8 alpha.5.35 SuiteSubordinate role missing from contract")
+
+    for token in (
+        "std::array<RoleScore, 20>",
+        "suite-subordinate",
+        "IsSuiteTopologyIdentityRole(",
+        "NormalizedDistinctiveTokens(",
+        "CanonicalTargetStem(",
+        "SuiteTopologyDelta(",
+        "candidateIdentity.starts_with(",
+        "candidateTarget.starts_with(",
+        "topologyDecisions",
+        "anchorIdentityLength",
+        "ApplicationRole::\n                SuiteSubordinate",
+    ):
+        if token not in role_cpp:
+            fail(f"v0.8 alpha.5.35 suite topology implementation missing: {token}")
+
+    for token in (
+        "Acme Studio Composer 2026",
+        "Acme Studio Composer Player 2026",
+        "Acme Studio Visualize Boost 2026",
+        "IndependentPro",
+        "SuiteSubordinate",
+        'L"player"',
+        'L"boost"',
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.35 role topology regression missing: {token}")
+
+    for token in (
+        "topology-composer-player",
+        "topology-visualize-boost",
+        "topology-title-only",
+        "SuiteSubordinate",
+        'L"player"',
+        'L"boost"',
+        'L"ac"',
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.35 end-to-end topology regression missing: {token}")
+
+    if "SuiteSubordinate" in search_cpp or "SuiteTopologyDelta" in search_cpp:
+        fail("v0.8 alpha.5.35 suite topology inference must stay out of SearchEngine")
+
+    if "SuiteSubordinate" in ranking_cpp or "SuiteTopologyDelta" in ranking_cpp:
+        fail("v0.8 alpha.5.35 suite topology must not become an ad-hoc ranking patch")
+
+    for product in (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    ):
+        if product in (role_hpp + role_cpp).lower():
+            fail(f"v0.8 alpha.5.35 product-specific production rule found: {product}")
+
+    for token in (
+        '\\"schemaVersion\\": 17',
+        "staleSchema16ProviderCache",
+        '\\"schemaVersion\\": 16',
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.35 Provider Cache regression missing: {token}")
+
+    development_start = workflow.find("  development-release:")
+    if development_start < 0:
+        fail("v0.8 alpha.5.35 development-release job missing")
+    development = workflow[development_start:]
+    for token in (
+        "cancel-in-progress: false",
+        "Verify dev-latest public update contract",
+        "PUBLIC_MANIFEST_URL=",
+        "cmp -s update-manifest.json public-update-manifest.json",
+        "-F draft=false",
+        "shared hosted-runner IPs",
+        "unauthenticated API",
+    ):
+        if token not in development:
+            fail(f"v0.8 alpha.5.35 dev-latest verification regressed: {token}")
+
+    if "PUBLIC_RELEASE_URL=" in development:
+        fail("v0.8 alpha.5.35 must not restore anonymous GitHub API metadata dependency")
+
+    for token in (
+        "FILEVERSION 0,8,0,205",
+        "PRODUCTVERSION 0,8,0,205",
+        "0.8.0-alpha.5.35",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.35 resource version missing: {token}")
+
+    if 'version="0.8.0.205"' not in manifest:
+        fail("v0.8 alpha.5.35 manifest fixed version must be 0.8.0.205")
+
+    for token in (
+        '"0.8.0-alpha.5.34"',
+        '"0.8.0-alpha.5.35"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.35 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.35 Suite Member Topology validation",
+        "schema 17",
+        "suite-subordinate",
+        "child-only delta",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.35 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.35 — Suite Member Topology",
+        "schema 17",
+        "0.8.0.205",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.35 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.35" not in changelog:
+        fail("v0.8 alpha.5.35 changelog entry missing")
+
+    if "v0.8.0-alpha.5.35 adds conservative suite-member topology" not in roadmap:
+        fail("v0.8 alpha.5.35 roadmap entry missing")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.35 frozen Classic asset changed: {asset_path}")
+
+    print(
+        "v0.8.0-alpha.5.35 Suite Member Topology verified:",
+        "| Provider Cache schema 17 rebuild",
+        "| SuiteSubordinate structural role",
+        "| title + executable-stem parent/child corroboration",
+        "| child-delta explicit intent",
+        "| independent companions preserved",
+        "| SearchEngine/ResultRanking unchanged",
+        "| no product blacklist",
+        "| dev-latest public verification preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.34":
     import hashlib
     import subprocess

@@ -1786,6 +1786,189 @@ int main() {
     }
 
     {
+        // Generic suite topology: a child launch surface is restrictive only
+        // when both its family-stripped title identity and its executable stem
+        // extend a normal companion. No product name or child-role vocabulary
+        // is required.
+        const std::wstring group =
+            L"family:acmestudio|root:c:\\program files\\acme\\studio";
+
+        auto makeCompanion =
+            [&](std::wstring title,
+                std::wstring targetStem,
+                std::vector<std::wstring>
+                    tokens) {
+                Command command;
+                command.source =
+                    CommandSource::StartMenu;
+                command.title =
+                    std::move(title);
+                command.target =
+                    L"C:\\Program Files\\Acme\\Studio\\" +
+                    targetStem +
+                    L".exe";
+                command.canonicalIdentity =
+                    L"file:c:\\program files\\acme\\studio\\" +
+                    targetStem +
+                    L".exe";
+                command.applicationRole =
+                    ApplicationRole::
+                        CompanionApplication;
+                command.roleConfidence =
+                    RoleConfidence::Medium;
+                command.catalogVisibility =
+                    CatalogVisibility::Normal;
+                command.catalogGroupKey =
+                    group;
+                command.distinctiveTokens =
+                    std::move(tokens);
+                return command;
+            };
+
+        Command primary;
+        primary.source =
+            CommandSource::StartMenu;
+        primary.title =
+            L"Acme Studio 2026";
+        primary.target =
+            L"C:\\Program Files\\Acme\\Studio\\Studio.exe";
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\studio.exe";
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            group;
+
+        Command composer =
+            makeCompanion(
+                L"Acme Studio Composer 2026",
+                L"Composer",
+                {L"composer"});
+
+        Command composerPlayer =
+            makeCompanion(
+                L"Acme Studio Composer Player 2026",
+                L"ComposerPlayer",
+                {L"composer", L"player"});
+
+        Command visualize =
+            makeCompanion(
+                L"Acme Studio Visualize 2026",
+                L"Visualize",
+                {L"visualize"});
+
+        Command visualizeBoost =
+            makeCompanion(
+                L"Acme Studio Visualize Boost 2026",
+                L"VisualizeBoost",
+                {L"visualize", L"boost"});
+
+        Command routing =
+            makeCompanion(
+                L"Acme Studio Routing 2026",
+                L"Routing",
+                {L"routing"});
+
+        Command titleOnlyExtension =
+            makeCompanion(
+                L"Acme Studio Composer Pro 2026",
+                L"IndependentPro",
+                {L"composer", L"pro"});
+
+        std::vector<Command*> commands{
+            &primary,
+            &composer,
+            &composerPlayer,
+            &visualize,
+            &visualizeBoost,
+            &routing,
+            &titleOnlyExtension,
+        };
+
+        CalibrateCatalogRoleContext(
+            commands);
+
+        assert(
+            composer.applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            composer.catalogVisibility ==
+            CatalogVisibility::Normal);
+        assert(
+            visualize.applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            visualize.catalogVisibility ==
+            CatalogVisibility::Normal);
+
+        assert(
+            composerPlayer.applicationRole ==
+            ApplicationRole::
+                SuiteSubordinate);
+        assert(
+            composerPlayer.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            composerPlayer.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            composerPlayer
+                .distinctiveTokens
+                .size() == 1);
+        assert(
+            composerPlayer
+                .distinctiveTokens[0] ==
+            L"player");
+
+        assert(
+            visualizeBoost.applicationRole ==
+            ApplicationRole::
+                SuiteSubordinate);
+        assert(
+            visualizeBoost.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            visualizeBoost
+                .distinctiveTokens
+                .size() == 1);
+        assert(
+            visualizeBoost
+                .distinctiveTokens[0] ==
+            L"boost");
+
+        // A one-off companion remains visible: shared family membership alone
+        // is not enough to make an entry subordinate.
+        assert(
+            routing.applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            routing.catalogVisibility ==
+            CatalogVisibility::Normal);
+
+        // Title containment by itself is also insufficient; the resolved
+        // executable identity must corroborate the parent/child relation.
+        assert(
+            titleOnlyExtension
+                .applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            titleOnlyExtension
+                .catalogVisibility ==
+            CatalogVisibility::Normal);
+    }
+
+    {
         assert(
             ParseApplicationRole(
                 ApplicationRoleName(
@@ -1807,6 +1990,13 @@ int main() {
                         SuiteUtility)) ==
             ApplicationRole::
                 SuiteUtility);
+        assert(
+            ParseApplicationRole(
+                ApplicationRoleName(
+                    ApplicationRole::
+                        SuiteSubordinate)) ==
+            ApplicationRole::
+                SuiteSubordinate);
         assert(
             ParseRoleConfidence(
                 RoleConfidenceName(

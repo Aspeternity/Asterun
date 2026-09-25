@@ -1409,6 +1409,190 @@ int main(int argc, char** argv) {
     }
 
     {
+        // Suite topology is an admission concern, not a query heuristic.
+        // A family query keeps independent companions, while a structurally
+        // corroborated child requires its own delta intent.
+        const std::wstring group =
+            L"family:acmestudio|root:c:\\program files\\acme\\studio";
+
+        auto makeSuiteCommand =
+            [&](std::wstring id,
+                std::wstring title,
+                std::wstring targetStem,
+                std::vector<std::wstring>
+                    tokens,
+                int order) {
+                Command command =
+                    MakeCommand(
+                        std::move(id),
+                        relevance::Normalize(
+                            title),
+                        title,
+                        L"C:\\Program Files\\Acme\\Studio\\" +
+                            targetStem +
+                            L".exe",
+                        order);
+
+                command.source =
+                    CommandSource::StartMenu;
+                command.applicationRole =
+                    ApplicationRole::
+                        CompanionApplication;
+                command.roleConfidence =
+                    RoleConfidence::Medium;
+                command.catalogVisibility =
+                    CatalogVisibility::Normal;
+                command.catalogGroupKey =
+                    group;
+                command.distinctiveTokens =
+                    std::move(tokens);
+                command.canonicalIdentity =
+                    L"file:c:\\program files\\acme\\studio\\" +
+                    targetStem +
+                    L".exe";
+                return command;
+            };
+
+        Command primary =
+            MakeCommand(
+                L"topology-primary",
+                L"acmestudio2026",
+                L"Acme Studio 2026",
+                L"C:\\Program Files\\Acme\\Studio\\Studio.exe",
+                0);
+        primary.source =
+            CommandSource::StartMenu;
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            group;
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\studio.exe";
+
+        std::vector<Command> topology{
+            primary,
+            makeSuiteCommand(
+                L"topology-composer",
+                L"Acme Studio Composer 2026",
+                L"Composer",
+                {L"composer"},
+                1),
+            makeSuiteCommand(
+                L"topology-composer-player",
+                L"Acme Studio Composer Player 2026",
+                L"ComposerPlayer",
+                {L"composer", L"player"},
+                2),
+            makeSuiteCommand(
+                L"topology-visualize",
+                L"Acme Studio Visualize 2026",
+                L"Visualize",
+                {L"visualize"},
+                3),
+            makeSuiteCommand(
+                L"topology-visualize-boost",
+                L"Acme Studio Visualize Boost 2026",
+                L"VisualizeBoost",
+                {L"visualize", L"boost"},
+                4),
+            makeSuiteCommand(
+                L"topology-routing",
+                L"Acme Studio Routing 2026",
+                L"Routing",
+                {L"routing"},
+                5),
+            makeSuiteCommand(
+                L"topology-title-only",
+                L"Acme Studio Composer Pro 2026",
+                L"IndependentPro",
+                {L"composer", L"pro"},
+                6),
+        };
+
+        std::vector<Command*> views;
+        for (auto& command : topology) {
+            views.push_back(&command);
+        }
+
+        CalibrateCatalogRoleContext(
+            views);
+
+        assert(
+            topology[2].applicationRole ==
+            ApplicationRole::
+                SuiteSubordinate);
+        assert(
+            topology[4].applicationRole ==
+            ApplicationRole::
+                SuiteSubordinate);
+        assert(
+            topology[5].applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            topology[6].applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+
+        const auto family =
+            engine.Search(
+                topology,
+                usage,
+                L"ac",
+                20);
+
+        assert(ContainsCommand(family, 0));
+        assert(ContainsCommand(family, 1));
+        assert(!ContainsCommand(family, 2));
+        assert(ContainsCommand(family, 3));
+        assert(!ContainsCommand(family, 4));
+        assert(ContainsCommand(family, 5));
+        assert(ContainsCommand(family, 6));
+
+        const auto composer =
+            engine.Search(
+                topology,
+                usage,
+                L"composer",
+                20);
+
+        assert(ContainsCommand(composer, 1));
+        assert(!ContainsCommand(composer, 2));
+
+        const auto player =
+            engine.Search(
+                topology,
+                usage,
+                L"player",
+                20);
+
+        assert(ContainsCommand(player, 2));
+
+        const auto boost =
+            engine.Search(
+                topology,
+                usage,
+                L"boost",
+                20);
+
+        assert(ContainsCommand(boost, 4));
+
+        const auto exactChild =
+            engine.Search(
+                topology,
+                usage,
+                L"Acme Studio Composer Player 2026",
+                20);
+
+        assert(ContainsCommand(exactChild, 2));
+    }
+
+    {
         const std::wstring group =
             L"family:fabrikamstudio|root:c:\\program files\\fabrikam\\studio";
 

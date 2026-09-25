@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.35 — Suite Member Topology
+
+Alpha.5.35 closes the next catalog-quality gap exposed after short-query and Windows-surface work: several entries in one installed suite can all be legitimate prefix matches, yet some are child launch surfaces of another user-facing companion rather than independent applications.
+
+Catalog publication now models that relationship as `SuiteSubordinate`. The rule is deliberately structural and conservative. A normal companion becomes subordinate only when it shares the same catalog context with another normal companion, its family-stripped display identity strictly extends the other companion's identity, and its resolved executable stem independently shows the same strict parent/child extension. Shared family membership, a longer title, or a suggestive word by itself is not sufficient.
+
+A Medium-confidence SuiteSubordinate is `StrongMatchOnly`. Its cached intent is reduced to the child-specific delta rather than the shared parent name, so a plain family or parent-companion query keeps the base application while explicit child intent can still recover the subordinate entry. Exact full-title and explicit-syntax access remain available through the existing catalog policy. Independent companions and opaque one-off suite entries remain Normal unless separate generic evidence identifies a restrictive role.
+
+The topology pass runs only during I/O-free catalog publication over already discovered Commands. SearchEngine, RelevancePolicy and ResultRanking are unchanged, so no new work is added per keystroke. Provider Cache advances to schema 17 so alpha.5.34 role/token state rebuilds once. Windows fixed FileVersion/ProductVersion is `0.8.0.205`.
+
 ## v0.8.0-alpha.5.34 — Launch Surface Evidence Completion
 
 Alpha.5.34 completes the Start Menu surface-evidence path exposed by real Windows shell shortcuts. A shortcut does not always resolve directly into a Windows Tools or Administrative Tools filesystem location: Windows can publish a root-level .lnk whose executable target is a shell-owned broker such as control.exe, mmc.exe, rundll32.exe or explorer.exe, while arguments or the Shell PIDL carry the actual management namespace.

@@ -645,6 +645,21 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck alpha.5.33 1-2 ASCII BoundaryPrefix suppression and 3-character recovery, alpha.5.32 catalog-role behavior, Everything merge, pinyin, usage scoring, wildcard/path syntax, idle CPU/memory and frozen Classic UI/geometry.
 - [ ] Recheck the alpha.5.30 anonymous dev-latest publication contract remains green.
 
+## v0.8.0-alpha.5.35 Suite Member Topology validation
+
+- [ ] Upgrade from alpha.5.34. Provider Cache rebuilds once under schema 17; settings, user commands and usage remain unchanged.
+- [ ] In a real multi-entry suite, a base companion and a child whose display identity and resolved executable stem both extend that base are calibrated as CompanionApplication + SuiteSubordinate respectively.
+- [ ] A short family prefix still returns the primary application and independent companion applications, but does not return the SuiteSubordinate child merely because it shares the family prefix.
+- [ ] Searching the parent companion name returns the parent without automatically re-admitting its subordinate child.
+- [ ] Searching the child-only delta intent re-admits the SuiteSubordinate entry.
+- [ ] Typing the exact full child title still reaches it through the existing exact-match escape hatch.
+- [ ] A title-only extension whose executable stem does not extend the putative parent remains a normal CompanionApplication.
+- [ ] An opaque one-off companion with no corroborating parent/child topology remains Normal; this version must not add product-word blacklists.
+- [ ] Inspect `data/provider-cache.json`: schema is 17, the subordinate role is persisted as `suite-subordinate`, and its distinctiveTokens contain only child-specific intent rather than the shared parent/family identity.
+- [ ] Recheck alpha.5.34 SystemUtility shell evidence, alpha.5.33 short-query precision, alpha.5.32 suite-role behavior, Everything merge, pinyin, wildcard/path syntax and usage scoring.
+- [ ] Confirm catalog topology adds no Shell/filesystem/registry/metadata work while typing and frozen Classic UI/geometry is unchanged.
+- [ ] Recheck idle CPU/memory and the dev-latest public-manifest publication contract.
+
 ## Release assets
 
 For the candidate tag:

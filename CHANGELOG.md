@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.35
+
+- Added a provider-neutral `SuiteSubordinate` catalog role for child launch surfaces inside multi-entry application suites.
+- Topology calibration requires two independent parent/child signals in the same catalog context: the family-stripped display identity must strictly extend a normal companion, and the resolved executable stem must strictly extend that companion's executable stem.
+- Shared family membership, title containment alone and opaque one-off companion names do not trigger suppression.
+- Medium-confidence suite subordinates use `StrongMatchOnly`; their cached distinctive intent is reduced to the child-only delta so a parent/family query does not re-admit the child while explicit child intent still does.
+- Added fictional parent/child suite regressions covering base companions, child surfaces, title-only false positives and unrelated one-off companions.
+- SearchEngine/RelevancePolicy/ResultRanking remain unchanged; topology calibration is I/O-free publication-time work.
+- Provider Cache advances to schema 17.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.205`.
+
 ## 0.8.0-alpha.5.34
 
 - Completed Start Menu launch-surface evidence for Windows shell shortcuts whose user-facing destination is carried by broker activation semantics instead of a direct filesystem target.

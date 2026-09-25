@@ -471,7 +471,7 @@ NormalizedPath(
 }
 
 void AddSignal(
-    std::array<RoleScore, 19>& scores,
+    std::array<RoleScore, 20>& scores,
     ApplicationRole role,
     int strength,
     EvidenceField field,
@@ -524,6 +524,8 @@ void AddSignal(
         return 90;
     case ApplicationRole::SuiteUtility:
         return 92;
+    case ApplicationRole::SuiteSubordinate:
+        return 85;
     case ApplicationRole::AlternateLaunch:
         return 80;
     case ApplicationRole::CompanionApplication:
@@ -632,7 +634,7 @@ HasUserFacingServiceUtilityPhrase(
 }
 
 void AddTextSignals(
-    std::array<RoleScore, 19>& scores,
+    std::array<RoleScore, 20>& scores,
     std::wstring_view value,
     EvidenceField field,
     int strength) {
@@ -1447,6 +1449,7 @@ IsContextPromotableRole(
     case ApplicationRole::Unknown:
     case ApplicationRole::PrimaryApplication:
     case ApplicationRole::CompanionApplication:
+    case ApplicationRole::SuiteSubordinate:
     case ApplicationRole::AlternateLaunch:
     case ApplicationRole::UserTool:
     case ApplicationRole::Documentation:
@@ -1547,6 +1550,178 @@ struct AlternateRelation {
     bool sameBaseTitle{false};
 };
 
+[[nodiscard]] bool
+IsSuiteTopologyIdentityRole(
+    const Command& command) noexcept {
+
+    return
+        command.catalogVisibility ==
+            CatalogVisibility::Normal &&
+        command.applicationRole ==
+            ApplicationRole::
+                CompanionApplication &&
+        command.roleConfidence !=
+            RoleConfidence::Low;
+}
+
+[[nodiscard]] std::vector<std::wstring>
+NormalizedDistinctiveTokens(
+    const Command& command) {
+
+    std::vector<std::wstring> result;
+
+    for (const auto& raw :
+         command.distinctiveTokens) {
+        std::wstring token =
+            Compact(raw);
+
+        if (token.empty()) {
+            continue;
+        }
+
+        result.push_back(
+            std::move(token));
+    }
+
+    return result;
+}
+
+[[nodiscard]] std::wstring
+JoinTokens(
+    const std::vector<std::wstring>&
+        tokens) {
+
+    std::wstring result;
+
+    for (const auto& token : tokens) {
+        result += token;
+    }
+
+    return result;
+}
+
+[[nodiscard]] std::wstring
+CanonicalTargetStem(
+    const Command& command) {
+
+    std::wstring identity =
+        BaseCanonicalIdentity(
+            command);
+
+    constexpr std::wstring_view
+        kFilePrefix = L"file:";
+
+    if (!identity.starts_with(
+            kFilePrefix)) {
+        return {};
+    }
+
+    identity.erase(
+        0,
+        kFilePrefix.size());
+
+    return Compact(
+        std::filesystem::path(identity)
+            .stem()
+            .wstring());
+}
+
+[[nodiscard]] std::vector<std::wstring>
+SuiteTopologyDelta(
+    const Command& candidate,
+    const Command& anchor) {
+
+    if (!SameCatalogContext(
+            candidate,
+            anchor) ||
+        candidate.canonicalIdentity ==
+            anchor.canonicalIdentity) {
+        return {};
+    }
+
+    const auto candidateTokens =
+        NormalizedDistinctiveTokens(
+            candidate);
+    const auto anchorTokens =
+        NormalizedDistinctiveTokens(
+            anchor);
+
+    if (candidateTokens.empty() ||
+        anchorTokens.empty()) {
+        return {};
+    }
+
+    const std::wstring candidateIdentity =
+        JoinTokens(candidateTokens);
+    const std::wstring anchorIdentity =
+        JoinTokens(anchorTokens);
+
+    if (anchorIdentity.size() < 3 ||
+        candidateIdentity.size() <=
+            anchorIdentity.size() ||
+        !candidateIdentity.starts_with(
+            anchorIdentity)) {
+        return {};
+    }
+
+    const std::wstring titleDelta =
+        candidateIdentity.substr(
+            anchorIdentity.size());
+
+    if (titleDelta.size() < 2) {
+        return {};
+    }
+
+    const std::wstring candidateTarget =
+        CanonicalTargetStem(candidate);
+    const std::wstring anchorTarget =
+        CanonicalTargetStem(anchor);
+
+    if (anchorTarget.size() < 3 ||
+        candidateTarget.size() <=
+            anchorTarget.size() ||
+        !candidateTarget.starts_with(
+            anchorTarget) ||
+        candidateTarget.size() -
+                anchorTarget.size() <
+            2) {
+        return {};
+    }
+
+    bool tokenPrefix =
+        anchorTokens.size() <
+            candidateTokens.size();
+
+    if (tokenPrefix) {
+        for (std::size_t index = 0;
+             index < anchorTokens.size();
+             ++index) {
+            if (anchorTokens[index] !=
+                candidateTokens[index]) {
+                tokenPrefix = false;
+                break;
+            }
+        }
+    }
+
+    if (tokenPrefix) {
+        return std::vector<std::wstring>(
+            candidateTokens.begin() +
+                static_cast<std::ptrdiff_t>(
+                    anchorTokens.size()),
+            candidateTokens.end());
+    }
+
+    return {titleDelta};
+}
+
+struct SuiteTopologyDecision {
+    Command* candidate{nullptr};
+    std::vector<std::wstring>
+        intentTokens;
+    std::size_t anchorIdentityLength{0};
+};
+
 [[nodiscard]] AlternateRelation
 AlternateRelationToPrimary(
     const Command& candidate,
@@ -1611,6 +1786,8 @@ const char* ApplicationRoleName(
         return "primary-application";
     case ApplicationRole::CompanionApplication:
         return "companion-application";
+    case ApplicationRole::SuiteSubordinate:
+        return "suite-subordinate";
     case ApplicationRole::AlternateLaunch:
         return "alternate-launch";
     case ApplicationRole::SuiteUtility:
@@ -1654,11 +1831,12 @@ ApplicationRole ParseApplicationRole(
     static constexpr std::array<
         std::pair<std::string_view,
                   ApplicationRole>,
-        19>
+        20>
         values{{
             {"unknown", ApplicationRole::Unknown},
             {"primary-application", ApplicationRole::PrimaryApplication},
             {"companion-application", ApplicationRole::CompanionApplication},
+            {"suite-subordinate", ApplicationRole::SuiteSubordinate},
             {"alternate-launch", ApplicationRole::AlternateLaunch},
             {"suite-utility", ApplicationRole::SuiteUtility},
             {"user-tool", ApplicationRole::UserTool},
@@ -1774,6 +1952,7 @@ CatalogVisibility CatalogVisibilityForRole(
     }
 
     switch (role) {
+    case ApplicationRole::SuiteSubordinate:
     case ApplicationRole::AlternateLaunch:
     case ApplicationRole::SuiteUtility:
     case ApplicationRole::ConfigurationTool:
@@ -2064,6 +2243,7 @@ RoleUsesExplicitSemanticIntent(
     ApplicationRole role) noexcept {
 
     switch (role) {
+    case ApplicationRole::SuiteSubordinate:
     case ApplicationRole::AlternateLaunch:
     case ApplicationRole::SuiteUtility:
     case ApplicationRole::ConfigurationTool:
@@ -2122,7 +2302,10 @@ QueryIntentTokensForRole(
                  DiagnosticTool ||
          role ==
              ApplicationRole::
-                 SuiteUtility)) {
+                 SuiteUtility ||
+         role ==
+             ApplicationRole::
+                 SuiteSubordinate)) {
         return residualTokens;
     }
 
@@ -2135,7 +2318,7 @@ ApplicationRoleDecision
 ClassifyApplicationRole(
     const LaunchEvidence& evidence) {
 
-    std::array<RoleScore, 19>
+    std::array<RoleScore, 20>
         scores{};
 
     if (IsStrongInternalPackagedEntry(
@@ -2712,6 +2895,101 @@ void CalibrateCatalogRoleContext(
                     RoleConfidence::Medium);
             }
         }
+    }
+
+    // Suite topology is evaluated only after semantic/alternate calibration.
+    // A longer companion becomes a subordinate only when two independent
+    // structural relationships agree:
+    //   1) its family-stripped display identity strictly extends another
+    //      normal companion in the same catalog context; and
+    //   2) its resolved executable stem strictly extends that companion's
+    //      executable stem.
+    //
+    // This catches generic parent/child launch surfaces such as a base
+    // companion plus a Player/Boost-style child without teaching ALTRun Next
+    // any product vocabulary. Opaque one-off companions remain Normal unless
+    // separate evidence exists.
+    std::vector<SuiteTopologyDecision>
+        topologyDecisions;
+
+    for (auto& [family, entries] :
+         byFamily) {
+        (void)family;
+
+        for (Command* candidate :
+             entries) {
+            if (candidate == nullptr ||
+                candidate->source ==
+                    CommandSource::User ||
+                !IsSuiteTopologyIdentityRole(
+                    *candidate)) {
+                continue;
+            }
+
+            SuiteTopologyDecision best;
+            best.candidate = candidate;
+
+            for (Command* anchorCommand :
+                 entries) {
+                if (anchorCommand == nullptr ||
+                    anchorCommand == candidate ||
+                    anchorCommand->source ==
+                        CommandSource::User ||
+                    !IsSuiteTopologyIdentityRole(
+                        *anchorCommand)) {
+                    continue;
+                }
+
+                auto delta =
+                    SuiteTopologyDelta(
+                        *candidate,
+                        *anchorCommand);
+
+                if (delta.empty()) {
+                    continue;
+                }
+
+                const std::size_t
+                    anchorLength =
+                        JoinTokens(
+                            NormalizedDistinctiveTokens(
+                                *anchorCommand))
+                            .size();
+
+                if (anchorLength <=
+                    best.anchorIdentityLength) {
+                    continue;
+                }
+
+                best.anchorIdentityLength =
+                    anchorLength;
+                best.intentTokens =
+                    std::move(delta);
+            }
+
+            if (!best.intentTokens.empty()) {
+                topologyDecisions.push_back(
+                    std::move(best));
+            }
+        }
+    }
+
+    for (auto& decision :
+         topologyDecisions) {
+        if (decision.candidate == nullptr) {
+            continue;
+        }
+
+        decision.candidate
+            ->distinctiveTokens =
+            std::move(
+                decision.intentTokens);
+
+        applyRole(
+            *decision.candidate,
+            ApplicationRole::
+                SuiteSubordinate,
+            RoleConfidence::Medium);
     }
 }
 
