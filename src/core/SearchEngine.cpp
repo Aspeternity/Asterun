@@ -826,6 +826,40 @@ SearchEngine::Search(
                           allowPinyin,
                           allowTarget);
 
+            // StrongMatchOnly entries intentionally disappear from broad
+            // family queries, but their precomputed distinctive identity must
+            // remain directly searchable. This is cache-only matching: role
+            // inference stays in catalog publication, and no I/O is added to
+            // the keystroke path.
+            if (!wildcardQuery &&
+                command.catalogVisibility ==
+                    CatalogVisibility::
+                        StrongMatchOnly) {
+
+                for (const auto& distinctive :
+                     command.distinctiveTokens) {
+
+                    auto intentMatch =
+                        relevance::MatchText(
+                            distinctive,
+                            normalizedQuery);
+
+                    if (!intentMatch) {
+                        continue;
+                    }
+
+                    intentMatch.field =
+                        relevance::MatchField::
+                            Alias;
+
+                    if (relevance::BetterMatch(
+                            intentMatch,
+                            match)) {
+                        match = intentMatch;
+                    }
+                }
+            }
+
             if (!wildcardQuery &&
                 queryTokens.size() > 1) {
 

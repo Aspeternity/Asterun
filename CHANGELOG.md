@@ -8,7 +8,8 @@
 - Preserve unrelated short entries whose real target lives outside the primary install tree.
 - Keep explicit opaque identity tokens so a restrictive entry can still be recovered by its own short name.
 - Add metadata corroboration, shallow-install-tree, distant-tree false-positive and SearchEngine re-admission regressions.
-- Provider Cache advances to schema 20; SearchEngine/ResultRanking and frozen Classic UI/geometry remain unchanged.
+- StrongMatchOnly entries now match their precomputed distinctive tokens as explicit search intent, so short opaque identities remain directly reachable without re-admitting them on family queries.
+- Provider Cache advances to schema 20; ResultRanking and frozen Classic UI/geometry remain unchanged, and SearchEngine adds only cache-resident distinctive-token matching with no new I/O or catalog inference.
 - Windows fixed FileVersion/ProductVersion is `0.8.0.208`.
 
 ## 0.8.0-alpha.5.37

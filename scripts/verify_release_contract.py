@@ -116,6 +116,16 @@ if version == "0.8.0-alpha.5.38":
         if token in search_cpp or token in ranking_cpp:
             fail(f"v0.8 alpha.5.38 catalog inference leaked into query/ranking hot path: {token}")
 
+    for token in (
+        "command.catalogVisibility ==",
+        "StrongMatchOnly",
+        "command.distinctiveTokens",
+        "MatchField::\n                            Alias",
+        "cache-only matching",
+    ):
+        if token not in search_cpp:
+            fail(f"v0.8 alpha.5.38 explicit distinctive-token matching missing: {token}")
+
     for product in (
         "solidworks",
         "adobe",
@@ -218,7 +228,7 @@ if version == "0.8.0-alpha.5.38":
         "| ProductName metadata corroboration",
         "| shallow install-tree utility corroboration",
         "| distant opaque entries preserved",
-        "| SearchEngine/ResultRanking hot path unchanged",
+        "| cache-only StrongMatchOnly distinctive intent matching",
         "| no product blacklist",
         "| Classic assets frozen",
     )
