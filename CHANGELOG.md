@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.39
+
+- Separate shared family intent from entry-owned distinctive intent at the final StrongMatchOnly admission boundary.
+- A query whose compact text is contained by the cached catalog family cannot re-admit a StrongMatchOnly entry through a contaminated/shared distinctive token.
+- Explicit residual identity remains intact: short exact identities such as generic Q7/Rx-style tokens and family-plus-identity queries still re-admit the restrictive entry.
+- Normal primary/companion applications remain unaffected by the StrongMatchOnly gate, and wildcard/explicit syntax behavior is unchanged.
+- The guard is cache-only string matching over catalogGroupKey; no filesystem, Shell/MSI, executable metadata or role inference moves into the keystroke path.
+- Provider Cache remains schema 20 because the persisted command contract is unchanged.
+- Add regressions with deliberately family-contaminated distinctive tokens so short/full family queries stay suppressed while explicit distinctive queries continue to work.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.209`.
+
 ## 0.8.0-alpha.5.38
 
 - Add conservative opaque auxiliary corroboration for short family-stripped identities; short naming alone never changes admission.

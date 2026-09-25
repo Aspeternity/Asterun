@@ -624,6 +624,17 @@ int main(int argc, char** argv) {
                 .basePriority = 0;
         }
 
+        const std::wstring catalogGroup =
+            L"family:contosostudio|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\contoso studio";
+
+        for (std::size_t index = 0;
+             index < 7;
+             ++index) {
+            catalogCommands[index]
+                .catalogGroupKey =
+                    catalogGroup;
+        }
+
         catalogCommands[0]
             .applicationRole =
             ApplicationRole::
@@ -647,8 +658,12 @@ int main(int argc, char** argv) {
             .catalogVisibility =
             CatalogVisibility::
                 StrongMatchOnly;
+        // Deliberately retain a shared-family token to model a provider/cache
+        // boundary leak. StrongMatchOnly admission must still require the
+        // entry-owned intent rather than treating "co"/"contoso" as explicit.
         catalogCommands[2]
             .distinctiveTokens = {
+                L"contoso",
                 L"performance",
                 L"test",
             };
@@ -734,6 +749,38 @@ int main(int argc, char** argv) {
         assert(!ContainsCommand(
             family,
             5));
+
+        const auto familyPrefix =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"co",
+                20);
+        assert(ContainsCommand(
+            familyPrefix,
+            0));
+        assert(ContainsCommand(
+            familyPrefix,
+            1));
+        assert(!ContainsCommand(
+            familyPrefix,
+            2));
+
+        const auto familyWord =
+            engine.Search(
+                catalogCommands,
+                usage,
+                L"contoso",
+                20);
+        assert(ContainsCommand(
+            familyWord,
+            0));
+        assert(ContainsCommand(
+            familyWord,
+            1));
+        assert(!ContainsCommand(
+            familyWord,
+            2));
 
         const auto performance =
             engine.Search(

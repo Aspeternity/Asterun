@@ -42,6 +42,141 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.39":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.39 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 20:
+        fail("v0.8 alpha.5.39 must keep Provider Cache schemaVersion 20")
+
+    search_cpp = read("src/core/SearchEngine.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+    role_cpp = read("src/core/LaunchRole.cpp")
+
+    for token in (
+        "familyMarker = L\"family:\"",
+        "compactQuery",
+        "family.find(compactQuery)",
+        "command.catalogGroupKey",
+        "HasDistinctiveCatalogIntent",
+        "StrongMatchOnly",
+    ):
+        if token not in search_cpp:
+            fail(f"v0.8 alpha.5.39 family/distinctive gate missing: {token}")
+
+    for token in (
+        "family:contosostudio",
+        'L"contoso"',
+        'L"co"',
+        "familyPrefix",
+        "familyWord",
+        'L"performance"',
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.39 SearchEngine regression missing: {token}")
+
+    for forbidden in (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    ):
+        if forbidden in search_cpp.lower() or forbidden in role_cpp.lower():
+            fail(f"v0.8 alpha.5.39 product-specific production rule found: {forbidden}")
+
+    for token in (
+        "FILEVERSION 0,8,0,209",
+        "PRODUCTVERSION 0,8,0,209",
+        "0.8.0-alpha.5.39",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.39 resource version missing: {token}")
+
+    if 'version="0.8.0.209"' not in manifest:
+        fail("v0.8 alpha.5.39 manifest fixed version must be 0.8.0.209")
+
+    for token in (
+        '"0.8.0-alpha.5.38"',
+        '"0.8.0-alpha.5.39"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.39 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.39 Family-Distinctive Intent Boundary validation",
+        "schema 20",
+        "family + residual identity",
+        "cached string matching only",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.39 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.39 — Family-Distinctive Intent Boundary",
+        "schema 20",
+        "0.8.0.209",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.39 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.39" not in changelog:
+        fail("v0.8 alpha.5.39 changelog entry missing")
+
+    if "v0.8.0-alpha.5.39 closes the family/distinctive admission boundary" not in roadmap:
+        fail("v0.8 alpha.5.39 roadmap entry missing")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.39 frozen Classic asset changed: {asset_path}")
+
+    print(
+        "v0.8.0-alpha.5.39 Family-Distinctive Intent Boundary verified:",
+        "| Provider Cache schema 20 retained",
+        "| family-only StrongMatchOnly re-admission blocked",
+        "| explicit residual identity preserved",
+        "| cache-only admission guard",
+        "| no product blacklist",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.38":
     import hashlib
     import subprocess

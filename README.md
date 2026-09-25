@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.39 — Family-Distinctive Intent Boundary
+
+Alpha.5.39 closes the final StrongMatchOnly admission leak found during real-machine validation. A restrictive entry may carry cached distinctive text from several discovery/publication paths, but a shared suite-family query is not explicit intent for that entry.
+
+SearchEngine now checks the already-cached `catalogGroupKey` before accepting distinctive intent. If the compact query is wholly part of the cached family identity, it cannot re-admit a `StrongMatchOnly` entry even when a stale or conservative distinctive token overlaps the family. Entry-owned intent still works: a short exact residual identity and a family-plus-residual query continue to re-admit the entry, while normal primary/companion applications remain unaffected.
+
+This is an admission-boundary guard, not new role inference. It performs only cached string work, adds no I/O, does not broaden global 1–2 character matching, and introduces no product vocabulary. Provider Cache remains schema 20. Windows fixed FileVersion/ProductVersion is `0.8.0.209`.
+
 ## v0.8.0-alpha.5.38 — Opaque Auxiliary Corroboration
 
 Alpha.5.38 targets short or opaque suite entry names whose title alone carries no generic role meaning. The title is never treated as evidence just because it is short. Instead, opaque identity only unlocks additional corroboration paths.

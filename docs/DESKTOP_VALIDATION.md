@@ -710,6 +710,18 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Confirm all new work is discovery/publication-time only; typing adds no filesystem, metadata, Shell, MSI or catalog-analysis I/O.
 - [ ] Recheck alpha.5.37 utility-container behavior, alpha.5.36 advertised-shortcut targets, suite-subordinate behavior, short-query precision, Everything merge, pinyin, wildcard/path syntax, usage scoring, idle CPU/memory and frozen Classic UI/geometry.
 
+## v0.8.0-alpha.5.39 Family-Distinctive Intent Boundary validation
+
+- [ ] Upgrade from alpha.5.38. Provider Cache remains schema 20; no generated-state rebuild is required solely for this search admission change.
+- [ ] A plain short family prefix and the full family identity do not show a corroborated `StrongMatchOnly` opaque auxiliary.
+- [ ] Searching the auxiliary's own short residual identity re-admits it.
+- [ ] Searching family + residual identity re-admits it.
+- [ ] Normal primary and independent companion applications remain visible for the same family query.
+- [ ] An unrelated opaque Normal application remains searchable and is not suppressed by this gate.
+- [ ] Wildcard/path explicit syntax, short-query precision, pinyin, Everything merge and usage scoring remain unchanged.
+- [ ] Confirm the keystroke path performs cached string matching only: no filesystem, Shell/MSI, EXE metadata or catalog-role inference.
+- [ ] Confirm no product/vendor/abbreviation rule was added and Classic UI/geometry is unchanged.
+
 ## Release assets
 
 For the candidate tag:

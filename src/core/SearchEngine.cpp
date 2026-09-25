@@ -656,6 +656,69 @@ bool SearchEngine::HasDistinctiveCatalogIntent(
         return false;
     }
 
+    // StrongMatchOnly re-admission must express this entry's own identity,
+    // not merely the shared catalog family. Distinctive tokens are generated
+    // upstream, but provider/context combinations can conservatively retain
+    // overlapping family text. Guard that boundary here using only the cached
+    // catalogGroupKey: no role inference or I/O enters the keystroke path.
+    std::wstring compactQuery;
+    compactQuery.reserve(
+        normalizedQuery.size());
+
+    for (const wchar_t ch :
+         normalizedQuery) {
+        if (std::iswalnum(ch) ||
+            ch >= 0x4E00) {
+            compactQuery.push_back(ch);
+        }
+    }
+
+    constexpr std::wstring_view
+        familyMarker = L"family:";
+
+    const std::size_t familyStart =
+        command.catalogGroupKey.find(
+            familyMarker);
+
+    if (!compactQuery.empty() &&
+        familyStart !=
+            std::wstring::npos) {
+
+        const std::size_t valueStart =
+            familyStart +
+            familyMarker.size();
+
+        const std::size_t valueEnd =
+            command.catalogGroupKey.find(
+                L'|',
+                valueStart);
+
+        std::wstring family =
+            command.catalogGroupKey.substr(
+                valueStart,
+                valueEnd ==
+                        std::wstring::npos
+                    ? std::wstring::npos
+                    : valueEnd -
+                          valueStart);
+
+        std::transform(
+            family.begin(),
+            family.end(),
+            family.begin(),
+            [](wchar_t ch) {
+                return
+                    static_cast<wchar_t>(
+                        std::towlower(ch));
+            });
+
+        if (!family.empty() &&
+            family.find(compactQuery) !=
+                std::wstring::npos) {
+            return false;
+        }
+    }
+
     const auto queryTokens =
         relevance::QueryTokens(query);
 
