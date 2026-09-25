@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.5.25
+
+- Added the provider-neutral Launch Role Evidence Model with separate `ApplicationRole`, `RoleConfidence` and `CatalogVisibility` concepts instead of overloading search-surface classification.
+- Added cached Windows executable Version Resource inspection for FileDescription, ProductName, CompanyName, OriginalFilename and InternalName. Metadata is read only during provider discovery, never in the query hot path.
+- Added deterministic role evidence aggregation for primary/companion apps, user tools, configuration/diagnostic/benchmark tools, installer/maintenance roles and background/service/internal components.
+- Added conservative catalog grouping from product + install-root/menu evidence and precomputed distinctive title tokens for future role-aware query intent.
+- Provider commands now persist role, confidence, visibility, group key and distinctive tokens; generated Provider Cache schema is now 9 and older generated caches rebuild from live providers.
+- Added generic Contoso/Fabrikam role-model regressions. No product-specific SolidWorks, TeamSpeak or other application blacklist/rule was introduced.
+- Alpha.5.25 deliberately does not apply `CatalogVisibility` in SearchEngine/ResultRanking yet, preserving current search-result behavior while the evidence model is validated.
+- Classic UI/geometry, canonical identity, provider dedupe, relevance ranking, usage scoring, pinyin, Everything and numeric Quick Launch are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.195`.
+
 ## 0.8.0-alpha.5.24
 
 - Added `WS_CLIPCHILDREN` to the launcher parent so Classic background/title paints cannot run underneath native EDIT/LISTBOX/preview children.

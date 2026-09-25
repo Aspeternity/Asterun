@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.25 — Launch Role Evidence Model
+
+Alpha.5.25 builds the second-stage Intelligent Launch Catalog foundation without turning one observed application suite into a special case. Catalog entries now carry three independent concepts: `ApplicationRole` answers what an entry is, `RoleConfidence` records how strongly the evidence supports that inference, and `CatalogVisibility` records the future presentation policy. This keeps semantic classification separate from the existing `LaunchSurfaceClass` search/ranking tier.
+
+Windows executable metadata is inspected only while providers rebuild. A process-local cache keyed by normalized path + file size + last-write time prevents Start Menu, App Paths and PATH from repeatedly parsing the same executable. The inspector reads standard Version Resource fields (FileDescription, ProductName, CompanyName, OriginalFilename and InternalName); no filesystem or Version Resource work is added to keystroke search.
+
+Role inference accumulates independent title, description, filename, argument, target and Windows structural evidence. Low-confidence inference stays conservative. Product grouping requires product identity plus install-root/menu context; CompanyName alone never forms a suite group. Distinctive tokens are precomputed from the entry title after family/version tokens are removed, ready for a later query-intent stage.
+
+Provider Cache is bumped to schema 9 to persist `applicationRole`, `roleConfidence`, `catalogVisibility`, `catalogGroupKey` and `distinctiveTokens`. Alpha.5.25 intentionally does **not** consume visibility in SearchEngine or ResultRanking, so the release is an architecture/evidence validation step rather than an aggressive filtering change. User shortcuts remain authoritative and keep their neutral defaults.
+
+The role-model regression fixtures use fictional Contoso/Fabrikam products; there are no SolidWorks/TeamSpeak/product-specific filtering rules. Classic UI/geometry, canonical launch identity, provider dedupe, relevance ranking, usage scoring, pinyin, Everything and Quick Launch remain unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.195`.
+
 ## v0.8.0-alpha.5.24 — Classic Repaint Isolation
 
 Alpha.5.24 closes the remaining Classic typing/backspace flash after alpha.5.23 removed full LISTBOX resets. The residual flash came from two independent repaint paths: Preview/Title updates could invalidate the whole layered parent (the historical 33 px title band overlaps the EDIT top by 3 px), and the result list still performed redraw work even when a repeated no-result query produced exactly the same empty surface.

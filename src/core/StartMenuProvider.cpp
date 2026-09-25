@@ -1,6 +1,7 @@
 #include "StartMenuProvider.hpp"
 
 #include "LaunchCandidate.hpp"
+#include "LaunchRole.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/LaunchTargetInspector.hpp"
@@ -189,6 +190,7 @@ struct StartMenuInspection {
             PrimaryApplication};
     bool targetResolved{false};
     LaunchAdmission admission;
+    ApplicationRoleDecision role;
 };
 
 StartMenuInspection
@@ -262,6 +264,34 @@ InspectStartMenuEntry(
             result.targetResolved,
             result.arguments,
         });
+
+    if (result.admission.admit) {
+        LaunchEvidence evidence;
+        evidence.source =
+            LaunchCandidateSource::
+                StartMenu;
+        evidence.displayTitle = title;
+        evidence.resolvedTarget =
+            result.resolvedTarget;
+        evidence.arguments =
+            result.arguments;
+        evidence.shortcutPath = path;
+        evidence.startMenuFolder =
+            path.parent_path();
+        evidence.installRootHint =
+            std::filesystem::path(
+                result.resolvedTarget)
+                .parent_path();
+        evidence.targetKind =
+            result.targetKind;
+        evidence.executable =
+            win::InspectExecutableMetadata(
+                result.resolvedTarget);
+
+        result.role =
+            ClassifyApplicationRole(
+                evidence);
+    }
 
     return result;
 }
@@ -408,6 +438,16 @@ void StartMenuProvider::ScanPath(
             CommandSource::StartMenu;
         command.surfaceClass =
             inspection.admission.surface;
+        command.applicationRole =
+            inspection.role.role;
+        command.roleConfidence =
+            inspection.role.confidence;
+        command.catalogVisibility =
+            inspection.role.visibility;
+        command.catalogGroupKey =
+            inspection.role.catalogGroupKey;
+        command.distinctiveTokens =
+            inspection.role.distinctiveTokens;
         command.basePriority = 0;
 
         if (command.keyword.empty()) {

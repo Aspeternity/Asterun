@@ -487,6 +487,20 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck 时钟/设置 activation, Chrome dedupe and TeamSpeak 3/6 presence. SOLIDWORKS suite-role admission remains explicitly outside alpha.5.24.
 - [ ] Classic geometry/assets and Provider Cache schema 8 remain unchanged.
 
+## v0.8.0-alpha.5.25 Launch Role Evidence Model validation
+
+- [ ] Upgrade from alpha.5.24. The generated Provider Cache rebuilds once under schema 9; user settings/commands/usage schemas remain unchanged.
+- [ ] After the provider rebuild, verify normal application search results are materially unchanged from alpha.5.24. Alpha.5.25 must not apply `CatalogVisibility` in SearchEngine/ResultRanking yet.
+- [ ] Recheck representative Start Menu, Windows Apps and App Paths applications launch normally; PATH remains disabled by default unless explicitly enabled.
+- [ ] Recheck Chrome-style canonical dedupe, packaged Clock/Settings activation and TeamSpeak 3/6 coexistence.
+- [ ] Inspect `data/provider-cache.json` and confirm generated commands contain `applicationRole`, `roleConfidence`, `catalogVisibility`, `catalogGroupKey` and `distinctiveTokens`.
+- [ ] For several installed GUI executables with Version Resource data, confirm role evidence is populated without adding any visible delay while typing in the Launcher.
+- [ ] Leave ALTRun Next idle after catalog rebuild and confirm CPU remains effectively 0%; executable metadata parsing must occur only during provider discovery/refresh.
+- [ ] Invoke Classic and type/backspace through result-bearing and zero-result queries to confirm alpha.5.24 repaint isolation remains intact.
+- [ ] Confirm working-set memory remains in the established range and does not continuously grow after provider refresh/search activity.
+- [ ] Observe a multi-entry installed software suite only as evidence validation. Do not judge alpha.5.25 by whether auxiliary suite entries are suppressed: role-aware StrongMatchOnly/Hidden query admission is intentionally deferred to the next stage.
+- [ ] No product-specific blacklist/rule should exist for SolidWorks, TeamSpeak or any other real application family.
+
 ## Release assets
 
 For the candidate tag:

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../core/LaunchCandidate.hpp"
+#include "../core/LaunchRole.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -19,6 +19,10 @@ struct ShortcutTarget {
 
 [[nodiscard]] LaunchTargetKind
 InspectLaunchTarget(
+    std::wstring_view target);
+
+[[nodiscard]] ExecutableMetadata
+InspectExecutableMetadata(
     std::wstring_view target);
 
 [[nodiscard]] std::optional<

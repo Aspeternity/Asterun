@@ -102,6 +102,7 @@ add_library(altrun_core STATIC
     src/core/LaunchCatalog.cpp
     src/core/LaunchSurface.cpp
     src/core/LaunchCandidate.cpp
+    src/core/LaunchRole.cpp
     src/core/RelevancePolicy.cpp
     src/core/ResultMerger.cpp
     src/core/ResultRanking.cpp
@@ -229,6 +230,7 @@ if(WIN32)
         dwmapi
         uxtheme
         uuid
+        version
         winhttp
         bcrypt
     )
@@ -483,6 +485,26 @@ if(BUILD_TESTING)
     add_test(
         NAME launch_catalog_tests
         COMMAND launch_catalog_tests
+    )
+
+    add_executable(
+        launch_role_tests
+        tests/LaunchRoleTests.cpp
+    )
+    target_link_libraries(
+        launch_role_tests
+        PRIVATE altrun_core
+    )
+    target_include_directories(
+        launch_role_tests
+        PRIVATE src
+    )
+    altrun_enable_test_assertions(
+        launch_role_tests
+    )
+    add_test(
+        NAME launch_role_tests
+        COMMAND launch_role_tests
     )
 
     add_executable(
@@ -930,6 +952,7 @@ if(BUILD_TESTING)
                 ole32
                 advapi32
                 uuid
+                version
         )
 
         target_compile_definitions(
@@ -977,6 +1000,7 @@ if(BUILD_TESTING)
                 shell32
                 ole32
                 uuid
+                version
         )
 
         target_compile_definitions(

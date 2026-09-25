@@ -1,6 +1,7 @@
 #include "PackagedAppProvider.hpp"
 
 #include "LaunchCandidate.hpp"
+#include "LaunchRole.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/LaunchTargetInspector.hpp"
@@ -381,6 +382,37 @@ PackagedAppProvider::DiscoverDetailed() const {
             continue;
         }
 
+        LaunchEvidence evidence;
+        evidence.source =
+            LaunchCandidateSource::
+                AppsFolder;
+        evidence.displayTitle =
+            app.title;
+        evidence.resolvedTarget =
+            app.target;
+        evidence.targetKind =
+            targetKind;
+        evidence.packagedVisibility =
+            app.visibility;
+
+        std::error_code metadataError;
+        if (std::filesystem::is_regular_file(
+                std::filesystem::path(
+                    app.target),
+                metadataError)) {
+            evidence.installRootHint =
+                std::filesystem::path(
+                    app.target)
+                    .parent_path();
+            evidence.executable =
+                win::InspectExecutableMetadata(
+                    app.target);
+        }
+
+        const ApplicationRoleDecision role =
+            ClassifyApplicationRole(
+                evidence);
+
         Command command;
         command.title =
             std::move(app.title);
@@ -411,6 +443,16 @@ PackagedAppProvider::DiscoverDetailed() const {
             CommandSource::PackagedApp;
         command.surfaceClass =
             admission.surface;
+        command.applicationRole =
+            role.role;
+        command.roleConfidence =
+            role.confidence;
+        command.catalogVisibility =
+            role.visibility;
+        command.catalogGroupKey =
+            role.catalogGroupKey;
+        command.distinctiveTokens =
+            role.distinctiveTokens;
         command.basePriority = 0;
         command.id =
             L"packaged:" +

@@ -257,6 +257,8 @@ In progress:
 - v0.8.0-alpha.5.22 moves provider monitoring to event-driven Start Menu/registry/Shell notifications with a low-frequency safety reconciliation, eliminating the prior 5-second idle scan loop
 - v0.8.0-alpha.5.23 removes full LISTBOX reset/erase from live query rebuilds so frozen Classic geometry can update results without visible typing flicker
 - v0.8.0-alpha.5.24 isolates Classic parent/title/preview/result repaint domains, removes redundant no-result redraws, and clips parent painting away from native child controls
+- v0.8.0-alpha.5.25 introduces provider-neutral launch-role evidence, cached executable metadata, conservative product grouping and schema-9 persisted role decisions without yet changing query admission/ranking
+- next Intelligent Launch Catalog step: validate real-machine role/group evidence, then make StrongMatchOnly/Hidden behavior depend on explicit distinctive query intent rather than product-name blacklists
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

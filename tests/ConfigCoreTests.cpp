@@ -1585,6 +1585,18 @@ int main() {
         L"file:c:\\apps\\test.exe";
     cachedStart.surfaceClass =
         LaunchSurfaceClass::SystemUtility;
+    cachedStart.applicationRole =
+        ApplicationRole::DiagnosticTool;
+    cachedStart.roleConfidence =
+        RoleConfidence::High;
+    cachedStart.catalogVisibility =
+        CatalogVisibility::StrongMatchOnly;
+    cachedStart.catalogGroupKey =
+        L"product:testapp|root:c:\\apps";
+    cachedStart.distinctiveTokens = {
+        L"diagnostic",
+        L"tool",
+    };
     cachedStart.basePriority = 0;
 
     Command cachedUser;
@@ -1655,6 +1667,32 @@ int main() {
             .commands[0]
             .canonicalIdentity ==
         L"file:c:\\apps\\test.exe");
+    assert(
+        startCache->second
+            .commands[0]
+            .applicationRole ==
+        ApplicationRole::DiagnosticTool);
+    assert(
+        startCache->second
+            .commands[0]
+            .roleConfidence ==
+        RoleConfidence::High);
+    assert(
+        startCache->second
+            .commands[0]
+            .catalogVisibility ==
+        CatalogVisibility::
+            StrongMatchOnly);
+    assert(
+        startCache->second
+            .commands[0]
+            .catalogGroupKey ==
+        L"product:testapp|root:c:\\apps");
+    assert(
+        startCache->second
+            .commands[0]
+            .distinctiveTokens.size() ==
+        2);
 
     Command cachedPackaged;
     cachedPackaged.id =
@@ -1716,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 8,\n"
+        "  \"schemaVersion\": 9,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1726,7 +1764,12 @@ int main() {
         "          \"name\": \"Wrong Owner\",\n"
         "          \"keyword\": \"wrong\",\n"
         "          \"target\": \"wrong.exe\",\n"
-        "          \"source\": \"path\"\n"
+        "          \"source\": \"path\",\n"
+        "          \"canonicalIdentity\": \"file:wrong.exe\",\n"
+        "          \"applicationRole\": \"unknown\",\n"
+        "          \"roleConfidence\": \"low\",\n"
+        "          \"catalogVisibility\": \"normal\",\n"
+        "          \"distinctiveTokens\": []\n"
         "        }\n"
         "      ]\n"
         "    }\n"
@@ -1745,16 +1788,16 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 7 predates canonical launch identity and activation
-    // semantics. Generated state must rebuild rather than guess those fields.
-    const auto staleSchema7ProviderCache =
+    // Schema 8 predates launch-role evidence and catalog visibility.
+    // Generated state must rebuild rather than guess those fields.
+    const auto staleSchema8ProviderCache =
         data /
-        "provider-cache-schema7-stale.json";
+        "provider-cache-schema8-stale.json";
 
     WriteText(
-        staleSchema7ProviderCache,
+        staleSchema8ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 7,\n"
+        "  \"schemaVersion\": 8,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1771,11 +1814,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema7Cache(
-        staleSchema7ProviderCache);
+    ProviderCache staleSchema8Cache(
+        staleSchema8ProviderCache);
 
     assert(
-        staleSchema7Cache.Load().empty());
+        staleSchema8Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

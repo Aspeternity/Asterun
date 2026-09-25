@@ -1,6 +1,7 @@
 #include "PathProvider.hpp"
 
 #include "LaunchCandidate.hpp"
+#include "LaunchRole.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/WinUtil.hpp"
@@ -428,6 +429,23 @@ PathProvider::DiscoverDetailed() const {
                 continue;
             }
 
+            LaunchEvidence evidence;
+            evidence.source =
+                LaunchCandidateSource::Path;
+            evidence.displayTitle = title;
+            evidence.resolvedTarget = target;
+            evidence.installRootHint =
+                it->path().parent_path();
+            evidence.targetKind =
+                targetKind;
+            evidence.executable =
+                win::InspectExecutableMetadata(
+                    target);
+
+            const ApplicationRoleDecision role =
+                ClassifyApplicationRole(
+                    evidence);
+
             Command command;
             command.title = title;
             command.keyword =
@@ -456,6 +474,16 @@ PathProvider::DiscoverDetailed() const {
                 CommandSource::Path;
             command.surfaceClass =
                 admission.surface;
+            command.applicationRole =
+                role.role;
+            command.roleConfidence =
+                role.confidence;
+            command.catalogVisibility =
+                role.visibility;
+            command.catalogGroupKey =
+                role.catalogGroupKey;
+            command.distinctiveTokens =
+                role.distinctiveTokens;
             command.basePriority = 0;
             command.id =
                 L"path:" + targetKey;

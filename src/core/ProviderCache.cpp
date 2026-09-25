@@ -14,7 +14,7 @@ namespace altrun {
 
 namespace {
 
-constexpr int kProviderCacheSchemaVersion = 8;
+constexpr int kProviderCacheSchemaVersion = 9;
 
 const char* TypeName(
     CommandType type) {
@@ -236,6 +236,29 @@ ParseCommand(
                 std::string{}),
             DefaultSurfaceForSource(
                 *source));
+    command.applicationRole =
+        ParseApplicationRole(
+            item.value(
+                "applicationRole",
+                std::string{}),
+            ApplicationRole::Unknown);
+    command.roleConfidence =
+        ParseRoleConfidence(
+            item.value(
+                "roleConfidence",
+                std::string{}),
+            RoleConfidence::Low);
+    command.catalogVisibility =
+        ParseCatalogVisibility(
+            item.value(
+                "catalogVisibility",
+                std::string{}),
+            CatalogVisibility::Normal);
+    command.catalogGroupKey =
+        text::FromUtf8(
+            item.value(
+                "catalogGroupKey",
+                std::string{}));
     command.basePriority =
         item.value(
             "basePriority",
@@ -253,6 +276,35 @@ ParseCommand(
                 text::FromUtf8(
                     alias.get<std::string>()));
         }
+    }
+
+    if (item.contains(
+            "distinctiveTokens") &&
+        item["distinctiveTokens"]
+            .is_array()) {
+        for (const auto& token :
+             item["distinctiveTokens"]) {
+            if (!token.is_string()) {
+                continue;
+            }
+
+            command.distinctiveTokens
+                .push_back(
+                    text::FromUtf8(
+                        token.get<
+                            std::string>()));
+        }
+    }
+
+    if (!item.contains(
+            "applicationRole") ||
+        !item.contains(
+            "roleConfidence") ||
+        !item.contains(
+            "catalogVisibility") ||
+        !item.contains(
+            "distinctiveTokens")) {
+        return std::nullopt;
     }
 
     if (command.id.empty() ||
@@ -291,6 +343,15 @@ nlohmann::json CommandJson(
             text::ToUtf8(alias));
     }
 
+    nlohmann::json distinctiveTokens =
+        nlohmann::json::array();
+
+    for (const auto& token :
+         command.distinctiveTokens) {
+        distinctiveTokens.push_back(
+            text::ToUtf8(token));
+    }
+
     return {
         {"id", text::ToUtf8(command.id)},
         {"name", text::ToUtf8(command.title)},
@@ -315,6 +376,21 @@ nlohmann::json CommandJson(
         {"surface",
          LaunchSurfaceName(
              command.surfaceClass)},
+        {"applicationRole",
+         ApplicationRoleName(
+             command.applicationRole)},
+        {"roleConfidence",
+         RoleConfidenceName(
+             command.roleConfidence)},
+        {"catalogVisibility",
+         CatalogVisibilityName(
+             command.catalogVisibility)},
+        {"catalogGroupKey",
+         text::ToUtf8(
+             command.catalogGroupKey)},
+        {"distinctiveTokens",
+         std::move(
+             distinctiveTokens)},
         {"basePriority", command.basePriority}
     };
 }

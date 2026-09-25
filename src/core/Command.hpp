@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LaunchCatalog.hpp"
+#include "LaunchRole.hpp"
 #include "LaunchSurface.hpp"
 
 #include <string>
@@ -53,6 +54,15 @@ struct Command {
     CommandSource source{CommandSource::User};
     LaunchSurfaceClass surfaceClass{
         LaunchSurfaceClass::UserCommand};
+    ApplicationRole applicationRole{
+        ApplicationRole::Unknown};
+    RoleConfidence roleConfidence{
+        RoleConfidence::Low};
+    CatalogVisibility catalogVisibility{
+        CatalogVisibility::Normal};
+    std::wstring catalogGroupKey;
+    std::vector<std::wstring>
+        distinctiveTokens;
     int basePriority{0};
 };
 

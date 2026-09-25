@@ -4,14 +4,20 @@
 #define NOMINMAX
 #include <windows.h>
 #include <shlobj.h>
+#include <winver.h>
 #include <shobjidl.h>
 #include <wrl/client.h>
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cwchar>
 #include <cwctype>
 #include <fstream>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace altrun::win {
@@ -167,6 +173,195 @@ LowerExtension(
     return extension;
 }
 
+[[nodiscard]] std::wstring
+MetadataCacheKey(
+    const std::filesystem::path& path) {
+
+    std::wstring key =
+        path.lexically_normal().wstring();
+
+    std::transform(
+        key.begin(),
+        key.end(),
+        key.begin(),
+        [](wchar_t ch) {
+            return ch == L'/'
+                ? L'\\'
+                : static_cast<wchar_t>(
+                      std::towlower(ch));
+        });
+
+    return key;
+}
+
+struct MetadataCacheEntry {
+    std::uintmax_t fileSize{0};
+    std::filesystem::file_time_type
+        writeTime{};
+    ExecutableMetadata metadata;
+};
+
+std::mutex gMetadataCacheMutex;
+std::unordered_map<
+    std::wstring,
+    MetadataCacheEntry>
+    gMetadataCache;
+
+struct LangAndCodePage {
+    WORD language;
+    WORD codePage;
+};
+
+[[nodiscard]] std::wstring
+VersionString(
+    const std::vector<std::byte>& data,
+    WORD language,
+    WORD codePage,
+    std::wstring_view key) {
+
+    wchar_t path[128]{};
+
+    if (swprintf_s(
+            path,
+            128,
+            L"\\StringFileInfo\\%04x%04x\\%.*s",
+            language,
+            codePage,
+            static_cast<int>(
+                key.size()),
+            key.data()) < 0) {
+        return {};
+    }
+
+    void* raw = nullptr;
+    UINT length = 0;
+
+    if (!VerQueryValueW(
+            data.data(),
+            path,
+            &raw,
+            &length) ||
+        raw == nullptr ||
+        length == 0) {
+        return {};
+    }
+
+    const auto* text =
+        static_cast<const wchar_t*>(
+            raw);
+
+    std::wstring value(
+        text,
+        text + length);
+
+    while (!value.empty() &&
+           value.back() == L'\0') {
+        value.pop_back();
+    }
+
+    return value;
+}
+
+[[nodiscard]] ExecutableMetadata
+ReadExecutableMetadata(
+    const std::filesystem::path& path) {
+
+    ExecutableMetadata metadata;
+
+    DWORD ignored = 0;
+    const DWORD size =
+        GetFileVersionInfoSizeW(
+            path.c_str(),
+            &ignored);
+
+    if (size == 0) {
+        return metadata;
+    }
+
+    std::vector<std::byte> data(
+        size);
+
+    if (!GetFileVersionInfoW(
+            path.c_str(),
+            0,
+            size,
+            data.data())) {
+        return metadata;
+    }
+
+    std::vector<LangAndCodePage>
+        translations;
+
+    void* rawTranslations = nullptr;
+    UINT translationBytes = 0;
+
+    if (VerQueryValueW(
+            data.data(),
+            L"\\VarFileInfo\\Translation",
+            &rawTranslations,
+            &translationBytes) &&
+        rawTranslations != nullptr &&
+        translationBytes >=
+            sizeof(LangAndCodePage)) {
+
+        const auto count =
+            translationBytes /
+            sizeof(LangAndCodePage);
+
+        const auto* values =
+            static_cast<
+                const LangAndCodePage*>(
+                    rawTranslations);
+
+        translations.assign(
+            values,
+            values + count);
+    }
+
+    if (translations.empty()) {
+        translations.push_back({
+            0x0409,
+            0x04B0,
+        });
+        translations.push_back({
+            0x0409,
+            0x04E4,
+        });
+    }
+
+    const auto query =
+        [&](std::wstring_view key) {
+            for (const auto& translation :
+                 translations) {
+                std::wstring value =
+                    VersionString(
+                        data,
+                        translation.language,
+                        translation.codePage,
+                        key);
+
+                if (!value.empty()) {
+                    return value;
+                }
+            }
+
+            return std::wstring{};
+        };
+
+    metadata.fileDescription =
+        query(L"FileDescription");
+    metadata.productName =
+        query(L"ProductName");
+    metadata.companyName =
+        query(L"CompanyName");
+    metadata.originalFilename =
+        query(L"OriginalFilename");
+    metadata.internalName =
+        query(L"InternalName");
+
+    return metadata;
+}
+
 } // namespace
 
 LaunchTargetKind InspectLaunchTarget(
@@ -191,6 +386,82 @@ LaunchTargetKind InspectLaunchTarget(
     }
 
     return LaunchTargetKind::Unknown;
+}
+
+ExecutableMetadata
+InspectExecutableMetadata(
+    std::wstring_view target) {
+
+    const std::filesystem::path path(
+        target);
+
+    if (LowerExtension(target) !=
+        L".exe") {
+        return {};
+    }
+
+    std::error_code ec;
+
+    if (!std::filesystem::
+            is_regular_file(
+                path,
+                ec)) {
+        return {};
+    }
+
+    const auto size =
+        std::filesystem::file_size(
+            path,
+            ec);
+
+    if (ec) {
+        return {};
+    }
+
+    const auto writeTime =
+        std::filesystem::last_write_time(
+            path,
+            ec);
+
+    if (ec) {
+        return {};
+    }
+
+    const std::wstring key =
+        MetadataCacheKey(path);
+
+    {
+        std::scoped_lock lock(
+            gMetadataCacheMutex);
+
+        const auto it =
+            gMetadataCache.find(key);
+
+        if (it !=
+                gMetadataCache.end() &&
+            it->second.fileSize ==
+                size &&
+            it->second.writeTime ==
+                writeTime) {
+            return it->second.metadata;
+        }
+    }
+
+    ExecutableMetadata metadata =
+        ReadExecutableMetadata(path);
+
+    {
+        std::scoped_lock lock(
+            gMetadataCacheMutex);
+
+        gMetadataCache[key] = {
+            size,
+            writeTime,
+            metadata,
+        };
+    }
+
+    return metadata;
 }
 
 std::optional<ShortcutTarget>

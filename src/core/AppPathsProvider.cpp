@@ -1,6 +1,7 @@
 #include "AppPathsProvider.hpp"
 
 #include "LaunchCandidate.hpp"
+#include "LaunchRole.hpp"
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/LaunchTargetInspector.hpp"
@@ -319,6 +320,25 @@ void EnumerateAppPathsKey(
             continue;
         }
 
+        LaunchEvidence evidence;
+        evidence.source =
+            LaunchCandidateSource::AppPaths;
+        evidence.displayTitle = title;
+        evidence.resolvedTarget = target;
+        evidence.installRootHint =
+            std::filesystem::path(
+                target)
+                .parent_path();
+        evidence.targetKind =
+            targetKind;
+        evidence.executable =
+            win::InspectExecutableMetadata(
+                target);
+
+        const ApplicationRoleDecision role =
+            ClassifyApplicationRole(
+                evidence);
+
         Command command;
         command.title =
             std::move(title);
@@ -341,6 +361,16 @@ void EnumerateAppPathsKey(
             CommandSource::AppPaths;
         command.surfaceClass =
             admission.surface;
+        command.applicationRole =
+            role.role;
+        command.roleConfidence =
+            role.confidence;
+        command.catalogVisibility =
+            role.visibility;
+        command.catalogGroupKey =
+            role.catalogGroupKey;
+        command.distinctiveTokens =
+            role.distinctiveTokens;
         command.basePriority = 0;
         command.id =
             MakeId(command.target);

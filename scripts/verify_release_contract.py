@@ -42,6 +42,259 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.25":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.25 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 9:
+        fail("v0.8 alpha.5.25 must use Provider Cache schemaVersion 9")
+
+    role_hpp = read("src/core/LaunchRole.hpp")
+    role_cpp = read("src/core/LaunchRole.cpp")
+    command_hpp = read("src/core/Command.hpp")
+    inspector_hpp = read("src/platform/LaunchTargetInspector.hpp")
+    inspector_cpp = read("src/platform/LaunchTargetInspector.cpp")
+    provider_cache = read("src/core/ProviderCache.cpp")
+    start_menu = read("src/core/StartMenuProvider.cpp")
+    app_paths = read("src/core/AppPathsProvider.cpp")
+    path_provider = read("src/core/PathProvider.cpp")
+    packaged = read("src/core/PackagedAppProvider.cpp")
+    search_engine = read("src/core/SearchEngine.cpp")
+    result_ranking = read("src/core/ResultRanking.cpp")
+    cmake = read("CMakeLists.txt")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "enum class ApplicationRole",
+        "enum class RoleConfidence",
+        "enum class CatalogVisibility",
+        "struct ExecutableMetadata",
+        "struct LaunchEvidence",
+        "struct ApplicationRoleDecision",
+        "ClassifyApplicationRole(",
+        "BuildCatalogGroupKey(",
+        "BuildDistinctiveTokens(",
+    ):
+        if token not in role_hpp:
+            fail(f"v0.8 alpha.5.25 launch-role model missing: {token}")
+
+    for token in (
+        "ConfigurationTool",
+        "DiagnosticTool",
+        "BenchmarkTool",
+        "CompanionApplication",
+        "BackgroundComponent",
+        "ServiceComponent",
+        "InternalComponent",
+        "CatalogVisibilityForRole(",
+        "CompanyName alone",
+    ):
+        if token not in role_cpp and token != "CompanyName alone":
+            fail(f"v0.8 alpha.5.25 role classifier missing: {token}")
+
+    for token in (
+        "applicationRole",
+        "roleConfidence",
+        "catalogVisibility",
+        "catalogGroupKey",
+        "distinctiveTokens",
+    ):
+        if token not in command_hpp:
+            fail(f"v0.8 alpha.5.25 command role field missing: {token}")
+        if token not in provider_cache:
+            fail(f"v0.8 alpha.5.25 provider-cache role persistence missing: {token}")
+
+    for token in (
+        "InspectExecutableMetadata(",
+        "ExecutableMetadata",
+    ):
+        if token not in inspector_hpp:
+            fail(f"v0.8 alpha.5.25 inspector API missing: {token}")
+
+    for token in (
+        "GetFileVersionInfoSizeW(",
+        "GetFileVersionInfoW(",
+        "VerQueryValueW(",
+        "FileDescription",
+        "ProductName",
+        "CompanyName",
+        "OriginalFilename",
+        "InternalName",
+        "gMetadataCache",
+        "fileSize",
+        "writeTime",
+    ):
+        if token not in inspector_cpp:
+            fail(f"v0.8 alpha.5.25 executable metadata cache missing: {token}")
+
+    for provider_name, provider_text in (
+        ("StartMenuProvider", start_menu),
+        ("AppPathsProvider", app_paths),
+        ("PathProvider", path_provider),
+        ("PackagedAppProvider", packaged),
+    ):
+        for token in (
+            "LaunchEvidence",
+            "ClassifyApplicationRole(",
+            "command.applicationRole",
+            "command.catalogVisibility",
+            "command.distinctiveTokens",
+        ):
+            if token not in provider_text:
+                fail(f"v0.8 alpha.5.25 {provider_name} role pipeline missing: {token}")
+
+    # This release only builds/persists the evidence model. Query admission
+    # and ranking must stay behaviorally frozen until the next stage.
+    for hot_path_name, hot_path in (
+        ("SearchEngine", search_engine),
+        ("ResultRanking", result_ranking),
+    ):
+        for forbidden in (
+            "catalogVisibility",
+            "ApplicationRole",
+            "distinctiveTokens",
+            "catalogGroupKey",
+        ):
+            if forbidden in hot_path:
+                fail(
+                    "v0.8 alpha.5.25 must not consume role evidence in "
+                    f"{hot_path_name}: {forbidden}"
+                )
+
+    for token in (
+        "src/core/LaunchRole.cpp",
+        "tests/LaunchRoleTests.cpp",
+        "launch_role_tests",
+        "version",
+    ):
+        if token not in cmake:
+            fail(f"v0.8 alpha.5.25 CMake integration missing: {token}")
+
+    for token in (
+        "Contoso Studio",
+        "Fabrikam Studio",
+        "BenchmarkTool",
+        "CompanyName alone",
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.25 generic role regression missing: {token}")
+
+    for forbidden in (
+        "solidworks",
+        "teamspeak",
+        "adobe",
+        "autodesk",
+    ):
+        if forbidden in role_cpp.lower() or forbidden in role_tests.lower():
+            fail(
+                "v0.8 alpha.5.25 role model must remain product-neutral: "
+                + forbidden
+            )
+
+    for token in (
+        "ApplicationRole::DiagnosticTool",
+        "RoleConfidence::High",
+        "CatalogVisibility::StrongMatchOnly",
+        "distinctiveTokens",
+        "provider-cache-schema8-stale.json",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.25 provider-cache regression missing: {token}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for path, expected in frozen_assets.items():
+        if git_blob_sha(path) != expected:
+            fail(f"v0.8 alpha.5.25 frozen Classic asset changed: {path}")
+
+    for token in (
+        "FILEVERSION 0,8,0,195",
+        "PRODUCTVERSION 0,8,0,195",
+        "0.8.0-alpha.5.25",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.25 resource version missing: {token}")
+
+    if 'version="0.8.0.195"' not in manifest:
+        fail("v0.8 alpha.5.25 manifest fixed version must be 0.8.0.195")
+
+    for token in (
+        '"0.8.0-alpha.5.24"',
+        '"0.8.0-alpha.5.25"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.25 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.25 Launch Role Evidence Model validation",
+        "schema 9",
+        "role-aware StrongMatchOnly/Hidden query admission is intentionally deferred",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.25 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.25 — Launch Role Evidence Model",
+        "Provider Cache is bumped to schema 9",
+        "0.8.0.195",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.25 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.25" not in changelog:
+        fail("v0.8 alpha.5.25 changelog entry missing")
+
+    if "v0.8.0-alpha.5.25 introduces provider-neutral launch-role evidence" not in roadmap:
+        fail("v0.8 alpha.5.25 roadmap entry missing")
+
+    print(
+        "v0.8.0-alpha.5.25 Launch Role Evidence Model verified:",
+        "| Provider Cache schema 9",
+        "| cached executable Version Resource evidence",
+        "| role/confidence/visibility persisted",
+        "| conservative product grouping + distinctive tokens",
+        "| query hot path unchanged",
+        "| product-neutral regressions",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.24":
     import hashlib
     import subprocess
