@@ -42,6 +42,193 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.5.32":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 10,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 1,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"v0.8 alpha.5.32 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 14:
+        fail("v0.8 alpha.5.32 must use Provider Cache schemaVersion 14")
+
+    role_cpp = read("src/core/LaunchRole.cpp")
+    search_cpp = read("src/core/SearchEngine.cpp")
+    result_ranking = read("src/core/ResultRanking.cpp")
+    role_tests = read("tests/LaunchRoleTests.cpp")
+    search_tests = read("tests/SearchEngineTests.cpp")
+    config_tests = read("tests/ConfigCoreTests.cpp")
+    workflow = read(".github/workflows/build.yml")
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    desktop_validation = read("docs/DESKTOP_VALIDATION.md")
+    readme = read("README.md")
+    changelog = read("CHANGELOG.md")
+    roadmap = read("ROADMAP.md")
+
+    for token in (
+        "HasContextualSuiteUtilityPhrase(",
+        "HasUserFacingServiceUtilityPhrase(",
+        "network monitor",
+        "license manager",
+        "license administrator",
+        "service manager",
+        "service console",
+        "contextualUtilitySurface",
+        "BackgroundComponent",
+        "ServiceComponent",
+    ):
+        if token not in role_cpp:
+            fail(f"v0.8 alpha.5.32 residual catalog evidence missing: {token}")
+
+    for token in (
+        "Acme Network Monitor 2026",
+        "Acme Service Manager 2026",
+        "Acme Service Host",
+        "Fabrikam Studio Network Monitor 2026",
+        "Fabrikam Studio License Manager 2026",
+        "Fabrikam Studio Service Manager 2026",
+        "Fabrikam Studio Network Designer 2026",
+    ):
+        if token not in role_tests:
+            fail(f"v0.8 alpha.5.32 generic role regression missing: {token}")
+
+    for token in (
+        "residual-network-monitor",
+        "residual-license-manager",
+        "residual-service-manager",
+        "residual-network-designer",
+        "monitorIntent",
+        "licenseIntent",
+        "serviceIntent",
+    ):
+        if token not in search_tests:
+            fail(f"v0.8 alpha.5.32 end-to-end residual search regression missing: {token}")
+
+    if "HasContextualSuiteUtilityPhrase(" in search_cpp:
+        fail("v0.8 alpha.5.32 residual role reasoning must stay out of SearchEngine")
+
+    if "catalogVisibility" in result_ranking or "distinctiveTokens" in result_ranking:
+        fail("v0.8 alpha.5.32 catalog admission must not move into ResultRanking")
+
+    forbidden_products = (
+        "solidworks",
+        "adobe",
+        "autodesk",
+        "teamspeak",
+    )
+    production_and_role_tests = (role_cpp + role_tests).lower()
+    for product in forbidden_products:
+        if product in production_and_role_tests:
+            fail(f"v0.8 alpha.5.32 product-specific role rule/fixture found: {product}")
+
+    for token in (
+        '\\"schemaVersion\\": 14',
+        "staleSchema13ProviderCache",
+    ):
+        if token not in config_tests:
+            fail(f"v0.8 alpha.5.32 Provider Cache regression missing: {token}")
+
+    development_start = workflow.find("  development-release:")
+    if development_start < 0:
+        fail("v0.8 alpha.5.32 development-release job missing")
+    development = workflow[development_start:]
+    for token in (
+        "cancel-in-progress: false",
+        "Verify dev-latest public update contract",
+        "PUBLIC_MANIFEST_URL=",
+        "cmp -s update-manifest.json public-update-manifest.json",
+        "-F draft=false",
+    ):
+        if token not in development:
+            fail(f"v0.8 alpha.5.32 dev-latest verification regressed: {token}")
+
+    for token in (
+        "FILEVERSION 0,8,0,202",
+        "PRODUCTVERSION 0,8,0,202",
+        "0.8.0-alpha.5.32",
+    ):
+        if token not in resources:
+            fail(f"v0.8 alpha.5.32 resource version missing: {token}")
+
+    if 'version="0.8.0.202"' not in manifest:
+        fail("v0.8 alpha.5.32 manifest fixed version must be 0.8.0.202")
+
+    for token in (
+        '"0.8.0-alpha.5.31"',
+        '"0.8.0-alpha.5.32"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"v0.8 alpha.5.32 update-policy coverage missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.32 Catalog Residual Evidence validation",
+        "schema 14",
+        "Network Monitor",
+        "Service Manager",
+    ):
+        if token not in desktop_validation:
+            fail(f"v0.8 alpha.5.32 desktop checklist missing: {token}")
+
+    for token in (
+        "v0.8.0-alpha.5.32 — Catalog Residual Evidence Completion",
+        "Provider Cache advances to schema 14",
+        "0.8.0.202",
+    ):
+        if token not in readme:
+            fail(f"v0.8 alpha.5.32 README missing: {token}")
+
+    if "## 0.8.0-alpha.5.32" not in changelog:
+        fail("v0.8 alpha.5.32 changelog entry missing")
+
+    if "v0.8.0-alpha.5.32 completes generic residual management evidence" not in roadmap:
+        fail("v0.8 alpha.5.32 roadmap entry missing")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for asset_path, expected in frozen_assets.items():
+        if git_blob_sha(asset_path) != expected:
+            fail(f"v0.8 alpha.5.32 frozen Classic asset changed: {asset_path}")
+
+    print(
+        "v0.8.0-alpha.5.32 Catalog Residual Evidence Completion verified:",
+        "| Provider Cache schema 14 rebuild",
+        "| contextual network/license/service-management utility evidence",
+        "| component-role repair requires title + suite primary",
+        "| standalone utilities remain Normal",
+        "| independent companions preserved",
+        "| SearchEngine/ResultRanking unchanged",
+        "| dev-latest public verification preserved",
+        "| Classic assets frozen",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.5.31":
     import hashlib
     import subprocess

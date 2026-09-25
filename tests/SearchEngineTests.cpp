@@ -1255,6 +1255,175 @@ int main(int argc, char** argv) {
                 4));
     }
 
+    {
+        const std::wstring group =
+            L"family:fabrikamstudio|root:c:\\program files\\fabrikam\\studio";
+
+        auto makeRoleCommand =
+            [&](std::wstring id,
+                std::wstring title,
+                ApplicationRole role,
+                RoleConfidence confidence,
+                CatalogVisibility visibility,
+                int order) {
+                Command command =
+                    MakeCommand(
+                        std::move(id),
+                        relevance::Normalize(
+                            title),
+                        title,
+                        L"C:\\Program Files\\Fabrikam\\Studio\\Tool.exe",
+                        order);
+
+                command.source =
+                    CommandSource::StartMenu;
+                command.applicationRole =
+                    role;
+                command.roleConfidence =
+                    confidence;
+                command.catalogVisibility =
+                    visibility;
+                command.catalogGroupKey =
+                    group;
+                command.canonicalIdentity =
+                    L"file:c:\\program files\\fabrikam\\studio\\" +
+                    std::to_wstring(order) +
+                    L".exe";
+                return command;
+            };
+
+        std::vector<Command> residual{
+            makeRoleCommand(
+                L"residual-primary",
+                L"Fabrikam Studio 2026",
+                ApplicationRole::
+                    PrimaryApplication,
+                RoleConfidence::High,
+                CatalogVisibility::Normal,
+                0),
+            makeRoleCommand(
+                L"residual-network-monitor",
+                L"Fabrikam Studio Network Monitor 2026",
+                ApplicationRole::
+                    BackgroundComponent,
+                RoleConfidence::High,
+                CatalogVisibility::Hidden,
+                1),
+            makeRoleCommand(
+                L"residual-license-manager",
+                L"Fabrikam Studio License Manager 2026",
+                ApplicationRole::
+                    CompanionApplication,
+                RoleConfidence::Medium,
+                CatalogVisibility::Normal,
+                2),
+            makeRoleCommand(
+                L"residual-service-manager",
+                L"Fabrikam Studio Service Manager 2026",
+                ApplicationRole::
+                    ServiceComponent,
+                RoleConfidence::High,
+                CatalogVisibility::Hidden,
+                3),
+            makeRoleCommand(
+                L"residual-network-designer",
+                L"Fabrikam Studio Network Designer 2026",
+                ApplicationRole::
+                    CompanionApplication,
+                RoleConfidence::Medium,
+                CatalogVisibility::Normal,
+                4),
+        };
+
+        residual[1].distinctiveTokens = {
+            L"network",
+            L"monitor",
+        };
+        residual[2].distinctiveTokens = {
+            L"license",
+            L"manager",
+        };
+        residual[3].distinctiveTokens = {
+            L"service",
+            L"manager",
+        };
+        residual[4].distinctiveTokens = {
+            L"network",
+            L"designer",
+        };
+
+        std::vector<Command*> views;
+        for (auto& command :
+             residual) {
+            views.push_back(
+                &command);
+        }
+
+        CalibrateCatalogRoleContext(
+            views);
+
+        const auto family =
+            engine.Search(
+                residual,
+                usage,
+                L"fa",
+                20);
+
+        assert(
+            ContainsCommand(
+                family,
+                0));
+        assert(
+            !ContainsCommand(
+                family,
+                1));
+        assert(
+            !ContainsCommand(
+                family,
+                2));
+        assert(
+            !ContainsCommand(
+                family,
+                3));
+        assert(
+            ContainsCommand(
+                family,
+                4));
+
+        const auto monitorIntent =
+            engine.Search(
+                residual,
+                usage,
+                L"monitor",
+                20);
+        assert(
+            ContainsCommand(
+                monitorIntent,
+                1));
+
+        const auto licenseIntent =
+            engine.Search(
+                residual,
+                usage,
+                L"license",
+                20);
+        assert(
+            ContainsCommand(
+                licenseIntent,
+                2));
+
+        const auto serviceIntent =
+            engine.Search(
+                residual,
+                usage,
+                L"service",
+                20);
+        assert(
+            ContainsCommand(
+                serviceIntent,
+                3));
+    }
+
     auto wildcardDisabled =
         engine.Search(
             commands,

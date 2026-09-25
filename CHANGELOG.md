@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0-alpha.5.32
+
+- Completed another provider-neutral layer of residual suite-utility evidence for management/monitoring surfaces that should be reachable explicitly but should not accompany a plain suite-family query.
+- Added weak contextual SuiteUtility phrases for network monitoring, license/licensing management/administration/utilities, and user-facing service management/administration/console/utility surfaces, including Simplified Chinese equivalents.
+- These residual phrases remain Low/Normal in isolation and require a related clear suite primary before becoming Medium/StrongMatchOnly; standalone applications named Network Monitor or Service Manager are therefore not hidden by title alone.
+- User-facing Service Manager/Service Console/Service Utility titles no longer lose to generic ServiceComponent text evidence merely because the word “service” is present.
+- Catalog context may repair a Start Menu management surface that provider metadata initially labeled BackgroundComponent or ServiceComponent, but only when the title carries a known contextual utility phrase and a related primary application exists.
+- True service/background entries such as Service Host remain service/background roles; nearby independent companions such as Network Designer remain Normal.
+- Restrictive query intent now includes the same network/license/service-management phrases, so explicit monitor/license/service searches can re-admit the utility without restoring shared family intent.
+- Provider Cache advances to schema 14 to rebuild alpha.5.31 role/token state under the residual evidence model.
+- Routing, Player, Boost, opaque short names and other ambiguous entries remain intentionally unclassified without stronger generic evidence.
+- SearchEngine, ResultRanking, usage, pinyin, Everything, provider monitoring and frozen Classic UI/geometry are unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.202`.
+
 ## 0.8.0-alpha.5.31
 
 - Added provider-neutral `SuiteUtility` for user-invoked suite auxiliaries such as task/job schedulers, synchronization managers/tools, automation utilities and maintenance consoles.

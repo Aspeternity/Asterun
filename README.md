@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.32 — Catalog Residual Evidence Completion
+
+Alpha.5.32 extends the catalog role model only where the remaining evidence is generic enough to justify it. The new residual evidence covers user-facing network monitoring, license/licensing management and service-management surfaces. These phrases are deliberately weak evidence: a standalone application called `Network Monitor` or `Service Manager` remains `Low + Normal`; the entry becomes `SuiteUtility + Medium + StrongMatchOnly` only when catalog context also contains a clear related primary application.
+
+The service-management case closes an important ambiguity in the existing model. A title such as `Service Manager` is a user-facing management surface, not automatically a Windows service binary just because it contains the word “service”. Title-level service-manager/administrator/console/utility phrases are excluded from generic `ServiceComponent` text scoring. During catalog publication, a contextual management title may also repair a Start Menu entry that provider metadata had initially labeled `ServiceComponent` or `BackgroundComponent`, but only when that title is one of the known contextual utility phrases and a related primary is present. Actual service/host entries continue to classify as components.
+
+Restrictive query intent is extended with the same phrases, so a family query suppresses these utilities while explicit `monitor`, `license`, or `service` intent can still reach them. Nearby independent companions such as a generic Network Designer remain `Normal`.
+
+This version intentionally does not guess about ambiguous product vocabulary such as Routing, Player, Boost or opaque short names. Those remain visible until stronger provider-neutral evidence exists. SearchEngine and ResultRanking are unchanged. Provider Cache advances to schema 14 and rebuilds once. Windows fixed FileVersion/ProductVersion is `0.8.0.202`.
+
 ## v0.8.0-alpha.5.31 — Alternate / Suite Utility Role Completion
 
 Alpha.5.31 completes two role classes exposed by real multi-entry suites without adding product-specific filtering. `SuiteUtility` represents user-invoked auxiliary tools that are useful when explicitly requested but should not normally accompany a plain family-name query: task/job schedulers, synchronization managers/tools, automation utilities and maintenance consoles. Complete role phrases reach Medium confidence directly. Ambiguous words such as `sync`, `scheduler`, `automation` and `maintenance` remain Low/Normal in isolation and are promoted only when a related family/location also exposes a clear primary application.

@@ -580,6 +580,57 @@ ConfidenceFor(
     return strength;
 }
 
+[[nodiscard]] bool
+HasContextualSuiteUtilityPhrase(
+    std::wstring_view value) {
+
+    return ContainsAny(
+        value,
+        {L"network monitor",
+         L"network monitoring",
+         L"license manager",
+         L"licensing manager",
+         L"license administrator",
+         L"licensing administrator",
+         L"license utility",
+         L"licensing utility",
+         L"network license manager",
+         L"network license administrator",
+         L"network license utility",
+         L"service manager",
+         L"service administrator",
+         L"service console",
+         L"service utility",
+         L"网络监视器",
+         L"网络监控",
+         L"许可证管理器",
+         L"许可管理器",
+         L"许可证管理员",
+         L"许可管理员",
+         L"许可证工具",
+         L"许可工具",
+         L"服务管理器",
+         L"服务管理员",
+         L"服务控制台",
+         L"服务工具"});
+}
+
+[[nodiscard]] bool
+HasUserFacingServiceUtilityPhrase(
+    std::wstring_view value) {
+
+    return ContainsAny(
+        value,
+        {L"service manager",
+         L"service administrator",
+         L"service console",
+         L"service utility",
+         L"服务管理器",
+         L"服务管理员",
+         L"服务控制台",
+         L"服务工具"});
+}
+
 void AddTextSignals(
     std::array<RoleScore, 19>& scores,
     std::wstring_view value,
@@ -813,6 +864,33 @@ void AddTextSignals(
              L"maintenance console",
              L"maintenance tool",
              L"maintenance utility",
+             L"network monitor",
+             L"network monitoring",
+             L"license manager",
+             L"licensing manager",
+             L"license administrator",
+             L"licensing administrator",
+             L"license utility",
+             L"licensing utility",
+             L"network license manager",
+             L"network license administrator",
+             L"network license utility",
+             L"service manager",
+             L"service administrator",
+             L"service console",
+             L"service utility",
+             L"网络监视器",
+             L"网络监控",
+             L"许可证管理器",
+             L"许可管理器",
+             L"许可证管理员",
+             L"许可管理员",
+             L"许可证工具",
+             L"许可工具",
+             L"服务管理器",
+             L"服务管理员",
+             L"服务控制台",
+             L"服务工具",
              L"任务计划程序",
              L"任务计划工具",
              L"任务调度器",
@@ -832,6 +910,8 @@ void AddTextSignals(
              L"synchronization",
              L"automation",
              L"maintenance"}) ||
+        HasContextualSuiteUtilityPhrase(
+            value) ||
         ContainsAny(
             value,
             {L"调度",
@@ -931,7 +1011,9 @@ void AddTextSignals(
             field);
     }
 
-    if (ContainsAny(
+    if (!HasUserFacingServiceUtilityPhrase(
+            value) &&
+        ContainsAny(
             value,
             {L" service",
              L"service ",
@@ -2548,6 +2630,13 @@ void CalibrateCatalogRoleContext(
                     ClassifyApplicationRole(
                         titleEvidence);
 
+            const bool contextualUtilitySurface =
+                titleDecision.role ==
+                    ApplicationRole::
+                        SuiteUtility &&
+                HasContextualSuiteUtilityPhrase(
+                    candidate->title);
+
             const bool identityRole =
                 candidate->applicationRole ==
                     ApplicationRole::Unknown ||
@@ -2556,7 +2645,16 @@ void CalibrateCatalogRoleContext(
                         PrimaryApplication ||
                 candidate->applicationRole ==
                     ApplicationRole::
-                        CompanionApplication;
+                        CompanionApplication ||
+                (contextualUtilitySurface &&
+                 (candidate
+                      ->applicationRole ==
+                      ApplicationRole::
+                          BackgroundComponent ||
+                  candidate
+                      ->applicationRole ==
+                      ApplicationRole::
+                          ServiceComponent));
 
             if (identityRole &&
                 IsContextPromotableRole(

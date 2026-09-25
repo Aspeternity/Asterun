@@ -596,6 +596,22 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck Settings/Benchmark suppression from alpha.5.29, App Paths/PATH/AppsFolder, Everything merge, pinyin, usage ranking, idle CPU/memory and frozen Classic repaint/geometry behavior.
 - [ ] No commercial product name may appear in production role rules or new generic role regressions.
 
+## v0.8.0-alpha.5.32 Catalog Residual Evidence validation
+
+- [ ] Upgrade from alpha.5.31. Provider Cache rebuilds once under schema 14; settings, user commands and usage remain unchanged.
+- [ ] In a suite with a clear primary, a Network Monitor / Network Monitoring entry must become SuiteUtility + StrongMatchOnly and disappear from a plain family-prefix query.
+- [ ] A License Manager / Licensing Manager / License Administrator / License Utility style entry must likewise require suite-primary context before suppression.
+- [ ] A Service Manager / Service Administrator / Service Console / Service Utility Start Menu surface must be treated as user-facing SuiteUtility rather than generic ServiceComponent when a related primary exists.
+- [ ] A standalone Network Monitor or Service Manager with no related primary must stay Low/Normal and remain visible.
+- [ ] A true Service Host / daemon/background component must remain ServiceComponent/BackgroundComponent; the management-surface exception must not weaken component suppression.
+- [ ] If provider metadata initially labels a contextual Network Monitor as BackgroundComponent or Service Manager as ServiceComponent, catalog publication should repair the role to SuiteUtility only when the title phrase and related primary both corroborate it.
+- [ ] Explicit monitor/license/service searches must re-admit the corresponding StrongMatchOnly utility.
+- [ ] Nearby independent applications such as Network Designer remain Normal.
+- [ ] Routing / Player / Boost / opaque short names remain unchanged unless they have separate generic metadata evidence.
+- [ ] Inspect `data/provider-cache.json`: schema is 14 and rebuilt role/token state persists without any commercial-product rule.
+- [ ] Recheck alpha.5.31 Quick Launch, Scheduler/Sync, Composer-vs-Composer-Sync behavior, Settings/Benchmark suppression, App Paths/PATH/AppsFolder, Everything merge, pinyin, usage ranking, idle CPU/memory and frozen Classic UI.
+- [ ] Recheck the alpha.5.30 anonymous dev-latest publication contract remains green.
+
 ## Release assets
 
 For the candidate tag:

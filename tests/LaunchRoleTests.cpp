@@ -1550,6 +1550,237 @@ int main() {
     }
 
     {
+        auto standaloneNetwork =
+            BaseEvidence(
+                L"Acme Network Monitor 2026",
+                L"C:/Program Files/Acme/Tools/Tool.exe");
+
+        const auto standaloneDecision =
+            ClassifyApplicationRole(
+                standaloneNetwork);
+
+        // Residual management/monitoring phrases are intentionally weak:
+        // a standalone application with this name stays visible.
+        assert(
+            standaloneDecision.role ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            standaloneDecision.confidence ==
+            RoleConfidence::Low);
+        assert(
+            standaloneDecision.visibility ==
+            CatalogVisibility::Normal);
+
+        auto serviceManager =
+            BaseEvidence(
+                L"Acme Service Manager 2026",
+                L"C:/Program Files/Acme/Tools/Tool.exe");
+
+        const auto serviceManagerDecision =
+            ClassifyApplicationRole(
+                serviceManager);
+
+        assert(
+            serviceManagerDecision.role ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            serviceManagerDecision.confidence ==
+            RoleConfidence::Low);
+        assert(
+            serviceManagerDecision.visibility ==
+            CatalogVisibility::Normal);
+
+        auto serviceHost =
+            BaseEvidence(
+                L"Acme Service Host",
+                L"C:/Program Files/Acme/Service.exe");
+
+        const auto serviceHostDecision =
+            ClassifyApplicationRole(
+                serviceHost);
+
+        // The user-facing service-manager exception must not weaken true
+        // service/background component detection.
+        assert(
+            serviceHostDecision.role ==
+            ApplicationRole::
+                ServiceComponent);
+    }
+
+    {
+        const std::wstring group =
+            L"family:fabrikamstudio|root:c:\\program files\\fabrikam\\studio";
+
+        Command primary;
+        primary.source =
+            CommandSource::StartMenu;
+        primary.title =
+            L"Fabrikam Studio 2026";
+        primary.target =
+            L"C:\\Program Files\\Fabrikam\\Studio\\Studio.exe";
+        primary.canonicalIdentity =
+            L"file:c:\\program files\\fabrikam\\studio\\studio.exe";
+        primary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        primary.roleConfidence =
+            RoleConfidence::High;
+        primary.catalogVisibility =
+            CatalogVisibility::Normal;
+        primary.catalogGroupKey =
+            group;
+
+        Command networkMonitor;
+        networkMonitor.source =
+            CommandSource::StartMenu;
+        networkMonitor.title =
+            L"Fabrikam Studio Network Monitor 2026";
+        networkMonitor.target =
+            L"C:\\Program Files\\Fabrikam\\Studio\\NetworkMonitor.exe";
+        networkMonitor.canonicalIdentity =
+            L"file:c:\\program files\\fabrikam\\studio\\networkmonitor.exe";
+        networkMonitor.applicationRole =
+            ApplicationRole::
+                BackgroundComponent;
+        networkMonitor.roleConfidence =
+            RoleConfidence::High;
+        networkMonitor.catalogVisibility =
+            CatalogVisibility::Hidden;
+        networkMonitor.catalogGroupKey =
+            group;
+        networkMonitor.distinctiveTokens = {
+            L"network",
+            L"monitor",
+        };
+
+        Command licenseManager;
+        licenseManager.source =
+            CommandSource::StartMenu;
+        licenseManager.title =
+            L"Fabrikam Studio License Manager 2026";
+        licenseManager.target =
+            L"C:\\Program Files\\Fabrikam\\Studio\\License.exe";
+        licenseManager.canonicalIdentity =
+            L"file:c:\\program files\\fabrikam\\studio\\license.exe";
+        licenseManager.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        licenseManager.roleConfidence =
+            RoleConfidence::Medium;
+        licenseManager.catalogVisibility =
+            CatalogVisibility::Normal;
+        licenseManager.catalogGroupKey =
+            group;
+        licenseManager.distinctiveTokens = {
+            L"license",
+            L"manager",
+        };
+
+        Command serviceManager;
+        serviceManager.source =
+            CommandSource::StartMenu;
+        serviceManager.title =
+            L"Fabrikam Studio Service Manager 2026";
+        serviceManager.target =
+            L"C:\\Program Files\\Fabrikam\\Studio\\Service.exe";
+        serviceManager.canonicalIdentity =
+            L"file:c:\\program files\\fabrikam\\studio\\service.exe";
+        serviceManager.applicationRole =
+            ApplicationRole::
+                ServiceComponent;
+        serviceManager.roleConfidence =
+            RoleConfidence::High;
+        serviceManager.catalogVisibility =
+            CatalogVisibility::Hidden;
+        serviceManager.catalogGroupKey =
+            group;
+        serviceManager.distinctiveTokens = {
+            L"service",
+            L"manager",
+        };
+
+        Command networkDesigner;
+        networkDesigner.source =
+            CommandSource::StartMenu;
+        networkDesigner.title =
+            L"Fabrikam Studio Network Designer 2026";
+        networkDesigner.target =
+            L"C:\\Program Files\\Fabrikam\\Studio\\Designer.exe";
+        networkDesigner.canonicalIdentity =
+            L"file:c:\\program files\\fabrikam\\studio\\designer.exe";
+        networkDesigner.applicationRole =
+            ApplicationRole::
+                CompanionApplication;
+        networkDesigner.roleConfidence =
+            RoleConfidence::Medium;
+        networkDesigner.catalogVisibility =
+            CatalogVisibility::Normal;
+        networkDesigner.catalogGroupKey =
+            group;
+        networkDesigner.distinctiveTokens = {
+            L"network",
+            L"designer",
+        };
+
+        std::vector<Command*> commands{
+            &primary,
+            &networkMonitor,
+            &licenseManager,
+            &serviceManager,
+            &networkDesigner,
+        };
+
+        CalibrateCatalogRoleContext(
+            commands);
+
+        for (const Command* utility :
+             std::vector<const Command*>{
+                 &networkMonitor,
+                 &licenseManager,
+                 &serviceManager}) {
+            assert(
+                utility->applicationRole ==
+                ApplicationRole::
+                    SuiteUtility);
+            assert(
+                utility->roleConfidence ==
+                RoleConfidence::Medium);
+            assert(
+                utility->catalogVisibility ==
+                CatalogVisibility::
+                    StrongMatchOnly);
+        }
+
+        assert(
+            HasToken(
+                networkMonitor
+                    .distinctiveTokens,
+                L"network monitor"));
+        assert(
+            HasToken(
+                licenseManager
+                    .distinctiveTokens,
+                L"license manager"));
+        assert(
+            HasToken(
+                serviceManager
+                    .distinctiveTokens,
+                L"service manager"));
+
+        // Nearby words are not enough; an independent network-oriented
+        // companion remains a normal application.
+        assert(
+            networkDesigner.applicationRole ==
+            ApplicationRole::
+                CompanionApplication);
+        assert(
+            networkDesigner.catalogVisibility ==
+            CatalogVisibility::Normal);
+    }
+
+    {
         assert(
             ParseApplicationRole(
                 ApplicationRoleName(
