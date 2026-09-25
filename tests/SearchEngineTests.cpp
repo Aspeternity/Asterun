@@ -2152,6 +2152,46 @@ int main(int argc, char** argv) {
         wildcardTarget.front()
             .commandIndex == 4);
 
+    // Short family prefixes can match an unrelated name as strongly as a
+    // suite companion. Repeated real launches may reorder comparable prefix
+    // matches, while one accidental launch and stronger intent cannot.
+    {
+        std::vector<Command> habits{
+            MakeCommand(L"game", L"acmesolitaire", L"Acme Solitaire",
+                        L"Solitaire.exe", 0),
+            MakeCommand(L"design", L"acmestudiodesigner",
+                        L"Acme Studio Designer", L"Designer.exe", 1),
+            MakeCommand(L"exact", L"ac", L"AC", L"Exact.exe", 2),
+        };
+        for (auto& item : habits) {
+            item.source = CommandSource::StartMenu;
+            item.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            item.basePriority = 0;
+        }
+
+        UsageMap habitUsage;
+        const auto cold = engine.Search(habits, habitUsage, L"ac", 10,
+                                        false, false);
+        assert(cold.front().commandIndex == 2);
+        assert(cold[1].commandIndex == 0);
+
+        habitUsage[L"design"] = UsageStat{1, 4102444800LL};
+        const auto oneLaunch = engine.Search(habits, habitUsage, L"ac", 10,
+                                             false, false);
+        assert(oneLaunch[1].commandIndex == 0);
+
+        habitUsage[L"design"] = UsageStat{2, 1};
+        const auto repeated = engine.Search(habits, habitUsage, L"ac", 10,
+                                            false, false);
+        assert(repeated.front().commandIndex == 2);
+        assert(repeated[1].commandIndex == 1);
+
+        habitUsage[L"design"] = UsageStat{100000, 1};
+        const auto capped = engine.Search(habits, habitUsage, L"ac", 10,
+                                          false, false);
+        assert(capped.front().commandIndex == 2);
+    }
+
     usage[L"3"] = UsageStat{42, 4102444800LL};
     auto frequent = engine.Search(commands, usage, L"", 10);
     assert(!frequent.empty());

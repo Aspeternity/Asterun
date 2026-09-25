@@ -159,6 +159,27 @@ int main() {
         app,
         auxiliary));
 
+    LauncherResult shorter = app;
+    shorter.relevanceMatch.score = 876;
+    LauncherResult familiar = app;
+    familiar.relevanceMatch.score = 866;
+    familiar.usageScore = 16;
+    assert(BetterLauncherResult(familiar, shorter));
+    familiar.usageScore = 0;
+    assert(BetterLauncherResult(shorter, familiar));
+
+    familiar.usageScore = 100000;
+    familiar.relevanceMatch.score = 820;
+    assert(BetterLauncherResult(shorter, familiar));
+
+    familiar.relevanceMatch.kind = relevance::MatchKind::Substring;
+    familiar.relevanceMatch.score = 950;
+    assert(BetterLauncherResult(shorter, familiar));
+
+    familiar.relevanceMatch = shorter.relevanceMatch;
+    familiar.relevanceMatch.field = relevance::MatchField::Subtitle;
+    assert(BetterLauncherResult(shorter, familiar));
+
     assert(
         ProviderRankWeight(
             providers::kStartMenu) >

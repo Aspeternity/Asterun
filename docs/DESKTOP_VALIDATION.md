@@ -722,6 +722,14 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Confirm the keystroke path performs cached string matching only: no filesystem, Shell/MSI, EXE metadata or catalog-role inference.
 - [ ] Confirm no product/vendor/abbreviation rule was added and Classic UI/geometry is unchanged.
 
+## v0.8.0-alpha.5.42 Intent-Stable Usage Ranking validation
+
+- [ ] On a short family query with comparable results, a companion with at least two launches can rise above an unrelated, slightly higher-scoring name. One launch alone does not reorder them.
+- [ ] Exact names, pinned/user shortcuts and stronger match kinds remain above weaker frequently used matches. Explicit syntax and path queries preserve their previous order.
+- [ ] The frequency effect is capped, stable across idle time and search restarts, and cleared by the existing usage reset. Empty-query recency remains unchanged.
+- [ ] Confirm Catalog family-only suppression, residual-only recovery, family-plus-residual recovery and longer independent companions still work. Search stays cache-only; Classic geometry is unchanged.
+- [ ] Provider Cache remains schema 22 and Usage schema 1. Windows fixed version is 0.8.0.212.
+
 ## v0.8.0-alpha.5.41 Shared Common Files Corroboration validation
 
 - [ ] Upgrade from alpha.5.40; schema 22 rebuilds Provider Cache. Check the short auxiliary under a matching family-owned Common Files directory becomes `suite-utility + medium + strong-match-only` while a clear High primary lives in a related suite Start Menu folder.

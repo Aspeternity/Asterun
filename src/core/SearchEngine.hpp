@@ -78,6 +78,9 @@ private:
     [[nodiscard]] static int UsageScore(
         const UsageStat* stat);
 
+    [[nodiscard]] static int IntentUsageScore(
+        const UsageStat* stat);
+
     [[nodiscard]] static bool
     IsPinyinQuery(
         std::wstring_view normalizedQuery);

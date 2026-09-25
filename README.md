@@ -23,6 +23,10 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.42 — Intent-Stable Usage Ranking
+
+Repeated launches now give a small, capped frequency bonus to comparable nonempty search matches. The bonus applies only within the same match kind, launch surface, field and pinyin status. A single launch has no effect; the bonus never exceeds 32 points, uses no recency clock, and cannot outrank an exact match or a stronger match kind. Empty-query recency ordering, explicit syntax, path searches, catalog admission and Classic UI remain unchanged. Search uses the existing usage data without a schema migration or I/O while typing. Provider Cache stays at schema 22, Usage stays at schema 1 and Windows fixed FileVersion/ProductVersion is `0.8.0.212`.
+
 ## v0.8.0-alpha.5.41 — Shared Common Files Corroboration
 
 The real-machine Provider Cache showed why an opaque suite helper remained Normal: its resolved executable was installed under Windows `Common Files` on a different drive from the primary application. At catalog publication, an opaque entry in a corroborated Tools/Utilities folder can now use the first directory under `Program Files/Common Files` or `Program Files (x86)/Common Files` as suite-owner evidence. That directory must match the cached family exactly or be its `Shared` directory. A family word deeper in another vendor's tree is insufficient. A clear High-confidence primary in the related Start Menu context is still required. Independent longer companions and unrelated installation trees stay Normal.

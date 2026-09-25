@@ -720,6 +720,29 @@ int CompareRankContext(
             : -1;
     }
 
+    // Once intent strength, surface and field agree, small title-length
+    // differences should not permanently defeat a demonstrated habit.
+    // Keep the bonus bounded so a materially better text match wins; exact
+    // and explicit-syntax matches retain their original score comparison.
+    const bool comparableIntent =
+        left.match.kind == right.match.kind &&
+        left.match.kind != MatchKind::None &&
+        left.match.kind != MatchKind::Exact &&
+        left.match.kind != MatchKind::Wildcard &&
+        left.match.kind != MatchKind::SyntaxFallback &&
+        left.match.field != MatchField::Target;
+
+    if (comparableIntent) {
+        const int leftScore = left.match.score +
+            std::clamp(left.usageScore, 0, 32);
+        const int rightScore = right.match.score +
+            std::clamp(right.usageScore, 0, 32);
+
+        if (leftScore != rightScore) {
+            return leftScore > rightScore ? 1 : -1;
+        }
+    }
+
     if (left.match.score !=
         right.match.score) {
         return left.match.score >

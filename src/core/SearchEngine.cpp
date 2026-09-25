@@ -1,6 +1,7 @@
 #include "SearchEngine.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <cwctype>
@@ -153,6 +154,22 @@ int SearchEngine::UsageScore(
     }
 
     return score;
+}
+
+int SearchEngine::IntentUsageScore(
+    const UsageStat* stat) {
+
+    // A single accidental launch is not a preference. Frequency alone
+    // supplies a small, stable tie-break among comparable text matches;
+    // the empty-query ordering keeps its existing recency behavior.
+    if (stat == nullptr || stat->launches < 2) {
+        return 0;
+    }
+
+    return std::min(
+        32,
+        8 + static_cast<int>(
+            std::bit_width(stat->launches) - 1) * 8);
 }
 
 bool SearchEngine::IsPinyinQuery(
@@ -859,7 +876,11 @@ SearchEngine::Search(
                 : &usageIt->second;
 
         const int usageScore =
-            UsageScore(stat);
+            normalizedQuery.empty()
+                ? UsageScore(stat)
+                : (explicitSyntax || allowTarget
+                       ? 0
+                       : IntentUsageScore(stat));
 
         relevance::Match match{};
 

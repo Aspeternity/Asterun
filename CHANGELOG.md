@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0-alpha.5.42
+
+- Apply a bounded, frequency-only usage bonus to comparable search matches after at least two launches; preserve stronger match kinds, surfaces and fields.
+- Preserve empty-query recency ordering and explicit syntax/path behavior. No new usage or Provider Cache schema is needed, and search remains cache-only.
+- Add regressions for a single launch, repeated launches, the bonus cap and stronger-intent precedence.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.212`.
+
 ## 0.8.0-alpha.5.41
 
 - Corroborate opaque utility-container entries whose resolved executable belongs to a matching suite-owned Windows Common Files directory, even if the clear primary is installed on another drive.
