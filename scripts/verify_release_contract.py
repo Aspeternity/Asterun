@@ -120,7 +120,7 @@ if version == "0.8.0-alpha.5.27":
         "Contoso Studio Safe Mode",
         "Contoso Studio Editor",
         "Contoso Studio Renderer",
-        "ApplicationRole::AlternateLaunch",
+        "AlternateLaunch",
         "CalibrateCatalogRoleContext(",
     ):
         if token not in role_tests:
