@@ -23,6 +23,12 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.41 — Shared Common Files Corroboration
+
+The real-machine Provider Cache showed why an opaque suite helper remained Normal: its resolved executable was installed under Windows `Common Files` on a different drive from the primary application. At catalog publication, an opaque entry in a corroborated Tools/Utilities folder can now use the first directory under `Program Files/Common Files` or `Program Files (x86)/Common Files` as suite-owner evidence. That directory must match the cached family exactly or be its `Shared` directory. A family word deeper in another vendor's tree is insufficient. A clear High-confidence primary in the related Start Menu context is still required. Independent longer companions and unrelated installation trees stay Normal.
+
+The cache rebuilds under schema 22, and the Windows fixed FileVersion/ProductVersion is `0.8.0.211`. Search remains cache-only; its short-query and distinctive-intent rules are unchanged.
+
 ## v0.8.0-alpha.5.40 — Opaque Suite Topology + Multi-Token Distinctive Intent
 
 Alpha.5.40 closes the two real-machine gaps left after alpha.5.39. First, an opaque auxiliary no longer needs to live under a generically named Tools/Utilities/工具 Start Menu folder before structural suite evidence can be used. Opaque naming still contributes no role evidence by itself: promotion to `SuiteUtility + Medium + StrongMatchOnly` requires a clear High-confidence primary in the same catalog context plus a resolved executable that is either a same-directory sidecar or a shallow descendant of the primary application's install directory. An unrelated install tree remains Normal, and longer independent companions remain untouched.

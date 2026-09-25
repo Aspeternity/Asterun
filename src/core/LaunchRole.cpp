@@ -2064,6 +2064,56 @@ IsNearbyPrimaryInstallTree(
 }
 
 [[nodiscard]] bool
+IsFamilySharedCommonFilesTarget(
+    const Command& candidate) {
+
+    const std::wstring path =
+        CanonicalTargetPath(candidate);
+    const std::wstring family =
+        CatalogFamilyKey(candidate);
+
+    if (path.size() < 4 ||
+        path[1] != L':' ||
+        family.empty()) {
+        return false;
+    }
+
+    // Common Files can be on a different drive from the primary executable.
+    // Only the first directory under that Windows shared location can attest
+    // suite ownership; a family word in the filename or a deeper child does
+    // not establish it.
+    constexpr std::wstring_view locations[]{
+        L"\\program files\\common files\\",
+        L"\\program files (x86)\\common files\\",
+    };
+
+    for (const std::wstring_view location : locations) {
+        if (!std::wstring_view(path).substr(2).starts_with(location)) {
+            continue;
+        }
+
+        const std::size_t start =
+            2 + location.size();
+        const std::size_t end =
+            path.find(L'\\', start);
+
+        if (end == std::wstring::npos ||
+            end == start) {
+            return false;
+        }
+
+        const std::wstring owner =
+            Compact(std::wstring_view(path).substr(
+                start, end - start));
+
+        return owner == family ||
+            owner == family + L"shared";
+    }
+
+    return false;
+}
+
+[[nodiscard]] bool
 IsOpaqueAuxiliaryIdentity(
     const std::vector<std::wstring>&
         residualTokens) {
@@ -3489,14 +3539,12 @@ void CalibrateCatalogRoleContext(
                     *candidate,
                     *clearFamilyPrimary);
 
-            // Opaque naming is never evidence by itself. A short residual
-            // identity can become restrictive outside a Tools/Utilities
-            // container only when two independent structural relationships
-            // agree: Windows catalog context already ties it to a clear
-            // High-confidence primary, and the resolved executable is either
-            // a same-directory sidecar or a shallow descendant of that
-            // primary's install directory. This keeps unrelated install trees
-            // and longer independent companions Normal.
+            // Opaque naming is never evidence by itself. Catalog context
+            // must tie the entry to a clear High-confidence primary, and the
+            // resolved executable must corroborate suite ownership: in the
+            // primary's install tree, or in a matching suite-owned Common
+            // Files directory when the entry is in a utility container.
+            // Unrelated install trees and longer companions remain Normal.
             const bool opaqueAuxiliarySurface =
                 clearFamilyPrimary != nullptr &&
                 HasOpaqueCommandIdentity(
@@ -3506,7 +3554,10 @@ void CalibrateCatalogRoleContext(
                      *clearFamilyPrimary) ||
                  IsNearbyPrimaryInstallTree(
                      *candidate,
-                     *clearFamilyPrimary));
+                     *clearFamilyPrimary) ||
+                 (utilityContainerCorroborated &&
+                  IsFamilySharedCommonFilesTarget(
+                      *candidate)));
 
             const bool identityRole =
                 candidate->applicationRole ==

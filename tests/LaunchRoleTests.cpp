@@ -2058,6 +2058,35 @@ int main() {
             L"yz",
         };
 
+        // Windows Installer can place a suite helper under Common Files on
+        // another drive while its shortcut stays in the sibling Tools menu.
+        Command sharedOpaque = opaqueAuxiliary;
+        sharedOpaque.title = L"Acme Studio PV 2026";
+        sharedOpaque.canonicalIdentity =
+            L"file:d:\\program files\\common files\\acme studio shared\\2026\\pv\\pv.exe";
+        sharedOpaque.distinctiveTokens = {L"pv"};
+
+        Command otherSharedOpaque = sharedOpaque;
+        otherSharedOpaque.title = L"Acme Studio WX 2026";
+        otherSharedOpaque.canonicalIdentity =
+            L"file:d:\\program files\\common files\\other vendor\\2026\\wx.exe";
+        otherSharedOpaque.distinctiveTokens = {L"wx"};
+
+        Command nestedFamilyOpaque = sharedOpaque;
+        nestedFamilyOpaque.title = L"Acme Studio UV 2026";
+        nestedFamilyOpaque.canonicalIdentity =
+            L"file:d:\\program files\\common files\\other vendor\\acme studio shared\\uv.exe";
+        nestedFamilyOpaque.distinctiveTokens = {L"uv"};
+
+        Command mainMenuSharedOpaque = sharedOpaque;
+        mainMenuSharedOpaque.title = L"Acme Studio KL 2026";
+        mainMenuSharedOpaque.catalogGroupKey = mainGroup;
+        mainMenuSharedOpaque.distinctiveTokens = {L"kl"};
+
+        Command sharedCompanion = sharedOpaque;
+        sharedCompanion.title = L"Acme Studio Composer 2026";
+        sharedCompanion.distinctiveTokens = {L"composer"};
+
         Command isolatedTool;
         isolatedTool.source =
             CommandSource::StartMenu;
@@ -2089,6 +2118,11 @@ int main() {
             &treehouse,
             &rootOpaque,
             &rootDistantOpaque,
+            &sharedOpaque,
+            &otherSharedOpaque,
+            &nestedFamilyOpaque,
+            &mainMenuSharedOpaque,
+            &sharedCompanion,
             &isolatedTool,
         };
 
@@ -2205,6 +2239,22 @@ int main() {
         assert(
             rootDistantOpaque.catalogVisibility ==
             CatalogVisibility::Normal);
+
+        assert(sharedOpaque.applicationRole ==
+               ApplicationRole::SuiteUtility);
+        assert(sharedOpaque.roleConfidence ==
+               RoleConfidence::Medium);
+        assert(sharedOpaque.catalogVisibility ==
+               CatalogVisibility::StrongMatchOnly);
+        assert(HasToken(sharedOpaque.distinctiveTokens, L"pv"));
+        assert(otherSharedOpaque.catalogVisibility ==
+               CatalogVisibility::Normal);
+        assert(nestedFamilyOpaque.catalogVisibility ==
+               CatalogVisibility::Normal);
+        assert(mainMenuSharedOpaque.catalogVisibility ==
+               CatalogVisibility::Normal);
+        assert(sharedCompanion.catalogVisibility ==
+               CatalogVisibility::Normal);
 
         // Nor can a Tools folder self-promote without a clear related primary.
         assert(

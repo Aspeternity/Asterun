@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0-alpha.5.41
+
+- Corroborate opaque utility-container entries whose resolved executable belongs to a matching suite-owned Windows Common Files directory, even if the clear primary is installed on another drive.
+- Require the suite owner in the immediate Common Files child directory; unrelated vendors, merely nested family words, non-utility menu entries and longer independent companions stay Normal.
+- Rebuild Provider Cache at schema 22. Preserve the existing cache-only explicit-intent SearchEngine rules.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.211`.
+
 ## 0.8.0-alpha.5.40
 
 - Extend opaque auxiliary corroboration beyond generic Tools/Utilities folders without introducing product vocabulary.

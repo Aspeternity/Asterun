@@ -273,7 +273,8 @@ In progress:
 - v0.8.0-alpha.5.38 adds opaque auxiliary corroboration: short residual identity never suppresses by itself, but ProductName can corroborate a second generic metadata role signal and a Tools/Utilities/工具 entry can use a shallow resolved-target descendant relationship to a clear primary; unrelated short entries stay Normal and schema-20 rebuilds role/token state
 - v0.8.0-alpha.5.39 closes the family/distinctive admission boundary: StrongMatchOnly distinctive re-admission rejects queries contained wholly by the cached catalog family, while exact residual identity remains reachable; the guard is cache-only, schema remains 20, and no product vocabulary is added
 - v0.8.0-alpha.5.40 extends opaque structural corroboration to the main suite context using clear-primary + same-context + same/shallow install-tree evidence, teaches multi-token search to reuse cached distinctive identity without reopening global short-query recall, and advances Provider Cache to schema 21
-- next relevance step: validate alpha.5.40 on real family-only, residual-only and family-plus-residual queries; if clean, close Catalog Admission and move to intent-stable usage ranking
+- v0.8.0-alpha.5.41 adds Common Files structural corroboration for suite-owned opaque helpers in a related utility container, after real-machine cache evidence showed that the primary and helper can be installed on different drives; Provider Cache schema 22 rebuilds generated roles
+- next relevance step: validate alpha.5.41 on real family-only, residual-only and family-plus-residual queries; if clean, close Catalog Admission and move to intent-stable usage ranking
 - Classic ALTRun is polished to maturity first; Modern Compact refinement follows only after Classic real-Windows closeout
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration

@@ -14,7 +14,7 @@ namespace altrun {
 
 namespace {
 
-constexpr int kProviderCacheSchemaVersion = 21;
+constexpr int kProviderCacheSchemaVersion = 22;
 
 const char* TypeName(
     CommandType type) {

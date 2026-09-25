@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 21,\n"
+        "  \"schemaVersion\": 22,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1812,6 +1812,20 @@ int main() {
 
     assert(
         staleSchema20Cache.Load().empty());
+
+    // Schema 21 cached Normal roles before the shared Common Files suite
+    // target could corroborate a utility-container opaque entry.
+    const auto staleSchema21ProviderCache =
+        data / "provider-cache-schema21-stale.json";
+    WriteText(
+        staleSchema21ProviderCache,
+        "{\n"
+        "  \"schemaVersion\": 21,\n"
+        "  \"providers\": {}\n"
+        "}\n");
+    ProviderCache staleSchema21Cache(
+        staleSchema21ProviderCache);
+    assert(staleSchema21Cache.Load().empty());
 
     // Schema 19 predates opaque auxiliary corroboration and ProductName
     // semantic evidence. Generated state must rebuild so short opaque entries

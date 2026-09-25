@@ -722,6 +722,13 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Confirm the keystroke path performs cached string matching only: no filesystem, Shell/MSI, EXE metadata or catalog-role inference.
 - [ ] Confirm no product/vendor/abbreviation rule was added and Classic UI/geometry is unchanged.
 
+## v0.8.0-alpha.5.41 Shared Common Files Corroboration validation
+
+- [ ] Upgrade from alpha.5.40; schema 22 rebuilds Provider Cache. Check the short auxiliary under a matching family-owned Common Files directory becomes `suite-utility + medium + strong-match-only` while a clear High primary lives in a related suite Start Menu folder.
+- [ ] A family query hides the corroborated opaque entry and preserves independent companions; its own short identity and Family + exact short residual identity each find it.
+- [ ] A different owner immediately beneath Common Files, a family word only deeper inside another owner's directory, and a short entry in the main menu with a distant target stay Normal.
+- [ ] Search remains cache-only, and Classic geometry and short-query precision remain unchanged.
+
 ## v0.8.0-alpha.5.40 Opaque Suite Topology + Multi-Token Distinctive Intent validation
 
 - [ ] Upgrade from alpha.5.39. Provider Cache rebuilds once under schema 21; settings, user commands and usage remain unchanged.
