@@ -1573,9 +1573,7 @@ int main(int argc, char** argv) {
         assert(ContainsCommand(family, 0));
         assert(ContainsCommand(family, 1));
         assert(!ContainsCommand(family, 2));
-        assert(!ContainsCommand(family, 3));
-        assert(ContainsCommand(family, 4));
-        assert(ContainsCommand(family, 5));
+        assert(ContainsCommand(family, 3));
         assert(!ContainsCommand(family, 4));
         assert(ContainsCommand(family, 5));
         assert(ContainsCommand(family, 6));
@@ -1770,7 +1768,9 @@ int main(int argc, char** argv) {
         assert(ContainsCommand(family, 0));
         assert(!ContainsCommand(family, 1));
         assert(!ContainsCommand(family, 2));
-        assert(ContainsCommand(family, 3));
+        assert(!ContainsCommand(family, 3));
+        assert(ContainsCommand(family, 4));
+        assert(ContainsCommand(family, 5));
 
         const auto inspector =
             engine.Search(
