@@ -6,21 +6,17 @@
 namespace {
 bool observed{};
 bool deletion{};
+int buttonToClick{IDCANCEL};
 
 BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     wchar_t title[128]{};
     GetWindowTextW(window, title, 128);
     const wchar_t* expected = deletion ? L"Delete shortcut" : L"Feedback runtime test";
     if (std::wcscmp(title, expected) != 0) return TRUE;
-    if (deletion) {
-        wchar_t label[32]{};
-        GetDlgItemTextW(window, IDYES, label, 32);
-        assert(std::wcscmp(label, L"Delete") == 0);
-        GetDlgItemTextW(window, IDCANCEL, label, 32);
-        assert(std::wcscmp(label, L"Cancel") == 0);
-    }
+    // TaskDialog button IDs are public message IDs, not a contract for child
+    // HWND IDs or hierarchy. Exercise the real action through its supported API.
     observed = true;
-    SendMessageW(window, TDM_CLICK_BUTTON, deletion ? IDCANCEL : IDNO, 0);
+    SendMessageW(window, TDM_CLICK_BUTTON, buttonToClick, 0);
     return FALSE;
 }
 
@@ -39,7 +35,12 @@ int main() {
     assert(!altrun::ui::ConfirmShortcutDeletion(nullptr, L"Example shortcut", false));
     assert(observed); // A resource/activation failure must not masquerade as Cancel.
     observed = false;
+    buttonToClick = IDYES;
+    assert(altrun::ui::ConfirmShortcutDeletion(nullptr, L"Example shortcut", false));
+    assert(observed); // Only confirms intent; this test never deletes any data.
+    observed = false;
     deletion = false;
+    buttonToClick = IDNO;
     assert(altrun::ui::ShowMessage(nullptr, L"Silent confirmation", L"Feedback runtime test",
         MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO);
     assert(observed);
