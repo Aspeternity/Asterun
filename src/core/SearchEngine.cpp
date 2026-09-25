@@ -918,6 +918,17 @@ SearchEngine::Search(
                         CatalogVisibility::
                             StrongMatchOnly;
 
+                    // A cached token must not manufacture an Exact/Alias
+                    // escape hatch around StrongMatchOnly admission. Validate
+                    // restrictive intent first so family-overlapping tokens
+                    // cannot bypass AdmitCatalogEntry's family boundary.
+                    if (restrictiveIntent &&
+                        !HasDistinctiveCatalogIntent(
+                            command,
+                            query)) {
+                        continue;
+                    }
+
                     if (!exactDistinctive &&
                         !restrictiveIntent) {
                         continue;
