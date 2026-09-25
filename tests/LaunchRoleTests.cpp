@@ -23,7 +23,7 @@ bool HasToken(
 LaunchEvidence BaseEvidence(
     std::wstring title,
     std::wstring target =
-        L"C:\\Program Files\\Contoso\\Studio\\App.exe") {
+        L"C:/Program Files/Contoso/Studio/App.exe") {
 
     LaunchEvidence evidence;
     evidence.source =
@@ -82,7 +82,7 @@ int main() {
         auto evidence =
             BaseEvidence(
                 L"Contoso Studio Encoder",
-                L"C:\\Program Files\\Contoso\\Studio\\Encoder.exe");
+                L"C:/Program Files/Contoso/Studio/Encoder.exe");
 
         evidence.executable.productName =
             L"Contoso Studio";
@@ -112,7 +112,7 @@ int main() {
         auto evidence =
             BaseEvidence(
                 L"Contoso Studio Performance Test",
-                L"C:\\Program Files\\Contoso\\Studio\\Bench.exe");
+                L"C:/Program Files/Contoso/Studio/Bench.exe");
 
         evidence.executable.productName =
             L"Contoso Studio";
@@ -149,7 +149,7 @@ int main() {
         auto evidence =
             BaseEvidence(
                 L"Contoso Studio Settings",
-                L"C:\\Program Files\\Contoso\\Studio\\Config.exe");
+                L"C:/Program Files/Contoso/Studio/Config.exe");
 
         evidence.executable.productName =
             L"Contoso Studio";
@@ -177,7 +177,7 @@ int main() {
         auto evidence =
             BaseEvidence(
                 L"Contoso Studio Updater",
-                L"C:\\Program Files\\Contoso\\Studio\\Updater.exe");
+                L"C:/Program Files/Contoso/Studio/Updater.exe");
 
         evidence.executable.productName =
             L"Contoso Studio";
@@ -203,7 +203,7 @@ int main() {
         auto evidence =
             BaseEvidence(
                 L"Contoso Update Service",
-                L"C:\\Program Files\\Contoso\\Studio\\UpdateService.exe");
+                L"C:/Program Files/Contoso/Studio/UpdateService.exe");
 
         evidence.executable.productName =
             L"Contoso Studio";
@@ -267,9 +267,9 @@ int main() {
         evidence.displayTitle =
             L"contoso-cli";
         evidence.resolvedTarget =
-            L"C:\\Tools\\contoso-cli.exe";
+            L"C:/Tools/contoso-cli.exe";
         evidence.installRootHint =
-            L"C:\\Tools";
+            L"C:/Tools";
         evidence.targetKind =
             LaunchTargetKind::
                 ConsoleExecutable;
@@ -290,7 +290,7 @@ int main() {
         auto evidence =
             BaseEvidence(
                 L"Mystery Application",
-                L"C:\\Apps\\Mystery.exe");
+                L"C:/Apps/Mystery.exe");
 
         evidence.executable.companyName =
             L"Contoso Software";
@@ -318,14 +318,14 @@ int main() {
         auto primary =
             BaseEvidence(
                 L"Fabrikam Studio",
-                L"C:\\Program Files\\Fabrikam\\Studio\\Studio.exe");
+                L"C:/Program Files/Fabrikam/Studio/Studio.exe");
         primary.executable.productName =
             L"Fabrikam Studio";
 
         auto companion =
             BaseEvidence(
                 L"Fabrikam Studio Encoder",
-                L"C:\\Program Files\\Fabrikam\\Studio\\Encoder.exe");
+                L"C:/Program Files/Fabrikam/Studio/Encoder.exe");
         companion.executable.productName =
             L"Fabrikam Studio";
 
