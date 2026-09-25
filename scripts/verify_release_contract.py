@@ -160,6 +160,17 @@ if version == "0.8.0-alpha.5.34":
         if token not in development:
             fail(f"v0.8 alpha.5.34 dev-latest verification regressed: {token}")
 
+    if "PUBLIC_RELEASE_URL=" in development:
+        fail("v0.8 alpha.5.34 must not depend on anonymous GitHub API metadata from shared runners")
+
+    for token in (
+        "shared hosted-runner IPs",
+        "unauthenticated API",
+        "manifest is anonymously downloadable and coherent",
+    ):
+        if token not in development:
+            fail(f"v0.8 alpha.5.34 dev-latest false-red guard missing: {token}")
+
     for token in (
         "FILEVERSION 0,8,0,204",
         "PRODUCTVERSION 0,8,0,204",

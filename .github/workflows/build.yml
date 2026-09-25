@@ -308,40 +308,38 @@ jobs:
             update-manifest.json \
             >/dev/null
 
-          # Verify the exact anonymous endpoints used by installed clients.
-          # Draft releases return 404 here even though authenticated gh/API
-          # calls can still see them.
-          PUBLIC_RELEASE_URL="https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/dev-latest"
+          # The authenticated check above is authoritative for
+          # draft=false/prerelease=true. Installed Development clients do not
+          # consume the GitHub Release API; they anonymously download this
+          # exact manifest asset. Verify that client-facing endpoint directly.
+          #
+          # Do not add an anonymous api.github.com metadata request here:
+          # shared hosted-runner IPs can exhaust GitHub's unauthenticated API
+          # rate limit and return HTTP 403 even while the public asset is
+          # healthy, which would turn an external rate limit into a false red.
           PUBLIC_MANIFEST_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/dev-latest/update-manifest.json"
 
-          rm -f public-dev-release.json public-update-manifest.json
+          rm -f public-update-manifest.json
           verified=false
           for attempt in $(seq 1 20); do
             if curl --location --fail --silent --show-error \
-                "$PUBLIC_RELEASE_URL" \
-                -o public-dev-release.json &&
-               curl --location --fail --silent --show-error \
                 "$PUBLIC_MANIFEST_URL" \
                 -o public-update-manifest.json &&
-               jq -e \
-                '.tag_name == "dev-latest" and .draft == false and .prerelease == true' \
-                public-dev-release.json \
-                >/dev/null &&
                cmp -s update-manifest.json public-update-manifest.json; then
               verified=true
               break
             fi
 
-            rm -f public-dev-release.json public-update-manifest.json
+            rm -f public-update-manifest.json
             sleep 3
           done
 
           if [[ "$verified" != "true" ]]; then
-            echo "dev-latest did not become publicly coherent within the verification window."
+            echo "dev-latest manifest did not become anonymously downloadable and byte-identical within the verification window."
             exit 1
           fi
 
-          echo "dev-latest is public, coherent, and anonymously downloadable."
+          echo "dev-latest release state is valid and its manifest is anonymously downloadable and coherent."
 
       - name: Publish versioned release
         if: steps.publish-dev.outputs.published == 'true'

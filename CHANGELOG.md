@@ -8,6 +8,7 @@
 - Broker executable recognition is path-constrained to the Windows directory; an unrelated executable with the same leaf name is not reclassified.
 - Start Menu surface refinement now considers publication path, resolved target path, PIDL parsing path and shell activation semantics before caching surfaceClass.
 - SearchEngine, RelevancePolicy and ResultRanking remain I/O-free and unchanged on the keystroke path.
+- Rolling dev-latest verification now uses authenticated release-state checks plus the exact anonymous manifest asset consumed by clients, avoiding false CI failures from shared-runner unauthenticated GitHub API rate limits while preserving Draft/public/coherence guarantees.
 - Provider Cache advances to schema 16 so alpha.5.33 cached surface classes rebuild once.
 - Catalog Role/Visibility, short-query precision, usage, pinyin, Everything and frozen Classic UI/geometry are unchanged.
 - Windows fixed FileVersion/ProductVersion is `0.8.0.204`.

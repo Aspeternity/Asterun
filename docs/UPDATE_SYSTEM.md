@@ -35,10 +35,10 @@ A GitHub Draft Release is invisible at that endpoint and returns HTTP 404 even w
 5. an orphan draft is repaired to `draft=false` / `prerelease=true`;
 6. package/checksum assets are replaced first and `update-manifest.json` is uploaded last;
 7. bootstrap uses an explicit draft followed by an explicit publish PATCH;
-8. CI anonymously downloads the public release metadata and manifest from the same endpoints used by installed clients;
-9. the public manifest must byte-match the locally generated manifest and its version/commit must match VERSION/GITHUB_SHA.
+8. CI re-validates the authenticated release state/tag, then anonymously downloads the exact `update-manifest.json` endpoint used by installed Development clients;
+9. the anonymous manifest must byte-match the locally generated manifest and its version/commit must match VERSION/GITHUB_SHA.
 
-Any Draft state, HTTP 404, stale tag, stale manifest or content mismatch fails the workflow.
+The verifier intentionally does not make a second anonymous `api.github.com` release-metadata request: hosted-runner IPs share GitHub's unauthenticated API rate limit and can receive HTTP 403 even when the release asset is healthy. Draft state is already checked through authenticated release metadata, while an unpublished/inaccessible release still fails the exact anonymous manifest download. Any Draft state, HTTP 404, stale tag, stale manifest or content mismatch fails the workflow.
 
 ## Release manifest
 
