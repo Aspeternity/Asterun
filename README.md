@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.38 — Opaque Auxiliary Corroboration
+
+Alpha.5.38 targets short or opaque suite entry names whose title alone carries no generic role meaning. The title is never treated as evidence just because it is short. Instead, opaque identity only unlocks additional corroboration paths.
+
+Executable ProductName is now an independent low-strength semantic field for opaque entries. By itself it remains Low confidence, but it can corroborate Description/InternalName/OriginalFilename evidence into a real Diagnostic/Repair/Updater/etc. role. Separately, inside an already corroborated Tools/Utilities/工具 container with a clear High-confidence primary, a short opaque entry can become SuiteUtility when its resolved executable sits only one or two directory levels beneath the primary application's install directory. Same-directory sidecars continue to use the stronger existing rule.
+
+This remains conservative: opaque naming alone does nothing, an unrelated install tree stays Normal, and independent longer companions such as Editor/Treehouse/Visualize-style entries are unaffected. Restrictive entries keep their own residual identity token so explicit searches can still re-admit them.
+
+Provider Cache advances to schema 20. SearchEngine, ResultRanking, Classic UI/geometry and the keystroke hot path are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.208`.
+
 ## v0.8.0-alpha.5.37 — Utility Container Corroboration
 
 Alpha.5.37 adds one more conservative catalog-evidence layer for suites that publish a normal application folder beside a sibling `Tools` / `Utilities` / `工具` folder. Folder membership is treated only as structural context: it never hides an entry by itself.

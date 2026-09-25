@@ -1199,6 +1199,55 @@ int main() {
     }
 
     {
+        // ProductName is weak evidence by itself for an opaque entry, but it
+        // can corroborate a second independent metadata field.
+        auto weakEvidence =
+            BaseEvidence(
+                L"Northwind Q7 2026",
+                L"C:/Program Files/Northwind/Q7.exe");
+
+        weakEvidence.executable.productName =
+            L"Northwind Diagnostic Utility";
+
+        const auto weakDecision =
+            ClassifyApplicationRole(
+                weakEvidence);
+
+        assert(
+            weakDecision.confidence ==
+            RoleConfidence::Low);
+        assert(
+            weakDecision.visibility ==
+            CatalogVisibility::Normal);
+
+        auto corroborated =
+            weakEvidence;
+        corroborated.executable.internalName =
+            L"Diagnostic Assistant";
+
+        const auto corroboratedDecision =
+            ClassifyApplicationRole(
+                corroborated);
+
+        assert(
+            corroboratedDecision.role ==
+            ApplicationRole::
+                DiagnosticTool);
+        assert(
+            corroboratedDecision.confidence ==
+            RoleConfidence::High);
+        assert(
+            corroboratedDecision.visibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                corroboratedDecision
+                    .distinctiveTokens,
+                L"q7"));
+    }
+
+    {
         auto evidence =
             BaseEvidence(
                 L"Fabrikam X9 2026",
@@ -1899,6 +1948,50 @@ int main() {
             L"manager",
         };
 
+        Command opaqueAuxiliary;
+        opaqueAuxiliary.source =
+            CommandSource::StartMenu;
+        opaqueAuxiliary.title =
+            L"Acme Studio Q7 2026";
+        opaqueAuxiliary.target =
+            L"C:\\Program Files\\Acme\\Studio\\Support\\Q7.exe";
+        opaqueAuxiliary.canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\support\\q7.exe";
+        opaqueAuxiliary.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        opaqueAuxiliary.roleConfidence =
+            RoleConfidence::Medium;
+        opaqueAuxiliary.catalogVisibility =
+            CatalogVisibility::Normal;
+        opaqueAuxiliary.catalogGroupKey =
+            toolsGroup;
+        opaqueAuxiliary.distinctiveTokens = {
+            L"q7",
+        };
+
+        Command distantOpaque;
+        distantOpaque.source =
+            CommandSource::StartMenu;
+        distantOpaque.title =
+            L"Acme Studio Z5 2026";
+        distantOpaque.target =
+            L"C:\\Program Files\\Acme\\Independent\\Z5.exe";
+        distantOpaque.canonicalIdentity =
+            L"file:c:\\program files\\acme\\independent\\z5.exe";
+        distantOpaque.applicationRole =
+            ApplicationRole::
+                PrimaryApplication;
+        distantOpaque.roleConfidence =
+            RoleConfidence::Medium;
+        distantOpaque.catalogVisibility =
+            CatalogVisibility::Normal;
+        distantOpaque.catalogGroupKey =
+            toolsGroup;
+        distantOpaque.distinctiveTokens = {
+            L"z5",
+        };
+
         Command treehouse;
         treehouse.source =
             CommandSource::StartMenu;
@@ -1947,6 +2040,8 @@ int main() {
             &primary,
             &inspector,
             &libraryManager,
+            &opaqueAuxiliary,
+            &distantOpaque,
             &treehouse,
             &isolatedTool,
         };
@@ -1994,6 +2089,36 @@ int main() {
                 libraryManager
                     .distinctiveTokens,
                 L"routing"));
+
+        // A short opaque identity becomes restrictive only with the
+        // already corroborated utility container plus a shallow descendant
+        // relationship to the clear primary install directory.
+        assert(
+            opaqueAuxiliary.applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            opaqueAuxiliary.roleConfidence ==
+            RoleConfidence::Medium);
+        assert(
+            opaqueAuxiliary.catalogVisibility ==
+            CatalogVisibility::
+                StrongMatchOnly);
+        assert(
+            HasToken(
+                opaqueAuxiliary
+                    .distinctiveTokens,
+                L"q7"));
+
+        // Opaque naming alone is never enough if the real target lives in an
+        // unrelated install tree.
+        assert(
+            distantOpaque.applicationRole ==
+            ApplicationRole::
+                PrimaryApplication);
+        assert(
+            distantOpaque.catalogVisibility ==
+            CatalogVisibility::Normal);
 
         // Folder membership alone must not suppress a genuine standalone
         // companion with its own installed subdirectory.

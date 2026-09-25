@@ -1754,7 +1754,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 19,\n"
+        "  \"schemaVersion\": 20,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -1788,18 +1788,18 @@ int main() {
                 providers::kStartMenu))
             .commands.empty());
 
-    // Schema 18 predates utility-container family normalization and
-    // contextual sidecar/management-surface calibration. Generated state must
-    // rebuild so sibling Tools/Utilities folders share the real suite family
-    // and restrictive utility roles/tokens are recalculated once.
-    const auto staleSchema18ProviderCache =
+    // Schema 19 predates opaque auxiliary corroboration and ProductName
+    // semantic evidence. Generated state must rebuild so short opaque entries
+    // can use real metadata/install-tree evidence without preserving stale
+    // Normal visibility.
+    const auto staleSchema19ProviderCache =
         data /
-        "provider-cache-schema18-stale.json";
+        "provider-cache-schema19-stale.json";
 
     WriteText(
-        staleSchema18ProviderCache,
+        staleSchema19ProviderCache,
         "{\n"
-        "  \"schemaVersion\": 18,\n"
+        "  \"schemaVersion\": 19,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000260,\n"
@@ -1816,11 +1816,11 @@ int main() {
         "  }\n"
         "}\n");
 
-    ProviderCache staleSchema18Cache(
-        staleSchema18ProviderCache);
+    ProviderCache staleSchema19Cache(
+        staleSchema19ProviderCache);
 
     assert(
-        staleSchema18Cache.Load().empty());
+        staleSchema19Cache.Load().empty());
 
     // A future generated cache is safe to ignore; providers will rebuild it.
     const auto futureProviderCache =

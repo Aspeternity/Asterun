@@ -28,6 +28,7 @@ enum class EvidenceField : unsigned {
     Structural = 1u << 5,
     ProductRelation = 1u << 6,
     TargetName = 1u << 7,
+    ProductName = 1u << 8,
 };
 
 struct RoleScore {
@@ -2010,6 +2011,68 @@ HasSuiteTargetTopology(
 }
 
 [[nodiscard]] bool
+IsNearbyPrimaryInstallTree(
+    const Command& candidate,
+    const Command& primary) {
+
+    const std::wstring candidatePath =
+        CanonicalTargetPath(
+            candidate);
+    const std::wstring primaryPath =
+        CanonicalTargetPath(
+            primary);
+
+    if (candidatePath.empty() ||
+        primaryPath.empty() ||
+        candidatePath ==
+            primaryPath) {
+        return false;
+    }
+
+    std::wstring candidateDirectory =
+        PathParent(candidatePath);
+    const std::wstring primaryDirectory =
+        PathParent(primaryPath);
+
+    if (candidateDirectory.empty() ||
+        primaryDirectory.empty()) {
+        return false;
+    }
+
+    // Same-directory sidecars are handled by the stronger existing rule.
+    // This helper only permits a shallow descendant (two directory levels)
+    // for an otherwise opaque entry in an already corroborated utility
+    // container. It deliberately does not match siblings or distant roots.
+    for (int depth = 0;
+         depth < 2;
+         ++depth) {
+        candidateDirectory =
+            PathParent(
+                candidateDirectory);
+
+        if (candidateDirectory.empty()) {
+            return false;
+        }
+
+        if (candidateDirectory ==
+            primaryDirectory) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+[[nodiscard]] bool
+HasOpaqueCommandIdentity(
+    const Command& command) {
+
+    return IsOpaqueAuxiliaryIdentity(
+        NormalizedDistinctiveTokens(
+            command));
+}
+
+[[nodiscard]] bool
 SharesPrimaryInstallDirectory(
     const Command& candidate,
     const Command& primary) {
@@ -2809,6 +2872,34 @@ void AppendContextualResidualIdentity(
 
 } // namespace
 
+[[nodiscard]] bool
+IsOpaqueAuxiliaryIdentity(
+    const std::vector<std::wstring>&
+        residualTokens) {
+
+    if (residualTokens.size() != 1) {
+        return false;
+    }
+
+    const std::wstring token =
+        Compact(
+            residualTokens.front());
+
+    if (token.size() < 2 ||
+        token.size() > 5 ||
+        IsFamilyVersionToken(token)) {
+        return false;
+    }
+
+    return std::all_of(
+        token.begin(),
+        token.end(),
+        [](wchar_t ch) {
+            return
+                std::iswalnum(ch) != 0;
+        });
+}
+
 ApplicationRoleDecision
 ClassifyApplicationRole(
     const LaunchEvidence& evidence) {
@@ -2904,6 +2995,20 @@ ClassifyApplicationRole(
     const auto residualTokens =
         BuildDistinctiveTokens(
             evidence);
+
+    // Short/opaque entry names (for example a generic "X9") are not role
+    // semantics by themselves. When the executable ProductName carries a
+    // generic diagnostic/maintenance role, however, it is a useful second
+    // metadata field alongside Description/InternalName/OriginalFilename.
+    // ProductName alone stays Low confidence because its strength is only 2.
+    if (IsOpaqueAuxiliaryIdentity(
+            residualTokens)) {
+        AddTextSignals(
+            scores,
+            product,
+            EvidenceField::ProductName,
+            2);
+    }
 
     const std::wstring compactTitle =
         Compact(
@@ -3339,7 +3444,9 @@ void CalibrateCatalogRoleContext(
             // A Tools/Utilities Start Menu folder is structural context, not
             // a verdict. It can connect a sibling suite folder back to the
             // clear application family, but suppression still requires either
-            // explicit utility semantics or a real-target sidecar relation.
+            // explicit utility semantics, a real-target sidecar relation, or
+            // an opaque short identity located shallowly inside the primary's
+            // install tree.
             const bool
                 utilityContainerCorroborated =
                     utilityContainer &&
@@ -3381,6 +3488,14 @@ void CalibrateCatalogRoleContext(
                     *candidate,
                     *clearFamilyPrimary);
 
+            const bool opaqueAuxiliarySurface =
+                utilityContainerCorroborated &&
+                HasOpaqueCommandIdentity(
+                    *candidate) &&
+                IsNearbyPrimaryInstallTree(
+                    *candidate,
+                    *clearFamilyPrimary);
+
             const bool identityRole =
                 candidate->applicationRole ==
                     ApplicationRole::Unknown ||
@@ -3401,7 +3516,8 @@ void CalibrateCatalogRoleContext(
                           ServiceComponent));
 
             if (identityRole &&
-                sidecarUtilitySurface) {
+                (sidecarUtilitySurface ||
+                 opaqueAuxiliarySurface)) {
                 const auto priorTokens =
                     candidate
                         ->distinctiveTokens;

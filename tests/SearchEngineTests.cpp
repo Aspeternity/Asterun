@@ -1573,7 +1573,9 @@ int main(int argc, char** argv) {
         assert(ContainsCommand(family, 0));
         assert(ContainsCommand(family, 1));
         assert(!ContainsCommand(family, 2));
-        assert(ContainsCommand(family, 3));
+        assert(!ContainsCommand(family, 3));
+        assert(ContainsCommand(family, 4));
+        assert(ContainsCommand(family, 5));
         assert(!ContainsCommand(family, 4));
         assert(ContainsCommand(family, 5));
         assert(ContainsCommand(family, 6));
@@ -1697,11 +1699,23 @@ int main(int argc, char** argv) {
                 {L"routing", L"library", L"manager"},
                 2),
             makeUtilityCommand(
+                L"utility-opaque",
+                L"Acme Studio Q7 2026",
+                L"C:\\Program Files\\Acme\\Studio\\Support\\Q7.exe",
+                {L"q7"},
+                3),
+            makeUtilityCommand(
+                L"utility-distant-opaque",
+                L"Acme Studio Z5 2026",
+                L"C:\\Program Files\\Acme\\Independent\\Z5.exe",
+                {L"z5"},
+                4),
+            makeUtilityCommand(
                 L"utility-treehouse",
                 L"Acme Studio Treehouse 2026",
                 L"C:\\Program Files\\Acme\\Studio\\Treehouse\\Treehouse.exe",
                 {L"treehouse"},
-                3),
+                5),
         };
 
         // MakeCanonical-style normalization in the test helper does not model
@@ -1711,6 +1725,10 @@ int main(int argc, char** argv) {
         utility[2].canonicalIdentity =
             L"file:c:\\program files\\acme\\studio\\managers\\library.exe";
         utility[3].canonicalIdentity =
+            L"file:c:\\program files\\acme\\studio\\support\\q7.exe";
+        utility[4].canonicalIdentity =
+            L"file:c:\\program files\\acme\\independent\\z5.exe";
+        utility[5].canonicalIdentity =
             L"file:c:\\program files\\acme\\studio\\treehouse\\treehouse.exe";
 
         std::vector<Command*> views;
@@ -1731,6 +1749,14 @@ int main(int argc, char** argv) {
                 SuiteUtility);
         assert(
             utility[3].applicationRole ==
+            ApplicationRole::
+                SuiteUtility);
+        assert(
+            utility[4].applicationRole ==
+            ApplicationRole::
+                PrimaryApplication);
+        assert(
+            utility[5].applicationRole ==
             ApplicationRole::
                 PrimaryApplication);
 
@@ -1764,6 +1790,24 @@ int main(int argc, char** argv) {
 
         assert(ContainsCommand(routing, 2));
 
+        const auto opaque =
+            engine.Search(
+                utility,
+                usage,
+                L"q7",
+                20);
+
+        assert(ContainsCommand(opaque, 3));
+
+        const auto distantOpaque =
+            engine.Search(
+                utility,
+                usage,
+                L"z5",
+                20);
+
+        assert(ContainsCommand(distantOpaque, 4));
+
         const auto treehouse =
             engine.Search(
                 utility,
@@ -1771,7 +1815,7 @@ int main(int argc, char** argv) {
                 L"treehouse",
                 20);
 
-        assert(ContainsCommand(treehouse, 3));
+        assert(ContainsCommand(treehouse, 5));
     }
 
     {

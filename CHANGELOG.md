@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.5.38
+
+- Add conservative opaque auxiliary corroboration for short family-stripped identities; short naming alone never changes admission.
+- Treat executable ProductName as an independent strength-2 semantic field only for opaque identities, allowing a second metadata field to corroborate generic Diagnostic/Repair/Updater/etc. semantics without making ProductName alone suppressive.
+- In an already corroborated Tools/Utilities/工具 container, allow a short opaque entry to become SuiteUtility when its real target is a shallow descendant of the clear primary application's install directory.
+- Preserve unrelated short entries whose real target lives outside the primary install tree.
+- Keep explicit opaque identity tokens so a restrictive entry can still be recovered by its own short name.
+- Add metadata corroboration, shallow-install-tree, distant-tree false-positive and SearchEngine re-admission regressions.
+- Provider Cache advances to schema 20; SearchEngine/ResultRanking and frozen Classic UI/geometry remain unchanged.
+- Windows fixed FileVersion/ProductVersion is `0.8.0.208`.
+
 ## 0.8.0-alpha.5.37
 
 - Treat sibling Start Menu `Tools` / `Utilities` / `工具` folders as structural utility-container evidence instead of product-specific vocabulary.

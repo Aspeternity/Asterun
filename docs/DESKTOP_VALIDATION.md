@@ -696,6 +696,20 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Recheck short-query precision, SystemUtility ordering, Everything merge, pinyin, wildcard/path syntax, usage scoring, idle CPU/memory and frozen Classic UI/geometry.
 - [ ] Recheck the dev-latest public-manifest publication contract.
 
+## v0.8.0-alpha.5.38 Opaque Auxiliary Corroboration validation
+
+- [ ] Upgrade from alpha.5.37. Provider Cache rebuilds once under schema 20; settings, user commands and usage remain unchanged.
+- [ ] A short/opaque family-stripped entry name by itself remains Normal.
+- [ ] ProductName carrying a generic diagnostic/repair/update role remains Low confidence by itself, but corroborating Description/InternalName/OriginalFilename evidence can produce the appropriate restrictive role.
+- [ ] In a corroborated Tools/Utilities/工具 folder, a short opaque entry whose real target is one or two directory levels beneath the clear primary install directory becomes `suite-utility + medium + strong-match-only`.
+- [ ] A short opaque entry in an unrelated install tree remains Normal.
+- [ ] A normal family query hides a corroborated opaque utility; searching its own short residual identity re-admits it.
+- [ ] Longer independent companions in their own subdirectories remain unchanged.
+- [ ] Inspect `data/provider-cache.json`: schema is 20 and corrected role/visibility/distinctiveTokens persist after restart.
+- [ ] Confirm no product-specific abbreviation or vendor name was added to production rules.
+- [ ] Confirm all new work is discovery/publication-time only; typing adds no filesystem, metadata, Shell, MSI or catalog-analysis I/O.
+- [ ] Recheck alpha.5.37 utility-container behavior, alpha.5.36 advertised-shortcut targets, suite-subordinate behavior, short-query precision, Everything merge, pinyin, wildcard/path syntax, usage scoring, idle CPU/memory and frozen Classic UI/geometry.
+
 ## Release assets
 
 For the candidate tag:
