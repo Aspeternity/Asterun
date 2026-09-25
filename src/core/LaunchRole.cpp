@@ -2714,24 +2714,97 @@ QueryIntentTokensForRole(
         return residualTokens;
     }
 
-    if (residualIdentityRole) {
-        for (auto& token :
-             residualTokens) {
-            if (token.empty() ||
-                std::find(
-                    semanticTokens.begin(),
-                    semanticTokens.end(),
-                    token) !=
-                    semanticTokens.end()) {
-                continue;
-            }
+    return semanticTokens;
+}
 
-            semanticTokens.push_back(
-                std::move(token));
+void AppendContextualResidualIdentity(
+    Command& candidate,
+    const std::vector<std::wstring>&
+        priorTokens,
+    const std::vector<Command*>& entries) {
+
+    const auto semanticTokens =
+        NormalizedDistinctiveTokens(
+            candidate);
+
+    for (const auto& raw :
+         priorTokens) {
+        const std::wstring token =
+            Compact(raw);
+
+        if (token.size() < 2) {
+            continue;
+        }
+
+        const bool coveredBySemantic =
+            std::any_of(
+                semanticTokens.begin(),
+                semanticTokens.end(),
+                [&](const std::wstring&
+                        semantic) {
+                    return
+                        semantic == token ||
+                        semantic.find(token) !=
+                            std::wstring::npos;
+                });
+
+        if (coveredBySemantic) {
+            continue;
+        }
+
+        const bool peerIdentity =
+            std::any_of(
+                entries.begin(),
+                entries.end(),
+                [&](const Command* peer) {
+                    if (peer == nullptr ||
+                        peer == &candidate ||
+                        peer->catalogVisibility !=
+                            CatalogVisibility::
+                                Normal ||
+                        !SameCatalogContext(
+                            candidate,
+                            *peer)) {
+                        return false;
+                    }
+
+                    const auto peerTokens =
+                        NormalizedDistinctiveTokens(
+                            *peer);
+
+                    return
+                        std::find(
+                            peerTokens.begin(),
+                            peerTokens.end(),
+                            token) !=
+                        peerTokens.end();
+                });
+
+        if (peerIdentity) {
+            continue;
+        }
+
+        const bool alreadyPresent =
+            std::any_of(
+                candidate
+                    .distinctiveTokens
+                    .begin(),
+                candidate
+                    .distinctiveTokens
+                    .end(),
+                [&](const std::wstring&
+                        existing) {
+                    return
+                        Compact(existing) ==
+                        token;
+                });
+
+        if (!alreadyPresent) {
+            candidate
+                .distinctiveTokens
+                .push_back(raw);
         }
     }
-
-    return semanticTokens;
 }
 
 } // namespace
@@ -3329,11 +3402,23 @@ void CalibrateCatalogRoleContext(
 
             if (identityRole &&
                 sidecarUtilitySurface) {
+                const auto priorTokens =
+                    candidate
+                        ->distinctiveTokens;
+
                 applyRole(
                     *candidate,
                     ApplicationRole::
                         SuiteUtility,
                     RoleConfidence::Medium);
+
+                if (utilityContainer) {
+                    AppendContextualResidualIdentity(
+                        *candidate,
+                        priorTokens,
+                        entries);
+                }
+
                 continue;
             }
 
@@ -3346,10 +3431,22 @@ void CalibrateCatalogRoleContext(
                 semanticPrimaryContext &&
                 IsContextPromotableRole(
                     titleDecision.role)) {
+                const auto priorTokens =
+                    candidate
+                        ->distinctiveTokens;
+
                 applyRole(
                     *candidate,
                     titleDecision.role,
                     RoleConfidence::Medium);
+
+                if (utilityContainer) {
+                    AppendContextualResidualIdentity(
+                        *candidate,
+                        priorTokens,
+                        entries);
+                }
+
                 continue;
             }
 

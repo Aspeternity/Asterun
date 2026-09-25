@@ -85,6 +85,8 @@ if version == "0.8.0-alpha.5.37":
         'L"library manager"',
         'L"库管理器"',
         "residualIdentityRole",
+        "AppendContextualResidualIdentity(",
+        "peerIdentity",
     ):
         if token not in role_cpp:
             fail(f"v0.8 alpha.5.37 utility-container implementation missing: {token}")

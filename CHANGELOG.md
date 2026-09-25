@@ -9,6 +9,7 @@
 - Add weak contextual library-management semantics, including Simplified Chinese equivalents; isolated entries remain Low/Normal until catalog corroboration exists.
 - Preserve independent entries in utility folders when they have their own installed subdirectory and no generic utility semantics.
 - Merge family-stripped residual identity into SuiteUtility/DiagnosticTool/SuiteSubordinate explicit intent so users can re-admit a restrictive entry by its own distinguishing word.
+- Preserve only contextual residual identity that is not already covered by the semantic role phrase and not shared with a normal peer, preventing a parent companion token from re-admitting a restrictive child on a family/companion query.
 - Add fictional English/Chinese utility-folder, sidecar, library-manager, independent-subdirectory and no-primary regressions plus SearchEngine re-admission coverage.
 - Provider Cache advances to schema 19; SearchEngine/ResultRanking and frozen Classic UI/geometry are unchanged.
 - Windows fixed FileVersion/ProductVersion is `0.8.0.207`.
