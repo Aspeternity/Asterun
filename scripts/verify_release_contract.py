@@ -121,7 +121,9 @@ if version == "0.8.0-alpha.5.38":
         "StrongMatchOnly",
         "command.distinctiveTokens",
         "MatchField::\n                            Alias",
-        "cache-only matching",
+        "cache-only",
+        "exactDistinctive",
+        "restrictiveIntent",
     ):
         if token not in search_cpp:
             fail(f"v0.8 alpha.5.38 explicit distinctive-token matching missing: {token}")
@@ -228,7 +230,7 @@ if version == "0.8.0-alpha.5.38":
         "| ProductName metadata corroboration",
         "| shallow install-tree utility corroboration",
         "| distant opaque entries preserved",
-        "| cache-only StrongMatchOnly distinctive intent matching",
+        "| cache-only exact/restrictive distinctive intent matching",
         "| no product blacklist",
         "| Classic assets frozen",
     )

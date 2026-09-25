@@ -826,15 +826,14 @@ SearchEngine::Search(
                           allowPinyin,
                           allowTarget);
 
-            // StrongMatchOnly entries intentionally disappear from broad
-            // family queries, but their precomputed distinctive identity must
-            // remain directly searchable. This is cache-only matching: role
-            // inference stays in catalog publication, and no I/O is added to
-            // the keystroke path.
-            if (!wildcardQuery &&
-                command.catalogVisibility ==
-                    CatalogVisibility::
-                        StrongMatchOnly) {
+            // Cached distinctive identity is stronger evidence than a
+            // generic later-word short-prefix match. Any entry may therefore
+            // match an exact distinctive token (for example a short opaque
+            // "Z5"), while StrongMatchOnly entries additionally allow a
+            // distinctive prefix so explicit intent such as "rout" can
+            // recover a restrictive "routing" surface. This remains cache-only
+            // matching: role inference and I/O stay out of the keystroke path.
+            if (!wildcardQuery) {
 
                 for (const auto& distinctive :
                      command.distinctiveTokens) {
@@ -845,6 +844,19 @@ SearchEngine::Search(
                             normalizedQuery);
 
                     if (!intentMatch) {
+                        continue;
+                    }
+
+                    const bool exactDistinctive =
+                        intentMatch.kind ==
+                        relevance::MatchKind::Exact;
+                    const bool restrictiveIntent =
+                        command.catalogVisibility ==
+                        CatalogVisibility::
+                            StrongMatchOnly;
+
+                    if (!exactDistinctive &&
+                        !restrictiveIntent) {
                         continue;
                     }
 
