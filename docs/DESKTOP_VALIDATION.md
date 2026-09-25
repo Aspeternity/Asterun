@@ -722,6 +722,14 @@ Repeat the title-bar check at the five real-Windows scaling levels already used 
 - [ ] Confirm the keystroke path performs cached string matching only: no filesystem, Shell/MSI, EXE metadata or catalog-role inference.
 - [ ] Confirm no product/vendor/abbreviation rule was added and Classic UI/geometry is unchanged.
 
+## v0.8.0-alpha.5.43 Query-Scoped Usage + Packaged Entry Integrity validation
+
+- [ ] Upgrade from schema-1 `usage.json`: global counts and empty-query order remain, while searched queries learn anew. Usage schema is 2; Provider Cache remains schema 22.
+- [ ] Select Spotify twice from `s` (including a delayed numeric selection), then select Steam twice from `st`: Spotify remains above Steam for `s`, while `st` still selects Steam. Restart and confirm both query histories persist.
+- [ ] A single successful launch does not reorder results; failed launch, empty query, explicit path and wildcard search do not create query-specific history. Usage reset clears both global and query counts.
+- [ ] In `sto`, the registered Microsoft Store entry remains available while a matching App Paths `WindowsApps\\...\\store.exe` internal entry is absent. A package with no enabled AUMID and an unrelated Win32 executable are not removed solely because of the path or filename.
+- [ ] Confirm search keystrokes remain cache-only, Catalog admission and frozen Classic geometry remain unchanged.
+
 ## v0.8.0-alpha.5.42 Intent-Stable Usage Ranking validation
 
 - [ ] On a short family query with comparable results, a companion with at least two launches can rise above an unrelated, slightly higher-scoring name. One launch alone does not reorder them.

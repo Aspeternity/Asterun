@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0-alpha.5.43
+
+- Learn bounded usage per successful query and command. `s` and `st` no longer transfer ranking preference to one another; global history remains for empty queries.
+- Preserve the query snapshot across delayed numeric execution; migrate schema-1 usage counts to schema 2 without inventing old query associations.
+- During provider merge, suppress an App Paths executable inside a WindowsApps package only when the enabled packaged provider exposes the matching family and publisher AUMID. Leave unrelated App Paths entries and explicit user shortcuts intact.
+- Provider Cache stays at schema 22; Windows fixed FileVersion/ProductVersion is `0.8.0.213`.
+
 ## 0.8.0-alpha.5.42
 
 - Apply a bounded, frequency-only usage bonus to comparable search matches after at least two launches; preserve stronger match kinds, surfaces and fields.

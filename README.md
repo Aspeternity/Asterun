@@ -23,6 +23,12 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.5.43 — Query-Scoped Usage + Packaged Entry Integrity
+
+Search ranking now learns from the exact normalized query used when an application successfully launches. Repeated `s` selections can change the `s` ranking, while launches through `st` cannot change it. Numeric quick launches capture the query when the result is selected, including delayed execution. Existing global usage counts remain available for empty-query ordering; prior counts have no inferred query context. Successful new search launches build bounded per-command query history (at most eight queries, up to 32 characters each). Explicit path/wildcard searches do not create query history. Usage data advances to schema 2; Provider Cache remains schema 22. Search is still memory-only while typing.
+
+Provider merge also avoids exposing a WindowsApps package's internal App Paths executable when the corresponding registered packaged-app entry is enabled. The association uses the package family and publisher from the package directory and AUMID; unrelated executables and user shortcuts retain their normal behavior. Windows fixed FileVersion/ProductVersion is `0.8.0.213`.
+
 ## v0.8.0-alpha.5.42 — Intent-Stable Usage Ranking
 
 Repeated launches now give a small, capped frequency bonus to comparable nonempty search matches. The bonus applies only within the same match kind, launch surface, field and pinyin status. A single launch has no effect; the bonus never exceeds 32 points, uses no recency clock, and cannot outrank an exact match or a stronger match kind. Empty-query recency ordering, explicit syntax, path searches, catalog admission and Classic UI remain unchanged. Search uses the existing usage data without a schema migration or I/O while typing. Provider Cache stays at schema 22, Usage stays at schema 1 and Windows fixed FileVersion/ProductVersion is `0.8.0.212`.

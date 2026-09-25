@@ -277,6 +277,31 @@ int main() {
     assert(usage.Data().at(calcId).launches == 7);
     assert(usage.Data().at(calcId).lastUsedUnix == 1700000000);
 
+    usage.Record(calcId, L"S");
+    usage.Record(calcId, L"s");
+    usage.Record(calcId, L"st");
+    usage.Record(calcId, L"C:\\Private\\app.exe");
+    assert(usage.Data().at(calcId).queryLaunches.at(L"s") == 2);
+    assert(usage.Data().at(calcId).queryLaunches.at(L"st") == 1);
+    assert(usage.Data().at(calcId).queryLaunches.size() == 2);
+    UsageStore queryReloaded(data / "usage.json");
+    queryReloaded.Load();
+    assert(queryReloaded.Data().at(calcId).queryLaunches.at(L"s") == 2);
+
+    const auto schema1Path = data / "usage-schema1.json";
+    WriteText(schema1Path,
+              "{\"schemaVersion\":1,\"usage\":{\"legacy\":{"
+              "\"launches\":4,\"lastUsedUnix\":1700000000}}}");
+    UsageStore migratedUsage(schema1Path);
+    migratedUsage.Load();
+    assert(migratedUsage.Data().at(L"legacy").launches == 4);
+    assert(config::LoadJsonWithBackup(schema1Path, 2).schemaVersion == 2);
+    migratedUsage.Record(L"legacy", L"s");
+    UsageStore migratedReloaded(schema1Path);
+    migratedReloaded.Load();
+    assert(migratedReloaded.Data().at(L"legacy").launches == 5);
+    assert(migratedReloaded.Data().at(L"legacy").queryLaunches.at(L"s") == 1);
+
     assert(usage.Clear());
     assert(usage.Data().empty());
 

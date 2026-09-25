@@ -157,19 +157,27 @@ int SearchEngine::UsageScore(
 }
 
 int SearchEngine::IntentUsageScore(
-    const UsageStat* stat) {
+    const UsageStat* stat,
+    const std::wstring& normalizedQuery) {
 
     // A single accidental launch is not a preference. Frequency alone
     // supplies a small, stable tie-break among comparable text matches;
     // the empty-query ordering keeps its existing recency behavior.
-    if (stat == nullptr || stat->launches < 2) {
+    if (stat == nullptr || normalizedQuery.empty()) {
+        return 0;
+    }
+
+    const auto it = stat->queryLaunches.find(
+        normalizedQuery);
+    if (it == stat->queryLaunches.end() ||
+        it->second < 2) {
         return 0;
     }
 
     return std::min(
         32,
         8 + static_cast<int>(
-            std::bit_width(stat->launches) - 1) * 8);
+            std::bit_width(it->second) - 1) * 8);
 }
 
 bool SearchEngine::IsPinyinQuery(
@@ -880,7 +888,7 @@ SearchEngine::Search(
                 ? UsageScore(stat)
                 : (explicitSyntax || allowTarget
                        ? 0
-                       : IntentUsageScore(stat));
+                       : IntentUsageScore(stat, normalizedQuery));
 
         relevance::Match match{};
 

@@ -17,7 +17,8 @@ public:
     void Load(
         const std::unordered_map<std::wstring, std::wstring>& legacyIdMap = {});
 
-    void Record(std::wstring_view commandId);
+    void Record(std::wstring_view commandId,
+                std::wstring_view query = {});
     bool Clear();
 
     [[nodiscard]] const UsageMap& Data() const noexcept { return usage_; }

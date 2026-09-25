@@ -2175,21 +2175,54 @@ int main(int argc, char** argv) {
         assert(cold.front().commandIndex == 2);
         assert(cold[1].commandIndex == 0);
 
-        habitUsage[L"design"] = UsageStat{1, 4102444800LL};
+        habitUsage[L"design"] = UsageStat{1, 4102444800LL,
+                                           {{L"ac", 1}}};
         const auto oneLaunch = engine.Search(habits, habitUsage, L"ac", 10,
                                              false, false);
         assert(oneLaunch[1].commandIndex == 0);
 
-        habitUsage[L"design"] = UsageStat{2, 1};
+        habitUsage[L"design"] = UsageStat{2, 1,
+                                           {{L"ac", 2}}};
         const auto repeated = engine.Search(habits, habitUsage, L"ac", 10,
                                             false, false);
         assert(repeated.front().commandIndex == 2);
         assert(repeated[1].commandIndex == 1);
 
-        habitUsage[L"design"] = UsageStat{100000, 1};
+        habitUsage[L"design"] = UsageStat{100000, 1,
+                                           {{L"other", 100000}}};
+        const auto unrelated = engine.Search(habits, habitUsage, L"ac", 10,
+                                             false, false);
+        assert(unrelated[1].commandIndex == 0);
+        habitUsage[L"design"].queryLaunches[L"ac"] = 100000;
         const auto capped = engine.Search(habits, habitUsage, L"ac", 10,
                                           false, false);
         assert(capped.front().commandIndex == 2);
+    }
+
+    {
+        std::vector<Command> shortcuts{
+            MakeCommand(L"a", L"steam", L"Steam", L"Steam.exe", 0),
+            MakeCommand(L"b", L"spotify", L"Spotify", L"Spotify.exe", 1),
+        };
+        for (auto& item : shortcuts) {
+            item.source = CommandSource::StartMenu;
+            item.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            item.basePriority = 0;
+        }
+        UsageMap contextual;
+        contextual[L"b"] = UsageStat{2, 1, {{L"s", 2}}};
+        auto shortQuery = engine.Search(shortcuts, contextual, L"s", 10,
+                                        false, false);
+        assert(shortQuery.front().commandIndex == 1);
+
+        // Launching the other application via "st" cannot steal "s".
+        contextual[L"a"] = UsageStat{100, 1, {{L"st", 100}}};
+        shortQuery = engine.Search(shortcuts, contextual, L"s", 10,
+                                   false, false);
+        assert(shortQuery.front().commandIndex == 1);
+        const auto narrow = engine.Search(shortcuts, contextual, L"st", 10,
+                                          false, false);
+        assert(narrow.front().commandIndex == 0);
     }
 
     usage[L"3"] = UsageStat{42, 4102444800LL};

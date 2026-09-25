@@ -139,7 +139,8 @@ private:
     void ExecuteResultSnapshot(
         const LauncherResult& result,
         LauncherExecutionIntent intent =
-            LauncherExecutionIntent::Default);
+            LauncherExecutionIntent::Default,
+        const std::wstring* snapshotQuery = nullptr);
     [[nodiscard]] int QuickLaunchIndexForKey(
         WPARAM key) const;
     [[nodiscard]] int NumericDigitForKey(
@@ -243,6 +244,7 @@ private:
         UINT virtualKey{0};
         wchar_t digit{0};
         LauncherResult result{};
+        std::wstring query;
     };
 
     PendingNumericIntent

@@ -2459,14 +2459,18 @@ void LauncherWindow::ExecuteResultAt(
 
 void LauncherWindow::ExecuteResultSnapshot(
     const LauncherResult& result,
-    LauncherExecutionIntent intent) {
+    LauncherExecutionIntent intent,
+    const std::wstring* snapshotQuery) {
 
     immediateExecutionPending_ =
         false;
 
     if (app_.ExecuteResult(
             result,
-            intent)) {
+            intent,
+            snapshotQuery != nullptr
+                ? std::wstring_view(*snapshotQuery)
+                : std::wstring_view(CurrentQuery()))) {
         Hide();
     }
 }
@@ -2569,6 +2573,8 @@ QueuePendingNumericIntent(
         digit;
     pendingNumericIntent_.result =
         result;
+    pendingNumericIntent_.query =
+        CurrentQuery();
 
     ConsumeNumericKey(
         virtualKey,
@@ -2626,11 +2632,15 @@ ExecutePendingNumericIntent() {
 
     LauncherResult result =
         pendingNumericIntent_.result;
+    std::wstring query =
+        pendingNumericIntent_.query;
 
     CancelPendingNumericIntent();
 
     ExecuteResultSnapshot(
-        result);
+        result,
+        LauncherExecutionIntent::Default,
+        &query);
 }
 
 void LauncherWindow::
@@ -3149,7 +3159,8 @@ void LauncherWindow::ShowResultContextMenu(
         [&](LauncherExecutionIntent intent) {
             if (app_.ExecuteResult(
                     result,
-                    intent)) {
+                    intent,
+                    CurrentQuery())) {
                 Hide();
             }
         };

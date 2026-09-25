@@ -225,12 +225,14 @@ public:
     bool ExecuteCommand(
         std::size_t index,
         std::wstring_view runtimeInput = {},
-        bool forceRunAsAdmin = false);
+        bool forceRunAsAdmin = false,
+        std::wstring_view query = {});
 
     bool ExecuteResult(
         const LauncherResult& result,
         LauncherExecutionIntent intent =
-            LauncherExecutionIntent::Default);
+            LauncherExecutionIntent::Default,
+        std::wstring_view query = {});
 
     void ClearActivationContext();
 
@@ -283,7 +285,8 @@ private:
         const Command& command,
         bool recordUsage,
         std::wstring_view runtimeInput = {},
-        bool forceRunAsAdmin = false);
+        bool forceRunAsAdmin = false,
+        std::wstring_view query = {});
     bool ApplyStartupRegistration(
         bool enabled) const;
     bool ApplySendToRegistration(

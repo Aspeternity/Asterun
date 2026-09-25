@@ -9,7 +9,7 @@ namespace altrun::config {
 
 inline constexpr int kSettingsSchemaVersion = 10;
 inline constexpr int kCommandsSchemaVersion = 2;
-inline constexpr int kUsageSchemaVersion = 1;
+inline constexpr int kUsageSchemaVersion = 2;
 
 enum class JsonLoadStatus {
     MissingOrInvalid,

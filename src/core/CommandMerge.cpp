@@ -165,6 +165,72 @@ bool IsDuplicateOf(
         Lower(existing.keyword);
 }
 
+// An App Paths executable inside a registered MSIX package is not the
+// application's shell activation identity. Associate it only when the
+// enabled packaged provider publishes the corresponding package family;
+// unrelated Win32 executables remain independent even under WindowsApps.
+std::wstring PackagedFamilyForAppPaths(
+    const Command& command) {
+    if (command.source != CommandSource::AppPaths) {
+        return {};
+    }
+
+    const std::wstring path = NormalizeTarget(command.target);
+    if (path.size() < 4 || path[1] != L':') {
+        return {};
+    }
+
+    constexpr std::wstring_view prefix =
+        L"\\program files\\windowsapps\\";
+    if (!std::wstring_view(path).substr(2).starts_with(prefix)) {
+        return {};
+    }
+
+    const std::size_t begin = 2 + prefix.size();
+    const std::size_t end = path.find(L'\\', begin);
+    if (end == std::wstring::npos || end == begin ||
+        !path.ends_with(L".exe")) {
+        return {};
+    }
+
+    const std::wstring_view folder(path.data() + begin, end - begin);
+    const std::size_t version = folder.find(L'_');
+    const std::size_t publisher = folder.rfind(L"__");
+    if (version == std::wstring_view::npos ||
+        publisher == std::wstring_view::npos ||
+        version == 0 || publisher <= version + 1 ||
+        publisher + 2 == folder.size() ||
+        !std::iswdigit(folder[version + 1])) {
+        return {};
+    }
+
+    // Package ownership alone is insufficient: a package may expose a
+    // distinct command-line companion. Require the EXE stem to be a suffix
+    // of the package name before replacing its launch surface.
+    const std::wstring_view packageName = folder.substr(0, version);
+    const std::size_t leaf = path.find_last_of(L'\\');
+    const std::wstring_view executable(path.data() + leaf + 1,
+                                       path.size() - leaf - 5);
+    if (executable.size() < 4 ||
+        !packageName.ends_with(executable)) {
+        return {};
+    }
+
+    return std::wstring(packageName) + L"_" +
+        std::wstring(folder.substr(publisher + 2));
+}
+
+bool HasPackagedFamily(
+    const std::vector<const Command*>& candidates,
+    std::wstring_view family) {
+    const std::wstring prefix = L"aumid:" + std::wstring(family) + L"!";
+    return std::any_of(candidates.begin(), candidates.end(),
+                       [&](const Command* candidate) {
+                           return candidate->source == CommandSource::PackagedApp &&
+                               Lower(candidate->canonicalIdentity).starts_with(prefix);
+                       });
+}
+
 void IncrementAccepted(
     CommandMergeStats& stats,
     CommandSource source) {
@@ -318,6 +384,14 @@ MergeCommandViews(
 
     for (const Command* command :
          candidates) {
+        const std::wstring packageFamily =
+            PackagedFamilyForAppPaths(*command);
+        if (!packageFamily.empty() &&
+            HasPackagedFamily(candidates, packageFamily)) {
+            IncrementSuppressed(result.stats, command->source);
+            continue;
+        }
+
         const bool providerDuplicate =
             std::any_of(
                 providerRepresentatives.begin(),

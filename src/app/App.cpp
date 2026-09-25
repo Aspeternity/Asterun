@@ -4605,17 +4605,20 @@ void App::OpenProjectPage() {
 bool App::ExecuteCommand(
     std::size_t index,
     std::wstring_view runtimeInput,
-    bool forceRunAsAdmin) {
+    bool forceRunAsAdmin,
+    std::wstring_view query) {
     return LaunchCommand(
         commandStore_.Commands().at(index),
         true,
         runtimeInput,
-        forceRunAsAdmin);
+        forceRunAsAdmin,
+        query);
 }
 
 bool App::ExecuteResult(
     const LauncherResult& result,
-    LauncherExecutionIntent intent) {
+    LauncherExecutionIntent intent,
+    std::wstring_view query) {
     const bool forceRunAsAdmin =
         intent ==
         LauncherExecutionIntent::
@@ -4644,7 +4647,8 @@ bool App::ExecuteResult(
         return ExecuteCommand(
             action.commandIndex,
             action.payload,
-            forceRunAsAdmin);
+            forceRunAsAdmin,
+            query);
     }
 
     const std::wstring& target =
@@ -4753,7 +4757,7 @@ bool App::ExecuteResult(
                 commandStore_.Commands().at(
                     result.action.commandIndex);
             if (!source.id.empty()) {
-                usageStore_.Record(source.id);
+                usageStore_.Record(source.id, query);
             }
         }
         return true;
@@ -4792,7 +4796,8 @@ bool App::LaunchCommand(
     const Command& command,
     bool recordUsage,
     std::wstring_view runtimeInput,
-    bool forceRunAsAdmin) {
+    bool forceRunAsAdmin,
+    std::wstring_view query) {
 
     Command resolved = command;
 
@@ -4916,7 +4921,7 @@ bool App::LaunchCommand(
         if (recordUsage &&
             !command.id.empty()) {
             usageStore_.Record(
-                command.id);
+                command.id, query);
         }
 
         return true;
@@ -4957,7 +4962,7 @@ bool App::LaunchCommand(
     if (recordUsage &&
         !command.id.empty()) {
         usageStore_.Record(
-            command.id);
+            command.id, query);
     }
 
     return true;

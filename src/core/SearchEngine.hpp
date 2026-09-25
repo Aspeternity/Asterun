@@ -17,6 +17,8 @@ namespace altrun {
 struct UsageStat {
     std::uint64_t launches{0};
     std::int64_t lastUsedUnix{0};
+    std::unordered_map<std::wstring, std::uint32_t>
+        queryLaunches;
 };
 
 struct SearchResult {
@@ -79,7 +81,8 @@ private:
         const UsageStat* stat);
 
     [[nodiscard]] static int IntentUsageScore(
-        const UsageStat* stat);
+        const UsageStat* stat,
+        const std::wstring& normalizedQuery);
 
     [[nodiscard]] static bool
     IsPinyinQuery(

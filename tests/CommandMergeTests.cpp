@@ -49,6 +49,43 @@ bool HasId(
 
 int main() {
     {
+        // A packaged app's App Paths EXE can be a noninteractive internal
+        // entry point. Keep the registered AUMID even when its display name
+        // differs; an unrelated package or an ordinary EXE is not a match.
+        auto packaged = Make(
+            L"packaged:acme", L"Acme App", L"acmeapp",
+            L"Acme.ShopCenter_abc123!App", CommandSource::PackagedApp,
+            true, L"aumid:acme.shopcenter_abc123!app");
+        const auto stub = Make(
+            L"apppath:stub", L"center", L"center",
+            L"C:\\Program Files\\WindowsApps\\Acme.ShopCenter_1.2.3.0_x64__abc123\\Center.exe",
+            CommandSource::AppPaths);
+        const auto standalone = Make(
+            L"apppath:standalone", L"independent", L"independent",
+            L"C:\\Apps\\independent.exe", CommandSource::AppPaths);
+
+        auto merged = MergeCommands({}, {stub, packaged, standalone});
+        assert(!HasId(merged.commands, L"apppath:stub"));
+        assert(HasId(merged.commands, L"packaged:acme"));
+        assert(HasId(merged.commands, L"apppath:standalone"));
+        assert(merged.stats.suppressedAppPaths == 1);
+
+        auto unrelatedTool = stub;
+        unrelatedTool.id = L"apppath:tool";
+        unrelatedTool.target =
+            L"C:\\Program Files\\WindowsApps\\Acme.ShopCenter_1.2.3.0_x64__abc123\\Helper.exe";
+        merged = MergeCommands({}, {unrelatedTool, packaged});
+        assert(HasId(merged.commands, L"apppath:tool"));
+
+        packaged.canonicalIdentity = L"aumid:another.app_abc123!app";
+        merged = MergeCommands({}, {stub, packaged});
+        assert(HasId(merged.commands, L"apppath:stub"));
+
+        merged = MergeCommands({}, {stub});
+        assert(HasId(merged.commands, L"apppath:stub"));
+    }
+
+    {
         const std::vector<Command> users{
             Make(
                 L"user:code",

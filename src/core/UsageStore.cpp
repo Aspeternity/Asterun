@@ -7,11 +7,26 @@
 #include <chrono>
 #include <vector>
 #include <fstream>
+#include <limits>
 #include <string>
 
 namespace altrun {
 
 namespace {
+
+constexpr std::size_t kMaxQueriesPerCommand = 8;
+constexpr std::size_t kMaxQueryLength = 32;
+
+std::wstring QueryKey(std::wstring_view query) {
+    if (relevance::HasExplicitSyntax(query)) {
+        return {};
+    }
+    std::wstring key = relevance::Normalize(query);
+    if (key.empty() || key.size() > kMaxQueryLength) {
+        return {};
+    }
+    return key;
+}
 
 std::vector<std::wstring> SplitTabs(std::wstring_view line) {
     std::vector<std::wstring> fields;
@@ -106,9 +121,32 @@ bool UsageStore::LoadJson() {
             stat.launches = it.value().value("launches", std::uint64_t{0});
             stat.lastUsedUnix = it.value().value("lastUsedUnix", std::int64_t{0});
 
+            if (it.value().contains("queries") &&
+                it.value()["queries"].is_object()) {
+                for (auto query = it.value()["queries"].begin();
+                     query != it.value()["queries"].end() &&
+                     stat.queryLaunches.size() < kMaxQueriesPerCommand;
+                     ++query) {
+                    if (!query.value().is_number_unsigned()) continue;
+                    const std::wstring key = text::FromUtf8(query.key());
+                    if (QueryKey(key) != key) continue;
+                    const auto count = query.value().get<std::uint64_t>();
+                    if (count > 0 &&
+                        count <= std::numeric_limits<std::uint32_t>::max()) {
+                        stat.queryLaunches[key] =
+                            static_cast<std::uint32_t>(count);
+                    }
+                }
+            }
+
             usage_[text::FromUtf8(it.key())] = stat;
         }
 
+        if (load.schemaVersion < config::kUsageSchemaVersion) {
+            // Preserve existing global counts while upgrading the on-disk
+            // contract. There is no historical query to infer.
+            Save();
+        }
         return true;
     } catch (...) {
         usage_.clear();
@@ -159,7 +197,8 @@ bool UsageStore::MigrateLegacyTsv(
 }
 
 void UsageStore::Record(
-    std::wstring_view commandId) {
+    std::wstring_view commandId,
+    std::wstring_view query) {
 
     if (readOnlyDueToNewerSchema_) {
         return;
@@ -174,6 +213,26 @@ void UsageStore::Record(
     ++stat.launches;
     stat.lastUsedUnix =
         UnixTimeNow();
+
+    const std::wstring key = QueryKey(query);
+    if (!key.empty()) {
+        auto found = stat.queryLaunches.find(key);
+        if (found == stat.queryLaunches.end() &&
+            stat.queryLaunches.size() >= kMaxQueriesPerCommand) {
+            const auto least = std::min_element(
+                stat.queryLaunches.begin(), stat.queryLaunches.end(),
+                [](const auto& a, const auto& b) {
+                    return a.second == b.second
+                        ? a.first < b.first
+                        : a.second < b.second;
+                });
+            stat.queryLaunches.erase(least);
+        }
+        auto& count = stat.queryLaunches[key];
+        if (count < std::numeric_limits<std::uint32_t>::max()) {
+            ++count;
+        }
+    }
 
     if (!Save()) {
         usage_ = previous;
@@ -200,10 +259,18 @@ bool UsageStore::Save() const {
     nlohmann::json usage = nlohmann::json::object();
 
     for (const auto& [id, stat] : usage_) {
-        usage[text::ToUtf8(id)] = {
+        nlohmann::json entry = {
             {"launches", stat.launches},
             {"lastUsedUnix", stat.lastUsedUnix}
         };
+        if (!stat.queryLaunches.empty()) {
+            nlohmann::json queries = nlohmann::json::object();
+            for (const auto& [key, count] : stat.queryLaunches) {
+                queries[text::ToUtf8(key)] = count;
+            }
+            entry["queries"] = std::move(queries);
+        }
+        usage[text::ToUtf8(id)] = std::move(entry);
     }
 
     nlohmann::json root = {
