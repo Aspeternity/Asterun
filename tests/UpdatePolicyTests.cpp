@@ -743,6 +743,8 @@ int main() {
     assert(!IsUpdateVersionNewer("0.8.0-alpha.5.48", "0.8.0-alpha.5.47"));
     assert(IsUpdateVersionNewer("0.8.0-alpha.5.48", "0.8.0-alpha.5.49"));
     assert(!IsUpdateVersionNewer("0.8.0-alpha.5.49", "0.8.0-alpha.5.48"));
+    assert(IsUpdateVersionNewer("0.8.0-alpha.5.49", "0.8.0-alpha.6.1"));
+    assert(!IsUpdateVersionNewer("0.8.0-alpha.6.1", "0.8.0-alpha.5.49"));
 
     assert(IsUpdateVersionNewer(
         "0.8.0-alpha.5.42", "0.8.0-alpha.5.43"));
@@ -980,6 +982,7 @@ int main() {
     assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.47") == UpdateChannel::Stable);
     assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.48") == UpdateChannel::Stable);
     assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.49") == UpdateChannel::Stable);
+    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.6.1") == UpdateChannel::Stable);
 
     assert(
         UpdateManifestUrl(
