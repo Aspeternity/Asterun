@@ -17,7 +17,7 @@ Alpha.6.2 addresses the first real-Windows visual review without changing launch
 - [ ] File/folder rows: filename remains dominant; parent path is muted secondary context and ellipsizes cleanly.
 - [ ] Rows whose title/subtitle are identical show one label only.
 - [ ] Selected result uses an inset rounded highlight and narrow accent marker; selection remains obvious without turning the row into a full-width blue table band.
-- [ ] Footer uses 9 pt muted text and a localized Path / Command / Action / Target prefix; long values keep path ellipsis and never overlap the window edge.
+- [ ] Footer uses 9 pt muted text and a localized Path / Command / Action / App prefix; long values keep path ellipsis and never overlap the window edge.
 - [ ] Verify 100%, 125%, 150%, 175% and 200% DPI. Rounded search/selection geometry, text alignment and scrollbar clearance remain stable.
 - [ ] Verify Chinese/English UI, CJK result names, long aliases, long display names and long Everything paths.
 - [ ] Rapid mixed static + Everything updates do not flicker and do not grow GDI objects.

@@ -150,7 +150,6 @@ private:
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
-    HBRUSH frameBrush_{};
     HBRUSH selectionBrush_{};
     HBRUSH focusAccentBrush_{};
     HPEN framePen_{};

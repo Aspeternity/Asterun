@@ -7,7 +7,7 @@
 - Remove the boxed result panel and per-row table separators.
 - Add inset rounded selection treatment with a narrow accent marker while preserving native LISTBOX behavior.
 - Keep one soft rounded search surface instead of nested hard frames.
-- Reduce Modern auxiliary/footer typography to 9 pt and label footer values as Path / Command / Action / Target (including Chinese labels).
+- Reduce Modern auxiliary/footer typography to 9 pt and label footer values as Path / Command / Action / App (including Chinese labels).
 - Preserve the alpha.5.49 frozen Classic/shared search core and alpha.6.1 native-control/DPI foundation.
 - Publish Windows fixed FileVersion/ProductVersion `0.8.0.272`.
 

@@ -330,7 +330,6 @@ LauncherWindow::~LauncherWindow() {
     if (controlBrush_) DeleteObject(controlBrush_);
     if (accentBrush_) DeleteObject(accentBrush_);
     if (bottomBrush_) DeleteObject(bottomBrush_);
-    if (frameBrush_) DeleteObject(frameBrush_);
     if (selectionBrush_) DeleteObject(selectionBrush_);
     if (focusAccentBrush_) DeleteObject(focusAccentBrush_);
     if (framePen_) DeleteObject(framePen_);
@@ -571,10 +570,6 @@ void LauncherWindow::RecreateBrushes() {
         DeleteObject(bottomBrush_);
         bottomBrush_ = nullptr;
     }
-    if (frameBrush_) {
-        DeleteObject(frameBrush_);
-        frameBrush_ = nullptr;
-    }
     if (selectionBrush_) {
         DeleteObject(selectionBrush_);
         selectionBrush_ = nullptr;
@@ -594,8 +589,6 @@ void LauncherWindow::RecreateBrushes() {
     accentBrush_ = CreateSolidBrush(palette.accentBackground);
     bottomBrush_ = CreateSolidBrush(
         palette.bottomBackground);
-    frameBrush_ = CreateSolidBrush(
-        palette.frame);
     selectionBrush_ = CreateSolidBrush(
         palette.selectionBackground);
     focusAccentBrush_ = CreateSolidBrush(
@@ -1929,8 +1922,8 @@ void LauncherWindow::UpdatePreview() {
             default:
                 nextPreview =
                     zh
-                        ? L"目标  ·  "
-                        : L"Target  ·  ";
+                        ? L"应用  ·  "
+                        : L"App  ·  ";
                 break;
             }
         } else if (!IsFileSystemResult(
@@ -1943,10 +1936,18 @@ void LauncherWindow::UpdatePreview() {
                     : L"CMD=";
         }
 
-        nextPreview +=
+        const std::wstring_view previewValue =
             result.detail.empty()
-                ? result.target
-                : result.detail;
+                ? std::wstring_view(
+                      result.target)
+                : std::wstring_view(
+                      result.detail);
+
+        if (previewValue.empty()) {
+            nextPreview.clear();
+        } else {
+            nextPreview += previewValue;
+        }
     }
 
     const bool previewChanged =
@@ -3784,17 +3785,6 @@ LRESULT LauncherWindow::HandleMessage(
 
         const auto palette = CurrentPalette();
         const bool selected = (item->itemState & ODS_SELECTED) != 0;
-
-        const COLORREF background =
-            selected
-                ? IsModern()
-                    ? palette.selectionBackground
-                    : GetSysColor(
-                          COLOR_HIGHLIGHT)
-                : IsModern()
-                    ? palette.controlBackground
-                    : GetSysColor(
-                          COLOR_WINDOW);
 
         if (IsModern()) {
             FillRect(

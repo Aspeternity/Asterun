@@ -29,7 +29,7 @@ Real-Windows alpha.6.1 screenshots showed that the foundation was technically so
 
 Alpha.6.2 keeps the native EDIT/LISTBOX interaction model and the frozen Classic/search core, but rewrites the Modern visual hierarchy. Application display names are now the primary semibold text; aliases move to a smaller muted trailing field. Files and folders keep their filename as primary and use the parent path as secondary context. Identical title/subtitle action rows no longer duplicate the same label.
 
-The boxed result surface and per-row separators are removed. Results sit directly on the quiet window surface, while the selected item gets an inset rounded highlight plus a narrow accent marker. The search control keeps a single soft rounded frame, secondary/footer typography drops to 9 pt, and the footer labels the selected value as Path / Command / Action / Target (with Chinese equivalents) instead of presenting an unlabeled raw string.
+The boxed result surface and per-row separators are removed. Results sit directly on the quiet window surface, while the selected item gets an inset rounded highlight plus a narrow accent marker. The search control keeps a single soft rounded frame, secondary/footer typography drops to 9 pt, and the footer labels the selected value as Path / Command / Action / App (with Chinese equivalents) instead of presenting an unlabeled raw string.
 
 Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.272`.
 

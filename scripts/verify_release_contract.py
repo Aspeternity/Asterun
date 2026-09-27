@@ -134,9 +134,9 @@ if version == "0.8.0-alpha.6.2":
         "framePen_",
         "RoundRect(",
         "Path  ·  ",
-        "Target  ·  ",
+        "App  ·  ",
         'L"路径  ·  "',
-        'L"目标  ·  "',
+        'L"应用  ·  "',
     ):
         if token not in launcher + launcher_hpp:
             fail(f"alpha.6.2 Modern visual hierarchy wiring missing: {token}")
