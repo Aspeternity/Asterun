@@ -1,12 +1,12 @@
 {
   "schemaVersion": 11,
   "general": {
-    "startWithWindows": false,
+    "startWithWindows": true,
     "showTrayIcon": true,
     "popupMonitor": "cursor",
     "startupBehavior": "notification",
     "soundEnabled": true,
-    "addToSendToMenu": false
+    "addToSendToMenu": true
   },
   "hotkey": {
     "modifiers": [
@@ -58,14 +58,13 @@
   "behavior": {
     "pinyinSearch": true,
     "wildcardMatching": false,
-    "numericQuickLaunch": false,
+    "numericQuickLaunch": true,
     "numericQuickLaunchOrder": "one-to-zero",
     "executeSingleResultImmediately": false
   },
   "appearance": {
     "launcher": "classic",
-    "language": "zh-CN",
-    "showResultIcons": false
+    "language": "zh-CN"
   },
   "providers": {
     "windows.startmenu": true,
@@ -73,6 +72,9 @@
     "windows.apppaths": true,
     "windows.path": true,
     "everything.filesystem": false
+  },
+  "everything": {
+    "showTrayIcon": false
   },
   "update": {
     "autoCheck": true,

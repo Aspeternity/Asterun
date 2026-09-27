@@ -27,7 +27,6 @@ private:
     enum class Field {
         Target,
         WorkingDirectory,
-        Icon,
     };
 
     struct Row {

@@ -32,6 +32,37 @@ LauncherResult Result(
 } // namespace
 
 int main() {
+    // Learned acronym order must survive the unified result merge, and the
+    // comparator must stay transitive across three candidates and ties.
+    {
+        std::vector<LauncherResult> initials;
+        for (const int score : {930, 808, 809}) {
+            for (const int usage : {0, 16, 24, 32}) {
+                LauncherResult result;
+                result.kind = ResultKind::Application;
+                result.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+                result.relevanceMatch = {relevance::MatchKind::Initials,
+                    relevance::MatchField::Title, score, false};
+                result.usageScore = usage;
+                initials.push_back(result);
+            }
+        }
+        assert(BetterLauncherResult(initials[5], initials[0]));
+        for (const auto& a : initials) {
+            assert(!BetterLauncherResult(a, a));
+            for (const auto& b : initials) {
+                if (BetterLauncherResult(a, b)) {
+                    assert(!BetterLauncherResult(b, a));
+                    for (const auto& c : initials) {
+                        if (BetterLauncherResult(b, c)) {
+                            assert(BetterLauncherResult(a, c));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     const auto file =
         Result(
             ResultKind::File,
@@ -72,12 +103,78 @@ int main() {
     assert(
         stem.relevanceMatch.field ==
         relevance::MatchField::FileStem);
+
+    LauncherResult versioned =
+        Result(
+            ResultKind::File,
+            std::string(
+                providers::
+                    kEverythingFilesystem),
+            L"v2rayN.exe",
+            L"D:\\v2rayN-windows-64",
+            L"D:\\v2rayN-windows-64\\v2rayN.exe");
+
+    assert(RankDynamicResultText(
+        versioned,
+        L"v2"));
+    assert(
+        versioned.relevanceMatch.kind ==
+        relevance::MatchKind::Prefix);
+
     assert(BetterLauncherResult(
         exact,
         stem));
     assert(BetterLauncherResult(
         stem,
         contains));
+
+    // Two-character CJK queries must not inherit the short-ASCII
+    // strong-match gate. Everything may return a filename where the query is
+    // a middle substring; the launcher must preserve that valid result.
+    const auto chineseFolder =
+        Result(
+            ResultKind::Folder,
+            std::string(
+                providers::
+                    kEverythingFilesystem),
+            L"系统男主",
+            L"C:\\Media",
+            L"C:\\Media\\系统男主");
+
+    LauncherResult chinesePrefix =
+        chineseFolder;
+    LauncherResult chineseSubstring =
+        chineseFolder;
+
+    assert(RankDynamicResultText(
+        chinesePrefix,
+        L"系统"));
+    assert(RankDynamicResultText(
+        chineseSubstring,
+        L"男主"));
+
+    // Match classification around CJK boundaries can vary with the host
+    // C library's wide-character classification. Exercise the actual policy
+    // directly so the regression is specifically about short non-ASCII
+    // substring admission, while the short-ASCII noise gate stays intact.
+    const relevance::Match cjkSubstringMatch{
+        relevance::MatchKind::Substring,
+        relevance::MatchField::Title,
+        688,
+        false,
+    };
+    assert(relevance::
+        AdmitLaunchSurface(
+            LaunchSurfaceClass::
+                FilesystemItem,
+            L"男主",
+            cjkSubstringMatch));
+    assert(!relevance::
+        AdmitLaunchSurface(
+            LaunchSurfaceClass::
+                FilesystemItem,
+            L"he",
+            cjkSubstringMatch));
 
     LauncherResult multi = file;
     assert(RankDynamicResultText(

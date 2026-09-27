@@ -15,7 +15,6 @@ struct UserCommandPathUpdate {
     std::wstring id;
     std::optional<std::wstring> target;
     std::optional<std::wstring> workingDirectory;
-    std::optional<std::wstring> icon;
 };
 
 class UserCommandStore {

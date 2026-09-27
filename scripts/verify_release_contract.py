@@ -42,12 +42,12 @@ channel = match.group(4)
 
 
 
-if version in ("0.8.0-alpha.5.43", "0.8.0-alpha.5.44"):
+if version in ("0.8.0-alpha.5.43", "0.8.0-alpha.5.44", "0.8.0-alpha.5.45", "0.8.0-alpha.5.46", "0.8.0-alpha.5.47", "0.8.0-alpha.5.48", "0.8.0-alpha.5.49"):
     import hashlib
     import subprocess
 
     expected_schemas = {
-        "kSettingsSchemaVersion": 11 if version.endswith(".44") else 10,
+        "kSettingsSchemaVersion": 11 if version.endswith((".44", ".45", ".46", ".47", ".48", ".49")) else 10,
         "kCommandsSchemaVersion": 2,
         "kUsageSchemaVersion": 2,
     }
@@ -158,17 +158,26 @@ if version in ("0.8.0-alpha.5.43", "0.8.0-alpha.5.44"):
         if token not in config_tests:
             fail(f"v0.8 alpha.5.43 Provider Cache regression missing: {token}")
 
+    fixed_revision = (
+        "219" if version.endswith(".49")
+        else "218" if version.endswith(".48")
+        else "217" if version.endswith(".47")
+        else "216" if version.endswith(".46")
+        else "215" if version.endswith(".45")
+        else "214" if version.endswith(".44")
+        else "213"
+    )
     for token in (
-        "FILEVERSION 0,8,0," + ("214" if version.endswith(".44") else "213"),
-        "PRODUCTVERSION 0,8,0," + ("214" if version.endswith(".44") else "213"),
+        "FILEVERSION 0,8,0," + fixed_revision,
+        "PRODUCTVERSION 0,8,0," + fixed_revision,
         version,
     ):
         if token not in resources:
             fail(f"v0.8 alpha.5.43 resource version missing: {token}")
 
-    fixed_version = "0.8.0.214" if version.endswith(".44") else "0.8.0.213"
+    fixed_version = "0.8.0." + fixed_revision
     if f'version="{fixed_version}"' not in manifest:
-        fail("v0.8 alpha.5.43 manifest fixed version must be 0.8.0.213")
+        fail(f"{version} manifest fixed version must be {fixed_version}")
 
     for token in (
         '"0.8.0-alpha.5.42"',
@@ -230,7 +239,7 @@ if version in ("0.8.0-alpha.5.43", "0.8.0-alpha.5.44"):
         if git_blob_sha(asset_path) != expected:
             fail(f"v0.8 alpha.5.43 frozen Classic asset changed: {asset_path}")
 
-    if version.endswith(".44"):
+    if version.endswith((".44", ".45", ".46", ".47", ".48", ".49")):
         if json.loads(read("config/settings.example.json"))["schemaVersion"] != 11:
             fail("sound settings sample must use schema 11")
         for path in ("src/app/App.cpp", "src/ui/LauncherWindow.cpp", "src/ui/SettingsWindow.cpp",
@@ -238,10 +247,420 @@ if version in ("0.8.0-alpha.5.43", "0.8.0-alpha.5.44"):
                      "src/ui/ShortcutPathConverterDialog.cpp", "src/uninstaller/UninstallMain.cpp"):
             if "MessageBoxW(" in read(path):
                 fail(f"stock system-sound dialog bypasses feedback policy: {path}")
-        subprocess.run([sys.executable, str(ROOT / "scripts/generate_feedback_sounds.py"), "--verify"], check=True)
         for path in ("README.md", "ROADMAP.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
             if "0.8.0-alpha.5.44" not in read(path):
-                fail(f"missing current release documentation: {path}")
+                fail(f"missing alpha.5.44 release documentation: {path}")
+
+    if version.endswith((".45", ".46", ".47", ".48", ".49")):
+        identity = read("src/platform/AppIdentity.hpp")
+        launcher = read("src/ui/LauncherWindow.cpp")
+        launcher_hpp = read("src/ui/LauncherWindow.hpp")
+        app_cpp = read("src/app/App.cpp")
+        for token in (
+            "Aspeternity.ALTRunNext",
+            "kTrayIconGuid",
+            "0x8a395c23",
+        ):
+            if token not in identity:
+                fail(f"alpha.5.45 shell identity contract missing: {token}")
+        for token in (
+            "SetCurrentProcessExplicitAppUserModelID",
+            "app_identity::kAppUserModelId",
+        ):
+            if token not in app_cpp:
+                fail(f"alpha.5.45 process identity wiring missing: {token}")
+        for token in (
+            'RegisterWindowMessageW(',
+            'L"TaskbarCreated"',
+            "NIF_GUID",
+            "NIF_SHOWTIP",
+            "NIN_KEYSELECT",
+            "restorePersistentIcon",
+            "app_identity::kTrayIconGuid",
+        ):
+            if token not in launcher:
+                fail(f"alpha.5.45 tray lifecycle wiring missing: {token}")
+        if "taskbarCreatedMessage_" not in launcher_hpp:
+            fail("alpha.5.45 launcher no longer stores TaskbarCreated message")
+        for path in ("README.md", "ROADMAP.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
+            if "0.8.0-alpha.5.45" not in read(path):
+                fail(f"missing alpha.5.45 release documentation: {path}")
+        if '"0.8.0-alpha.5.45"' not in update_tests:
+            fail("alpha.5.45 update ordering/default coverage missing")
+
+        authorized_assets = {
+            "src/resources/altrun_original.ico": "9557a8e1371674c34a69a8d4c210de0073b9001f",
+            "src/resources/altrun_popup.wav": "37860c02c6bbe413681cfd56c1c2942d5677de96",
+        }
+        for asset_path, expected in authorized_assets.items():
+            if git_blob_sha(asset_path) != expected:
+                fail(f"alpha.5.45 authorized original asset changed: {asset_path}")
+
+        for removed in (
+            "src/resources/feedback_startup.wav",
+            "src/resources/feedback_reveal.wav",
+            "src/resources/feedback_execute.wav",
+            "src/resources/feedback_failure.wav",
+            "scripts/generate_feedback_sounds.py",
+        ):
+            if (ROOT / removed).exists():
+                fail(f"alpha.5.45 temporary generated sound asset remains: {removed}")
+
+        resource_ids = read("src/ResourceIds.h")
+        feedback_cpp = read("src/ui/Feedback.cpp")
+        for token in (
+            "IDI_ALTRUN_APP",
+            "IDW_ALTRUN_POPUP",
+            'ICON "resources/altrun_original.ico"',
+            'WAVE "resources/altrun_popup.wav"',
+        ):
+            if token not in resource_ids + resources:
+                fail(f"alpha.5.45 original asset resource wiring missing: {token}")
+        if "IDW_ALTRUN_POPUP" not in feedback_cpp:
+            fail("alpha.5.45 feedback no longer uses original ALTRun Popup.wav resource")
+        for forbidden in ("IDW_STARTUP", "IDW_REVEAL", "IDW_EXECUTE", "IDW_FAILURE"):
+            if forbidden in feedback_cpp or forbidden in resource_ids:
+                fail(f"alpha.5.45 legacy generated cue ID remains: {forbidden}")
+
+        app_icon_header = read("src/ui/AppIcon.hpp")
+        if "IDI_ALTRUN_APP" not in app_icon_header or "LoadImageW(" not in app_icon_header:
+            fail("alpha.5.45 application icon loader is not wired to original MAINICON")
+        for path in (
+            "src/ui/LauncherWindow.cpp",
+            "src/ui/SettingsWindow.cpp",
+            "src/ui/ShortcutManagerWindow.cpp",
+            "src/ui/ShortcutEditorDialog.cpp",
+            "src/ui/ShortcutPathConverterDialog.cpp",
+        ):
+            window_source = read(path)
+            if "AppIcon.hpp" not in window_source or "LoadApplicationIcon(" not in window_source:
+                fail(f"alpha.5.45 top-level window is not using original ALTRun icon: {path}")
+
+    if version.endswith((".46", ".47", ".48", ".49")):
+        launcher = read("src/ui/LauncherWindow.cpp")
+        launcher_hpp = read("src/ui/LauncherWindow.hpp")
+        settings_hpp = read("src/core/Settings.hpp")
+        settings_cpp = read("src/core/Settings.cpp")
+        app_cpp = read("src/app/App.cpp")
+        settings_example = json.loads(read("config/settings.example.json"))
+
+        for token in (
+            'L"显示主界面"',
+            'L"快捷项管理…"',
+            'L"设置…"',
+            'L"关于"',
+            "SetMenuDefaultItem(",
+            "FormatTrayHotkey(",
+            "kActivate",
+            "kOpenShortcutManager",
+            "kOpenSettings",
+        ):
+            if token not in launcher:
+                fail(f"alpha.5.46 tray menu contract missing: {token}")
+
+        for forbidden in (
+            "kMenuReload",
+            'L"重新加载"',
+            'L"Reload"',
+            'L"关于…"',
+            'L"About…"',
+            'L"关于 ALTRun Next"',
+        ):
+            if forbidden in launcher + launcher_hpp:
+                fail(f"alpha.5.46 removed tray-menu surface returned: {forbidden}")
+
+        for token in (
+            "bool startWithWindows{true};",
+            "bool addToSendToMenu{true};",
+            "bool numericQuickLaunch{true};",
+        ):
+            if token not in settings_hpp:
+                fail(f"alpha.5.46 fresh default missing: {token}")
+
+        if settings_example["general"]["startWithWindows"] is not True:
+            fail("alpha.5.46 sample must default startWithWindows=true")
+        if settings_example["general"]["addToSendToMenu"] is not True:
+            fail("alpha.5.46 sample must default addToSendToMenu=true")
+        if settings_example["behavior"]["numericQuickLaunch"] is not True:
+            fail("alpha.5.46 sample must default numericQuickLaunch=true")
+
+        for token in (
+            "settings_.startWithWindows = false;",
+            "settings_.addToSendToMenu = false;",
+            "settings_.numericQuickLaunch = false;",
+            "load.schemaVersion <",
+        ):
+            if token not in settings_cpp:
+                fail(f"alpha.5.46 legacy default preservation missing: {token}")
+
+        for token in (
+            "defaults.addToSendToMenu",
+            "defaults.startWithWindows",
+        ):
+            if token not in app_cpp:
+                fail(f"alpha.5.46 reset integration default missing: {token}")
+
+        for token in (
+            "settings-explicit-opt-out.json",
+            "assert(!explicitOptOut.Data().startWithWindows)",
+            "assert(!explicitOptOut.Data().addToSendToMenu)",
+            "assert(!explicitOptOut.Data().numericQuickLaunch)",
+        ):
+            if token not in config_tests:
+                fail(f"alpha.5.46 opt-out regression missing: {token}")
+
+        if '"0.8.0-alpha.5.46"' not in update_tests:
+            fail("alpha.5.46 update ordering/default coverage missing")
+
+        for path in ("README.md", "ROADMAP.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
+            if "0.8.0-alpha.5.46" not in read(path):
+                fail(f"missing alpha.5.46 release documentation: {path}")
+
+    if version.endswith((".47", ".48", ".49")):
+        app_cpp = read("src/app/App.cpp")
+        app_hpp = read("src/app/App.hpp")
+        runtime_smoke = read("scripts/verify_runtime_smoke.ps1")
+
+        run_start = app_cpp.find("int App::Run()")
+        window_create = app_cpp.find("window_ = std::make_unique<LauncherWindow>", run_start)
+        reconcile_start = app_cpp.find("StartShellIntegrationReconcile();", run_start)
+
+        if run_start < 0 or window_create < 0 or reconcile_start < 0:
+            fail("alpha.5.47 startup-path markers missing")
+        if reconcile_start < window_create:
+            fail("alpha.5.47 shell reconciliation returned to the pre-window startup path")
+
+        pre_window = app_cpp[run_start:window_create]
+        for forbidden in (
+            "ApplyStartupRegistration(",
+            "ApplySendToRegistration(",
+            "CoCreateInstance(",
+            "IPersistFile",
+        ):
+            if forbidden in pre_window:
+                fail(f"alpha.5.47 blocking shell work returned before window creation: {forbidden}")
+
+        for token in (
+            "shellIntegrationThread_",
+            "shellIntegrationMutex_",
+            "desiredStartupRegistration_",
+            "desiredSendToRegistration_",
+            "StartShellIntegrationReconcile",
+        ):
+            if token not in app_hpp:
+                fail(f"alpha.5.47 deferred integration state missing: {token}")
+
+        for token in (
+            "RegQueryValueExW(",
+            "persist->Load(",
+            "PathEqualsInsensitive(",
+            "A normal launch should not rewrite the Shell Link",
+            "CoInitializeEx(",
+            "desiredStartupRegistration_",
+            "desiredSendToRegistration_",
+        ):
+            if token not in app_cpp:
+                fail(f"alpha.5.47 idempotent reconciliation missing: {token}")
+
+        for token in (
+            "--post-update-health-event",
+            "WaitOne(3000)",
+            "First-frame health signal exceeded 3000 ms",
+            "Ordinary startup rewrote an already-correct SendTo shortcut.",
+            "Startup performance contract passed:",
+        ):
+            if token not in runtime_smoke:
+                fail(f"alpha.5.47 packaged startup regression missing: {token}")
+
+        if '"0.8.0-alpha.5.47"' not in update_tests:
+            fail("alpha.5.47 update ordering/default coverage missing")
+
+        for path in ("README.md", "ROADMAP.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
+            if "0.8.0-alpha.5.47" not in read(path):
+                fail(f"missing alpha.5.47 release documentation: {path}")
+
+    if version.endswith((".48", ".49")):
+        app_cpp = read("src/app/App.cpp")
+        feedback_policy = read("src/core/FeedbackPolicy.hpp")
+        launcher = read("src/ui/LauncherWindow.cpp")
+        settings_cpp = read("src/ui/SettingsWindow.cpp")
+        presentation_cpp = read("src/ui/TopLevelWindowPresentation.cpp")
+        presentation_hpp = read("src/ui/TopLevelWindowPresentation.hpp")
+
+        if "FeedbackCue::Execute" in app_cpp or "Execute," in feedback_policy:
+            fail("alpha.5.48 launcher execution feedback returned")
+        if "enum class FeedbackCue { Startup, Reveal, Failure };" not in feedback_policy:
+            fail("alpha.5.48 feedback cue set is not startup/reveal/failure only")
+        if "std::array<bool, 3>" not in feedback_policy or "std::array<std::uint64_t, 3>" not in feedback_policy:
+            fail("alpha.5.48 feedback policy storage still assumes four cues")
+
+        for token in (
+            "TPM_RETURNCMD",
+            "TPM_NONOTIFY",
+            "PostMessageW(",
+            "WM_NULL",
+            "MAKEWPARAM(",
+        ):
+            if token not in launcher:
+                fail(f"alpha.5.48 deferred tray dispatch missing: {token}")
+
+        tray_start = launcher.find("void LauncherWindow::ShowTrayMenu")
+        tray_end = launcher.find("LRESULT CALLBACK LauncherWindow::WindowProc", tray_start)
+        if tray_start < 0 or tray_end < 0:
+            fail("alpha.5.48 tray menu implementation missing")
+        tray_body = launcher[tray_start:tray_end]
+        track = tray_body.find("TrackPopupMenu(")
+        deferred = tray_body.find("PostMessageW(", track)
+        if track < 0 or deferred < 0 or deferred < track:
+            fail("alpha.5.48 tray command is not deferred until after TrackPopupMenu returns")
+
+        if "Present(true);" not in settings_cpp or "Present(false);" not in settings_cpp:
+            fail("alpha.5.48 Settings/About presentation path is not unified")
+
+        if "WM_SETREDRAW" in settings_cpp:
+            fail("alpha.5.48 Settings must preserve visibility through the shared redraw guard")
+        if settings_cpp.count("ScopedRedrawSuspend redrawGuard") != 3:
+            fail("alpha.5.48 page/hotkey redraw batches must all use the visibility guard")
+        if "GrantForegroundToWindow(target)" not in app_cpp:
+            fail("alpha.5.48 external shortcut forwarding must grant foreground permission")
+        runtime_tests = read("tests/WindowPresentationRuntimeTests.cpp")
+        for token in ("settings.Create()", "!IsWindowVisible(window)",
+                      "HasAboutHeading(window)", "ShortcutEditorDialog::ShowNew"):
+            if token not in runtime_tests:
+                fail(f"alpha.5.48 real window regression missing: {token}")
+        if "window_presentation_runtime_tests" not in read(".github/workflows/build.yml"):
+            fail("alpha.5.48 real window regression is not wired into Windows CI")
+
+        present = settings_cpp.find("void SettingsWindow::Present(")
+        about_page = settings_cpp.find("ShowPage(Page::About);", present)
+        reveal = settings_cpp.find("RevealFullyPainted(", present)
+        if present < 0 or about_page < 0 or reveal < 0 or about_page > reveal:
+            fail("alpha.5.48 About page is not selected before the first visible frame")
+
+        reveal_impl = presentation_cpp.find("void RevealFullyPainted(")
+        hide_impl = presentation_cpp.find("void HideForDestroy(", reveal_impl)
+        if reveal_impl < 0 or hide_impl < 0:
+            fail("alpha.5.48 top-level presentation implementation missing")
+        reveal_body = presentation_cpp[reveal_impl:hide_impl]
+        for token in ("SWP_NOACTIVATE", "SWP_SHOWWINDOW"):
+            if token not in reveal_body:
+                fail(f"alpha.5.48 non-activating reveal missing: {token}")
+        if "ShowWindow(" in reveal_body:
+            fail("alpha.5.48 first-frame helper activates through ShowWindow before foreground handoff")
+        if "int showCommand" in presentation_hpp:
+            fail("alpha.5.48 first-frame helper still exposes activating show-command semantics")
+
+        if '"0.8.0-alpha.5.48"' not in update_tests:
+            fail("alpha.5.48 update ordering/default coverage missing")
+
+        for path in ("README.md", "ROADMAP.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
+            if "0.8.0-alpha.5.48" not in read(path):
+                fail(f"missing alpha.5.48 release documentation: {path}")
+
+    if version.endswith(".49"):
+        app_cpp = read("src/app/App.cpp")
+        search_hpp = read("src/core/SearchEngine.hpp")
+        search_cpp = read("src/core/SearchEngine.cpp")
+        relevance_hpp = read("src/core/RelevancePolicy.hpp")
+        relevance_cpp = read("src/core/RelevancePolicy.cpp")
+        pinyin_hpp = read("src/core/PinyinSearch.hpp")
+        pinyin_cpp = read("src/core/PinyinSearch.cpp")
+        search_tests = read("tests/SearchEngineTests.cpp")
+        runtime_tests = read("tests/WindowPresentationRuntimeTests.cpp")
+        result_ranking_tests = read("tests/ResultRankingTests.cpp")
+        launcher_cpp = read("src/ui/LauncherWindow.cpp")
+        launcher_hpp = read("src/ui/LauncherWindow.hpp")
+        settings_store_cpp = read("src/core/Settings.cpp")
+        settings_hpp = read("src/core/Settings.hpp")
+        settings_window_cpp = read("src/ui/SettingsWindow.cpp")
+        cmake = read("CMakeLists.txt")
+
+        for token in (
+            "std::span<const Command>",
+            "requiresContextWorkingSet",
+            "sourceIndexFor",
+        ):
+            if token not in app_cpp + search_hpp:
+                fail(f"alpha.5.49 non-owning search catalog path missing: {token}")
+
+        for token in (
+            "MatchTextNormalizedQuery",
+            "MatchNormalizedText",
+            "MatchNormalizedInitials",
+            "AdmitLaunchSurfaceNormalized",
+        ):
+            if token not in relevance_hpp + relevance_cpp + search_cpp:
+                fail(f"alpha.5.49 prepared relevance path missing: {token}")
+
+        for token in (
+            "kDefaultPinyinCacheCapacity",
+            "cacheCapacity",
+            "lastUse",
+            "cacheTick",
+        ):
+            if token not in pinyin_hpp + pinyin_cpp:
+                fail(f"alpha.5.49 bounded pinyin cache missing: {token}")
+
+        for token in (
+            "kTestCapacity",
+            "boundedPinyin",
+            "CacheEntryCount()",
+        ):
+            if token not in search_tests:
+                fail(f"alpha.5.49 pinyin cache regression missing: {token}")
+
+        for token in (
+            "ProcessResourceSnapshot",
+            "GetGuiResources(",
+            "GetProcessHandleCount(",
+            "kSoakCycles",
+            "ShortcutPathConverterDialog::",
+        ):
+            if token not in runtime_tests:
+                fail(f"alpha.5.49 resource lifecycle soak missing: {token}")
+
+        for token in (
+            'L"系统男主"',
+            'L"男主"',
+            "MatchKind::Substring",
+        ):
+            if token not in result_ranking_tests:
+                fail(f"alpha.5.49 CJK Everything substring regression missing: {token}")
+
+        icon_surface = (
+            app_cpp +
+            launcher_cpp +
+            launcher_hpp +
+            settings_store_cpp +
+            settings_hpp +
+            settings_window_cpp +
+            cmake
+        )
+        for forbidden in (
+            "showResultIcons",
+            "SetShowResultIcons",
+            "ResultIconPipeline",
+            "ResultIconWorkerLoop",
+            "result_icon_pipeline_tests",
+            "kIconReadyMessage",
+        ):
+            if forbidden in icon_surface:
+                fail(f"alpha.5.49 removed result-icon feature survived: {forbidden}")
+
+        for removed in (
+            "src/core/ResultIconPipeline.cpp",
+            "src/core/ResultIconPipeline.hpp",
+            "tests/ResultIconPipelineTests.cpp",
+        ):
+            if (ROOT / removed).exists():
+                fail(f"alpha.5.49 obsolete result-icon file remains: {removed}")
+
+        if '"0.8.0-alpha.5.49"' not in update_tests:
+            fail("alpha.5.49 update ordering/default coverage missing")
+
+        for path in ("README.md", "ROADMAP.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
+            if "0.8.0-alpha.5.49" not in read(path):
+                fail(f"missing alpha.5.49 release documentation: {path}")
 
     print(
         version + " shared release contract verified:",

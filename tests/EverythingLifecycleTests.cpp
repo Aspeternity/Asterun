@@ -49,6 +49,8 @@ int main() {
         root,
         ec);
 
+    assert(!IsManagedEverythingRunning(root));
+
     {
         const auto result =
             StopManagedEverything(root);
@@ -97,6 +99,58 @@ int main() {
         assert(result.nativeError == 0);
     }
 
+    // Versioned managed copies remain ALTRun-owned, and the newest installed
+    // stable version becomes the active managed executable.
+    const auto managedDirectoryName =
+        managed.parent_path()
+            .filename()
+            .wstring();
+    const std::wstring pinnedVersion =
+        L"1.4.1.1032";
+    assert(
+        managedDirectoryName.starts_with(
+            pinnedVersion));
+    const std::wstring architectureSuffix =
+        managedDirectoryName.substr(
+            pinnedVersion.size());
+
+    const auto newerManaged =
+        root /
+        L"tools" /
+        L"Everything" /
+        (L"1.5.0.1500" +
+         architectureSuffix) /
+        L"Everything.exe";
+
+    std::filesystem::create_directories(
+        newerManaged.parent_path());
+
+    {
+        std::ofstream file(
+            newerManaged,
+            std::ios::binary |
+                std::ios::trunc);
+        assert(file);
+        file << "newer-not-an-executable";
+    }
+
+    assert(
+        IsManagedEverythingServiceExecutable(
+            root,
+            newerManaged));
+    assert(
+        ManagedEverythingExecutable(
+            root) ==
+        newerManaged);
+    assert(
+        !IsManagedEverythingServiceExecutable(
+            root,
+            root /
+                L"tools" /
+                L"Everything" /
+                L"not-a-version-x64" /
+                L"Everything.exe"));
+
     WNDCLASSEXW windowClass{};
     windowClass.cbSize =
         sizeof(windowClass);
@@ -130,6 +184,11 @@ int main() {
                 nullptr);
 
         assert(fakeEverything != nullptr);
+
+        // Even with ALTRun-owned managed binaries present on disk, an IPC
+        // window owned by another executable must not make managed runtime
+        // controls visible.
+        assert(!IsManagedEverythingRunning(root));
 
         const auto result =
             StopManagedEverything(root);

@@ -1,4 +1,5 @@
 #include "Feedback.hpp"
+#include "AppIcon.hpp"
 #include "SettingsWindow.hpp"
 
 #include "TopLevelWindowPresentation.hpp"
@@ -369,6 +370,8 @@ ResetWindowInstanceState() {
     capturingHotkeyActionId_.clear();
     pendingProviderStates_.clear();
     providerCommitInProgress_ = false;
+    providerTrayVisible_ = false;
+    providerActionsVisible_ = false;
 
     hotkeyRows_.clear();
     generalControls_.clear();
@@ -381,6 +384,10 @@ ResetWindowInstanceState() {
     // These controls are touched by asynchronous App callbacks. Clear them
     // as soon as the HWND is gone so a recycled native handle is never used.
     providerStatus_ = nullptr;
+    managedEverythingTrayIcon_ = nullptr;
+    providerGetEverything_ = nullptr;
+    providerUpdateEverything_ = nullptr;
+    providerRecheckEverything_ = nullptr;
     dataStatus_ = nullptr;
     updateStatus_ = nullptr;
     updateAction_ = nullptr;
@@ -438,7 +445,13 @@ bool SettingsWindow::Create() {
     wc.lpfnWndProc = WindowProc;
     wc.lpszClassName = kSettingsClass;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    wc.hIcon =
+        ui::LoadApplicationIcon(
+            instance_);
+    wc.hIconSm =
+        ui::LoadApplicationIcon(
+            instance_,
+            true);
     wc.hbrBackground = nullptr;
 
     if (!RegisterClassExW(&wc) &&
@@ -685,7 +698,6 @@ void SettingsWindow::CreateGeneralPage() {
     addToSendToMenu_ = CreateCheckboxRow(L"", kIdAddToSendToMenu);
 
     searchBehaviorTitle_ = CreateStatic(L"");
-    showResultIcons_ = CreateCheckboxRow(L"", kIdShowResultIcons);
     pinyinSearch_ = CreateCheckboxRow(L"", kIdPinyinSearch);
     numericQuickLaunch_ = CreateCheckboxRow(L"", kIdNumericQuickLaunch);
     executeSingleResult_ = CreateCheckboxRow(L"", kIdExecuteSingleResult);
@@ -733,7 +745,7 @@ void SettingsWindow::CreateGeneralPage() {
         generalBehaviorTitle_, startWithWindows_,
         startupBehaviorLabel_, startupBehavior_,
         showTrayIcon_, soundEnabled_, addToSendToMenu_,
-        searchBehaviorTitle_, showResultIcons_, pinyinSearch_,
+        searchBehaviorTitle_, pinyinSearch_,
         numericQuickLaunch_, executeSingleResult_,
         placementSectionTitle_,
         popupMonitorLabel_, popupMonitorDescription_, popupMonitor_,
@@ -901,6 +913,10 @@ void SettingsWindow::CreateProviderPage() {
         CreateCheckboxRow(
             L"",
             kIdProviderEverything);
+    managedEverythingTrayIcon_ =
+        CreateCheckboxRow(
+            L"",
+            kIdManagedEverythingTrayIcon);
 
     providerStatus_ =
         CreateStatic(
@@ -911,6 +927,10 @@ void SettingsWindow::CreateProviderPage() {
         CreateButton(
             L"",
             kIdProviderGetEverything);
+    providerUpdateEverything_ =
+        CreateButton(
+            L"",
+            kIdProviderUpdateEverything);
     providerRecheckEverything_ =
         CreateButton(
             L"",
@@ -929,8 +949,10 @@ void SettingsWindow::CreateProviderPage() {
         providerAppPaths_,
         providerPath_,
         providerEverything_,
+        managedEverythingTrayIcon_,
         providerStatus_,
         providerGetEverything_,
+        providerUpdateEverything_,
         providerRecheckEverything_,
         providerNote_,
     };
@@ -1112,7 +1134,6 @@ void SettingsWindow::ApplyFonts() {
         showTrayIcon_,
         soundEnabled_,
         addToSendToMenu_,
-        showResultIcons_,
         pinyinSearch_,
         numericQuickLaunch_,
         executeSingleResult_,
@@ -1307,7 +1328,6 @@ void SettingsWindow::ApplyLanguage() {
     SetWindowTextW(addToSendToMenu_, T(L"添加到“发送到”菜单", L"Add to “Send to” menu"));
 
     SetWindowTextW(searchBehaviorTitle_, T(L"搜索与执行", L"Search & execution"));
-    SetWindowTextW(showResultIcons_, T(L"显示搜索结果图标", L"Show search result icons"));
     SetWindowTextW(pinyinSearch_, T(L"启用拼音搜索", L"Enable Pinyin search"));
     SetWindowTextW(numericQuickLaunch_, T(L"数字键快速执行结果", L"Quick launch with number keys"));
     SetWindowTextW(executeSingleResult_,
@@ -1478,9 +1498,17 @@ void SettingsWindow::ApplyLanguage() {
         T(L"Everything 文件与文件夹",
           L"Everything files & folders"));
     SetWindowTextW(
+        managedEverythingTrayIcon_,
+        T(L"显示 Everything 托盘图标",
+          L"Show Everything tray icon"));
+    SetWindowTextW(
         providerGetEverything_,
         T(L"获取并启动 Everything",
           L"Get and start Everything"));
+    SetWindowTextW(
+        providerUpdateEverything_,
+        T(L"检查更新",
+          L"Check for updates"));
     SetWindowTextW(
         providerRecheckEverything_,
         T(L"重新检测",
@@ -1745,14 +1773,6 @@ void SettingsWindow::RefreshFromSettings() {
             : BST_UNCHECKED,
         0);
 
-    SendMessageW(
-        showResultIcons_,
-        BM_SETCHECK,
-        settings.showResultIcons
-            ? BST_CHECKED
-            : BST_UNCHECKED,
-        0);
-
     RefreshHotkeyPage();
     RefreshUpdateStatus();
     SyncUpdateStatusTimer();
@@ -1760,9 +1780,10 @@ void SettingsWindow::RefreshFromSettings() {
     for (HWND control :
          std::array<HWND, 15>{
              startWithWindows_, showTrayIcon_, soundEnabled_, addToSendToMenu_,
-             showResultIcons_, pinyinSearch_, numericQuickLaunch_,
+             pinyinSearch_, numericQuickLaunch_,
              executeSingleResult_, providerStartMenu_, providerPackaged_,
              providerAppPaths_, providerPath_, providerEverything_,
+             managedEverythingTrayIcon_,
              updateAutoCheck_, updatePrerelease_}) {
         if (control) {
             InvalidateRect(
@@ -1933,13 +1954,8 @@ void SettingsWindow::SetHotkeyRowStatus(
         hwnd_ &&
         page_ == Page::Hotkeys;
 
-    if (atomicUpdate) {
-        SendMessageW(
-            hwnd_,
-            WM_SETREDRAW,
-            FALSE,
-            0);
-    }
+    window_presentation::ScopedRedrawSuspend redrawGuard(
+        atomicUpdate ? hwnd_ : nullptr);
 
     SetWindowTextW(
         row->status,
@@ -1960,11 +1976,7 @@ void SettingsWindow::SetHotkeyRowStatus(
 
     Layout();
 
-    SendMessageW(
-        hwnd_,
-        WM_SETREDRAW,
-        TRUE,
-        0);
+    redrawGuard.Resume();
 
     RedrawWindow(
         hwnd_,
@@ -2097,13 +2109,8 @@ void SettingsWindow::RefreshHotkeyPage(
         hwnd_ &&
         page_ == Page::Hotkeys;
 
-    if (atomicUpdate) {
-        SendMessageW(
-            hwnd_,
-            WM_SETREDRAW,
-            FALSE,
-            0);
-    }
+    window_presentation::ScopedRedrawSuspend redrawGuard(
+        atomicUpdate ? hwnd_ : nullptr);
 
     const bool oldSyncing =
         syncing_;
@@ -2236,11 +2243,7 @@ void SettingsWindow::RefreshHotkeyPage(
 
     Layout();
 
-    SendMessageW(
-        hwnd_,
-        WM_SETREDRAW,
-        TRUE,
-        0);
+    redrawGuard.Resume();
 
     RedrawWindow(
         hwnd_,
@@ -2562,37 +2565,30 @@ void SettingsWindow::RefreshProviderStatus() {
         app_.EverythingBootstrapStatus();
 
     bool showGetEverything = false;
+    bool showUpdateEverything = false;
     bool showRecheck = false;
     std::wstring text;
+
+    // Treat the tray preference as a runtime control, not as an
+    // installation-path preference. ManagedEverythingExecutable() always
+    // returns a candidate path (including the pinned fallback path), so path
+    // non-emptiness cannot prove that Everything was installed or started.
+    // Ownership of the live default IPC window is the authoritative signal.
+    const bool managedActive =
+        enabled &&
+        win::IsManagedEverythingRunning(
+            app_.DataDirectory());
+
+    const bool externalActive =
+        ipc.availability ==
+            EverythingAvailability::
+                Available &&
+        !managedActive;
 
     if (!enabled) {
         text =
             T(L"○ Everything 已禁用",
               L"○ Everything is disabled");
-    } else if (
-        ipc.availability ==
-        EverythingAvailability::
-            Available) {
-
-        text =
-            T(L"● Everything 正在运行",
-              L"● Everything is running");
-
-        if (bootstrap.source ==
-                win::EverythingBootstrapSource::
-                    Managed ||
-            bootstrap.source ==
-                win::EverythingBootstrapSource::
-                    Downloaded ||
-            bootstrap.downloaded) {
-            text +=
-                T(L" · ALTRun Next 托管",
-                  L" · Managed by ALTRun Next");
-        } else {
-            text +=
-                T(L" · 外部安装",
-                  L" · External installation");
-        }
     } else if (bootstrap.running) {
         text =
             T(L"◌ 正在准备 Everything",
@@ -2602,20 +2598,35 @@ void SettingsWindow::RefreshProviderStatus() {
 
         switch (bootstrap.stage) {
         case win::EverythingBootstrapStage::Discovering:
-            text += T(L"检测本机版本", L"Detecting local copies");
+            text +=
+                T(L"检测本机版本",
+                  L"Detecting local copies");
             break;
         case win::EverythingBootstrapStage::StartingExisting:
-            text += T(L"启动已有版本", L"Starting existing copy");
+            text +=
+                T(L"启动已有版本",
+                  L"Starting existing copy");
+            break;
+        case win::EverythingBootstrapStage::ResolvingStableVersion:
+            text +=
+                T(L"检查官方稳定版",
+                  L"Checking latest stable release");
             break;
         case win::EverythingBootstrapStage::DownloadingManifest:
-            text += T(L"获取校验清单", L"Fetching checksums");
+            text +=
+                T(L"准备安全下载",
+                  L"Preparing secure download");
             break;
         case win::EverythingBootstrapStage::DownloadingPackage:
-            text += T(L"下载便携版", L"Downloading portable build");
+            text +=
+                T(L"下载 Everything",
+                  L"Downloading Everything");
+
             if (bootstrap.downloadedBytes > 0) {
                 text += L" ";
                 text += FormatBytes(
                     bootstrap.downloadedBytes);
+
                 if (bootstrap.totalBytes > 0) {
                     text += L" / ";
                     text += FormatBytes(
@@ -2624,25 +2635,100 @@ void SettingsWindow::RefreshProviderStatus() {
             }
             break;
         case win::EverythingBootstrapStage::VerifyingPackage:
-            text += T(L"校验 SHA-256", L"Verifying SHA-256");
+            text +=
+                T(L"验证下载文件",
+                  L"Verifying download");
             break;
         case win::EverythingBootstrapStage::ExtractingPackage:
-            text += T(L"解压文件", L"Extracting");
+            text +=
+                T(L"准备文件",
+                  L"Preparing files");
+            break;
+        case win::EverythingBootstrapStage::StoppingManaged:
+            text +=
+                T(L"切换版本",
+                  L"Switching versions");
             break;
         case win::EverythingBootstrapStage::InstallingService:
         case win::EverythingBootstrapStage::RepairingService:
-            text += T(L"配置 Service，请确认 UAC", L"Configuring Service; confirm UAC");
+            text +=
+                T(L"启用文件索引，请确认 Windows 提示",
+                  L"Enabling file indexing; confirm the Windows prompt");
             break;
         case win::EverythingBootstrapStage::WaitingForService:
-            text += T(L"等待 Service", L"Waiting for Service");
+            text +=
+                T(L"启动文件索引",
+                  L"Starting file index");
             break;
         case win::EverythingBootstrapStage::StartingManaged:
         case win::EverythingBootstrapStage::WaitingForIpc:
-            text += T(L"等待 IPC", L"Waiting for IPC");
+            text +=
+                T(L"连接 Everything",
+                  L"Connecting to Everything");
             break;
         default:
-            text += T(L"应用配置", L"Applying configuration");
+            text +=
+                T(L"应用设置",
+                  L"Applying settings");
             break;
+        }
+    } else if (
+        ipc.availability ==
+        EverythingAvailability::
+            Available) {
+        text =
+            T(L"● Everything 正在运行",
+              L"● Everything is running");
+        showRecheck = true;
+
+        if (managedActive) {
+            showUpdateEverything = true;
+
+            text +=
+                T(L" · ALTRun Next 托管",
+                  L" · Managed by ALTRun Next");
+
+            if (!bootstrap.installedVersion.empty()) {
+                text += L" · v";
+                text +=
+                    bootstrap.installedVersion;
+            }
+
+            if (bootstrap.updateAvailable &&
+                !bootstrap.availableVersion.empty()) {
+                text +=
+                    T(L" · 可更新到 v",
+                      L" · update available: v");
+                text +=
+                    bootstrap.availableVersion;
+            } else if (
+                bootstrap.usedPinnedVersionFallback) {
+                text +=
+                    T(L" · 当前无法检查最新版本",
+                      L" · latest version could not be checked");
+            } else if (
+                !bootstrap.availableVersion.empty() &&
+                bootstrap.stage ==
+                    win::EverythingBootstrapStage::
+                        Ready) {
+                text +=
+                    T(L" · 已是最新稳定版",
+                      L" · latest stable");
+            } else if (
+                bootstrap.stage ==
+                    win::EverythingBootstrapStage::
+                        Failed) {
+                text +=
+                    T(L" · 更新检查失败",
+                      L" · update check failed");
+            }
+        } else {
+            text +=
+                T(L" · 外部安装",
+                  L" · External installation");
+            text +=
+                T(L" · 托盘图标由 Everything 控制",
+                  L" · tray icon is controlled by Everything");
         }
     } else {
         showGetEverything = true;
@@ -2652,47 +2738,91 @@ void SettingsWindow::RefreshProviderStatus() {
                 win::EverythingBootstrapFailure::
                     ServiceRepairRequired) {
             text =
-                T(L"⚠ Everything Service 需要修复",
-                  L"⚠ Everything Service needs repair");
+                T(L"⚠ 需要管理员权限修复文件索引组件",
+                  L"⚠ Administrator approval is needed to repair file indexing");
         } else if (
             bootstrap.failure ==
                 win::EverythingBootstrapFailure::
                     ServiceRequired) {
             text =
-                T(L"⚠ Everything Service 尚未安装",
-                  L"⚠ Everything Service is not installed");
+                T(L"⚠ 需要管理员权限启用文件索引",
+                  L"⚠ Administrator approval is needed to enable file indexing");
         } else if (
             bootstrap.stage ==
                 win::EverythingBootstrapStage::
                     Failed) {
             text =
-                T(L"⚠ Everything 自动准备失败",
-                  L"⚠ Automatic Everything setup failed");
+                T(L"⚠ Everything 准备失败",
+                  L"⚠ Everything setup failed");
 
             if (bootstrap.nativeError != 0) {
-                text += T(L" · 系统错误 ", L" · Native error ");
-                text += std::to_wstring(
-                    bootstrap.nativeError);
+                text +=
+                    T(L" · 错误 ",
+                      L" · error ");
+                text +=
+                    std::to_wstring(
+                        bootstrap.nativeError);
             }
         } else if (
             ipc.ambiguousNamedInstances) {
             text =
-                T(L"⚠ 检测到多个 Everything 命名实例",
-                  L"⚠ Multiple named Everything instances detected");
+                T(L"⚠ 检测到多个 Everything 实例",
+                  L"⚠ Multiple Everything instances detected");
         } else {
             text =
                 T(L"○ 未检测到可用的 Everything",
-                  L"○ No usable Everything instance detected");
+                  L"○ No usable Everything detected");
         }
     }
 
     const bool visible =
         page_ == Page::Providers;
+    // Only expose this after the ALTRun-managed Everything process has
+    // successfully started and owns the default IPC endpoint. Merely having
+    // an install candidate/path is intentionally insufficient.
+    const bool showTray =
+        enabled &&
+        managedActive;
+    const bool showActions = showGetEverything || showUpdateEverything || showRecheck;
+    const bool layoutChanged = providerTrayVisible_ != showTray ||
+        providerActionsVisible_ != showActions;
+    providerTrayVisible_ = showTray;
+    providerActionsVisible_ = showActions;
+
+    if (managedEverythingTrayIcon_) {
+        ShowWindow(managedEverythingTrayIcon_, visible && showTray ? SW_SHOW : SW_HIDE);
+        EnableWindow(
+            managedEverythingTrayIcon_,
+            enabled &&
+                !bootstrap.running &&
+                !externalActive);
+        InvalidateRect(
+            managedEverythingTrayIcon_,
+            nullptr,
+            TRUE);
+    }
+
+    if (providerUpdateEverything_) {
+        SetWindowTextW(
+            providerUpdateEverything_,
+            bootstrap.updateAvailable
+                ? T(L"更新 Everything",
+                    L"Update Everything")
+                : T(L"检查更新",
+                    L"Check for updates"));
+    }
 
     ShowWindow(
         providerGetEverything_,
         visible &&
                 showGetEverything
+            ? SW_SHOW
+            : SW_HIDE);
+
+    ShowWindow(
+        providerUpdateEverything_,
+        visible &&
+                showUpdateEverything
             ? SW_SHOW
             : SW_HIDE);
 
@@ -2706,6 +2836,10 @@ void SettingsWindow::RefreshProviderStatus() {
     SetWindowTextW(
         providerStatus_,
         text.c_str());
+    if (visible && layoutChanged) {
+        Layout();
+        InvalidateRect(hwnd_, nullptr, TRUE);
+    }
 }
 
 void SettingsWindow::AcquireEverything() {
@@ -2714,18 +2848,12 @@ void SettingsWindow::AcquireEverything() {
         return;
     }
 
-    const int answer =
-        altrun::ui::ShowMessage(
-            hwnd_,
-            T(L"ALTRun Next 会先尝试复用本机已有的 Everything。\n\n如果需要自己的托管便携版，会从 voidtools 官方获取 Everything 1.4.1.1032 标准版（不是 Lite）并校验 SHA-256。托管版会安装 / 启动 Everything Service 来完成 NTFS 索引，以普通用户后台运行，并隐藏 Everything 托盘图标。\n\n首次安装服务时 Windows 会弹出一次 UAC，请确认后继续。\n\n继续吗？",
-              L"ALTRun Next will first try to reuse an existing Everything copy.\n\nIf its managed portable copy is needed, it will fetch the official Everything 1.4.1.1032 standard build (not Lite) from voidtools and verify SHA-256. The managed copy installs / starts the Everything Service for NTFS indexing, runs in the background as a standard user, and hides the Everything tray icon.\n\nWindows will show one UAC prompt when the service is first installed.\n\nContinue?"),
-            T(L"获取并启动 Everything",
-              L"Get and start Everything"),
-            MB_YESNO |
-                MB_ICONINFORMATION |
-                MB_DEFBUTTON2);
-
-    if (answer != IDYES) {
+    if (!altrun::ui::
+             ConfirmEverythingSetup(
+                 hwnd_,
+                 app_.SettingsData()
+                         .language ==
+                     Language::ZhCN)) {
         return;
     }
 
@@ -2743,6 +2871,70 @@ void SettingsWindow::RecheckEverything() {
     RefreshProviderStatus();
 }
 
+void SettingsWindow::
+CheckOrUpdateEverything() {
+    const auto bootstrap =
+        app_.EverythingBootstrapStatus();
+
+    if (bootstrap.running) {
+        return;
+    }
+
+    if (bootstrap.updateAvailable) {
+        app_.StartEverythingBootstrap(
+            true,
+            true);
+    } else {
+        app_.StartEverythingUpdateCheck();
+    }
+
+    RefreshProviderStatus();
+}
+
+void SettingsWindow::
+ToggleManagedEverythingTrayIcon() {
+    if (syncing_) {
+        return;
+    }
+
+    const auto ipc =
+        app_.EverythingStatus();
+    const auto bootstrap =
+        app_.EverythingBootstrapStatus();
+
+    const bool externalActive =
+        ipc.availability ==
+            EverythingAvailability::
+                Available &&
+        bootstrap.source !=
+            win::EverythingBootstrapSource::
+                Managed &&
+        bootstrap.source !=
+            win::EverythingBootstrapSource::
+                Downloaded;
+
+    if (externalActive) {
+        return;
+    }
+
+    const auto settings =
+        app_.SettingsData();
+
+    if (!app_
+             .SetManagedEverythingShowTrayIcon(
+                 !settings
+                      .managedEverythingShowTrayIcon)) {
+        altrun::ui::ShowMessage(
+            hwnd_,
+            T(L"无法保存 Everything 托盘图标设置。",
+              L"Could not save the Everything tray icon setting."),
+            L"ALTRun Next",
+            MB_OK |
+                MB_ICONERROR);
+    }
+
+    RefreshFromSettings();
+}
 
 void SettingsWindow::RefreshDataCompatibilityStatus() {
     if (!dataStatus_) {
@@ -2903,11 +3095,7 @@ void SettingsWindow::ShowPage(Page page) {
         }
     }
 
-    SendMessageW(
-        hwnd_,
-        WM_SETREDRAW,
-        FALSE,
-        0);
+    window_presentation::ScopedRedrawSuspend redrawGuard(hwnd_);
 
     page_ = page;
 
@@ -2981,11 +3169,30 @@ void SettingsWindow::ShowPage(Page page) {
     UpdatePageHeader();
     Layout();
 
-    SendMessageW(
+    redrawGuard.Resume();
+
+    // Reapply the target page's scroll state after the shared redraw guard
+    // resumes. ShowScrollBar invoked while redraw is suspended can leave the
+    // old non-client frame cached by USER32/DWM on the first page transition.
+    UpdatePageScrollBar();
+
+    // Force NCCALCSIZE with that final style, then lay out once more against
+    // the settled client rectangle. This is stronger than RDW_FRAME alone:
+    // real machines can otherwise keep painting the previous page's bar until
+    // a second navigation.
+    SetWindowPos(
         hwnd_,
-        WM_SETREDRAW,
-        TRUE,
-        0);
+        nullptr,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE |
+            SWP_NOSIZE |
+            SWP_NOZORDER |
+            SWP_NOACTIVATE |
+            SWP_FRAMECHANGED);
+    Layout();
 
     RedrawWindow(
         hwnd_,
@@ -2993,6 +3200,7 @@ void SettingsWindow::ShowPage(Page page) {
         nullptr,
         RDW_INVALIDATE |
             RDW_ERASE |
+            RDW_FRAME |
             RDW_ALLCHILDREN |
             RDW_UPDATENOW);
 }
@@ -3210,7 +3418,6 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
     case kIdSoundEnabled: success = app_.SetSoundEnabled(!settings.soundEnabled); break;
     case kIdShowTrayIcon: success = app_.SetShowTrayIcon(!settings.showTrayIcon); break;
     case kIdAddToSendToMenu: success = app_.SetAddToSendToMenu(!settings.addToSendToMenu); break;
-    case kIdShowResultIcons: success = app_.SetShowResultIcons(!settings.showResultIcons); break;
     default: return;
     }
     if (!success) {
@@ -3561,7 +3768,6 @@ bool SettingsWindow::ToggleChecked(
     case kIdSoundEnabled: return settings.soundEnabled;
     case kIdShowTrayIcon: return settings.showTrayIcon;
     case kIdAddToSendToMenu: return settings.addToSendToMenu;
-    case kIdShowResultIcons: return settings.showResultIcons;
     case kIdUpdateAutoCheck:
         return settings.autoCheckUpdates;
     case kIdUpdatePrerelease:
@@ -3591,6 +3797,9 @@ bool SettingsWindow::ToggleChecked(
             providers::
                 kEverythingFilesystem,
             false);
+    case kIdManagedEverythingTrayIcon:
+        return settings
+            .managedEverythingShowTrayIcon;
     default:
         return false;
     }
@@ -4216,8 +4425,8 @@ void SettingsWindow::Layout() {
 
         const int searchX = metrics.search.left + Scale(1);
         const int searchWidth = metrics.search.right - metrics.search.left - Scale(2);
-        std::array<HWND, 4> searchRows{
-            showResultIcons_, pinyinSearch_, numericQuickLaunch_, executeSingleResult_,
+        std::array<HWND, 3> searchRows{
+            pinyinSearch_, numericQuickLaunch_, executeSingleResult_,
         };
         for (std::size_t i = 0; i < searchRows.size(); ++i) {
             MoveWindow(searchRows[i], searchX,
@@ -4590,9 +4799,20 @@ void SettingsWindow::Layout() {
             TRUE);
 
         MoveWindow(
+            managedEverythingTrayIcon_,
+            contentLeft + Scale(1),
+            filesTop + Scale(1) +
+                rowHeight,
+            width - Scale(2),
+            rowHeight,
+            TRUE);
+
+        const int statusTop = filesTop + rowHeight * (providerTrayVisible_ ? 2 : 1) + Scale(10);
+        const int actionsTop = statusTop + Scale(50);
+        MoveWindow(
             providerStatus_,
             contentLeft + Scale(18),
-            filesTop + Scale(62),
+            statusTop,
             width - Scale(36),
             Scale(42),
             TRUE);
@@ -4600,7 +4820,15 @@ void SettingsWindow::Layout() {
         MoveWindow(
             providerGetEverything_,
             contentLeft + Scale(18),
-            filesTop + Scale(116),
+            actionsTop,
+            Scale(210),
+            Scale(34),
+            TRUE);
+
+        MoveWindow(
+            providerUpdateEverything_,
+            contentLeft + Scale(18),
+            actionsTop,
             Scale(210),
             Scale(34),
             TRUE);
@@ -4608,7 +4836,7 @@ void SettingsWindow::Layout() {
         MoveWindow(
             providerRecheckEverything_,
             contentLeft + Scale(240),
-            filesTop + Scale(116),
+            actionsTop,
             Scale(128),
             Scale(34),
             TRUE);
@@ -4977,6 +5205,11 @@ void SettingsWindow::Layout() {
     }
 }
 
+int SettingsWindow::ProviderFilesHeightLogical() const {
+    return settings_layout::kToggleRowLogical * (providerTrayVisible_ ? 2 : 1) +
+        10 + 42 + (providerActionsVisible_ ? 8 + 34 : 0) + 16;
+}
+
 RECT SettingsWindow::ProviderCardRect() const {
     return PageCardRect(
         140,
@@ -5154,9 +5387,14 @@ void SettingsWindow::DrawNavigationButton(
     SetBkMode(
         item.hDC,
         TRANSPARENT);
+    const bool disabled =
+        (item.itemState &
+         ODS_DISABLED) != 0;
     SetTextColor(
         item.hDC,
-        kText);
+        disabled
+            ? kMuted
+            : kText);
 
     HGDIOBJ oldFont =
         SelectObject(
@@ -6048,7 +6286,6 @@ void SettingsWindow::DrawGeneralToggle(
     case kIdSoundEnabled: title = T(L"提示音", L"Sound effects"); break;
     case kIdShowTrayIcon: title = T(L"显示系统托盘图标", L"Show system tray icon"); break;
     case kIdAddToSendToMenu: title = T(L"添加到“发送到”菜单", L"Add to “Send to” menu"); break;
-    case kIdShowResultIcons: title = T(L"显示搜索结果图标", L"Show search result icons"); break;
     case kIdPinyinSearch:
         title =
             T(L"启用拼音搜索",
@@ -6082,6 +6319,11 @@ void SettingsWindow::DrawGeneralToggle(
         title =
             T(L"Everything 文件与文件夹",
               L"Everything files & folders");
+        break;
+    case kIdManagedEverythingTrayIcon:
+        title =
+            T(L"显示 Everything 托盘图标",
+              L"Show Everything tray icon");
         break;
     case kIdUpdateAutoCheck:
         title =
@@ -6128,9 +6370,14 @@ void SettingsWindow::DrawGeneralToggle(
     SetBkMode(
         item.hDC,
         TRANSPARENT);
+    const bool disabled =
+        (item.itemState &
+         ODS_DISABLED) != 0;
     SetTextColor(
         item.hDC,
-        kText);
+        disabled
+            ? kMuted
+            : kText);
 
     HGDIOBJ oldFont =
         SelectObject(
@@ -6163,11 +6410,12 @@ void SettingsWindow::DrawGeneralToggle(
 
     const bool lastRow =
         id ==
-            kIdShowResultIcons ||
+            kIdExecuteSingleResult ||
         id ==
             kIdProviderPath ||
         id ==
-            kIdProviderEverything;
+            kIdManagedEverythingTrayIcon ||
+        (id == kIdProviderEverything && !providerTrayVisible_);
 
     if (!lastRow) {
         HPEN separator =
@@ -6686,21 +6934,16 @@ void SettingsWindow::RefreshUpdateStatus() {
 }
 
 void SettingsWindow::ShowAbout() {
-    // Route About through the exact same top-level show/placement path as
-    // Settings first. Changing the hidden window to About before its first
-    // visible ShowWindow produced a path-specific USER32 placement regression
-    // even after the generic Settings centering lifecycle was fixed.
-    Show();
-
-    if (!hwnd_ ||
-        !IsWindow(hwnd_)) {
-        return;
-    }
-
-    ShowPage(Page::About);
+    Present(true);
 }
 
 void SettingsWindow::Show() {
+    Present(false);
+}
+
+void SettingsWindow::Present(
+    bool selectAbout) {
+
     if (!EnsureCreated()) {
         return;
     }
@@ -6712,6 +6955,13 @@ void SettingsWindow::Show() {
     app_.RepairGlobalHotkey(false);
     RefreshFromSettings();
 
+    // Select the requested page before the first visible frame. The old About
+    // path called Show() first and only then switched General -> About, so the
+    // user could see a fully opened Settings window repaint into About.
+    if (selectAbout) {
+        ShowPage(Page::About);
+    }
+
     if (page_ == Page::Providers) {
         SetTimer(
             hwnd_,
@@ -6722,16 +6972,14 @@ void SettingsWindow::Show() {
     }
 
     if (!IsWindowVisible(hwnd_)) {
-        // Build the first visible Settings frame behind a DWM cloak. This
-        // creates a compositor barrier: any stale redirect surface or native
-        // transition frame stays invisible until the final rectangle and all
-        // child/non-client painting are complete.
+        // Finish placement/layout while hidden, expose one fully-painted
+        // frame without activation, then perform exactly one foreground
+        // transition below.
         PositionForShow();
 
         window_presentation::
             RevealFullyPainted(
-                hwnd_,
-                SW_SHOW);
+                hwnd_);
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,
@@ -7077,7 +7325,6 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdSoundEnabled:
         case kIdShowTrayIcon:
         case kIdAddToSendToMenu:
-        case kIdShowResultIcons:
             if (toggleActivated) {
                 ToggleGeneralSetting(id);
                 redrawClickedToggle();
@@ -7125,6 +7372,19 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdProviderRecheckEverything:
             if (notify == BN_CLICKED) {
                 RecheckEverything();
+            }
+            return 0;
+
+        case kIdProviderUpdateEverything:
+            if (notify == BN_CLICKED) {
+                CheckOrUpdateEverything();
+            }
+            return 0;
+
+        case kIdManagedEverythingTrayIcon:
+            if (toggleActivated) {
+                ToggleManagedEverythingTrayIcon();
+                redrawClickedToggle();
             }
             return 0;
 
@@ -7310,7 +7570,6 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdSoundEnabled ||
             item->CtlID == kIdShowTrayIcon ||
             item->CtlID == kIdAddToSendToMenu ||
-            item->CtlID == kIdShowResultIcons ||
             item->CtlID == kIdPinyinSearch ||
             item->CtlID == kIdNumericQuickLaunch ||
             item->CtlID == kIdExecuteSingleResult ||
@@ -7319,6 +7578,7 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdProviderAppPaths ||
             item->CtlID == kIdProviderPath ||
             item->CtlID == kIdProviderEverything ||
+            item->CtlID == kIdManagedEverythingTrayIcon ||
             item->CtlID == kIdUpdateAutoCheck ||
             item->CtlID == kIdUpdatePrerelease) {
             DrawGeneralToggle(
@@ -7782,7 +8042,7 @@ LRESULT SettingsWindow::HandleMessage(
             drawCard(
                 PageCardRect(
                     394,
-                    174,
+                    ProviderFilesHeightLogical(),
                     720));
         } else if (
             page_ == Page::Appearance) {

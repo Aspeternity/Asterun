@@ -27,6 +27,21 @@ int main() {
         assert(
             x64.fileName.find(L"Lite") ==
             std::wstring::npos);
+        assert(
+            PinnedManagedEverythingVersion() ==
+            L"1.4.1.1032");
+
+        const auto latest =
+            ManagedEverythingPackage(
+                EverythingPackageArchitecture::
+                    X64,
+                L"1.5.0.1500");
+        assert(
+            latest.version ==
+            L"1.5.0.1500");
+        assert(
+            latest.fileName ==
+            L"Everything-1.5.0.1500.x64.zip");
 
         const auto names =
             ManagedEverythingArchiveNames(
@@ -62,6 +77,50 @@ int main() {
         assert(
             arm64.fileName.find(L"Lite") ==
             std::wstring::npos);
+    }
+
+    {
+        const auto version =
+            ParseEverythingStableUpdateVersion(
+                "[Everything]\r\n"
+                "major=1\r\n"
+                "minor=5\r\n"
+                "revision=0\r\n"
+                "build=1500\r\n"
+                "message=stable\r\n");
+
+        assert(version.has_value());
+        assert(*version == L"1.5.0.1500");
+
+        assert(
+            !ParseEverythingStableUpdateVersion(
+                 "[Everything]\n"
+                 "major=1\n"
+                 "minor=5\n"
+                 "revision=0\n")
+                 .has_value());
+
+        assert(
+            !ParseEverythingStableUpdateVersion(
+                 "[Other]\n"
+                 "major=1\n"
+                 "minor=5\n"
+                 "revision=0\n"
+                 "build=1500\n")
+                 .has_value());
+
+        assert(
+            CompareEverythingVersions(
+                L"1.5.0.1500",
+                L"1.4.1.1032") > 0);
+        assert(
+            CompareEverythingVersions(
+                L"1.4.1.1032",
+                L"1.4.1.1032") == 0);
+        assert(
+            CompareEverythingVersions(
+                L"1.4.1.999",
+                L"1.4.1.1032") < 0);
     }
 
     {
@@ -155,6 +214,20 @@ int main() {
                 "show_tray_icon=0") ==
             configured.rfind(
                 "show_tray_icon=0"));
+
+        const auto visibleTray =
+            ApplyManagedEverythingIniPolicy(
+                existing,
+                true);
+
+        assert(
+            visibleTray.find(
+                "show_tray_icon=1\r\n") !=
+            std::string::npos);
+        assert(
+            visibleTray.find(
+                "show_tray_icon=0") ==
+            std::string::npos);
     }
 
     {

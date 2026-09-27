@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -17,6 +18,8 @@ namespace altrun {
 struct UsageStat {
     std::uint64_t launches{0};
     std::int64_t lastUsedUnix{0};
+    // Bounded per-query preference evidence; competing choices decay it.
+    // Global launches above remain a lifetime counter.
     std::unordered_map<std::wstring, std::uint32_t>
         queryLaunches;
 };
@@ -41,7 +44,7 @@ public:
 
     [[nodiscard]]
     std::vector<SearchResult> Search(
-        const std::vector<Command>& commands,
+        std::span<const Command> commands,
         const UsageMap& usage,
         std::wstring_view query,
         std::size_t limit = 12,
@@ -78,7 +81,8 @@ private:
         std::wstring_view normalizedPattern);
 
     [[nodiscard]] static int UsageScore(
-        const UsageStat* stat);
+        const UsageStat* stat,
+        std::int64_t nowUnix);
 
     [[nodiscard]] static int IntentUsageScore(
         const UsageStat* stat,
@@ -111,7 +115,7 @@ private:
     CommandTextScore(
         const Command& command,
         std::wstring_view normalizedQuery,
-        bool allowPinyin,
+        bool usePinyin,
         bool allowTarget) const;
 
     [[nodiscard]] static relevance::Match
@@ -122,12 +126,16 @@ private:
     [[nodiscard]] static bool
     HasDistinctiveCatalogIntent(
         const Command& command,
-        std::wstring_view query);
+        std::wstring_view normalizedQuery,
+        std::span<const std::wstring>
+            normalizedQueryTokens);
 
     [[nodiscard]] static bool
     AdmitCatalogEntry(
         const Command& command,
-        std::wstring_view query,
+        std::wstring_view normalizedQuery,
+        std::span<const std::wstring>
+            normalizedQueryTokens,
         const relevance::Match& match,
         bool explicitSyntax);
 

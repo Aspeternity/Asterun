@@ -16,6 +16,10 @@ namespace {
 
 constexpr std::size_t kMaxQueriesPerCommand = 8;
 constexpr std::size_t kMaxQueryLength = 32;
+// Eight selections already reach the ranking bonus ceiling. Keep evidence
+// bounded and age competing choices only for the same normalized query so
+// a new habit can replace an old one without changing Usage schema 2.
+constexpr std::uint32_t kMaxQueryEvidence = 8;
 
 std::wstring QueryKey(std::wstring_view query) {
     if (relevance::HasExplicitSyntax(query)) {
@@ -204,18 +208,69 @@ void UsageStore::Record(
         return;
     }
 
-    const UsageMap previous =
-        usage_;
+    const std::wstring selectedId(
+        commandId);
+
+    const auto [selectedIt, inserted] =
+        usage_.try_emplace(
+            selectedId);
+
+    UsageStat previousSelected;
+
+    if (!inserted) {
+        previousSelected =
+            selectedIt->second;
+    }
 
     auto& stat =
-        usage_[std::wstring(commandId)];
+        selectedIt->second;
 
-    ++stat.launches;
+    struct CompetingEvidenceRollback {
+        UsageStat* stat{};
+        std::uint32_t count{};
+    };
+
+    std::vector<CompetingEvidenceRollback>
+        competingRollbacks;
+
+    if (stat.launches < std::numeric_limits<std::uint64_t>::max()) {
+        ++stat.launches;
+    }
     stat.lastUsedUnix =
         UnixTimeNow();
 
     const std::wstring key = QueryKey(query);
     if (!key.empty()) {
+        for (auto& [id, other] : usage_) {
+            if (id == selectedId) continue;
+
+            const auto competing =
+                other.queryLaunches.find(
+                    key);
+
+            if (competing ==
+                other.queryLaunches.end()) {
+                continue;
+            }
+
+            competingRollbacks.push_back({
+                &other,
+                competing->second,
+            });
+
+            const auto evidence =
+                std::min(
+                    competing->second,
+                    kMaxQueryEvidence);
+
+            if (evidence <= 1) {
+                other.queryLaunches.erase(
+                    competing);
+            } else {
+                competing->second =
+                    evidence - 1;
+            }
+        }
         auto found = stat.queryLaunches.find(key);
         if (found == stat.queryLaunches.end() &&
             stat.queryLaunches.size() >= kMaxQueriesPerCommand) {
@@ -229,22 +284,41 @@ void UsageStore::Record(
             stat.queryLaunches.erase(least);
         }
         auto& count = stat.queryLaunches[key];
-        if (count < std::numeric_limits<std::uint32_t>::max()) {
-            ++count;
-        }
+        count = std::min(count, kMaxQueryEvidence - 1) + 1;
     }
 
     if (!Save()) {
-        usage_ = previous;
+        if (inserted) {
+            usage_.erase(
+                selectedIt);
+        } else {
+            selectedIt->second =
+                std::move(
+                    previousSelected);
+        }
+
+        for (const auto& rollback :
+             competingRollbacks) {
+            if (rollback.stat) {
+                rollback.stat
+                    ->queryLaunches[key] =
+                    rollback.count;
+            }
+        }
     }
 }
 
 bool UsageStore::Clear() {
-    const UsageMap previous = usage_;
+    UsageMap previous =
+        std::move(
+            usage_);
+
     usage_.clear();
 
     if (!Save()) {
-        usage_ = previous;
+        usage_ =
+            std::move(
+                previous);
         return false;
     }
 

@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <span>
 #include <string_view>
+#include <string>
 
 namespace altrun::classic_behavior {
 
@@ -15,6 +16,16 @@ inline constexpr std::uint64_t
 
 inline constexpr std::uint64_t
     kNumericIntentGraceMs = 90;
+
+// Unknown includes unavailable, timeout, unsupported syntax and truncated evidence.
+enum class ContinuationEvidence { Unknown, Present, Absent };
+inline constexpr std::uint64_t kNumericProbeBudgetMs = 240;
+[[nodiscard]] bool StrongNameContinuation(std::wstring_view name, std::wstring_view query) noexcept;
+[[nodiscard]] std::wstring BuildFilenameContinuationQuery(std::wstring_view query);
+enum class PendingNumericDecision { Wait, Text, Execute };
+[[nodiscard]] PendingNumericDecision ResolvePendingNumericIntent(
+    ContinuationEvidence evidence, bool probeRequired,
+    std::uint64_t elapsedMs) noexcept;
 
 enum class NumericQuickLaunchDecision {
     Text,
@@ -33,6 +44,7 @@ struct NumericQuickLaunchContext {
     bool recentTextInput{false};
     bool strongContinuation{false};
     bool resultAvailable{false};
+    bool editingText{false};
 };
 
 [[nodiscard]] int QuickLaunchIndexForDigit(

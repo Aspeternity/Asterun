@@ -130,78 +130,10 @@ namespace {
     }
 }
 
-} // namespace
-
-std::wstring Normalize(
-    std::wstring_view text) {
-    std::wstring result;
-    result.reserve(text.size());
-
-    for (const wchar_t ch : text) {
-        if (std::iswspace(ch) ||
-            ch == L'_' ||
-            ch == L'-') {
-            continue;
-        }
-
-        result.push_back(
-            static_cast<wchar_t>(
-                std::towlower(ch)));
-    }
-
-    return result;
-}
-
-std::vector<std::wstring>
-QueryTokens(
-    std::wstring_view text) {
-
-    std::vector<std::wstring> tokens;
-    std::wstring current;
-
-    auto flush = [&]() {
-        std::wstring normalized =
-            Normalize(current);
-        current.clear();
-
-        if (normalized.empty()) {
-            return;
-        }
-
-        if (std::find(
-                tokens.begin(),
-                tokens.end(),
-                normalized) ==
-            tokens.end()) {
-            tokens.push_back(
-                std::move(normalized));
-        }
-    };
-
-    for (const wchar_t ch : text) {
-        if (std::iswspace(ch)) {
-            flush();
-        } else {
-            current.push_back(ch);
-        }
-    }
-
-    flush();
-    return tokens;
-}
-
-Match MatchText(
-    std::wstring_view field,
-    std::wstring_view query) {
-
-    if (field.empty() || query.empty()) {
-        return {};
-    }
-
-    const std::wstring normalizedField =
-        Normalize(field);
-    const std::wstring normalizedQuery =
-        Normalize(query);
+[[nodiscard]] Match MatchPreparedText(
+    std::wstring_view boundaryField,
+    std::wstring_view normalizedField,
+    std::wstring_view normalizedQuery) {
 
     if (normalizedField.empty() ||
         normalizedQuery.empty()) {
@@ -237,20 +169,17 @@ Match MatchText(
         IsAsciiQuery(
             normalizedQuery);
 
-    // One- and two-character ASCII queries are too ambiguous for generic
-    // word-boundary recall. Keep exact/field-prefix/initials/pinyin behavior,
-    // but require three characters before matching a later word boundary.
-    // This prevents short queries from reaching unrelated "... Admin",
-    // "... Advanced", "... Additional" or "... Sources" words.
     if (!asciiQuery ||
         normalizedQuery.size() >= 3) {
 
         for (std::size_t i = 1;
-             i < field.size();
+             i < boundaryField.size();
              ++i) {
-            if (IsWordBoundary(field, i) &&
+            if (IsWordBoundary(
+                    boundaryField,
+                    i) &&
                 NormalizedPrefixAt(
-                    field,
+                    boundaryField,
                     i,
                     normalizedQuery)) {
                 return {
@@ -377,21 +306,17 @@ Match MatchText(
     };
 }
 
-Match MatchInitials(
-    std::wstring_view initials,
-    std::wstring_view query) {
+[[nodiscard]] Match MatchPreparedInitials(
+    std::wstring_view normalizedInitials,
+    std::wstring_view normalizedQuery) {
 
-    const std::wstring value =
-        Normalize(initials);
-    const std::wstring normalizedQuery =
-        Normalize(query);
-
-    if (value.empty() ||
+    if (normalizedInitials.empty() ||
         normalizedQuery.empty()) {
         return {};
     }
 
-    if (value == normalizedQuery) {
+    if (normalizedInitials ==
+        normalizedQuery) {
         return {
             MatchKind::Initials,
             MatchField::None,
@@ -400,7 +325,7 @@ Match MatchInitials(
         };
     }
 
-    if (value.starts_with(
+    if (normalizedInitials.starts_with(
             normalizedQuery)) {
         return {
             MatchKind::Initials,
@@ -408,7 +333,7 @@ Match MatchInitials(
             845 -
                 static_cast<int>(
                     std::min<std::size_t>(
-                        value.size() -
+                        normalizedInitials.size() -
                             normalizedQuery.size(),
                         120)),
             false,
@@ -416,6 +341,154 @@ Match MatchInitials(
     }
 
     return {};
+}
+
+} // namespace
+
+std::wstring Normalize(
+    std::wstring_view text) {
+    std::wstring result;
+    result.reserve(text.size());
+
+    for (const wchar_t ch : text) {
+        if (std::iswspace(ch) ||
+            ch == L'_' ||
+            ch == L'-') {
+            continue;
+        }
+
+        result.push_back(
+            static_cast<wchar_t>(
+                std::towlower(ch)));
+    }
+
+    return result;
+}
+
+std::vector<std::wstring>
+QueryTokens(
+    std::wstring_view text) {
+
+    std::vector<std::wstring> tokens;
+    std::wstring current;
+
+    auto flush = [&]() {
+        std::wstring normalized =
+            Normalize(current);
+        current.clear();
+
+        if (normalized.empty()) {
+            return;
+        }
+
+        if (std::find(
+                tokens.begin(),
+                tokens.end(),
+                normalized) ==
+            tokens.end()) {
+            tokens.push_back(
+                std::move(normalized));
+        }
+    };
+
+    for (const wchar_t ch : text) {
+        if (std::iswspace(ch)) {
+            flush();
+        } else {
+            current.push_back(ch);
+        }
+    }
+
+    flush();
+    return tokens;
+}
+
+Match MatchText(
+    std::wstring_view field,
+    std::wstring_view query) {
+
+    if (field.empty() ||
+        query.empty()) {
+        return {};
+    }
+
+    const std::wstring normalizedQuery =
+        Normalize(query);
+
+    return MatchTextNormalizedQuery(
+        field,
+        normalizedQuery);
+}
+
+Match MatchTextNormalizedQuery(
+    std::wstring_view field,
+    std::wstring_view normalizedQuery) {
+
+    if (field.empty() ||
+        normalizedQuery.empty()) {
+        return {};
+    }
+
+    const std::wstring normalizedField =
+        Normalize(field);
+
+    return MatchPreparedText(
+        field,
+        normalizedField,
+        normalizedQuery);
+}
+
+Match MatchNormalizedText(
+    std::wstring_view normalizedField,
+    std::wstring_view normalizedQuery) {
+
+    return MatchPreparedText(
+        normalizedField,
+        normalizedField,
+        normalizedQuery);
+}
+
+Match MatchInitials(
+    std::wstring_view initials,
+    std::wstring_view query) {
+
+    if (initials.empty() ||
+        query.empty()) {
+        return {};
+    }
+
+    const std::wstring normalizedQuery =
+        Normalize(query);
+
+    return MatchInitialsNormalizedQuery(
+        initials,
+        normalizedQuery);
+}
+
+Match MatchInitialsNormalizedQuery(
+    std::wstring_view initials,
+    std::wstring_view normalizedQuery) {
+
+    if (initials.empty() ||
+        normalizedQuery.empty()) {
+        return {};
+    }
+
+    const std::wstring normalizedInitials =
+        Normalize(initials);
+
+    return MatchPreparedInitials(
+        normalizedInitials,
+        normalizedQuery);
+}
+
+Match MatchNormalizedInitials(
+    std::wstring_view normalizedInitials,
+    std::wstring_view normalizedQuery) {
+
+    return MatchPreparedInitials(
+        normalizedInitials,
+        normalizedQuery);
 }
 
 bool HasPathIntent(
@@ -480,10 +553,24 @@ bool AdmitLaunchSurface(
     const Match& match,
     bool explicitSyntax) {
 
-    const std::wstring normalized =
-        Normalize(query);
+    const bool pathIntent =
+        HasPathIntent(query);
 
-    if (normalized.empty()) {
+    return AdmitLaunchSurfaceNormalized(
+        surface,
+        Normalize(query),
+        match,
+        explicitSyntax ||
+            pathIntent);
+}
+
+bool AdmitLaunchSurfaceNormalized(
+    LaunchSurfaceClass surface,
+    std::wstring_view normalizedQuery,
+    const Match& match,
+    bool explicitSyntax) {
+
+    if (normalizedQuery.empty()) {
         return
             surface ==
                 LaunchSurfaceClass::
@@ -497,13 +584,22 @@ bool AdmitLaunchSurface(
         return false;
     }
 
-    if (explicitSyntax ||
-        HasPathIntent(query)) {
+    if (explicitSyntax) {
         return true;
     }
 
     const std::size_t length =
-        normalized.size();
+        normalizedQuery.size();
+
+    // The two-character strong-match gate exists to suppress noisy short
+    // ASCII filesystem/tool queries such as "he". Applying the same gate to
+    // CJK text rejects valid contiguous substrings (for example searching
+    // "男主" inside "系统男主"), because those naturally classify as
+    // Substring rather than Prefix. Keep the precision gate ASCII-only.
+    const bool requireStrongShortMatch =
+        length <= 2 &&
+        IsAsciiQuery(
+            normalizedQuery);
 
     switch (surface) {
     case LaunchSurfaceClass::UserCommand:
@@ -514,14 +610,14 @@ bool AdmitLaunchSurface(
 
     case LaunchSurfaceClass::SystemUtility:
         return length >= 2 &&
-            (length > 2 ||
+            (!requireStrongShortMatch ||
              StrongShortMatch(
                  match.kind));
 
     case LaunchSurfaceClass::DeveloperTool:
     case LaunchSurfaceClass::CommandLineTool:
         return length >= 2 &&
-            (length > 2 ||
+            (!requireStrongShortMatch ||
              StrongShortMatch(
                  match.kind));
 
@@ -533,7 +629,7 @@ bool AdmitLaunchSurface(
 
     case LaunchSurfaceClass::FilesystemItem:
         return length >= 2 &&
-            (length > 2 ||
+            (!requireStrongShortMatch ||
              StrongShortMatch(
                  match.kind));
     }
@@ -718,6 +814,21 @@ int CompareRankContext(
         return !left.match.pinyin
             ? 1
             : -1;
+    }
+
+    // Both results already agree on intent tier, surface, field and pinyin.
+    // A derived acronym being complete versus a prefix is a cold-start
+    // preference, not a permanent barrier to an explicitly learned choice.
+    // Compare independent keys (not a pairwise score-distance exception) so
+    // this remains a strict weak ordering for any number of candidates.
+    if (left.match.kind == MatchKind::Initials &&
+        right.match.kind == MatchKind::Initials &&
+        left.match.field != MatchField::Target) {
+        const int leftHabit = std::clamp(left.usageScore, 0, 32);
+        const int rightHabit = std::clamp(right.usageScore, 0, 32);
+        if (leftHabit != rightHabit) {
+            return leftHabit > rightHabit ? 1 : -1;
+        }
     }
 
     // Once intent strength, surface and field agree, small title-length

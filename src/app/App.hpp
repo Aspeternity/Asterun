@@ -2,6 +2,7 @@
 
 #include "../core/CommandStore.hpp"
 #include "../core/DynamicQueryProvider.hpp"
+#include "../core/ClassicBehavior.hpp"
 #include "../core/EverythingQuery.hpp"
 #include "../core/LauncherResult.hpp"
 #include "../core/Localization.hpp"
@@ -65,6 +66,8 @@ public:
         launcherRevealPending_ = true;
     }
 
+    void BeginNumericContinuationProbe(std::uint64_t token, std::wstring query);
+
     void BeginDynamicSearch(
         std::uint64_t generation,
         std::wstring query,
@@ -91,7 +94,9 @@ public:
     EverythingBootstrapStatus() const;
 
     bool StartEverythingBootstrap(
-        bool allowDownload);
+        bool allowDownload,
+        bool forceManagedUpdate = false);
+    bool StartEverythingUpdateCheck();
 
     [[nodiscard]] std::wstring
     DataCompatibilityWarning() const;
@@ -133,7 +138,6 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
-    bool SetShowResultIcons(bool enabled);
     bool SetStartWithWindows(bool enabled);
     bool SetStartupBehavior(
         StartupBehavior behavior);
@@ -169,6 +173,8 @@ public:
         bool enabled);
     bool SetProviderEnabledBatch(
         const ProviderEnableMap& changes);
+    bool SetManagedEverythingShowTrayIcon(
+        bool enabled);
     bool SetUpdateSettings(
         bool autoCheck,
         UpdateChannel channel);
@@ -271,6 +277,8 @@ private:
         kProviderChangedMessage =
             WM_APP + 0x172;
 
+    static constexpr UINT kNumericProbeMessage = WM_APP + 0x176;
+
     static constexpr UINT
         kDynamicQueryMessage =
             WM_APP + 0x173;
@@ -290,9 +298,14 @@ private:
         bool forceRunAsAdmin = false,
         std::wstring_view query = {});
     bool ApplyStartupRegistration(
-        bool enabled) const;
+        bool enabled);
     bool ApplySendToRegistration(
+        bool enabled);
+    bool ApplyStartupRegistrationUnlocked(
         bool enabled) const;
+    bool ApplySendToRegistrationUnlocked(
+        bool enabled) const;
+    void StartShellIntegrationReconcile();
     bool ForwardShortcutRequestsToExistingInstance()
         const;
     bool RebindGlobalHotkey(
@@ -369,8 +382,17 @@ private:
         everythingBootstrapThread_;
     std::jthread
         updateThread_;
+    std::jthread
+        shellIntegrationThread_;
     std::atomic_bool
         providerRefreshRunning_{false};
+
+    mutable std::mutex
+        shellIntegrationMutex_;
+    std::atomic_bool
+        desiredStartupRegistration_{false};
+    std::atomic_bool
+        desiredSendToRegistration_{false};
 
     bool providerRefreshFullPending_{false};
     std::unordered_set<std::string>

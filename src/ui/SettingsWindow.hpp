@@ -95,8 +95,6 @@ private:
         kIdUiStyle = 51201;
     static constexpr UINT
         kIdLanguage = 51202;
-    static constexpr UINT
-        kIdShowResultIcons = 51203;
 
     static constexpr UINT
         kIdOpenDataFolder = 51301;
@@ -134,6 +132,10 @@ private:
         kIdProviderGetEverything = 51606;
     static constexpr UINT
         kIdProviderRecheckEverything = 51607;
+    static constexpr UINT
+        kIdManagedEverythingTrayIcon = 51608;
+    static constexpr UINT
+        kIdProviderUpdateEverything = 51609;
 
     static constexpr UINT_PTR
         kProviderStatusTimerId = 0x51690;
@@ -153,6 +155,7 @@ private:
         LPARAM lParam);
 
     bool EnsureCreated();
+    void Present(bool selectAbout);
     void ResetWindowInstanceState();
     void ReleaseWindowResources();
     void CreateControls();
@@ -173,6 +176,8 @@ private:
     void CommitPendingProviderChanges();
     void AcquireEverything();
     void RecheckEverything();
+    void ToggleManagedEverythingTrayIcon();
+    void CheckOrUpdateEverything();
     void RefreshDataCompatibilityStatus();
     void RefreshUpdateStatus();
     void SyncUpdateStatusTimer();
@@ -315,6 +320,7 @@ private:
     PlacementCardRect() const;
     [[nodiscard]] RECT
     ProviderCardRect() const;
+    [[nodiscard]] int ProviderFilesHeightLogical() const;
     [[nodiscard]] RECT
     PageCardRect(
         int topLogical,
@@ -349,7 +355,6 @@ private:
     HWND soundEnabled_{};
     HWND addToSendToMenu_{};
     HWND searchBehaviorTitle_{};
-    HWND showResultIcons_{};
     HWND pinyinSearch_{};
     HWND numericQuickLaunch_{};
     HWND executeSingleResult_{};
@@ -390,8 +395,10 @@ private:
     HWND providerAppPaths_{};
     HWND providerPath_{};
     HWND providerEverything_{};
+    HWND managedEverythingTrayIcon_{};
     HWND providerStatus_{};
     HWND providerGetEverything_{};
+    HWND providerUpdateEverything_{};
     HWND providerRecheckEverything_{};
     HWND providerNote_{};
 
@@ -434,6 +441,8 @@ private:
     std::unordered_map<std::string, bool>
         pendingProviderStates_;
     bool providerCommitInProgress_{false};
+    bool providerTrayVisible_{false};
+    bool providerActionsVisible_{false};
 
     std::vector<HWND>
         generalControls_;

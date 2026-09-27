@@ -82,7 +82,6 @@ private:
     void BrowseTargetFile();
     void BrowseTargetFolder();
     void BrowseWorkingDirectory();
-    void BrowseIcon();
 
     [[nodiscard]] Command
     CollectCommand() const;
@@ -132,9 +131,6 @@ private:
     HWND workdirLabel_{};
     HWND workdir_{};
     HWND browseWorkdir_{};
-    HWND iconLabel_{};
-    HWND icon_{};
-    HWND browseIcon_{};
     HWND admin_{};
     HWND test_{};
     HWND save_{};

@@ -226,7 +226,6 @@ Command ShortcutSeedFromFileSystemPath(
         SuggestShortcutTitle(
             command.target,
             command.type);
-    command.icon = L"auto";
     command.enabled = true;
     command.runAsAdmin = false;
     command.pinned = false;
@@ -263,7 +262,6 @@ Command ShortcutSeedFromLauncherResult(
             : InferShortcutCommandType(
                   result.target);
 
-    command.icon = L"auto";
     command.enabled = true;
     command.runAsAdmin = false;
     command.pinned = false;

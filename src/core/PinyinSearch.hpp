@@ -9,6 +9,9 @@
 
 namespace altrun {
 
+inline constexpr std::size_t
+    kDefaultPinyinCacheCapacity = 4096;
+
 struct PinyinForms {
     std::wstring full;
     std::wstring initials;
@@ -18,7 +21,9 @@ struct PinyinForms {
 class PinyinSearch {
 public:
     explicit PinyinSearch(
-        std::filesystem::path dictionaryDirectory = {});
+        std::filesystem::path dictionaryDirectory = {},
+        std::size_t cacheCapacity =
+            kDefaultPinyinCacheCapacity);
 
     ~PinyinSearch();
 

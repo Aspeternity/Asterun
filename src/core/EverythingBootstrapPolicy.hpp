@@ -23,9 +23,25 @@ struct EverythingArchiveNames {
     std::wstring verifiedZipFileName;
 };
 
+[[nodiscard]] std::wstring_view
+PinnedManagedEverythingVersion() noexcept;
+
+[[nodiscard]] std::wstring_view
+EverythingStableUpdateMetadataUrl() noexcept;
+
 [[nodiscard]] EverythingPackageSpec
 ManagedEverythingPackage(
-    EverythingPackageArchitecture architecture);
+    EverythingPackageArchitecture architecture,
+    std::wstring_view version = {});
+
+[[nodiscard]] std::optional<std::wstring>
+ParseEverythingStableUpdateVersion(
+    std::string_view updateIni);
+
+[[nodiscard]] int
+CompareEverythingVersions(
+    std::wstring_view left,
+    std::wstring_view right) noexcept;
 
 [[nodiscard]] EverythingArchiveNames
 ManagedEverythingArchiveNames(
@@ -42,7 +58,8 @@ FindSha256ForFile(
 
 [[nodiscard]] std::string
 ApplyManagedEverythingIniPolicy(
-    std::string_view existing);
+    std::string_view existing,
+    bool showTrayIcon = false);
 
 [[nodiscard]] std::wstring
 ExtractEverythingServiceExecutable(

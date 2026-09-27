@@ -55,9 +55,6 @@ struct LauncherResult {
     std::wstring title;
     std::wstring subtitle;
     std::wstring target;
-    // Empty means derive an icon from target. A user command may provide an
-    // explicit icon file/executable/shortcut path.
-    std::wstring iconSource;
     std::wstring detail;
     int score{0};
     relevance::Match relevanceMatch;

@@ -7,8 +7,12 @@
 #include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/WinUtil.hpp"
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include <knownfolders.h>
 #include <propsys.h>
@@ -437,7 +441,6 @@ PackagedAppProvider::DiscoverDetailed() const {
                 command.target);
         command.type =
             CommandType::Application;
-        command.icon = L"auto";
         command.enabled = true;
         command.source =
             CommandSource::PackagedApp;

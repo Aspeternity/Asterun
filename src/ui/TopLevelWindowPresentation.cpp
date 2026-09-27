@@ -11,11 +11,15 @@ namespace altrun::window_presentation {
 
 namespace {
 
+[[nodiscard]] bool IsPlacementOwner(HWND owner) noexcept {
+    return owner && IsWindow(owner) &&
+        IsWindowVisible(owner) && !IsIconic(owner);
+}
+
 [[nodiscard]] HMONITOR ResolveOwnerOrCursorMonitor(
     HWND owner) noexcept {
 
-    if (owner &&
-        IsWindow(owner)) {
+    if (IsPlacementOwner(owner)) {
         return MonitorFromWindow(
             owner,
             MONITOR_DEFAULTTONEAREST);
@@ -77,8 +81,7 @@ CenteredRect(
     settings_layout::Rect requested{};
 
     RECT ownerRect{};
-    if (owner &&
-        IsWindow(owner) &&
+    if (IsPlacementOwner(owner) &&
         GetWindowRect(
             owner,
             &ownerRect)) {
@@ -125,6 +128,25 @@ CenteredRect(
 }
 
 } // namespace
+
+ScopedRedrawSuspend::ScopedRedrawSuspend(HWND hwnd) noexcept {
+    if (hwnd && IsWindowVisible(hwnd)) {
+        suspended_ = hwnd;
+        SendMessageW(hwnd, WM_SETREDRAW, FALSE, 0);
+    }
+}
+
+ScopedRedrawSuspend::~ScopedRedrawSuspend() {
+    Resume();
+}
+
+void ScopedRedrawSuspend::Resume() noexcept {
+    const HWND hwnd = suspended_;
+    suspended_ = nullptr;
+    if (hwnd && IsWindow(hwnd)) {
+        SendMessageW(hwnd, WM_SETREDRAW, TRUE, 0);
+    }
+}
 
 bool SetCloaked(
     HWND hwnd,
@@ -361,8 +383,7 @@ void CenterExistingWindow(
 }
 
 void RevealFullyPainted(
-    HWND hwnd,
-    int showCommand) noexcept {
+    HWND hwnd) noexcept {
 
     if (!hwnd ||
         !IsWindow(hwnd)) {
@@ -374,9 +395,23 @@ void RevealFullyPainted(
             hwnd,
             true);
 
-    ShowWindow(
+    // Expose the already-positioned window without activating it. Every
+    // caller performs the single intended foreground transition only after
+    // the cloak is removed. The previous SW_SHOW/SW_SHOWNORMAL path used to
+    // activate a still-cloaked HWND and callers then activated it again,
+    // producing an avoidable two-step foreground transition on tray opens.
+    SetWindowPos(
         hwnd,
-        showCommand);
+        nullptr,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE |
+            SWP_NOSIZE |
+            SWP_NOZORDER |
+            SWP_NOACTIVATE |
+            SWP_SHOWWINDOW);
 
     RedrawWindow(
         hwnd,
@@ -391,7 +426,7 @@ void RevealFullyPainted(
     if (cloaked) {
         DwmFlush();
 
-        SetCloaked(
+        (void)SetCloaked(
             hwnd,
             false);
 

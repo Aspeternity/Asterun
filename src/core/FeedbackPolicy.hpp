@@ -6,7 +6,7 @@
 
 namespace altrun {
 
-enum class FeedbackCue { Startup, Reveal, Execute, Failure };
+enum class FeedbackCue { Startup, Reveal, Failure };
 
 // Called only for semantic UI events, never for individual search keystrokes.
 class FeedbackPolicy {
@@ -28,8 +28,8 @@ public:
 
 private:
     bool enabled_{false};
-    std::array<bool, 4> played_{};
-    std::array<std::uint64_t, 4> last_{};
+    std::array<bool, 3> played_{};
+    std::array<std::uint64_t, 3> last_{};
 };
 
 } // namespace altrun

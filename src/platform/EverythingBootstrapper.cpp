@@ -138,18 +138,97 @@ CurrentArchitecture() {
 #endif
 }
 
-[[nodiscard]] std::wstring
-VersionDirectoryName() {
-    const auto spec =
-        ManagedEverythingPackage(
-            CurrentArchitecture());
+[[nodiscard]] std::wstring_view
+ArchitectureDirectorySuffix() {
+    return CurrentArchitecture() ==
+            EverythingPackageArchitecture::
+                Arm64
+        ? L"-ARM64"
+        : L"-x64";
+}
 
-    return spec.version +
-        (CurrentArchitecture() ==
-                 EverythingPackageArchitecture::
-                     Arm64
-             ? L"-ARM64"
-             : L"-x64");
+[[nodiscard]] std::wstring
+VersionDirectoryName(
+    std::wstring_view version) {
+    return std::wstring(version) +
+        std::wstring(
+            ArchitectureDirectorySuffix());
+}
+
+[[nodiscard]] bool
+IsNumericEverythingVersion(
+    std::wstring_view version) {
+    int components = 0;
+    bool hasDigit = false;
+
+    for (const wchar_t ch : version) {
+        if (ch >= L'0' &&
+            ch <= L'9') {
+            hasDigit = true;
+            continue;
+        }
+
+        if (ch != L'.' ||
+            !hasDigit) {
+            return false;
+        }
+
+        ++components;
+        hasDigit = false;
+    }
+
+    return hasDigit &&
+        components == 3;
+}
+
+[[nodiscard]] std::optional<std::wstring>
+VersionFromManagedExecutablePath(
+    const std::filesystem::path& executable) {
+    std::wstring fileName =
+        executable.filename().wstring();
+
+    std::transform(
+        fileName.begin(),
+        fileName.end(),
+        fileName.begin(),
+        [](wchar_t ch) {
+            return static_cast<wchar_t>(
+                std::towlower(ch));
+        });
+
+    if (fileName !=
+        L"everything.exe") {
+        return std::nullopt;
+    }
+
+    const std::wstring directory =
+        executable.parent_path()
+            .filename()
+            .wstring();
+    const std::wstring suffix(
+        ArchitectureDirectorySuffix());
+
+    if (directory.size() <=
+            suffix.size() ||
+        directory.substr(
+            directory.size() -
+                suffix.size()) !=
+            suffix) {
+        return std::nullopt;
+    }
+
+    std::wstring version =
+        directory.substr(
+            0,
+            directory.size() -
+                suffix.size());
+
+    if (!IsNumericEverythingVersion(
+            version)) {
+        return std::nullopt;
+    }
+
+    return version;
 }
 
 void Report(
@@ -204,6 +283,27 @@ FileExists(
                path,
                ec) &&
         !ec;
+}
+
+[[nodiscard]] std::filesystem::path
+ManagedEverythingRoot(
+    const std::filesystem::path&
+        dataDirectory) {
+    return dataDirectory /
+        L"tools" /
+        L"Everything";
+}
+
+[[nodiscard]] std::filesystem::path
+ManagedEverythingExecutableForVersion(
+    const std::filesystem::path&
+        dataDirectory,
+    std::wstring_view version) {
+    return ManagedEverythingRoot(
+               dataDirectory) /
+        VersionDirectoryName(
+            version) /
+        L"Everything.exe";
 }
 
 [[nodiscard]] std::wstring
@@ -1404,12 +1504,12 @@ WaitForEverythingServiceStopped(
     return false;
 }
 
-[[nodiscard]] bool
-WindowOwnedByExecutable(
-    HWND hwnd,
-    const std::filesystem::path& executable) {
+[[nodiscard]] std::optional<
+    std::filesystem::path>
+ExecutableForWindow(
+    HWND hwnd) {
     if (!hwnd) {
-        return false;
+        return std::nullopt;
     }
 
     DWORD processId = 0;
@@ -1418,7 +1518,7 @@ WindowOwnedByExecutable(
         &processId);
 
     if (processId == 0) {
-        return false;
+        return std::nullopt;
     }
 
     HANDLE process =
@@ -1428,7 +1528,7 @@ WindowOwnedByExecutable(
             processId);
 
     if (!process) {
-        return false;
+        return std::nullopt;
     }
 
     std::array<wchar_t, 32768>
@@ -1448,15 +1548,34 @@ WindowOwnedByExecutable(
 
     if (!ok ||
         size == 0) {
-        return false;
+        return std::nullopt;
     }
 
-    return LowerPath(
-               std::filesystem::path(
-                   std::wstring(
-                       buffer.data(),
-                       size))) ==
-        LowerPath(executable);
+    return std::filesystem::path(
+        std::wstring(
+            buffer.data(),
+            size));
+}
+
+[[nodiscard]] std::optional<
+    std::filesystem::path>
+DefaultIpcExecutable() {
+    return ExecutableForWindow(
+        FindWindowW(
+            kEverythingWindowClass,
+            nullptr));
+}
+
+[[nodiscard]] bool
+WindowOwnedByExecutable(
+    HWND hwnd,
+    const std::filesystem::path& executable) {
+    const auto actual =
+        ExecutableForWindow(hwnd);
+
+    return actual &&
+        LowerPath(*actual) ==
+            LowerPath(executable);
 }
 
 [[nodiscard]] bool
@@ -1467,6 +1586,24 @@ ManagedDefaultIpcRunning(
             kEverythingWindowClass,
             nullptr),
         executable);
+}
+
+[[nodiscard]] std::optional<
+    std::filesystem::path>
+ActiveManagedEverythingExecutable(
+    const std::filesystem::path&
+        dataDirectory) {
+    const auto active =
+        DefaultIpcExecutable();
+
+    if (!active ||
+        !IsManagedEverythingServiceExecutable(
+            dataDirectory,
+            *active)) {
+        return std::nullopt;
+    }
+
+    return *active;
 }
 
 [[nodiscard]] bool
@@ -1544,6 +1681,7 @@ ReadManagedIni(
 [[nodiscard]] bool
 ManagedIniNeedsUpdate(
     const std::filesystem::path& executable,
+    bool showTrayIcon,
     bool& needsUpdate,
     std::uint32_t& nativeError) {
     const auto iniPath =
@@ -1561,7 +1699,8 @@ ManagedIniNeedsUpdate(
 
     needsUpdate =
         ApplyManagedEverythingIniPolicy(
-            existing) != existing;
+            existing,
+            showTrayIcon) != existing;
     nativeError = 0;
     return true;
 }
@@ -1569,6 +1708,7 @@ ManagedIniNeedsUpdate(
 [[nodiscard]] bool
 ConfigureManagedEverything(
     const std::filesystem::path& executable,
+    bool showTrayIcon,
     std::uint32_t& nativeError) {
     const auto iniPath =
         executable.parent_path() /
@@ -1588,7 +1728,8 @@ ConfigureManagedEverything(
 
     const std::string configured =
         ApplyManagedEverythingIniPolicy(
-            existing);
+            existing,
+            showTrayIcon);
 
     if (configured == existing) {
         nativeError = 0;
@@ -1664,8 +1805,10 @@ struct ManagedRuntimeOutcome {
 
 [[nodiscard]] ManagedRuntimeOutcome
 StartManagedEverything(
+    const std::filesystem::path& dataDirectory,
     const std::filesystem::path& executable,
     bool allowElevation,
+    bool showTrayIcon,
     EverythingBootstrapSnapshot& snapshot,
     const EverythingBootstrapProgress&
         progress,
@@ -1675,6 +1818,7 @@ StartManagedEverything(
 
     if (!ManagedIniNeedsUpdate(
             executable,
+            showTrayIcon,
             configNeedsUpdate,
             nativeError)) {
         return {
@@ -1746,9 +1890,20 @@ StartManagedEverything(
 
         servicePathStale =
             !serviceExecutableExists;
+
+        const bool olderManagedPath =
+            IsManagedEverythingServiceExecutable(
+                dataDirectory,
+                serviceExecutable) &&
+            LowerPath(
+                serviceExecutable) !=
+                LowerPath(
+                    executable);
+
         servicePathNeedsPortableRepair =
             DetachedAlpha91ServiceExecutable(
-                serviceExecutable);
+                serviceExecutable) ||
+            olderManagedPath;
     }
 
     const bool servicePathNeedsRepair =
@@ -1824,6 +1979,7 @@ StartManagedEverything(
 
     if (!ConfigureManagedEverything(
             executable,
+            showTrayIcon,
             nativeError)) {
         return {
             ManagedRuntimeResult::
@@ -2797,15 +2953,78 @@ std::filesystem::path
 ManagedEverythingExecutable(
     const std::filesystem::path&
         dataDirectory) {
-    return dataDirectory /
-        L"tools" /
-        L"Everything" /
-        VersionDirectoryName() /
-        L"Everything.exe";
+    const auto root =
+        ManagedEverythingRoot(
+            dataDirectory);
+
+    std::error_code ec;
+    std::wstring bestVersion;
+    std::filesystem::path
+        bestExecutable;
+
+    if (std::filesystem::is_directory(
+            root,
+            ec) &&
+        !ec) {
+        for (std::filesystem::
+                 directory_iterator it(
+                     root,
+                     ec),
+             end;
+             !ec && it != end;
+             it.increment(ec)) {
+            if (!it->is_directory(ec) ||
+                ec) {
+                ec.clear();
+                continue;
+            }
+
+            const auto executable =
+                it->path() /
+                L"Everything.exe";
+
+            if (!FileExists(
+                    executable)) {
+                continue;
+            }
+
+            const auto version =
+                VersionFromManagedExecutablePath(
+                    executable);
+
+            if (!version) {
+                continue;
+            }
+
+            if (bestVersion.empty() ||
+                CompareEverythingVersions(
+                    *version,
+                    bestVersion) > 0) {
+                bestVersion = *version;
+                bestExecutable =
+                    executable;
+            }
+        }
+    }
+
+    if (!bestExecutable.empty()) {
+        return bestExecutable;
+    }
+
+    return ManagedEverythingExecutableForVersion(
+        dataDirectory,
+        PinnedManagedEverythingVersion());
 }
 
 bool EverythingIpcEndpointAvailable() {
     return AnyUsableIpcEndpoint();
+}
+
+bool IsManagedEverythingRunning(
+    const std::filesystem::path& dataDirectory) {
+    return ActiveManagedEverythingExecutable(
+               dataDirectory)
+        .has_value();
 }
 
 bool
@@ -2816,10 +3035,16 @@ IsManagedEverythingServiceExecutable(
         return false;
     }
 
-    return LowerPath(executable) ==
-            LowerPath(
-                ManagedEverythingExecutable(
-                    dataDirectory)) ||
+    const bool versionedManaged =
+        PathStartsWithDirectory(
+            executable,
+            ManagedEverythingRoot(
+                dataDirectory)) &&
+        VersionFromManagedExecutablePath(
+            executable)
+            .has_value();
+
+    return versionedManaged ||
         DetachedAlpha91ServiceExecutable(
             executable);
 }
@@ -3022,9 +3247,18 @@ ApplyManagedEverythingServiceEnabledPolicy(
     const bool detachedAlpha91 =
         DetachedAlpha91ServiceExecutable(
             serviceExecutable);
+    const bool olderManagedPath =
+        IsManagedEverythingServiceExecutable(
+            dataDirectory,
+            serviceExecutable) &&
+        LowerPath(
+            serviceExecutable) !=
+            LowerPath(
+                managedExecutable);
 
     if (enabled &&
-        detachedAlpha91) {
+        (detachedAlpha91 ||
+         olderManagedPath)) {
         return RepairManagedEverythingServicePath(
             dataDirectory);
     }
@@ -3304,12 +3538,18 @@ RepairManagedEverythingServicePath(
     const bool detachedAlpha91 =
         DetachedAlpha91ServiceExecutable(
             previousExecutable);
+    const bool previousManaged =
+        IsManagedEverythingServiceExecutable(
+            dataDirectory,
+            previousExecutable);
 
-    // Never retarget a healthy external/user-installed service. Missing
-    // executables retain alpha.8.4's stale-path repair behavior.
+    // Never retarget a healthy external/user-installed service. Older
+    // versioned executables under ALTRun's own managed root are safe to
+    // retarget during an explicit user-requested stable update.
     if (previousExecutableExists &&
         !alreadyPortable &&
-        !detachedAlpha91) {
+        !detachedAlpha91 &&
+        !previousManaged) {
         return {
             false,
             ERROR_ACCESS_DENIED,
@@ -3458,9 +3698,13 @@ ManagedEverythingStopResult
 StopManagedEverything(
     const std::filesystem::path& dataDirectory,
     std::stop_token stopToken) {
-    const auto executable =
-        ManagedEverythingExecutable(
+    const auto activeExecutable =
+        ActiveManagedEverythingExecutable(
             dataDirectory);
+    const auto executable =
+        activeExecutable.value_or(
+            ManagedEverythingExecutable(
+                dataDirectory));
 
     if (!FileExists(executable)) {
         return {
@@ -3517,17 +3761,132 @@ StopManagedEverything(
 }
 
 EverythingBootstrapSnapshot
-RunEverythingBootstrap(
+CheckManagedEverythingUpdate(
     const std::filesystem::path& dataDirectory,
-    bool allowDownload,
     EverythingBootstrapProgress progress,
     std::stop_token stopToken) {
     EverythingBootstrapSnapshot snapshot;
     snapshot.running = true;
-
-    const auto managedExecutable =
-        ManagedEverythingExecutable(
+    snapshot.source =
+        EverythingBootstrapSource::
+            Managed;
+    const auto activeExecutable =
+        ActiveManagedEverythingExecutable(
             dataDirectory);
+    snapshot.executablePath =
+        activeExecutable.value_or(
+            ManagedEverythingExecutable(
+                dataDirectory));
+
+    if (!FileExists(
+            snapshot.executablePath)) {
+        return NeedsInstall(
+            snapshot,
+            EverythingBootstrapFailure::
+                NotFound,
+            progress);
+    }
+
+    if (const auto version =
+            VersionFromManagedExecutablePath(
+                snapshot.executablePath)) {
+        snapshot.installedVersion =
+            *version;
+    }
+
+    Report(
+        snapshot,
+        EverythingBootstrapStage::
+            ResolvingStableVersion,
+        progress);
+
+    std::string metadata;
+    std::uint32_t nativeError = 0;
+
+    if (!DownloadText(
+            EverythingStableUpdateMetadataUrl(),
+            metadata,
+            nativeError,
+            stopToken)) {
+        return Fail(
+            snapshot,
+            stopToken.stop_requested()
+                ? EverythingBootstrapFailure::
+                      Cancelled
+                : EverythingBootstrapFailure::
+                      ManifestDownloadFailed,
+            stopToken.stop_requested()
+                ? ERROR_CANCELLED
+                : nativeError,
+            progress);
+    }
+
+    const auto stableVersion =
+        ParseEverythingStableUpdateVersion(
+            metadata);
+
+    if (!stableVersion) {
+        return Fail(
+            snapshot,
+            EverythingBootstrapFailure::
+                ManifestDownloadFailed,
+            ERROR_INVALID_DATA,
+            progress);
+    }
+
+    snapshot.selectedVersion =
+        *stableVersion;
+    snapshot.availableVersion =
+        *stableVersion;
+    snapshot.usedPinnedVersionFallback =
+        false;
+    snapshot.updateAvailable =
+        snapshot.installedVersion.empty() ||
+        CompareEverythingVersions(
+            snapshot.availableVersion,
+            snapshot.installedVersion) > 0;
+    snapshot.stage =
+        EverythingBootstrapStage::Ready;
+    snapshot.failure =
+        EverythingBootstrapFailure::None;
+    snapshot.nativeError = 0;
+    snapshot.running = false;
+
+    if (progress) {
+        progress(snapshot);
+    }
+
+    return snapshot;
+}
+
+EverythingBootstrapSnapshot
+RunEverythingBootstrap(
+    const std::filesystem::path& dataDirectory,
+    bool allowDownload,
+    EverythingBootstrapProgress progress,
+    std::stop_token stopToken,
+    bool showManagedTrayIcon,
+    bool forceManagedUpdate) {
+    EverythingBootstrapSnapshot snapshot;
+    snapshot.running = true;
+
+    const auto activeManagedExecutable =
+        ActiveManagedEverythingExecutable(
+            dataDirectory);
+    const auto existingManagedExecutable =
+        activeManagedExecutable.value_or(
+            ManagedEverythingExecutable(
+                dataDirectory));
+
+    if (FileExists(
+            existingManagedExecutable)) {
+        if (const auto version =
+                VersionFromManagedExecutablePath(
+                    existingManagedExecutable)) {
+            snapshot.installedVersion =
+                *version;
+        }
+    }
 
     const auto finishManaged =
         [&](const std::filesystem::path&
@@ -3542,14 +3901,29 @@ RunEverythingBootstrap(
 
             const auto outcome =
                 StartManagedEverything(
+                    dataDirectory,
                     executable,
                     allowElevation,
+                    showManagedTrayIcon,
                     snapshot,
                     progress,
                     stopToken);
 
             switch (outcome.result) {
             case ManagedRuntimeResult::Ready:
+                if (const auto version =
+                        VersionFromManagedExecutablePath(
+                            executable)) {
+                    snapshot.installedVersion =
+                        *version;
+                }
+
+                snapshot.updateAvailable =
+                    !snapshot.availableVersion.empty() &&
+                    !snapshot.installedVersion.empty() &&
+                    CompareEverythingVersions(
+                        snapshot.availableVersion,
+                        snapshot.installedVersion) > 0;
                 snapshot.stage =
                     EverythingBootstrapStage::
                         Ready;
@@ -3678,27 +4052,32 @@ RunEverythingBootstrap(
 
     if (AnyUsableIpcEndpoint()) {
         if (FileExists(
-                managedExecutable) &&
+                existingManagedExecutable) &&
             ManagedDefaultIpcRunning(
-                managedExecutable)) {
-            return finishManaged(
-                managedExecutable,
-                allowDownload);
+                existingManagedExecutable)) {
+            if (!forceManagedUpdate) {
+                return finishManaged(
+                    existingManagedExecutable,
+                    allowDownload);
+            }
+        } else {
+            // A user-managed/external Everything owns the active endpoint.
+            // Never replace or reconfigure it, even when an update operation
+            // was requested for ALTRun's managed copy.
+            snapshot.stage =
+                EverythingBootstrapStage::
+                    Ready;
+            snapshot.running = false;
+            snapshot.failure =
+                EverythingBootstrapFailure::
+                    None;
+
+            if (progress) {
+                progress(snapshot);
+            }
+
+            return snapshot;
         }
-
-        snapshot.stage =
-            EverythingBootstrapStage::
-                Ready;
-        snapshot.running = false;
-        snapshot.failure =
-            EverythingBootstrapFailure::
-                None;
-
-        if (progress) {
-            progress(snapshot);
-        }
-
-        return snapshot;
     }
 
     const auto candidates =
@@ -3717,22 +4096,30 @@ RunEverythingBootstrap(
         if (candidate.source ==
             EverythingBootstrapSource::
                 Managed) {
-            return finishManaged(
-                candidate.path,
-                allowDownload);
+            if (!forceManagedUpdate) {
+                return finishManaged(
+                    candidate.path,
+                    allowDownload);
+            }
         }
 
-        Report(
-            snapshot,
-            EverythingBootstrapStage::
-                StartingExisting,
-            progress);
+        if (candidate.source ==
+                EverythingBootstrapSource::
+                    Managed &&
+            forceManagedUpdate) {
+            // Continue below to stable-version resolution/download.
+        } else {
+            Report(
+                snapshot,
+                EverythingBootstrapStage::
+                    StartingExisting,
+                progress);
 
-        std::uint32_t launchError = 0;
+            std::uint32_t launchError = 0;
 
-        if (LaunchEverything(
-                candidate.path,
-                launchError)) {
+            if (LaunchEverything(
+                    candidate.path,
+                    launchError)) {
             Report(
                 snapshot,
                 EverythingBootstrapStage::
@@ -3773,12 +4160,13 @@ RunEverythingBootstrap(
                 progress);
         }
 
-        if (!allowDownload) {
-            return NeedsInstall(
-                snapshot,
-                EverythingBootstrapFailure::
-                    IpcUnavailable,
-                progress);
+            if (!allowDownload) {
+                return NeedsInstall(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        IpcUnavailable,
+                    progress);
+            }
         }
     } else if (!allowDownload) {
         return NeedsInstall(
@@ -3788,16 +4176,94 @@ RunEverythingBootstrap(
             progress);
     }
 
+    snapshot.selectedVersion =
+        std::wstring(
+            PinnedManagedEverythingVersion());
+    snapshot.usedPinnedVersionFallback =
+        true;
+
+    Report(
+        snapshot,
+        EverythingBootstrapStage::
+            ResolvingStableVersion,
+        progress);
+
+    std::string stableMetadata;
+    std::uint32_t stableMetadataError = 0;
+
+    if (DownloadText(
+            EverythingStableUpdateMetadataUrl(),
+            stableMetadata,
+            stableMetadataError,
+            stopToken)) {
+        if (const auto stableVersion =
+                ParseEverythingStableUpdateVersion(
+                    stableMetadata)) {
+            snapshot.selectedVersion =
+                *stableVersion;
+            snapshot.availableVersion =
+                *stableVersion;
+            snapshot.usedPinnedVersionFallback =
+                false;
+        } else if (forceManagedUpdate) {
+            return Fail(
+                snapshot,
+                EverythingBootstrapFailure::
+                    ManifestDownloadFailed,
+                ERROR_INVALID_DATA,
+                progress);
+        }
+    } else if (
+        stopToken.stop_requested()) {
+        return Fail(
+            snapshot,
+            EverythingBootstrapFailure::
+                Cancelled,
+            ERROR_CANCELLED,
+            progress);
+    } else if (forceManagedUpdate) {
+        return Fail(
+            snapshot,
+            EverythingBootstrapFailure::
+                ManifestDownloadFailed,
+            stableMetadataError,
+            progress);
+    }
+
+    // Failure to resolve the online stable release is intentionally not a
+    // setup failure. The pinned build is a CI-validated known-good fallback;
+    // its package and official SHA-256 manifest are still verified below.
+    snapshot.updateAvailable =
+        !snapshot.availableVersion.empty() &&
+        !snapshot.installedVersion.empty() &&
+        CompareEverythingVersions(
+            snapshot.availableVersion,
+            snapshot.installedVersion) > 0;
+
+    if (forceManagedUpdate &&
+        !snapshot.updateAvailable &&
+        FileExists(
+            existingManagedExecutable)) {
+        return finishManaged(
+            existingManagedExecutable,
+            true);
+    }
+
     const auto spec =
         ManagedEverythingPackage(
-            CurrentArchitecture());
+            CurrentArchitecture(),
+            snapshot.selectedVersion);
 
+    const auto targetManagedExecutable =
+        ManagedEverythingExecutableForVersion(
+            dataDirectory,
+            snapshot.selectedVersion);
     const auto managedDirectory =
-        managedExecutable.parent_path();
+        targetManagedExecutable.parent_path();
 
     const auto toolsRoot =
-        managedDirectory
-            .parent_path();
+        ManagedEverythingRoot(
+            dataDirectory);
 
     std::error_code ec;
     std::filesystem::create_directories(
@@ -3884,8 +4350,7 @@ RunEverythingBootstrap(
         EverythingBootstrapSource::
             Downloaded;
     snapshot.executablePath =
-        ManagedEverythingExecutable(
-            dataDirectory);
+        targetManagedExecutable;
 
     if (!DownloadFile(
             spec.downloadUrl,
@@ -4011,7 +4476,7 @@ RunEverythingBootstrap(
         ec);
 
     if (!FileExists(
-            managedExecutable)) {
+            targetManagedExecutable)) {
         return Fail(
             snapshot,
             EverythingBootstrapFailure::
@@ -4022,10 +4487,48 @@ RunEverythingBootstrap(
 
     snapshot.downloaded = true;
     snapshot.executablePath =
-        managedExecutable;
+        targetManagedExecutable;
+
+    if (FileExists(
+            existingManagedExecutable) &&
+        LowerPath(
+            existingManagedExecutable) !=
+            LowerPath(
+                targetManagedExecutable) &&
+        ManagedDefaultIpcRunning(
+            existingManagedExecutable)) {
+        Report(
+            snapshot,
+            EverythingBootstrapStage::
+                StoppingManaged,
+            progress);
+
+        if (!LaunchEverythingCommand(
+                existingManagedExecutable,
+                L"-exit",
+                true,
+                nativeError) ||
+            !WaitForManagedDefaultIpcToExit(
+                existingManagedExecutable,
+                stopToken)) {
+            return Fail(
+                snapshot,
+                stopToken.stop_requested()
+                    ? EverythingBootstrapFailure::
+                          Cancelled
+                    : EverythingBootstrapFailure::
+                          ManagedStopFailed,
+                stopToken.stop_requested()
+                    ? ERROR_CANCELLED
+                    : (nativeError != 0
+                           ? nativeError
+                           : ERROR_TIMEOUT),
+                progress);
+        }
+    }
 
     return finishManaged(
-        managedExecutable,
+        targetManagedExecutable,
         true);
 }
 

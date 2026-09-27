@@ -106,7 +106,6 @@ add_library(altrun_core STATIC
     src/core/RelevancePolicy.cpp
     src/core/ResultMerger.cpp
     src/core/ResultRanking.cpp
-    src/core/ResultIconPipeline.cpp
     src/core/RuntimeInput.cpp
     src/core/UpdatePolicy.cpp
     src/core/PinyinSearch.cpp
@@ -625,26 +624,6 @@ if(BUILD_TESTING)
     )
 
     add_executable(
-        result_icon_pipeline_tests
-        tests/ResultIconPipelineTests.cpp
-    )
-    target_link_libraries(
-        result_icon_pipeline_tests
-        PRIVATE altrun_core
-    )
-    target_include_directories(
-        result_icon_pipeline_tests
-        PRIVATE src
-    )
-    altrun_enable_test_assertions(
-        result_icon_pipeline_tests
-    )
-    add_test(
-        NAME result_icon_pipeline_tests
-        COMMAND result_icon_pipeline_tests
-    )
-
-    add_executable(
         web_action_tests
         tests/WebActionTests.cpp
     )
@@ -938,6 +917,38 @@ if(BUILD_TESTING)
     )
 
     if(WIN32)
+        # Reuse the production translation units so this test can assert that
+        # Settings::Create really stays hidden and About is the first page.
+        get_target_property(window_runtime_sources ALTRunNext SOURCES)
+        list(REMOVE_ITEM window_runtime_sources src/main.cpp)
+        get_target_property(window_runtime_libraries ALTRunNext LINK_LIBRARIES)
+        get_target_property(window_runtime_includes ALTRunNext INCLUDE_DIRECTORIES)
+        get_target_property(window_runtime_definitions ALTRunNext COMPILE_DEFINITIONS)
+        add_executable(window_presentation_runtime_tests
+            tests/WindowPresentationRuntimeTests.cpp ${window_runtime_sources})
+        target_include_directories(window_presentation_runtime_tests PRIVATE ${window_runtime_includes})
+        target_link_libraries(window_presentation_runtime_tests PRIVATE ${window_runtime_libraries})
+        target_compile_definitions(window_presentation_runtime_tests PRIVATE ${window_runtime_definitions})
+        if(MSVC)
+            target_compile_options(window_presentation_runtime_tests PRIVATE /W4 /permissive- /utf-8 /EHsc)
+        endif()
+        altrun_enable_test_assertions(window_presentation_runtime_tests)
+        add_test(NAME window_presentation_runtime_tests COMMAND window_presentation_runtime_tests)
+        set_tests_properties(window_presentation_runtime_tests PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+
+        add_executable(uninstall_runtime_tests tests/UninstallRuntimeTests.cpp src/ui/Feedback.cpp)
+        get_target_property(uninstall_libraries ALTRunNextUninstaller LINK_LIBRARIES)
+        get_target_property(uninstall_definitions ALTRunNextUninstaller COMPILE_DEFINITIONS)
+        target_link_libraries(uninstall_runtime_tests PRIVATE ${uninstall_libraries})
+        target_compile_definitions(uninstall_runtime_tests PRIVATE ${uninstall_definitions})
+        target_include_directories(uninstall_runtime_tests PRIVATE src)
+        if(MSVC)
+            target_compile_options(uninstall_runtime_tests PRIVATE /W4 /permissive- /utf-8 /EHsc)
+        endif()
+        altrun_enable_test_assertions(uninstall_runtime_tests)
+        add_test(NAME uninstall_runtime_tests COMMAND uninstall_runtime_tests)
+        set_tests_properties(uninstall_runtime_tests PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+
         add_executable(feedback_runtime_tests
             tests/FeedbackRuntimeTests.cpp
             src/ui/Feedback.cpp

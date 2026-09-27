@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <charconv>
+#include <climits>
 #include <string>
 #include <vector>
 
@@ -13,6 +15,8 @@ constexpr std::wstring_view kVersion =
     L"1.4.1.1032";
 constexpr std::wstring_view kBaseUrl =
     L"https://www.voidtools.com/";
+constexpr std::wstring_view kStableUpdateMetadataUrl =
+    L"https://www.voidtools.com/everything/update.ini";
 
 [[nodiscard]] std::string
 LowerAscii(
@@ -51,14 +55,53 @@ TrimAscii(
     return value;
 }
 
+[[nodiscard]] std::optional<int>
+ParseNonNegativeInt(
+    std::string_view value) {
+    value = TrimAscii(value);
+
+    if (value.empty()) {
+        return std::nullopt;
+    }
+
+    int parsed = 0;
+    const auto [end, error] =
+        std::from_chars(
+            value.data(),
+            value.data() + value.size(),
+            parsed);
+
+    if (error != std::errc{} ||
+        end != value.data() +
+            value.size() ||
+        parsed < 0) {
+        return std::nullopt;
+    }
+
+    return parsed;
+}
+
 } // namespace
+
+std::wstring_view
+PinnedManagedEverythingVersion() noexcept {
+    return kVersion;
+}
+
+std::wstring_view
+EverythingStableUpdateMetadataUrl() noexcept {
+    return kStableUpdateMetadataUrl;
+}
 
 EverythingPackageSpec
 ManagedEverythingPackage(
-    EverythingPackageArchitecture architecture) {
+    EverythingPackageArchitecture architecture,
+    std::wstring_view version) {
     EverythingPackageSpec spec;
     spec.version =
-        std::wstring(kVersion);
+        version.empty()
+            ? std::wstring(kVersion)
+            : std::wstring(version);
 
     spec.fileName =
         L"Everything-" +
@@ -80,6 +123,210 @@ ManagedEverythingPackage(
         L".sha256";
 
     return spec;
+}
+
+std::optional<std::wstring>
+ParseEverythingStableUpdateVersion(
+    std::string_view updateIni) {
+    bool inEverything = false;
+    std::optional<int> major;
+    std::optional<int> minor;
+    std::optional<int> revision;
+    std::optional<int> build;
+
+    std::size_t offset = 0;
+
+    while (offset <= updateIni.size()) {
+        const auto newline =
+            updateIni.find('\n', offset);
+
+        std::string_view line =
+            newline ==
+                    std::string_view::npos
+                ? updateIni.substr(offset)
+                : updateIni.substr(
+                      offset,
+                      newline - offset);
+
+        if (!line.empty() &&
+            line.back() == '\r') {
+            line.remove_suffix(1);
+        }
+
+        line = TrimAscii(line);
+
+        if (!line.empty() &&
+            line.front() != ';' &&
+            line.front() != '#') {
+            if (line.size() >= 2 &&
+                line.front() == '[' &&
+                line.back() == ']') {
+                const auto section =
+                    LowerAscii(
+                        TrimAscii(
+                            line.substr(
+                                1,
+                                line.size() - 2)));
+                inEverything =
+                    section == "everything";
+            } else if (inEverything) {
+                const auto equals =
+                    line.find('=');
+
+                if (equals !=
+                    std::string_view::npos) {
+                    const auto key =
+                        LowerAscii(
+                            TrimAscii(
+                                line.substr(
+                                    0,
+                                    equals)));
+                    const auto value =
+                        ParseNonNegativeInt(
+                            line.substr(
+                                equals + 1));
+
+                    if (value) {
+                        if (key == "major") {
+                            major = value;
+                        } else if (
+                            key == "minor") {
+                            minor = value;
+                        } else if (
+                            key == "revision") {
+                            revision = value;
+                        } else if (
+                            key == "build") {
+                            build = value;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (newline ==
+            std::string_view::npos) {
+            break;
+        }
+
+        offset = newline + 1;
+    }
+
+    if (!major || !minor ||
+        !revision || !build) {
+        return std::nullopt;
+    }
+
+    return std::to_wstring(*major) +
+        L"." +
+        std::to_wstring(*minor) +
+        L"." +
+        std::to_wstring(*revision) +
+        L"." +
+        std::to_wstring(*build);
+}
+
+int CompareEverythingVersions(
+    std::wstring_view left,
+    std::wstring_view right) noexcept {
+    const auto component =
+        [](std::wstring_view value,
+           std::size_t& offset)
+            -> std::optional<unsigned long> {
+            if (offset >= value.size()) {
+                return 0UL;
+            }
+
+            const std::size_t start =
+                offset;
+            auto dot =
+                value.find(
+                    L'.',
+                    start);
+
+            if (dot ==
+                std::wstring_view::npos) {
+                dot = value.size();
+            }
+
+            if (dot == start) {
+                return std::nullopt;
+            }
+
+            unsigned long parsed = 0;
+
+            for (std::size_t i = start;
+                 i < dot;
+                 ++i) {
+                const wchar_t ch =
+                    value[i];
+
+                if (ch < L'0' ||
+                    ch > L'9') {
+                    return std::nullopt;
+                }
+
+                const unsigned long digit =
+                    static_cast<unsigned long>(
+                        ch - L'0');
+
+                if (parsed >
+                    (ULONG_MAX - digit) /
+                        10UL) {
+                    return std::nullopt;
+                }
+
+                parsed =
+                    parsed * 10UL +
+                    digit;
+            }
+
+            offset =
+                dot < value.size()
+                    ? dot + 1
+                    : value.size();
+
+            return parsed;
+        };
+
+    std::size_t leftOffset = 0;
+    std::size_t rightOffset = 0;
+
+    for (int i = 0; i < 4; ++i) {
+        const auto leftPart =
+            component(
+                left,
+                leftOffset);
+        const auto rightPart =
+            component(
+                right,
+                rightOffset);
+
+        if (!leftPart ||
+            !rightPart) {
+            // Invalid managed-version strings should never outrank a valid
+            // version. Equal invalid strings remain equal for deterministic
+            // fallback behavior.
+            if (left == right) {
+                return 0;
+            }
+            return left < right
+                ? -1
+                : 1;
+        }
+
+        if (*leftPart <
+            *rightPart) {
+            return -1;
+        }
+
+        if (*leftPart >
+            *rightPart) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 EverythingArchiveNames
@@ -179,20 +426,27 @@ FindSha256ForFile(
 
 std::string
 ApplyManagedEverythingIniPolicy(
-    std::string_view existing) {
+    std::string_view existing,
+    bool showTrayIcon) {
     struct RequiredValue {
         std::string_view key;
         std::string_view value;
     };
 
-    constexpr std::array<
+    const std::string_view
+        trayIconValue =
+            showTrayIcon
+                ? "1"
+                : "0";
+
+    const std::array<
         RequiredValue,
         6>
         required{{
             {"app_data", "0"},
             {"run_as_admin", "0"},
             {"run_in_background", "1"},
-            {"show_tray_icon", "0"},
+            {"show_tray_icon", trayIconValue},
             {"check_for_updates_on_startup", "0"},
             {"ipc", "1"},
         }};

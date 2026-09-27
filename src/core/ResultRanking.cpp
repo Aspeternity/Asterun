@@ -9,7 +9,7 @@
 namespace altrun {
 namespace {
 
-[[nodiscard]] std::wstring FileStem(
+[[nodiscard]] std::wstring_view FileStem(
     std::wstring_view title) {
 
     const auto slash =
@@ -46,11 +46,10 @@ namespace {
     if (dot ==
             std::wstring_view::npos ||
         dot == 0) {
-        return std::wstring(name);
+        return name;
     }
 
-    return std::wstring(
-        name.substr(0, dot));
+    return name.substr(0, dot);
 }
 
 [[nodiscard]] relevance::Match
@@ -68,7 +67,7 @@ WithField(
 [[nodiscard]] relevance::Match
 ScoreOneToken(
     const LauncherResult& result,
-    std::wstring_view query,
+    std::wstring_view normalizedQuery,
     bool allowTarget) {
 
     relevance::Match best{};
@@ -85,9 +84,9 @@ ScoreOneToken(
 
     consider(
         WithField(
-            relevance::MatchText(
+            relevance::MatchTextNormalizedQuery(
                 result.title,
-                query),
+                normalizedQuery),
             relevance::MatchField::Title));
 
     if (result.kind ==
@@ -95,28 +94,28 @@ ScoreOneToken(
 
         consider(
             WithField(
-                relevance::MatchText(
+                relevance::MatchTextNormalizedQuery(
                     FileStem(
                         result.title),
-                    query),
+                    normalizedQuery),
                 relevance::MatchField::
                     FileStem));
     }
 
     consider(
         WithField(
-            relevance::MatchText(
+            relevance::MatchTextNormalizedQuery(
                 result.subtitle,
-                query),
+                normalizedQuery),
             relevance::MatchField::
                 Subtitle));
 
     if (allowTarget) {
         consider(
             WithField(
-                relevance::MatchText(
+                relevance::MatchTextNormalizedQuery(
                     result.target,
-                    query),
+                    normalizedQuery),
                 relevance::MatchField::
                     Target));
     }
@@ -263,6 +262,9 @@ bool RankDynamicResultText(
         return false;
     }
 
+    const std::wstring normalizedQuery =
+        relevance::Normalize(query);
+
     const bool explicitSyntax =
         relevance::HasExplicitSyntax(
             query);
@@ -274,7 +276,7 @@ bool RankDynamicResultText(
     relevance::Match match =
         ScoreOneToken(
             result,
-            query,
+            normalizedQuery,
             allowTarget);
 
     const auto tokens =
@@ -348,10 +350,10 @@ bool RankDynamicResultText(
     }
 
     if (!match ||
-        !relevance::AdmitLaunchSurface(
+        !relevance::AdmitLaunchSurfaceNormalized(
             LaunchSurfaceClass::
                 FilesystemItem,
-            query,
+            normalizedQuery,
             match,
             explicitSyntax)) {
         return false;

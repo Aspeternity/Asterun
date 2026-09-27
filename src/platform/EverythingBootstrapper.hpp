@@ -11,6 +11,7 @@ enum class EverythingBootstrapStage {
     Idle,
     Discovering,
     StartingExisting,
+    ResolvingStableVersion,
     DownloadingManifest,
     DownloadingPackage,
     VerifyingPackage,
@@ -110,6 +111,11 @@ struct EverythingBootstrapSnapshot {
     std::uint64_t totalBytes{0};
     std::uint32_t nativeError{0};
     std::filesystem::path executablePath;
+    std::wstring selectedVersion;
+    std::wstring installedVersion;
+    std::wstring availableVersion;
+    bool updateAvailable{false};
+    bool usedPinnedVersionFallback{false};
 };
 
 using EverythingBootstrapProgress =
@@ -121,6 +127,14 @@ RunEverythingBootstrap(
     const std::filesystem::path& dataDirectory,
     bool allowDownload,
     EverythingBootstrapProgress progress,
+    std::stop_token stopToken = {},
+    bool showManagedTrayIcon = false,
+    bool forceManagedUpdate = false);
+
+[[nodiscard]] EverythingBootstrapSnapshot
+CheckManagedEverythingUpdate(
+    const std::filesystem::path& dataDirectory,
+    EverythingBootstrapProgress progress,
     std::stop_token stopToken = {});
 
 [[nodiscard]] std::filesystem::path
@@ -129,6 +143,10 @@ ManagedEverythingExecutable(
 
 [[nodiscard]] bool
 EverythingIpcEndpointAvailable();
+
+[[nodiscard]] bool
+IsManagedEverythingRunning(
+    const std::filesystem::path& dataDirectory);
 
 [[nodiscard]] ManagedEverythingStopResult
 StopManagedEverything(

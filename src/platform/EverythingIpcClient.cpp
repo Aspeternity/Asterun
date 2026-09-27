@@ -136,12 +136,12 @@ EverythingIpcClient::~EverythingIpcClient() {
 void EverythingIpcClient::QueryAsync(
     EverythingQueryRequest request,
     Completion completion) {
-    latestGeneration_.store(
-        request.generation);
-
     {
         std::scoped_lock lock(
             pendingMutex_);
+        // A completed prefix pass must not resurrect an older visible query.
+        if (request.generation < latestGeneration_.load()) return;
+        latestGeneration_.store(request.generation);
         pending_ = PendingQuery{
             .request = std::move(request),
             .completion =

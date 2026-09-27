@@ -18,6 +18,8 @@ $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
 New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
 
 $process = $null
+$sendToLink = $null
+$runKeyPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 
 try {
     Expand-Archive -Path $archivePath -DestinationPath $tempRoot -Force
@@ -170,8 +172,8 @@ try {
         throw "Packaged runtime migration must default Pinyin search to enabled."
     }
 
-    if ($migratedSettings.appearance.showResultIcons -ne $false) {
-        throw "Packaged runtime migration must default search-result icons to disabled."
+    if ($migratedSettings.appearance.PSObject.Properties.Name -contains "showResultIcons") {
+        throw "Packaged runtime migration must drop the removed showResultIcons setting."
     }
 
     if ($migratedSettings.update.autoCheck -ne $true) {
@@ -216,7 +218,149 @@ try {
     Write-Host "  FileVersion string: $fileVersion"
     Write-Host "  Process id: $($process.Id)"
     Write-Host "  Startup observation: $StartupSeconds seconds"
-    Write-Host "  Runtime migration: schema 2 -> 10 with startup-behavior cleanup + current Hotkey Registry + default window placement + default-on Pinyin + default-off result icons + release-appropriate update defaults"
+    Write-Host "  Runtime migration: schema 2 -> 10 with startup-behavior cleanup + current Hotkey Registry + default window placement + default-on Pinyin + removed result-icon setting cleanup + release-appropriate update defaults"
+
+
+    # Stop the migration fixture before the startup-performance pass.
+    $process.Refresh()
+    if (-not $process.HasExited) {
+        Stop-Process -Id $process.Id -Force
+        Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+    }
+    $process = $null
+
+    Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $data | Out-Null
+
+    # Exercise the alpha.5.46 default-on integrations while measuring the
+    # post-window health signal. Shell integration reconciliation must begin
+    # only after this signal, so a slow ShellLink/Defender path cannot delay
+    # first-frame readiness.
+    $currentSettings =
+        Get-Content (Join-Path $tempRoot "settings.example.json") -Raw |
+        ConvertFrom-Json
+
+    $currentSettings.general.showTrayIcon = $false
+    $currentSettings.general.startupBehavior = "silent"
+    $currentSettings.update.autoCheck = $false
+
+    $currentSettings.providers.'windows.startmenu' = $false
+    $currentSettings.providers.'windows.packaged' = $false
+    $currentSettings.providers.'windows.apppaths' = $false
+    $currentSettings.providers.'windows.path' = $false
+    $currentSettings.providers.'everything.filesystem' = $false
+
+    $currentSettings.hotkey.modifiers = @("ctrl", "shift")
+    $currentSettings.hotkey.key = "f24"
+    $currentSettings.hotkeys.bindings.'launcher.activate'.modifiers = @("ctrl", "shift")
+    $currentSettings.hotkeys.bindings.'launcher.activate'.key = "f24"
+
+    $currentSettings.hotkeys.bindings |
+        Add-Member -Force -NotePropertyName "launcher.openShortcutManager" -NotePropertyValue (
+            [pscustomobject]@{
+                enabled = $false
+                modifiers = @("alt")
+                key = "s"
+            }
+        )
+
+    if ($currentSettings.general.startWithWindows -ne $true -or
+        $currentSettings.general.addToSendToMenu -ne $true -or
+        $currentSettings.behavior.numericQuickLaunch -ne $true) {
+        throw "Startup-performance fixture must exercise alpha.5.46 default-on integrations."
+    }
+
+    $currentSettings |
+        ConvertTo-Json -Depth 12 |
+        Set-Content -Path (Join-Path $data "settings.json") -Encoding utf8 -NoNewline
+
+    $sendToDirectory = Join-Path $env:APPDATA "Microsoft\Windows\SendTo"
+    $sendToLink = Join-Path $sendToDirectory "ALTRun Next.lnk"
+
+    Remove-Item $sendToLink -Force -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $runKeyPath -Name "ALTRunNext" -ErrorAction SilentlyContinue
+
+    $healthEventName = "ALTRunNext.RuntimeSmoke." + [guid]::NewGuid().ToString("N")
+    $createdNew = $false
+    $healthEvent = [System.Threading.EventWaitHandle]::new(
+        $false,
+        [System.Threading.EventResetMode]::ManualReset,
+        $healthEventName,
+        [ref]$createdNew
+    )
+
+    $startupWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $process = Start-Process -FilePath $exe -WorkingDirectory $tempRoot -ArgumentList @(
+        "--post-update-health-event",
+        $healthEventName
+    ) -PassThru
+
+    if (-not $healthEvent.WaitOne(3000)) {
+        throw "First-frame health signal exceeded 3000 ms while default-on shell integrations were enabled."
+    }
+
+    $startupWatch.Stop()
+    $healthEvent.Dispose()
+
+    $linkDeadline = [DateTime]::UtcNow.AddSeconds(8)
+    while (-not (Test-Path $sendToLink) -and [DateTime]::UtcNow -lt $linkDeadline) {
+        Start-Sleep -Milliseconds 100
+    }
+
+    if (-not (Test-Path $sendToLink)) {
+        throw "Deferred SendTo reconciliation did not create ALTRun Next.lnk."
+    }
+
+    $runValue = (Get-ItemProperty -Path $runKeyPath -Name "ALTRunNext" -ErrorAction Stop).ALTRunNext
+    if ($runValue -notlike "*ALTRunNext.exe*") {
+        throw "Deferred startup registration did not create the ALTRunNext Run value."
+    }
+
+    $firstLinkWriteTicks = (Get-Item $sendToLink).LastWriteTimeUtc.Ticks
+
+    $process.Refresh()
+    if (-not $process.HasExited) {
+        Stop-Process -Id $process.Id -Force
+        Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+    }
+    $process = $null
+
+    # Re-launch with an already-correct Shell Link. Reconciliation may inspect
+    # it in the background, but it must not rewrite the file.
+    $secondEventName = "ALTRunNext.RuntimeSmoke." + [guid]::NewGuid().ToString("N")
+    $secondCreatedNew = $false
+    $secondHealthEvent = [System.Threading.EventWaitHandle]::new(
+        $false,
+        [System.Threading.EventResetMode]::ManualReset,
+        $secondEventName,
+        [ref]$secondCreatedNew
+    )
+
+    $secondWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $process = Start-Process -FilePath $exe -WorkingDirectory $tempRoot -ArgumentList @(
+        "--post-update-health-event",
+        $secondEventName
+    ) -PassThru
+
+    if (-not $secondHealthEvent.WaitOne(3000)) {
+        throw "Repeat first-frame health signal exceeded 3000 ms."
+    }
+
+    $secondWatch.Stop()
+    $secondHealthEvent.Dispose()
+
+    $rewriteDeadline = [DateTime]::UtcNow.AddSeconds(5)
+    while ([DateTime]::UtcNow -lt $rewriteDeadline) {
+        Start-Sleep -Milliseconds 100
+        if ((Get-Item $sendToLink).LastWriteTimeUtc.Ticks -ne $firstLinkWriteTicks) {
+            throw "Ordinary startup rewrote an already-correct SendTo shortcut."
+        }
+    }
+
+    Write-Host "Startup performance contract passed:"
+    Write-Host "  First readiness: $($startupWatch.ElapsedMilliseconds) ms"
+    Write-Host "  Repeat readiness: $($secondWatch.ElapsedMilliseconds) ms"
+    Write-Host "  SendTo shortcut was created after readiness and not rewritten on repeat launch"
 }
 finally {
     if ($null -ne $process) {
@@ -231,6 +375,12 @@ finally {
             Write-Warning "Unable to stop runtime-smoke process cleanly: $($_.Exception.Message)"
         }
     }
+
+    if ($null -ne $sendToLink) {
+        Remove-Item $sendToLink -Force -ErrorAction SilentlyContinue
+    }
+
+    Remove-ItemProperty -Path $runKeyPath -Name "ALTRunNext" -ErrorAction SilentlyContinue
 
     if (Test-Path $tempRoot) {
         Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue

@@ -215,11 +215,6 @@ ParseCommand(
             item.value(
                 "canonicalIdentity",
                 std::string{}));
-    command.icon =
-        text::FromUtf8(
-            item.value(
-                "icon",
-                std::string("auto")));
     command.enabled =
         item.value("enabled", true);
     command.runAsAdmin =
@@ -319,10 +314,6 @@ ParseCommand(
             command.title;
     }
 
-    if (command.icon.empty()) {
-        command.icon = L"auto";
-    }
-
     if (!CachedProviderTargetIsUsable(
             command)) {
         return std::nullopt;
@@ -367,7 +358,6 @@ nlohmann::json CommandJson(
         {"canonicalIdentity",
          text::ToUtf8(
              command.canonicalIdentity)},
-        {"icon", text::ToUtf8(command.icon)},
         {"enabled", command.enabled},
         {"runAsAdmin", command.runAsAdmin},
         {"pinned", command.pinned},

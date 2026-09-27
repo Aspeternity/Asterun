@@ -71,7 +71,7 @@ GeneralLayoutMetrics BuildGeneralLayout(
         scale(30);
     const int searchBottom =
         searchTop +
-        scale(kToggleRowLogical) * 4;
+        scale(kToggleRowLogical) * 3;
 
     const int placementTitleTop =
         searchBottom +

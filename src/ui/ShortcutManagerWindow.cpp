@@ -1,4 +1,5 @@
 #include "Feedback.hpp"
+#include "AppIcon.hpp"
 #include "ShortcutManagerWindow.hpp"
 
 #include "ShortcutEditorDialog.hpp"
@@ -399,7 +400,12 @@ bool ShortcutManagerWindow::Create() {
     wc.hCursor =
         LoadCursorW(nullptr, IDC_ARROW);
     wc.hIcon =
-        LoadIconW(nullptr, IDI_APPLICATION);
+        ui::LoadApplicationIcon(
+            instance_);
+    wc.hIconSm =
+        ui::LoadApplicationIcon(
+            instance_,
+            true);
     wc.hbrBackground =
         reinterpret_cast<HBRUSH>(
             COLOR_WINDOW + 1);
@@ -730,8 +736,7 @@ void ShortcutManagerWindow::Show(
 
         window_presentation::
             RevealFullyPainted(
-                hwnd_,
-                SW_SHOW);
+                hwnd_);
     } else if (IsIconic(hwnd_)) {
         ShowWindow(
             hwnd_,

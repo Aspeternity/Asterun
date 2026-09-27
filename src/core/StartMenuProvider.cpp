@@ -7,8 +7,12 @@
 #include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/WinUtil.hpp"
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include <shlobj.h>
 
@@ -466,7 +470,6 @@ void StartMenuProvider::ScanPath(
                 inspection.arguments);
         command.type =
             CommandType::Application;
-        command.icon = L"auto";
         command.enabled = true;
         command.source =
             CommandSource::StartMenu;

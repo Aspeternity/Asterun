@@ -8,6 +8,82 @@ Automated CI covers compilation, Config/Search tests, provider smoke tests, hotk
 
 The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
+## v0.8.0-alpha.5.49 Classic Technical Closeout I validation
+
+Automated coverage preserves all alpha.5.48 presentation regressions and now adds a repeated real-HWND resource soak. The soak opens and closes Shortcut Manager, Shortcut Editor and Path Conversion repeatedly while sampling process GDI objects, USER objects and handles. It is a leak regression gate; it does not replace observing process memory behavior over a longer interactive session.\n\n**Closeout status: PASS — Build #634 green and real-Windows acceptance completed on 2026-09-27. Classic is technically frozen after this sign-off.**
+
+- [x] Compare cold startup and idle behavior with the validated alpha.5.48 build. There should be no new first-frame delay, background CPU loop or tray/window regression.
+- [x] With a representative populated application catalog, type and erase short, long, multi-token, pinyin and English-initial queries repeatedly. Search ordering and input responsiveness must remain consistent with alpha.5.48.
+- [x] Repeat the `team` / `ts` learning checks from alpha.5.48 and confirm query-scoped preference behavior is unchanged.
+- [x] Keep ALTRun Next running for an extended session while rebuilding/refreshing providers and editing shortcuts. Working set/private memory may retain allocator pages, but it must settle instead of growing continually after equivalent repeated work.
+- [x] Open/close Settings, Shortcut Manager, Shortcut Editor and Path Conversion at least 100 cycles total. GDI/USER object counts and process handles must return to a stable plateau rather than increasing with every cycle.
+- [x] Confirm General no longer exposes a result-icon preference and Launcher results stay text-only in both Classic and Modern Compact; repeated searching must not create an icon worker or HICON cache.
+- [x] With Everything enabled, verify both prefix and middle-substring CJK queries against the same path: for a result such as `系统男主`, both `系统` and `男主` must return it. Also recheck representative 1-2 character ASCII queries so the existing short-query noise gate remains strict.
+- [x] Exercise Everything dynamic results alongside static application search. Typing stays responsive and no filesystem/Shell work is introduced into the synchronous static-search path.
+- [x] Repeat mixed-DPI/multi-monitor and Chinese/English smoke checks to ensure the technical changes did not disturb the fully validated alpha.5.48 presentation lifecycle.
+- [x] Settings schema remains 11; Commands 2, Usage 2, Provider Cache 22; fixed Windows version is 0.8.0.219.
+
+## v0.8.0-alpha.5.48 Silent Launch + Tray Window Presentation validation
+
+Follow-up automated coverage now creates the actual Settings window, asserts
+that `Create()` leaves it hidden, inspects the About heading at the first show,
+repeats creation/reopen/minimized restore, and cancels actual shortcut editors
+with hidden and already-disabled owners. This catches lifecycle regressions;
+it does not certify compositor pixels or an Explorer foreground transfer.
+
+- [ ] From Explorer, add a file/program with ALTRun Next already running: the editor receives activation and keyboard input without clicking, with no continuing caption/taskbar flash. Repeat with ALTRun Next initially stopped and with multiple selected paths.
+- [ ] Repeat external Add Shortcut on a second monitor while the hidden Launcher retains a position on the first. The editor follows the operation monitor, and closing it does not reveal/activate the hidden Launcher.
+- [ ] Search `ts` with TeamSpeak and TeamSpeak 3 Client available. Repeatedly execute TeamSpeak 3 Client; its position improves. Confirm learning `team` does not overwrite `ts`, and vice versa.
+- [ ] After saturating one candidate's preference, repeatedly execute the other under the same query. The new preference replaces the old and survives restart. An actual exact shortcut/name remains protected.
+- [ ] Search and launch representative Win32 applications (including a TeamSpeak-style Start Menu/application result), packaged applications, files/folders and user shortcuts. Successful execution is silent in every case.
+- [ ] Repeat successful execution through Enter, double-click, main-keyboard numeric Quick Launch and numpad numeric Quick Launch. None plays Popup.wav.
+- [ ] Confirm startup Notification still plays the original Popup.wav when Sound effects is enabled, and a hidden-to-visible Launcher reveal still plays one cue. Disable Sound effects and confirm both are silent.
+- [ ] Trigger one genuine launch/application failure and confirm the existing failure cue/dialog policy still works; canceling UAC remains silent.
+- [ ] With Launcher hidden, repeatedly right-click the tray icon and open **Settings**, **Shortcut Manager** and **About** (at least 20 cycles each). No window may flash at an alternate position, briefly appear at a birth rectangle, or visibly activate twice.
+- [ ] Repeat the tray-open cycle at 100%, 125%, 150%, 175% and 200% scaling, including a second monitor with a different DPI when available.
+- [ ] Open **About** from the tray with Settings not currently visible. The first visible frame is already the About page; the General page must never appear first.
+- [ ] Leave Settings or Shortcut Manager open behind another application, then invoke the same tray entry again. It should foreground once without an intermediate switch/flash.
+- [ ] Minimize Settings and Shortcut Manager, reopen each from the tray and verify normal restore behavior without relocation.
+- [ ] Confirm the tray menu still dismisses normally on click-away/Escape and all commands remain functional after switching to deferred `TPM_RETURNCMD` dispatch.
+- [ ] Recheck 5.47 cold-start responsiveness and background startup/SendTo reconciliation; these paths are unchanged.
+- [ ] Settings schema remains 11; Commands 2, Usage 2, Provider Cache 22; fixed Windows version is 0.8.0.218.
+
+## v0.8.0-alpha.5.47 First-Frame Startup + Shell Reconciliation validation
+
+- [ ] On a clean extracted x64 build with no `data` directory, launch ALTRun Next and confirm the startup notification/launcher readiness is immediate instead of pausing for several seconds before appearing. Repeat with Windows Defender real-time protection enabled.
+- [ ] Fresh defaults still create the HKCU `Run\ALTRunNext` registration and `SendTo\ALTRun Next.lnk`, but those integrations may appear shortly after first-frame readiness because reconciliation is intentionally background work.
+- [ ] While the first startup reconciliation is still possible, immediately disable **Start with Windows** or **Add to Send To menu** in Settings. The user's new choice wins; a stale startup worker must not re-enable the integration afterward.
+- [ ] After the SendTo link exists, record its LastWriteTime, restart ALTRun Next normally, wait several seconds and confirm the timestamp does not change. Repeat for multiple launches.
+- [ ] Move the portable ALTRun Next directory, launch from the new path and confirm the existing SendTo link repairs its target, working directory and icon path to the new executable without requiring a manual toggle.
+- [ ] Confirm an already-correct HKCU Run value is left unchanged on repeat launch; disabling/re-enabling Start with Windows still applies immediately and persists.
+- [ ] Recheck startup Notification / Show launcher / Silent modes, global hotkeys, Explorer/taskbar restart recovery and 5.46 tray-menu behavior while background reconciliation runs.
+- [ ] Settings schema remains 11; Commands 2, Usage 2, Provider Cache 22; fixed Windows version is 0.8.0.217.
+
+## v0.8.0-alpha.5.46 Tray Menu + Default Behavior validation
+
+- [ ] Right-click the tray icon in Chinese UI and confirm the order is **显示主界面**, separator, **快捷项管理…**, **设置…**, separator, **关于**, **退出**. There is no **重新加载** entry.
+- [ ] Repeat in English UI: **Show launcher**, separator, **Shortcut Manager…**, **Settings…**, separator, **About**, **Exit**. The first item is the native default item.
+- [ ] Confirm Show launcher, Shortcut Manager and Settings display their current effective hotkeys. Rebind each action and reopen the tray menu; the labels update immediately. Disable an optional binding and confirm its stale shortcut text is not shown.
+- [ ] Fresh data defaults **Start with Windows**, **Add to Send To menu** and **Numeric quick launch** to enabled. Confirm startup registration and the SendTo shortcut are actually created, and numbered-result execution works with the existing 90 ms text-intent arbitration.
+- [ ] Upgrade an existing schema-11 data directory where all three settings are explicitly disabled; they remain disabled after launch.
+- [ ] Upgrade a representative older settings file missing the newer integration fields; migration keeps the historical disabled baseline instead of silently opting the user in.
+- [ ] Use **Restore defaults** after disabling all three. The stored settings return to enabled and the real Windows startup/SendTo registrations are applied transactionally.
+- [ ] Recheck tray keyboard/mouse activation, Explorer-restart recovery, original ALTRun icon and Popup.wav behavior from alpha.5.45.
+- [ ] Settings schema remains 11; Commands 2, Usage 2, Provider Cache 22; fixed Windows version is 0.8.0.216.
+
+## v0.8.0-alpha.5.45 Stable Shell Identity + Tray Lifecycle validation
+
+- [ ] With **Show system tray icon** enabled, confirm the ALTRun Next tray icon has the `ALTRun Next` tooltip and no duplicate icon appears after repeated hide/show cycles.
+- [ ] Restart Explorer / Windows Explorer while ALTRun Next remains running. The persistent tray icon returns automatically once the taskbar is recreated, with its context menu and double-click launcher activation still working.
+- [ ] Navigate to the notification area by keyboard and activate the ALTRun Next icon; the launcher opens without requiring a mouse double-click.
+- [ ] With **Show system tray icon** disabled and startup behavior set to Notification, confirm the temporary icon hosts the startup notification and normally disappears with the notification lifecycle.
+- [ ] Repeat the previous case while restarting Explorer during/just after the startup notification. The one-shot icon must not be restored as a permanent orphaned tray icon.
+- [ ] Confirm Settings, Shortcut Manager and launcher remain grouped as ALTRun Next shell surfaces and no taskbar button is introduced for the existing tool-window launcher.
+- [ ] Confirm the executable, Launcher, Settings, Shortcut Manager, Shortcut Editor, Path Conversion dialog and persistent tray icon all use the original ALTRun MAINICON at normal Windows sizes without falling back to the generic application icon.
+- [ ] At 100/125/150/175/200% display scaling, confirm Windows selects a clean embedded original-icon size and no blurry custom resampling path is introduced.
+- [ ] Recheck alpha.5.44 startup/reveal/execute/failure feedback routing: every accepted ALTRun Next cue now plays the same authorized original ALTRun `Popup.wav`; the Sound effects toggle still stops playback immediately and notification `NIIF_NOSOUND` prevents an additional Windows notification sound.
+- [ ] Settings schema remains 11; Commands 2, Usage 2, Provider Cache 22; fixed Windows version is 0.8.0.215. The icon and Popup.wav must remain byte-identical to their authorized original ALTRun assets.
+
 ## v0.8.0-alpha.5.44 Confirmation + Sound Feedback validation
 
 - [ ] Launcher and Manager deletion show the same canonical name, Delete / Cancel buttons and target-file-retained text. Cancel has initial focus; Enter, Esc and X retain the shortcut. Explicit Delete removes only the shortcut; no success popup or sound.
@@ -846,3 +922,16 @@ Use an installed/extracted alpha.9-or-newer build for these checks. The first tr
 - [ ] Simulate a launch/health failure in a test build and verify the updater restores the previous application files and relaunches the previous version.
 - [ ] After successful health confirmation, the backup/staging state is cleaned and the running VERSION matches the requested manifest version.
 - [ ] Release assets include `ALTRunNext-x64.zip`, `ALTRunNext-ARM64.zip`, `SHA256SUMS.txt` and `update-manifest.json`; manifest hashes match SHA256SUMS.txt.
+
+### alpha.5.49 numeric intent / uninstall follow-up
+
+**Real-machine acceptance: PASS on 2026-09-27.** The `v2`/`v2r` numeric-intent path, managed Everything behavior and uninstall/recovery flow were accepted together with the Classic closeout.
+
+- Everything-only portable `v2rayN`: type `v`, pause over 420ms, press `2`; it becomes `v2`, never the old second result. Continue `r` during the probe and verify `v2r` without duplicated/lost characters.
+- Queries with thousands of broad hits: strong filename-prefix candidates must survive the independent prefix recall pass. Verify `系统` / `男主` and explicit Everything/path syntax remain correct.
+- A confirmed absent continuation retains bare-number execution after the 90ms grace. Unknown/timeout has a 240ms initial budget and commits text; profile this budget on real cold/warm Everything installations before tuning.
+- Move caret, select/replace text, paste, Backspace, Escape, focus loss, long-held digits, provider disable/restart and late replies: no unintended or delayed execution. Numeric text commits must not invoke single-result auto-execution.
+- Uninstall from Chinese/spaced paths, both preserve-data and full-delete: read-only packaged files, Explorer open inside the install, managed service already stopping, a briefly locked file and a permanently locked file.
+- After a partial deletion failure, release the reported lock and run the retained/restored Uninstall.exe again. Verify recovery works when the main executable/VERSION was already deleted.
+- Directory junctions are removed as links; targets outside the installation must remain intact. Preserve-data mode must retain user commands/settings. Never terminate external Everything by name alone.
+- Windows CI exercises the production cleanup routines against isolated temporary fixtures (read-only files, sharing locks, final-stage recovery, junctions), plus real EDIT messages and provider IPC replies for numeric intent.

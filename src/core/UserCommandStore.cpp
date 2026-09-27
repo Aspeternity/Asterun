@@ -155,7 +155,6 @@ Command MakeDefault(
     command.title = std::move(title);
     command.target = std::move(target);
     command.type = CommandType::Application;
-    command.icon = L"auto";
     command.enabled = true;
     command.sortOrder = sortOrder;
     command.source = CommandSource::User;
@@ -337,8 +336,6 @@ bool UserCommandStore::LoadJson() {
                 text::FromUtf8(item.value("arguments", std::string{}));
             command.workingDirectory =
                 text::FromUtf8(item.value("workingDirectory", std::string{}));
-            command.icon =
-                text::FromUtf8(item.value("icon", std::string("auto")));
             const bool legacyEnabled =
                 item.value("enabled", true);
             const bool legacyPinned =
@@ -373,7 +370,6 @@ bool UserCommandStore::LoadJson() {
 
             if (command.keyword.empty() || command.target.empty()) continue;
             if (command.title.empty()) command.title = command.keyword;
-            if (command.icon.empty()) command.icon = L"auto";
 
             commands_.push_back(std::move(command));
         }
@@ -414,8 +410,7 @@ bool UserCommandStore::MigrateLegacyTsv() {
         command.arguments = TrimWide(fields[3]);
         command.workingDirectory = TrimWide(fields[4]);
         command.type = CommandType::Application;
-        command.icon = L"auto";
-        command.enabled = true;
+            command.enabled = true;
         command.sortOrder = sortOrder++;
         command.source = CommandSource::User;
         command.basePriority = 120;
@@ -462,7 +457,6 @@ bool UserCommandStore::Create(
     command.target = TrimWide(command.target);
     command.arguments = TrimWide(command.arguments);
     command.workingDirectory = TrimWide(command.workingDirectory);
-    command.icon = TrimWide(command.icon);
     command.enabled = true;
     command.pinned = false;
 
@@ -492,10 +486,6 @@ bool UserCommandStore::Create(
     command.sortOrder = nextOrder;
     command.source = CommandSource::User;
     command.basePriority = 120;
-
-    if (command.icon.empty()) {
-        command.icon = L"auto";
-    }
 
     const auto previous = commands_;
     commands_.push_back(std::move(command));
@@ -534,7 +524,6 @@ bool UserCommandStore::Update(
     command.target = TrimWide(command.target);
     command.arguments = TrimWide(command.arguments);
     command.workingDirectory = TrimWide(command.workingDirectory);
-    command.icon = TrimWide(command.icon);
     command.enabled = true;
     command.pinned = false;
 
@@ -553,10 +542,6 @@ bool UserCommandStore::Update(
     command.legacyIds = it->legacyIds;
     command.source = CommandSource::User;
     command.basePriority = 120;
-
-    if (command.icon.empty()) {
-        command.icon = L"auto";
-    }
 
     *it = std::move(command);
     RebuildLegacyIdMap();
@@ -708,15 +693,6 @@ bool UserCommandStore::ApplyPathUpdates(
                     *update.workingDirectory);
         }
 
-        if (update.icon) {
-            const std::wstring value =
-                TrimWide(*update.icon);
-
-            it->icon =
-                value.empty()
-                    ? L"auto"
-                    : value;
-        }
     }
 
     if (!Save()) {
@@ -772,8 +748,7 @@ bool UserCommandStore::ImportTsv(
 
         Command command;
         command.id = GenerateUuidV4();
-        command.icon = L"auto";
-        command.enabled = true;
+            command.enabled = true;
         command.source = CommandSource::User;
         command.basePriority = 120;
         command.sortOrder = nextOrder;
@@ -797,14 +772,6 @@ bool UserCommandStore::ImportTsv(
                         text::ToUtf8(
                             TrimWide(
                                 fields[11])));
-            }
-            if (fields.size() >= 13) {
-                const std::wstring icon =
-                    TrimWide(fields[12]);
-                command.icon =
-                    icon.empty()
-                        ? L"auto"
-                        : icon;
             }
 
             try {
@@ -888,7 +855,7 @@ bool UserCommandStore::ExportTsv(
     output.write("\xEF\xBB\xBF", 3);
     output <<
         "# ALTRun Next commands TSV v3\n"
-        "# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\truntimeInputMode\ticon\n";
+        "# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\truntimeInputMode\n";
 
     std::vector<const Command*> ordered;
     ordered.reserve(commands_.size());
@@ -930,11 +897,6 @@ bool UserCommandStore::ExportTsv(
             << text::FromUtf8(
                    RuntimeInputModeName(
                        command->runtimeInputMode))
-            << L'\t'
-            << SanitizeTsv(
-                   command->icon.empty()
-                       ? L"auto"
-                       : command->icon)
             << L'\n';
 
         const std::string utf8 = text::ToUtf8(line.str());
@@ -974,7 +936,6 @@ bool UserCommandStore::Save() const {
             {"arguments", text::ToUtf8(command.arguments)},
             {"workingDirectory", text::ToUtf8(command.workingDirectory)},
             {"runtimeInputMode", RuntimeInputModeName(command.runtimeInputMode)},
-            {"icon", text::ToUtf8(command.icon)},
             {"enabled", command.enabled},
             {"runAsAdmin", command.runAsAdmin},
             {"pinned", command.pinned},

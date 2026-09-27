@@ -68,9 +68,27 @@ QueryTokens(
     std::wstring_view field,
     std::wstring_view query);
 
+// Hot-path variants used when the caller already normalized the query.
+// MatchNormalizedText also requires the field to be normalized.
+[[nodiscard]] Match MatchTextNormalizedQuery(
+    std::wstring_view field,
+    std::wstring_view normalizedQuery);
+
+[[nodiscard]] Match MatchNormalizedText(
+    std::wstring_view normalizedField,
+    std::wstring_view normalizedQuery);
+
 [[nodiscard]] Match MatchInitials(
     std::wstring_view initials,
     std::wstring_view query);
+
+[[nodiscard]] Match MatchInitialsNormalizedQuery(
+    std::wstring_view initials,
+    std::wstring_view normalizedQuery);
+
+[[nodiscard]] Match MatchNormalizedInitials(
+    std::wstring_view normalizedInitials,
+    std::wstring_view normalizedQuery);
 
 [[nodiscard]] bool HasPathIntent(
     std::wstring_view query);
@@ -85,6 +103,12 @@ ShouldRunDynamicFilesystemQuery(
 [[nodiscard]] bool AdmitLaunchSurface(
     LaunchSurfaceClass surface,
     std::wstring_view query,
+    const Match& match,
+    bool explicitSyntax = false);
+
+[[nodiscard]] bool AdmitLaunchSurfaceNormalized(
+    LaunchSurfaceClass surface,
+    std::wstring_view normalizedQuery,
     const Match& match,
     bool explicitSyntax = false);
 

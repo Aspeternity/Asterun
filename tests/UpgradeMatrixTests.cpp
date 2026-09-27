@@ -208,18 +208,6 @@ void AssertCommonFields(
              ? Language::EnUS
              : Language::ZhCN));
 
-    if (appearance.contains(
-            "showResultIcons")) {
-        assert(
-            settings.showResultIcons ==
-            appearance.at(
-                "showResultIcons")
-                .get<bool>());
-    } else {
-        assert(
-            !settings.showResultIcons);
-    }
-
     for (auto it =
              root.at("providers").begin();
          it != root.at("providers").end();
@@ -354,8 +342,8 @@ void AssertSchema3Migration(
             .get<bool>());
     assert(
         !migrated.at("appearance")
-             .at("showResultIcons")
-             .get<bool>());
+             .contains(
+                 "showResultIcons"));
     assert(
         migrated.at("hotkeys")
             .at("bindings")
@@ -435,8 +423,8 @@ void AssertSchema4Migration(
             .get<bool>());
     assert(
         !migrated.at("appearance")
-             .at("showResultIcons")
-             .get<bool>());
+             .contains(
+                 "showResultIcons"));
 
     AssertDowngradeReadOnly(path);
 }
@@ -503,8 +491,6 @@ void AssertSchema5Migration(
         5);
     assert(
         !store.IsReadOnlyDueToNewerSchema());
-    assert(
-        !store.Data().showResultIcons);
 
     const auto migrated =
         nlohmann::json::parse(
@@ -516,8 +502,8 @@ void AssertSchema5Migration(
         config::kSettingsSchemaVersion);
     assert(
         !migrated.at("appearance")
-             .at("showResultIcons")
-             .get<bool>());
+             .contains(
+                 "showResultIcons"));
 
     AssertDowngradeReadOnly(path);
 }
@@ -779,10 +765,8 @@ void AssertCleanInstall(
             .get<bool>());
     assert(
         !root.at("appearance")
-             .at("showResultIcons")
-             .get<bool>());
-    assert(
-        !store.Data().showResultIcons);
+             .contains(
+                 "showResultIcons"));
     assert(
         store.Data().autoCheckUpdates);
     assert(

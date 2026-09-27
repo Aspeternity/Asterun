@@ -203,6 +203,30 @@ int main() {
         classic_behavior::
             kNumericTypingWindowMs >= 300);
 
+    using classic_behavior::ContinuationEvidence;
+    using classic_behavior::PendingNumericDecision;
+    using classic_behavior::ResolvePendingNumericIntent;
+    assert(ResolvePendingNumericIntent(ContinuationEvidence::Unknown, true, 90) == PendingNumericDecision::Wait);
+    assert(ResolvePendingNumericIntent(ContinuationEvidence::Unknown, true, 240) == PendingNumericDecision::Text);
+    assert(ResolvePendingNumericIntent(ContinuationEvidence::Present, true, 1) == PendingNumericDecision::Text);
+    assert(ResolvePendingNumericIntent(ContinuationEvidence::Absent, true, 89) == PendingNumericDecision::Wait);
+    assert(ResolvePendingNumericIntent(ContinuationEvidence::Absent, true, 90) == PendingNumericDecision::Execute);
+    assert(ResolvePendingNumericIntent(ContinuationEvidence::Unknown, false, 90) == PendingNumericDecision::Execute);
+    context.resultAvailable = true;
+    context.editingText = true;
+    assert(classic_behavior::DecideNumericQuickLaunch(context) == NumericQuickLaunchDecision::Text);
+    assert(classic_behavior::StrongNameContinuation(L" V-2rayN", L"v2"));
+    assert(!classic_behavior::StrongNameContinuation(L"noise-v2.txt", L"v2"));
+    result.title = L"Other";
+    result.subtitle = L"v2 storage";
+    result.target = L"D:\\v2\\other.exe";
+    assert(!classic_behavior::HasStrongResultContinuation(std::vector<LauncherResult>{result}, L"v2"));
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"v2") == LR"(nopath:regex:"^[\s_-]*v[\s_-]*2")");
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"c++2").find(L"c[\\s_-]*\\+") != std::wstring::npos);
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"ext:exe").empty());
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"C:\\Apps").empty());
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"   ").empty());
+
     std::cout
         << "Classic behavior tests passed\n";
     return 0;

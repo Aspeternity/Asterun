@@ -3,6 +3,7 @@
 
 #include <commctrl.h>
 #include <mmsystem.h>
+#include <iterator>
 #include <string>
 
 namespace altrun::ui {
@@ -58,10 +59,10 @@ void SetFeedbackEnabled(bool enabled) {
 
 void PlayFeedback(FeedbackCue cue) {
     if (!policy.Accept(cue, GetTickCount64())) return;
-    constexpr int sounds[]{IDW_STARTUP, IDW_REVEAL, IDW_EXECUTE, IDW_FAILURE};
-    // Embedded PCM, asynchronous, no queue, no looping or default Windows beep.
-    // A new accepted cue replaces the previous one instead of accumulating audio.
-    PlaySoundW(MAKEINTRESOURCEW(sounds[static_cast<std::size_t>(cue)]),
+    // Use the authorized original ALTRun Popup.wav for every accepted
+    // application feedback event. The existing policy still owns when a cue is
+    // allowed; a new cue replaces the previous one instead of queueing audio.
+    PlaySoundW(MAKEINTRESOURCEW(IDW_ALTRUN_POPUP),
                GetModuleHandleW(nullptr), SND_RESOURCE | SND_ASYNC | SND_NODEFAULT);
 }
 
@@ -122,5 +123,195 @@ bool ConfirmShortcutDeletion(HWND owner, std::wstring_view name, bool chinese) {
     int result = IDCANCEL;
     // Fail closed: no deletion when the confirmation could not be displayed.
     return SUCCEEDED(ShowNativeDialog(config, result)) && result == IDYES;
+}
+
+bool ConfirmEverythingSetup(
+    HWND owner,
+    bool chinese) {
+    const TASKDIALOG_BUTTON buttons[]{
+        {IDYES, chinese ? L"继续" : L"Continue"},
+        {IDCANCEL, chinese ? L"取消" : L"Cancel"},
+    };
+
+    TASKDIALOGCONFIG config{};
+    config.cbSize = sizeof(config);
+    config.hwndParent = owner;
+    config.dwFlags =
+        TDF_POSITION_RELATIVE_TO_WINDOW |
+        TDF_ALLOW_DIALOG_CANCELLATION;
+    config.pszWindowTitle =
+        chinese
+            ? L"Everything 文件搜索"
+            : L"Everything file search";
+    config.pszMainInstruction =
+        chinese
+            ? L"启用 Everything 文件搜索"
+            : L"Enable Everything file search";
+    config.pszContent =
+        chinese
+            ? L"ALTRun Next 会优先使用电脑上已有的 Everything。\n\n"
+              L"如果没有找到，将从 voidtools 官方获取最新稳定版并自动完成必要设置。"
+              L"首次启用文件索引时，Windows 可能会请求一次管理员权限。\n\n"
+              L"下载文件会在使用前验证完整性。"
+            : L"ALTRun Next will use an existing Everything installation when possible.\n\n"
+              L"If none is available, it will get the latest stable release from voidtools and configure what is needed automatically. "
+              L"Windows may request administrator approval once when file indexing is first enabled.\n\n"
+              L"Downloaded files are integrity-checked before use.";
+    config.pszFooter =
+        chinese
+            ? L"Everything 由 voidtools 提供。托盘图标可在“搜索来源”中随时设置。"
+            : L"Everything is provided by voidtools. Its managed tray icon can be changed anytime in Search sources.";
+    config.cButtons =
+        static_cast<UINT>(
+            std::size(buttons));
+    config.pButtons = buttons;
+    config.nDefaultButton = IDCANCEL;
+
+    int result = IDCANCEL;
+
+    if (FAILED(
+            ShowNativeDialog(
+                config,
+                result))) {
+        result =
+            MessageBoxW(
+                owner,
+                config.pszContent,
+                config.pszWindowTitle,
+                MB_YESNO |
+                    MB_DEFBUTTON2);
+    }
+
+    return result == IDYES;
+}
+
+UninstallDataChoice
+ChooseUninstallData(
+    HWND owner,
+    bool chinese) {
+    constexpr int kPreserve = 1001;
+    constexpr int kDelete = 1002;
+
+    const TASKDIALOG_BUTTON buttons[]{
+        {kPreserve,
+         chinese
+             ? L"卸载并保留个人数据"
+             : L"Uninstall and keep personal data"},
+        {kDelete,
+         chinese
+             ? L"彻底卸载"
+             : L"Remove everything"},
+        {IDCANCEL,
+         chinese
+             ? L"取消"
+             : L"Cancel"},
+    };
+
+    TASKDIALOGCONFIG config{};
+    config.cbSize = sizeof(config);
+    config.hwndParent = owner;
+    config.dwFlags =
+        TDF_POSITION_RELATIVE_TO_WINDOW |
+        TDF_ALLOW_DIALOG_CANCELLATION;
+    config.pszWindowTitle =
+        chinese
+            ? L"卸载 ALTRun Next"
+            : L"Uninstall ALTRun Next";
+    config.pszMainInstruction =
+        chinese
+            ? L"是否保留个人数据？"
+            : L"Keep your personal data?";
+    config.pszContent =
+        chinese
+            ? L"ALTRun Next 和由其管理的 Everything 组件都会被移除；你自己安装的 Everything 不会受到影响。\n\n"
+              L"快捷项、设置和使用记录可以保留，方便以后重新安装。“彻底卸载”会同时删除这些个人数据。"
+            : L"ALTRun Next and the Everything components it manages will be removed; Everything installations you manage yourself are not changed.\n\n"
+              L"Shortcuts, settings and usage history can be kept for a future reinstall. “Remove everything” deletes this personal data as well.";
+    config.cButtons =
+        static_cast<UINT>(
+            std::size(buttons));
+    config.pButtons = buttons;
+    config.nDefaultButton = kPreserve;
+
+    int result = IDCANCEL;
+
+    if (FAILED(
+            ShowNativeDialog(
+                config,
+                result))) {
+        const int fallback =
+            MessageBoxW(
+                owner,
+                chinese
+                    ? L"是否同时删除快捷项、设置和使用记录？\n\n"
+                      L"“是”=彻底删除；“否”=保留个人数据。"
+                    : L"Also delete shortcuts, settings and usage history?\n\n"
+                      L"Yes removes everything; No keeps personal data.",
+                config.pszWindowTitle,
+                MB_YESNOCANCEL |
+                    MB_DEFBUTTON2);
+
+        if (fallback == IDYES) {
+            return UninstallDataChoice::Delete;
+        }
+        if (fallback == IDNO) {
+            return UninstallDataChoice::Preserve;
+        }
+        return UninstallDataChoice::Cancel;
+    }
+
+    if (result == kPreserve) {
+        return UninstallDataChoice::Preserve;
+    }
+    if (result == kDelete) {
+        return UninstallDataChoice::Delete;
+    }
+    return UninstallDataChoice::Cancel;
+}
+
+bool ConfirmPermanentUserDataDeletion(
+    HWND owner,
+    bool chinese) {
+    const TASKDIALOG_BUTTON buttons[]{
+        {IDYES,
+         chinese
+             ? L"删除个人数据"
+             : L"Delete personal data"},
+        {IDCANCEL,
+         chinese
+             ? L"返回"
+             : L"Go back"},
+    };
+
+    TASKDIALOGCONFIG config{};
+    config.cbSize = sizeof(config);
+    config.hwndParent = owner;
+    config.dwFlags =
+        TDF_POSITION_RELATIVE_TO_WINDOW |
+        TDF_ALLOW_DIALOG_CANCELLATION;
+    config.pszWindowTitle =
+        chinese
+            ? L"彻底卸载 ALTRun Next"
+            : L"Remove ALTRun Next completely";
+    config.pszMainInstruction =
+        chinese
+            ? L"同时删除个人数据？"
+            : L"Delete personal data too?";
+    config.pszContent =
+        chinese
+            ? L"快捷项、设置和使用记录删除后无法恢复。"
+            : L"Shortcuts, settings and usage history cannot be recovered after deletion.";
+    config.cButtons =
+        static_cast<UINT>(
+            std::size(buttons));
+    config.pButtons = buttons;
+    config.nDefaultButton = IDCANCEL;
+
+    int result = IDCANCEL;
+    return SUCCEEDED(
+               ShowNativeDialog(
+                   config,
+                   result)) &&
+        result == IDYES;
 }
 } // namespace altrun::ui

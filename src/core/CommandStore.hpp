@@ -120,6 +120,11 @@ public:
             .Commands();
     }
 
+    [[nodiscard]] bool
+    HasContextFolderTemplates() const noexcept {
+        return hasContextFolderTemplates_;
+    }
+
     [[nodiscard]] const std::unordered_map<
         std::wstring,
         std::wstring>&
@@ -181,6 +186,7 @@ private:
         providerCommandCount_{0};
     std::vector<Command>
         commands_;
+    bool hasContextFolderTemplates_{false};
     CommandMergeStats
         mergeStats_;
     ProviderIndexState

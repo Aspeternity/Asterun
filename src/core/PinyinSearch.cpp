@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cctype>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <unordered_map>
 #include <utility>
@@ -14,6 +15,26 @@
 namespace altrun {
 
 namespace {
+
+struct TransparentWideStringHash {
+    using is_transparent = void;
+
+    [[nodiscard]] std::size_t operator()(
+        std::wstring_view value) const noexcept {
+        return std::hash<std::wstring_view>{}(
+            value);
+    }
+};
+
+struct TransparentWideStringEqual {
+    using is_transparent = void;
+
+    [[nodiscard]] bool operator()(
+        std::wstring_view left,
+        std::wstring_view right) const noexcept {
+        return left == right;
+    }
+};
 
 bool ContainsSupportedHanzi(std::wstring_view text) {
     return std::any_of(
@@ -234,14 +255,12 @@ void AppendAsciiForms(
     }
 
     for (const auto& word : words) {
-        const std::wstring normalized =
+        std::wstring normalized =
             NormalizeAsciiPiece(word);
 
         if (normalized.empty()) {
             continue;
         }
-
-        forms.syllables.push_back(normalized);
 
         if (IsShortUpperAcronym(word)) {
             forms.initials += normalized;
@@ -249,6 +268,9 @@ void AppendAsciiForms(
             forms.initials.push_back(
                 normalized.front());
         }
+
+        forms.syllables.push_back(
+            std::move(normalized));
     }
 }
 
@@ -275,7 +297,7 @@ PinyinForms BuildForms(
             continue;
         }
 
-        const std::wstring normalized =
+        std::wstring normalized =
             NormalizeAsciiPiece(
                 item.pinyin);
 
@@ -287,7 +309,7 @@ PinyinForms BuildForms(
         forms.initials.push_back(
             normalized.front());
         forms.syllables.push_back(
-            normalized);
+            std::move(normalized));
     }
 
     return forms;
@@ -304,9 +326,14 @@ struct PinyinSearch::Impl {
     };
 
     explicit Impl(
-        std::filesystem::path directory)
+        std::filesystem::path directory,
+        std::size_t requestedCacheCapacity)
         : dictionaryDirectory(
-              std::move(directory)) {
+              std::move(directory)),
+          cacheCapacity(
+              std::max<std::size_t>(
+                  1,
+                  requestedCacheCapacity)) {
 
         std::error_code ec;
         const auto requiredDictionary =
@@ -399,16 +426,28 @@ struct PinyinSearch::Impl {
     mutable std::atomic<State> state{
         State::Missing};
 
+    struct CacheEntry {
+        PinyinForms forms;
+        std::uint64_t lastUse{0};
+    };
+
+    const std::size_t cacheCapacity;
+    mutable std::uint64_t cacheTick{0};
     mutable std::unordered_map<
         std::wstring,
-        PinyinForms> cache;
+        CacheEntry,
+        TransparentWideStringHash,
+        TransparentWideStringEqual>
+        cache;
 };
 
 PinyinSearch::PinyinSearch(
-    std::filesystem::path dictionaryDirectory)
+    std::filesystem::path dictionaryDirectory,
+    std::size_t cacheCapacity)
     : impl_(
           std::make_unique<Impl>(
-              std::move(dictionaryDirectory))) {}
+              std::move(dictionaryDirectory),
+              cacheCapacity)) {}
 
 PinyinSearch::~PinyinSearch() = default;
 
@@ -458,7 +497,13 @@ void PinyinSearch::Unload() noexcept {
     std::scoped_lock lock(
         impl_->mutex);
 
-    impl_->cache.clear();
+    // clear() destroys entries but is allowed to retain the hash bucket
+    // array. Unload is called when the user disables pinyin search, so swap
+    // with a fresh map to return both entry storage and bucket capacity.
+    decltype(impl_->cache) emptyCache;
+    impl_->cache.swap(
+        emptyCache);
+    impl_->cacheTick = 0;
     impl_->converter.reset();
 
     const auto state =
@@ -496,13 +541,13 @@ const PinyinForms* PinyinSearch::FormsFor(
         return nullptr;
     }
 
-    std::wstring key(text);
-
     const auto existing =
-        impl_->cache.find(key);
+        impl_->cache.find(text);
 
     if (existing != impl_->cache.end()) {
-        return &existing->second;
+        existing->second.lastUse =
+            ++impl_->cacheTick;
+        return &existing->second.forms;
     }
 
     PinyinForms forms;
@@ -516,13 +561,46 @@ const PinyinForms* PinyinSearch::FormsFor(
         return nullptr;
     }
 
+    // Provider refreshes and user edits can introduce new searchable
+    // strings over a long-lived tray session. Keep this derived cache bounded
+    // so old catalog text cannot accumulate for the lifetime of the process.
+    if (impl_->cache.size() >=
+        impl_->cacheCapacity) {
+        auto victim =
+            impl_->cache.end();
+
+        for (auto it =
+                 impl_->cache.begin();
+             it != impl_->cache.end();
+             ++it) {
+            if (victim ==
+                    impl_->cache.end() ||
+                it->second.lastUse <
+                    victim->second.lastUse) {
+                victim = it;
+            }
+        }
+
+        if (victim !=
+            impl_->cache.end()) {
+            impl_->cache.erase(
+                victim);
+        }
+    }
+
+    Impl::CacheEntry entry;
+    entry.forms =
+        std::move(forms);
+    entry.lastUse =
+        ++impl_->cacheTick;
+
     const auto [it, inserted] =
         impl_->cache.emplace(
-            std::move(key),
-            std::move(forms));
+            std::wstring(text),
+            std::move(entry));
 
     (void) inserted;
-    return &it->second;
+    return &it->second.forms;
 }
 
 } // namespace altrun

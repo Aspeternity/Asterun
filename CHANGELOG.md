@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.8.0-alpha.5.49
+
+- Force a real non-client frame recalculation after Settings page switches so the General-page scrollbar cannot remain visually ghosted on the first Search Sources visit. Show the managed Everything tray-icon control only when the live default IPC endpoint is actually owned by ALTRun Next's managed Everything process; merely having an install candidate/path no longer qualifies. Collapse unavailable controls and size the file-search card from its visible content, including bottom padding.
+- Release the original uninstaller's working directory before elevation and let the Explorer broker exit before the worker acquires the root deletion handle. Supervise the broker with the worker process lifetime rather than a fixed pre-cleanup timeout; clear a read-only root through its validated handle and report the failed uninstall stage.
+- Add Windows regressions for repeated search-source page visits, a broker-held directory handle, and a read-only installation root. Build #634 and the alpha.5.49 real-desktop closeout passed; Classic is technically frozen after this acceptance.
+
+- Begin the Classic technical closeout while preserving the frozen Classic geometry.
+- Stop copying the complete Command catalog on ordinary Launcher searches. The immutable CommandStore catalog is now consumed through a non-owning span; a context-resolved working copy is materialized only when at least one user shortcut actually uses `{folder}`.
+- Prepare normalized query state and pinyin eligibility once per static search, and reuse normalized-query matching in relevance and dynamic filesystem ranking. File-stem matching now uses a non-owning view instead of allocating a temporary string.
+- Avoid additional hot-path allocations by reusing the already-normalized single-term query instead of building a token vector, caching whether any user shortcut needs the contextual `{folder}` working set outside the keypress path, sampling recency time once per empty-query search, and passing the known query-empty state into result rebuilding instead of rereading the EDIT control.
+- Make pinyin cache hits allocation-free through transparent lookup, move derived syllable strings into cache storage instead of copying them, and return the cache bucket array as well as entries when pinyin search is disabled.
+- Lower background refresh memory peaks by moving provider-discovery command vectors into the cache update instead of deep-copying the full discovered catalog.
+- Replace UsageStore's full-history rollback copy on every successful launch with a targeted undo log for only the selected command and affected same-query competitors; Clear likewise moves the map aside and restores it only if persistence fails.
+- Bound the derived pinyin-form cache with an LRU-style capacity of 4096 entries so provider refreshes and long-running user-edit churn cannot grow it without limit.
+- Extend the real Win32 runtime regression with a repeated Shortcut Manager -> Editor -> Path Conversion lifecycle soak and assert that GDI, USER and process-handle counts do not grow per cycle.
+- Remove the optional search-result icon feature end to end: Settings preference/UI, Launcher HICON worker/cache/async message/rendering branches, LauncherResult icon metadata, ResultIconPipeline and its dedicated test target are gone. Legacy `showResultIcons` JSON is ignored and dropped on the next save without a schema bump.
+- Fix Everything/CJK relevance admission: the 1-2 character strong-match precision gate now applies only to ASCII. A two-character CJK query such as `男主` can match the middle of `系统男主`, while short ASCII noise protection remains unchanged.
+- Overfetch a bounded Everything candidate pool before ALTRun Next applies its own relevance filter/ranking, then trim back to the requested candidate count. This prevents broad short queries such as `v2` from being emptied by provider-side truncation before a strong result such as `v2rayN.exe` is seen.
+- Preserve Settings schema 11, Commands 2, Usage 2 and Provider Cache 22; Windows fixed version `0.8.0.219`.
+
+## 0.8.0-alpha.5.48
+
+- Follow-up after real-desktop feedback: preserve hidden Settings visibility through page/hotkey redraw batches; `WM_SETREDRAW(TRUE)` previously exposed General before the explicit reveal and could bypass final placement.
+- Transfer foreground permission from the external Add Shortcut forwarding process to the resident instance; ignore hidden/minimized owners for popup placement and do not reactivate a hidden Launcher or re-enable an already-disabled modal owner on close.
+- Allow repeated selections to reorder comparable initials matches; exact name, explicit shortcut, surface and field priority remain protected. Bound and decay same-query preference evidence so saturated history can adapt, without changing Usage schema 2 or global launch counts.
+- Add real-HWND Settings/About/editor runtime regressions to both Windows validation jobs, plus search/persistence/ordering regressions. Mixed-monitor rendering and Explorer foreground behavior still require interactive sign-off.
+- Remove successful Launcher execution feedback entirely; ordinary, packaged and numeric/delayed launches no longer play Popup.wav.
+- Keep sound feedback only for startup notification, hidden-to-visible Launcher reveal and genuine application failure paths.
+- Defer tray menu commands until after the `TrackPopupMenu` modal loop and tray callback unwind, eliminating a foreground-owner bounce when opening Settings, About or Shortcut Manager.
+- Reveal hidden top-level windows without activation under the existing DWM cloak, then perform one explicit foreground handoff after the fully painted frame is visible.
+- Prepare the About page before Settings becomes visible instead of revealing General first and switching pages afterward.
+- Keep Settings schema 11, Commands 2, Usage 2 and Provider Cache 22; Windows fixed version `0.8.0.218`.
+
+## 0.8.0-alpha.5.47
+
+- Move startup-registration and SendTo reconciliation off the first-frame path; the real launcher window/health signal is established before Shell integration work begins.
+- Reconcile shell integrations on a background COM worker with desired-state guards so a concurrent Settings change wins deterministically.
+- Make the HKCU Run registration idempotent and avoid rewriting an unchanged value.
+- Load and compare the existing SendTo Shell Link before saving; an unchanged portable install performs no .lnk rewrite, while a moved install still self-repairs target/working-directory/icon paths.
+- Extend packaged x64 runtime smoke with a 3-second first-frame health contract and a repeat-launch no-rewrite assertion.
+- Keep Settings schema 11, Commands 2, Usage 2 and Provider Cache 22; Windows fixed version `0.8.0.217`.
+
+## 0.8.0-alpha.5.46
+
+- Simplify the native tray menu to Show launcher, Shortcut Manager…, Settings…, About and Exit; remove Reload and group management entries together.
+- Make Show launcher the native default menu item and display the effective enabled hotkeys for Show launcher, Shortcut Manager and Settings.
+- Default Start with Windows, Add to Send To menu and Numeric quick launch to on for fresh settings and Restore defaults.
+- Preserve existing persisted user choices and the historical off baseline when upgrading older settings that did not yet carry these fields.
+- Keep Settings schema 11, Commands 2, Usage 2 and Provider Cache 22; Windows fixed version `0.8.0.216`.
+
+## 0.8.0-alpha.5.45
+
+- Set the explicit process AppUserModelID to `Aspeternity.ALTRunNext` so portable shell-facing surfaces share one stable product identity.
+- Give the notification-area icon a stable GUID, preserve the standard tooltip under `NOTIFYICON_VERSION_4`, and accept keyboard selection while retaining double-click activation.
+- Restore only the persistent tray icon after Explorer/taskbar restart; do not resurrect one-shot startup-notification icons.
+- Use the authorized original ALTRun `MAINICON` / `Res/Carracho.ico` for the executable, top-level product windows and tray icon.
+- Replace the temporary generated alpha.5.44 tones with the authorized original ALTRun `Popup.wav` while preserving the existing sound toggle and feedback policy.
+- Preserve Settings schema 11, Commands 2, Usage 2 and Provider Cache 22; Windows fixed version `0.8.0.215`.
+
 ## 0.8.0-alpha.5.44
 
 - Share shortcut deletion confirmation, canonical display name, cancel default, and failure handling across Launcher and Shortcut Manager.
@@ -2523,3 +2582,11 @@
 ## 0.1.0
 
 - Created the clean-room C++23/Win32 development baseline.
+
+### alpha.5.49 follow-up — numeric intent and uninstall recovery
+
+- Preserve bare-number quick launch while probing Everything for strong filename continuations on an independent IPC channel. Distinguish confirmed absence from unavailable/truncated/failed queries; cancel stale intents on editing/session changes.
+- Recall filename-prefix candidates before broad Everything results are locally filtered; keep explicit syntax semantics and bounded candidate pools.
+- Fix the elevated uninstaller working-directory pointer lifetime, already-stopping services, process-exit races and ignored process wait timeouts.
+- Clear read-only attributes on owned ordinary entries, unlink reparse points without traversing their targets, retain retry anchors until late cleanup and restore an uninstall recovery entry after partial failure.
+- Add Windows production-EDIT/IPC and real filesystem uninstall regression coverage. Versions and data schemas remain unchanged.

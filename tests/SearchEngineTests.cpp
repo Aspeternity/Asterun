@@ -124,6 +124,45 @@ int main(int argc, char** argv) {
     assert(weixinReload.front().commandIndex == 3);
     assert(engine.PinyinLoaded());
 
+    // Long-running provider refreshes must not make the derived pinyin cache
+    // grow forever. Use a deliberately tiny capacity so eviction is cheap to
+    // exercise in the normal core test suite.
+    {
+        constexpr std::size_t
+            kTestCapacity = 8;
+
+        PinyinSearch boundedPinyin(
+            executableDirectory / "dict",
+            kTestCapacity);
+
+        for (std::size_t index = 0;
+             index < kTestCapacity + 6;
+             ++index) {
+            const std::wstring text =
+                L"测试应用" +
+                std::to_wstring(
+                    index);
+
+            assert(
+                boundedPinyin.FormsFor(
+                    text) != nullptr);
+            assert(
+                boundedPinyin
+                    .CacheEntryCount() <=
+                kTestCapacity);
+        }
+
+        assert(
+            boundedPinyin
+                .CacheEntryCount() ==
+            kTestCapacity);
+
+        boundedPinyin.Unload();
+        assert(
+            boundedPinyin
+                .CacheEntryCount() == 0);
+    }
+
     auto exact = engine.Search(commands, usage, L"chrome", 10);
     assert(!exact.empty());
     assert(exact.front().commandIndex == 0);
@@ -2151,6 +2190,42 @@ int main(int argc, char** argv) {
     assert(
         wildcardTarget.front()
             .commandIndex == 4);
+
+    // Exact derived initials and a longer acronym are both learned choices.
+    // Their old 122-point difference permanently defeated the 32-point cap.
+    {
+        std::vector<Command> initials{
+            MakeCommand(L"new", L"teamspeak", L"TeamSpeak", L"new.exe", 0),
+            MakeCommand(L"classic", L"teamspeak3client", L"TeamSpeak 3 Client", L"classic.exe", 1),
+            MakeCommand(L"other", L"taskservicecontrol", L"Task Service Control", L"other.exe", 2),
+        };
+        for (auto& item : initials) {
+            item.source = CommandSource::StartMenu;
+            item.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            item.basePriority = 0;
+        }
+        UsageMap learned;
+        assert(engine.Search(initials, learned, L"ts", 10, false, false)
+                   .front().commandIndex == 0);
+        learned[L"classic"] = UsageStat{1, 1, {{L"ts", 1}}};
+        assert(engine.Search(initials, learned, L"ts", 10, false, false)
+                   .front().commandIndex == 0);
+        learned[L"classic"] = UsageStat{2, 1, {{L"ts", 2}}};
+        assert(engine.Search(initials, learned, L"ts", 10, false, false)
+                   .front().commandIndex == 1);
+        // Learning ts neither steals team nor outranks an actual exact name.
+        assert(engine.Search(initials, learned, L"team", 10, false, false)
+                   .front().commandIndex == 0);
+        assert(engine.Search(initials, learned, L"teamspeak", 10, false, false)
+                   .front().commandIndex == 0);
+        auto explicitName = MakeCommand(L"exact", L"ts", L"TS", L"exact.exe", 3);
+        explicitName.source = CommandSource::StartMenu;
+        explicitName.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+        initials.push_back(explicitName);
+        learned[L"classic"].queryLaunches[L"ts"] = 100000;
+        assert(engine.Search(initials, learned, L"ts", 10, false, false)
+                   .front().commandIndex == 3);
+    }
 
     // Short family prefixes can match an unrelated name as strongly as a
     // suite companion. Repeated real launches may reorder comparable prefix

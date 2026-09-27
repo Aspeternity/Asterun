@@ -1,6 +1,6 @@
 # ALTRun Next
 
-ALTRun Next is an independently implemented Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise. Classic mode includes the original launcher background and two corner glyph assets used with permission from the original author.
+ALTRun Next is an independently implemented Windows launcher inspired by classic ALTRun: small, keyboard-first, fast, and intentionally low-noise. Classic mode includes the original launcher background and two corner glyph assets, and the product uses the original ALTRun application icon and Popup.wav; these original assets are included with permission from the original author.
 
 ## Downloads
 
@@ -22,6 +22,54 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v0.8.0-alpha.5.49 — Classic Technical Closeout I
+
+This build completes the post-Classic performance and memory closeout on top of the fully validated alpha.5.48 desktop behavior. The normal Launcher keystroke path no longer builds a deep copy of every discovered `Command`: it searches the immutable CommandStore catalog through a non-owning span and only materializes a context-resolved working set when a user shortcut actually contains the `{folder}` template.
+
+Search also prepares normalized query state and pinyin eligibility once per request instead of repeatedly rebuilding that state for every candidate field. Dynamic filesystem ranking reuses the same prepared-query pattern and uses a non-owning filename stem. The derived pinyin-form cache is now bounded to 4096 LRU-style entries so a long-lived tray process cannot accumulate stale forms indefinitely as provider contents change.
+
+Real-machine validation exposed two closeout issues. The optional result-icon surface was visually inconsistent across mixed static/Everything results, so alpha.5.49 removes that feature completely instead of retaining an idle worker/cache path. Everything relevance also no longer applies the short-ASCII strong-match gate to two-character CJK substrings: `男主` correctly remains eligible inside a result such as `系统男主`, while short ASCII precision behavior remains strict.
+
+Windows runtime validation now includes a repeated real-HWND Shortcut Manager -> Shortcut Editor -> Path Conversion lifecycle soak and samples GDI objects, USER objects and process handles before/after the loop. This phase intentionally avoids a broad architecture rewrite: Classic geometry and desktop presentation remain frozen while measured allocator/resource costs and confirmed search regressions are removed locally.
+
+Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.219`.
+
+Build #634 and the final real-Windows alpha.5.49 acceptance passed. Classic is now technically frozen: further Classic work is limited to confirmed regressions, compatibility, data-safety/security and release-blocking defects. Modern Compact refinement is the next UI development track.
+
+## v0.8.0-alpha.5.48 — Silent Launch + Tray Window Presentation
+
+Launcher result execution is now intentionally silent. Ordinary applications, packaged applications, files/folders, numeric Quick Launch and other successful Launcher execution paths no longer emit the ALTRun Popup.wav execution cue. Startup notification, hidden-to-visible Launcher reveal and genuine application error feedback remain governed by the existing Sound effects preference.
+
+Tray top-level window presentation was also audited end-to-end. The tray popup now uses `TPM_RETURNCMD | TPM_NONOTIFY` and posts the selected command only after the popup/menu callback has fully unwound, so Settings/About/Shortcut Manager are never created or foregrounded from inside the nested TrackPopupMenu loop. First-frame reveal now uses a non-activating `SWP_SHOWWINDOW | SWP_NOACTIVATE` compositor path and performs exactly one foreground handoff after uncloaking. About selects its page while Settings is still hidden, eliminating the visible General -> About repaint that could look like a second window switch.
+
+Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.218`.
+
+## v0.8.0-alpha.5.47 — First-Frame Startup + Shell Reconciliation
+
+Cold startup no longer performs Windows startup-registration or SendTo Shell Link work before the real launcher window exists. After the initial launcher/notification/silent presentation path is established, one background COM worker reconciles those integrations without blocking the UI thread. This specifically removes the alpha.5.46 first-run stall caused by synchronously creating `ALTRun Next.lnk` before `LauncherWindow::Create()`.
+
+Both integrations are now idempotent. The HKCU Run value is written only when its command differs from the current executable path, and the SendTo shortcut is loaded and compared before saving. A normal repeat launch therefore performs no Shell Link rewrite; moving the portable folder still repairs the shortcut because its target, working directory and icon path no longer match.
+
+Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.217`. Packaged x64 CI now uses the existing post-update health event as a first-frame probe: with both default-on shell integrations enabled, readiness must arrive within 3 seconds, SendTo must be created after readiness, and a repeat launch must not change the shortcut timestamp.
+
+## v0.8.0-alpha.5.46 — Tray Menu Polish + Default Behavior
+
+The notification-area menu is reduced to the user-facing essentials. **Show launcher / 显示主界面** is the native default item, followed by one management group containing **Shortcut Manager… / 快捷项管理…** and **Settings… / 设置…**, then **About / 关于** and **Exit / 退出**. The old Reload entry is removed. The three actionable entries display their effective current hotkey when that binding is enabled and available, so customized bindings are reflected when the menu opens.
+
+Fresh settings now default **Start with Windows**, **Add to Send To menu**, and **Numeric quick launch** to on. These are product defaults, not an upgrade override: existing current-schema choices remain unchanged, older settings keep the historical off baseline for fields they did not yet store, and **Restore defaults** intentionally applies the new defaults including the Windows startup and SendTo integrations.
+
+Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.216`.
+
+## v0.8.0-alpha.5.45 — Stable Shell Identity + Tray Lifecycle
+
+ALTRun Next now publishes the explicit AppUserModelID `Aspeternity.ALTRunNext` before creating shell-facing UI, giving portable builds one stable Windows Shell identity instead of relying only on executable-path heuristics. The notification-area icon also uses a stable GUID, keeps its normal tooltip under `NOTIFYICON_VERSION_4`, and supports keyboard selection without changing the existing double-click workflow.
+
+If Explorer / the taskbar restarts, a configured persistent tray icon is restored automatically. A temporary tray icon created only to host the startup notification is deliberately not restored, preventing a one-shot notification surface from becoming an orphaned permanent icon.
+
+The product now uses the authorized original ALTRun `MAINICON` (byte-identical to the original repository's `Res/Carracho.ico`) for the executable, top-level ALTRun Next windows and notification-area icon. Sound feedback likewise uses the authorized original `Res/Popup.wav` instead of the temporary generated alpha.5.44 tones; the existing ALTRun Next sound toggle, asynchronous playback and cue-admission policy remain unchanged.
+
+Settings schema **11**, Commands **2**, Usage **2** and Provider Cache **22** remain unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.215`. Real-Windows Explorer-restart, icon scaling/identity, notification-area keyboard/tooltip and original-sound validation are required before closeout.
 
 ## v0.8.0-alpha.5.44 — Consistent Confirmation + Sound Feedback
 

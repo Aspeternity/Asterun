@@ -14,6 +14,7 @@
 #include "../core/RuntimeInput.hpp"
 #include "../core/WebAction.hpp"
 #include "Version.hpp"
+#include "../platform/AppIdentity.hpp"
 #include "../platform/Hotkey.hpp"
 #include "../platform/InstanceIpc.hpp"
 #include "../platform/WinClipboard.hpp"
@@ -31,6 +32,7 @@
 #include <chrono>
 #include <cstdint>
 #include <fstream>
+#include <span>
 #include <stop_token>
 #include <unordered_map>
 
@@ -214,6 +216,38 @@ bool ProbeDirectoryWritable(
     return !ec;
 }
 
+
+[[nodiscard]] bool
+PathEqualsInsensitive(
+    std::wstring_view left,
+    const std::filesystem::path& right) {
+
+    if (left.empty() ||
+        right.empty()) {
+        return left.empty() &&
+            right.empty();
+    }
+
+    const std::wstring leftNormalized =
+        std::filesystem::path(
+            std::wstring(left))
+            .lexically_normal()
+            .wstring();
+
+    const std::wstring rightNormalized =
+        right.lexically_normal()
+            .wstring();
+
+    return CompareStringOrdinal(
+               leftNormalized.c_str(),
+               static_cast<int>(
+                   leftNormalized.size()),
+               rightNormalized.c_str(),
+               static_cast<int>(
+                   rightNormalized.size()),
+               TRUE) == CSTR_EQUAL;
+}
+
 } // namespace
 
 App::App(
@@ -249,6 +283,11 @@ App::~App() {
     if (updateThread_.joinable()) {
         updateThread_.request_stop();
         updateThread_.join();
+    }
+
+    if (shellIntegrationThread_.joinable()) {
+        shellIntegrationThread_.request_stop();
+        shellIntegrationThread_.join();
     }
 
     DestroyUpdateDispatchWindow();
@@ -302,6 +341,13 @@ App::~App() {
 }
 
 int App::Run() {
+    // Keep shell-facing surfaces attached to one stable product identity even
+    // though ALTRun Next is portable and unpackaged.
+    const HRESULT appIdentityResult =
+        SetCurrentProcessExplicitAppUserModelID(
+            app_identity::kAppUserModelId);
+    (void)appIdentityResult;
+
     std::error_code ec;
 
     std::filesystem::create_directories(
@@ -317,6 +363,13 @@ int App::Run() {
 
     settingsStore_.Load();
     ui::SetFeedbackEnabled(settingsStore_.Data().soundEnabled);
+
+    desiredStartupRegistration_.store(
+        settingsStore_.Data()
+            .startWithWindows);
+    desiredSendToRegistration_.store(
+        settingsStore_.Data()
+            .addToSendToMenu);
 
     if (providers::IsEnabled(
             settingsStore_.Data()
@@ -386,14 +439,6 @@ int App::Run() {
                 : L"The ALTRun Next data directory is not writable.\n\nThe launcher will continue running, but settings, shortcuts and usage history may not persist. Move ALTRun Next to a writable folder or check folder permissions.",
             L"ALTRun Next",
             MB_ICONWARNING | MB_OK);
-    }
-
-    ApplyStartupRegistration(
-        settingsStore_.Data().startWithWindows);
-
-    if (settingsStore_.Data()
-            .addToSendToMenu) {
-        ApplySendToRegistration(true);
     }
 
     commandStore_.Reload(
@@ -507,6 +552,11 @@ int App::Run() {
         }
     }
 
+    // Shell integration can touch Explorer, COM and the filesystem. Keep it
+    // completely off the first-frame path; the worker also avoids rewriting
+    // already-correct registrations on ordinary launches.
+    StartShellIntegrationReconcile();
+
     // Cached provider results are already searchable. Refresh automatic
     // discovery off the startup path, then keep provider sources under
     // event-driven observation. AppsFolder uses Shell change notifications;
@@ -559,6 +609,12 @@ int App::Run() {
 
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        if (msg.message == kNumericProbeMessage && msg.hwnd == nullptr) {
+            if (window_) window_->ApplyNumericContinuation(
+                static_cast<std::uint64_t>(msg.wParam),
+                static_cast<classic_behavior::ContinuationEvidence>(msg.lParam));
+            continue;
+        }
         if (msg.message ==
                 kDynamicQueryMessage &&
             msg.hwnd == nullptr) {
@@ -712,45 +768,67 @@ std::vector<LauncherResult> App::Search(
             activationContext_
                 .CurrentFilesystemFolder();
 
-    // Keep a same-order working set so {folder} can be resolved for search,
-    // presentation and {query} web aliases without mutating persisted
-    // commands. Contextual commands are intentionally absent when there is
-    // no real filesystem folder to substitute.
+    // Most searches do not use the contextual {folder} feature. Keep the
+    // immutable CommandStore vector as a non-owning span in that common path;
+    // copying every Command (and all of its strings/vectors) on every keypress
+    // was one of the largest avoidable allocator costs in the launcher.
     std::vector<Command>
-        searchableCommands;
+        contextualCommands;
     std::vector<std::size_t>
         sourceIndices;
 
-    searchableCommands.reserve(
-        sourceCommands.size());
-    sourceIndices.reserve(
-        sourceCommands.size());
+    const bool requiresContextWorkingSet =
+        commandStore_
+            .HasContextFolderTemplates();
 
-    for (std::size_t index = 0;
-         index < sourceCommands.size();
-         ++index) {
-        const auto& source =
-            sourceCommands[index];
+    std::span<const Command>
+        searchableCommands =
+            sourceCommands;
 
-        if (source.source ==
-                CommandSource::User &&
-            UsesFolderTemplate(
-                source)) {
-            if (contextFolder.empty()) {
-                continue;
+    if (requiresContextWorkingSet) {
+        contextualCommands.reserve(
+            sourceCommands.size());
+        sourceIndices.reserve(
+            sourceCommands.size());
+
+        for (std::size_t index = 0;
+             index < sourceCommands.size();
+             ++index) {
+            const auto& source =
+                sourceCommands[index];
+
+            if (source.source ==
+                    CommandSource::User &&
+                UsesFolderTemplate(
+                    source)) {
+                if (contextFolder.empty()) {
+                    continue;
+                }
+
+                contextualCommands.push_back(
+                    ResolveFolderTemplate(
+                        source,
+                        contextFolder));
+            } else {
+                contextualCommands.push_back(
+                    source);
             }
 
-            searchableCommands.push_back(
-                ResolveFolderTemplate(
-                    source,
-                    contextFolder));
-        } else {
-            searchableCommands.push_back(
-                source);
+            sourceIndices.push_back(
+                index);
         }
 
-        sourceIndices.push_back(index);
+        searchableCommands =
+            contextualCommands;
     }
+
+    const auto sourceIndexFor =
+        [&](std::size_t workingIndex) {
+            return requiresContextWorkingSet
+                ? sourceIndices[
+                      workingIndex]
+                : workingIndex;
+        };
 
     const auto matches =
         searchEngine_.Search(
@@ -777,8 +855,8 @@ std::vector<LauncherResult> App::Search(
 
         const std::size_t
             sourceIndex =
-                sourceIndices[
-                    match.commandIndex];
+                sourceIndexFor(
+                    match.commandIndex);
 
         LauncherResult result;
         result.id = command.id;
@@ -796,11 +874,6 @@ std::vector<LauncherResult> App::Search(
                 : command.keyword;
         result.subtitle = command.title;
         result.target = command.target;
-        result.iconSource =
-            command.icon.empty() ||
-            command.icon == L"auto"
-                ? command.target
-                : command.icon;
         result.detail =
             CommandDetail(command);
         result.score = match.score;
@@ -834,46 +907,42 @@ std::vector<LauncherResult> App::Search(
             query,
             limit);
 
-    // Runtime/Web actions receive the context-resolved working set, so remap
-    // their working-set index back to the persisted CommandStore index.
-    for (auto& action : inputActions) {
-        if (action.action.commandIndex ==
-            static_cast<std::size_t>(-1)) {
-            continue;
-        }
+    // Only the contextual working set has synthetic indices. The normal
+    // no-template path already points directly at CommandStore and therefore
+    // needs no remap and no source-index side allocation.
+    const auto remapActionIndices =
+        [&](std::vector<LauncherResult>&
+                actions) {
+            if (!requiresContextWorkingSet) {
+                return;
+            }
 
-        if (action.action.commandIndex >=
-            sourceIndices.size()) {
-            action.action.commandIndex =
-                static_cast<std::size_t>(-1);
-            continue;
-        }
+            for (auto& action : actions) {
+                if (action.action.commandIndex ==
+                    static_cast<std::size_t>(
+                        -1)) {
+                    continue;
+                }
 
-        action.action.commandIndex =
-            sourceIndices[
-                action.action.commandIndex];
-    }
+                if (action.action.commandIndex >=
+                    sourceIndices.size()) {
+                    action.action.commandIndex =
+                        static_cast<std::size_t>(
+                            -1);
+                    continue;
+                }
 
-    // WebAction receives the context-resolved working set, so remap its
-    // working-set index back to the persisted CommandStore index before the
-    // action reaches execution/usage tracking.
-    for (auto& action : webActions) {
-        if (action.action.commandIndex ==
-            static_cast<std::size_t>(-1)) {
-            continue;
-        }
+                action.action.commandIndex =
+                    sourceIndices[
+                        action.action
+                            .commandIndex];
+            }
+        };
 
-        if (action.action.commandIndex >=
-            sourceIndices.size()) {
-            action.action.commandIndex =
-                static_cast<std::size_t>(-1);
-            continue;
-        }
-
-        action.action.commandIndex =
-            sourceIndices[
-                action.action.commandIndex];
-    }
+    remapActionIndices(
+        inputActions);
+    remapActionIndices(
+        webActions);
 
     auto clipboardActions =
         BuildClipboardActionResults(
@@ -961,6 +1030,15 @@ bool App::DynamicSearchEnabled()
             false);
 }
 
+void App::BeginNumericContinuationProbe(std::uint64_t token, std::wstring query) {
+    if (!DynamicSearchEnabled()) return; // The bounded UI deadline resolves unknown as text.
+    everythingProvider_->ProbeContinuation(token, std::move(query),
+        [this](std::uint64_t generation, classic_behavior::ContinuationEvidence evidence) {
+            if (uiThreadId_ != 0) PostThreadMessageW(uiThreadId_, kNumericProbeMessage,
+                static_cast<WPARAM>(generation), static_cast<LPARAM>(evidence));
+        });
+}
+
 void App::BeginDynamicSearch(
     std::uint64_t generation,
     std::wstring query,
@@ -1022,7 +1100,8 @@ App::EverythingBootstrapStatus() const {
 }
 
 bool App::StartEverythingBootstrap(
-    bool allowDownload) {
+    bool allowDownload,
+    bool forceManagedUpdate) {
     if (!providers::IsEnabled(
             settingsStore_.Data()
                 .providerEnabled,
@@ -1062,6 +1141,9 @@ bool App::StartEverythingBootstrap(
 
     const auto dataDirectory =
         dataDirectory_;
+    const bool showManagedTrayIcon =
+        settingsStore_.Data()
+            .managedEverythingShowTrayIcon;
     const DWORD targetThread =
         uiThreadId_;
     const std::uint64_t generation =
@@ -1072,6 +1154,8 @@ bool App::StartEverythingBootstrap(
             [this,
              dataDirectory,
              allowDownload,
+             showManagedTrayIcon,
+             forceManagedUpdate,
              targetThread,
              generation](
                 std::stop_token stopToken) {
@@ -1090,6 +1174,111 @@ bool App::StartEverythingBootstrap(
                     win::RunEverythingBootstrap(
                         dataDirectory,
                         allowDownload,
+                        progress,
+                        stopToken,
+                        showManagedTrayIcon,
+                        forceManagedUpdate);
+
+                {
+                    std::scoped_lock lock(
+                        everythingBootstrapMutex_);
+                    everythingBootstrapStatus_ =
+                        result;
+                }
+
+                if (targetThread != 0) {
+                    PostThreadMessageW(
+                        targetThread,
+                        kEverythingBootstrapMessage,
+                        static_cast<WPARAM>(
+                            generation),
+                        0);
+                }
+            });
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            OnDynamicProviderStatusChanged();
+    }
+
+    return true;
+}
+
+bool App::StartEverythingUpdateCheck() {
+    if (!providers::IsEnabled(
+            settingsStore_.Data()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false)) {
+        return false;
+    }
+
+    const auto bootstrap =
+        EverythingBootstrapStatus();
+
+    if (bootstrap.running ||
+        (bootstrap.source !=
+             win::EverythingBootstrapSource::
+                 Managed &&
+         bootstrap.source !=
+             win::EverythingBootstrapSource::
+                 Downloaded)) {
+        return false;
+    }
+
+    if (everythingBootstrapThread_
+            .joinable()) {
+        everythingBootstrapThread_
+            .join();
+    }
+
+    {
+        std::scoped_lock lock(
+            everythingBootstrapMutex_);
+
+        everythingBootstrapStatus_
+            .stage =
+            win::EverythingBootstrapStage::
+                ResolvingStableVersion;
+        everythingBootstrapStatus_
+            .running = true;
+        everythingBootstrapStatus_
+            .failure =
+            win::EverythingBootstrapFailure::
+                None;
+        everythingBootstrapStatus_
+            .nativeError = 0;
+    }
+
+    const auto dataDirectory =
+        dataDirectory_;
+    const DWORD targetThread =
+        uiThreadId_;
+    const std::uint64_t generation =
+        ++everythingBootstrapGeneration_;
+
+    everythingBootstrapThread_ =
+        std::jthread(
+            [this,
+             dataDirectory,
+             targetThread,
+             generation](
+                std::stop_token stopToken) {
+                const auto progress =
+                    [this](
+                        const win::
+                            EverythingBootstrapSnapshot&
+                                snapshot) {
+                        std::scoped_lock lock(
+                            everythingBootstrapMutex_);
+                        everythingBootstrapStatus_ =
+                            snapshot;
+                    };
+
+                const auto result =
+                    win::CheckManagedEverythingUpdate(
+                        dataDirectory,
                         progress,
                         stopToken);
 
@@ -2744,12 +2933,27 @@ bool App::RestoreDefaultSettings() {
         return false;
     }
 
-    if (!ApplySendToRegistration(false)) {
+    desiredSendToRegistration_.store(
+        defaults.addToSendToMenu);
+    desiredStartupRegistration_.store(
+        defaults.startWithWindows);
+
+    if (!ApplySendToRegistration(
+            defaults.addToSendToMenu)) {
+        desiredSendToRegistration_.store(
+            previous.addToSendToMenu);
+        desiredStartupRegistration_.store(
+            previous.startWithWindows);
         rollbackHotkeys();
         return false;
     }
 
-    if (!ApplyStartupRegistration(false)) {
+    if (!ApplyStartupRegistration(
+            defaults.startWithWindows)) {
+        desiredSendToRegistration_.store(
+            previous.addToSendToMenu);
+        desiredStartupRegistration_.store(
+            previous.startWithWindows);
         ApplySendToRegistration(
             previous.addToSendToMenu);
         rollbackHotkeys();
@@ -2757,6 +2961,10 @@ bool App::RestoreDefaultSettings() {
     }
 
     if (!settingsStore_.ResetDefaults()) {
+        desiredSendToRegistration_.store(
+            previous.addToSendToMenu);
+        desiredStartupRegistration_.store(
+            previous.startWithWindows);
         ApplyStartupRegistration(
             previous.startWithWindows);
         ApplySendToRegistration(
@@ -2830,35 +3038,22 @@ void App::SetLanguage(Language language) {
     }
 }
 
-bool App::SetShowResultIcons(
-    bool enabled) {
-    if (!settingsStore_.SetShowResultIcons(
-            enabled)) {
-        return false;
-    }
-
-    if (window_) {
-        window_->
-            ApplyResultIconPreference();
-    }
-
-    if (settingsWindow_) {
-        settingsWindow_->
-            RefreshFromSettings();
-    }
-
-    return true;
-}
-
 bool App::SetStartWithWindows(bool enabled) {
     const bool previous =
         settingsStore_.Data().startWithWindows;
 
+    desiredStartupRegistration_.store(
+        enabled);
+
     if (!ApplyStartupRegistration(enabled)) {
+        desiredStartupRegistration_.store(
+            previous);
         return false;
     }
 
     if (!settingsStore_.SetStartWithWindows(enabled)) {
+        desiredStartupRegistration_.store(
+            previous);
         ApplyStartupRegistration(previous);
         return false;
     }
@@ -3264,14 +3459,21 @@ bool App::SetAddToSendToMenu(
         settingsStore_.Data()
             .addToSendToMenu;
 
+    desiredSendToRegistration_.store(
+        enabled);
+
     if (!ApplySendToRegistration(
             enabled)) {
+        desiredSendToRegistration_.store(
+            previous);
         return false;
     }
 
     if (!settingsStore_
              .SetAddToSendToMenu(
                  enabled)) {
+        desiredSendToRegistration_.store(
+            previous);
         ApplySendToRegistration(
             previous);
         return false;
@@ -3868,6 +4070,46 @@ bool App::SetProviderEnabledBatch(
     return true;
 }
 
+bool App::SetManagedEverythingShowTrayIcon(
+    bool enabled) {
+    const auto bootstrap =
+        EverythingBootstrapStatus();
+
+    // Never rewrite a user-managed/external Everything installation. Keep the
+    // preference for a future ALTRun-managed copy, but only restart/apply it
+    // when the current executable is ours.
+    const bool managed =
+        bootstrap.source ==
+            win::EverythingBootstrapSource::
+                Managed ||
+        bootstrap.source ==
+            win::EverythingBootstrapSource::
+                Downloaded;
+
+    if (!settingsStore_
+             .SetManagedEverythingShowTrayIcon(
+                 enabled)) {
+        return false;
+    }
+
+    if (managed &&
+        providers::IsEnabled(
+            settingsStore_.Data()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false)) {
+        StartEverythingBootstrap(false);
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
 bool App::SetUpdateSettings(
     bool autoCheck,
     UpdateChannel channel) {
@@ -4312,6 +4554,16 @@ void App::RememberShortcutManagerPosition(
 }
 
 bool App::ApplyStartupRegistration(
+    bool enabled) {
+
+    std::scoped_lock lock(
+        shellIntegrationMutex_);
+
+    return ApplyStartupRegistrationUnlocked(
+        enabled);
+}
+
+bool App::ApplyStartupRegistrationUnlocked(
     bool enabled) const {
 
     constexpr wchar_t kRunKey[] =
@@ -4319,6 +4571,62 @@ bool App::ApplyStartupRegistration(
 
     constexpr wchar_t kValueName[] =
         L"ALTRunNext";
+
+    if (!enabled) {
+        HKEY key{};
+
+        const LSTATUS openStatus =
+            RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                kRunKey,
+                0,
+                KEY_QUERY_VALUE |
+                    KEY_SET_VALUE,
+                &key);
+
+        if (openStatus ==
+            ERROR_FILE_NOT_FOUND) {
+            return true;
+        }
+
+        if (openStatus !=
+            ERROR_SUCCESS) {
+            return false;
+        }
+
+        const LSTATUS deleteStatus =
+            RegDeleteValueW(
+                key,
+                kValueName);
+
+        RegCloseKey(key);
+
+        return deleteStatus ==
+                ERROR_SUCCESS ||
+            deleteStatus ==
+                ERROR_FILE_NOT_FOUND;
+    }
+
+    std::array<wchar_t, 32768>
+        executable{};
+
+    const DWORD length =
+        GetModuleFileNameW(
+            nullptr,
+            executable.data(),
+            static_cast<DWORD>(
+                executable.size()));
+
+    if (length == 0 ||
+        length >= executable.size()) {
+        return false;
+    }
+
+    std::wstring command = L"\"";
+    command.append(
+        executable.data(),
+        length);
+    command += L"\"";
 
     HKEY key{};
 
@@ -4329,66 +4637,94 @@ bool App::ApplyStartupRegistration(
             0,
             nullptr,
             REG_OPTION_NON_VOLATILE,
-            KEY_SET_VALUE,
+            KEY_QUERY_VALUE |
+                KEY_SET_VALUE,
             nullptr,
             &key,
             nullptr);
 
-    if (openStatus != ERROR_SUCCESS) {
+    if (openStatus !=
+        ERROR_SUCCESS) {
         return false;
     }
 
-    bool success = false;
+    DWORD existingType = 0;
+    DWORD existingBytes = 0;
 
-    if (enabled) {
-        std::vector<wchar_t> executable(32768);
-        const DWORD length =
-            GetModuleFileNameW(
-                nullptr,
-                executable.data(),
-                static_cast<DWORD>(
-                    executable.size()));
+    LSTATUS queryStatus =
+        RegQueryValueExW(
+            key,
+            kValueName,
+            nullptr,
+            &existingType,
+            nullptr,
+            &existingBytes);
 
-        if (length > 0 &&
-            length < executable.size()) {
+    if (queryStatus ==
+            ERROR_SUCCESS &&
+        existingType == REG_SZ &&
+        existingBytes >=
+            sizeof(wchar_t)) {
 
-            std::wstring command = L"\"";
-            command.append(
-                executable.data(),
-                length);
-            command += L"\"";
+        std::vector<wchar_t> existing(
+            existingBytes /
+                    sizeof(wchar_t) +
+                1,
+            L'\0');
 
-            const DWORD bytes =
-                static_cast<DWORD>(
-                    (command.size() + 1) *
-                    sizeof(wchar_t));
+        DWORD actualBytes =
+            existingBytes;
 
-            success =
-                RegSetValueExW(
-                    key,
-                    kValueName,
-                    0,
-                    REG_SZ,
-                    reinterpret_cast<const BYTE*>(
-                        command.c_str()),
-                    bytes) == ERROR_SUCCESS;
-        }
-    } else {
-        const LSTATUS status =
-            RegDeleteValueW(
+        queryStatus =
+            RegQueryValueExW(
                 key,
-                kValueName);
+                kValueName,
+                nullptr,
+                &existingType,
+                reinterpret_cast<BYTE*>(
+                    existing.data()),
+                &actualBytes);
 
-        success =
-            status == ERROR_SUCCESS ||
-            status == ERROR_FILE_NOT_FOUND;
+        if (queryStatus ==
+                ERROR_SUCCESS &&
+            command ==
+                std::wstring(
+                    existing.data())) {
+            RegCloseKey(key);
+            return true;
+        }
     }
+
+    const DWORD bytes =
+        static_cast<DWORD>(
+            (command.size() + 1) *
+            sizeof(wchar_t));
+
+    const bool success =
+        RegSetValueExW(
+            key,
+            kValueName,
+            0,
+            REG_SZ,
+            reinterpret_cast<const BYTE*>(
+                command.c_str()),
+            bytes) == ERROR_SUCCESS;
 
     RegCloseKey(key);
     return success;
 }
 
 bool App::ApplySendToRegistration(
+    bool enabled) {
+
+    std::scoped_lock lock(
+        shellIntegrationMutex_);
+
+    return ApplySendToRegistrationUnlocked(
+        enabled);
+}
+
+bool App::ApplySendToRegistrationUnlocked(
     bool enabled) const {
 
     PWSTR sendToRaw = nullptr;
@@ -4396,14 +4732,22 @@ bool App::ApplySendToRegistration(
     const HRESULT folderResult =
         SHGetKnownFolderPath(
             FOLDERID_SendTo,
-            KF_FLAG_CREATE,
+            enabled
+                ? KF_FLAG_CREATE
+                : KF_FLAG_DEFAULT,
             nullptr,
             &sendToRaw);
 
     if (FAILED(folderResult) ||
         !sendToRaw) {
         CoTaskMemFree(sendToRaw);
-        return false;
+        return !enabled &&
+            (folderResult ==
+                 HRESULT_FROM_WIN32(
+                     ERROR_FILE_NOT_FOUND) ||
+             folderResult ==
+                 HRESULT_FROM_WIN32(
+                     ERROR_PATH_NOT_FOUND));
     }
 
     std::filesystem::path linkPath(
@@ -4412,8 +4756,16 @@ bool App::ApplySendToRegistration(
 
     linkPath /= L"ALTRun Next.lnk";
 
+    std::error_code ec;
+
     if (!enabled) {
-        std::error_code ec;
+        if (!std::filesystem::exists(
+                linkPath,
+                ec)) {
+            return !ec;
+        }
+
+        ec.clear();
         std::filesystem::remove(
             linkPath,
             ec);
@@ -4435,6 +4787,12 @@ bool App::ApplySendToRegistration(
         return false;
     }
 
+    const std::filesystem::path
+        executablePath(
+            std::wstring(
+                executable.data(),
+                length));
+
     IShellLinkW* shellLink =
         nullptr;
 
@@ -4451,7 +4809,99 @@ bool App::ApplySendToRegistration(
         return false;
     }
 
+    IPersistFile* persist =
+        nullptr;
+
     bool success =
+        SUCCEEDED(
+            shellLink->QueryInterface(
+                IID_PPV_ARGS(
+                    &persist)));
+
+    if (!success ||
+        !persist) {
+        shellLink->Release();
+        return false;
+    }
+
+    // A normal launch should not rewrite the Shell Link. Loading and checking
+    // the current fields is enough to repair a portable install after it
+    // moves, while avoiding Explorer/file-write work when nothing changed.
+    if (std::filesystem::exists(
+            linkPath,
+            ec) &&
+        !ec &&
+        SUCCEEDED(
+            persist->Load(
+                linkPath.c_str(),
+                STGM_READ))) {
+
+        std::array<wchar_t, 32768>
+            target{};
+        std::array<wchar_t, 32768>
+            arguments{};
+        std::array<wchar_t, 32768>
+            workingDirectory{};
+        std::array<wchar_t, 32768>
+            iconPath{};
+        int iconIndex = -1;
+
+        const bool targetOk =
+            SUCCEEDED(
+                shellLink->GetPath(
+                    target.data(),
+                    static_cast<int>(
+                        target.size()),
+                    nullptr,
+                    SLGP_RAWPATH));
+
+        const bool argumentsOk =
+            SUCCEEDED(
+                shellLink->GetArguments(
+                    arguments.data(),
+                    static_cast<int>(
+                        arguments.size())));
+
+        const bool workingDirectoryOk =
+            SUCCEEDED(
+                shellLink->GetWorkingDirectory(
+                    workingDirectory.data(),
+                    static_cast<int>(
+                        workingDirectory.size())));
+
+        const bool iconOk =
+            SUCCEEDED(
+                shellLink->GetIconLocation(
+                    iconPath.data(),
+                    static_cast<int>(
+                        iconPath.size()),
+                    &iconIndex));
+
+        if (targetOk &&
+            argumentsOk &&
+            workingDirectoryOk &&
+            iconOk &&
+            PathEqualsInsensitive(
+                target.data(),
+                executablePath) &&
+            std::wstring_view(
+                arguments.data()) ==
+                L"--add-shortcut" &&
+            PathEqualsInsensitive(
+                workingDirectory.data(),
+                baseDirectory_) &&
+            PathEqualsInsensitive(
+                iconPath.data(),
+                executablePath) &&
+            iconIndex == 0) {
+
+            persist->Release();
+            shellLink->Release();
+            return true;
+        }
+    }
+
+    success =
         SUCCEEDED(
             shellLink->SetPath(
                 executable.data())) &&
@@ -4469,19 +4919,7 @@ bool App::ApplySendToRegistration(
             shellLink->SetDescription(
                 L"Add to ALTRun Next shortcuts"));
 
-    IPersistFile* persist =
-        nullptr;
-
     if (success) {
-        success =
-            SUCCEEDED(
-                shellLink->QueryInterface(
-                    IID_PPV_ARGS(
-                        &persist)));
-    }
-
-    if (success &&
-        persist) {
         success =
             SUCCEEDED(
                 persist->Save(
@@ -4489,12 +4927,70 @@ bool App::ApplySendToRegistration(
                     TRUE));
     }
 
-    if (persist) {
-        persist->Release();
-    }
+    persist->Release();
     shellLink->Release();
 
     return success;
+}
+
+void App::StartShellIntegrationReconcile() {
+    if (shellIntegrationThread_.joinable()) {
+        return;
+    }
+
+    const bool startupEnabled =
+        desiredStartupRegistration_.load();
+
+    const bool sendToEnabled =
+        desiredSendToRegistration_.load();
+
+    shellIntegrationThread_ =
+        std::jthread(
+            [this,
+             startupEnabled,
+             sendToEnabled](
+                std::stop_token stopToken) {
+
+                const HRESULT comResult =
+                    CoInitializeEx(
+                        nullptr,
+                        COINIT_APARTMENTTHREADED |
+                            COINIT_DISABLE_OLE1DDE);
+
+                if (!stopToken.stop_requested()) {
+                    std::scoped_lock lock(
+                        shellIntegrationMutex_);
+
+                    if (desiredStartupRegistration_
+                            .load() ==
+                        startupEnabled) {
+                        ApplyStartupRegistrationUnlocked(
+                            startupEnabled);
+                    }
+                }
+
+                const bool comReady =
+                    SUCCEEDED(comResult) ||
+                    comResult ==
+                        RPC_E_CHANGED_MODE;
+
+                if (!stopToken.stop_requested() &&
+                    comReady) {
+                    std::scoped_lock lock(
+                        shellIntegrationMutex_);
+
+                    if (desiredSendToRegistration_
+                            .load() ==
+                        sendToEnabled) {
+                        ApplySendToRegistrationUnlocked(
+                            sendToEnabled);
+                    }
+                }
+
+                if (SUCCEEDED(comResult)) {
+                    CoUninitialize();
+                }
+            });
 }
 
 bool App::
@@ -4520,6 +5016,8 @@ ForwardShortcutRequestsToExistingInstance()
     if (!target) {
         return false;
     }
+
+    (void)instance_ipc::GrantForegroundToWindow(target);
 
     for (const auto& path :
          startupShortcutPaths_) {
@@ -4787,7 +5285,6 @@ bool App::ExecuteResult(
                 usageStore_.Record(source.id, query);
             }
         }
-        ui::PlayFeedback(FeedbackCue::Execute);
         return true;
     }
 
@@ -4953,7 +5450,6 @@ bool App::LaunchCommand(
                 command.id, query);
         }
 
-        ui::PlayFeedback(FeedbackCue::Execute);
         return true;
     }
 
@@ -4995,8 +5491,6 @@ bool App::LaunchCommand(
         usageStore_.Record(
             command.id, query);
     }
-
-    ui::PlayFeedback(FeedbackCue::Execute);
     return true;
 }
 

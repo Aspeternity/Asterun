@@ -1,22 +1,17 @@
 #pragma once
 
 #include "../core/LauncherResult.hpp"
-#include "../core/ResultIconPipeline.hpp"
+#include "../core/ClassicBehavior.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 
 #include <windows.h>
 
 #include <array>
-#include <condition_variable>
 #include <cstddef>
 #include <deque>
-#include <filesystem>
-#include <mutex>
 #include <string>
 #include <string_view>
-#include <thread>
-#include <unordered_map>
 #include <vector>
 
 namespace altrun {
@@ -34,13 +29,13 @@ public:
     void RefreshResults(
         bool allowImmediateExecution = false,
         bool preserveSelection = true);
+    void ApplyNumericContinuation(std::uint64_t token, classic_behavior::ContinuationEvidence evidence);
     void ApplyDynamicResults(
         std::uint64_t generation,
         std::vector<LauncherResult> results);
     void ApplyAppearance();
     void ApplyLanguage();
     void ApplyGeneralSettings();
-    void ApplyResultIconPreference();
     void Toggle();
     void ShowStartupNotification(
         std::wstring_view activationHotkey);
@@ -54,13 +49,12 @@ public:
     }
 
 private:
+    friend struct NumericIntentRuntimeFixture;
     static constexpr UINT kTrayMessage = WM_APP + 17;
-    static constexpr UINT kIconReadyMessage = WM_APP + 18;
     static constexpr UINT kShortcutIpcMessage = WM_APP + 19;
     static constexpr UINT_PTR
         kNumericIntentTimerId = 0xA176;
     static constexpr UINT kMenuShow = 40001;
-    static constexpr UINT kMenuReload = 40002;
     static constexpr UINT kMenuSettings = 40003;
     static constexpr UINT kMenuShortcuts = 40004;
     static constexpr UINT kMenuAbout = 40005;
@@ -86,49 +80,10 @@ private:
     void PaintClassicClose(HDC dc, const RECT& rect);
     void UpdatePreview();
 
-    struct ResultIconCacheEntry {
-        HICON icon{};
-        std::uint64_t lastUse{0};
-    };
-
-    struct ResultIconPending {
-        std::uint64_t searchGeneration{0};
-        std::uint64_t iconEpoch{0};
-    };
-
-    struct ResultIconJob {
-        ResultIconRequestStamp stamp;
-        HWND targetWindow{};
-        std::wstring cacheKey;
-        std::wstring source;
-        std::filesystem::path baseDirectory;
-    };
-
-    struct ResultIconCompletion {
-        ResultIconRequestStamp stamp;
-        std::wstring cacheKey;
-        HICON icon{};
-    };
-
-    [[nodiscard]] HICON ResultIcon(
-        const LauncherResult& result);
-    [[nodiscard]] int
-    ResultIconPixelSize() const;
-    void QueueResultIcon(
-        const LauncherResult& result,
-        std::wstring cacheKey,
-        int pixelSize);
-    void EnsureResultIconWorker();
-    void ResultIconWorkerLoop();
-    void HandleResultIconCompletions();
-    void CancelPendingResultIconRequests();
-    void ClearResultIconCache();
-    void TrimResultIconCache();
-    void InvalidateResultRowsForIconKey(
-        std::wstring_view cacheKey);
     void RebuildVisibleResults(
         bool allowImmediateExecution,
-        bool preserveSelection = true);
+        bool preserveSelection,
+        bool queryEmpty);
     void ExecuteSelection(
         LauncherExecutionIntent intent =
             LauncherExecutionIntent::Default);
@@ -206,29 +161,11 @@ private:
     HBITMAP classicBackgroundBitmap_{};
     HDC classicBitmapDc_{};
     SIZE classicBackgroundSize_{};
-    std::unordered_map<
-        std::wstring,
-        ResultIconCacheEntry>
-        resultIconCache_;
-    std::unordered_map<
-        std::wstring,
-        ResultIconPending>
-        pendingResultIcons_;
-    std::deque<ResultIconJob>
-        resultIconJobs_;
-    std::deque<ResultIconCompletion>
-        resultIconCompletions_;
     std::deque<std::wstring>
         pendingShortcutPaths_;
-    std::mutex resultIconWorkerMutex_;
-    std::condition_variable
-        resultIconWorkerCv_;
-    std::thread resultIconWorker_;
-    bool resultIconWorkerStop_{false};
-    std::uint64_t resultIconEpoch_{0};
-    std::uint64_t resultIconCacheTick_{0};
     bool trayIconAdded_{false};
     bool notificationOnlyTrayIcon_{false};
+    UINT taskbarCreatedMessage_{0};
     bool firstRevealPending_{true};
     bool imeComposing_{false};
     bool contextActionModalActive_{false};
@@ -245,10 +182,17 @@ private:
         wchar_t digit{0};
         LauncherResult result{};
         std::wstring query;
+        std::uint64_t token{0};
+        std::uint64_t started{0};
+        DWORD selection{0};
+        bool probeRequired{false};
+        classic_behavior::ContinuationEvidence evidence{classic_behavior::ContinuationEvidence::Unknown};
     };
 
     PendingNumericIntent
         pendingNumericIntent_{};
+
+    std::uint64_t numericIntentToken_{0};
 
     UINT dpi_{96};
     ui::ClassicLauncherDpiMetrics

@@ -29,14 +29,13 @@ enum class StartupBehavior {
 struct Settings {
     UiStyle uiStyle{UiStyle::Classic};
     Language language{Language::ZhCN};
-    bool showResultIcons{false};
 
-    bool startWithWindows{false};
+    bool startWithWindows{true};
     StartupBehavior startupBehavior{
         StartupBehavior::Notification};
     bool showTrayIcon{true};
     bool soundEnabled{true};
-    bool addToSendToMenu{false};
+    bool addToSendToMenu{true};
     std::string popupMonitor{"cursor"};
     std::string launcherPlacement{"top"};
     std::string settingsPlacement{"center"};
@@ -66,11 +65,15 @@ struct Settings {
         DefaultHotkeyBindings()};
 
     bool pinyinSearch{true};
-    bool numericQuickLaunch{false};
+    bool numericQuickLaunch{true};
     bool executeSingleResultImmediately{false};
 
     ProviderEnableMap providerEnabled{
         providers::DefaultEnabled()};
+
+    // Applies only to the Everything copy downloaded and managed by ALTRun
+    // Next. External Everything installations keep their own UI preference.
+    bool managedEverythingShowTrayIcon{false};
 
     bool autoCheckUpdates{true};
     UpdateChannel updateChannel{
@@ -88,7 +91,6 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
-    bool SetShowResultIcons(bool enabled);
     bool SetStartWithWindows(bool enabled);
     bool SetStartupBehavior(
         StartupBehavior behavior);
@@ -117,6 +119,8 @@ public:
         bool enabled);
     bool SetProviderEnabledBatch(
         const ProviderEnableMap& changes);
+    bool SetManagedEverythingShowTrayIcon(
+        bool enabled);
     bool SetUpdateSettings(
         bool autoCheck,
         UpdateChannel channel);

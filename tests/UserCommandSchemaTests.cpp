@@ -141,6 +141,14 @@ int main() {
             .at("runtimeInputMode")
             .get<std::string>() ==
         "none");
+    assert(
+        !migrated.at("commands")
+             .at(0)
+             .contains("icon"));
+    assert(
+        !migrated.at("commands")
+             .at(1)
+             .contains("icon"));
 
     const std::string beforeDowngrade =
         ReadText(path);
@@ -168,8 +176,6 @@ int main() {
     raw.target = L"ping.exe";
     raw.runtimeInputMode =
         RuntimeInputMode::Raw;
-    raw.icon =
-        L"C:\\Icons\\ping.ico";
 
     std::wstring createdId;
     assert(
@@ -195,9 +201,6 @@ int main() {
     assert(
         it->runtimeInputMode ==
         RuntimeInputMode::Raw);
-    assert(
-        it->icon ==
-        L"C:\\Icons\\ping.ico");
 
     const auto exportPath =
         root / "commands-export.tsv";
@@ -213,11 +216,11 @@ int main() {
         std::string::npos);
     assert(
         exported.find(
-            "runtimeInputMode\ticon") !=
+            "runtimeInputMode") !=
         std::string::npos);
     assert(
         exported.find(
-            "C:\\Icons\\ping.ico") !=
+            "\ticon") ==
         std::string::npos);
 
     const auto importedPath =
@@ -249,9 +252,6 @@ int main() {
     assert(
         importedIt->runtimeInputMode ==
         RuntimeInputMode::Raw);
-    assert(
-        importedIt->icon ==
-        L"C:\\Icons\\ping.ico");
 
     const auto legacyFlagsPath =
         root / "commands-legacy-flags.json";
@@ -306,6 +306,10 @@ int main() {
              .at(0)
              .at("pinned")
              .get<bool>());
+    assert(
+        !normalizedFlags.at("commands")
+             .at(0)
+             .contains("icon"));
 
     Command legacyCreate;
     legacyCreate.keyword = L"legacy-create";

@@ -72,8 +72,6 @@ int main() {
         LR"(..\Tools\Notepad\notepad.exe)";
     first.workingDirectory =
         LR"(..\Tools\Notepad)";
-    first.icon =
-        LR"(..\Icons\Notepad.ico)";
     updates.push_back(first);
 
     UserCommandPathUpdate second;
@@ -98,9 +96,6 @@ int main() {
         firstAfter->workingDirectory ==
         LR"(..\Tools\Notepad)");
     assert(
-        firstAfter->icon ==
-        LR"(..\Icons\Notepad.ico)");
-    assert(
         secondAfter->workingDirectory ==
         L"%LOCALAPPDATA%");
 
@@ -113,8 +108,6 @@ int main() {
     UserCommandPathUpdate validFirst;
     validFirst.id = firstId;
     validFirst.target = L"changed.exe";
-    validFirst.icon =
-        L"changed.ico";
     invalid.push_back(validFirst);
 
     UserCommandPathUpdate missing;
@@ -130,9 +123,6 @@ int main() {
     assert(
         firstAfter->target ==
         LR"(..\Tools\Notepad\notepad.exe)");
-    assert(
-        firstAfter->icon ==
-        LR"(..\Icons\Notepad.ico)");
 
     std::filesystem::remove_all(root);
 

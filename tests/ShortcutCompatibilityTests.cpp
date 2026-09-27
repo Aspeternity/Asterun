@@ -138,9 +138,6 @@ int main() {
             assert(
                 command.runtimeInputMode ==
                 RuntimeInputMode::None);
-            assert(
-                command.icon ==
-                L"auto");
         });
 
     AssertImport(
@@ -157,9 +154,6 @@ int main() {
             assert(
                 command.runtimeInputMode ==
                 RuntimeInputMode::UrlEncoded);
-            assert(
-                command.icon ==
-                L"auto");
             assert(command.enabled);
             assert(!command.pinned);
         });
@@ -187,9 +181,6 @@ int main() {
             assert(
                 command.runtimeInputMode ==
                 RuntimeInputMode::Raw);
-            assert(
-                command.icon ==
-                L".\\icons\\runner.ico");
             assert(command.runAsAdmin);
         });
 
@@ -211,9 +202,6 @@ int main() {
             assert(
                 command.runtimeInputMode ==
                 RuntimeInputMode::None);
-            assert(
-                command.icon ==
-                L"auto");
         });
 
     const auto sourcePath =
@@ -242,8 +230,6 @@ int main() {
         L".\\bin";
     roundtrip.runtimeInputMode =
         RuntimeInputMode::Raw;
-    roundtrip.icon =
-        L".\\icons\\tool.ico";
     roundtrip.runAsAdmin = true;
 
     assert(
@@ -304,9 +290,6 @@ int main() {
     assert(
         restored.runtimeInputMode ==
         sourceCommand.runtimeInputMode);
-    assert(
-        restored.icon ==
-        sourceCommand.icon);
     assert(
         restored.runAsAdmin ==
         sourceCommand.runAsAdmin);

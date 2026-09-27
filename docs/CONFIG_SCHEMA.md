@@ -244,6 +244,14 @@ Usage statistics are keyed by stable command ID:
 
 - launch count
 - last-used Unix timestamp
+- schema-2 `queries`: up to eight normalized query keys (at most 32 characters
+  each), with bounded preference evidence. In the alpha.5.48 follow-up,
+  successful selections cap the selected query's evidence at eight and reduce
+  competing entries' evidence for that same query by one (legacy large values
+  are capped first). Other queries and lifetime launch counts are unchanged.
+  One selection supplies no ranking bonus; repeated choices can replace an
+  old preference. These values are learning evidence, not lifetime per-query
+  execution totals. The JSON shape and schema remain compatible.
 
 This allows names, keywords and targets to change later without losing ranking history.
 

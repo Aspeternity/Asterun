@@ -1,4 +1,5 @@
 #include "ClassicBehavior.hpp"
+#include "RelevancePolicy.hpp"
 
 #include <algorithm>
 #include <cwctype>
@@ -122,15 +123,46 @@ ResultContinues(
                result.title,
                query) ||
         NormalizedStartsWith(
-            result.subtitle,
-            query) ||
-        NormalizedStartsWith(
             BasenameView(
                 result.target),
             query);
 }
 
 } // namespace
+
+bool StrongNameContinuation(std::wstring_view name, std::wstring_view query) noexcept {
+    return NormalizedStartsWith(name, query);
+}
+
+std::wstring BuildFilenameContinuationQuery(std::wstring_view query) {
+    // Never reinterpret Everything syntax/path expressions as ordinary names.
+    if (relevance::HasExplicitSyntax(query) || query.size() > 128) return {};
+    std::wstring pattern = L"nopath:regex:\"^";
+    bool any = false;
+    for (const wchar_t ch : query) {
+        if (IgnoredForPrefix(ch)) continue;
+        if (ch < L' ' || (ch >= 0xD800 && ch <= 0xDFFF)) return {};
+        pattern += L"[\\s_-]*";
+        if (ch == L'\"') pattern += L"\\x22";
+        else {
+            if (std::wstring_view(L"\\.^$|()[]{}*+?").find(ch) != std::wstring_view::npos)
+                pattern.push_back(L'\\');
+            pattern.push_back(ch);
+        }
+        any = true;
+    }
+    pattern += L"\"";
+    return any ? pattern : std::wstring{};
+}
+
+PendingNumericDecision ResolvePendingNumericIntent(
+    ContinuationEvidence evidence, bool probeRequired,
+    std::uint64_t elapsedMs) noexcept {
+    if (evidence == ContinuationEvidence::Present) return PendingNumericDecision::Text;
+    if (probeRequired && evidence == ContinuationEvidence::Unknown)
+        return elapsedMs >= kNumericProbeBudgetMs ? PendingNumericDecision::Text : PendingNumericDecision::Wait;
+    return elapsedMs >= kNumericIntentGraceMs ? PendingNumericDecision::Execute : PendingNumericDecision::Wait;
+}
 
 int QuickLaunchIndexForDigit(
     int digit,
@@ -177,7 +209,8 @@ DecideNumericQuickLaunch(
     // A bare digit at an empty query must remain usable for modern names such
     // as 7zip, 1Password, 115 and year/version searches. Power users can use
     // Ctrl/Alt+digit when they explicitly want a numbered launch from empty.
-    if (context.queryEmpty ||
+    if (context.editingText ||
+        context.queryEmpty ||
         !context.resultAvailable ||
         context.recentTextInput ||
         context.strongContinuation) {

@@ -45,7 +45,6 @@ struct Command {
     std::wstring canonicalIdentity;
     RuntimeInputMode runtimeInputMode{
         RuntimeInputMode::None};
-    std::wstring icon{L"auto"};
     bool enabled{true};
     bool runAsAdmin{false};
     bool pinned{false};
