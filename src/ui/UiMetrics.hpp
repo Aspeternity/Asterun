@@ -159,10 +159,15 @@ struct ModernCompactLauncherDpiMetrics {
     UiRectMetrics resultsList{};
     UiRectMetrics footer{};
     int rowHeight{};
-    int primaryColumnWidth{};
+    int rowSelectionInsetX{};
+    int rowSelectionInsetY{};
     int rowTextInset{};
+    int secondaryColumnWidth{};
     int rowColumnGap{};
-    int separatorInset{};
+    int rowCornerDiameter{};
+    int selectionAccentWidth{};
+    int selectionAccentInset{};
+    int searchCornerDiameter{};
 };
 
 [[nodiscard]] constexpr
@@ -176,8 +181,6 @@ ModernCompactLauncherMetricsForDpi(
         Scale(596, dpi),
         Scale(292, dpi),
     };
-    const int surfaceBorder =
-        Scale(1, dpi);
 
     return {
         Scale(620, dpi),
@@ -189,33 +192,29 @@ ModernCompactLauncherMetricsForDpi(
             Scale(42, dpi),
         },
         {
-            Scale(22, dpi),
+            Scale(24, dpi),
             Scale(17, dpi),
-            Scale(576, dpi),
+            Scale(572, dpi),
             Scale(32, dpi),
         },
         resultsSurface,
+        resultsSurface,
         {
-            resultsSurface.left +
-                surfaceBorder,
-            resultsSurface.top +
-                surfaceBorder,
-            resultsSurface.width -
-                surfaceBorder * 2,
-            resultsSurface.height -
-                surfaceBorder * 2,
-        },
-        {
-            Scale(16, dpi),
+            Scale(18, dpi),
             Scale(362, dpi),
-            Scale(588, dpi),
+            Scale(584, dpi),
             Scale(24, dpi),
         },
         Scale(32, dpi),
-        Scale(180, dpi),
+        Scale(4, dpi),
+        Scale(2, dpi),
         Scale(14, dpi),
+        Scale(200, dpi),
         Scale(12, dpi),
-        Scale(12, dpi),
+        Scale(10, dpi),
+        Scale(3, dpi),
+        Scale(8, dpi),
+        Scale(10, dpi),
     };
 }
 

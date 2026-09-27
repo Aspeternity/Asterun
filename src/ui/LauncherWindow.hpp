@@ -152,7 +152,8 @@ private:
     HBRUSH bottomBrush_{};
     HBRUSH frameBrush_{};
     HBRUSH selectionBrush_{};
-    HPEN separatorPen_{};
+    HBRUSH focusAccentBrush_{};
+    HPEN framePen_{};
     std::array<
         HBITMAP,
         ui::kClassicGlyphAssetPixelSizes.size()>

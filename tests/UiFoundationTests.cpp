@@ -29,10 +29,15 @@ int main() {
         ui::UiRectMetrics resultsList;
         ui::UiRectMetrics footer;
         int rowHeight;
-        int primaryColumnWidth;
+        int rowSelectionInsetX;
+        int rowSelectionInsetY;
         int rowTextInset;
+        int secondaryColumnWidth;
         int rowColumnGap;
-        int separatorInset;
+        int rowCornerDiameter;
+        int selectionAccentWidth;
+        int selectionAccentInset;
+        int searchCornerDiameter;
     };
 
     constexpr std::array<
@@ -44,75 +49,55 @@ int main() {
                 620,
                 400,
                 {12, 12, 596, 42},
-                {22, 17, 576, 32},
+                {24, 17, 572, 32},
                 {12, 62, 596, 292},
-                {13, 63, 594, 290},
-                {16, 362, 588, 24},
-                32,
-                180,
-                14,
-                12,
-                12,
+                {12, 62, 596, 292},
+                {18, 362, 584, 24},
+                32, 4, 2, 14, 200, 12, 10, 3, 8, 10,
             },
             {
                 120u,
                 775,
                 500,
                 {15, 15, 745, 53},
-                {28, 21, 720, 40},
+                {30, 21, 715, 40},
                 {15, 78, 745, 365},
-                {16, 79, 743, 363},
-                {20, 453, 735, 30},
-                40,
-                225,
-                18,
-                15,
-                15,
+                {15, 78, 745, 365},
+                {23, 453, 730, 30},
+                40, 5, 3, 18, 250, 15, 13, 4, 10, 13,
             },
             {
                 144u,
                 930,
                 600,
                 {18, 18, 894, 63},
-                {33, 26, 864, 48},
+                {36, 26, 858, 48},
                 {18, 93, 894, 438},
-                {20, 95, 890, 434},
-                {24, 543, 882, 36},
-                48,
-                270,
-                21,
-                18,
-                18,
+                {18, 93, 894, 438},
+                {27, 543, 876, 36},
+                48, 6, 3, 21, 300, 18, 15, 5, 12, 15,
             },
             {
                 168u,
                 1085,
                 700,
                 {21, 21, 1043, 74},
-                {39, 30, 1008, 56},
+                {42, 30, 1001, 56},
                 {21, 109, 1043, 511},
-                {23, 111, 1039, 507},
-                {28, 634, 1029, 42},
-                56,
-                315,
-                25,
-                21,
-                21,
+                {21, 109, 1043, 511},
+                {32, 634, 1022, 42},
+                56, 7, 4, 25, 350, 21, 18, 5, 14, 18,
             },
             {
                 192u,
                 1240,
                 800,
                 {24, 24, 1192, 84},
-                {44, 34, 1152, 64},
+                {48, 34, 1144, 64},
                 {24, 124, 1192, 584},
-                {26, 126, 1188, 580},
-                {32, 724, 1176, 48},
-                64,
-                360,
-                28,
-                24,
-                24,
+                {24, 124, 1192, 584},
+                {36, 724, 1168, 48},
+                64, 8, 4, 28, 400, 24, 20, 6, 16, 20,
             },
         }};
 
@@ -151,14 +136,24 @@ int main() {
             expected.footer);
         assert(actual.rowHeight ==
                expected.rowHeight);
-        assert(actual.primaryColumnWidth ==
-               expected.primaryColumnWidth);
+        assert(actual.rowSelectionInsetX ==
+               expected.rowSelectionInsetX);
+        assert(actual.rowSelectionInsetY ==
+               expected.rowSelectionInsetY);
         assert(actual.rowTextInset ==
                expected.rowTextInset);
+        assert(actual.secondaryColumnWidth ==
+               expected.secondaryColumnWidth);
         assert(actual.rowColumnGap ==
                expected.rowColumnGap);
-        assert(actual.separatorInset ==
-               expected.separatorInset);
+        assert(actual.rowCornerDiameter ==
+               expected.rowCornerDiameter);
+        assert(actual.selectionAccentWidth ==
+               expected.selectionAccentWidth);
+        assert(actual.selectionAccentInset ==
+               expected.selectionAccentInset);
+        assert(actual.searchCornerDiameter ==
+               expected.searchCornerDiameter);
         assert(
             actual.resultsList.height >=
             actual.rowHeight *

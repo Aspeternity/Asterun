@@ -64,21 +64,21 @@ inline constexpr UiPalette
 
 inline constexpr UiPalette
     kModernCompactLauncherPalette{
-        RGB(246, 247, 249),
+        RGB(249, 250, 252),
         RGB(255, 255, 255),
         RGB(255, 255, 255),
-        RGB(31, 41, 55),
-        RGB(107, 114, 128),
-        RGB(37, 99, 235),
-        RGB(37, 99, 235),
-        RGB(229, 239, 255),
-        RGB(15, 23, 42),
-        RGB(229, 231, 235),
-        RGB(205, 210, 218),
-        RGB(246, 247, 249),
+        RGB(24, 31, 42),
+        RGB(112, 118, 128),
+        RGB(0, 120, 212),
+        RGB(24, 31, 42),
+        RGB(232, 241, 251),
+        RGB(24, 31, 42),
+        RGB(232, 235, 239),
+        RGB(218, 222, 228),
+        RGB(249, 250, 252),
         RGB(255, 255, 255),
-        RGB(229, 231, 235),
-        RGB(246, 247, 249),
+        RGB(225, 235, 248),
+        RGB(249, 250, 252),
     };
 
 [[nodiscard]] constexpr const UiPalette&

@@ -11,6 +11,8 @@ constexpr int
 constexpr int
     kModernLauncherBodyPointSize = 10;
 constexpr int
+    kModernLauncherAuxiliaryPointSize = 9;
+constexpr int
     kModernLauncherTitlePointSize = 10;
 
 [[nodiscard]] const wchar_t*
@@ -99,11 +101,16 @@ UiFontSpec LauncherFontSpec(
         };
     }
 
-    return {
-        ApplicationFace(language),
+    const int pointSize =
         role == UiFontRole::LauncherTitle
             ? kModernLauncherTitlePointSize
-            : kModernLauncherBodyPointSize,
+            : role == UiFontRole::LauncherAuxiliary
+                ? kModernLauncherAuxiliaryPointSize
+                : kModernLauncherBodyPointSize;
+
+    return {
+        ApplicationFace(language),
+        pointSize,
         0,
         RoleWeight(role),
         DEFAULT_CHARSET,

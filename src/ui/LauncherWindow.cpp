@@ -138,6 +138,38 @@ PrimaryResultText(
             ResultKind::Folder;
 }
 
+[[nodiscard]] std::wstring
+ModernPrimaryResultText(
+    const LauncherResult& result) {
+    const std::wstring fallback =
+        PrimaryResultText(result);
+
+    if (IsFileSystemResult(result) ||
+        result.subtitle.empty()) {
+        return fallback;
+    }
+
+    return result.subtitle;
+}
+
+[[nodiscard]] std::wstring
+ModernSecondaryResultText(
+    const LauncherResult& result) {
+    const std::wstring fallback =
+        PrimaryResultText(result);
+
+    if (IsFileSystemResult(result)) {
+        return result.subtitle;
+    }
+
+    if (result.subtitle.empty() ||
+        result.subtitle == fallback) {
+        return {};
+    }
+
+    return fallback;
+}
+
 constexpr std::array<
     int,
     ui::kClassicGlyphAssetPixelSizes.size()>
@@ -300,7 +332,8 @@ LauncherWindow::~LauncherWindow() {
     if (bottomBrush_) DeleteObject(bottomBrush_);
     if (frameBrush_) DeleteObject(frameBrush_);
     if (selectionBrush_) DeleteObject(selectionBrush_);
-    if (separatorPen_) DeleteObject(separatorPen_);
+    if (focusAccentBrush_) DeleteObject(focusAccentBrush_);
+    if (framePen_) DeleteObject(framePen_);
     if (classicBitmapDc_) DeleteDC(classicBitmapDc_);
     for (HBITMAP bitmap :
          classicShortcutBitmaps_) {
@@ -546,9 +579,13 @@ void LauncherWindow::RecreateBrushes() {
         DeleteObject(selectionBrush_);
         selectionBrush_ = nullptr;
     }
-    if (separatorPen_) {
-        DeleteObject(separatorPen_);
-        separatorPen_ = nullptr;
+    if (focusAccentBrush_) {
+        DeleteObject(focusAccentBrush_);
+        focusAccentBrush_ = nullptr;
+    }
+    if (framePen_) {
+        DeleteObject(framePen_);
+        framePen_ = nullptr;
     }
 
     const auto palette = CurrentPalette();
@@ -561,10 +598,12 @@ void LauncherWindow::RecreateBrushes() {
         palette.frame);
     selectionBrush_ = CreateSolidBrush(
         palette.selectionBackground);
-    separatorPen_ = CreatePen(
+    focusAccentBrush_ = CreateSolidBrush(
+        palette.accent);
+    framePen_ = CreatePen(
         PS_SOLID,
         1,
-        palette.separator);
+        palette.frame);
 }
 
 void LauncherWindow::ApplyFonts() {
@@ -1335,32 +1374,33 @@ void LauncherWindow::PaintWindowBackground(
             toRect(
                 modernDpiMetrics_
                     .searchSurface);
-        FillRect(
-            dc,
-            &searchSurface,
-            controlBrush_);
-        FrameRect(
-            dc,
-            &searchSurface,
-            frameBrush_);
 
-        RECT resultsSurface =
-            toRect(
-                modernDpiMetrics_
-                    .resultsSurface);
-        FillRect(
-            dc,
-            &resultsSurface,
-            controlBrush_);
-        FrameRect(
-            dc,
-            &resultsSurface,
-            frameBrush_);
+        HGDIOBJ oldPen =
+            SelectObject(
+                dc,
+                framePen_);
+        HGDIOBJ oldBrush =
+            SelectObject(
+                dc,
+                controlBrush_);
 
-        FrameRect(
+        RoundRect(
             dc,
-            &client,
-            frameBrush_);
+            searchSurface.left,
+            searchSurface.top,
+            searchSurface.right,
+            searchSurface.bottom,
+            modernDpiMetrics_
+                .searchCornerDiameter,
+            modernDpiMetrics_
+                .searchCornerDiameter);
+
+        SelectObject(
+            dc,
+            oldBrush);
+        SelectObject(
+            dc,
+            oldPen);
         return;
     }
 
@@ -1859,9 +1899,42 @@ void LauncherWindow::UpdatePreview() {
             nextTitle.push_back(L']');
         }
 
-        if (!IsModern() &&
-            !IsFileSystemResult(
-                result)) {
+        if (IsModern()) {
+            const bool zh =
+                app_.SettingsData()
+                    .language ==
+                Language::ZhCN;
+
+            switch (result.kind) {
+            case ResultKind::File:
+            case ResultKind::Folder:
+                nextPreview =
+                    zh
+                        ? L"路径  ·  "
+                        : L"Path  ·  ";
+                break;
+            case ResultKind::UserCommand:
+                nextPreview =
+                    zh
+                        ? L"命令  ·  "
+                        : L"Command  ·  ";
+                break;
+            case ResultKind::Action:
+                nextPreview =
+                    zh
+                        ? L"操作  ·  "
+                        : L"Action  ·  ";
+                break;
+            case ResultKind::Application:
+            default:
+                nextPreview =
+                    zh
+                        ? L"目标  ·  "
+                        : L"Target  ·  ";
+                break;
+            }
+        } else if (!IsFileSystemResult(
+                       result)) {
             nextPreview =
                 app_.SettingsData()
                         .language ==
@@ -3601,12 +3674,14 @@ LRESULT LauncherWindow::HandleMessage(
         SetBkColor(
             dc,
             IsModern()
-                ? palette.controlBackground
+                ? palette.windowBackground
                 : GetSysColor(
                       COLOR_WINDOW));
 
         return reinterpret_cast<LRESULT>(
-            controlBrush_);
+            IsModern()
+                ? windowBrush_
+                : controlBrush_);
     }
 
     case WM_CTLCOLORSTATIC: {
@@ -3725,9 +3800,68 @@ LRESULT LauncherWindow::HandleMessage(
             FillRect(
                 item->hDC,
                 &item->rcItem,
-                selected
-                    ? selectionBrush_
-                    : controlBrush_);
+                windowBrush_);
+
+            if (selected) {
+                const auto& modern =
+                    modernDpiMetrics_;
+
+                RECT selectionRect =
+                    item->rcItem;
+                selectionRect.left +=
+                    modern.rowSelectionInsetX;
+                selectionRect.right -=
+                    modern.rowSelectionInsetX;
+                selectionRect.top +=
+                    modern.rowSelectionInsetY;
+                selectionRect.bottom -=
+                    modern.rowSelectionInsetY;
+
+                HGDIOBJ oldPen =
+                    SelectObject(
+                        item->hDC,
+                        GetStockObject(NULL_PEN));
+                HGDIOBJ oldBrush =
+                    SelectObject(
+                        item->hDC,
+                        selectionBrush_);
+
+                RoundRect(
+                    item->hDC,
+                    selectionRect.left,
+                    selectionRect.top,
+                    selectionRect.right,
+                    selectionRect.bottom,
+                    modern.rowCornerDiameter,
+                    modern.rowCornerDiameter);
+
+                SelectObject(
+                    item->hDC,
+                    oldBrush);
+                SelectObject(
+                    item->hDC,
+                    oldPen);
+
+                RECT accentRect{
+                    selectionRect.left +
+                        modern.selectionAccentInset,
+                    selectionRect.top +
+                        modern.selectionAccentInset,
+                    selectionRect.left +
+                        modern.selectionAccentInset +
+                        modern.selectionAccentWidth,
+                    selectionRect.bottom -
+                        modern.selectionAccentInset,
+                };
+
+                if (accentRect.bottom >
+                    accentRect.top) {
+                    FillRect(
+                        item->hDC,
+                        &accentRect,
+                        focusAccentBrush_);
+                }
+            }
         } else {
             FillRect(
                 item->hDC,
@@ -3751,23 +3885,47 @@ LRESULT LauncherWindow::HandleMessage(
         if (IsModern()) {
             const auto& modern =
                 modernDpiMetrics_;
+            const std::wstring modernPrimary =
+                ModernPrimaryResultText(
+                    result);
+            const std::wstring modernSecondary =
+                ModernSecondaryResultText(
+                    result);
 
-            RECT keywordRect =
+            const int contentLeft =
+                item->rcItem.left +
+                modern.rowSelectionInsetX +
+                modern.rowTextInset;
+            const int contentRight =
+                item->rcItem.right -
+                modern.rowSelectionInsetX -
+                modern.rowTextInset;
+
+            RECT primaryRect =
                 item->rcItem;
-            keywordRect.left +=
-                modern.rowTextInset;
-            keywordRect.right =
-                keywordRect.left +
-                modern.primaryColumnWidth;
+            primaryRect.left =
+                contentLeft;
+            primaryRect.right =
+                contentRight;
 
-            RECT titleRect = item->rcItem;
-            titleRect.left =
-                keywordRect.right +
-                modern.rowColumnGap;
-            titleRect.right -=
-                modern.rowTextInset;
+            RECT secondaryRect =
+                item->rcItem;
+            secondaryRect.right =
+                contentRight;
+            secondaryRect.left =
+                secondaryRect.right -
+                modern.secondaryColumnWidth;
 
-            const auto oldFont = SelectObject(item->hDC, boldFont_);
+            if (!modernSecondary.empty()) {
+                primaryRect.right =
+                    secondaryRect.left -
+                    modern.rowColumnGap;
+            }
+
+            const auto oldFont =
+                SelectObject(
+                    item->hDC,
+                    boldFont_);
             SetTextColor(
                 item->hDC,
                 selected
@@ -3776,48 +3934,37 @@ LRESULT LauncherWindow::HandleMessage(
 
             DrawTextW(
                 item->hDC,
-                primary.c_str(),
+                modernPrimary.c_str(),
                 -1,
-                &keywordRect,
-                DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+                &primaryRect,
+                DT_SINGLELINE |
+                    DT_VCENTER |
+                    DT_END_ELLIPSIS |
+                    DT_NOPREFIX);
 
-            SelectObject(item->hDC, normalFont_);
-            SetTextColor(
-                item->hDC,
-                selected
-                    ? palette.selectionText
-                    : palette.mutedText);
-
-            DrawTextW(
-                item->hDC,
-                result.subtitle.c_str(),
-                -1,
-                &titleRect,
-                DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
-
-            SelectObject(item->hDC, oldFont);
-
-            if (!selected) {
-                HGDIOBJ oldPen =
-                    SelectObject(
-                        item->hDC,
-                        separatorPen_);
-                MoveToEx(
-                    item->hDC,
-                    item->rcItem.left +
-                        modern.separatorInset,
-                    item->rcItem.bottom - 1,
-                    nullptr);
-                LineTo(
-                    item->hDC,
-                    item->rcItem.right -
-                        modern.separatorInset,
-                    item->rcItem.bottom - 1);
+            if (!modernSecondary.empty()) {
                 SelectObject(
                     item->hDC,
-                    oldPen);
+                    auxiliaryFont_);
+                SetTextColor(
+                    item->hDC,
+                    palette.mutedText);
+
+                DrawTextW(
+                    item->hDC,
+                    modernSecondary.c_str(),
+                    -1,
+                    &secondaryRect,
+                    DT_SINGLELINE |
+                        DT_RIGHT |
+                        DT_VCENTER |
+                        DT_END_ELLIPSIS |
+                        DT_NOPREFIX);
             }
 
+            SelectObject(
+                item->hDC,
+                oldFont);
             return TRUE;
         }
 
