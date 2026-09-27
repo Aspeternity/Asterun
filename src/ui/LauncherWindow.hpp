@@ -150,6 +150,7 @@ private:
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
+    HBRUSH frameBrush_{};
     std::array<
         HBITMAP,
         ui::kClassicGlyphAssetPixelSizes.size()>
@@ -198,6 +199,10 @@ private:
     ui::ClassicLauncherDpiMetrics
         classicDpiMetrics_{
             ui::ClassicLauncherMetricsForDpi(
+                96)};
+    ui::ModernCompactLauncherDpiMetrics
+        modernDpiMetrics_{
+            ui::ModernCompactLauncherMetricsForDpi(
                 96)};
     int widthLogical_{
         ui::kClassicLauncherMetrics.widthLogical};
