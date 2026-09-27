@@ -64,11 +64,31 @@ int main() {
 
     const auto managed =
         ManagedEverythingExecutable(root);
+    const auto serviceHost =
+        ManagedEverythingServiceExecutable(
+            root);
 
+    assert(!serviceHost.empty());
+    assert(
+        serviceHost.filename() ==
+        L"Everything.exe");
+    assert(
+        serviceHost.parent_path()
+            .filename() ==
+        managed.parent_path()
+            .filename());
+    assert(
+        serviceHost.wstring().find(
+            root.wstring()) ==
+        std::wstring::npos);
     assert(
         IsManagedEverythingServiceExecutable(
             root,
             managed));
+    assert(
+        IsManagedEverythingServiceExecutable(
+            root,
+            serviceHost));
     assert(
         !IsManagedEverythingServiceExecutable(
             root,
@@ -142,6 +162,18 @@ int main() {
         ManagedEverythingExecutable(
             root) ==
         newerManaged);
+    const auto newerServiceHost =
+        ManagedEverythingServiceExecutable(
+            root);
+    assert(
+        newerServiceHost.parent_path()
+            .filename() ==
+        newerManaged.parent_path()
+            .filename());
+    assert(
+        IsManagedEverythingServiceExecutable(
+            root,
+            newerServiceHost));
     assert(
         !IsManagedEverythingServiceExecutable(
             root,

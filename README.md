@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-beta.2 — Security & Release Hardening I
+
+Beta.2 keeps the accepted v0.8 product surface frozen and addresses release-blocking security and lifecycle gaps found during the post-Beta review. Updater and Uninstaller elevation now use cryptographically random dedicated worker directories and keep the worker executable plus its directory locked through UAC consent and process creation, removing the previous predictable PID/tick temporary-executable replacement window. Everything service elevation keeps its existing path semantics but receives the same launch-time executable/directory guard.
+
+The native updater no longer opts into unrestricted WinHTTP redirects: HTTPS requests explicitly reject HTTPS-to-HTTP downgrade. Its apply/rollback logic is now a shared transaction implementation with runtime coverage for user-data preservation, mid-apply failure, created-file/directory rollback and reparse-point rejection. The post-update health event grants signal access only to the launching user instead of using a NULL DACL.
+
+For protected installs, the verified release archive now survives the handoff to Update.exe. The elevated worker locks the archive against write/delete replacement, re-verifies its release-manifest SHA-256, and re-extracts into a random protected work directory under the install root before applying files. Managed Everything follows the same privilege-boundary rule: its normal client stays portable, while the persistent Everything Service runs only from a Program Files protected service host; legacy ALTRun-owned portable service paths migrate there without touching external Everything installations.
+
+Versioned releases now share one immutable publishing contract. Both the normal main-build publication path and the explicit tag workflow generate and verify `update-manifest.json`, publish ZIP/SHA/manifest assets as a draft before making the release public, verify the anonymous manifest endpoint, and refuse to move an already-existing SemVer tag. Workflow-wide GitHub write permission is removed; only release jobs receive `contents: write`.
+
+Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Classic, Modern Compact, SearchEngine, relevance/ranking and numeric-intent behavior remain frozen. Windows fixed FileVersion/ProductVersion is `0.8.0.10002`.
+
 ## v0.8.0-beta.1 — Product Freeze & Hardening I
 
 Beta.1 freezes the accepted v0.8 product surface after the alpha.5.49 Classic closeout and alpha.6.4 Modern Compact closeout. This phase intentionally adds no new launcher feature, provider behavior, search/ranking rule, schema migration or visual redesign. Classic and Modern Compact are now release baselines; further v0.8 changes are limited to confirmed regressions, compatibility, performance/resource issues, data-safety/security problems and release blockers.

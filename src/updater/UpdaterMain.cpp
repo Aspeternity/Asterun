@@ -6,9 +6,15 @@
 #endif
 #include <windows.h>
 #include <shellapi.h>
+#include <aclapi.h>
+
+#include "../platform/SecureArchive.hpp"
+#include "../platform/SecureElevation.hpp"
+#include "UpdaterTransaction.hpp"
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cwchar>
 #include <cwctype>
 #include <filesystem>
@@ -25,6 +31,9 @@ namespace {
 struct Arguments {
     DWORD parentPid{0};
     std::filesystem::path source;
+    std::filesystem::path archive;
+    std::wstring sha256;
+    bool secureReextract{false};
     std::filesystem::path install;
     std::filesystem::path backup;
     std::wstring version;
@@ -94,6 +103,28 @@ ParseArguments() {
             args.source =
                 std::wstring(value);
         } else if (
+            key == L"--archive") {
+            args.archive =
+                std::wstring(value);
+        } else if (
+            key == L"--sha256") {
+            args.sha256 =
+                value;
+        } else if (
+            key ==
+                L"--secure-reextract") {
+            if (value == L"1") {
+                args.secureReextract =
+                    true;
+            } else if (
+                value == L"0") {
+                args.secureReextract =
+                    false;
+            } else {
+                cleanup();
+                return std::nullopt;
+            }
+        } else if (
             key == L"--install") {
             args.install =
                 std::wstring(value);
@@ -121,6 +152,8 @@ ParseArguments() {
     if (!apply ||
         args.parentPid == 0 ||
         args.source.empty() ||
+        args.archive.empty() ||
+        args.sha256.empty() ||
         args.install.empty() ||
         args.backup.empty() ||
         args.version.empty() ||
@@ -131,31 +164,108 @@ ParseArguments() {
     return args;
 }
 
-[[nodiscard]] std::wstring
-LowerPath(
-    const std::filesystem::path& path) {
-    std::wstring value =
-        path.lexically_normal()
-            .wstring();
-
-    std::transform(
-        value.begin(),
-        value.end(),
-        value.begin(),
-        [](wchar_t c) {
-            if (c == L'/') {
-                return L'\\';
-            }
-            return static_cast<wchar_t>(
-                std::towlower(c));
-        });
-
-    while (value.size() > 3 &&
-           value.back() == L'\\') {
-        value.pop_back();
+[[nodiscard]] bool
+AsciiSha256(
+    std::wstring_view value,
+    std::string& output) {
+    if (value.size() != 64) {
+        return false;
     }
 
-    return value;
+    output.clear();
+    output.reserve(value.size());
+
+    for (const wchar_t ch : value) {
+        const bool digit =
+            ch >= L'0' &&
+            ch <= L'9';
+        const bool lower =
+            ch >= L'a' &&
+            ch <= L'f';
+        const bool upper =
+            ch >= L'A' &&
+            ch <= L'F';
+
+        if (!digit &&
+            !lower &&
+            !upper) {
+            output.clear();
+            return false;
+        }
+
+        output.push_back(
+            static_cast<char>(ch));
+    }
+
+    return true;
+}
+
+[[nodiscard]] bool
+CreateProtectedWorkRoot(
+    const std::filesystem::path& install,
+    std::filesystem::path& root,
+    std::uint32_t& nativeError) {
+    const DWORD installAttributes =
+        GetFileAttributesW(
+            install.c_str());
+
+    if (installAttributes ==
+            INVALID_FILE_ATTRIBUTES ||
+        (installAttributes &
+         FILE_ATTRIBUTE_DIRECTORY) == 0 ||
+        (installAttributes &
+         FILE_ATTRIBUTE_REPARSE_POINT) !=
+            0) {
+        nativeError =
+            installAttributes ==
+                    INVALID_FILE_ATTRIBUTES
+                ? static_cast<
+                      std::uint32_t>(
+                      GetLastError())
+                : ERROR_REPARSE_TAG_INVALID;
+        return false;
+    }
+
+    for (int attempt = 0;
+         attempt < 16;
+         ++attempt) {
+        std::wstring token;
+
+        if (!altrun::win::
+                 GenerateSecureToken(
+                     token,
+                     nativeError)) {
+            return false;
+        }
+
+        root =
+            install /
+            (L".altrun-update-work." +
+             token);
+
+        if (CreateDirectoryW(
+                root.c_str(),
+                nullptr)) {
+            nativeError = 0;
+            return true;
+        }
+
+        const DWORD error =
+            GetLastError();
+
+        if (error !=
+            ERROR_ALREADY_EXISTS) {
+            nativeError =
+                static_cast<
+                    std::uint32_t>(
+                    error);
+            return false;
+        }
+    }
+
+    nativeError =
+        ERROR_ALREADY_EXISTS;
+    return false;
 }
 
 [[nodiscard]] bool
@@ -177,348 +287,8 @@ WaitForParent(DWORD pid) {
             60000);
 
     CloseHandle(process);
-    return wait == WAIT_OBJECT_0;
-}
-
-[[nodiscard]] bool
-ReadTrimmedText(
-    const std::filesystem::path& path,
-    std::wstring& value) {
-    std::ifstream input(
-        path,
-        std::ios::binary);
-
-    if (!input) {
-        return false;
-    }
-
-    std::string content{
-        std::istreambuf_iterator<char>{
-            input},
-        std::istreambuf_iterator<char>{}};
-
-    while (!content.empty() &&
-           (content.back() == '\r' ||
-            content.back() == '\n' ||
-            content.back() == ' ' ||
-            content.back() == '\t')) {
-        content.pop_back();
-    }
-
-    value.clear();
-    value.reserve(content.size());
-
-    for (unsigned char c : content) {
-        if (c > 0x7f) {
-            return false;
-        }
-        value.push_back(
-            static_cast<wchar_t>(
-                c));
-    }
-
-    return !value.empty();
-}
-
-[[nodiscard]] bool
-IsDataRelative(
-    const std::filesystem::path& relative) {
-    if (relative.empty()) {
-        return false;
-    }
-
-    const auto first =
-        relative.begin();
-
-    if (first == relative.end()) {
-        return false;
-    }
-
-    std::wstring value =
-        first->wstring();
-
-    std::transform(
-        value.begin(),
-        value.end(),
-        value.begin(),
-        [](wchar_t c) {
-            return static_cast<wchar_t>(
-                std::towlower(c));
-        });
-
-    return value == L"data";
-}
-
-[[nodiscard]] bool
-ValidateSource(
-    const Arguments& args) {
-    std::error_code ec;
-
-    if (!args.source.is_absolute() ||
-        !args.install.is_absolute() ||
-        !args.backup.is_absolute() ||
-        LowerPath(args.source) ==
-            LowerPath(args.install) ||
-        LowerPath(args.backup) ==
-            LowerPath(args.install)) {
-        return false;
-    }
-
-    for (const auto* name : {
-             L"ALTRunNext.exe",
-             L"Update.exe",
-             L"Uninstall.exe",
-             L"VERSION",
-         }) {
-        if (!std::filesystem::
-                 is_regular_file(
-                     args.source /
-                         name,
-                     ec) ||
-            ec) {
-            return false;
-        }
-    }
-
-    std::wstring stagedVersion;
-
-    return ReadTrimmedText(
-               args.source /
-                   L"VERSION",
-               stagedVersion) &&
-        stagedVersion ==
-            args.version;
-}
-
-[[nodiscard]] bool
-CopyOneFile(
-    const std::filesystem::path& source,
-    const std::filesystem::path& destination,
-    const std::filesystem::path& backup,
-    bool& wasNew) {
-    std::error_code ec;
-    wasNew =
-        !std::filesystem::exists(
-            destination,
-            ec);
-
-    if (ec) {
-        return false;
-    }
-
-    if (!wasNew) {
-        if (!std::filesystem::
-                 is_regular_file(
-                     destination,
-                     ec) ||
-            ec) {
-            return false;
-        }
-
-        std::filesystem::
-            create_directories(
-                backup.parent_path(),
-                ec);
-
-        if (ec) {
-            return false;
-        }
-
-        std::filesystem::copy_file(
-            destination,
-            backup,
-            std::filesystem::
-                copy_options::
-                    overwrite_existing,
-            ec);
-
-        if (ec) {
-            return false;
-        }
-    }
-
-    std::filesystem::create_directories(
-        destination.parent_path(),
-        ec);
-
-    if (ec) {
-        return false;
-    }
-
-    std::filesystem::copy_file(
-        source,
-        destination,
-        std::filesystem::
-            copy_options::
-                overwrite_existing,
-        ec);
-
-    if (!ec) {
-        return true;
-    }
-
-    // The destination can already have been opened/truncated before a copy
-    // reports failure. Repair this current item immediately because the
-    // caller has not yet appended its transaction record.
-    std::error_code recoveryError;
-
-    if (wasNew) {
-        std::filesystem::remove(
-            destination,
-            recoveryError);
-    } else {
-        std::filesystem::copy_file(
-            backup,
-            destination,
-            std::filesystem::
-                copy_options::
-                    overwrite_existing,
-            recoveryError);
-    }
-
-    return false;
-}
-
-struct ApplyRecord {
-    std::filesystem::path relative;
-    bool wasNew{false};
-};
-
-[[nodiscard]] bool
-ApplyPackage(
-    const Arguments& args,
-    std::vector<ApplyRecord>& records) {
-    std::error_code ec;
-
-    std::filesystem::remove_all(
-        args.backup,
-        ec);
-    ec.clear();
-
-    std::filesystem::create_directories(
-        args.backup,
-        ec);
-
-    if (ec) {
-        return false;
-    }
-
-    for (std::filesystem::
-             recursive_directory_iterator
-             it(args.source, ec),
-         end;
-         !ec && it != end;
-         it.increment(ec)) {
-        const auto relative =
-            std::filesystem::relative(
-                it->path(),
-                args.source,
-                ec);
-
-        if (ec ||
-            relative.empty() ||
-            relative ==
-                std::filesystem::path(
-                    L".")) {
-            return false;
-        }
-
-        if (IsDataRelative(
-                relative)) {
-            if (it->is_directory(ec) &&
-                !ec) {
-                it.disable_recursion_pending();
-            }
-            ec.clear();
-            continue;
-        }
-
-        if (it->is_symlink(ec)) {
-            return false;
-        }
-
-        if (it->is_directory(ec)) {
-            ec.clear();
-            std::filesystem::
-                create_directories(
-                    args.install /
-                        relative,
-                    ec);
-            if (ec) {
-                return false;
-            }
-            continue;
-        }
-
-        if (ec ||
-            !it->is_regular_file(ec) ||
-            ec) {
-            return false;
-        }
-
-        bool wasNew = false;
-
-        if (!CopyOneFile(
-                it->path(),
-                args.install /
-                    relative,
-                args.backup /
-                    relative,
-                wasNew)) {
-            return false;
-        }
-
-        records.push_back({
-            relative,
-            wasNew,
-        });
-    }
-
-    return !ec;
-}
-
-void Rollback(
-    const Arguments& args,
-    const std::vector<ApplyRecord>&
-        records) {
-    std::error_code ec;
-
-    for (auto it =
-             records.rbegin();
-         it != records.rend();
-         ++it) {
-        const auto destination =
-            args.install /
-            it->relative;
-
-        if (it->wasNew) {
-            std::filesystem::remove(
-                destination,
-                ec);
-            ec.clear();
-            continue;
-        }
-
-        const auto backup =
-            args.backup /
-            it->relative;
-
-        if (std::filesystem::
-                is_regular_file(
-                    backup,
-                    ec) &&
-            !ec) {
-            std::filesystem::copy_file(
-                backup,
-                destination,
-                std::filesystem::
-                    copy_options::
-                        overwrite_existing,
-                ec);
-        }
-
-        ec.clear();
-    }
+    return wait ==
+        WAIT_OBJECT_0;
 }
 
 [[nodiscard]] bool
@@ -740,6 +510,74 @@ LaunchMain(
 [[nodiscard]] HANDLE
 CreateHealthEvent(
     std::wstring_view name) {
+    HANDLE token = nullptr;
+
+    if (!OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY,
+            &token)) {
+        return nullptr;
+    }
+
+    DWORD required = 0;
+    GetTokenInformation(
+        token,
+        TokenUser,
+        nullptr,
+        0,
+        &required);
+
+    if (required == 0 ||
+        GetLastError() !=
+            ERROR_INSUFFICIENT_BUFFER) {
+        CloseHandle(token);
+        return nullptr;
+    }
+
+    std::vector<std::byte>
+        storage(required);
+    auto* tokenUser =
+        reinterpret_cast<TOKEN_USER*>(
+            storage.data());
+
+    if (!GetTokenInformation(
+            token,
+            TokenUser,
+            tokenUser,
+            required,
+            &required)) {
+        CloseHandle(token);
+        return nullptr;
+    }
+
+    CloseHandle(token);
+
+    EXPLICIT_ACCESSW access{};
+    access.grfAccessPermissions =
+        EVENT_MODIFY_STATE;
+    access.grfAccessMode =
+        SET_ACCESS;
+    access.grfInheritance =
+        NO_INHERITANCE;
+    access.Trustee.TrusteeForm =
+        TRUSTEE_IS_SID;
+    access.Trustee.TrusteeType =
+        TRUSTEE_IS_USER;
+    access.Trustee.ptstrName =
+        static_cast<LPWSTR>(
+            tokenUser->User.Sid);
+
+    PACL acl = nullptr;
+
+    if (SetEntriesInAclW(
+            1,
+            &access,
+            nullptr,
+            &acl) !=
+        ERROR_SUCCESS) {
+        return nullptr;
+    }
+
     SECURITY_DESCRIPTOR descriptor{};
 
     if (!InitializeSecurityDescriptor(
@@ -748,8 +586,9 @@ CreateHealthEvent(
         !SetSecurityDescriptorDacl(
             &descriptor,
             TRUE,
-            nullptr,
+            acl,
             FALSE)) {
+        LocalFree(acl);
         return nullptr;
     }
 
@@ -760,31 +599,20 @@ CreateHealthEvent(
         &descriptor;
     attributes.bInheritHandle = FALSE;
 
-    return CreateEventW(
-        &attributes,
-        TRUE,
-        FALSE,
-        std::wstring(name).c_str());
+    HANDLE event =
+        CreateEventW(
+            &attributes,
+            TRUE,
+            FALSE,
+            std::wstring(name).c_str());
+
+    LocalFree(acl);
+    return event;
 }
 
 void CleanupSelfLater() {
-    std::array<wchar_t, 32768>
-        path{};
-
-    const DWORD length =
-        GetModuleFileNameW(
-            nullptr,
-            path.data(),
-            static_cast<DWORD>(
-                path.size()));
-
-    if (length > 0 &&
-        length < path.size()) {
-        MoveFileExW(
-            path.data(),
-            nullptr,
-            MOVEFILE_DELAY_UNTIL_REBOOT);
-    }
+    altrun::win::
+        ScheduleTemporaryWorkerSelfCleanup();
 }
 
 } // namespace
@@ -797,24 +625,165 @@ int WINAPI wWinMain(
     const auto parsed =
         ParseArguments();
 
-    if (!parsed ||
-        !ValidateSource(*parsed) ||
-        !WaitForParent(
-            parsed->parentPid)) {
+    if (!parsed) {
         return 2;
     }
 
     const Arguments& args =
         *parsed;
 
-    std::vector<ApplyRecord>
-        records;
+    if (!WaitForParent(
+            args.parentPid)) {
+        return 2;
+    }
 
-    if (!ApplyPackage(
-            args,
-            records)) {
-        Rollback(args, records);
+    std::string expectedSha256;
+
+    if (!AsciiSha256(
+            args.sha256,
+            expectedSha256)) {
+        return 2;
+    }
+
+    altrun::win::
+        LockedVerifiedFile archiveLock;
+    std::uint32_t archiveError = 0;
+
+    if (!altrun::win::
+             LockAndVerifySha256(
+                 args.archive,
+                 expectedSha256,
+                 archiveLock,
+                 archiveError)) {
+        SetLastError(
+            archiveError != 0
+                ? archiveError
+                : ERROR_CRC);
+        return 2;
+    }
+
+    std::filesystem::path
+        protectedWorkRoot;
+    std::filesystem::path
+        transactionSource =
+            args.source;
+    std::filesystem::path
+        transactionBackup =
+            args.backup;
+    std::error_code cleanupError;
+
+    const auto cleanupWork =
+        [&]() {
+            archiveLock.Reset();
+
+            if (!protectedWorkRoot
+                     .empty()) {
+                std::filesystem::
+                    remove_all(
+                        protectedWorkRoot,
+                        cleanupError);
+                cleanupError.clear();
+            }
+        };
+
+    if (args.secureReextract) {
+        if (!IsElevated()) {
+            return 2;
+        }
+
+        std::uint32_t workError = 0;
+
+        if (!CreateProtectedWorkRoot(
+                args.install,
+                protectedWorkRoot,
+                workError)) {
+            SetLastError(
+                workError != 0
+                    ? workError
+                    : ERROR_ACCESS_DENIED);
+            return 2;
+        }
+
+        transactionSource =
+            protectedWorkRoot /
+            L"stage";
+        transactionBackup =
+            protectedWorkRoot /
+            L"backup";
+
+        std::uint32_t extractionError =
+            0;
+
+        if (!altrun::win::
+                 ExtractZipWithShellSecure(
+                     args.archive,
+                     transactionSource,
+                     extractionError)) {
+            SetLastError(
+                extractionError != 0
+                    ? extractionError
+                    : ERROR_INVALID_DATA);
+            cleanupWork();
+            return 2;
+        }
+
+        // The source tree now lives under the protected install root.
+        // The user-writable archive can be released and deleted before any
+        // elevated destination replacement starts.
+        archiveLock.Reset();
+        std::filesystem::remove(
+            args.archive,
+            cleanupError);
+        cleanupError.clear();
+    } else {
+        // No privilege boundary is crossed for a writable portable install.
+        // Still re-verify the archive after the old process exits so a stale
+        // or modified handoff never gets applied accidentally.
+        archiveLock.Reset();
+    }
+
+    altrun::updater::
+        TransactionPaths transaction{
+            .source =
+                transactionSource,
+            .install =
+                args.install,
+            .backup =
+                transactionBackup,
+            .version =
+                args.version,
+        };
+
+    if (!altrun::updater::
+             ValidateSource(
+                 transaction)) {
+        cleanupWork();
+        return 2;
+    }
+
+    altrun::updater::
+        TransactionJournal journal;
+
+    if (!altrun::updater::
+             ApplyPackage(
+                 transaction,
+                 journal)) {
+        altrun::updater::
+            Rollback(
+                transaction,
+                journal);
+        cleanupWork();
         return 3;
+    }
+
+    // The applied file set and protected backup journal are sufficient for
+    // rollback after this point; the extracted source no longer needs to
+    // remain live.
+    if (args.secureReextract) {
+        std::filesystem::remove_all(
+            transactionSource,
+            cleanupError);
+        cleanupError.clear();
     }
 
     HANDLE healthEvent =
@@ -822,7 +791,10 @@ int WINAPI wWinMain(
             args.healthEvent);
 
     if (!healthEvent) {
-        Rollback(args, records);
+        altrun::updater::Rollback(
+            transaction,
+            journal);
+        cleanupWork();
         return 4;
     }
 
@@ -842,7 +814,10 @@ int WINAPI wWinMain(
             mainArguments,
             child)) {
         CloseHandle(healthEvent);
-        Rollback(args, records);
+        altrun::updater::Rollback(
+            transaction,
+            journal);
+        cleanupWork();
 
         PROCESS_INFORMATION restored{};
         if (LaunchMain(
@@ -874,7 +849,10 @@ int WINAPI wWinMain(
             5000);
         CloseHandle(child.hProcess);
 
-        Rollback(args, records);
+        altrun::updater::Rollback(
+            transaction,
+            journal);
+        cleanupWork();
 
         PROCESS_INFORMATION restored{};
         if (LaunchMain(
@@ -890,14 +868,19 @@ int WINAPI wWinMain(
 
     CloseHandle(child.hProcess);
 
-    std::error_code ec;
+    cleanupWork();
+
     std::filesystem::remove_all(
         args.backup,
-        ec);
-    ec.clear();
+        cleanupError);
+    cleanupError.clear();
     std::filesystem::remove_all(
         args.source,
-        ec);
+        cleanupError);
+    cleanupError.clear();
+    std::filesystem::remove(
+        args.archive,
+        cleanupError);
 
     CleanupSelfLater();
     return 0;

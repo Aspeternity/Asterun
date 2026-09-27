@@ -141,6 +141,10 @@ CheckManagedEverythingUpdate(
 ManagedEverythingExecutable(
     const std::filesystem::path& dataDirectory);
 
+[[nodiscard]] std::filesystem::path
+ManagedEverythingServiceExecutable(
+    const std::filesystem::path& dataDirectory);
+
 [[nodiscard]] bool
 EverythingIpcEndpointAvailable();
 
@@ -169,7 +173,18 @@ ApplyManagedEverythingServiceEnabledPolicy(
     bool enabled);
 
 [[nodiscard]] EverythingServiceRepairResult
+ApplyManagedEverythingServiceEnabledPolicy(
+    const std::filesystem::path& dataDirectory,
+    bool enabled,
+    const std::filesystem::path& managedSource);
+
+[[nodiscard]] EverythingServiceRepairResult
 RepairManagedEverythingServicePath(
     const std::filesystem::path& dataDirectory);
+
+[[nodiscard]] EverythingServiceRepairResult
+RepairManagedEverythingServicePath(
+    const std::filesystem::path& dataDirectory,
+    const std::filesystem::path& managedSource);
 
 } // namespace altrun::win

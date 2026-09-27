@@ -4,6 +4,7 @@
 #include <objbase.h>
 #include <shellapi.h>
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -17,6 +18,8 @@ struct StartupArguments {
         false};
     bool managedEverythingServiceEnabled{
         false};
+    std::filesystem::path
+        managedEverythingSource;
     std::wstring updateHealthEvent;
     std::vector<std::wstring>
         shortcutPaths;
@@ -66,31 +69,42 @@ StartupArguments ParseArguments() {
         return result;
     }
 
-    if (argc == 2 &&
+    if (argc == 3 &&
         std::wstring_view(argv[1]) ==
-            L"--repair-managed-everything-service") {
+            L"--repair-managed-everything-service" &&
+        argv[2] &&
+        *argv[2] != L'\0') {
         result.repairManagedEverything =
             true;
+        result.managedEverythingSource =
+            argv[2];
         LocalFree(argv);
         return result;
     }
 
-    if (argc == 3 &&
+    if ((argc == 3 ||
+         argc == 4) &&
         std::wstring_view(argv[1]) ==
             L"--set-managed-everything-service") {
         const std::wstring_view value(
             argv[2]);
 
-        if (value == L"enabled") {
+        if (value == L"enabled" &&
+            argc == 4 &&
+            argv[3] &&
+            *argv[3] != L'\0') {
             result.setManagedEverythingService =
                 true;
             result.managedEverythingServiceEnabled =
                 true;
+            result.managedEverythingSource =
+                argv[3];
             LocalFree(argv);
             return result;
         }
 
-        if (value == L"disabled") {
+        if (value == L"disabled" &&
+            argc == 3) {
             result.setManagedEverythingService =
                 true;
             result.managedEverythingServiceEnabled =
@@ -141,7 +155,9 @@ int WINAPI wWinMain(
                 RepairManagedEverythingServicePath(
                     altrun::win::
                         ExecutableDirectory() /
-                    "data");
+                    "data",
+                    arguments
+                        .managedEverythingSource);
 
         if (result.success) {
             return 0;
@@ -162,7 +178,9 @@ int WINAPI wWinMain(
                         ExecutableDirectory() /
                     "data",
                     arguments
-                        .managedEverythingServiceEnabled);
+                        .managedEverythingServiceEnabled,
+                    arguments
+                        .managedEverythingSource);
 
         if (result.success) {
             return 0;

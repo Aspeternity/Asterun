@@ -8,6 +8,22 @@ Automated CI covers compilation, Config/Search tests, provider smoke tests, hotk
 
 The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
+## v0.8.0-beta.2 Security & Release Hardening I validation
+
+Beta.2 does not reopen accepted UI/search behavior. Interactive validation is limited to the lifecycle paths changed by this security hardening.
+
+- [ ] From a normal writable portable folder, run an update and confirm the launcher exits, Update runs, the new build starts, and no extra UAC prompt is introduced.
+- [ ] From a protected/non-writable install folder, run an update, accept UAC, and confirm the same successful health handshake and cleanup.
+- [ ] During that protected-folder update, verify the pre-UAC downloaded ZIP remains the verified archive and that no user-writable pre-extracted staging tree is used as the elevated apply source; after completion no `.altrun-update-work.*` directory remains under the install root.
+- [ ] Cancel the update UAC prompt and confirm the current build remains running/usable with no partial apply and no stale ALTRunNext-Elevated worker executable.
+- [ ] Force a failed new-build startup/health case and verify previous application files are restored while `data` remains unchanged.
+- [ ] Run preserve-data uninstall and full-delete uninstall; accept/cancel UAC paths must retain the beta.1 recovery behavior and no predictable flat temp worker should remain.
+- [ ] Recheck managed Everything service install/repair and service enable/disable once. External Everything ownership behavior must remain unchanged.
+- [ ] Inspect the `Everything` service ImagePath after managed install/repair: the service executable must be under the real Program Files `Aspeternity\ALTRunNext\EverythingService\<version-arch>` protected service host, while the standard-user client remains under the portable `data\tools\Everything` tree.
+- [ ] Move the portable ALTRun Next folder after the protected service host exists and confirm the service ImagePath stays protected while the relocated managed client still connects normally; no external Everything service is modified.
+- [ ] Recheck Classic and Modern launcher startup/search only as a regression smoke; no visual/search/ranking differences are expected.
+- [ ] Schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22; Windows fixed version is 0.8.0.10002.
+
 ## v0.8.0-beta.1 Product Freeze & Hardening I validation
 
 Beta.1 is the v0.8 product-freeze boundary. The detailed candidate checklist is packaged as `V0.8_BETA_VALIDATION.md`; this section records the non-negotiable desktop acceptance boundary for the shared validation history.

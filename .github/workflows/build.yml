@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test-core:
@@ -24,6 +24,9 @@ jobs:
         run: python3 scripts/verify_version.py
       - name: Verify release contract
         run: python3 scripts/verify_release_contract.py
+      - name: Verify release publisher syntax
+        shell: bash
+        run: bash -n scripts/publish_versioned_release.sh
       - name: Verify release tag guard
         shell: bash
         run: |
@@ -116,10 +119,10 @@ jobs:
         run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
       - name: Build Windows smoke tests
         shell: pwsh
-        run: cmake --build build-smoke --config Release --target ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests --parallel
+        run: cmake --build build-smoke --config Release --target ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests --parallel
       - name: Run Windows smoke tests
         shell: pwsh
-        run: ctest --test-dir build-smoke -C Release -R "^(windows_provider_smoke_tests|launch_target_inspector_tests|path_portability_tests|user_command_path_update_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_lifecycle_tests|everything_ipc_runtime_tests|update_policy_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|upgrade_matrix_tests|clipboard_runtime_tests|windows_context_runtime_tests|feedback_runtime_tests|uninstall_runtime_tests|window_presentation_runtime_tests)$" --output-on-failure
+        run: ctest --test-dir build-smoke -C Release -R "^(windows_provider_smoke_tests|launch_target_inspector_tests|path_portability_tests|user_command_path_update_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_lifecycle_tests|everything_ipc_runtime_tests|update_policy_tests|update_runtime_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|upgrade_matrix_tests|clipboard_runtime_tests|windows_context_runtime_tests|feedback_runtime_tests|uninstall_runtime_tests|window_presentation_runtime_tests)$" --output-on-failure
 
   windows-compat:
     name: Windows 10 API baseline
@@ -131,7 +134,7 @@ jobs:
         run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
       - name: Build x64 compatibility target
         shell: pwsh
-        run: cmake --build build-compat --config Release --target ALTRunNext ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests --parallel
+        run: cmake --build build-compat --config Release --target ALTRunNext ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests --parallel
       - name: Verify compatibility artifact
         shell: pwsh
         run: |
@@ -146,13 +149,15 @@ jobs:
           }
       - name: Run Windows compatibility smoke
         shell: pwsh
-        run: ctest --test-dir build-compat -C Release -R "^(windows_provider_smoke_tests|launch_target_inspector_tests|path_portability_tests|user_command_path_update_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_lifecycle_tests|everything_ipc_runtime_tests|update_policy_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|upgrade_matrix_tests|clipboard_runtime_tests|windows_context_runtime_tests|feedback_runtime_tests|uninstall_runtime_tests|window_presentation_runtime_tests)$" --output-on-failure
+        run: ctest --test-dir build-compat -C Release -R "^(windows_provider_smoke_tests|launch_target_inspector_tests|path_portability_tests|user_command_path_update_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_lifecycle_tests|everything_ipc_runtime_tests|update_policy_tests|update_runtime_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|upgrade_matrix_tests|clipboard_runtime_tests|windows_context_runtime_tests|feedback_runtime_tests|uninstall_runtime_tests|window_presentation_runtime_tests)$" --output-on-failure
 
   development-release:
     name: Publish rolling development prerelease
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [test-core, build-windows, windows-provider-smoke, windows-compat]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     concurrency:
       group: altrun-development-release
       # Do not kill a release while gh is creating/uploading it. An interrupted
@@ -348,50 +353,15 @@ jobs:
 
           echo "dev-latest release state is valid and its manifest is anonymously downloadable and coherent."
 
-      - name: Publish versioned release
+      - name: Publish immutable versioned release
         if: steps.publish-dev.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
-          TAG="v$VERSION"
-          IS_PRERELEASE=false
-
-          if [[ "$VERSION" == *-* ]]; then
-            IS_PRERELEASE=true
-          fi
-
-          REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
-
-          if [[ -n "$REMOTE_SHA" && "$REMOTE_SHA" != "$GITHUB_SHA" ]]; then
-            if [[ "$IS_PRERELEASE" != "true" ]]; then
-              echo "Stable tag $TAG already exists at $REMOTE_SHA; stable releases are immutable."
-              exit 1
-            fi
-
-            echo "Refreshing active prerelease $TAG from $REMOTE_SHA to $GITHUB_SHA."
-            gh release delete "$TAG" --yes --cleanup-tag || true
-            git tag -f "$TAG" "$GITHUB_SHA"
-            git push origin "refs/tags/$TAG" --force
-          elif [[ -z "$REMOTE_SHA" ]]; then
-            git tag "$TAG" "$GITHUB_SHA"
-            git push origin "$TAG"
-          elif gh release view "$TAG" >/dev/null 2>&1; then
-            echo "$TAG already points to the current commit and its release exists."
-            exit 0
-          fi
-
-          EXTRA_ARGS=()
-          if [[ "$IS_PRERELEASE" == "true" ]]; then
-            EXTRA_ARGS+=(--prerelease)
-          fi
-
-          gh release create "$TAG" \
-            ALTRunNext-x64.zip \
-            ALTRunNext-ARM64.zip \
-            SHA256SUMS.txt \
-            update-manifest.json \
-            "${EXTRA_ARGS[@]}" \
-            --title "ALTRun Next $TAG" \
-            --notes "Versioned build created automatically from commit $GITHUB_SHA."
+          bash scripts/publish_versioned_release.sh \
+            "v$VERSION" \
+            "$VERSION" \
+            "$GITHUB_SHA"

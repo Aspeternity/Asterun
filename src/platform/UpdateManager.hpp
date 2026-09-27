@@ -55,6 +55,9 @@ struct UpdateSnapshot {
     std::uint32_t nativeError{0};
     std::filesystem::path
         stagingDirectory;
+    std::filesystem::path
+        verifiedArchive;
+    std::string assetSha256;
 };
 
 using UpdateProgress =

@@ -2,6 +2,7 @@
 
 #include "../core/ConfigIO.hpp"
 #include "../core/UpdateManifest.hpp"
+#include "SecureElevation.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -327,7 +328,7 @@ OpenRequest(
     }
 
     DWORD redirectPolicy =
-        WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
+        WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
 
     if (!WinHttpSetOption(
             request,
@@ -1733,10 +1734,10 @@ PrepareUpdate(
         return result;
     }
 
-    std::filesystem::remove(
-        verifiedArchive,
-        ec);
-
+    // Keep the verified archive through the install handoff. A protected
+    // install re-opens it under a no-write/no-delete guard, verifies the
+    // manifest SHA-256 again after UAC, and re-extracts into a protected
+    // staging directory before any elevated file replacement occurs.
     std::string stagedVersion;
 
     if (!ReadFileText(
@@ -1760,6 +1761,9 @@ PrepareUpdate(
                 L"Uninstall.exe",
             ec) ||
         ec) {
+        std::filesystem::remove(
+            verifiedArchive,
+            ec);
         snapshot =
             Fail(
                 snapshot,
@@ -1772,6 +1776,10 @@ PrepareUpdate(
 
     snapshot.stagingDirectory =
         stagingDirectory;
+    snapshot.verifiedArchive =
+        verifiedArchive;
+    snapshot.assetSha256 =
+        asset.sha256;
     snapshot.stage =
         UpdateStage::ReadyToInstall;
     snapshot.failure =
@@ -1797,6 +1805,9 @@ bool LaunchPreparedUpdate(
             UpdateStage::
                 ReadyToInstall ||
         snapshot.stagingDirectory.empty() ||
+        snapshot.verifiedArchive.empty() ||
+        !IsSha256HexString(
+            snapshot.assetSha256) ||
         snapshot.availableVersion.empty()) {
         nativeError =
             ERROR_INVALID_DATA;
@@ -1818,50 +1829,6 @@ bool LaunchPreparedUpdate(
         return false;
     }
 
-    std::array<wchar_t, MAX_PATH>
-        tempBuffer{};
-    const DWORD tempLength =
-        GetTempPathW(
-            static_cast<DWORD>(
-                tempBuffer.size()),
-            tempBuffer.data());
-
-    if (tempLength == 0 ||
-        tempLength >=
-            tempBuffer.size()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                GetLastError());
-        return false;
-    }
-
-    const auto tick =
-        GetTickCount64();
-    const auto tempUpdater =
-        std::filesystem::path(
-            tempBuffer.data()) /
-        (L"ALTRunNext-Update." +
-         std::to_wstring(
-             parentProcessId) +
-         L"." +
-         std::to_wstring(tick) +
-         L".exe");
-
-    std::filesystem::copy_file(
-        updater,
-        tempUpdater,
-        std::filesystem::
-            copy_options::
-                overwrite_existing,
-        ec);
-
-    if (ec) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                ec.value());
-        return false;
-    }
-
     const auto backupDirectory =
         UpdateRoot(dataDirectory) /
         L"backup" /
@@ -1870,12 +1837,21 @@ bool LaunchPreparedUpdate(
                 currentVersion.begin(),
                 currentVersion.end()));
 
+    const bool elevate =
+        !DirectoryWritable(
+            baseDirectory);
+
+    std::wstring healthToken;
+
+    if (!GenerateSecureToken(
+            healthToken,
+            nativeError)) {
+        return false;
+    }
+
     const std::wstring healthEvent =
         L"Local\\Aspeternity.ALTRunNext.UpdateHealth." +
-        std::to_wstring(
-            parentProcessId) +
-        L"." +
-        std::to_wstring(tick);
+        healthToken;
 
     std::wstring arguments =
         L"--apply --parent-pid " +
@@ -1885,6 +1861,17 @@ bool LaunchPreparedUpdate(
         QuoteArgument(
             snapshot.stagingDirectory
                 .wstring()) +
+        L" --archive " +
+        QuoteArgument(
+            snapshot.verifiedArchive
+                .wstring()) +
+        L" --sha256 " +
+        QuoteArgument(
+            std::wstring(
+                snapshot.assetSha256.begin(),
+                snapshot.assetSha256.end())) +
+        L" --secure-reextract " +
+        (elevate ? L"1" : L"0") +
         L" --install " +
         QuoteArgument(
             baseDirectory.wstring()) +
@@ -1901,43 +1888,37 @@ bool LaunchPreparedUpdate(
         L" --health-event " +
         QuoteArgument(healthEvent);
 
-    const bool elevate =
-        !DirectoryWritable(
-            baseDirectory);
+    SecuredExecutable securedUpdater;
 
-    SHELLEXECUTEINFOW info{};
-    info.cbSize = sizeof(info);
-    info.fMask =
-        SEE_MASK_NOCLOSEPROCESS |
-        SEE_MASK_NOASYNC;
-    info.hwnd = nullptr;
-    info.lpVerb =
-        elevate
-            ? L"runas"
-            : L"open";
-    info.lpFile =
-        tempUpdater.c_str();
-    info.lpParameters =
-        arguments.c_str();
-    info.lpDirectory =
-        tempUpdater
-            .parent_path()
-            .c_str();
-    info.nShow = SW_HIDE;
-
-    if (!ShellExecuteExW(&info)) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                GetLastError());
-        std::filesystem::remove(
-            tempUpdater,
-            ec);
+    if (!CreateSecuredTemporaryExecutableCopy(
+            updater,
+            securedUpdater,
+            nativeError)) {
         return false;
     }
 
-    if (info.hProcess) {
-        CloseHandle(info.hProcess);
+    HANDLE process = nullptr;
+
+    if (!LaunchSecuredExecutable(
+            securedUpdater,
+            arguments,
+            elevate,
+            SW_HIDE,
+            process,
+            nativeError)) {
+        securedUpdater
+            .RemoveTemporaryNow();
+        return false;
     }
+
+    if (process) {
+        CloseHandle(process);
+    }
+
+    // Keep the random worker in place after process creation. Update.exe
+    // schedules its own executable and dedicated temporary directory for
+    // deletion once the transaction is complete.
+    securedUpdater.Reset();
 
     nativeError = 0;
     return true;

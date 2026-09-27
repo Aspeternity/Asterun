@@ -1,4 +1,5 @@
 #include "../ui/Feedback.hpp"
+#include "../platform/SecureElevation.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -11,6 +12,7 @@
 #include <restartmanager.h>
 #include <shellapi.h>
 #include <shlwapi.h>
+#include <shlobj.h>
 #include <tlhelp32.h>
 
 #include <algorithm>
@@ -777,35 +779,42 @@ QueryEverythingServiceExecutable(
 }
 
 [[nodiscard]] std::filesystem::path
-DetachedAlpha91Root() {
-    std::array<wchar_t, 32768>
-        programFiles{};
-    const DWORD length =
-        GetEnvironmentVariableW(
-            L"ProgramFiles",
-            programFiles.data(),
-            static_cast<DWORD>(
-                programFiles.size()));
+ManagedEverythingServiceHostRoot() {
+    PWSTR programFiles = nullptr;
 
-    if (length == 0 ||
-        length >=
-            programFiles.size()) {
+    const HRESULT result =
+        SHGetKnownFolderPath(
+            FOLDERID_ProgramFiles,
+            KF_FLAG_DEFAULT,
+            nullptr,
+            &programFiles);
+
+    if (FAILED(result) ||
+        !programFiles ||
+        !*programFiles) {
+        if (programFiles) {
+            CoTaskMemFree(
+                programFiles);
+        }
         return {};
     }
 
-    return std::filesystem::path(
-               std::wstring(
-                   programFiles.data(),
-                   length)) /
+    const std::filesystem::path root =
+        std::filesystem::path(
+            programFiles) /
         L"Aspeternity" /
         L"ALTRunNext" /
         L"EverythingService";
+
+    CoTaskMemFree(
+        programFiles);
+    return root;
 }
 
 struct ServiceCleanupResult {
     bool success{true};
     bool removed{false};
-    bool detachedAlpha91{false};
+    bool protectedServiceHost{false};
     DWORD error{ERROR_SUCCESS};
 };
 
@@ -867,25 +876,25 @@ StopAndDeleteOwnedEverythingService(
         L"data" /
         L"tools" /
         L"Everything";
-    const auto detachedRoot =
-        DetachedAlpha91Root();
+    const auto protectedRoot =
+        ManagedEverythingServiceHostRoot();
 
     const bool ownedPortable =
         PathStartsWithDirectory(
             serviceExecutable,
             managedRoot);
-    const bool ownedDetached =
-        !detachedRoot.empty() &&
+    const bool ownedProtected =
+        !protectedRoot.empty() &&
         PathStartsWithDirectory(
             serviceExecutable,
-            detachedRoot);
+            protectedRoot);
 
     if (!ownedPortable &&
-        !ownedDetached) {
+        !ownedProtected) {
         return result;
     }
 
-    result.detachedAlpha91 = ownedDetached;
+    result.protectedServiceHost = ownedProtected;
     ServiceHandle controlled;
     controlled.value = OpenServiceW(manager.value, kEverythingService,
         SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS | SERVICE_STOP | DELETE);
@@ -1048,9 +1057,9 @@ TerminateManagedEverythingProcesses(
     return success;
 }
 
-void CleanupDetachedAlpha91Files() {
+void CleanupManagedEverythingServiceHostFiles() {
     const auto root =
-        DetachedAlpha91Root();
+        ManagedEverythingServiceHostRoot();
 
     if (root.empty()) {
         return;
@@ -1951,15 +1960,8 @@ RemoveInstallation(
 }
 
 void CleanupSelfLater() {
-    const auto current =
-        CurrentExecutable();
-
-    if (!current.empty()) {
-        MoveFileExW(
-            current.c_str(),
-            nullptr,
-            MOVEFILE_DELAY_UNTIL_REBOOT);
-    }
+    altrun::win::
+        ScheduleTemporaryWorkerSelfCleanup();
 }
 
 [[nodiscard]] int
@@ -2000,13 +2002,10 @@ PerformUninstall(
         return 5;
     }
 
-    if (service.detachedAlpha91) {
-        CleanupDetachedAlpha91Files();
-    } else {
-        // Also clean a harmless alpha.9.1 orphan if migration already moved
-        // the service back to the portable tree.
-        CleanupDetachedAlpha91Files();
-    }
+    // The Program Files host is ALTRun-owned regardless of whether this
+    // uninstall just removed the active protected service or is cleaning an
+    // orphan left by an older portable-service migration.
+    CleanupManagedEverythingServiceHostFiles();
 
     RemovalFailure removalFailure;
     DirectoryHandle rootLease;
@@ -2124,31 +2123,6 @@ BeginUninstall() {
         return 0;
     }
 
-    std::array<wchar_t, 32768>
-        tempPath{};
-    const DWORD tempLength =
-        GetTempPathW(
-            static_cast<DWORD>(
-                tempPath.size()),
-            tempPath.data());
-
-    if (tempLength == 0 ||
-        tempLength >=
-            tempPath.size()) {
-        return 12;
-    }
-
-    const auto tempExe =
-        std::filesystem::path(
-            tempPath.data()) /
-        (L"ALTRunNext-Uninstall." +
-         std::to_wstring(
-             GetCurrentProcessId()) +
-         L"." +
-         std::to_wstring(
-             GetTickCount64()) +
-         L".exe");
-
     EventHandle shellReleaseRequest;
     EventHandle shellReleaseDone;
     EventHandle shellLeaseAcquired;
@@ -2157,12 +2131,19 @@ BeginUninstall() {
     std::wstring shellLeaseAcquiredName;
 
     if (deleteData) {
-        const auto brokerToken =
-            std::to_wstring(
-                GetCurrentProcessId()) +
-            L"." +
-            std::to_wstring(
-                GetTickCount64());
+        std::wstring brokerToken;
+        std::uint32_t tokenError = 0;
+
+        if (!altrun::win::
+                 GenerateSecureToken(
+                     brokerToken,
+                     tokenError)) {
+            SetLastError(
+                tokenError != 0
+                    ? tokenError
+                    : ERROR_GEN_FAILURE);
+            return 15;
+        }
 
         shellReleaseRequestName =
             L"Local\\ALTRunNext.Uninstall.ReleaseRequest." +
@@ -2200,19 +2181,6 @@ BeginUninstall() {
         }
     }
 
-    std::error_code ec;
-    std::filesystem::copy_file(
-        current,
-        tempExe,
-        std::filesystem::
-            copy_options::
-                overwrite_existing,
-        ec);
-
-    if (ec) {
-        return 13;
-    }
-
     std::wstring arguments =
         L"--perform --parent-pid " +
         std::to_wstring(
@@ -2238,39 +2206,58 @@ BeginUninstall() {
                 shellLeaseAcquiredName);
     }
 
-    const auto workerDirectory = tempExe.parent_path();
-    if (!SetCurrentDirectoryW(workerDirectory.c_str())) {
-        const DWORD error = GetLastError();
-        std::filesystem::remove(tempExe, ec);
-        altrun::ui::ShowMessage(nullptr,
-            ChineseUi() ? L"无法释放安装目录，请关闭占用目录的程序后重试。"
-                        : L"Could not release the installation directory. Close programs using it and try again.",
-            L"ALTRun Next", MB_OK | MB_ICONERROR);
+    altrun::win::
+        SecuredExecutable worker;
+    std::uint32_t launchError = 0;
+
+    if (!altrun::win::
+             CreateSecuredTemporaryExecutableCopy(
+                 current,
+                 worker,
+                 launchError)) {
+        SetLastError(
+            launchError != 0
+                ? launchError
+                : ERROR_GEN_FAILURE);
+        return 13;
+    }
+
+    const auto workerDirectory =
+        worker.temporaryDirectory;
+
+    if (!SetCurrentDirectoryW(
+            workerDirectory.c_str())) {
+        const DWORD error =
+            GetLastError();
+
+        worker.RemoveTemporaryNow();
+
+        altrun::ui::ShowMessage(
+            nullptr,
+            ChineseUi()
+                ? L"无法释放安装目录，请关闭占用目录的程序后重试。"
+                : L"Could not release the installation directory. Close programs using it and try again.",
+            L"ALTRun Next",
+            MB_OK |
+                MB_ICONERROR);
+
         SetLastError(error);
         return 17;
     }
-    SHELLEXECUTEINFOW info{};
-    info.cbSize = sizeof(info);
-    info.fMask =
-        SEE_MASK_NOCLOSEPROCESS |
-        SEE_MASK_NOASYNC;
-    info.lpVerb = L"runas";
-    info.lpFile =
-        tempExe.c_str();
-    info.lpParameters =
-        arguments.c_str();
-    info.lpDirectory = workerDirectory.c_str();
-    info.nShow = SW_SHOWNORMAL;
 
-    if (!ShellExecuteExW(
-            &info)) {
-        const DWORD error =
-            GetLastError();
-        std::filesystem::remove(
-            tempExe,
-            ec);
+    HANDLE workerProcess = nullptr;
 
-        if (error !=
+    if (!altrun::win::
+             LaunchSecuredExecutable(
+                 worker,
+                 arguments,
+                 true,
+                 SW_SHOWNORMAL,
+                 workerProcess,
+                 launchError)) {
+        worker.RemoveTemporaryNow();
+
+        if (launchError !=
             ERROR_CANCELLED) {
             altrun::ui::ShowMessage(
                 nullptr,
@@ -2282,27 +2269,32 @@ BeginUninstall() {
                     MB_ICONERROR);
         }
 
-        return error ==
+        return launchError ==
                    ERROR_CANCELLED
             ? 0
             : 14;
     }
 
+    // The UAC/process-creation window is now closed. Keep the random worker
+    // for the child to run from; it schedules its own file and dedicated
+    // temporary directory for cleanup.
+    worker.Reset();
+
     RemoveStartupRegistration(
         install);
 
     if (deleteData &&
-        info.hProcess) {
+        workerProcess) {
         const bool brokerOk =
             ServeShellReleaseBroker(
                 shellReleaseRequest.value,
-                info.hProcess,
+                workerProcess,
                 install,
                 shellReleaseDone.value,
                 shellLeaseAcquired.value);
 
         CloseHandle(
-            info.hProcess);
+            workerProcess);
 
         if (!brokerOk) {
             altrun::ui::ShowMessage(
@@ -2321,9 +2313,9 @@ BeginUninstall() {
         return 0;
     }
 
-    if (info.hProcess) {
+    if (workerProcess) {
         CloseHandle(
-            info.hProcess);
+            workerProcess);
     }
 
     return 0;

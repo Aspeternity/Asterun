@@ -190,6 +190,8 @@ if(WIN32)
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
         src/platform/LaunchTargetInspector.cpp
+        src/platform/SecureArchive.cpp
+        src/platform/SecureElevation.cpp
         src/platform/ShellActions.cpp
         src/platform/UpdateManager.cpp
         src/platform/WinClipboard.cpp
@@ -262,6 +264,9 @@ if(WIN32)
         ALTRunNextUpdater
         WIN32
         src/updater/UpdaterMain.cpp
+        src/updater/UpdaterTransaction.cpp
+        src/platform/SecureArchive.cpp
+        src/platform/SecureElevation.cpp
     )
 
     target_compile_definitions(
@@ -279,6 +284,9 @@ if(WIN32)
         ALTRunNextUpdater
         PRIVATE
             advapi32
+            bcrypt
+            ole32
+            oleaut32
             shell32
             user32
     )
@@ -311,6 +319,7 @@ if(WIN32)
         WIN32
         src/uninstaller/UninstallMain.cpp
         src/uninstaller/uninstaller.manifest
+        src/platform/SecureElevation.cpp
         src/ui/Feedback.cpp
         src/ui/Feedback.rc
     )
@@ -332,6 +341,7 @@ if(WIN32)
         ALTRunNextUninstaller
         PRIVATE
             advapi32
+            bcrypt
             shell32
             shlwapi
             ole32
@@ -379,6 +389,38 @@ function(altrun_enable_test_assertions target)
 endfunction()
 
 if(BUILD_TESTING)
+    add_executable(
+        update_runtime_tests
+        tests/UpdateRuntimeTests.cpp
+        src/updater/UpdaterTransaction.cpp
+    )
+    target_include_directories(
+        update_runtime_tests
+        PRIVATE src
+    )
+    if(WIN32)
+        target_sources(
+            update_runtime_tests
+            PRIVATE
+                src/platform/SecureArchive.cpp
+        )
+        target_link_libraries(
+            update_runtime_tests
+            PRIVATE
+                bcrypt
+                ole32
+                oleaut32
+                shell32
+        )
+    endif()
+    altrun_enable_test_assertions(
+        update_runtime_tests
+    )
+    add_test(
+        NAME update_runtime_tests
+        COMMAND update_runtime_tests
+    )
+
     add_executable(
         update_policy_tests
         tests/UpdatePolicyTests.cpp
@@ -937,7 +979,7 @@ if(BUILD_TESTING)
         add_test(NAME window_presentation_runtime_tests COMMAND window_presentation_runtime_tests)
         set_tests_properties(window_presentation_runtime_tests PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 
-        add_executable(uninstall_runtime_tests tests/UninstallRuntimeTests.cpp src/ui/Feedback.cpp)
+        add_executable(uninstall_runtime_tests tests/UninstallRuntimeTests.cpp src/platform/SecureElevation.cpp src/ui/Feedback.cpp)
         get_target_property(uninstall_libraries ALTRunNextUninstaller LINK_LIBRARIES)
         get_target_property(uninstall_definitions ALTRunNextUninstaller COMPILE_DEFINITIONS)
         target_link_libraries(uninstall_runtime_tests PRIVATE ${uninstall_libraries})
@@ -1299,6 +1341,7 @@ if(BUILD_TESTING)
             everything_lifecycle_tests
             tests/EverythingLifecycleTests.cpp
             src/platform/EverythingBootstrapper.cpp
+            src/platform/SecureElevation.cpp
         )
 
         target_include_directories(
