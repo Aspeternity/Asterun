@@ -170,6 +170,15 @@ ModernCompactLauncherDpiMetrics
 ModernCompactLauncherMetricsForDpi(
     unsigned dpi) noexcept {
 
+    const UiRectMetrics resultsSurface{
+        Scale(12, dpi),
+        Scale(62, dpi),
+        Scale(596, dpi),
+        Scale(292, dpi),
+    };
+    const int surfaceBorder =
+        Scale(1, dpi);
+
     return {
         Scale(620, dpi),
         Scale(400, dpi),
@@ -185,17 +194,16 @@ ModernCompactLauncherMetricsForDpi(
             Scale(576, dpi),
             Scale(32, dpi),
         },
+        resultsSurface,
         {
-            Scale(12, dpi),
-            Scale(62, dpi),
-            Scale(596, dpi),
-            Scale(292, dpi),
-        },
-        {
-            Scale(13, dpi),
-            Scale(63, dpi),
-            Scale(594, dpi),
-            Scale(290, dpi),
+            resultsSurface.left +
+                surfaceBorder,
+            resultsSurface.top +
+                surfaceBorder,
+            resultsSurface.width -
+                surfaceBorder * 2,
+            resultsSurface.height -
+                surfaceBorder * 2,
         },
         {
             Scale(16, dpi),
