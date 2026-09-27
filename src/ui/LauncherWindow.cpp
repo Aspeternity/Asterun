@@ -298,6 +298,7 @@ LauncherWindow::~LauncherWindow() {
     if (controlBrush_) DeleteObject(controlBrush_);
     if (accentBrush_) DeleteObject(accentBrush_);
     if (bottomBrush_) DeleteObject(bottomBrush_);
+    if (frameBrush_) DeleteObject(frameBrush_);
     if (classicBitmapDc_) DeleteDC(classicBitmapDc_);
     for (HBITMAP bitmap :
          classicShortcutBitmaps_) {
@@ -412,10 +413,7 @@ bool LauncherWindow::Create() {
         // Parent background painting must never run underneath the native
         // EDIT/LISTBOX/preview children. This is especially important for
         // Classic's layered/color-key surface while live search is repainting.
-        WS_CLIPCHILDREN |
-        (IsModern()
-            ? WS_BORDER
-            : 0);
+        WS_CLIPCHILDREN;
 
     hwnd_ = CreateWindowExW(
         extendedStyle,
@@ -441,6 +439,9 @@ bool LauncherWindow::Create() {
     dpi_ = GetDpiForWindow(hwnd_);
     classicDpiMetrics_ =
         ui::ClassicLauncherMetricsForDpi(
+            dpi_);
+    modernDpiMetrics_ =
+        ui::ModernCompactLauncherMetricsForDpi(
             dpi_);
     CreateChildren();
     ApplyAppearance();
@@ -535,6 +536,10 @@ void LauncherWindow::RecreateBrushes() {
         DeleteObject(bottomBrush_);
         bottomBrush_ = nullptr;
     }
+    if (frameBrush_) {
+        DeleteObject(frameBrush_);
+        frameBrush_ = nullptr;
+    }
 
     const auto palette = CurrentPalette();
     windowBrush_ = CreateSolidBrush(palette.windowBackground);
@@ -542,6 +547,8 @@ void LauncherWindow::RecreateBrushes() {
     accentBrush_ = CreateSolidBrush(palette.accentBackground);
     bottomBrush_ = CreateSolidBrush(
         palette.bottomBackground);
+    frameBrush_ = CreateSolidBrush(
+        palette.frame);
 }
 
 void LauncherWindow::ApplyFonts() {
@@ -605,7 +612,7 @@ void LauncherWindow::ApplyFonts() {
     SendMessageW(classicPreview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
     const int itemHeight =
         IsModern()
-            ? DpiScale(rowHeightLogical_)
+            ? modernDpiMetrics_.rowHeight
             : classicDpiMetrics_.rowHeight;
 
     SendMessageW(
@@ -651,12 +658,15 @@ void LauncherWindow::UpdateControlFrames() {
     };
 
     if (IsModern()) {
+        // Modern Compact owns its visual surfaces in the parent paint pass.
+        // Keep native EDIT/LISTBOX behavior, but remove legacy 3-D edges so
+        // USER32 chrome cannot diverge from the DPI metrics contract.
         setFrame(
             edit_,
-            WS_EX_STATICEDGE);
+            0);
         setFrame(
             list_,
-            WS_EX_STATICEDGE);
+            0);
         setFrame(
             preview_,
             0);
@@ -699,10 +709,11 @@ void LauncherWindow::UpdateWindowChrome() {
         GetWindowLongPtrW(
             hwnd_,
             GWL_STYLE);
+    // Both launcher modes are borderless top-level popups. Classic owns its
+    // bitmap/region chrome; Modern Compact draws a flat one-pixel client frame
+    // and lets DWM provide the outer rounded-corner composition.
     const LONG_PTR wantedStyle =
-        IsModern()
-            ? style | WS_BORDER
-            : style & ~WS_BORDER;
+        style & ~WS_BORDER;
 
     if (wantedStyle != style) {
         SetWindowLongPtrW(
@@ -874,34 +885,13 @@ void LauncherWindow::Layout() {
     int height = 0;
 
     if (IsModern()) {
-        const int margin =
-            DpiScale(12);
-        const int inputHeight =
-            DpiScale(36);
-        const int gap =
-            DpiScale(8);
-        const int rowHeight =
-            DpiScale(
-                rowHeightLogical_);
-        const int listHeight =
-            rowHeight *
-                static_cast<int>(
-                    maxResults_) +
-            DpiScale(2);
-        const int previewHeight =
-            DpiScale(25);
+        const auto& modern =
+            modernDpiMetrics_;
 
         width =
-            DpiScale(
-                widthLogical_);
+            modern.clientWidth;
         height =
-            margin +
-            inputHeight +
-            gap +
-            listHeight +
-            gap +
-            previewHeight +
-            margin;
+            modern.clientHeight;
 
         SetWindowPos(
             hwnd_,
@@ -916,33 +906,24 @@ void LauncherWindow::Layout() {
 
         MoveWindow(
             edit_,
-            margin,
-            margin,
-            width - margin * 2,
-            inputHeight,
+            modern.searchEdit.left,
+            modern.searchEdit.top,
+            modern.searchEdit.width,
+            modern.searchEdit.height,
             TRUE);
         MoveWindow(
             list_,
-            margin,
-            margin +
-                inputHeight +
-                gap,
-            width - margin * 2,
-            listHeight,
+            modern.resultsList.left,
+            modern.resultsList.top,
+            modern.resultsList.width,
+            modern.resultsList.height,
             TRUE);
         MoveWindow(
             preview_,
-            margin +
-                DpiScale(3),
-            margin +
-                inputHeight +
-                gap +
-                listHeight +
-                gap,
-            width -
-                margin * 2 -
-                DpiScale(6),
-            previewHeight,
+            modern.footer.left,
+            modern.footer.top,
+            modern.footer.width,
+            modern.footer.height,
             TRUE);
         MoveWindow(
             classicPreview_,
@@ -1321,6 +1302,49 @@ void LauncherWindow::PaintWindowBackground(
             dc,
             &client,
             windowBrush_);
+
+        const auto toRect =
+            [](const ui::UiRectMetrics& metrics) {
+                return RECT{
+                    metrics.left,
+                    metrics.top,
+                    metrics.left +
+                        metrics.width,
+                    metrics.top +
+                        metrics.height,
+                };
+            };
+
+        RECT searchSurface =
+            toRect(
+                modernDpiMetrics_
+                    .searchSurface);
+        FillRect(
+            dc,
+            &searchSurface,
+            controlBrush_);
+        FrameRect(
+            dc,
+            &searchSurface,
+            frameBrush_);
+
+        RECT resultsSurface =
+            toRect(
+                modernDpiMetrics_
+                    .resultsSurface);
+        FillRect(
+            dc,
+            &resultsSurface,
+            controlBrush_);
+        FrameRect(
+            dc,
+            &resultsSurface,
+            frameBrush_);
+
+        FrameRect(
+            dc,
+            &client,
+            frameBrush_);
         return;
     }
 
@@ -3712,25 +3736,30 @@ LRESULT LauncherWindow::HandleMessage(
             PrimaryResultText(result);
 
         if (IsModern()) {
+            const auto& modern =
+                modernDpiMetrics_;
+
             RECT keywordRect =
                 item->rcItem;
             keywordRect.left +=
-                DpiScale(12);
+                modern.rowTextInset;
             keywordRect.right =
                 keywordRect.left +
-                DpiScale(165);
+                modern.primaryColumnWidth;
 
             RECT titleRect = item->rcItem;
             titleRect.left =
                 keywordRect.right +
-                DpiScale(10);
+                modern.rowColumnGap;
             titleRect.right -=
-                DpiScale(12);
+                modern.rowTextInset;
 
             const auto oldFont = SelectObject(item->hDC, boldFont_);
             SetTextColor(
                 item->hDC,
-                selected ? palette.selectionText : palette.keyword);
+                selected
+                    ? palette.selectionText
+                    : palette.text);
 
             DrawTextW(
                 item->hDC,
@@ -3742,7 +3771,9 @@ LRESULT LauncherWindow::HandleMessage(
             SelectObject(item->hDC, normalFont_);
             SetTextColor(
                 item->hDC,
-                selected ? palette.selectionText : palette.text);
+                selected
+                    ? palette.selectionText
+                    : palette.mutedText);
 
             DrawTextW(
                 item->hDC,
@@ -3758,12 +3789,14 @@ LRESULT LauncherWindow::HandleMessage(
                 HGDIOBJ oldPen = SelectObject(item->hDC, pen);
                 MoveToEx(
                     item->hDC,
-                    item->rcItem.left + DpiScale(10),
+                    item->rcItem.left +
+                        modern.separatorInset,
                     item->rcItem.bottom - 1,
                     nullptr);
                 LineTo(
                     item->hDC,
-                    item->rcItem.right - DpiScale(10),
+                    item->rcItem.right -
+                        modern.separatorInset,
                     item->rcItem.bottom - 1);
                 SelectObject(item->hDC, oldPen);
                 DeleteObject(pen);
@@ -3931,6 +3964,9 @@ LRESULT LauncherWindow::HandleMessage(
         dpi_ = HIWORD(wParam);
         classicDpiMetrics_ =
             ui::ClassicLauncherMetricsForDpi(
+                dpi_);
+        modernDpiMetrics_ =
+            ui::ModernCompactLauncherMetricsForDpi(
                 dpi_);
         const auto* suggested = reinterpret_cast<RECT*>(lParam);
 
