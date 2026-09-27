@@ -150,6 +150,67 @@ inline constexpr LauncherMetrics
         9,
     };
 
+struct ModernCompactLauncherDpiMetrics {
+    int clientWidth{};
+    int clientHeight{};
+    UiRectMetrics searchSurface{};
+    UiRectMetrics searchEdit{};
+    UiRectMetrics resultsSurface{};
+    UiRectMetrics resultsList{};
+    UiRectMetrics footer{};
+    int rowHeight{};
+    int primaryColumnWidth{};
+    int rowTextInset{};
+    int rowColumnGap{};
+    int separatorInset{};
+};
+
+[[nodiscard]] constexpr
+ModernCompactLauncherDpiMetrics
+ModernCompactLauncherMetricsForDpi(
+    unsigned dpi) noexcept {
+
+    return {
+        Scale(620, dpi),
+        Scale(400, dpi),
+        {
+            Scale(12, dpi),
+            Scale(12, dpi),
+            Scale(596, dpi),
+            Scale(42, dpi),
+        },
+        {
+            Scale(22, dpi),
+            Scale(17, dpi),
+            Scale(576, dpi),
+            Scale(32, dpi),
+        },
+        {
+            Scale(12, dpi),
+            Scale(62, dpi),
+            Scale(596, dpi),
+            Scale(292, dpi),
+        },
+        {
+            Scale(13, dpi),
+            Scale(63, dpi),
+            Scale(594, dpi),
+            Scale(290, dpi),
+        },
+        {
+            Scale(16, dpi),
+            Scale(362, dpi),
+            Scale(588, dpi),
+            Scale(24, dpi),
+        },
+        Scale(32, dpi),
+        Scale(180, dpi),
+        Scale(14, dpi),
+        Scale(12, dpi),
+        Scale(12, dpi),
+    };
+}
+
 inline constexpr int
     kSettingsClientWidthLogical = 820;
 inline constexpr int
