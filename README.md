@@ -23,6 +23,18 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.6.3 — Modern Compact Visual System I
+
+Alpha.6.3 turns the Modern Compact launcher from a mostly white result canvas into a real surface hierarchy while keeping the accepted native-control and search behavior unchanged.
+
+The launcher now grows and shrinks with its visible result count. Nine rows keep the existing maximum footprint, while six/one/no-result states remove unused vertical space; a pending Everything reply does not cause a transient collapse between static and dynamic results. The search field, results surface and footer are separate rounded layers on a cooler outer background instead of one undifferentiated white plane.
+
+A small non-interactive search glyph anchors the native EDIT. Result aliases and path metadata no longer form a fixed right-hand table column: secondary text starts after the measured primary label and consumes only the remaining space. The footer becomes a compact context surface with the selected target on the left and an `Enter` affordance on the right. Windows 11 receives an optional DWM system-backdrop request; Windows 10 and unsupported systems stay on the deterministic solid-surface palette.
+
+Search results intentionally remain **text-first with no per-result program/file icons**. The earlier icon surface was removed because many mixed provider/Everything results have no reliable icon, producing visually inconsistent rows and unnecessary extraction/cache work. Modern Compact does not restore that feature.
+
+Classic assets and the shared SearchEngine / Everything / usage-ranking / numeric-intent core remain release-contract frozen. Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.273`.
+
 ## v0.8.0-alpha.6.2 — Modern Compact Visual Refinement I
 
 Real-Windows alpha.6.1 screenshots showed that the foundation was technically sound but still looked like a flattened Win32 table: alias text dominated the application name, every result carried separator lines, the result area was boxed, and the footer exposed raw targets without semantic context.

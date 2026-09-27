@@ -14,6 +14,8 @@ constexpr int
     kModernLauncherAuxiliaryPointSize = 9;
 constexpr int
     kModernLauncherTitlePointSize = 10;
+constexpr int
+    kModernLauncherSearchLogicalHeight96 = -14;
 
 [[nodiscard]] const wchar_t*
 ApplicationFace(
@@ -37,6 +39,8 @@ ApplicationPointSize(
         return 22;
     case UiFontRole::LauncherTitle:
         return 10;
+    case UiFontRole::LauncherSearch:
+        return 11;
     case UiFontRole::Body:
     case UiFontRole::BodySemibold:
     case UiFontRole::LauncherAuxiliary:
@@ -101,6 +105,20 @@ UiFontSpec LauncherFontSpec(
         };
     }
 
+    if (role == UiFontRole::LauncherSearch) {
+        // Use one DPI-scaled logical height for the native EDIT. Keeping one
+        // Segoe UI HFONT lets Windows font linking handle Han glyphs without
+        // changing the whole control's font when mixed Latin/CJK text appears.
+        return {
+            L"Segoe UI",
+            0,
+            kModernLauncherSearchLogicalHeight96,
+            FW_NORMAL,
+            DEFAULT_CHARSET,
+            CLEARTYPE_NATURAL_QUALITY,
+        };
+    }
+
     const int pointSize =
         role == UiFontRole::LauncherTitle
             ? kModernLauncherTitlePointSize
@@ -109,12 +127,12 @@ UiFontSpec LauncherFontSpec(
                 : kModernLauncherBodyPointSize;
 
     return {
-        ApplicationFace(language),
+        L"Segoe UI",
         pointSize,
         0,
         RoleWeight(role),
         DEFAULT_CHARSET,
-        CLEARTYPE_QUALITY,
+        CLEARTYPE_NATURAL_QUALITY,
     };
 }
 
