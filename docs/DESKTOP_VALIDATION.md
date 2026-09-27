@@ -8,6 +8,20 @@ Automated CI covers compilation, Config/Search tests, provider smoke tests, hotk
 
 The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
+## v0.8.0-beta.1 Product Freeze & Hardening I validation
+
+Beta.1 is the v0.8 product-freeze boundary. The detailed candidate checklist is packaged as `V0.8_BETA_VALIDATION.md`; this section records the non-negotiable desktop acceptance boundary for the shared validation history.
+
+- [ ] Re-run the accepted alpha.5.49 Classic and alpha.6.4 Modern Compact desktop cases without intentional visual or search/ranking differences.
+- [ ] Validate x64 and ARM64 package contracts from the same candidate commit; packaged VERSION and fixed Windows version must be `0.8.0-beta.1` / `0.8.0.10001`.
+- [ ] Validate Windows 11 plus the Windows 10-compatible baseline, 100/125/150/175/200% scaling, mixed-DPI monitor movement, Chinese/English UI and Chinese IME.
+- [ ] Validate ALTRun-managed Everything acquisition/start/update/tray/disable/portable-move lifecycle and verify external Everything is never mutated or terminated outside ownership boundaries.
+- [ ] Validate native update staging, SHA-256 verification, protected-directory elevation, health rollback and user-data preservation.
+- [ ] Validate preserve-data/full-delete uninstall, read-only/locked-file recovery, partial-failure rerun and external reparse-target safety.
+- [ ] Run Launcher, Settings/About and Shortcut Manager -> Editor -> Path Conversion resource soaks; GDI/USER/process handles and memory must settle rather than grow per cycle.
+- [ ] No Beta change is accepted solely as a subjective visual retune or new feature. Fixes must be tied to a confirmed regression, compatibility, performance/resource, data-safety/security or release-blocking defect.
+- [ ] Schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22.
+
 ## v0.8.0-alpha.6.4 Modern Compact Interaction & Closeout I validation
 
 Alpha.6.4 freezes the accepted alpha.6.3 appearance. This pass is about state stability, native interaction and repaint cost; visual parameters should not be retuned unless a concrete regression is found.

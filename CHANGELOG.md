@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-beta.1
+
+- Enter the v0.8 product-freeze phase with no new feature surface, provider semantics, search/ranking behavior, schema migration or intentional Classic/Modern redesign.
+- Freeze the accepted alpha.5.49 Classic baseline and alpha.6.4 Modern Compact presentation/interaction baseline behind a Beta release contract.
+- Keep Settings schema 11 / Commands 2 / Usage 2 / Provider Cache 22 unchanged.
+- Extend update-order coverage through `0.8.0-alpha.6.4 -> 0.8.0-beta.1 -> 0.8.0-rc.1`.
+- Add a dedicated packaged `V0.8_BETA_VALIDATION.md` matrix covering Windows 10/11, x64/ARM64, mixed DPI, IME, Everything lifecycle, update/rollback, uninstall/recovery and resource-soak sign-off.
+- Align tagged-release Windows smoke coverage with pull-request CI, adding launch-target/path portability, user-command path update, Everything lifecycle, update policy, upgrade matrix, feedback, uninstall recovery and window-presentation regressions.
+- Require the v0.8 Beta validation matrix in the exact portable-package allowlist.
+- Publish Windows fixed FileVersion/ProductVersion `0.8.0.10001`.
+
 ## 0.8.0-alpha.6.4
 
 - Freeze the accepted alpha.6.3 Modern Compact appearance; no new visual surface, animation, icon slot or setting is introduced.

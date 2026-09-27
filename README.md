@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-beta.1 — Product Freeze & Hardening I
+
+Beta.1 freezes the accepted v0.8 product surface after the alpha.5.49 Classic closeout and alpha.6.4 Modern Compact closeout. This phase intentionally adds no new launcher feature, provider behavior, search/ranking rule, schema migration or visual redesign. Classic and Modern Compact are now release baselines; further v0.8 changes are limited to confirmed regressions, compatibility, performance/resource issues, data-safety/security problems and release blockers.
+
+The tagged-release pipeline now exercises the same critical Windows lifecycle regressions as pull-request CI, including upgrade-matrix, Everything lifecycle, update policy, uninstall recovery and top-level window presentation tests. A dedicated `V0.8_BETA_VALIDATION.md` matrix is shipped in both x64 and ARM64 packages so interactive Windows 10/11, mixed-DPI, IME, update, uninstall and resource-soak sign-off is recorded against the exact candidate package.
+
+Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. The accepted shared SearchEngine / Everything / usage / numeric-intent behavior remains frozen, as do Classic assets and the Modern Compact alpha.6.4 presentation/interaction baseline. Windows fixed FileVersion/ProductVersion is `0.8.0.10001`.
+
 ## v0.8.0-alpha.6.4 — Modern Compact Interaction & Closeout I
 
 Alpha.6.4 freezes the accepted alpha.6.3 Modern Compact appearance and closes the interaction/state edges underneath it. A pending Everything query may expand the launcher immediately for synchronous results, but it no longer transiently collapses below the already-visible row count before the matching dynamic reply settles. When asynchronous replacement removes the selected result, selection stays on the nearest valid row instead of jumping back to row one; if the selected identity survives, it continues to follow that identity.

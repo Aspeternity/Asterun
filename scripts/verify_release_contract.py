@@ -42,6 +42,178 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-beta.1":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 11,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 2,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"beta.1 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 22:
+        fail("beta.1 must keep Provider Cache schemaVersion 22")
+
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    uninstaller_manifest = read("src/uninstaller/uninstaller.manifest")
+    for token in (
+        "FILEVERSION 0,8,0,10001",
+        "PRODUCTVERSION 0,8,0,10001",
+        "0.8.0-beta.1",
+    ):
+        if token not in resources:
+            fail(f"beta.1 resource version missing: {token}")
+    if 'version="0.8.0.10001"' not in manifest:
+        fail("beta.1 application manifest fixed version must be 0.8.0.10001")
+    if 'version="0.8.0.10001"' not in uninstaller_manifest:
+        fail("beta.1 uninstaller manifest fixed version must be 0.8.0.10001")
+    for token in ("PerMonitorV2", "longPathAware"):
+        if token not in uninstaller_manifest:
+            fail(f"beta.1 uninstaller manifest capability missing: {token}")
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_shared_core = {
+        "src/core/SearchEngine.cpp": "353de25316a35820b51aa84eb776581f75c34534",
+        "src/core/RelevancePolicy.cpp": "182d4c4df2f23d07494bc730749adc75e71c4705",
+        "src/core/ResultRanking.cpp": "2dbcb94c530212007b165efb063336f19bb0cda1",
+        "src/core/ClassicBehavior.cpp": "96511ddeaa4f03eb7a7c2fbd5c6f3eb7b368d44d",
+        "src/core/ClassicBehavior.hpp": "0788827f484fa349e1348e42952832b6421788ea",
+        "src/core/UsageStore.cpp": "8f94895878d32968f28a79fb232a3a94741dd88d",
+        "src/core/PinyinSearch.cpp": "3f0e1f662a9989484a8aba54e0ae8393ee80c606",
+        "src/core/EverythingProvider.cpp": "2feed2b414f33b3ef3d2e47477cdebaadc3f1ce1",
+        "src/platform/EverythingIpcClient.cpp": "bc626b1c3c740400ba32f4f155cc20abbfa13eeb",
+        "src/platform/EverythingBootstrapper.cpp": "3df7ca1157b7f92b939546a4e8b7fcf5244969d4",
+        "src/core/Settings.hpp": "41fa6d5c6a7e5e40272acdf73ec3fb61ace96b83",
+        "src/core/UpdatePolicy.cpp": "a2d49e606e3f4621e7a06fa5ce99cb68ea39f168",
+    }
+    for frozen_path, expected in frozen_shared_core.items():
+        if git_blob_sha(frozen_path) != expected:
+            fail(f"beta.1 frozen shared core changed: {frozen_path}")
+
+    frozen_product_surface = {
+        "src/ui/LauncherWindow.cpp": "bdf161c51d65fca15593b79bace343d2b9044db7",
+        "src/ui/LauncherWindow.hpp": "21bdac7ab017382669580519d4c3ea451cde4d0c",
+        "src/ui/LauncherInteraction.hpp": "d74aaadd9b28d1ea43e491baa327a629a553cbef",
+        "src/ui/UiMetrics.hpp": "22cd49d0de188ecf4f665cf4c823520a6d2910f7",
+        "src/ui/UiTheme.hpp": "c3edb7a42ee0af25366f03860788da65785b7fe3",
+        "src/ui/UiTypography.cpp": "6b6eb0fd8b925ede4f285f0f4137d125cde6b4c4",
+        "src/ui/SettingsWindow.cpp": "b2132a5aa8d39733d90c37fecf5cc2d9ca8b53c5",
+        "src/ui/SettingsWindow.hpp": "f08dde24aebf1a7255b4fa8a588e72f6b4064a86",
+        "src/ui/ShortcutManagerWindow.cpp": "51365631f23701f23c097da92b61942ec0c73f5f",
+        "src/ui/ShortcutManagerWindow.hpp": "e6b422217e70d7d3ab6a56255719148893ab3905",
+        "src/ui/ShortcutEditorDialog.cpp": "0522baff1163868dd686f75dd8645b2b84c3ee8a",
+        "src/ui/ShortcutEditorDialog.hpp": "d589932118d68e509cf4ea1cc868e02280d6bcf6",
+        "src/ui/ShortcutPathConverterDialog.cpp": "23fd928f0b09508b2bbf942f8f0b955bc05ddb11",
+        "src/ui/ShortcutPathConverterDialog.hpp": "e9edc2ba68ff42bf79fe2c30e44839fdcdd0ab0a",
+        "src/ui/TopLevelWindowPresentation.cpp": "bb03f7361998a5844583b004603e6eb939844d63",
+        "src/ui/TopLevelWindowPresentation.hpp": "7d616036895c8b596068df7762998d965cd7f109",
+        "src/ui/UiComboBox.cpp": "d5027d7a4f69e6e624b096849f68c6d33ab988a1",
+        "src/ui/UiListView.cpp": "e00411a88f1477653f20bccea5cf67114cc08151",
+    }
+    for frozen_path, expected in frozen_product_surface.items():
+        if git_blob_sha(frozen_path) != expected:
+            fail(f"beta.1 frozen product surface changed: {frozen_path}")
+
+    frozen_classic_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for frozen_path, expected in frozen_classic_assets.items():
+        if git_blob_sha(frozen_path) != expected:
+            fail(f"beta.1 frozen Classic asset changed: {frozen_path}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.6.4"',
+        '"0.8.0-beta.1"',
+        '"0.8.0-rc.1"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"beta.1 update-policy coverage missing: {token}")
+
+    build_workflow = read(".github/workflows/build.yml")
+    release_workflow = read(".github/workflows/release.yml")
+    package_contract = read("scripts/verify_package.ps1")
+    for source_name, source in (
+        ("PR/main build workflow", build_workflow),
+        ("tagged release workflow", release_workflow),
+        ("package contract", package_contract),
+    ):
+        if "V0.8_BETA_VALIDATION.md" not in source:
+            fail(f"beta.1 validation document missing from {source_name}")
+
+    release_smoke_tests = (
+        "launch_target_inspector_tests",
+        "path_portability_tests",
+        "user_command_path_update_tests",
+        "everything_lifecycle_tests",
+        "everything_ipc_runtime_tests",
+        "update_policy_tests",
+        "upgrade_matrix_tests",
+        "feedback_runtime_tests",
+        "uninstall_runtime_tests",
+        "window_presentation_runtime_tests",
+    )
+    for token in release_smoke_tests:
+        if token not in release_workflow:
+            fail(f"beta.1 tagged release smoke coverage missing: {token}")
+
+    beta_validation = read("docs/V0.8_BETA_VALIDATION.md")
+    for token in (
+        "product-freeze phase",
+        "0.8.0.10001",
+        "Settings schema remains 11",
+        "10 -> 1 -> 10",
+        "Everything lifecycle",
+        "Update lifecycle",
+        "Uninstall and recovery",
+        "Resource and performance soak",
+        "Windows / architecture matrix",
+    ):
+        if token not in beta_validation:
+            fail(f"beta.1 validation matrix missing: {token}")
+
+    for doc_path in (
+        "README.md",
+        "ROADMAP.md",
+        "CHANGELOG.md",
+        "docs/DESKTOP_VALIDATION.md",
+        "docs/V0.8_BETA_VALIDATION.md",
+    ):
+        if "0.8.0-beta.1" not in read(doc_path):
+            fail(f"missing beta.1 release documentation: {doc_path}")
+
+    print(
+        "0.8.0-beta.1 product freeze contract verified:",
+        "| Settings 11 Commands 2 Usage 2 Provider Cache 22",
+        "| Classic/shared core frozen",
+        "| Modern/Settings/Shortcut product surface frozen",
+        "| tagged release smoke parity hardened",
+        "| packaged v0.8 Beta validation matrix required",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.6.4":
     import hashlib
     import subprocess
