@@ -299,6 +299,8 @@ LauncherWindow::~LauncherWindow() {
     if (accentBrush_) DeleteObject(accentBrush_);
     if (bottomBrush_) DeleteObject(bottomBrush_);
     if (frameBrush_) DeleteObject(frameBrush_);
+    if (selectionBrush_) DeleteObject(selectionBrush_);
+    if (separatorPen_) DeleteObject(separatorPen_);
     if (classicBitmapDc_) DeleteDC(classicBitmapDc_);
     for (HBITMAP bitmap :
          classicShortcutBitmaps_) {
@@ -540,6 +542,14 @@ void LauncherWindow::RecreateBrushes() {
         DeleteObject(frameBrush_);
         frameBrush_ = nullptr;
     }
+    if (selectionBrush_) {
+        DeleteObject(selectionBrush_);
+        selectionBrush_ = nullptr;
+    }
+    if (separatorPen_) {
+        DeleteObject(separatorPen_);
+        separatorPen_ = nullptr;
+    }
 
     const auto palette = CurrentPalette();
     windowBrush_ = CreateSolidBrush(palette.windowBackground);
@@ -549,6 +559,12 @@ void LauncherWindow::RecreateBrushes() {
         palette.bottomBackground);
     frameBrush_ = CreateSolidBrush(
         palette.frame);
+    selectionBrush_ = CreateSolidBrush(
+        palette.selectionBackground);
+    separatorPen_ = CreatePen(
+        PS_SOLID,
+        1,
+        palette.separator);
 }
 
 void LauncherWindow::ApplyFonts() {
@@ -3706,15 +3722,12 @@ LRESULT LauncherWindow::HandleMessage(
                           COLOR_WINDOW);
 
         if (IsModern()) {
-            HBRUSH brush =
-                CreateSolidBrush(
-                    background);
             FillRect(
                 item->hDC,
                 &item->rcItem,
-                brush);
-            DeleteObject(
-                brush);
+                selected
+                    ? selectionBrush_
+                    : controlBrush_);
         } else {
             FillRect(
                 item->hDC,
@@ -3785,8 +3798,10 @@ LRESULT LauncherWindow::HandleMessage(
             SelectObject(item->hDC, oldFont);
 
             if (!selected) {
-                HPEN pen = CreatePen(PS_SOLID, 1, palette.separator);
-                HGDIOBJ oldPen = SelectObject(item->hDC, pen);
+                HGDIOBJ oldPen =
+                    SelectObject(
+                        item->hDC,
+                        separatorPen_);
                 MoveToEx(
                     item->hDC,
                     item->rcItem.left +
@@ -3798,8 +3813,9 @@ LRESULT LauncherWindow::HandleMessage(
                     item->rcItem.right -
                         modern.separatorInset,
                     item->rcItem.bottom - 1);
-                SelectObject(item->hDC, oldPen);
-                DeleteObject(pen);
+                SelectObject(
+                    item->hDC,
+                    oldPen);
             }
 
             return TRUE;
