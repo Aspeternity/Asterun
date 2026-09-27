@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0-alpha.6.1
+
+- Start the dedicated Modern Compact refinement track after the accepted alpha.5.49 Classic freeze.
+- Replace scattered Modern Compact layout literals with one DPI-aware geometry contract covering search, result surface, footer and row text columns.
+- Lock Modern Compact geometry at 96/120/144/168/192 DPI in portable UI foundation tests.
+- Keep native EDIT/LISTBOX interaction semantics while removing legacy `WS_BORDER` and `WS_EX_STATICEDGE` chrome from the Modern surface.
+- Paint flat Modern search/results/client frames in the parent and cache row-selection/separator GDI resources instead of allocating them per draw.
+- Preserve frozen Classic assets and shared SearchEngine / Everything / usage-ranking / numeric-intent semantics; schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22.
+- Publish Windows fixed FileVersion/ProductVersion `0.8.0.271`.
+
+
 ## 0.8.0-alpha.5.49
 
 - Force a real non-client frame recalculation after Settings page switches so the General-page scrollbar cannot remain visually ghosted on the first Search Sources visit. Show the managed Everything tray-icon control only when the live default IPC endpoint is actually owned by ALTRun Next's managed Everything process; merely having an install candidate/path no longer qualifies. Collapse unavailable controls and size the file-search card from its visible content, including bottom padding.
