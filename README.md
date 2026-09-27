@@ -23,6 +23,16 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.6.1 — Modern Compact Foundation I
+
+Classic is now technically frozen, so alpha.6.1 starts the first dedicated Modern Compact refinement track without changing the accepted search, Everything, usage-ranking or numeric-intent core.
+
+Modern Compact now has one DPI-aware geometry contract instead of scattered layout literals. The contract defines the 620 logical-pixel launcher surface, search field, nine-row result surface, footer and row text columns, with regression coverage at 100%, 125%, 150%, 175% and 200% scaling. The native EDIT and LISTBOX remain responsible for IME, keyboard, scrolling and accessibility behavior.
+
+The old native `WS_BORDER` / `WS_EX_STATICEDGE` presentation is removed from Modern Compact. The launcher paints its own flat search/results surfaces and client frame while DWM retains the outer rounded-corner composition. Result rows keep the existing result model but use a clearer primary/secondary text hierarchy. Modern row brushes and separator pens are cached rather than allocated during every owner-draw pass.
+
+Classic bitmap geometry/assets and the shared search/Everything/usage core are release-contract frozen for this UI phase. Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.271`.
+
 ## v0.8.0-alpha.5.49 — Classic Technical Closeout I
 
 This build completes the post-Classic performance and memory closeout on top of the fully validated alpha.5.48 desktop behavior. The normal Launcher keystroke path no longer builds a deep copy of every discovered `Command`: it searches the immutable CommandStore catalog through a non-owning span and only materializes a context-resolved working set when a user shortcut actually contains the `{folder}` template.
