@@ -8,6 +8,20 @@ Automated CI covers compilation, Config/Search tests, provider smoke tests, hotk
 
 The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
+## v0.8.0-alpha.6.1 Modern Compact Foundation I validation
+
+This is the first UI-only track after Classic technical freeze. The release contract freezes the accepted alpha.5.49 shared search/Everything/usage/numeric-intent source set and the Classic bitmap assets. Modern Compact keeps the native EDIT and LISTBOX behavior while changing only geometry and presentation.
+
+- [ ] Switch Appearance to Modern Compact and confirm the launcher uses a flat borderless top-level surface with DWM-rounded outer corners; no legacy `WS_BORDER` or sunken STATICEDGE frame is visible.
+- [ ] At 100%, 125%, 150%, 175% and 200% scaling, verify the search surface, nine result rows and footer remain fully inside the launcher with symmetric result framing and no clipped scrollbar/text.
+- [ ] Verify the search field still behaves as a native EDIT: Chinese/English IME composition, selection, Home/End, Ctrl+A/C/V/X and caret editing remain unchanged.
+- [ ] Verify the result list still behaves as a native LISTBOX: Up/Down wrap behavior, mouse selection, wheel/scrollbar movement, Enter and context actions remain unchanged.
+- [ ] Check long application names, long subtitles and long file paths. Primary and secondary columns ellipsize without overlap; secondary text remains visually subordinate.
+- [ ] Exercise rapid typing with mixed static + Everything results. Modern repainting must not flicker and GDI object count must settle; row drawing no longer creates a brush/pen per item.
+- [ ] Switch Classic -> Modern Compact -> Classic repeatedly. Classic must return byte/geometry-identical to the accepted alpha.5.49 surface with no border, DPI, font or placement drift.
+- [ ] Recheck 100%/200% mixed-monitor moves and Settings Appearance switching while the launcher is visible and hidden.
+- [ ] Schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22; Windows fixed version is 0.8.0.271.
+
 ## v0.8.0-alpha.5.49 Classic Technical Closeout I validation
 
 Automated coverage preserves all alpha.5.48 presentation regressions and now adds a repeated real-HWND resource soak. The soak opens and closes Shortcut Manager, Shortcut Editor and Path Conversion repeatedly while sampling process GDI objects, USER objects and handles. It is a leak regression gate; it does not replace observing process memory behavior over a longer interactive session.\n\n**Closeout status: PASS — Build #634 green and real-Windows acceptance completed on 2026-09-27. Classic is technically frozen after this sign-off.**
