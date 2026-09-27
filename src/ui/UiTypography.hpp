@@ -13,6 +13,7 @@ enum class UiFontRole {
     PageTitle,
     AppTitle,
     LauncherTitle,
+    LauncherSearch,
     LauncherAuxiliary,
 };
 

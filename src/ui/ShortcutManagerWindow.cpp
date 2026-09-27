@@ -738,9 +738,9 @@ void ShortcutManagerWindow::Show(
             RevealFullyPainted(
                 hwnd_);
     } else if (IsIconic(hwnd_)) {
-        ShowWindow(
-            hwnd_,
-            SW_RESTORE);
+        window_presentation::
+            RestoreFullyPainted(
+                hwnd_);
     }
 
     SetForegroundWindow(hwnd_);
@@ -2458,6 +2458,19 @@ LRESULT ShortcutManagerWindow::HandleMessage(
     WPARAM wParam,
     LPARAM lParam) {
     switch (message) {
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xFFF0u) ==
+                SC_RESTORE &&
+            IsIconic(hwnd_)) {
+            window_presentation::
+                RestoreFullyPainted(
+                    hwnd_);
+            SetForegroundWindow(
+                hwnd_);
+            return 0;
+        }
+        break;
+
     case WM_GETMINMAXINFO: {
         auto* info =
             reinterpret_cast<

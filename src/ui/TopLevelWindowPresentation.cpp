@@ -434,6 +434,53 @@ void RevealFullyPainted(
     }
 }
 
+void RestoreFullyPainted(
+    HWND hwnd) noexcept {
+
+    if (!hwnd ||
+        !IsWindow(hwnd) ||
+        !IsIconic(hwnd)) {
+        return;
+    }
+
+    // A native taskbar restore used to expose the iconic surface first and
+    // repaint/layout the child controls afterward. Keep the window cloaked
+    // across the entire restore + synchronous repaint so DWM only receives
+    // the settled frame.
+    const bool cloaked =
+        SetCloaked(
+            hwnd,
+            true);
+
+    if (cloaked) {
+        DwmFlush();
+    }
+
+    ShowWindow(
+        hwnd,
+        SW_RESTORE);
+
+    RedrawWindow(
+        hwnd,
+        nullptr,
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_FRAME |
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
+
+    if (cloaked) {
+        DwmFlush();
+
+        (void)SetCloaked(
+            hwnd,
+            false);
+
+        DwmFlush();
+    }
+}
+
 void HideForDestroy(
     HWND hwnd) noexcept {
 

@@ -40,8 +40,7 @@ constexpr DWORD kSettingsWindowStyle =
     WS_CAPTION |
     WS_SYSMENU |
     WS_MINIMIZEBOX |
-    WS_CLIPCHILDREN |
-    WS_VSCROLL;
+    WS_CLIPCHILDREN;
 
 struct SettingsCreationGeometry {
     RECT outer{};
@@ -266,6 +265,51 @@ ResolveSettingsCreationGeometry(
     }
 
     return geometry;
+}
+
+void HideSettingsVerticalScrollBar(
+    HWND hwnd) noexcept {
+
+    if (!hwnd) {
+        return;
+    }
+
+    // Clear the range first so USER32 has no scroll state that can revive the
+    // non-client bar on a later FRAMECHANGED / DPI / resize pass.
+    SCROLLINFO cleared{};
+    cleared.cbSize =
+        sizeof(cleared);
+    cleared.fMask =
+        SIF_RANGE |
+        SIF_PAGE |
+        SIF_POS;
+    cleared.nMin = 0;
+    cleared.nMax = 0;
+    cleared.nPage = 1;
+    cleared.nPos = 0;
+
+    SetScrollInfo(
+        hwnd,
+        SB_VERT,
+        &cleared,
+        FALSE);
+
+    LONG_PTR style =
+        GetWindowLongPtrW(
+            hwnd,
+            GWL_STYLE);
+
+    if ((style & WS_VSCROLL) != 0) {
+        SetWindowLongPtrW(
+            hwnd,
+            GWL_STYLE,
+            style & ~WS_VSCROLL);
+    }
+
+    ShowScrollBar(
+        hwnd,
+        SB_VERT,
+        FALSE);
 }
 
 constexpr const auto& kPalette =
@@ -1531,12 +1575,14 @@ void SettingsWindow::ApplyLanguage() {
         uiStyle_,
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
-            L"Classic ALTRun"));
+            T(L"经典 ALTRun",
+              L"Classic ALTRun")));
     SendMessageW(
         uiStyle_,
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
-            L"Modern Compact"));
+            T(L"现代紧凑",
+              L"Modern Compact")));
 
     SetWindowTextW(
         appearanceAppTitle_,
@@ -2784,8 +2830,30 @@ void SettingsWindow::RefreshProviderStatus() {
         enabled &&
         managedActive;
     const bool showActions = showGetEverything || showUpdateEverything || showRecheck;
-    const bool layoutChanged = providerTrayVisible_ != showTray ||
+    const bool layoutChanged =
+        providerTrayVisible_ != showTray ||
         providerActionsVisible_ != showActions;
+    const bool atomicProviderUpdate =
+        visible &&
+        layoutChanged &&
+        hwnd_ &&
+        IsWindowVisible(hwnd_);
+
+    RECT oldFilesCard{};
+    if (atomicProviderUpdate) {
+        oldFilesCard =
+            PageCardRect(
+                394,
+                ProviderFilesHeightLogical(),
+                720);
+    }
+
+    window_presentation::ScopedRedrawSuspend
+        redrawGuard(
+            atomicProviderUpdate
+                ? hwnd_
+                : nullptr);
+
     providerTrayVisible_ = showTray;
     providerActionsVisible_ = showActions;
 
@@ -2836,9 +2904,51 @@ void SettingsWindow::RefreshProviderStatus() {
     SetWindowTextW(
         providerStatus_,
         text.c_str());
+
     if (visible && layoutChanged) {
         Layout();
-        InvalidateRect(hwnd_, nullptr, TRUE);
+    }
+
+    if (atomicProviderUpdate) {
+        RECT newFilesCard =
+            PageCardRect(
+                394,
+                ProviderFilesHeightLogical(),
+                720);
+        RECT providerDirtyRect{};
+        UnionRect(
+            &providerDirtyRect,
+            &oldFilesCard,
+            &newFilesCard);
+        InflateRect(
+            &providerDirtyRect,
+            Scale(2),
+            Scale(2));
+
+        redrawGuard.Resume();
+
+        // Repaint only the Everything card. Repainting the entire Settings
+        // window made unrelated provider labels visibly blink even though
+        // their content and geometry never changed.
+        RedrawWindow(
+            hwnd_,
+            &providerDirtyRect,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_ALLCHILDREN |
+                RDW_UPDATENOW);
+    } else if (
+        visible &&
+        layoutChanged) {
+        const RECT filesCard =
+            PageCardRect(
+                394,
+                ProviderFilesHeightLogical(),
+                720);
+        InvalidateRect(
+            hwnd_,
+            &filesCard,
+            FALSE);
     }
 }
 
@@ -2923,7 +3033,8 @@ ToggleManagedEverythingTrayIcon() {
     if (!app_
              .SetManagedEverythingShowTrayIcon(
                  !settings
-                      .managedEverythingShowTrayIcon)) {
+                      .managedEverythingShowTrayIcon,
+                 false)) {
         altrun::ui::ShowMessage(
             hwnd_,
             T(L"无法保存 Everything 托盘图标设置。",
@@ -2933,7 +3044,13 @@ ToggleManagedEverythingTrayIcon() {
                 MB_ICONERROR);
     }
 
-    RefreshFromSettings();
+    if (managedEverythingTrayIcon_) {
+        InvalidateRect(
+            managedEverythingTrayIcon_,
+            nullptr,
+            FALSE);
+    }
+    RefreshProviderStatus();
 }
 
 void SettingsWindow::RefreshDataCompatibilityStatus() {
@@ -3512,18 +3629,6 @@ void SettingsWindow::CommitPendingProviderChanges() {
 
     providerCommitInProgress_ = true;
 
-    for (HWND control :
-         std::array<HWND, 5>{
-             providerStartMenu_,
-             providerPackaged_,
-             providerAppPaths_,
-             providerPath_,
-             providerEverything_}) {
-        EnableWindow(
-            control,
-            FALSE);
-    }
-
     ProviderEnableMap ordinaryChanges;
     std::optional<bool>
         everythingChange;
@@ -3564,7 +3669,8 @@ void SettingsWindow::CommitPendingProviderChanges() {
     // once per click.
     if (!ordinaryChanges.empty() &&
         !app_.SetProviderEnabledBatch(
-            ordinaryChanges)) {
+            ordinaryChanges,
+            false)) {
         failed = true;
     }
 
@@ -3576,7 +3682,8 @@ void SettingsWindow::CommitPendingProviderChanges() {
             std::string(
                 providers::
                     kEverythingFilesystem),
-            *everythingChange)) {
+            *everythingChange,
+            false)) {
         failed = true;
         everythingFailed = true;
     }
@@ -3584,23 +3691,28 @@ void SettingsWindow::CommitPendingProviderChanges() {
     pendingProviderStates_.clear();
     providerCommitInProgress_ = false;
 
-    for (HWND control :
-         std::array<HWND, 5>{
-             providerStartMenu_,
-             providerPackaged_,
-             providerAppPaths_,
-             providerPath_,
-             providerEverything_}) {
-        EnableWindow(
-            control,
-            TRUE);
-        InvalidateRect(
-            control,
-            nullptr,
-            TRUE);
+    // The clicked switches have already painted the pending state. Avoid the
+    // broad RefreshFromSettings() invalidation here; it repaints unchanged
+    // rows such as Start Menu / Windows Apps / App Paths / PATH and was the
+    // remaining source of the text blink reported on real hardware.
+    if (failed) {
+        for (HWND control :
+             std::array<HWND, 5>{
+                 providerStartMenu_,
+                 providerPackaged_,
+                 providerAppPaths_,
+                 providerPath_,
+                 providerEverything_}) {
+            if (control) {
+                InvalidateRect(
+                    control,
+                    nullptr,
+                    FALSE);
+            }
+        }
     }
 
-    RefreshFromSettings();
+    RefreshProviderStatus();
 
     if (failed) {
         altrun::ui::ShowMessage(
@@ -3885,10 +3997,15 @@ void SettingsWindow::UpdatePageScrollBar() {
                         client.bottom),
                     dpi_);
 
-        ShowScrollBar(
-            hwnd_,
-            SB_VERT,
-            maximum > 0);
+        if (maximum > 0) {
+            ShowScrollBar(
+                hwnd_,
+                SB_VERT,
+                TRUE);
+        } else {
+            HideSettingsVerticalScrollBar(
+                hwnd_);
+        }
 
         // Showing the scrollbar changes the client width and can switch the
         // General page into its narrow stacked layout. Recalculate once using
@@ -3972,10 +4089,15 @@ void SettingsWindow::UpdatePageScrollBar() {
                 0,
                 maximum);
 
-        ShowScrollBar(
-            hwnd_,
-            SB_VERT,
-            maximum > 0);
+        if (maximum > 0) {
+            ShowScrollBar(
+                hwnd_,
+                SB_VERT,
+                TRUE);
+        } else {
+            HideSettingsVerticalScrollBar(
+                hwnd_);
+        }
 
         SCROLLINFO info{};
         info.cbSize =
@@ -4001,10 +4123,8 @@ void SettingsWindow::UpdatePageScrollBar() {
         return;
     }
 
-    ShowScrollBar(
-        hwnd_,
-        SB_VERT,
-        FALSE);
+    HideSettingsVerticalScrollBar(
+        hwnd_);
 }
 
 void SettingsWindow::ScrollCurrentPage(
@@ -6981,9 +7101,9 @@ void SettingsWindow::Present(
             RevealFullyPainted(
                 hwnd_);
     } else if (IsIconic(hwnd_)) {
-        ShowWindow(
-            hwnd_,
-            SW_RESTORE);
+        window_presentation::
+            RestoreFullyPainted(
+                hwnd_);
     }
 
     SetForegroundWindow(hwnd_);
@@ -7082,6 +7202,19 @@ LRESULT SettingsWindow::HandleMessage(
         };
 
     switch (message) {
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xFFF0u) ==
+                SC_RESTORE &&
+            IsIconic(hwnd_)) {
+            window_presentation::
+                RestoreFullyPainted(
+                    hwnd_);
+            SetForegroundWindow(
+                hwnd_);
+            return 0;
+        }
+        break;
+
     case WM_SETCURSOR: {
         const HWND cursorWindow =
             reinterpret_cast<HWND>(

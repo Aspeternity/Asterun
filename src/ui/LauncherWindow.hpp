@@ -143,16 +143,20 @@ private:
     HWND classicPreview_{};
     WNDPROC oldEditProc_{};
     HFONT normalFont_{};
+    HFONT searchFont_{};
     HFONT auxiliaryFont_{};
     HFONT boldFont_{};
     HFONT titleFont_{};
+    HFONT searchGlyphFont_{};
+    HFONT shortcutHintFont_{};
+    HFONT shortcutArrowFont_{};
     HBRUSH windowBrush_{};
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
     HBRUSH bottomBrush_{};
-    HBRUSH frameBrush_{};
     HBRUSH selectionBrush_{};
-    HPEN separatorPen_{};
+    HBRUSH focusAccentBrush_{};
+    HPEN framePen_{};
     std::array<
         HBITMAP,
         ui::kClassicGlyphAssetPixelSizes.size()>
@@ -175,6 +179,7 @@ private:
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};
     bool numericTextCommitInProgress_{false};
+    bool modernBackdropAvailable_{false};
     std::uint64_t lastTextInputTick_{0};
     UINT consumedNumericVirtualKey_{0};
     wchar_t consumedNumericChar_{0};
@@ -212,6 +217,7 @@ private:
         ui::kClassicLauncherMetrics.rowHeightLogical};
     std::size_t maxResults_{
         ui::kClassicLauncherMetrics.maxResults};
+    std::size_t modernLayoutRows_{0};
     std::wstring titleText_{};
     std::wstring previewText_{};
     std::uint64_t searchGeneration_{0};

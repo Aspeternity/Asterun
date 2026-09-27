@@ -42,6 +42,503 @@ channel = match.group(4)
 
 
 
+if version == "0.8.0-alpha.6.3":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 11,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 2,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"alpha.6.3 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 22:
+        fail("alpha.6.3 must keep Provider Cache schemaVersion 22")
+
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    for token in (
+        "FILEVERSION 0,8,0,273",
+        "PRODUCTVERSION 0,8,0,273",
+        "0.8.0-alpha.6.3",
+    ):
+        if token not in resources:
+            fail(f"alpha.6.3 resource version missing: {token}")
+    if 'version="0.8.0.273"' not in manifest:
+        fail("alpha.6.3 manifest fixed version must be 0.8.0.273")
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_core = {
+        "src/core/SearchEngine.cpp": "353de25316a35820b51aa84eb776581f75c34534",
+        "src/core/RelevancePolicy.cpp": "182d4c4df2f23d07494bc730749adc75e71c4705",
+        "src/core/ResultRanking.cpp": "2dbcb94c530212007b165efb063336f19bb0cda1",
+        "src/core/ClassicBehavior.cpp": "96511ddeaa4f03eb7a7c2fbd5c6f3eb7b368d44d",
+        "src/core/ClassicBehavior.hpp": "0788827f484fa349e1348e42952832b6421788ea",
+        "src/core/UsageStore.cpp": "8f94895878d32968f28a79fb232a3a94741dd88d",
+        "src/core/PinyinSearch.cpp": "3f0e1f662a9989484a8aba54e0ae8393ee80c606",
+        "src/core/EverythingProvider.cpp": "2feed2b414f33b3ef3d2e47477cdebaadc3f1ce1",
+        "src/platform/EverythingIpcClient.cpp": "bc626b1c3c740400ba32f4f155cc20abbfa13eeb",
+        "src/platform/EverythingBootstrapper.cpp": "3df7ca1157b7f92b939546a4e8b7fcf5244969d4",
+    }
+    for frozen_path, expected in frozen_core.items():
+        if git_blob_sha(frozen_path) != expected:
+            fail(f"alpha.6.3 frozen shared core changed: {frozen_path}")
+
+    frozen_classic_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for frozen_path, expected in frozen_classic_assets.items():
+        if git_blob_sha(frozen_path) != expected:
+            fail(f"alpha.6.3 frozen Classic asset changed: {frozen_path}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    metrics = read("src/ui/UiMetrics.hpp")
+    ui_tests = read("tests/UiFoundationTests.cpp")
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    theme = read("src/ui/UiTheme.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+    settings_cpp = read("src/ui/SettingsWindow.cpp")
+    shortcut_manager = read("src/ui/ShortcutManagerWindow.cpp")
+    top_level = read("src/ui/TopLevelWindowPresentation.cpp")
+    top_level_hpp = read("src/ui/TopLevelWindowPresentation.hpp")
+    cmake = read("CMakeLists.txt")
+    uninstaller_manifest = read("src/uninstaller/uninstaller.manifest")
+    app_cpp = read("src/app/App.cpp")
+    app_hpp = read("src/app/App.hpp")
+
+    for token in (
+        "visibleRows",
+        "searchGlyph",
+        "searchEditHeight",
+        "Scale(38, dpi)",
+        "Scale(428, dpi)",
+        "shortcutHintWidth",
+        "shortcutHintGap",
+        "footerSurface",
+        "footerAction",
+        "secondaryMinWidth",
+        "resultsCornerDiameter",
+        "footerCornerDiameter",
+    ):
+        if token not in metrics:
+            fail(f"alpha.6.3 Modern visual-system metric missing: {token}")
+
+    for token in (
+        "modernLayoutRows_",
+        "dynamicQueryPending_",
+        "ModernCompactLauncherMetricsForDpi(",
+        "accentBrush_",
+        "bottomBrush_",
+        "L\"Enter\"",
+        "GetTextExtentPoint32W(",
+        "Segoe Fluent Icons",
+        "Segoe MDL2 Assets",
+        "ModernSearchGlyphFace",
+        'L"\\xE721"',
+        "searchGlyphFont_",
+        "kDwmSystemBackdropType",
+        "kDwmBackdropMainWindow",
+        "modernBackdropAvailable_",
+    ):
+        if token not in launcher + launcher_hpp:
+            fail(f"alpha.6.3 Modern visual-system wiring missing: {token}")
+
+    for forbidden in (
+        "secondaryColumnWidth",
+        "separatorPen_",
+        "primaryColumnWidth",
+    ):
+        if forbidden in metrics + launcher + launcher_hpp:
+            fail(f"alpha.6.3 stale table-layout token survived: {forbidden}")
+
+    move_start = launcher.find("void LauncherWindow::MoveSelection")
+    move_end = launcher.find("void LauncherWindow::ExecuteSelection", move_start)
+    if move_start < 0 or move_end < 0:
+        fail("alpha.6.3 selection navigation implementation missing")
+    move_body = launcher[move_start:move_end]
+    if "!IsModern()" in move_body or "WrappedSelectionIndex(" not in move_body or "true" not in move_body:
+        fail("alpha.6.3 Tab/Up/Down selection must wrap in Modern Compact")
+
+    quick_start = launcher.find("int LauncherWindow::QuickLaunchIndexForKey")
+    quick_end = launcher.find("HasRecentTextInput", quick_start)
+    if quick_start < 0 or quick_end < 0:
+        fail("alpha.6.3 numeric quick-launch implementation missing")
+    quick_body = launcher[quick_start:quick_end]
+    if "IsModern()" in quick_body:
+        fail("alpha.6.3 Modern Compact must share numeric quick launch")
+    for token in (
+        "showNumericShortcut",
+        "shortcutHintRect",
+        "shortcutHintFont_",
+        "shortcutArrowFont_",
+        'L"↩"',
+        'L"›"',
+        "ResultNumberLabel(",
+    ):
+        if token not in launcher + launcher_hpp:
+            fail(f"alpha.6.3 Modern shortcut affordance missing: {token}")
+
+    for token in (
+        "kModernLauncherSearchLogicalHeight96 = -14",
+        "Windows font linking handle Han glyphs",
+    ):
+        if token not in typography:
+            fail(f"alpha.6.3 balanced search-input typography missing: {token}")
+
+    for forbidden in (
+        "ContainsHanIdeograph(",
+        "searchCjkFont_",
+        "UpdateSearchInputFont()",
+    ):
+        if forbidden in launcher + launcher_hpp:
+            fail(f"alpha.6.3 mixed-input font switching returned: {forbidden}")
+
+    for token in (
+        "numberSize",
+        "DpiScale(3)",
+        'L"›"',
+        "shortcutHintFont_",
+    ):
+        if token not in launcher + launcher_hpp:
+            fail(f"alpha.6.3 spaced numeric shortcut hint missing: {token}")
+
+    for token in (
+        "atomicProviderUpdate",
+        "ScopedRedrawSuspend",
+        "providerDirtyRect",
+        "&providerDirtyRect",
+        "RDW_ALLCHILDREN",
+        "PageCardRect(",
+    ):
+        if token not in settings_cpp:
+            fail(f"alpha.6.3 localized Everything provider repaint missing: {token}")
+
+    provider_status_start = settings_cpp.find("void SettingsWindow::RefreshProviderStatus()")
+    provider_status_end = settings_cpp.find("void SettingsWindow::AcquireEverything", provider_status_start)
+    if provider_status_start < 0 or provider_status_end < 0:
+        fail("alpha.6.3 provider status implementation missing")
+    provider_status_body = settings_cpp[provider_status_start:provider_status_end]
+    if "RDW_ERASE" in provider_status_body or "RDW_FRAME" in provider_status_body:
+        fail("alpha.6.3 provider status must not erase/reframe the whole Settings window")
+
+    provider_commit_start = settings_cpp.find("void SettingsWindow::CommitPendingProviderChanges()")
+    provider_commit_end = settings_cpp.find("void SettingsWindow::ApplyStartupBehaviorControl", provider_commit_start)
+    if provider_commit_start < 0 or provider_commit_end < 0:
+        fail("alpha.6.3 provider commit implementation missing")
+    provider_commit_body = settings_cpp[provider_commit_start:provider_commit_end]
+    if "EnableWindow(" in provider_commit_body:
+        fail("alpha.6.3 provider commit must not visibly disable/re-enable rows")
+    if "RefreshFromSettings();" in provider_commit_body:
+        fail("alpha.6.3 provider commit must not broadly repaint unrelated Settings rows")
+    for token in (
+        "SetProviderEnabledBatch(",
+        "ordinaryChanges,\n            false",
+        "*everythingChange,\n            false",
+    ):
+        if token not in provider_commit_body:
+            fail(f"alpha.6.3 provider refresh suppression missing: {token}")
+
+    for token in (
+        "refreshSettingsWindow = true",
+        "refreshSettingsWindow &&",
+    ):
+        if token not in app_hpp + app_cpp:
+            fail(f"alpha.6.3 provider refresh opt-out API missing: {token}")
+
+    for token in (
+        'T(L"经典 ALTRun",',
+        'T(L"现代紧凑",',
+        'L"Classic ALTRun"',
+        'L"Modern Compact"',
+    ):
+        if token not in settings_cpp:
+            fail(f"alpha.6.3 launcher-style localization missing: {token}")
+
+    for token in (
+        "RestoreFullyPainted(",
+        "DWMWA_CLOAK",
+        "SW_RESTORE",
+        "RDW_UPDATENOW",
+    ):
+        if token not in top_level + top_level_hpp:
+            fail(f"alpha.6.3 cloaked taskbar restore missing: {token}")
+
+    for source_name, source in (
+        ("Settings", settings_cpp),
+        ("Shortcut Manager", shortcut_manager),
+    ):
+        for token in ("WM_SYSCOMMAND", "SC_RESTORE", "RestoreFullyPainted("):
+            if token not in source:
+                fail(f"alpha.6.3 {source_name} native restore hook missing: {token}")
+
+    if "src/uninstaller/uninstaller.manifest" not in cmake:
+        fail("alpha.6.3 uninstaller DPI manifest is not compiled into the target")
+    for token in (
+        "Aspeternity.ALTRunNext.Uninstall",
+        "PerMonitorV2",
+        "longPathAware",
+    ):
+        if token not in uninstaller_manifest:
+            fail(f"alpha.6.3 uninstaller DPI manifest missing: {token}")
+
+    style_start = settings_cpp.find("constexpr DWORD kSettingsWindowStyle")
+    style_end = settings_cpp.find(";", style_start)
+    if style_start < 0 or style_end < 0:
+        fail("alpha.6.3 Settings style declaration missing")
+    if "WS_VSCROLL" in settings_cpp[style_start:style_end]:
+        fail("alpha.6.3 Settings must not be created with a permanent native scrollbar")
+    for token in (
+        "HideSettingsVerticalScrollBar(",
+        "style & ~WS_VSCROLL",
+        "cleared.nMax = 0",
+    ):
+        if token not in settings_cpp:
+            fail(f"alpha.6.3 Settings scrollbar reset missing: {token}")
+
+    runtime_tests = read("tests/WindowPresentationRuntimeTests.cpp")
+    for token in (
+        "compactOuterHeight",
+        "WS_VSCROLL",
+        "cleared.nMax == 0",
+        "51005u",
+        "51002u",
+    ):
+        if token not in runtime_tests:
+            fail(f"alpha.6.3 Settings scrollbar runtime regression missing: {token}")
+
+    for token in (
+        "WM_SYSCOMMAND",
+        "SC_RESTORE",
+        "SW_MINIMIZE",
+        "HasAboutHeading(window)",
+    ):
+        if token not in runtime_tests:
+            fail(f"alpha.6.3 minimized restore runtime regression missing: {token}")
+
+    # Result icons were deliberately removed during the alpha.5.49 closeout:
+    # mixed static/Everything sources do not provide a visually complete icon
+    # set, so bringing back per-result icons would reintroduce inconsistent
+    # rows and an idle extraction/cache lifecycle. Modern remains text-first.
+    for forbidden in (
+        "showResultIcons",
+        "ResultIconPipeline",
+        "ResultIconWorkerLoop",
+        "kIconReadyMessage",
+        "SHGetFileInfo",
+        "ExtractIcon",
+    ):
+        if forbidden in launcher + launcher_hpp + read("src/core/Settings.hpp"):
+            fail(f"alpha.6.3 removed result-icon surface returned: {forbidden}")
+
+    for token in (
+        "ModernCompactLauncherMetricsForDpi(",
+        "99",
+        "six.clientHeight",
+        "empty.resultsSurface.height == 0",
+        "footerAction.width > 0",
+    ):
+        if token not in ui_tests:
+            fail(f"alpha.6.3 dynamic-height regression missing: {token}")
+
+    for token in (
+        "RGB(242, 245, 249)",
+        "RGB(248, 250, 253)",
+        "RGB(246, 248, 252)",
+    ):
+        if token not in theme:
+            fail(f"alpha.6.3 surface hierarchy palette missing: {token}")
+
+    for token in (
+        'L"Segoe UI"',
+        "CLEARTYPE_NATURAL_QUALITY",
+    ):
+        if token not in typography:
+            fail(f"alpha.6.3 Modern launcher typography contract missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.6.2"',
+        '"0.8.0-alpha.6.3"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"alpha.6.3 update-policy coverage missing: {token}")
+
+    for doc_path in ("README.md", "ROADMAP.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
+        if "0.8.0-alpha.6.3" not in read(doc_path):
+            fail(f"missing alpha.6.3 release documentation: {doc_path}")
+
+    print(
+        "0.8.0-alpha.6.3 Modern visual system contract verified:",
+        "| Classic/shared core frozen",
+        "| dynamic 0-10 row height",
+        "| layered search/results/footer surfaces",
+        "| inline secondary metadata",
+        "| Windows 11 backdrop hint with solid fallback",
+    )
+    raise SystemExit(0)
+
+
+if version == "0.8.0-alpha.6.2":
+    import hashlib
+    import subprocess
+
+    expected_schemas = {
+        "kSettingsSchemaVersion": 11,
+        "kCommandsSchemaVersion": 2,
+        "kUsageSchemaVersion": 2,
+    }
+    for name, expected in expected_schemas.items():
+        actual = cpp_int("src/core/ConfigIO.hpp", name)
+        if actual != expected:
+            fail(f"alpha.6.2 {name}={actual}, expected {expected}")
+
+    if cpp_int("src/core/ProviderCache.cpp", "kProviderCacheSchemaVersion") != 22:
+        fail("alpha.6.2 must keep Provider Cache schemaVersion 22")
+
+    resources = read("src/resources.rc")
+    manifest = read("src/app.manifest")
+    for token in (
+        "FILEVERSION 0,8,0,272",
+        "PRODUCTVERSION 0,8,0,272",
+        "0.8.0-alpha.6.2",
+    ):
+        if token not in resources:
+            fail(f"alpha.6.2 resource version missing: {token}")
+    if 'version="0.8.0.272"' not in manifest:
+        fail("alpha.6.2 manifest fixed version must be 0.8.0.272")
+
+    def git_blob_sha(path: str) -> str:
+        data = (ROOT / path).read_bytes()
+        header = f"blob {len(data)}\0".encode("ascii")
+        return hashlib.sha1(header + data).hexdigest()
+
+    frozen_core = {
+        "src/core/SearchEngine.cpp": "353de25316a35820b51aa84eb776581f75c34534",
+        "src/core/RelevancePolicy.cpp": "182d4c4df2f23d07494bc730749adc75e71c4705",
+        "src/core/ResultRanking.cpp": "2dbcb94c530212007b165efb063336f19bb0cda1",
+        "src/core/ClassicBehavior.cpp": "96511ddeaa4f03eb7a7c2fbd5c6f3eb7b368d44d",
+        "src/core/ClassicBehavior.hpp": "0788827f484fa349e1348e42952832b6421788ea",
+        "src/core/UsageStore.cpp": "8f94895878d32968f28a79fb232a3a94741dd88d",
+        "src/core/PinyinSearch.cpp": "3f0e1f662a9989484a8aba54e0ae8393ee80c606",
+        "src/core/EverythingProvider.cpp": "2feed2b414f33b3ef3d2e47477cdebaadc3f1ce1",
+        "src/platform/EverythingIpcClient.cpp": "bc626b1c3c740400ba32f4f155cc20abbfa13eeb",
+        "src/platform/EverythingBootstrapper.cpp": "3df7ca1157b7f92b939546a4e8b7fcf5244969d4",
+    }
+    for frozen_path, expected in frozen_core.items():
+        if git_blob_sha(frozen_path) != expected:
+            fail(f"alpha.6.2 frozen shared core changed: {frozen_path}")
+
+    frozen_classic_assets = {
+        "src/resources/classic_bg.bmp": "bbced49d20184051cf8ad48b153b022cecfecd50",
+        "src/resources/classic_shortcut.bmp": "eee00956b449975f05e63a38e4da4ea29e01c240",
+        "src/resources/classic_close.bmp": "51732fb285d83c2f13437c26a5f923fec2c33d55",
+        "src/resources/classic_shortcut_200.bmp": "e4ef3820d0c177575cd7b974dfcd6c3fd6c653e9",
+        "src/resources/classic_close_200.bmp": "d872f63b63cf698a6477a31c76382e6dc0be98b1",
+    }
+    for frozen_path, expected in frozen_classic_assets.items():
+        if git_blob_sha(frozen_path) != expected:
+            fail(f"alpha.6.2 frozen Classic asset changed: {frozen_path}")
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_classic_hidpi_assets.py"), "--verify"],
+        cwd=ROOT,
+        check=True,
+    )
+
+    metrics = read("src/ui/UiMetrics.hpp")
+    ui_tests = read("tests/UiFoundationTests.cpp")
+    launcher = read("src/ui/LauncherWindow.cpp")
+    launcher_hpp = read("src/ui/LauncherWindow.hpp")
+    typography = read("src/ui/UiTypography.cpp")
+
+    for token in (
+        "rowSelectionInsetX",
+        "rowSelectionInsetY",
+        "secondaryColumnWidth",
+        "rowCornerDiameter",
+        "selectionAccentWidth",
+        "selectionAccentInset",
+        "searchCornerDiameter",
+    ):
+        if token not in metrics:
+            fail(f"alpha.6.2 Modern visual metric missing: {token}")
+
+    for token in (
+        "ModernPrimaryResultText",
+        "ModernSecondaryResultText",
+        "focusAccentBrush_",
+        "framePen_",
+        "RoundRect(",
+        "Path  ·  ",
+        "App  ·  ",
+        'L"路径  ·  "',
+        'L"应用  ·  "',
+    ):
+        if token not in launcher + launcher_hpp:
+            fail(f"alpha.6.2 Modern visual hierarchy wiring missing: {token}")
+
+    for forbidden in (
+        "primaryColumnWidth",
+        "separatorInset",
+        "separatorPen_",
+    ):
+        if forbidden in metrics + launcher + launcher_hpp:
+            fail(f"alpha.6.2 table-style Modern surface survived: {forbidden}")
+
+    if "kModernLauncherAuxiliaryPointSize = 9" not in typography:
+        fail("alpha.6.2 Modern auxiliary typography must be 9 pt")
+
+    for token in (
+        "modernDpiExpectations",
+        "secondaryColumnWidth",
+        "searchCornerDiameter",
+    ):
+        if token not in ui_tests:
+            fail(f"alpha.6.2 Modern visual DPI regression missing: {token}")
+
+    update_tests = read("tests/UpdatePolicyTests.cpp")
+    for token in (
+        '"0.8.0-alpha.6.1"',
+        '"0.8.0-alpha.6.2"',
+        "UpdateChannel::Stable",
+    ):
+        if token not in update_tests:
+            fail(f"alpha.6.2 update-policy coverage missing: {token}")
+
+    for doc_path in ("README.md", "CHANGELOG.md", "docs/DESKTOP_VALIDATION.md"):
+        if "0.8.0-alpha.6.2" not in read(doc_path):
+            fail(f"missing alpha.6.2 release documentation: {doc_path}")
+
+    print(
+        "0.8.0-alpha.6.2 Modern visual refinement contract verified:",
+        "| Classic/shared core frozen",
+        "| display-name-first result hierarchy",
+        "| table grid removed",
+        "| rounded search/selection surfaces",
+        "| 9pt auxiliary/footer typography",
+    )
+    raise SystemExit(0)
+
+
 if version == "0.8.0-alpha.6.1":
     import hashlib
     import subprocess

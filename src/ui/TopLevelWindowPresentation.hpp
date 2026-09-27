@@ -47,6 +47,9 @@ void CenterExistingWindow(
 void RevealFullyPainted(
     HWND hwnd) noexcept;
 
+void RestoreFullyPainted(
+    HWND hwnd) noexcept;
+
 void HideForDestroy(
     HWND hwnd) noexcept;
 

@@ -3844,7 +3844,8 @@ bool App::SetClassicBehavior(
 
 bool App::SetProviderEnabled(
     std::string id,
-    bool enabled) {
+    bool enabled,
+    bool refreshSettingsWindow) {
 
     const std::string providerId =
         id;
@@ -3946,7 +3947,8 @@ bool App::SetProviderEnabled(
             window_->RefreshResults();
         }
 
-        if (settingsWindow_) {
+        if (refreshSettingsWindow &&
+            settingsWindow_) {
             settingsWindow_
                 ->RefreshFromSettings();
         }
@@ -3979,7 +3981,8 @@ bool App::SetProviderEnabled(
         window_->RefreshResults();
     }
 
-    if (settingsWindow_) {
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
         settingsWindow_
             ->RefreshFromSettings();
     }
@@ -3994,7 +3997,8 @@ bool App::SetProviderEnabled(
 
 
 bool App::SetProviderEnabledBatch(
-    const ProviderEnableMap& changes) {
+    const ProviderEnableMap& changes,
+    bool refreshSettingsWindow) {
 
     ProviderEnableMap effective;
     std::vector<std::string>
@@ -4056,7 +4060,8 @@ bool App::SetProviderEnabledBatch(
         window_->RefreshResults();
     }
 
-    if (settingsWindow_) {
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
         settingsWindow_->
             RefreshFromSettings();
     }
@@ -4071,7 +4076,8 @@ bool App::SetProviderEnabledBatch(
 }
 
 bool App::SetManagedEverythingShowTrayIcon(
-    bool enabled) {
+    bool enabled,
+    bool refreshSettingsWindow) {
     const auto bootstrap =
         EverythingBootstrapStatus();
 
@@ -4102,7 +4108,8 @@ bool App::SetManagedEverythingShowTrayIcon(
         StartEverythingBootstrap(false);
     }
 
-    if (settingsWindow_) {
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
         settingsWindow_->
             RefreshFromSettings();
     }
