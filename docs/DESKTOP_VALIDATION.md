@@ -8,6 +8,23 @@ Automated CI covers compilation, Config/Search tests, provider smoke tests, hotk
 
 The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
+## v0.8.0-alpha.6.2 Modern Compact Visual Refinement I validation
+
+Alpha.6.2 addresses the first real-Windows visual review without changing launcher search/execution semantics.
+
+- [ ] Empty query: the window reads as one quiet surface with one rounded search field; there is no boxed results panel or row-by-row table grid.
+- [ ] Application rows: display name is the dominant semibold text and the alias/keyword is smaller, muted and right-aligned.
+- [ ] File/folder rows: filename remains dominant; parent path is muted secondary context and ellipsizes cleanly.
+- [ ] Rows whose title/subtitle are identical show one label only.
+- [ ] Selected result uses an inset rounded highlight and narrow accent marker; selection remains obvious without turning the row into a full-width blue table band.
+- [ ] Footer uses 9 pt muted text and a localized Path / Command / Action / Target prefix; long values keep path ellipsis and never overlap the window edge.
+- [ ] Verify 100%, 125%, 150%, 175% and 200% DPI. Rounded search/selection geometry, text alignment and scrollbar clearance remain stable.
+- [ ] Verify Chinese/English UI, CJK result names, long aliases, long display names and long Everything paths.
+- [ ] Rapid mixed static + Everything updates do not flicker and do not grow GDI objects.
+- [ ] Classic -> Modern -> Classic switching returns to the accepted Classic geometry/assets unchanged.
+- [ ] Native EDIT/LISTBOX behavior remains intact: IME, text selection/editing, arrows, mouse, wheel, scrollbar, Enter and context menu.
+- [ ] Schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22; Windows fixed version is 0.8.0.272.
+
 ## v0.8.0-alpha.6.1 Modern Compact Foundation I validation
 
 This is the first UI-only track after Classic technical freeze. The release contract freezes the accepted alpha.5.49 shared search/Everything/usage/numeric-intent source set and the Classic bitmap assets. Modern Compact keeps the native EDIT and LISTBOX behavior while changing only geometry and presentation.

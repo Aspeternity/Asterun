@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-alpha.6.2
+
+- Rework Modern Compact result hierarchy after the first real-Windows visual pass: application display name is primary; alias/search identity becomes muted secondary metadata.
+- Keep file/folder names primary and show parent paths as secondary context; suppress duplicate secondary labels.
+- Remove the boxed result panel and per-row table separators.
+- Add inset rounded selection treatment with a narrow accent marker while preserving native LISTBOX behavior.
+- Keep one soft rounded search surface instead of nested hard frames.
+- Reduce Modern auxiliary/footer typography to 9 pt and label footer values as Path / Command / Action / Target (including Chinese labels).
+- Preserve the alpha.5.49 frozen Classic/shared search core and alpha.6.1 native-control/DPI foundation.
+- Publish Windows fixed FileVersion/ProductVersion `0.8.0.272`.
+
+
 ## 0.8.0-alpha.6.1
 
 - Start the dedicated Modern Compact refinement track after the accepted alpha.5.49 Classic freeze.
