@@ -286,6 +286,7 @@ In progress:
 - alpha.5.49 real-Windows closeout passed after Build #634: resource/search responsiveness, first-visit Search Sources frame settling, managed Everything tray-control gating, numeric-intent continuation and uninstall recovery were accepted on the real machine.
 - Classic is now technically frozen. Further Classic changes are limited to confirmed regressions, compatibility, data-safety/security and release-blocking defects; Modern Compact refinement is the next UI development track.
 - v0.8.0-alpha.6.1 starts Modern Compact Foundation I: one 96–192 DPI geometry contract replaces scattered launcher literals, native EDIT/LISTBOX behavior is retained, legacy border/static-edge chrome is removed, flat owned surfaces establish the new visual baseline, and the accepted Classic/shared search core is release-contract frozen.
+- v0.8.0-alpha.6.2 follows the first real-Windows Modern screenshots: result hierarchy becomes display-name-first, alias/path metadata is visually subordinate, the boxed/table grid is removed, selection becomes an inset rounded focus surface, and footer text gains semantic labels while native EDIT/LISTBOX behavior remains intact.
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 
