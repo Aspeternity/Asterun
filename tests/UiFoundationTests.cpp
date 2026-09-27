@@ -17,7 +17,151 @@ int main() {
 
     assert(ui::kModernCompactLauncherMetrics.widthLogical == 620);
     assert(ui::kModernCompactLauncherMetrics.rowHeightLogical == 32);
-    assert(ui::kModernCompactLauncherMetrics.maxResults == 9);
+    assert(ui::kModernCompactLauncherMetrics.maxResults == 10);
+
+    struct ModernDpiExpectation {
+        unsigned dpi;
+        int maxWidth;
+        int maxHeight;
+        int rowHeight;
+    };
+
+    constexpr std::array<
+        ModernDpiExpectation,
+        5>
+        modernDpiExpectations{{
+            {96u, 620, 428, 32},
+            {120u, 775, 535, 40},
+            {144u, 930, 642, 48},
+            {168u, 1085, 749, 56},
+            {192u, 1240, 856, 64},
+        }};
+
+    for (const auto& expected :
+         modernDpiExpectations) {
+        const auto full =
+            ui::ModernCompactLauncherMetricsForDpi(
+                expected.dpi,
+                10);
+        assert(full.clientWidth ==
+               expected.maxWidth);
+        assert(full.clientHeight ==
+               expected.maxHeight);
+        assert(full.rowHeight ==
+               expected.rowHeight);
+        assert(full.searchGlyph.width > 0);
+        assert(full.searchEdit.left >
+               full.searchGlyph.left);
+        assert(
+            full.searchEdit.height ==
+            ui::Scale(
+                20,
+                expected.dpi));
+        const int searchCenter2 =
+            full.searchSurface.top * 2 +
+            full.searchSurface.height;
+        const int editCenter2 =
+            full.searchEdit.top * 2 +
+            full.searchEdit.height;
+        const int glyphCenter2 =
+            full.searchGlyph.top * 2 +
+            full.searchGlyph.height;
+        assert(
+            editCenter2 >=
+                searchCenter2 - 1 &&
+            editCenter2 <=
+                searchCenter2 + 1);
+        assert(
+            glyphCenter2 >=
+                searchCenter2 - 1 &&
+            glyphCenter2 <=
+                searchCenter2 + 1);
+        assert(
+            full.searchSurface.height ==
+            ui::Scale(
+                38,
+                expected.dpi));
+        assert(
+            full.resultsSurface.top ==
+            ui::Scale(
+                58,
+                expected.dpi));
+        assert(full.resultsSurface.height > 0);
+        assert(full.resultsList.height ==
+               full.rowHeight * 10);
+        assert(
+            full.shortcutHintWidth ==
+            ui::Scale(
+                34,
+                expected.dpi));
+        assert(
+            full.shortcutHintGap ==
+            ui::Scale(
+                12,
+                expected.dpi));
+        assert(full.footerSurface.height > 0);
+        assert(full.footer.width > 0);
+        assert(full.footerAction.width > 0);
+        assert(
+            full.footer.left +
+                full.footer.width <=
+            full.footerAction.left);
+        assert(full.resultsList.left >
+               full.resultsSurface.left);
+        assert(
+            full.resultsList.left +
+                full.resultsList.width <
+            full.resultsSurface.left +
+                full.resultsSurface.width);
+
+        const auto six =
+            ui::ModernCompactLauncherMetricsForDpi(
+                expected.dpi,
+                6);
+        assert(six.clientWidth ==
+               full.clientWidth);
+        assert(six.clientHeight ==
+               full.clientHeight -
+                   full.rowHeight * 4);
+        assert(six.resultsList.height ==
+               six.rowHeight * 6);
+        assert(six.footerSurface.top <
+               full.footerSurface.top);
+
+        const auto one =
+            ui::ModernCompactLauncherMetricsForDpi(
+                expected.dpi,
+                1);
+        assert(one.clientHeight ==
+               full.clientHeight -
+                   full.rowHeight * 9);
+        assert(one.resultsList.height ==
+               one.rowHeight);
+        assert(one.footerSurface.height > 0);
+
+        const auto empty =
+            ui::ModernCompactLauncherMetricsForDpi(
+                expected.dpi,
+                0);
+        assert(empty.clientWidth ==
+               full.clientWidth);
+        assert(empty.clientHeight <
+               one.clientHeight);
+        assert(empty.resultsSurface.height == 0);
+        assert(empty.resultsList.height == 0);
+        assert(empty.footerSurface.height == 0);
+        assert(empty.footer.height == 0);
+        assert(empty.footerAction.height == 0);
+
+        const auto clamped =
+            ui::ModernCompactLauncherMetricsForDpi(
+                expected.dpi,
+                99);
+        assert(clamped.clientHeight ==
+               full.clientHeight);
+        assert(clamped.resultsList.height ==
+               full.resultsList.height);
+    }
 
     assert(ui::kSettingsClientWidthLogical == 820);
     assert(ui::kSettingsClientHeightLogical == 620);

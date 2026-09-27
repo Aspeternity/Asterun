@@ -170,11 +170,14 @@ public:
         bool pinyinSearch);
     bool SetProviderEnabled(
         std::string id,
-        bool enabled);
+        bool enabled,
+        bool refreshSettingsWindow = true);
     bool SetProviderEnabledBatch(
-        const ProviderEnableMap& changes);
+        const ProviderEnableMap& changes,
+        bool refreshSettingsWindow = true);
     bool SetManagedEverythingShowTrayIcon(
-        bool enabled);
+        bool enabled,
+        bool refreshSettingsWindow = true);
     bool SetUpdateSettings(
         bool autoCheck,
         UpdateChannel channel);

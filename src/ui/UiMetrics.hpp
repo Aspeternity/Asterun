@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -147,8 +148,221 @@ inline constexpr LauncherMetrics
     kModernCompactLauncherMetrics{
         620,
         32,
-        9,
+        10,
     };
+
+struct ModernCompactLauncherDpiMetrics {
+    int clientWidth{};
+    int clientHeight{};
+    UiRectMetrics searchSurface{};
+    UiRectMetrics searchGlyph{};
+    UiRectMetrics searchEdit{};
+    UiRectMetrics resultsSurface{};
+    UiRectMetrics resultsList{};
+    UiRectMetrics footerSurface{};
+    UiRectMetrics footer{};
+    UiRectMetrics footerAction{};
+    int rowHeight{};
+    int rowSelectionInsetX{};
+    int rowSelectionInsetY{};
+    int rowTextInset{};
+    int secondaryMinWidth{};
+    int rowColumnGap{};
+    int shortcutHintWidth{};
+    int shortcutHintGap{};
+    int rowCornerDiameter{};
+    int selectionAccentWidth{};
+    int selectionAccentInset{};
+    int searchCornerDiameter{};
+    int resultsCornerDiameter{};
+    int footerCornerDiameter{};
+};
+
+[[nodiscard]] constexpr
+ModernCompactLauncherDpiMetrics
+ModernCompactLauncherMetricsForDpi(
+    unsigned dpi,
+    std::size_t visibleRows =
+        kModernCompactLauncherMetrics
+            .maxResults) noexcept {
+
+    const std::size_t rows =
+        visibleRows >
+                kModernCompactLauncherMetrics
+                    .maxResults
+            ? kModernCompactLauncherMetrics
+                  .maxResults
+            : visibleRows;
+
+    const int clientWidth =
+        Scale(620, dpi);
+    const int rowHeight =
+        Scale(32, dpi);
+
+    const UiRectMetrics searchSurface{
+        Scale(12, dpi),
+        Scale(12, dpi),
+        Scale(596, dpi),
+        Scale(38, dpi),
+    };
+
+    const int searchGlyphSize =
+        Scale(16, dpi);
+    const UiRectMetrics searchGlyph{
+        Scale(25, dpi),
+        searchSurface.top +
+            (searchSurface.height -
+             searchGlyphSize) /
+                2,
+        searchGlyphSize,
+        searchGlyphSize,
+    };
+
+    // A native single-line EDIT does not expose vertical text alignment.
+    // Keep its child HWND close to the font line height and center the HWND
+    // inside the search surface instead of making a 32px-tall top-aligned
+    // edit client.
+    const int searchEditHeight =
+        Scale(20, dpi);
+    const UiRectMetrics searchEdit{
+        Scale(48, dpi),
+        searchSurface.top +
+            (searchSurface.height -
+             searchEditHeight) /
+                2,
+        Scale(548, dpi),
+        searchEditHeight,
+    };
+
+    if (rows == 0) {
+        return {
+            clientWidth,
+            searchSurface.top +
+                searchSurface.height +
+                Scale(12, dpi),
+            searchSurface,
+            searchGlyph,
+            searchEdit,
+            {},
+            {},
+            {},
+            {},
+            {},
+            rowHeight,
+            Scale(4, dpi),
+            Scale(2, dpi),
+            Scale(14, dpi),
+            Scale(150, dpi),
+            Scale(12, dpi),
+            Scale(34, dpi),
+            Scale(12, dpi),
+            Scale(10, dpi),
+            Scale(3, dpi),
+            Scale(8, dpi),
+            Scale(10, dpi),
+            Scale(12, dpi),
+            Scale(10, dpi),
+        };
+    }
+
+    const int clientHeight =
+        Scale(428, dpi) -
+        static_cast<int>(
+            kModernCompactLauncherMetrics
+                .maxResults -
+            rows) *
+            rowHeight;
+
+    const UiRectMetrics footerSurface{
+        Scale(12, dpi),
+        clientHeight -
+            Scale(40, dpi),
+        Scale(596, dpi),
+        Scale(28, dpi),
+    };
+
+    const UiRectMetrics footerAction{
+        footerSurface.left +
+            footerSurface.width -
+            Scale(62, dpi),
+        footerSurface.top +
+            Scale(4, dpi),
+        Scale(52, dpi),
+        Scale(20, dpi),
+    };
+
+    const UiRectMetrics footer{
+        footerSurface.left +
+            Scale(12, dpi),
+        footerSurface.top +
+            Scale(2, dpi),
+        footerAction.left -
+            Scale(8, dpi) -
+            (footerSurface.left +
+             Scale(12, dpi)),
+        Scale(24, dpi),
+    };
+
+    const int resultsTop =
+        Scale(58, dpi);
+    const int resultsBottom =
+        footerSurface.top -
+        Scale(6, dpi);
+
+    const UiRectMetrics resultsSurface{
+        Scale(12, dpi),
+        resultsTop,
+        Scale(596, dpi),
+        resultsBottom -
+            resultsTop,
+    };
+
+    const int verticalInset =
+        std::max(
+            0,
+            (resultsSurface.height -
+             static_cast<int>(rows) *
+                 rowHeight) /
+                2);
+
+    const UiRectMetrics resultsList{
+        resultsSurface.left +
+            Scale(4, dpi),
+        resultsSurface.top +
+            verticalInset,
+        resultsSurface.width -
+            Scale(8, dpi),
+        static_cast<int>(rows) *
+            rowHeight,
+    };
+
+    return {
+        clientWidth,
+        clientHeight,
+        searchSurface,
+        searchGlyph,
+        searchEdit,
+        resultsSurface,
+        resultsList,
+        footerSurface,
+        footer,
+        footerAction,
+        rowHeight,
+        Scale(4, dpi),
+        Scale(2, dpi),
+        Scale(14, dpi),
+        Scale(150, dpi),
+        Scale(12, dpi),
+        Scale(34, dpi),
+        Scale(12, dpi),
+        Scale(10, dpi),
+        Scale(3, dpi),
+        Scale(8, dpi),
+        Scale(10, dpi),
+        Scale(12, dpi),
+        Scale(10, dpi),
+    };
+}
 
 inline constexpr int
     kSettingsClientWidthLogical = 820;

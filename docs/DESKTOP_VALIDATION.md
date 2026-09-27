@@ -8,6 +8,69 @@ Automated CI covers compilation, Config/Search tests, provider smoke tests, hotk
 
 The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
+## v0.8.0-alpha.6.3 Modern Compact Visual System I validation
+
+This pass is intentionally presentation-only. Search, Everything, usage ranking, numeric intent and Classic remain on the frozen alpha.5.49 core.
+
+- [ ] Empty/no-result query collapses to the search surface without a large blank result canvas or footer.
+- [ ] One, six, nine and ten visible results produce progressively taller windows; ten rows are the new maximum while one through nine retain their previous per-row geometry.
+- [ ] Type a query whose static pass is empty but Everything later returns results. The window must not collapse and immediately re-expand while the dynamic reply is pending.
+- [ ] Search, results and footer read as three related but distinct surfaces; the outer background is visibly cooler than the white search surface.
+- [ ] The search glyph is crisp and vertically centered at 100%, 125%, 150%, 175% and 200% DPI; the native EDIT caret/IME behavior is unchanged.
+- [ ] Typed search text/caret is vertically centered inside the search surface at every DPI; it must not sit against the top edge of the field.
+- [ ] At every supported DPI, the native search EDIT stays on one 14-logical-pixel Segoe UI font. Test `team`, `测试`, and `team测试`: adding/removing Han text must not change the already-entered Latin glyph shape/width, Chinese must not appear disproportionately larger, and caret/IME composition must remain vertically balanced.
+- [ ] On Windows 11 the search icon uses the Fluent icon face and remains crisp at 100%, 125%, 150%, 175% and 200%; Windows 10 falls back to MDL2 without a missing-glyph box.
+- [ ] English application names in Chinese UI use crisp Segoe UI Latin glyphs; Chinese result names still render correctly through Windows font linking.
+- [ ] Tab, Shift+Tab, Up and Down wrap from first <-> last result without moving focus out of the search field.
+- [ ] Modern Compact shows up to ten rows. The selected row displays the lighter 13 pt hooked-return arrow at the far right; unselected rows display 12 pt muted `› 1`-`› 9` / `› 0` hints with a stable 3-logical-pixel chevron-to-digit gap, with `0` mapped to row ten.
+- [ ] Move selection with Up/Down/Tab: the hooked-return arrow follows the selected row, the row it leaves regains its numeric hint, and the right action gutter never shifts title/alias layout.
+- [ ] The footer keeps the existing right-aligned `Enter` affordance and does not duplicate numeric shortcut help.
+- [ ] Make General/Hotkeys short enough to show a real Settings scrollbar, then switch repeatedly to Search Sources and Appearance; the right non-client scrollbar must disappear immediately and never ghost back.
+- [ ] On Search Sources, toggle Everything files & folders on/off repeatedly. The switch, status text, managed-tray row and action buttons must settle in one frame with no gray disable pulse or vertical flash; unchanged Start Menu / Windows Apps / App Paths / PATH labels must not blink.
+- [ ] Change Interface language between 简体中文 and English on Appearance. Launcher style must switch between `经典 ALTRun` / `现代紧凑` and `Classic ALTRun` / `Modern Compact` without changing the selected style.
+- [ ] Minimize Settings/About to the Windows taskbar and restore it by clicking the taskbar button; repeat with Shortcut Manager. The restored window must appear only in its final layout with no one-frame flash or location jump.
+- [ ] Run `Uninstall.exe` at 100%, 125%, 150%, 175% and 200% scaling. The keep-data/removal confirmation and follow-up messages must have native-DPI sharp text, not blurred DPI virtualization.
+- [ ] Short application names place their muted alias close to the primary name instead of pinning it to a far-right column; long primary/secondary strings ellipsize without overlap.
+- [ ] File/folder results keep filename first and parent path as inline muted context.
+- [ ] Search results remain intentionally icon-free across static, packaged-app and Everything results; there are no blank/mismatched icon slots and no result-icon loading worker/cache returns.
+- [ ] Selected rows remain inset rounded cards with the narrow accent marker and do not touch the result-surface edges.
+- [ ] Footer text remains path-ellipsized and the right-side `Enter` affordance never overlaps it.
+- [ ] On Windows 11, verify the launcher remains visually correct whether the system accepts or rejects the backdrop attribute. On Windows 10, verify the solid fallback has no black/transparent artifacts.
+- [ ] Switch Classic -> Modern -> Classic repeatedly at multiple DPI values; Classic geometry/assets remain unchanged.
+- [ ] Rapid static + Everything updates resize without flicker, stale pixels or GDI/USER growth.
+- [ ] Schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22; Windows fixed version is 0.8.0.273.
+
+## v0.8.0-alpha.6.2 Modern Compact Visual Refinement I validation
+
+Alpha.6.2 addresses the first real-Windows visual review without changing launcher search/execution semantics.
+
+- [ ] Empty query: the window reads as one quiet surface with one rounded search field; there is no boxed results panel or row-by-row table grid.
+- [ ] Application rows: display name is the dominant semibold text and the alias/keyword is smaller, muted and right-aligned.
+- [ ] File/folder rows: filename remains dominant; parent path is muted secondary context and ellipsizes cleanly.
+- [ ] Rows whose title/subtitle are identical show one label only.
+- [ ] Selected result uses an inset rounded highlight and narrow accent marker; selection remains obvious without turning the row into a full-width blue table band.
+- [ ] Footer uses 9 pt muted text and a localized Path / Command / Action / App prefix; long values keep path ellipsis and never overlap the window edge.
+- [ ] Verify 100%, 125%, 150%, 175% and 200% DPI. Rounded search/selection geometry, text alignment and scrollbar clearance remain stable.
+- [ ] Verify Chinese/English UI, CJK result names, long aliases, long display names and long Everything paths.
+- [ ] Rapid mixed static + Everything updates do not flicker and do not grow GDI objects.
+- [ ] Classic -> Modern -> Classic switching returns to the accepted Classic geometry/assets unchanged.
+- [ ] Native EDIT/LISTBOX behavior remains intact: IME, text selection/editing, arrows, mouse, wheel, scrollbar, Enter and context menu.
+- [ ] Schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22; Windows fixed version is 0.8.0.272.
+
+## v0.8.0-alpha.6.1 Modern Compact Foundation I validation
+
+This is the first UI-only track after Classic technical freeze. The release contract freezes the accepted alpha.5.49 shared search/Everything/usage/numeric-intent source set and the Classic bitmap assets. Modern Compact keeps the native EDIT and LISTBOX behavior while changing only geometry and presentation.
+
+- [ ] Switch Appearance to Modern Compact and confirm the launcher uses a flat borderless top-level surface with DWM-rounded outer corners; no legacy `WS_BORDER` or sunken STATICEDGE frame is visible.
+- [ ] At 100%, 125%, 150%, 175% and 200% scaling, verify the search surface, nine result rows and footer remain fully inside the launcher with symmetric result framing and no clipped scrollbar/text.
+- [ ] Verify the search field still behaves as a native EDIT: Chinese/English IME composition, selection, Home/End, Ctrl+A/C/V/X and caret editing remain unchanged.
+- [ ] Verify the result list still behaves as a native LISTBOX: Up/Down wrap behavior, mouse selection, wheel/scrollbar movement, Enter and context actions remain unchanged.
+- [ ] Check long application names, long subtitles and long file paths. Primary and secondary columns ellipsize without overlap; secondary text remains visually subordinate.
+- [ ] Exercise rapid typing with mixed static + Everything results. Modern repainting must not flicker and GDI object count must settle; row drawing no longer creates a brush/pen per item.
+- [ ] Switch Classic -> Modern Compact -> Classic repeatedly. Classic must return byte/geometry-identical to the accepted alpha.5.49 surface with no border, DPI, font or placement drift.
+- [ ] Recheck 100%/200% mixed-monitor moves and Settings Appearance switching while the launcher is visible and hidden.
+- [ ] Schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22; Windows fixed version is 0.8.0.271.
+
 ## v0.8.0-alpha.5.49 Classic Technical Closeout I validation
 
 Automated coverage preserves all alpha.5.48 presentation regressions and now adds a repeated real-HWND resource soak. The soak opens and closes Shortcut Manager, Shortcut Editor and Path Conversion repeatedly while sampling process GDI objects, USER objects and handles. It is a leak regression gate; it does not replace observing process memory behavior over a longer interactive session.\n\n**Closeout status: PASS — Build #634 green and real-Windows acceptance completed on 2026-09-27. Classic is technically frozen after this sign-off.**

@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.8.0-alpha.6.3
+
+- Introduce the first full Modern Compact visual system instead of a single mostly-white canvas.
+- Resize Modern Compact dynamically from search-only through one to ten result rows; preserve the previous height while an empty static pass is still awaiting Everything.
+- Separate search, results and footer into distinct rounded surfaces over a cooler outer background.
+- Add a lightweight painted search glyph while retaining the native EDIT control.
+- Replace the fixed right-hand alias column with measured inline secondary metadata.
+- Add a compact footer context surface and right-aligned `Enter` affordance.
+- Request the Windows 11 DWM system backdrop when supported; keep the solid surface palette as the Windows 10/unsupported fallback.
+- Tighten the Modern search surface from 42 to 38 logical pixels and settle on one DPI-scaled 14-logical-pixel Segoe UI search font. Windows font linking supplies Han glyphs without switching the whole EDIT font, so mixed Latin/CJK input no longer changes the preceding Latin text mid-query.
+- Prefer Segoe Fluent Icons for the search glyph on Windows 11, with Segoe MDL2 Assets fallback on Windows 10; bind the glyph raster size directly to the DPI-scaled icon box instead of tuning for one display scale.
+- Use Segoe UI + natural ClearType for Modern launcher text even when the application UI language is Chinese, leaving Windows font linking to supply CJK glyphs.
+- Restore cyclic Tab / Up / Down result navigation in Modern Compact.
+- Restore the shared smart numeric quick-launch behavior in Modern Compact. The selected row keeps the lighter hooked-return action glyph on the right; unselected rows use 12 pt muted chevron + digit hints with a fixed 3-logical-pixel gap (`› 1`-`› 9`, `› 0`) so the shortcut reads as an action rather than punctuation; the footer Enter affordance is unchanged.
+- Remove the permanent Settings `WS_VSCROLL` creation style and hard-clear native scroll state when switching to non-scroll pages, with a real-HWND small-window regression.
+- Make Everything enable/disable visual updates atomic and local: provider rows no longer pulse disabled, provider setters can suppress Settings-wide refresh callbacks, and only the changing Everything card is repainted instead of flashing unchanged Start Menu / Windows Apps / App Paths / PATH text.
+- Restore minimized Settings/About and Shortcut Manager windows under a DWM cloak, synchronously repainting before uncloak so taskbar restores do not expose an intermediate frame.
+- Embed a PerMonitorV2 manifest in `Uninstall.exe` so TaskDialog/MessageBox text is rendered at native monitor DPI instead of DPI-virtualized and blurry.
+- Localize the Launcher style choices with the interface language: Chinese now shows `经典 ALTRun` / `现代紧凑`, while English keeps `Classic ALTRun` / `Modern Compact`.
+- Preserve frozen Classic assets and shared search/Everything/usage/numeric-intent behavior.
+- Publish Windows fixed FileVersion/ProductVersion `0.8.0.273`.
+
+
+## 0.8.0-alpha.6.2
+
+- Rework Modern Compact result hierarchy after the first real-Windows visual pass: application display name is primary; alias/search identity becomes muted secondary metadata.
+- Keep file/folder names primary and show parent paths as secondary context; suppress duplicate secondary labels.
+- Remove the boxed result panel and per-row table separators.
+- Add inset rounded selection treatment with a narrow accent marker while preserving native LISTBOX behavior.
+- Keep one soft rounded search surface instead of nested hard frames.
+- Reduce Modern auxiliary/footer typography to 9 pt and label footer values as Path / Command / Action / App (including Chinese labels).
+- Preserve the alpha.5.49 frozen Classic/shared search core and alpha.6.1 native-control/DPI foundation.
+- Publish Windows fixed FileVersion/ProductVersion `0.8.0.272`.
+
+
+## 0.8.0-alpha.6.1
+
+- Start the dedicated Modern Compact refinement track after the accepted alpha.5.49 Classic freeze.
+- Replace scattered Modern Compact layout literals with one DPI-aware geometry contract covering search, result surface, footer and row text columns.
+- Lock Modern Compact geometry at 96/120/144/168/192 DPI in portable UI foundation tests.
+- Keep native EDIT/LISTBOX interaction semantics while removing legacy `WS_BORDER` and `WS_EX_STATICEDGE` chrome from the Modern surface.
+- Paint flat Modern search/results/client frames in the parent and cache row-selection/separator GDI resources instead of allocating them per draw.
+- Preserve frozen Classic assets and shared SearchEngine / Everything / usage-ranking / numeric-intent semantics; schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22.
+- Publish Windows fixed FileVersion/ProductVersion `0.8.0.271`.
+
+
 ## 0.8.0-alpha.5.49
 
 - Force a real non-client frame recalculation after Settings page switches so the General-page scrollbar cannot remain visually ghosted on the first Search Sources visit. Show the managed Everything tray-icon control only when the live default IPC endpoint is actually owned by ALTRun Next's managed Everything process; merely having an install candidate/path no longer qualifies. Collapse unavailable controls and size the file-search card from its visible content, including bottom padding.

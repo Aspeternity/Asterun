@@ -310,6 +310,7 @@ if(WIN32)
         ALTRunNextUninstaller
         WIN32
         src/uninstaller/UninstallMain.cpp
+        src/uninstaller/uninstaller.manifest
         src/ui/Feedback.cpp
         src/ui/Feedback.rc
     )
