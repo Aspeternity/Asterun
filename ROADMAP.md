@@ -285,6 +285,7 @@ In progress:
 - v0.8.0-alpha.5.49 completes the Classic technical closeout: ordinary searches stop deep-copying the complete command catalog, normalized query state is reused across matching, dynamic file-stem matching becomes allocation-free, the pinyin cache is bounded, the inconsistent optional result-icon worker/cache surface is removed, short CJK Everything substrings are admitted correctly without weakening short-ASCII precision, and real Win32 GDI/USER/handle lifecycle soak coverage is added without changing schemas.
 - alpha.5.49 real-Windows closeout passed after Build #634: resource/search responsiveness, first-visit Search Sources frame settling, managed Everything tray-control gating, numeric-intent continuation and uninstall recovery were accepted on the real machine.
 - Classic is now technically frozen. Further Classic changes are limited to confirmed regressions, compatibility, data-safety/security and release-blocking defects; Modern Compact refinement is the next UI development track.
+- v0.8.0-alpha.6.1 starts Modern Compact Foundation I: one 96–192 DPI geometry contract replaces scattered launcher literals, native EDIT/LISTBOX behavior is retained, legacy border/static-edge chrome is removed, flat owned surfaces establish the new visual baseline, and the accepted Classic/shared search core is release-contract frozen.
 - Launcher polish remains keyboard-first and density/performance protected
 - UI performance consolidation remains a release requirement; v0.8 must not trade responsiveness for decoration
 
