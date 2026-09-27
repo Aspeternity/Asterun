@@ -19,6 +19,162 @@ int main() {
     assert(ui::kModernCompactLauncherMetrics.rowHeightLogical == 32);
     assert(ui::kModernCompactLauncherMetrics.maxResults == 9);
 
+    struct ModernDpiExpectation {
+        unsigned dpi;
+        int clientWidth;
+        int clientHeight;
+        ui::UiRectMetrics searchSurface;
+        ui::UiRectMetrics searchEdit;
+        ui::UiRectMetrics resultsSurface;
+        ui::UiRectMetrics resultsList;
+        ui::UiRectMetrics footer;
+        int rowHeight;
+        int primaryColumnWidth;
+        int rowTextInset;
+        int rowColumnGap;
+        int separatorInset;
+    };
+
+    constexpr std::array<
+        ModernDpiExpectation,
+        5>
+        modernDpiExpectations{{
+            {
+                96u,
+                620,
+                400,
+                {12, 12, 596, 42},
+                {22, 17, 576, 32},
+                {12, 62, 596, 292},
+                {13, 63, 594, 290},
+                {16, 362, 588, 24},
+                32,
+                180,
+                14,
+                12,
+                12,
+            },
+            {
+                120u,
+                775,
+                500,
+                {15, 15, 745, 53},
+                {28, 21, 720, 40},
+                {15, 78, 745, 365},
+                {16, 79, 743, 363},
+                {20, 453, 735, 30},
+                40,
+                225,
+                18,
+                15,
+                15,
+            },
+            {
+                144u,
+                930,
+                600,
+                {18, 18, 894, 63},
+                {33, 26, 864, 48},
+                {18, 93, 894, 438},
+                {20, 95, 891, 435},
+                {24, 543, 882, 36},
+                48,
+                270,
+                21,
+                18,
+                18,
+            },
+            {
+                168u,
+                1085,
+                700,
+                {21, 21, 1043, 74},
+                {39, 30, 1008, 56},
+                {21, 109, 1043, 511},
+                {23, 110, 1040, 508},
+                {28, 634, 1029, 42},
+                56,
+                315,
+                25,
+                21,
+                21,
+            },
+            {
+                192u,
+                1240,
+                800,
+                {24, 24, 1192, 84},
+                {44, 34, 1152, 64},
+                {24, 124, 1192, 584},
+                {26, 126, 1188, 580},
+                {32, 724, 1176, 48},
+                64,
+                360,
+                28,
+                24,
+                24,
+            },
+        }};
+
+    const auto assertModernRect =
+        [](const ui::UiRectMetrics& actual,
+           const ui::UiRectMetrics& expected) {
+            assert(actual.left == expected.left);
+            assert(actual.top == expected.top);
+            assert(actual.width == expected.width);
+            assert(actual.height == expected.height);
+        };
+
+    for (const auto& expected :
+         modernDpiExpectations) {
+        const auto actual =
+            ui::ModernCompactLauncherMetricsForDpi(
+                expected.dpi);
+        assert(actual.clientWidth ==
+               expected.clientWidth);
+        assert(actual.clientHeight ==
+               expected.clientHeight);
+        assertModernRect(
+            actual.searchSurface,
+            expected.searchSurface);
+        assertModernRect(
+            actual.searchEdit,
+            expected.searchEdit);
+        assertModernRect(
+            actual.resultsSurface,
+            expected.resultsSurface);
+        assertModernRect(
+            actual.resultsList,
+            expected.resultsList);
+        assertModernRect(
+            actual.footer,
+            expected.footer);
+        assert(actual.rowHeight ==
+               expected.rowHeight);
+        assert(actual.primaryColumnWidth ==
+               expected.primaryColumnWidth);
+        assert(actual.rowTextInset ==
+               expected.rowTextInset);
+        assert(actual.rowColumnGap ==
+               expected.rowColumnGap);
+        assert(actual.separatorInset ==
+               expected.separatorInset);
+        assert(
+            actual.resultsList.height >=
+            actual.rowHeight *
+                static_cast<int>(
+                    ui::kModernCompactLauncherMetrics
+                        .maxResults));
+        assert(
+            actual.footer.top >
+            actual.resultsSurface.top +
+                actual.resultsSurface.height);
+        assert(
+            actual.footer.top +
+                actual.footer.height <
+            actual.clientHeight);
+    }
+
     assert(ui::kSettingsClientWidthLogical == 820);
     assert(ui::kSettingsClientHeightLogical == 620);
     assert(ui::kSettingsSidebarWidthLogical == 176);
