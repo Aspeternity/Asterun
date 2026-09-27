@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0-alpha.6.4
+
+- Freeze the accepted alpha.6.3 Modern Compact appearance; no new visual surface, animation, icon slot or setting is introduced.
+- Keep the Modern shell from transiently collapsing while an Everything query is pending: synchronous results may expand the shell immediately, but shrinkage waits until the matching dynamic reply settles.
+- Preserve asynchronous selection intent: a surviving selected identity follows its reordered row, while a removed identity clamps to the nearest valid row instead of jumping to the first result.
+- Keep Modern row-count changes on a no-erase parent repaint path while native EDIT/LISTBOX children retain their own paint ownership.
+- Keep the search EDIT as Modern's typing destination after mouse result selection, so a click can change the selected result without making the next keystroke fall into LISTBOX type-to-select behavior.
+- Add portable interaction helpers and regression coverage for pending-row stability, selection fallback and every 1–10-row DPI height transition.
+- Extend update-order coverage through alpha.6.4 while preserving the shared smart numeric Quick Launch implementation and the `1–9,0` Modern affordance.
+- Preserve frozen Classic assets and shared SearchEngine / RelevancePolicy / ResultRanking / Everything / usage / numeric-intent behavior.
+- Preserve Settings schema 11 / Commands 2 / Usage 2 / Provider Cache 22.
+- Publish Windows fixed FileVersion/ProductVersion `0.8.0.274`.
+
 ## 0.8.0-alpha.6.3
 
 - Introduce the first full Modern Compact visual system instead of a single mostly-white canvas.

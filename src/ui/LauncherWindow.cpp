@@ -1,6 +1,7 @@
 #include "Feedback.hpp"
 #include "AppIcon.hpp"
 #include "LauncherWindow.hpp"
+#include "LauncherInteraction.hpp"
 #include "../core/RelevancePolicy.hpp"
 #include "../app/App.hpp"
 #include "../core/ClassicBehavior.hpp"
@@ -2011,7 +2012,7 @@ void LauncherWindow::RebuildVisibleResults(
                     newCount));
     }
 
-    std::size_t selection = 0;
+    int matchedSelection = -1;
 
     if (!nextResults.empty() &&
         preserveSelection &&
@@ -2030,19 +2031,34 @@ void LauncherWindow::RebuildVisibleResults(
 
         if (it !=
             nextResults.end()) {
-            selection =
-                static_cast<std::size_t>(
+            matchedSelection =
+                static_cast<int>(
                     std::distance(
                         nextResults.begin(),
                         it));
         }
     }
 
+    const int stableSelection =
+        preserveSelection
+            ? ui::launcher_interaction::
+                  StableSelectionIndex(
+                      previous ==
+                              LB_ERR
+                          ? -1
+                          : static_cast<int>(
+                                previous),
+                      matchedSelection,
+                      nextResults.size())
+            : nextResults.empty()
+                ? -1
+                : 0;
+
     const LRESULT nextSelection =
-        nextResults.empty()
+        stableSelection < 0
             ? LB_ERR
             : static_cast<LRESULT>(
-                  selection);
+                  stableSelection);
 
     if (previous != nextSelection) {
         if (previous != LB_ERR &&
@@ -2134,30 +2150,29 @@ void LauncherWindow::RebuildVisibleResults(
     }
 
     if (IsModern()) {
-        std::size_t desiredRows =
-            std::min<std::size_t>(
-                results_.size(),
-                maxResults_);
+        const std::size_t desiredRows =
+            ui::launcher_interaction::
+                StableModernVisibleRows(
+                    modernLayoutRows_,
+                    results_.size(),
+                    dynamicQueryPending_);
 
-        // Settle the top-level geometry only after the LISTBOX redraw guard
-        // is released. This avoids resizing a suspended native child during
-        // the static -> dynamic handoff.
-        if (dynamicQueryPending_ &&
-            desiredRows == 0 &&
-            modernLayoutRows_ > 0) {
-            desiredRows =
-                modernLayoutRows_;
-        }
-
+        // Settle top-level geometry only after the LISTBOX redraw guard is
+        // released. While Everything is pending, the shell may expand for
+        // synchronous results but never transiently collapses and re-expands.
         if (desiredRows !=
             modernLayoutRows_) {
             modernLayoutRows_ =
                 desiredRows;
             Layout();
+            // The parent owns only the Modern surfaces around native child
+            // controls. Do not request a background erase on every row-count
+            // transition; WS_CLIPCHILDREN keeps the native EDIT/LISTBOX out
+            // of this paint domain.
             InvalidateRect(
                 hwnd_,
                 nullptr,
-                TRUE);
+                FALSE);
         }
     }
 
@@ -3894,6 +3909,16 @@ LRESULT LauncherWindow::HandleMessage(
         }
         if (LOWORD(wParam) == 1002 && HIWORD(wParam) == LBN_SELCHANGE) {
             UpdatePreview();
+
+            if (IsModern() &&
+                edit_ &&
+                GetFocus() != edit_) {
+                // Result clicks change selection, not the launcher's typing
+                // destination. Return focus to the native EDIT so the next
+                // keystroke immediately refines the query instead of invoking
+                // LISTBOX type-to-select behavior.
+                SetFocus(edit_);
+            }
             return 0;
         }
 

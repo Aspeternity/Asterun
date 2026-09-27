@@ -1,4 +1,5 @@
 #include "ui/UiMetrics.hpp"
+#include "ui/LauncherInteraction.hpp"
 
 #include <array>
 #include <cassert>
@@ -18,6 +19,62 @@ int main() {
     assert(ui::kModernCompactLauncherMetrics.widthLogical == 620);
     assert(ui::kModernCompactLauncherMetrics.rowHeightLogical == 32);
     assert(ui::kModernCompactLauncherMetrics.maxResults == 10);
+
+    using ui::launcher_interaction::
+        StableModernVisibleRows;
+    using ui::launcher_interaction::
+        StableSelectionIndex;
+
+    // Pending Everything work may expand the shell, but it must not
+    // transiently collapse below the already-visible row count.
+    assert(
+        StableModernVisibleRows(
+            10,
+            1,
+            true) == 10);
+    assert(
+        StableModernVisibleRows(
+            3,
+            6,
+            true) == 6);
+    assert(
+        StableModernVisibleRows(
+            6,
+            1,
+            false) == 1);
+    assert(
+        StableModernVisibleRows(
+            99,
+            99,
+            true) == 10);
+
+    // Async result replacement follows a surviving identity. If that result
+    // disappears, keep the nearest valid row rather than jumping to row 1.
+    assert(
+        StableSelectionIndex(
+            5,
+            2,
+            7) == 2);
+    assert(
+        StableSelectionIndex(
+            5,
+            -1,
+            3) == 2);
+    assert(
+        StableSelectionIndex(
+            9,
+            -1,
+            10) == 9);
+    assert(
+        StableSelectionIndex(
+            -1,
+            -1,
+            4) == 0);
+    assert(
+        StableSelectionIndex(
+            3,
+            -1,
+            0) == -1);
 
     struct ModernDpiExpectation {
         unsigned dpi;
@@ -161,6 +218,30 @@ int main() {
                full.clientHeight);
         assert(clamped.resultsList.height ==
                full.resultsList.height);
+
+        // Every visible-row transition after the first row is exactly one
+        // row-height step at every supported DPI.
+        auto previous =
+            ui::ModernCompactLauncherMetricsForDpi(
+                expected.dpi,
+                1);
+        for (std::size_t rows = 2;
+             rows <= 10;
+             ++rows) {
+            const auto current =
+                ui::ModernCompactLauncherMetricsForDpi(
+                    expected.dpi,
+                    rows);
+            assert(
+                current.clientHeight -
+                    previous.clientHeight ==
+                expected.rowHeight);
+            assert(
+                current.resultsList.height ==
+                static_cast<int>(rows) *
+                    expected.rowHeight);
+            previous = current;
+        }
     }
 
     assert(ui::kSettingsClientWidthLogical == 820);

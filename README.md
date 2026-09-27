@@ -23,6 +23,14 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-alpha.6.4 — Modern Compact Interaction & Closeout I
+
+Alpha.6.4 freezes the accepted alpha.6.3 Modern Compact appearance and closes the interaction/state edges underneath it. A pending Everything query may expand the launcher immediately for synchronous results, but it no longer transiently collapses below the already-visible row count before the matching dynamic reply settles. When asynchronous replacement removes the selected result, selection stays on the nearest valid row instead of jumping back to row one; if the selected identity survives, it continues to follow that identity.
+
+The closeout also keeps Modern row-count transitions on the no-erase parent paint path and expands automated coverage across every 1–10-row height transition at 100%, 125%, 150%, 175% and 200% DPI. Smart numeric Quick Launch remains the shared Classic/Modern implementation, including the `1–9,0` mapping and existing typing/IME arbitration.
+
+No visual redesign, new provider, schema migration or search/ranking change is introduced. Classic assets and the shared SearchEngine / Everything / usage-ranking / numeric-intent core remain frozen. Settings schema remains **11**; Commands **2**, Usage **2** and Provider Cache **22** are unchanged. Windows fixed FileVersion/ProductVersion is `0.8.0.274`.
+
 ## v0.8.0-alpha.6.3 — Modern Compact Visual System I
 
 Alpha.6.3 turns the Modern Compact launcher from a mostly white result canvas into a real surface hierarchy while keeping the accepted native-control and search behavior unchanged.

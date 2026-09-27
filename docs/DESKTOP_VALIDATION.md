@@ -8,6 +8,24 @@ Automated CI covers compilation, Config/Search tests, provider smoke tests, hotk
 
 The checks below are the remaining **real interactive Windows desktop** validation items. Automated geometry/behavior tests reduce regression risk but do not replace observing the actual UI, IME, monitor transitions, providers and hotkey lifecycle on a real desktop.
 
+## v0.8.0-alpha.6.4 Modern Compact Interaction & Closeout I validation
+
+Alpha.6.4 freezes the accepted alpha.6.3 appearance. This pass is about state stability, native interaction and repaint cost; visual parameters should not be retuned unless a concrete regression is found.
+
+- [ ] Type from a 10-row query into a query whose static pass has only 0/1 results while Everything is still pending. The shell must keep its previous height until the matching dynamic reply settles, then shrink exactly once to the final row count.
+- [ ] Type from a small result set into a broader query. The shell may expand immediately for synchronous results and must not collapse/re-expand during the same dynamic generation.
+- [ ] Reorder results with an Everything reply while a non-first row is selected. If the selected identity survives, selection follows it; if it disappears, selection stays on the nearest valid row instead of jumping to row one.
+- [ ] Exercise 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 and 10 result states at 100%, 125%, 150%, 175% and 200% DPI. From row 1 upward, each height step must equal exactly one row height.
+- [ ] Rapidly alternate queries that produce 10 -> 1 -> 10 results. There must be no white/old-size flash, stale footer, or exposed parent erase between sizes.
+- [ ] Verify Up/Down/Tab/Shift+Tab wrap, Enter execution, `1–9/0` smart numeric execution, held-digit repeat suppression and `v2` / `v2r` typing arbitration in Modern Compact.
+- [ ] Verify Chinese IME composition, candidate selection, Backspace/Delete, `team`, `测试` and `team测试`; composition must never cause a delayed numeric launch.
+- [ ] Verify mouse single selection, double-click execution and keyboard/mouse handoff; the selected-row `↩` must follow selection and each unselected row must restore its `› n` hint. After a single result click, immediately type another letter: it must go into the search EDIT, not trigger LISTBOX type-to-select.
+- [ ] Verify long application names, aliases, UNC paths and mixed CJK/Latin strings. Text must ellipsize before the fixed right shortcut gutter, and footer text must never overlap `Enter`.
+- [ ] Move/reveal the launcher across 100%/200% mixed-DPI monitors and recheck Windows 10 solid fallback plus Windows 11 backdrop behavior.
+- [ ] Run a rapid typing/navigation soak and confirm GDI, USER and process handles settle rather than growing per query.
+- [ ] Recheck Classic -> Modern -> Classic. Classic geometry/assets and shared search/ranking behavior must remain unchanged.
+- [ ] Schemas remain Settings 11 / Commands 2 / Usage 2 / Provider Cache 22; Windows fixed version is 0.8.0.274.
+
 ## v0.8.0-alpha.6.3 Modern Compact Visual System I validation
 
 This pass is intentionally presentation-only. Search, Everything, usage ranking, numeric intent and Classic remain on the frozen alpha.5.49 core.
