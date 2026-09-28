@@ -146,7 +146,7 @@ std::string Read(
 void PopulateSource(
     const fs::path& source) {
     Write(
-        source / "ALTRunNext.exe",
+        source / "Asterun.exe",
         "new-app");
     Write(
         source / "Update.exe",
@@ -162,7 +162,7 @@ void PopulateSource(
 void PopulateInstall(
     const fs::path& install) {
     Write(
-        install / "ALTRunNext.exe",
+        install / "Asterun.exe",
         "old-app");
     Write(
         install / "Update.exe",
@@ -197,7 +197,7 @@ TransactionPaths Paths(
 int main() {
     const auto root =
         fs::temp_directory_path() /
-        "ALTRunNext-UpdateTransactionTests";
+        "Asterun-UpdateTransactionTests";
 
     std::error_code ec;
     fs::remove_all(root, ec);
@@ -262,7 +262,7 @@ int main() {
         assert(
             Read(
                 paths.install /
-                "ALTRunNext.exe") ==
+                "Asterun.exe") ==
             "new-app");
         assert(
             Read(
@@ -287,7 +287,7 @@ int main() {
         assert(
             Read(
                 paths.install /
-                "ALTRunNext.exe") ==
+                "Asterun.exe") ==
             "old-app");
         assert(
             Read(
@@ -387,7 +387,7 @@ int main() {
         assert(
             Read(
                 paths.install /
-                "ALTRunNext.exe") ==
+                "Asterun.exe") ==
             "old-app");
     }
 
@@ -523,16 +523,16 @@ int main() {
         PopulateInstall(paths.install);
         TransactionJournal journal;
         assert(ApplyPackage(paths, journal));
-        fs::remove(paths.install / "ALTRunNext.exe");
-        fs::create_directory(paths.install / "ALTRunNext.exe");
-        Write(paths.install / "ALTRunNext.exe" / "block", "blocked");
+        fs::remove(paths.install / "Asterun.exe");
+        fs::create_directory(paths.install / "Asterun.exe");
+        Write(paths.install / "Asterun.exe" / "block", "blocked");
         const auto result = Rollback(paths, journal);
         assert(!result.Complete());
-        assert(result.failures.front().relative == fs::path("ALTRunNext.exe"));
-        assert(Read(paths.backup / "ALTRunNext.exe") == "old-app");
-        fs::remove_all(paths.install / "ALTRunNext.exe");
+        assert(result.failures.front().relative == fs::path("Asterun.exe"));
+        assert(Read(paths.backup / "Asterun.exe") == "old-app");
+        fs::remove_all(paths.install / "Asterun.exe");
         assert(Rollback(paths, journal).Complete());
-        assert(Read(paths.install / "ALTRunNext.exe") == "old-app");
+        assert(Read(paths.install / "Asterun.exe") == "old-app");
     }
 
     fs::remove_all(root, ec);
