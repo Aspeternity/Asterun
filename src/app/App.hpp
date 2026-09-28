@@ -33,6 +33,17 @@ class LauncherWindow;
 class SettingsWindow;
 class ShortcutManagerWindow;
 
+enum class ProviderChangeFailure {
+    None,
+    EverythingServicePolicy,
+    SettingsPersistence,
+};
+
+struct ProviderChangeDiagnostic {
+    ProviderChangeFailure failure{
+        ProviderChangeFailure::None};
+    std::uint32_t nativeError{0};
+};
 
 
 class App {
@@ -171,7 +182,8 @@ public:
     bool SetProviderEnabled(
         std::string id,
         bool enabled,
-        bool refreshSettingsWindow = true);
+        bool refreshSettingsWindow = true,
+        ProviderChangeDiagnostic* diagnostic = nullptr);
     bool SetProviderEnabledBatch(
         const ProviderEnableMap& changes,
         bool refreshSettingsWindow = true);
