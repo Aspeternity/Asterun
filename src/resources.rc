@@ -1,7 +1,8 @@
 #include <winver.h>
 #include "ResourceIds.h"
 
-IDI_ASTERUN_APP ICON "resources/asterun.ico"\nIDI_ASTERUN_TRAY ICON "resources/asterun_tray.ico"
+IDI_ASTERUN_APP ICON "resources/asterun.ico"
+IDI_ASTERUN_TRAY ICON "resources/asterun_tray.ico"
 
 IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"
 IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"
