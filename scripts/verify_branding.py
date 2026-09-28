@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 HISTORICAL_FILES = {
+    Path("scripts/verify_branding.py"),
     Path("CHANGELOG.md"),
     Path("docs/DESKTOP_VALIDATION.md"),
     Path("docs/CODE_REVIEW_FIXES_BETA3.md"),
