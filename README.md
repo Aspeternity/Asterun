@@ -15,9 +15,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Aspeternity/Asterun/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Aspeternity/ALTRunNext?display_name=tag&sort=semver"></a>
+  <a href="https://github.com/Aspeternity/Asterun/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Aspeternity/Asterun?display_name=tag&sort=semver"></a>
   <a href="https://github.com/Aspeternity/Asterun/actions/workflows/build.yml"><img alt="构建状态" src="https://github.com/Aspeternity/Asterun/actions/workflows/build.yml/badge.svg?branch=main"></a>
-  <a href="LICENSE"><img alt="许可证" src="https://img.shields.io/github/license/Aspeternity/ALTRunNext"></a>
+  <a href="LICENSE"><img alt="许可证" src="https://img.shields.io/github/license/Aspeternity/Asterun"></a>
   <img alt="平台" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white">
   <img alt="C++23" src="https://img.shields.io/badge/C%2B%2B-23-00599C?logo=cplusplus&logoColor=white">
 </p>
