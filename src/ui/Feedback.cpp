@@ -62,7 +62,7 @@ void PlayFeedback(FeedbackCue cue) {
     // Use the authorized original ALTRun Popup.wav for every accepted
     // application feedback event. The existing policy still owns when a cue is
     // allowed; a new cue replaces the previous one instead of queueing audio.
-    PlaySoundW(MAKEINTRESOURCEW(IDW_ALTRUN_POPUP),
+    PlaySoundW(MAKEINTRESOURCEW(IDW_CLASSIC_POPUP),
                GetModuleHandleW(nullptr), SND_RESOURCE | SND_ASYNC | SND_NODEFAULT);
 }
 
