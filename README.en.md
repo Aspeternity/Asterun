@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="src/resources/altrun_original.ico" width="88" height="88" alt="Asterun icon">
+  <img src="docs/assets/brand/asterun-hero.webp" width="100%" alt="Asterun — Launch Faster, Go Further">
 </p>
 
 <h1 align="center">Asterun</h1>
 
 <p align="center">
-  <strong>A fast, native, keyboard-first launcher for Windows.</strong><br>
-  Classic ALTRun spirit, modern Windows integration.
+  <strong>A fast, intelligent, keyboard-first Windows launcher.</strong><br>
+  <sub>Launch Faster, Go Further</sub>
 </p>
 
 <p align="center">
@@ -36,9 +36,9 @@
 
 ## About
 
-Asterun is an independently implemented Windows launcher inspired by the classic ALTRun workflow: **small, fast, keyboard-first, and low-noise**.
+Asterun is a native, lightweight, keyboard-first launcher for Windows 10/11, designed to make the **search → focus → launch** loop fast enough to disappear into your daily workflow.
 
-The project keeps the compact launcher experience while adding the Windows integration expected from a modern daily-use tool: application discovery, pinyin and mixed-language search, usage-aware ranking, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model.
+Built with C++23 + Win32, Asterun brings application discovery, pinyin and mixed-language search, usage-aware ranking, smart numeric launch, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model into one compact launcher experience.
 
 ## v1.0.0 — Current Stable Release
 
@@ -94,7 +94,7 @@ Asterun 1.0.0 is the first stable 1.x release and the recommended version for no
 | **Usage-aware ranking** | Frequency and recency help frequently used results move closer to the top. |
 | **Smart numeric launch** | Optional 1–9,0 quick launch with typing-intent arbitration instead of blindly consuming number keys. |
 | **Windows app discovery** | Start Menu, packaged/UWP/MSIX apps, App Paths and PATH providers. |
-| **Everything integration** | Optional fast file/folder search with ALTRun-managed acquisition or compatibility with external Everything installs. |
+| **Everything integration** | Optional fast file/folder search with Asterun-managed acquisition or compatibility with external Everything installs. |
 | **User shortcuts** | Native Shortcut Manager with aliases, arguments, working directories, dynamic input and path conversion. |
 | **Portable data** | Settings, shortcuts, usage history and provider cache live under the local `data/` directory. |
 | **Native lifecycle tools** | Built-in `Update.exe` and `Uninstall.exe`, with x64 and ARM64 release packages. |
