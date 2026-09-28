@@ -8,7 +8,10 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SUPPORTED = {"0.8.0-beta.3": (11, 2, 2, 22, "0.8.0.10003")}
+SUPPORTED = {
+    "0.8.0-beta.3": (11, 2, 2, 22, "0.8.0.10003"),
+    "1.0.0": (11, 2, 2, 22, "1.0.0.30000"),
+}
 
 
 def fail(message: str) -> None:
@@ -53,7 +56,12 @@ require("src/resources.rc", version,
 for path in ("src/app.manifest", "src/uninstaller/uninstaller.manifest"):
     require(path, f'version="{fixed}"')
 require("src/uninstaller/uninstaller.manifest", "PerMonitorV2", "longPathAware")
-for path in ("README.md", "CHANGELOG.md", "ROADMAP.md", "docs/V0.8_BETA_VALIDATION.md"):
+release_validation = (
+    "docs/V1.0_RELEASE_VALIDATION.md"
+    if version == "1.0.0"
+    else "docs/V0.8_BETA_VALIDATION.md"
+)
+for path in ("README.md", "CHANGELOG.md", "ROADMAP.md", release_validation):
     require(path, version)
 
 # A release asset, unlike a source file that is deliberately being optimized,
@@ -105,7 +113,7 @@ for path, tokens in {
     "tests/ArchiveExtractorTests.cpp": ("escape.zip", "corrupt.zip", "operation_canceled"),
     "tests/ConfigCoreTests.cpp": ("WasRecoveredFromBackup()", "commands-recovered.json"),
     "tests/UpdateRuntimeTests.cpp": ("Rollback(",),
-    "tests/UpdatePolicyTests.cpp": ('"0.8.0-beta.2"', '"0.8.0-rc.1"'),
+    "tests/UpdatePolicyTests.cpp": ('"0.8.0-beta.3"', '"1.0.0"'),
 }.items():
     require(path, *tokens)
 
