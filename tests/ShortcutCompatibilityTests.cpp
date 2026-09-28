@@ -106,7 +106,7 @@ int main() {
     AssertImport(
         root,
         L"tsv-v1",
-        L"# ALTRun Next commands TSV v1\n"
+        L"# Asterun commands TSV v1\n"
         L"# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\n"
         L"v1app\t\u65e7\u683c\u5f0f\told,legacy\tapplication\tC:\\Tools\\\u5de5\u5177\\v1.exe\t--fixed\tC:\\Tools\\\u5de5\u5177\t0\t1\t1\t42\n",
         L"v1app",
@@ -143,7 +143,7 @@ int main() {
     AssertImport(
         root,
         L"tsv-v2",
-        L"# ALTRun Next commands TSV v2\n"
+        L"# Asterun commands TSV v2\n"
         L"# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\truntimeInputMode\n"
         L"v2search\tV2 Search\tsearch,web\turl\thttps://example.test/?q={input}\t\t\t1\t0\t0\t50\turl-encoded\n",
         L"v2search",
@@ -161,7 +161,7 @@ int main() {
     AssertImport(
         root,
         L"tsv-v3",
-        L"# ALTRun Next commands TSV v3\n"
+        L"# Asterun commands TSV v3\n"
         L"# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\truntimeInputMode\ticon\n"
         L"v3run\tV3 Runner\trunner,run\tcommand\t.\\tools\\runner.exe\t--name {input}\t.\\tools\t1\t1\t0\t60\traw\t.\\icons\\runner.ico\n",
         L"v3run",
