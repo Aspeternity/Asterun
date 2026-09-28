@@ -3828,7 +3828,7 @@ void SettingsWindow::CommitPendingProviderChanges() {
 
         altrun::ui::ShowMessage(
             hwnd_,
-            message,
+            message.c_str(),
             L"ALTRun Next",
             MB_OK |
                 MB_ICONERROR);
