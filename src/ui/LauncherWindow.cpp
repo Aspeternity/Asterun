@@ -2379,9 +2379,8 @@ void LauncherWindow::AddTrayIcon(
     data.uCallbackMessage =
         kTrayMessage;
     data.hIcon =
-        ui::LoadApplicationIcon(
-            instance_,
-            true);
+        ui::LoadTrayIcon(
+            instance_);
     wcscpy_s(
         data.szTip,
         L"Asterun");
