@@ -97,7 +97,7 @@ int main() {
         const auto root =
             std::filesystem::
                 temp_directory_path() /
-            "ALTRunNext-provider-smoke";
+            "Asterun-provider-smoke";
 
         std::error_code ec;
         std::filesystem::remove_all(
