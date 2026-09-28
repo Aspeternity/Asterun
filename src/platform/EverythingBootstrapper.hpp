@@ -61,6 +61,7 @@ enum class EverythingBootstrapFailure {
     ServiceRepairFailed,
     ServiceUnavailable,
     ManagedLaunchFailed,
+    UnexpectedFailure,
 };
 
 enum class ManagedEverythingStopStatus {
@@ -81,6 +82,14 @@ struct EverythingServiceRepairResult {
     bool success{false};
     std::uint32_t nativeError{0};
 };
+
+// Real-machine beta.3 validation observed ERROR_FILE_NOT_FOUND during the
+// first-enable path on a machine with no Everything service. For ALTRun's
+// provider policy, both codes are non-installed states and must not block the
+// explicit Get-and-start acquisition flow.
+[[nodiscard]] bool
+IsEverythingServiceMissingError(
+    std::uint32_t nativeError) noexcept;
 
 enum class ManagedEverythingServicePolicyStatus {
     NotInstalled,

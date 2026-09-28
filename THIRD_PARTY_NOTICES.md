@@ -1,5 +1,10 @@
 # Third-Party Notices
 
+## miniz
+
+ZIP extraction uses miniz 3.1.2 under the MIT license. Its full license is
+distributed as `third_party/miniz-LICENSE.txt` with the application.
+
 ## Original ALTRun Classic visual assets
 
 ALTRun Next includes the original Classic background and two bitmap glyphs extracted from the original ALTRun repository:

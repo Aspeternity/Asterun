@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <stop_token>
 #include <utility>
 #include <vector>
 
@@ -138,8 +139,9 @@ public:
     Discover() const = 0;
 
     [[nodiscard]] virtual ProviderDiscoveryPayload
-    DiscoverDetailed() const {
+    DiscoverDetailed(std::stop_token stop = {}) const {
         ProviderDiscoveryPayload payload;
+        if (stop.stop_requested()) return payload;
         payload.commands = Discover();
         payload.admission.evaluated =
             payload.commands.size();

@@ -2321,6 +2321,49 @@ int main(int argc, char** argv) {
     assert(!fallbackExact.empty());
     assert(fallbackExact.front().commandIndex == 0);
 
+    // Partial selection must produce the same prefix as a full stable sort,
+    // including ties, usage evidence and deliberate input order.
+    std::vector<Command> catalog;
+    UsageMap catalogUsage;
+    for (int i = 0; i < 1000; ++i) {
+        const auto id = L"candidate-" + std::to_wstring(i);
+        auto item = MakeCommand(id, L"app" + std::to_wstring(i % 17),
+            L"App " + std::to_wstring(i % 41), L"app.exe", i % 3);
+        item.source = CommandSource::StartMenu;
+        item.basePriority = i % 4;
+        item.pinned = i % 103 == 0;
+        catalog.push_back(std::move(item));
+        catalogUsage[id] = UsageStat{static_cast<std::uint64_t>(i % 13), 1};
+    }
+    for (std::wstring_view query : {L"", L"app", L"app1"}) {
+        const auto prepared = SearchEngine::PrepareIndex(catalog);
+        const auto full = fallback.Search(catalog, catalogUsage, query,
+                                          catalog.size(), false, false);
+        const auto top = fallback.Search(catalog, catalogUsage, query,
+                                         12, false, false);
+        const auto preparedTop = fallback.Search(catalog, catalogUsage, query,
+            12, false, false, &prepared);
+        assert(top.size() == std::min<std::size_t>(12, full.size()));
+        assert(preparedTop.size() == top.size());
+        for (std::size_t i = 0; i < top.size(); ++i) {
+            assert(top[i].commandIndex == full[i].commandIndex);
+            assert(preparedTop[i].commandIndex == top[i].commandIndex);
+            assert(preparedTop[i].score == top[i].score);
+        }
+    }
+    const auto basePrepared = SearchEngine::PrepareIndex(commands);
+    for (std::wstring_view query : {L"c", L"code", L"Visual", L"wx",
+                                    L"weixin", L"计算器", L"google chrome"}) {
+        const auto plain = engine.Search(commands, usage, query, 10);
+        const auto cached = engine.Search(commands, usage, query, 10,
+                                          false, true, &basePrepared);
+        assert(plain.size() == cached.size());
+        for (std::size_t i = 0; i < plain.size(); ++i) {
+            assert(plain[i].commandIndex == cached[i].commandIndex);
+            assert(plain[i].score == cached[i].score);
+        }
+    }
+
     std::cout << "SearchEngine + Pinyin tests passed\n";
     return 0;
 }

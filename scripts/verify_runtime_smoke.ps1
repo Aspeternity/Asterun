@@ -236,8 +236,14 @@ try {
     # post-window health signal. Shell integration reconciliation must begin
     # only after this signal, so a slow ShellLink/Defender path cannot delay
     # first-frame readiness.
+    # The example configuration is a repository-side test fixture, not a
+    # runtime dependency. Keep it out of the end-user archive while still
+    # exercising the same current-schema startup path in CI.
+    $settingsFixture =
+        Join-Path (Split-Path -Parent $PSScriptRoot) "config/settings.example.json"
+
     $currentSettings =
-        Get-Content (Join-Path $tempRoot "settings.example.json") -Raw |
+        Get-Content $settingsFixture -Raw |
         ConvertFrom-Json
 
     $currentSettings.general.showTrayIcon = $false

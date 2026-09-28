@@ -33,6 +33,17 @@ class LauncherWindow;
 class SettingsWindow;
 class ShortcutManagerWindow;
 
+enum class ProviderChangeFailure {
+    None,
+    EverythingServicePolicy,
+    SettingsPersistence,
+};
+
+struct ProviderChangeDiagnostic {
+    ProviderChangeFailure failure{
+        ProviderChangeFailure::None};
+    std::uint32_t nativeError{0};
+};
 
 
 class App {
@@ -171,7 +182,8 @@ public:
     bool SetProviderEnabled(
         std::string id,
         bool enabled,
-        bool refreshSettingsWindow = true);
+        bool refreshSettingsWindow = true,
+        ProviderChangeDiagnostic* diagnostic = nullptr);
     bool SetProviderEnabledBatch(
         const ProviderEnableMap& changes,
         bool refreshSettingsWindow = true);
@@ -205,26 +217,6 @@ public:
     bool StartUpdateDownloadAndInstall();
     bool RepairGlobalHotkey(
         bool forceRebind = true);
-
-    [[nodiscard]] bool
-    IsGlobalHotkeyRegistered() const noexcept {
-        return hotkeyRegistered_;
-    }
-
-    [[nodiscard]] DWORD
-    GlobalHotkeyLastError() const noexcept {
-        return hotkeyLastError_;
-    }
-
-    [[nodiscard]] bool
-    IsAuxiliaryHotkeyRegistered() const noexcept {
-        return auxiliaryHotkeyRegistered_;
-    }
-
-    [[nodiscard]] DWORD
-    AuxiliaryHotkeyLastError() const noexcept {
-        return auxiliaryHotkeyLastError_;
-    }
 
     void ShowSettings();
     void ShowAbout();
@@ -374,6 +366,16 @@ private:
         shortcutManagerWindow_;
     win::WindowsContextSnapshot
         activationContext_;
+    struct ContextSearchCache {
+        std::uint64_t generation{0};
+        std::wstring folder;
+        std::vector<Command> commands;
+        std::vector<std::size_t> indices;
+        SearchEngine::PreparedIndex prepared;
+    };
+    mutable ContextSearchCache contextSearchCache_;
+    mutable SearchEngine::PreparedIndex baseSearchIndex_;
+    mutable std::uint64_t baseSearchGeneration_{0};
     win::WindowsContextSnapshot
         lastActivationContext_;
 

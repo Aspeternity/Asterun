@@ -9,6 +9,13 @@
 int main() {
     int argc = 0;
     auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (argc == 2 &&
+        std::wstring_view(argv[1]) ==
+            L"--owned-everything-fixture") {
+        LocalFree(argv);
+        Sleep(60000);
+        return 0;
+    }
     if (argc == 7 && std::wstring_view(argv[1]) == L"--broker-fixture") {
         const std::filesystem::path install(argv[2]);
         EventHandle request, done, exitAllowed, worker;
@@ -41,6 +48,118 @@ int main() {
         assert(ValidateInstallRoot(path));
         return path;
     };
+
+    {
+        const auto install =
+            makeInstall(
+                L"owned everything process");
+        const auto ownedDirectory =
+            install /
+            L"data" /
+            L"tools" /
+            L"Everything" /
+            L"1.4.1.1032-x64";
+        std::filesystem::create_directories(
+            ownedDirectory);
+        const auto ownedExecutable =
+            ownedDirectory /
+            L"Everything.exe";
+
+        assert(
+            CopyFileW(
+                CurrentExecutable().c_str(),
+                ownedExecutable.c_str(),
+                FALSE));
+
+        assert(
+            IsOwnedEverythingProcessPath(
+                install,
+                ownedExecutable,
+                false));
+        assert(
+            IsOwnedEverythingProcessPath(
+                install,
+                ownedExecutable,
+                true));
+
+        const auto protectedRoot =
+            ManagedEverythingServiceHostRoot();
+
+        if (!protectedRoot.empty()) {
+            const auto protectedExecutable =
+                protectedRoot /
+                L"1.4.1.1032-x64" /
+                L"Everything.exe";
+
+            assert(
+                !IsOwnedEverythingProcessPath(
+                    install,
+                    protectedExecutable,
+                    false));
+            assert(
+                IsOwnedEverythingProcessPath(
+                    install,
+                    protectedExecutable,
+                    true));
+        }
+
+        assert(
+            !IsOwnedEverythingProcessPath(
+                install,
+                base /
+                    L"external" /
+                    L"Everything.exe",
+                true));
+
+        std::wstring command =
+            QuoteArgument(
+                ownedExecutable.wstring()) +
+            L" --owned-everything-fixture";
+
+        STARTUPINFOW startup{
+            sizeof(startup)};
+        PROCESS_INFORMATION process{};
+
+        assert(
+            CreateProcessW(
+                nullptr,
+                command.data(),
+                nullptr,
+                nullptr,
+                FALSE,
+                CREATE_NO_WINDOW,
+                nullptr,
+                ownedDirectory.c_str(),
+                &startup,
+                &process));
+
+        CloseHandle(
+            process.hThread);
+
+        // Give the copied fixture time to enter its wait loop before the
+        // uninstaller snapshots processes.
+        Sleep(250);
+
+        assert(
+            TerminateManagedEverythingProcesses(
+                install,
+                false));
+        assert(
+            WaitForSingleObject(
+                process.hProcess,
+                5000) ==
+            WAIT_OBJECT_0);
+
+        CloseHandle(
+            process.hProcess);
+
+        RemovalFailure cleanup;
+        assert(
+            RemoveAllWithRetry(
+                install,
+                cleanup));
+    }
+
     {
         const auto install = makeInstall(L"只读文件 preserve");
         const auto user = install / L"data" / L"commands.json";

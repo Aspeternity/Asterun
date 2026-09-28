@@ -17,6 +17,29 @@ SearchEngine::SearchEngine(
           std::move(
               pinyinDictionaryDirectory)) {}
 
+SearchEngine::PreparedIndex SearchEngine::PrepareIndex(
+    std::span<const Command> commands) {
+    const auto prepare = [](std::wstring_view field) {
+        return PreparedField{relevance::Normalize(field), WordInitials(field)};
+    };
+    PreparedIndex index;
+    index.reserve(commands.size());
+    for (const auto& command : commands) {
+        PreparedCommand item;
+        item.keyword = prepare(command.keyword);
+        item.title = prepare(command.title);
+        item.target = prepare(command.target);
+        item.aliases.reserve(command.aliases.size());
+        for (const auto& alias : command.aliases)
+            item.aliases.push_back(prepare(alias));
+        item.distinctiveTokens.reserve(command.distinctiveTokens.size());
+        for (const auto& token : command.distinctiveTokens)
+            item.distinctiveTokens.push_back(prepare(token));
+        index.push_back(std::move(item));
+    }
+    return index;
+}
+
 bool SearchEngine::GlobMatch(
     std::wstring_view field,
     std::wstring_view pattern) {
@@ -266,10 +289,11 @@ std::wstring SearchEngine::WordInitials(
 relevance::Match
 SearchEngine::DerivedInitialMatchScore(
     std::wstring_view field,
-    std::wstring_view normalizedQuery) {
+    std::wstring_view normalizedQuery,
+    const std::wstring* prepared) {
 
-    const std::wstring initials =
-        WordInitials(field);
+    const std::wstring owned = prepared ? std::wstring{} : WordInitials(field);
+    const std::wstring& initials = prepared ? *prepared : owned;
 
     if (initials.size() < 2) {
         return {};
@@ -497,7 +521,8 @@ SearchEngine::CommandTextScore(
     const Command& command,
     std::wstring_view normalizedQuery,
     bool usePinyin,
-    bool allowTarget) const {
+    bool allowTarget,
+    const PreparedCommand* prepared) const {
 
     if (normalizedQuery.empty()) {
         return {};
@@ -521,34 +546,36 @@ SearchEngine::CommandTextScore(
             }
         };
 
+    const auto matchField = [&](std::wstring_view original,
+                                const PreparedField* field) {
+        return field
+            ? relevance::MatchPreparedField(original, field->normalized,
+                                            normalizedQuery)
+            : relevance::MatchTextNormalizedQuery(original, normalizedQuery);
+    };
+    if (prepared && prepared->aliases.size() != command.aliases.size())
+        prepared = nullptr;
+
     consider(
-        relevance::MatchTextNormalizedQuery(
-            command.keyword,
-            normalizedQuery),
+        matchField(command.keyword, prepared ? &prepared->keyword : nullptr),
         relevance::MatchField::
             Keyword);
 
-    for (const auto& alias :
-         command.aliases) {
+    for (std::size_t i = 0; i < command.aliases.size(); ++i) {
+        const auto& alias = command.aliases[i];
         consider(
-            relevance::MatchTextNormalizedQuery(
-                alias,
-                normalizedQuery),
+            matchField(alias, prepared ? &prepared->aliases[i] : nullptr),
             relevance::MatchField::
                 Alias);
     }
 
     consider(
-        relevance::MatchTextNormalizedQuery(
-            command.title,
-            normalizedQuery),
+        matchField(command.title, prepared ? &prepared->title : nullptr),
         relevance::MatchField::Title);
 
     if (allowTarget) {
         consider(
-            relevance::MatchTextNormalizedQuery(
-                command.target,
-                normalizedQuery),
+            matchField(command.target, prepared ? &prepared->target : nullptr),
             relevance::MatchField::
                 Target);
     }
@@ -556,16 +583,18 @@ SearchEngine::CommandTextScore(
     consider(
         DerivedInitialMatchScore(
             command.keyword,
-            normalizedQuery),
+            normalizedQuery,
+            prepared ? &prepared->keyword.initials : nullptr),
         relevance::MatchField::
             Keyword);
 
-    for (const auto& alias :
-         command.aliases) {
+    for (std::size_t i = 0; i < command.aliases.size(); ++i) {
+        const auto& alias = command.aliases[i];
         consider(
             DerivedInitialMatchScore(
                 alias,
-                normalizedQuery),
+                normalizedQuery,
+                prepared ? &prepared->aliases[i].initials : nullptr),
             relevance::MatchField::
                 Alias);
     }
@@ -573,7 +602,8 @@ SearchEngine::CommandTextScore(
     consider(
         DerivedInitialMatchScore(
             command.title,
-            normalizedQuery),
+            normalizedQuery,
+            prepared ? &prepared->title.initials : nullptr),
         relevance::MatchField::Title);
 
     if (usePinyin) {
@@ -835,9 +865,12 @@ SearchEngine::Search(
     std::wstring_view query,
     std::size_t limit,
     bool allowWildcards,
-    bool allowPinyin) const {
+    bool allowPinyin,
+    const PreparedIndex* prepared) const {
 
     std::vector<SearchResult> results;
+
+    if (prepared && prepared->size() != commands.size()) prepared = nullptr;
 
     results.reserve(
         std::min(
@@ -957,7 +990,8 @@ SearchEngine::Search(
                           command,
                           normalizedQuery,
                           usePinyin,
-                          allowTarget);
+                          allowTarget,
+                          prepared ? &(*prepared)[i] : nullptr);
 
             // Cached distinctive identity is stronger evidence than a
             // generic later-word short-prefix match. Any entry may therefore
@@ -968,13 +1002,18 @@ SearchEngine::Search(
             // matching: role inference and I/O stay out of the keystroke path.
             if (!wildcardQuery) {
 
-                for (const auto& distinctive :
-                     command.distinctiveTokens) {
+                for (std::size_t tokenIndex = 0;
+                     tokenIndex < command.distinctiveTokens.size(); ++tokenIndex) {
+                    const auto& distinctive = command.distinctiveTokens[tokenIndex];
 
                     auto intentMatch =
-                        relevance::MatchTextNormalizedQuery(
-                            distinctive,
-                            normalizedQuery);
+                        prepared && (*prepared)[i].distinctiveTokens.size() ==
+                            command.distinctiveTokens.size()
+                            ? relevance::MatchPreparedField(distinctive,
+                                (*prepared)[i].distinctiveTokens[tokenIndex].normalized,
+                                normalizedQuery)
+                            : relevance::MatchTextNormalizedQuery(
+                                distinctive, normalizedQuery);
 
                     if (!intentMatch) {
                         continue;
@@ -1033,7 +1072,8 @@ SearchEngine::Search(
                             command,
                             token,
                             usePinyin,
-                            allowTarget);
+                            allowTarget,
+                            prepared ? &(*prepared)[i] : nullptr);
 
                     // Multi-token intent must use the same already-cached
                     // distinctive identity as a standalone query. This is
@@ -1043,13 +1083,18 @@ SearchEngine::Search(
                     // own identity. StrongMatchOnly prefixes remain subject to
                     // the family/distinctive admission boundary.
                     if (!tokenMatch) {
-                        for (const auto& distinctive :
-                             command.distinctiveTokens) {
+                        for (std::size_t tokenIndex = 0;
+                             tokenIndex < command.distinctiveTokens.size(); ++tokenIndex) {
+                            const auto& distinctive = command.distinctiveTokens[tokenIndex];
 
                             auto intentMatch =
-                                relevance::MatchTextNormalizedQuery(
-                                    distinctive,
-                                    token);
+                                prepared && (*prepared)[i].distinctiveTokens.size() ==
+                                    command.distinctiveTokens.size()
+                                    ? relevance::MatchPreparedField(distinctive,
+                                        (*prepared)[i].distinctiveTokens[tokenIndex].normalized,
+                                        token)
+                                    : relevance::MatchTextNormalizedQuery(
+                                        distinctive, token);
 
                             if (!intentMatch) {
                                 continue;
@@ -1161,9 +1206,7 @@ SearchEngine::Search(
         });
     }
 
-    std::stable_sort(
-        results.begin(),
-        results.end(),
+    const auto rankedBefore =
         [&](const SearchResult& left,
             const SearchResult& right) {
 
@@ -1220,9 +1263,20 @@ SearchEngine::Search(
                     rightCommand.keyword;
             }
 
-            return leftCommand.title <
-                rightCommand.title;
-        });
+            if (leftCommand.title != rightCommand.title) {
+                return leftCommand.title < rightCommand.title;
+            }
+            // Results are appended in source-index order, so this explicit
+            // tie key reproduces stable_sort when selecting only top K.
+            return left.commandIndex < right.commandIndex;
+        };
+
+    if (limit < results.size()) {
+        std::partial_sort(results.begin(), results.begin() + limit,
+                          results.end(), rankedBefore);
+    } else {
+        std::sort(results.begin(), results.end(), rankedBefore);
+    }
 
     if (results.size() > limit) {
         results.resize(limit);

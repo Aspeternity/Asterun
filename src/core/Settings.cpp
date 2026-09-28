@@ -1,6 +1,7 @@
 #include "Settings.hpp"
 
 #include "ConfigIO.hpp"
+#include "ConfigValidation.hpp"
 #include "HotkeyRegistry.hpp"
 #include "Version.hpp"
 
@@ -294,6 +295,7 @@ void SettingsStore::Load() {
         false;
     unsupportedSchemaVersion_ = 0;
     recoveredFromBackup_ = false;
+    preserveInvalidInput_ = false;
     migratedFromOlderSchema_ = false;
     migratedFromSchemaVersion_ = 0;
 
@@ -303,7 +305,7 @@ void SettingsStore::Load() {
 
     // A newer schema may contain fields this version does not understand.
     // Never migrate/default-save over it during downgrade.
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return;
     }
 
@@ -320,7 +322,12 @@ bool SettingsStore::LoadJson() {
     auto load =
         config::LoadJsonWithBackup(
             jsonPath_,
-            config::kSettingsSchemaVersion);
+            config::kSettingsSchemaVersion,
+            config::ValidSettingsNode);
+
+    preserveInvalidInput_ =
+        load.status == config::JsonLoadStatus::InvalidExisting ||
+        (load.status == config::JsonLoadStatus::RecoveredBackup && !load.primaryRepaired);
 
     recoveredFromBackup_ =
         load.status ==
@@ -339,7 +346,8 @@ bool SettingsStore::LoadJson() {
             load.schemaVersion;
     }
 
-    if (!load.value) {
+    if (!load.value ||
+        (preserveInvalidInput_ && !config::ValidSettingsNode(*load.value))) {
         return false;
     }
 
@@ -930,7 +938,7 @@ bool SettingsStore::MigrateLegacyIni() {
 }
 
 bool SettingsStore::Save() const {
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1076,13 +1084,14 @@ bool SettingsStore::Save() const {
 
     return config::SaveJsonAtomic(
         jsonPath_,
-        root);
+        root,
+        config::ValidSettingsNode);
 }
 
 void SettingsStore::SetUiStyle(
     UiStyle style) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return;
     }
 
@@ -1099,7 +1108,7 @@ void SettingsStore::SetUiStyle(
 void SettingsStore::SetLanguage(
     Language language) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return;
     }
 
@@ -1133,7 +1142,7 @@ bool SettingsStore::SetStartWithWindows(
 bool SettingsStore::SetStartupBehavior(
     StartupBehavior behavior) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1154,7 +1163,7 @@ bool SettingsStore::SetStartupBehavior(
 bool SettingsStore::SetShowTrayIcon(
     bool enabled) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1175,7 +1184,7 @@ bool SettingsStore::SetShowTrayIcon(
 bool SettingsStore::SetSoundEnabled(
     bool enabled) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1196,7 +1205,7 @@ bool SettingsStore::SetSoundEnabled(
 bool SettingsStore::SetAddToSendToMenu(
     bool enabled) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1217,7 +1226,7 @@ bool SettingsStore::SetAddToSendToMenu(
 bool SettingsStore::SetPopupMonitor(
     std::string popupMonitor) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1273,7 +1282,7 @@ bool SettingsStore::SetAuxiliaryHotkey(
 bool SettingsStore::SetHotkeyBinding(
     std::string actionId,
     HotkeyBinding binding) {
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1308,7 +1317,7 @@ bool SettingsStore::SetHotkeyBinding(
 }
 
 bool SettingsStore::ResetHotkeyBindings() {
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1334,7 +1343,7 @@ bool SettingsStore::SetClassicBehavior(
     bool executeSingleResultImmediately,
     bool pinyinSearch) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1404,7 +1413,7 @@ bool SettingsStore::SetProviderEnabledBatch(
 bool SettingsStore::SetManagedEverythingShowTrayIcon(
     bool enabled) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1425,7 +1434,7 @@ bool SettingsStore::SetManagedEverythingShowTrayIcon(
 bool SettingsStore::SetUpdateSettings(
     bool autoCheck,
     UpdateChannel channel) {
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1450,7 +1459,7 @@ bool SettingsStore::SetWindowPlacement(
     std::string settingsPlacement,
     std::string shortcutManagerPlacement) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1501,7 +1510,7 @@ bool SettingsStore::RememberLauncherPosition(
     int x,
     int y) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1531,7 +1540,7 @@ bool SettingsStore::RememberSettingsPosition(
     int x,
     int y) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -1561,7 +1570,7 @@ bool SettingsStore::RememberShortcutManagerPosition(
     int x,
     int y) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 

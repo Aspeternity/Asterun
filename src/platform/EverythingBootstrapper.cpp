@@ -1,7 +1,10 @@
+#include "../platform/WindowsCommandLine.hpp"
 #include "EverythingBootstrapper.hpp"
 
 #include "../core/EverythingBootstrapPolicy.hpp"
+#include "../core/ArchiveExtractor.hpp"
 #include "SecureElevation.hpp"
+#include "SecureArchive.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -10,11 +13,13 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
-#include <bcrypt.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shldisp.h>
 #include <winhttp.h>
+#include <wintrust.h>
+#include <softpub.h>
+#include <wincrypt.h>
 
 #include <algorithm>
 #include <array>
@@ -80,52 +85,6 @@ struct ServiceHandle {
     ServiceHandle(const ServiceHandle&) = delete;
     ServiceHandle& operator=(
         const ServiceHandle&) = delete;
-};
-
-struct ComApartment {
-    HRESULT result{
-        CoInitializeEx(
-            nullptr,
-            COINIT_APARTMENTTHREADED)};
-
-    ~ComApartment() {
-        if (SUCCEEDED(result)) {
-            CoUninitialize();
-        }
-    }
-
-    [[nodiscard]] bool Ready() const {
-        return SUCCEEDED(result) ||
-            result == RPC_E_CHANGED_MODE;
-    }
-};
-
-template <typename T>
-struct ComPtr {
-    T* value{nullptr};
-
-    ~ComPtr() {
-        if (value) {
-            value->Release();
-        }
-    }
-
-    ComPtr() = default;
-    ComPtr(const ComPtr&) = delete;
-    ComPtr& operator=(
-        const ComPtr&) = delete;
-
-    [[nodiscard]] T** Put() {
-        if (value) {
-            value->Release();
-            value = nullptr;
-        }
-        return &value;
-    }
-
-    [[nodiscard]] T* Get() const {
-        return value;
-    }
 };
 
 [[nodiscard]] EverythingPackageArchitecture
@@ -749,40 +708,9 @@ LaunchEverything(
 }
 
 [[nodiscard]] std::wstring
-QuoteElevationArgument(
-    std::wstring_view value) {
-    std::wstring result = L"\"";
-    std::size_t slashes = 0;
-
-    for (const wchar_t ch : value) {
-        if (ch == L'\\') {
-            ++slashes;
-            continue;
-        }
-
-        if (ch == L'\"') {
-            result.append(
-                slashes * 2 + 1,
-                L'\\');
-            result.push_back(L'\"');
-            slashes = 0;
-            continue;
-        }
-
-        result.append(
-            slashes,
-            L'\\');
-        slashes = 0;
-        result.push_back(ch);
-    }
-
-    result.append(
-        slashes * 2,
-        L'\\');
-    result.push_back(L'\"');
-    return result;
+QuoteElevationArgument(std::wstring_view value) {
+    return QuoteWindowsArgument(value);
 }
-
 [[nodiscard]] bool
 RunGuardedElevatedExecutable(
     const std::filesystem::path& executable,
@@ -1092,8 +1020,8 @@ ProbeEverythingService(
             static_cast<std::uint32_t>(
                 GetLastError());
 
-        if (nativeError ==
-            ERROR_SERVICE_DOES_NOT_EXIST) {
+        if (IsEverythingServiceMissingError(
+                nativeError)) {
             nativeError = 0;
             return ServiceProbe::Missing;
         }
@@ -1406,8 +1334,8 @@ WaitForEverythingServiceStopped(
             static_cast<std::uint32_t>(
                 GetLastError());
 
-        if (nativeError ==
-            ERROR_SERVICE_DOES_NOT_EXIST) {
+        if (IsEverythingServiceMissingError(
+                nativeError)) {
             nativeError = 0;
             return true;
         }
@@ -2509,177 +2437,6 @@ DownloadFile(
     return snapshot.downloadedBytes > 0;
 }
 
-[[nodiscard]]
-std::optional<std::string>
-Sha256File(
-    const std::filesystem::path& path,
-    std::uint32_t& nativeError) {
-    BCRYPT_ALG_HANDLE algorithm =
-        nullptr;
-    BCRYPT_HASH_HANDLE hash =
-        nullptr;
-
-    DWORD objectLength = 0;
-    DWORD objectLengthBytes =
-        sizeof(objectLength);
-    DWORD hashLength = 0;
-    DWORD hashLengthBytes =
-        sizeof(hashLength);
-
-    if (BCryptOpenAlgorithmProvider(
-            &algorithm,
-            BCRYPT_SHA256_ALGORITHM,
-            nullptr,
-            0) != 0) {
-        nativeError =
-            ERROR_INVALID_FUNCTION;
-        return std::nullopt;
-    }
-
-    const auto closeAlgorithm =
-        [&]() {
-            if (algorithm) {
-                BCryptCloseAlgorithmProvider(
-                    algorithm,
-                    0);
-                algorithm = nullptr;
-            }
-        };
-
-    if (BCryptGetProperty(
-            algorithm,
-            BCRYPT_OBJECT_LENGTH,
-            reinterpret_cast<PUCHAR>(
-                &objectLength),
-            sizeof(objectLength),
-            &objectLengthBytes,
-            0) != 0 ||
-        BCryptGetProperty(
-            algorithm,
-            BCRYPT_HASH_LENGTH,
-            reinterpret_cast<PUCHAR>(
-                &hashLength),
-            sizeof(hashLength),
-            &hashLengthBytes,
-            0) != 0 ||
-        hashLength != 32) {
-        closeAlgorithm();
-        nativeError =
-            ERROR_INVALID_DATA;
-        return std::nullopt;
-    }
-
-    std::vector<UCHAR> object(
-        objectLength);
-
-    if (BCryptCreateHash(
-            algorithm,
-            &hash,
-            object.data(),
-            objectLength,
-            nullptr,
-            0,
-            0) != 0) {
-        closeAlgorithm();
-        nativeError =
-            ERROR_INVALID_FUNCTION;
-        return std::nullopt;
-    }
-
-    const auto closeHash =
-        [&]() {
-            if (hash) {
-                BCryptDestroyHash(hash);
-                hash = nullptr;
-            }
-        };
-
-    std::ifstream input(
-        path,
-        std::ios::binary);
-
-    if (!input) {
-        closeHash();
-        closeAlgorithm();
-        nativeError =
-            ERROR_OPEN_FAILED;
-        return std::nullopt;
-    }
-
-    std::array<char, 64 * 1024>
-        buffer{};
-
-    while (input) {
-        input.read(
-            buffer.data(),
-            static_cast<
-                std::streamsize>(
-                buffer.size()));
-
-        const auto count =
-            input.gcount();
-
-        if (count > 0 &&
-            BCryptHashData(
-                hash,
-                reinterpret_cast<PUCHAR>(
-                    buffer.data()),
-                static_cast<ULONG>(
-                    count),
-                0) != 0) {
-            closeHash();
-            closeAlgorithm();
-            nativeError =
-                ERROR_INVALID_DATA;
-            return std::nullopt;
-        }
-    }
-
-    if (!input.eof()) {
-        closeHash();
-        closeAlgorithm();
-        nativeError =
-            ERROR_READ_FAULT;
-        return std::nullopt;
-    }
-
-    std::array<UCHAR, 32>
-        digest{};
-
-    if (BCryptFinishHash(
-            hash,
-            digest.data(),
-            static_cast<ULONG>(
-                digest.size()),
-            0) != 0) {
-        closeHash();
-        closeAlgorithm();
-        nativeError =
-            ERROR_INVALID_DATA;
-        return std::nullopt;
-    }
-
-    closeHash();
-    closeAlgorithm();
-
-    constexpr char hex[] =
-        "0123456789abcdef";
-
-    std::string value;
-    value.reserve(
-        digest.size() * 2);
-
-    for (const auto byte : digest) {
-        value.push_back(
-            hex[(byte >> 4) & 0x0f]);
-        value.push_back(
-            hex[byte & 0x0f]);
-    }
-
-    nativeError = 0;
-    return value;
-}
-
 [[nodiscard]] std::string
 NarrowAscii(
     std::wstring_view value) {
@@ -2698,204 +2455,68 @@ NarrowAscii(
 }
 
 [[nodiscard]] bool
-ExtractZipWithShell(
-    const std::filesystem::path& archive,
-    const std::filesystem::path& destination,
-    std::uint32_t& nativeError,
+ExtractZipVerified(const std::filesystem::path& archive,
+    const std::filesystem::path& destination, std::uint32_t& nativeError,
     std::stop_token stopToken) {
-    std::error_code ec;
-    std::filesystem::create_directories(
-        destination,
-        ec);
-
-    if (ec) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                ec.value());
+    std::error_code error;
+    if (!altrun::ExtractArchive(archive, destination, error, stopToken)) {
+        nativeError = stopToken.stop_requested() ? ERROR_CANCELLED : ERROR_INVALID_DATA;
         return false;
     }
+    nativeError = 0;
+    return true;
+}
 
-    ComApartment apartment;
+// The downloaded ZIP is checked against voidtools' checksum manifest, but a
+// portable source can be modified later. Authenticate the bytes after they
+// have been copied into the administrator-owned staging directory and before
+// promoting them to the service executable.
+[[nodiscard]] bool
+VerifyEverythingPublisher(const std::filesystem::path& staged,
+                          std::uint32_t& nativeError) {
+    WINTRUST_FILE_INFO file{};
+    file.cbStruct = sizeof(file);
+    file.pcwszFilePath = staged.c_str();
 
-    if (!apartment.Ready()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                apartment.result);
-        return false;
-    }
+    WINTRUST_DATA trust{};
+    trust.cbStruct = sizeof(trust);
+    trust.dwUIChoice = WTD_UI_NONE;
+    trust.fdwRevocationChecks = WTD_REVOKE_NONE;
+    trust.dwUnionChoice = WTD_CHOICE_FILE;
+    trust.pFile = &file;
+    trust.dwStateAction = WTD_STATEACTION_VERIFY;
+    trust.dwProvFlags = WTD_REVOCATION_CHECK_NONE;
+    GUID action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+    const LONG result = WinVerifyTrust(nullptr, &action, &trust);
 
-    ComPtr<IShellDispatch> shell;
-
-    HRESULT hr =
-        CoCreateInstance(
-            CLSID_Shell,
-            nullptr,
-            CLSCTX_INPROC_SERVER,
-            IID_IShellDispatch,
-        reinterpret_cast<void**>(
-            shell.Put()));
-
-    if (FAILED(hr) ||
-        !shell.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                hr);
-        return false;
-    }
-
-    VARIANT archiveVariant;
-    VariantInit(&archiveVariant);
-    archiveVariant.vt = VT_BSTR;
-    archiveVariant.bstrVal =
-        SysAllocString(
-            archive.c_str());
-
-    VARIANT destinationVariant;
-    VariantInit(&destinationVariant);
-    destinationVariant.vt = VT_BSTR;
-    destinationVariant.bstrVal =
-        SysAllocString(
-            destination.c_str());
-
-    if (!archiveVariant.bstrVal ||
-        !destinationVariant.bstrVal) {
-        VariantClear(
-            &archiveVariant);
-        VariantClear(
-            &destinationVariant);
-        nativeError =
-            ERROR_NOT_ENOUGH_MEMORY;
-        return false;
-    }
-
-    ComPtr<Folder> sourceFolder;
-    ComPtr<Folder> destinationFolder;
-
-    hr = shell.Get()->NameSpace(
-        archiveVariant,
-        sourceFolder.Put());
-
-    if (SUCCEEDED(hr)) {
-        hr = shell.Get()->NameSpace(
-            destinationVariant,
-            destinationFolder.Put());
-    }
-
-    VariantClear(
-        &archiveVariant);
-    VariantClear(
-        &destinationVariant);
-
-    if (FAILED(hr) ||
-        !sourceFolder.Get() ||
-        !destinationFolder.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                FAILED(hr)
-                    ? hr
-                    : E_FAIL);
-        return false;
-    }
-
-    ComPtr<FolderItems> items;
-
-    hr = sourceFolder.Get()->Items(
-        items.Put());
-
-    if (FAILED(hr) ||
-        !items.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                FAILED(hr)
-                    ? hr
-                    : E_FAIL);
-        return false;
-    }
-
-    VARIANT itemVariant;
-    VariantInit(&itemVariant);
-    itemVariant.vt =
-        VT_DISPATCH;
-    itemVariant.pdispVal =
-        items.Get();
-    itemVariant.pdispVal->AddRef();
-
-    VARIANT options;
-    VariantInit(&options);
-    options.vt = VT_I4;
-    options.lVal =
-        FOF_SILENT |
-        FOF_NOCONFIRMATION |
-        FOF_NOERRORUI |
-        FOF_NOCONFIRMMKDIR;
-
-    hr = destinationFolder.Get()->
-        CopyHere(
-            itemVariant,
-            options);
-
-    VariantClear(
-        &itemVariant);
-
-    if (FAILED(hr)) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                hr);
-        return false;
-    }
-
-    const auto executable =
-        destination /
-        L"Everything.exe";
-
-    std::uintmax_t previousSize = 0;
-    int stableCount = 0;
-
-    const auto deadline =
-        std::chrono::steady_clock::now() +
-        std::chrono::seconds(20);
-
-    while (!stopToken.stop_requested() &&
-           std::chrono::steady_clock::now() <
-               deadline) {
-        ec.clear();
-
-        if (std::filesystem::is_regular_file(
-                executable,
-                ec) &&
-            !ec) {
-            const auto size =
-                std::filesystem::file_size(
-                    executable,
-                    ec);
-
-            if (!ec && size > 0) {
-                if (size ==
-                    previousSize) {
-                    ++stableCount;
-                } else {
-                    previousSize =
-                        size;
-                    stableCount = 0;
-                }
-
-                if (stableCount >= 3) {
-                    nativeError = 0;
-                    return true;
+    bool publisherMatches = false;
+    if (result == ERROR_SUCCESS && trust.hWVTStateData) {
+        const HMODULE library = GetModuleHandleW(L"wintrust.dll");
+        const auto provider = library ? reinterpret_cast<decltype(&WTHelperProvDataFromStateData)>(
+            GetProcAddress(library, "WTHelperProvDataFromStateData")) : nullptr;
+        const auto signer = library ? reinterpret_cast<decltype(&WTHelperGetProvSignerFromChain)>(
+            GetProcAddress(library, "WTHelperGetProvSignerFromChain")) : nullptr;
+        if (provider && signer) {
+            if (auto* data = provider(trust.hWVTStateData)) {
+                if (auto* chain = signer(data, 0, FALSE, 0);
+                    chain && chain->csCertChain && chain->pasCertChain[0].pCert) {
+                    wchar_t organization[128]{};
+                    const auto length = CertGetNameStringW(chain->pasCertChain[0].pCert,
+                        CERT_NAME_ATTR_TYPE, 0,
+                        const_cast<char*>(szOID_ORGANIZATION_NAME), organization,
+                        static_cast<DWORD>(std::size(organization)));
+                    publisherMatches = length > 1 &&
+                        (_wcsicmp(organization, L"voidtools PTY LTD") == 0 ||
+                         _wcsicmp(organization, L"voidtools") == 0);
                 }
             }
         }
-
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(
-                150));
     }
-
-    nativeError =
-        stopToken.stop_requested()
-            ? ERROR_CANCELLED
-            : ERROR_TIMEOUT;
-    return false;
+    trust.dwStateAction = WTD_STATEACTION_CLOSE;
+    if (trust.hWVTStateData) WinVerifyTrust(nullptr, &action, &trust);
+    nativeError = result != ERROR_SUCCESS ? static_cast<std::uint32_t>(result) :
+        publisherMatches ? ERROR_SUCCESS : TRUST_E_SUBJECT_NOT_TRUSTED;
+    return result == ERROR_SUCCESS && publisherMatches;
 }
 
 [[nodiscard]] bool
@@ -3097,6 +2718,11 @@ CopyManagedEverythingToProtectedHost(
         return false;
     }
 
+    if (!VerifyEverythingPublisher(staged, nativeError)) {
+        DeleteFileW(staged.c_str());
+        return false;
+    }
+
     if (!MoveFileExW(
             staged.c_str(),
             destination.c_str(),
@@ -3153,6 +2779,15 @@ NeedsInstall(
 }
 
 } // namespace
+
+bool
+IsEverythingServiceMissingError(
+    std::uint32_t nativeError) noexcept {
+    return nativeError ==
+               ERROR_SERVICE_DOES_NOT_EXIST ||
+        nativeError ==
+               ERROR_FILE_NOT_FOUND;
+}
 
 std::filesystem::path
 ManagedEverythingExecutable(
@@ -3288,24 +2923,10 @@ SetManagedEverythingServiceEnabled(
         };
     }
 
-    const auto managedExecutable =
-        ManagedEverythingExecutable(
-            dataDirectory);
-    const auto expectedServiceExecutable =
-        ManagedEverythingServiceExecutableForSource(
-            managedExecutable);
-
-    if (enabled &&
-        (!FileExists(
-             managedExecutable) ||
-         expectedServiceExecutable.empty())) {
-        return {
-            ManagedEverythingServicePolicyStatus::
-                Failed,
-            ERROR_FILE_NOT_FOUND,
-        };
-    }
-
+    // An existing service must be classified by ownership before the
+    // current portable directory's managed source is considered. A stopped
+    // external/user-managed Everything service is still external even when
+    // this ALTRun directory has never downloaded Everything.
     std::filesystem::path
         serviceExecutable;
     bool serviceExecutableExists =
@@ -3315,6 +2936,15 @@ SetManagedEverythingServiceEnabled(
             serviceExecutable,
             serviceExecutableExists,
             nativeError)) {
+        if (IsEverythingServiceMissingError(
+                nativeError)) {
+            return {
+                ManagedEverythingServicePolicyStatus::
+                    NotInstalled,
+                0,
+            };
+        }
+
         return {
             ManagedEverythingServicePolicyStatus::
                 Failed,
@@ -3332,11 +2962,42 @@ SetManagedEverythingServiceEnabled(
         };
     }
 
+    const auto managedExecutable =
+        ManagedEverythingExecutable(
+            dataDirectory);
+    const auto expectedServiceExecutable =
+        ManagedEverythingServiceExecutableForSource(
+            managedExecutable);
+
+    if (enabled &&
+        (!FileExists(
+             managedExecutable) ||
+         expectedServiceExecutable.empty())) {
+        // The service belongs to ALTRun, but this portable directory has no
+        // verified client/source yet. Persist the provider choice and let the
+        // explicit Get-and-start flow reacquire the source before any
+        // privileged service repair is attempted.
+        return {
+            ManagedEverythingServicePolicyStatus::
+                NotInstalled,
+            0,
+        };
+    }
+
     std::uint32_t startType = 0;
 
     if (!QueryEverythingServiceStartType(
             startType,
             nativeError)) {
+        if (IsEverythingServiceMissingError(
+                nativeError)) {
+            return {
+                ManagedEverythingServicePolicyStatus::
+                    NotInstalled,
+                0,
+            };
+        }
+
         return {
             ManagedEverythingServicePolicyStatus::
                 Failed,
@@ -3458,8 +3119,8 @@ ApplyManagedEverythingServiceEnabledPolicy(
             static_cast<std::uint32_t>(
                 GetLastError());
 
-        if (error ==
-            ERROR_SERVICE_DOES_NOT_EXIST) {
+        if (IsEverythingServiceMissingError(
+                error)) {
             return {
                 true,
                 0,
@@ -3765,8 +3426,9 @@ RepairManagedEverythingServicePath(
         const DWORD error =
             GetLastError();
 
-        if (error !=
-            ERROR_SERVICE_DOES_NOT_EXIST) {
+        if (!IsEverythingServiceMissingError(
+                static_cast<std::uint32_t>(
+                    error))) {
             return {
                 false,
                 static_cast<std::uint32_t>(
@@ -4783,15 +4445,25 @@ RunEverythingBootstrap(
             ExtractingPackage,
         progress);
 
-    if (!ExtractZipWithShell(
+    std::wstring extractionToken;
+    if (!GenerateSecureToken(extractionToken, nativeError)) {
+        return Fail(snapshot, EverythingBootstrapFailure::ExtractionFailed,
+                    nativeError, progress);
+    }
+    const auto stagingDirectory = toolsRoot /
+        (L".altrun-extract-" + extractionToken);
+
+    if (!ExtractZipVerified(
             verifiedArchive,
-            managedDirectory,
+            stagingDirectory,
             nativeError,
             stopToken)) {
         ec.clear();
         std::filesystem::remove(
             verifiedArchive,
             ec);
+        ec.clear();
+        std::filesystem::remove_all(stagingDirectory, ec);
 
         return Fail(
             snapshot,
@@ -4808,6 +4480,16 @@ RunEverythingBootstrap(
     std::filesystem::remove(
         verifiedArchive,
         ec);
+
+    ec.clear();
+    std::filesystem::rename(stagingDirectory, managedDirectory, ec);
+    if (ec) {
+        const auto stagingError = static_cast<std::uint32_t>(ec.value());
+        std::error_code cleanupError;
+        std::filesystem::remove_all(stagingDirectory, cleanupError);
+        return Fail(snapshot, EverythingBootstrapFailure::ExtractionFailed,
+                    stagingError, progress);
+    }
 
     if (!FileExists(
             targetManagedExecutable)) {

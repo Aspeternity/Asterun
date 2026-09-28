@@ -44,6 +44,38 @@ ProcessResourceSnapshot ProcessResources() {
     return snapshot;
 }
 
+bool EverythingServiceIsMissing() {
+    SC_HANDLE manager =
+        OpenSCManagerW(
+            nullptr,
+            nullptr,
+            SC_MANAGER_CONNECT);
+
+    if (!manager) {
+        return false;
+    }
+
+    SC_HANDLE service =
+        OpenServiceW(
+            manager,
+            L"Everything",
+            SERVICE_QUERY_STATUS);
+
+    if (service) {
+        CloseServiceHandle(service);
+        CloseServiceHandle(manager);
+        return false;
+    }
+
+    const DWORD error =
+        GetLastError();
+
+    CloseServiceHandle(manager);
+
+    return error ==
+        ERROR_SERVICE_DOES_NOT_EXIST;
+}
+
 void AssertNoResourceGrowth(
     const ProcessResourceSnapshot& before,
     const ProcessResourceSnapshot& after) {
@@ -181,6 +213,58 @@ int main() {
         // Exercise the actual Settings implementation, not just rectangle
         // math: the pre-fix Create() made this HWND visible via WM_SETREDRAW.
         App app(instance);
+
+        // Real first-run regression: when Windows has no Everything service,
+        // enabling the provider must persist successfully and enter the local
+        // non-downloading bootstrap path. The Settings UI previously collapsed
+        // all failures into a misleading administrator-permission message, so
+        // keep this exact clean-machine transition under Windows CI.
+        if (EverythingServiceIsMissing() &&
+            !providers::IsEnabled(
+                app.SettingsData().providerEnabled,
+                providers::kEverythingFilesystem,
+                false)) {
+            ProviderChangeDiagnostic diagnostic;
+
+            assert(
+                app.SetProviderEnabled(
+                    std::string(
+                        providers::
+                            kEverythingFilesystem),
+                    true,
+                    false,
+                    &diagnostic));
+            assert(
+                diagnostic.failure ==
+                ProviderChangeFailure::None);
+            assert(
+                providers::IsEnabled(
+                    app.SettingsData().providerEnabled,
+                    providers::
+                        kEverythingFilesystem,
+                    false));
+
+            diagnostic = {};
+
+            assert(
+                app.SetProviderEnabled(
+                    std::string(
+                        providers::
+                            kEverythingFilesystem),
+                    false,
+                    false,
+                    &diagnostic));
+            assert(
+                diagnostic.failure ==
+                ProviderChangeFailure::None);
+            assert(
+                !providers::IsEnabled(
+                    app.SettingsData().providerEnabled,
+                    providers::
+                        kEverythingFilesystem,
+                    false));
+        }
+
         SettingsWindow settings(app, instance);
         for (int attempt = 0; attempt < 6; ++attempt) {
             assert(settings.Create());

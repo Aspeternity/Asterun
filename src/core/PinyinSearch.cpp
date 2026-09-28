@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cstdint>
 #include <functional>
+#include <list>
 #include <mutex>
 #include <unordered_map>
 #include <utility>
@@ -428,11 +429,11 @@ struct PinyinSearch::Impl {
 
     struct CacheEntry {
         PinyinForms forms;
-        std::uint64_t lastUse{0};
+        std::list<std::wstring>::iterator order;
     };
 
     const std::size_t cacheCapacity;
-    mutable std::uint64_t cacheTick{0};
+    mutable std::list<std::wstring> cacheOrder;
     mutable std::unordered_map<
         std::wstring,
         CacheEntry,
@@ -503,7 +504,7 @@ void PinyinSearch::Unload() noexcept {
     decltype(impl_->cache) emptyCache;
     impl_->cache.swap(
         emptyCache);
-    impl_->cacheTick = 0;
+    impl_->cacheOrder.clear();
     impl_->converter.reset();
 
     const auto state =
@@ -545,8 +546,8 @@ const PinyinForms* PinyinSearch::FormsFor(
         impl_->cache.find(text);
 
     if (existing != impl_->cache.end()) {
-        existing->second.lastUse =
-            ++impl_->cacheTick;
+        impl_->cacheOrder.splice(impl_->cacheOrder.end(),
+            impl_->cacheOrder, existing->second.order);
         return &existing->second.forms;
     }
 
@@ -566,33 +567,15 @@ const PinyinForms* PinyinSearch::FormsFor(
     // so old catalog text cannot accumulate for the lifetime of the process.
     if (impl_->cache.size() >=
         impl_->cacheCapacity) {
-        auto victim =
-            impl_->cache.end();
-
-        for (auto it =
-                 impl_->cache.begin();
-             it != impl_->cache.end();
-             ++it) {
-            if (victim ==
-                    impl_->cache.end() ||
-                it->second.lastUse <
-                    victim->second.lastUse) {
-                victim = it;
-            }
-        }
-
-        if (victim !=
-            impl_->cache.end()) {
-            impl_->cache.erase(
-                victim);
-        }
+        impl_->cache.erase(impl_->cacheOrder.front());
+        impl_->cacheOrder.pop_front();
     }
 
+    impl_->cacheOrder.emplace_back(text);
     Impl::CacheEntry entry;
     entry.forms =
         std::move(forms);
-    entry.lastUse =
-        ++impl_->cacheTick;
+    entry.order = std::prev(impl_->cacheOrder.end());
 
     const auto [it, inserted] =
         impl_->cache.emplace(

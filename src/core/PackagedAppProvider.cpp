@@ -136,7 +136,8 @@ ReadVisibilityEvidence(
 
 template <typename Visitor>
 void VisitAppsFolder(
-    Visitor&& visitor) {
+    Visitor&& visitor,
+    std::stop_token stop = {}) {
 
     ComApartment apartment;
 
@@ -172,6 +173,7 @@ void VisitAppsFolder(
     }
 
     for (;;) {
+        if (stop.stop_requested()) break;
         ComPtr<IShellItem> item;
         ULONG fetched = 0;
 
@@ -245,7 +247,7 @@ void VisitAppsFolder(
 }
 
 std::vector<ShellApp>
-EnumerateAppsFolderDetailed() {
+EnumerateAppsFolderDetailed(std::stop_token stop) {
 
     std::vector<ShellApp> apps;
 
@@ -260,7 +262,7 @@ EnumerateAppsFolderDetailed() {
                 ReadVisibilityEvidence(
                     item),
             });
-        });
+        }, stop);
 
     return apps;
 }
@@ -313,7 +315,7 @@ PackagedAppProvider::Discover() const {
 }
 
 ProviderDiscoveryPayload
-PackagedAppProvider::DiscoverDetailed() const {
+PackagedAppProvider::DiscoverDetailed(std::stop_token stop) const {
 
     ProviderDiscoveryPayload payload;
     auto& commands = payload.commands;
@@ -324,7 +326,8 @@ PackagedAppProvider::DiscoverDetailed() const {
         seenTargets;
 
     for (auto app :
-         EnumerateAppsFolderDetailed()) {
+         EnumerateAppsFolderDetailed(stop)) {
+        if (stop.stop_requested()) break;
 
         const std::wstring targetKey =
             NormalizeTarget(

@@ -17,7 +17,7 @@ public:
     Discover() const override;
 
     [[nodiscard]] ProviderDiscoveryPayload
-    DiscoverDetailed() const override;
+    DiscoverDetailed(std::stop_token stop = {}) const override;
 
     [[nodiscard]] std::uint64_t
     ChangeToken() const override;
@@ -27,7 +27,8 @@ private:
         const std::filesystem::path& root,
         std::vector<Command>& output,
         ProviderAdmissionDiagnostics&
-            diagnostics) const;
+            diagnostics,
+        std::stop_token stop) const;
 
     void FingerprintPath(
         const std::filesystem::path& root,

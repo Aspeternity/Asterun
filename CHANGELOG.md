@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.0.0
+
+- Promote the validated v0.8 beta codebase directly to ALTRun Next 1.0.0 stable with no intentional search/ranking, shortcut, provider-ID or schema redesign.
+- Ship the accepted Classic ALTRun and Modern Compact launcher experiences, smart numeric Quick Launch, pinyin/mixed-language search, Windows application discovery, shortcut management and portable data model as the first stable 1.x baseline.
+- Harden managed Everything first acquisition, service ownership/repair, protected service hosting, tray behavior and uninstall cleanup while preserving external/user-managed Everything installations.
+- Harden configuration backup recovery, archive extraction, secure elevation, update apply/rollback, reparse handling and release artifact integrity.
+- Keep the portable archive minimal: ALTRunNext.exe, Update.exe, Uninstall.exe, VERSION, README.md, runtime dictionaries and required third-party notices.
+- Give Update.exe and Uninstall.exe dedicated branded icon variants while preserving the original ALTRun application icon for the main executable.
+- Preserve Settings schema 11, Commands schema 2, Usage schema 2 and Provider Cache schema 22 for compatibility with the validated beta line.
+- Publish Windows fixed FileVersion/ProductVersion `1.0.0.30000`.
+
+## 0.8.0-beta.3
+
+- Preserve a healthy configuration backup when the primary JSON has invalid command/settings/usage semantics; report failed repairs instead of overwriting recoverable data.
+- Report incomplete updater rollback and retain protected recovery files for a retry.
+- Extract ZIP archives synchronously with CRC, size, member-path and cancellation checks; publish managed Everything only after staging succeeds.
+- Verify the Everything service-host executable's trusted voidtools signature before promoting a copied source.
+- Cache resolved folder templates per index generation and folder; replace the pinyin cache's linear eviction scan with an LRU list.
+- Select only the requested top search results while retaining stable tie order; persist usage evidence on a coalesced background worker with a final flush, retire long-absent automatic entries, and remove deleted user-command history.
+- Propagate cancellation through provider scans and convert unexpected background exceptions into failed update/Everything status instead of process termination.
+- Share SHA-256 file hashing and Windows command-line quoting; compile the application implementation once for both the product and real-window tests.
+- Split settings-page layout and update coordination into focused translation units without changing UI behavior.
+- Pin dependency downloads by SHA-256 and ship miniz's license.
+- Replace historical release-contract branches with a current, fail-closed security and package gate.
+- Publish Windows fixed FileVersion/ProductVersion `0.8.0.10003`.
+
 ## 0.8.0-beta.2
 
 - Keep the v0.8 product/UI/search surface frozen; this release changes only security, update transaction, release automation and associated tests.

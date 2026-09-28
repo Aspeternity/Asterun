@@ -353,17 +353,20 @@ StartMenuProvider::Discover() const {
 }
 
 ProviderDiscoveryPayload
-StartMenuProvider::DiscoverDetailed() const {
+StartMenuProvider::DiscoverDetailed(std::stop_token stop) const {
     ProviderDiscoveryPayload payload;
 
     ScanPath(
         KnownFolder(FOLDERID_StartMenu),
         payload.commands,
-        payload.admission);
+        payload.admission,
+        stop);
+    if (stop.stop_requested()) return payload;
     ScanPath(
         KnownFolder(FOLDERID_CommonStartMenu),
         payload.commands,
-        payload.admission);
+        payload.admission,
+        stop);
 
     return payload;
 }
@@ -404,7 +407,8 @@ void StartMenuProvider::ScanPath(
     const std::filesystem::path& root,
     std::vector<Command>& output,
     ProviderAdmissionDiagnostics&
-        diagnostics) const {
+        diagnostics,
+    std::stop_token stop) const {
 
     if (root.empty() ||
         !std::filesystem::exists(root)) {
@@ -421,6 +425,7 @@ void StartMenuProvider::ScanPath(
          end;
          it != end;
          it.increment(ec)) {
+        if (stop.stop_requested()) break;
 
         if (ec) {
             ec.clear();

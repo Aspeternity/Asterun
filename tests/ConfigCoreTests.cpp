@@ -1,4 +1,5 @@
 #include "core/ConfigIO.hpp"
+#include "core/ConfigValidation.hpp"
 #include "core/FeedbackPolicy.hpp"
 #include "core/ProviderCache.hpp"
 #include "core/ProviderFingerprint.hpp"
@@ -147,6 +148,68 @@ int main() {
 
     const auto data = root / "data";
     std::filesystem::create_directories(data);
+
+    // A syntactically valid but semantically corrupt primary must never
+    // overwrite a good backup. With no backup, salvage rows read-only.
+    {
+        const auto file = data / "semantic-commands.json";
+        const auto backup = data / "semantic-commands.json.bak";
+        const std::string damaged = R"({"schemaVersion":2,"commands":[
+            {"id":"keep","keyword":"keep","target":"keep.exe"},
+            {"id":"bad","keyword":42,"target":"bad.exe"}]})";
+        const std::string good = R"({"schemaVersion":2,"commands":[
+            {"id":"backup","keyword":"backup","target":"backup.exe"}]})";
+        WriteText(file, damaged);
+        WriteText(backup, good);
+        UserCommandStore recovered(file);
+        recovered.Load();
+        assert(recovered.WasRecoveredFromBackup());
+        assert(recovered.Commands().size() == 1);
+        assert(recovered.Commands()[0].id == L"backup");
+        assert(ReadText(backup) == good);
+        const auto invalidWrite = nlohmann::json::parse(damaged);
+        assert(!config::SaveJsonAtomic(file, invalidWrite, config::ValidCommands));
+        assert(ReadText(backup) == good);
+
+        std::filesystem::remove(backup);
+        WriteText(file, damaged);
+        UserCommandStore salvage(file);
+        salvage.Load();
+        assert(salvage.Commands().size() == 1);
+        assert(salvage.Commands()[0].id == L"keep");
+        assert(!salvage.Save());
+        assert(ReadText(file) == damaged);
+
+        WriteText(file, "{invalid");
+        UserCommandStore invalid(file);
+        invalid.Load();
+        assert(!invalid.Save());
+        assert(ReadText(file) == "{invalid");
+    }
+    {
+        const auto file = data / "semantic-settings.json";
+        const auto backup = data / "semantic-settings.json.bak";
+        const std::string good = R"({"schemaVersion":11,"general":{"soundEnabled":false}})";
+        WriteText(file, R"({"schemaVersion":11,"general":{"soundEnabled":"bad"}})");
+        WriteText(backup, good);
+        SettingsStore recovered(file);
+        recovered.Load();
+        assert(recovered.WasRecoveredFromBackup());
+        assert(!recovered.Data().soundEnabled);
+        assert(ReadText(backup) == good);
+    }
+    {
+        const auto file = data / "semantic-usage.json";
+        const auto backup = data / "semantic-usage.json.bak";
+        const std::string good = R"({"schemaVersion":2,"usage":{"keep":{"launches":3}}})";
+        WriteText(file, R"({"schemaVersion":2,"usage":{"bad":{"launches":"bad"}}})");
+        WriteText(backup, good);
+        UsageStore recovered(file);
+        recovered.Load();
+        assert(recovered.WasRecoveredFromBackup());
+        assert(recovered.Data().at(L"keep").launches == 3);
+        assert(ReadText(backup) == good);
+    }
 
     const auto legacySettings = root / "settings.ini";
     const auto legacyCommands = root / "commands.tsv";
@@ -304,6 +367,7 @@ int main() {
     assert(usage.Data().at(calcId).queryLaunches.at(L"s") == 2);
     assert(usage.Data().at(calcId).queryLaunches.at(L"st") == 1);
     assert(usage.Data().at(calcId).queryLaunches.size() == 2);
+    assert(usage.Flush());
     UsageStore queryReloaded(data / "usage.json");
     queryReloaded.Load();
     assert(queryReloaded.Data().at(calcId).queryLaunches.at(L"s") == 2);
@@ -341,6 +405,7 @@ int main() {
         assert(habits.Data().at(L"new").launches == 100000);
         assert(habits.Data().at(L"new").queryLaunches.at(L"team") == 8);
         assert(habits.Data().at(L"classic").queryLaunches.at(L"ts") == 8);
+        assert(habits.Flush());
         UsageStore restarted(habitPath);
         restarted.Load();
         assert(search.Search(apps, restarted.Data(), L"ts", 10, false, false)
@@ -351,33 +416,24 @@ int main() {
         assert(habits.Data().at(L"new").launches == 100008);
         const auto beforeNew = habits.Data().at(L"new").queryLaunches;
         const auto beforeClassic = habits.Data().at(L"classic").queryLaunches;
-        const auto beforeClassicLaunches =
-            habits.Data().at(L"classic").launches;
-        const auto beforeClassicLastUsed =
-            habits.Data().at(L"classic").lastUsedUnix;
-
-        // Block the atomic writer; selected/global fields and competing
-        // evidence must roll back together without requiring a full UsageMap
-        // snapshot.
+        // A failed asynchronous write keeps the new in-memory learning state
+        // and retries the latest generation once storage becomes available.
         std::filesystem::create_directory(habitPath.string() + ".tmp");
         habits.Record(L"classic", L"ts");
-        assert(habits.Data().at(L"new").queryLaunches == beforeNew);
-        assert(habits.Data().at(L"classic").queryLaunches == beforeClassic);
-        assert(
-            habits.Data().at(L"classic").launches ==
-            beforeClassicLaunches);
-        assert(
-            habits.Data().at(L"classic").lastUsedUnix ==
-            beforeClassicLastUsed);
-
-        // A command first seen during the failed transaction must disappear
-        // completely, while any competitors it temporarily aged are restored.
+        assert(!habits.Flush());
+        assert(habits.Data().at(L"new").queryLaunches != beforeNew);
+        assert(habits.Data().at(L"classic").queryLaunches != beforeClassic);
         habits.Record(L"brand-new", L"ts");
-        assert(!habits.Data().contains(L"brand-new"));
-        assert(habits.Data().at(L"new").queryLaunches == beforeNew);
-        assert(habits.Data().at(L"classic").queryLaunches == beforeClassic);
+        assert(habits.Data().contains(L"brand-new"));
+        assert(!habits.Flush());
 
         std::filesystem::remove(habitPath.string() + ".tmp");
+        assert(habits.Flush());
+        UsageStore retried(habitPath);
+        retried.Load();
+        assert(retried.Data().at(L"brand-new").launches == 1);
+        assert(retried.Data().at(L"classic").queryLaunches ==
+               habits.Data().at(L"classic").queryLaunches);
     }
 
     const auto schema1Path = data / "usage-schema1.json";
@@ -389,6 +445,7 @@ int main() {
     assert(migratedUsage.Data().at(L"legacy").launches == 4);
     assert(config::LoadJsonWithBackup(schema1Path, 2).schemaVersion == 2);
     migratedUsage.Record(L"legacy", L"s");
+    assert(migratedUsage.Flush());
     UsageStore migratedReloaded(schema1Path);
     migratedReloaded.Load();
     assert(migratedReloaded.Data().at(L"legacy").launches == 5);
@@ -400,6 +457,25 @@ int main() {
     UsageStore clearedUsage(data / "usage.json", legacyUsage);
     clearedUsage.Load(commandsReloaded.LegacyIdMap());
     assert(clearedUsage.Data().empty());
+
+    const auto stalePath = data / "usage-prune.json";
+    WriteText(stalePath,
+        "{\"schemaVersion\":2,\"usage\":{"
+        "\"start:old\":{\"launches\":1,\"lastUsedUnix\":1},"
+        "\"path:visible\":{\"launches\":2,\"lastUsedUnix\":1},"
+        "\"packaged:recent\":{\"launches\":2,\"lastUsedUnix\":4102444800},"
+        "\"user-old\":{\"launches\":3,\"lastUsedUnix\":1}}}");
+    UsageStore prune(stalePath);
+    prune.Load();
+    Command visible;
+    visible.id = L"path:visible";
+    assert(prune.PruneMissingAutomatic({visible}));
+    assert(!prune.Data().contains(L"start:old"));
+    assert(prune.Data().contains(L"path:visible"));
+    assert(prune.Data().contains(L"packaged:recent"));
+    assert(prune.Data().contains(L"user-old"));
+    assert(prune.Remove(L"user-old"));
+    assert(!prune.Data().contains(L"user-old"));
 
     settings.SetLanguage(Language::ZhCN);
     assert(std::filesystem::exists(data / "settings.json.bak"));

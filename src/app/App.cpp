@@ -772,11 +772,6 @@ std::vector<LauncherResult> App::Search(
     // immutable CommandStore vector as a non-owning span in that common path;
     // copying every Command (and all of its strings/vectors) on every keypress
     // was one of the largest avoidable allocator costs in the launcher.
-    std::vector<Command>
-        contextualCommands;
-    std::vector<std::size_t>
-        sourceIndices;
-
     const bool requiresContextWorkingSet =
         commandStore_
             .HasContextFolderTemplates();
@@ -786,46 +781,47 @@ std::vector<LauncherResult> App::Search(
             sourceCommands;
 
     if (requiresContextWorkingSet) {
-        contextualCommands.reserve(
-            sourceCommands.size());
-        sourceIndices.reserve(
-            sourceCommands.size());
+        auto& cache = contextSearchCache_;
+        if (cache.generation != commandStore_.Generation() ||
+            cache.folder != contextFolder) {
+            std::vector<Command> contextualCommands;
+            std::vector<std::size_t> sourceIndices;
+            contextualCommands.reserve(sourceCommands.size());
+            sourceIndices.reserve(sourceCommands.size());
 
-        for (std::size_t index = 0;
-             index < sourceCommands.size();
-             ++index) {
-            const auto& source =
-                sourceCommands[index];
+            for (std::size_t index = 0;
+                 index < sourceCommands.size();
+                 ++index) {
+                const auto& source = sourceCommands[index];
 
-            if (source.source ==
-                    CommandSource::User &&
-                UsesFolderTemplate(
-                    source)) {
-                if (contextFolder.empty()) {
-                    continue;
+                if (source.source == CommandSource::User &&
+                    UsesFolderTemplate(source)) {
+                    if (contextFolder.empty()) continue;
+                    contextualCommands.push_back(
+                        ResolveFolderTemplate(source, contextFolder));
+                } else {
+                    contextualCommands.push_back(source);
                 }
-
-                contextualCommands.push_back(
-                    ResolveFolderTemplate(
-                        source,
-                        contextFolder));
-            } else {
-                contextualCommands.push_back(
-                    source);
+                sourceIndices.push_back(index);
             }
-
-            sourceIndices.push_back(
-                index);
+            cache.commands = std::move(contextualCommands);
+            cache.indices = std::move(sourceIndices);
+            cache.prepared = SearchEngine::PrepareIndex(cache.commands);
+            cache.folder = contextFolder;
+            cache.generation = commandStore_.Generation();
         }
 
         searchableCommands =
-            contextualCommands;
+            cache.commands;
+    } else if (baseSearchGeneration_ != commandStore_.Generation()) {
+        baseSearchIndex_ = SearchEngine::PrepareIndex(sourceCommands);
+        baseSearchGeneration_ = commandStore_.Generation();
     }
 
     const auto sourceIndexFor =
         [&](std::size_t workingIndex) {
             return requiresContextWorkingSet
-                ? sourceIndices[
+                ? contextSearchCache_.indices[
                       workingIndex]
                 : workingIndex;
         };
@@ -838,7 +834,10 @@ std::vector<LauncherResult> App::Search(
             limit,
             true,
             settingsStore_.Data()
-                .pinyinSearch);
+                .pinyinSearch,
+            requiresContextWorkingSet
+                ? &contextSearchCache_.prepared
+                : &baseSearchIndex_);
 
     std::vector<LauncherResult> results;
     results.reserve(matches.size());
@@ -925,7 +924,7 @@ std::vector<LauncherResult> App::Search(
                 }
 
                 if (action.action.commandIndex >=
-                    sourceIndices.size()) {
+                    contextSearchCache_.indices.size()) {
                     action.action.commandIndex =
                         static_cast<std::size_t>(
                             -1);
@@ -933,7 +932,7 @@ std::vector<LauncherResult> App::Search(
                 }
 
                 action.action.commandIndex =
-                    sourceIndices[
+                    contextSearchCache_.indices[
                         action.action
                             .commandIndex];
             }
@@ -1159,6 +1158,7 @@ bool App::StartEverythingBootstrap(
              targetThread,
              generation](
                 std::stop_token stopToken) {
+                try {
                 const auto progress =
                     [this](
                         const win::
@@ -1184,6 +1184,15 @@ bool App::StartEverythingBootstrap(
                         everythingBootstrapMutex_);
                     everythingBootstrapStatus_ =
                         result;
+                }
+                } catch (...) {
+                    std::scoped_lock lock(everythingBootstrapMutex_);
+                    everythingBootstrapStatus_.stage =
+                        win::EverythingBootstrapStage::Failed;
+                    everythingBootstrapStatus_.failure =
+                        win::EverythingBootstrapFailure::UnexpectedFailure;
+                    everythingBootstrapStatus_.nativeError = ERROR_GEN_FAILURE;
+                    everythingBootstrapStatus_.running = false;
                 }
 
                 if (targetThread != 0) {
@@ -1511,6 +1520,10 @@ bool App::DeleteUserCommand(
         return false;
     }
 
+    // A deleted user shortcut has a permanent identity; stale usage cannot
+    // improve another command's ranking and need not survive the deletion.
+    (void) usageStore_.Remove(id);
+
     if (window_) window_->RefreshResults();
     if (shortcutManagerWindow_) {
         shortcutManagerWindow_->Refresh();
@@ -1705,7 +1718,8 @@ void App::StartProviderRefresh(
                             commandStore_
                                 .RefreshProviderCache(
                                     enabledSnapshot,
-                                    selectedIds);
+                                    selectedIds,
+                                    stopToken);
                     }
                 } catch (...) {
                     outcome =
@@ -1742,6 +1756,11 @@ void App::HandleProviderRefreshCompleted(
     commandStore_.PublishProviderCache(
         settingsStore_.Data()
             .providerEnabled);
+
+    if (outcome == ProviderRefreshOutcome::Success &&
+        commandStore_.IndexSearchable()) {
+        (void) usageStore_.PruneMissingAutomatic(commandStore_.Commands());
+    }
 
     if (settingsWindow_) {
         settingsWindow_
@@ -3845,7 +3864,12 @@ bool App::SetClassicBehavior(
 bool App::SetProviderEnabled(
     std::string id,
     bool enabled,
-    bool refreshSettingsWindow) {
+    bool refreshSettingsWindow,
+    ProviderChangeDiagnostic* diagnostic) {
+
+    if (diagnostic) {
+        *diagnostic = {};
+    }
 
     const std::string providerId =
         id;
@@ -3891,6 +3915,14 @@ bool App::SetProviderEnabled(
                     Failed;
 
         if (servicePolicyFailed) {
+            if (diagnostic) {
+                diagnostic->failure =
+                    ProviderChangeFailure::
+                        EverythingServicePolicy;
+                diagnostic->nativeError =
+                    servicePolicy.nativeError;
+            }
+
             if (wasEnabled) {
                 if (!everythingProvider_) {
                     everythingProvider_ =
@@ -3909,6 +3941,12 @@ bool App::SetProviderEnabled(
                  .SetProviderEnabled(
                      std::move(id),
                      enabled)) {
+            if (diagnostic) {
+                diagnostic->failure =
+                    ProviderChangeFailure::
+                        SettingsPersistence;
+            }
+
             if (servicePolicy.status ==
                 win::ManagedEverythingServicePolicyStatus::
                     Applied) {
@@ -3960,6 +3998,11 @@ bool App::SetProviderEnabled(
              .SetProviderEnabled(
                  std::move(id),
                  enabled)) {
+        if (diagnostic) {
+            diagnostic->failure =
+                ProviderChangeFailure::
+                    SettingsPersistence;
+        }
         return false;
     }
 
@@ -4112,395 +4155,6 @@ bool App::SetManagedEverythingShowTrayIcon(
         settingsWindow_) {
         settingsWindow_->
             RefreshFromSettings();
-    }
-
-    return true;
-}
-
-bool App::SetUpdateSettings(
-    bool autoCheck,
-    UpdateChannel channel) {
-    const auto previous =
-        settingsStore_.Data();
-
-    if (previous.autoCheckUpdates ==
-            autoCheck &&
-        previous.updateChannel ==
-            channel) {
-        return true;
-    }
-
-    if (!settingsStore_
-             .SetUpdateSettings(
-                 autoCheck,
-                 channel)) {
-        return false;
-    }
-
-    const bool channelChanged =
-        previous.updateChannel !=
-        channel;
-
-    if (!channelChanged) {
-        return true;
-    }
-
-    InvalidateUpdateCheckForChannelChange();
-    return true;
-}
-
-void App::InvalidateUpdateCheckForChannelChange() {
-    bool checking = false;
-    bool preserveActiveUpdate = false;
-
-    {
-        std::scoped_lock lock(
-            updateMutex_);
-
-        checking =
-            updateStatus_.stage ==
-                win::UpdateStage::Checking &&
-            updateStatus_.running;
-
-        preserveActiveUpdate =
-            updateStatus_.stage ==
-                win::UpdateStage::Downloading ||
-            updateStatus_.stage ==
-                win::UpdateStage::Verifying ||
-            updateStatus_.stage ==
-                win::UpdateStage::Extracting ||
-            updateStatus_.stage ==
-                win::UpdateStage::ReadyToInstall ||
-            updateStatus_.stage ==
-                win::UpdateStage::Applying;
-
-        updateSettingsChangedSinceCheck_ =
-            true;
-
-        if (checking) {
-            ++updateGeneration_;
-        }
-
-        if (!preserveActiveUpdate) {
-            updateStatus_ = {};
-            updateManifest_.reset();
-            updateInstallWhenReady_ =
-                false;
-        }
-    }
-
-    if (checking &&
-        updateThread_.joinable()) {
-        updateThread_.request_stop();
-    }
-
-    if (settingsWindow_) {
-        settingsWindow_->
-            OnUpdateStatusChanged();
-    }
-}
-
-win::UpdateSnapshot
-App::UpdateStatus() const {
-    std::scoped_lock lock(
-        updateMutex_);
-    return updateStatus_;
-}
-
-bool App::UpdateSettingsChangedSinceCheck()
-    const {
-    std::scoped_lock lock(
-        updateMutex_);
-    return
-        updateSettingsChangedSinceCheck_;
-}
-
-bool App::UpdateWorkerRunning()
-    const noexcept {
-    return updateWorkerRunning_.load();
-}
-
-bool App::StartUpdateCheck(
-    bool force) {
-    if (!force &&
-        !settingsStore_.Data()
-             .autoCheckUpdates) {
-        return false;
-    }
-
-    if (!force) {
-        const auto now =
-            std::chrono::system_clock::
-                to_time_t(
-                    std::chrono::
-                        system_clock::now());
-
-        if (!win::UpdateAutoCheckDue(
-                dataDirectory_,
-                static_cast<std::int64_t>(
-                    now))) {
-            return false;
-        }
-    }
-
-    if (updateWorkerRunning_.load()) {
-        return false;
-    }
-
-    {
-        std::scoped_lock lock(
-            updateMutex_);
-
-        if (updateStatus_.running) {
-            return false;
-        }
-    }
-
-    if (updateThread_.joinable()) {
-        updateThread_.join();
-    }
-
-    const auto channel =
-        settingsStore_.Data()
-            .updateChannel;
-    const std::uint64_t generation =
-        ++updateGeneration_;
-
-    {
-        std::scoped_lock lock(
-            updateMutex_);
-        updateStatus_ = {};
-        updateStatus_.stage =
-            win::UpdateStage::Checking;
-        updateStatus_.running = true;
-        updateStatus_.currentVersion =
-            std::string(kVersion);
-        updateManifest_.reset();
-        updateSettingsChangedSinceCheck_ =
-            false;
-        updateInstallWhenReady_ =
-            false;
-    }
-
-    updateWorkerStartedTick_.store(
-        static_cast<std::uint64_t>(
-            GetTickCount64()));
-    updateWorkerRunning_.store(true);
-
-    updateThread_ =
-        std::jthread(
-            [this,
-             channel,
-             generation](
-                std::stop_token stopToken) {
-                const auto progress =
-                    [this,
-                     generation](
-                        const win::
-                            UpdateSnapshot&
-                                snapshot) {
-                        if (generation !=
-                            updateGeneration_
-                                .load()) {
-                            return;
-                        }
-
-                        {
-                            std::scoped_lock lock(
-                                updateMutex_);
-
-                            if (generation !=
-                                updateGeneration_
-                                    .load()) {
-                                return;
-                            }
-
-                            updateStatus_ =
-                                snapshot;
-                        }
-
-                        PostUpdateStatusNotification(
-                            generation);
-                    };
-
-                const auto result =
-                    win::CheckForUpdate(
-                        dataDirectory_,
-                        kVersion,
-                        channel,
-                        progress,
-                        stopToken);
-
-                if (generation ==
-                    updateGeneration_.load()) {
-                    std::scoped_lock lock(
-                        updateMutex_);
-
-                    if (generation ==
-                        updateGeneration_
-                            .load()) {
-                        updateStatus_ =
-                            result.snapshot;
-                        updateManifest_ =
-                            result.manifest;
-                    }
-                }
-
-                updateWorkerRunning_.store(
-                    false);
-                updateWorkerStartedTick_.store(
-                    0);
-
-                PostUpdateStatusNotification(
-                    generation);
-            });
-
-    StartUpdateReconcileTimer();
-
-    if (settingsWindow_) {
-        settingsWindow_->
-            OnUpdateStatusChanged();
-    }
-
-    return true;
-}
-
-bool App::StartUpdateDownloadAndInstall() {
-    UpdateManifest manifest;
-
-    {
-        std::scoped_lock lock(
-            updateMutex_);
-
-        if (updateStatus_.running ||
-            updateStatus_.stage !=
-                win::UpdateStage::
-                    Available ||
-            !updateManifest_) {
-            return false;
-        }
-
-        manifest = *updateManifest_;
-    }
-
-    if (updateWorkerRunning_.load()) {
-        return false;
-    }
-
-    if (updateThread_.joinable()) {
-        updateThread_.join();
-    }
-
-    const auto channel =
-        settingsStore_.Data()
-            .updateChannel;
-    const std::uint64_t generation =
-        ++updateGeneration_;
-
-    {
-        std::scoped_lock lock(
-            updateMutex_);
-        updateStatus_.running = true;
-        updateStatus_.stage =
-            win::UpdateStage::
-                Downloading;
-        updateStatus_.failure =
-            win::UpdateFailure::None;
-        updateStatus_.nativeError = 0;
-        updateStatus_.downloadedBytes =
-            0;
-        updateStatus_.totalBytes = 0;
-        updateInstallWhenReady_ =
-            true;
-    }
-
-    updateWorkerStartedTick_.store(
-        static_cast<std::uint64_t>(
-            GetTickCount64()));
-    updateWorkerRunning_.store(true);
-
-    updateThread_ =
-        std::jthread(
-            [this,
-             channel,
-             manifest =
-                 std::move(manifest),
-             generation](
-                std::stop_token stopToken) {
-                const auto progress =
-                    [this,
-                     generation](
-                        const win::
-                            UpdateSnapshot&
-                                snapshot) {
-                        if (generation !=
-                            updateGeneration_
-                                .load()) {
-                            return;
-                        }
-
-                        {
-                            std::scoped_lock lock(
-                                updateMutex_);
-
-                            if (generation !=
-                                updateGeneration_
-                                    .load()) {
-                                return;
-                            }
-
-                            updateStatus_ =
-                                snapshot;
-                        }
-
-                        PostUpdateStatusNotification(
-                            generation);
-                    };
-
-                const auto result =
-                    win::PrepareUpdate(
-                        dataDirectory_,
-                        channel,
-                        manifest,
-                        kVersion,
-                        progress,
-                        stopToken);
-
-                if (generation ==
-                    updateGeneration_.load()) {
-                    std::scoped_lock lock(
-                        updateMutex_);
-
-                    if (generation ==
-                        updateGeneration_
-                            .load()) {
-                        updateStatus_ =
-                            result.snapshot;
-
-                        if (result.snapshot
-                                .stage !=
-                            win::UpdateStage::
-                                ReadyToInstall) {
-                            updateInstallWhenReady_ =
-                                false;
-                        }
-                    }
-                }
-
-                updateWorkerRunning_.store(
-                    false);
-                updateWorkerStartedTick_.store(
-                    0);
-
-                PostUpdateStatusNotification(
-                    generation);
-            });
-
-    StartUpdateReconcileTimer();
-
-    if (settingsWindow_) {
-        settingsWindow_->
-            OnUpdateStatusChanged();
     }
 
     return true;
@@ -4964,6 +4618,7 @@ void App::StartShellIntegrationReconcile() {
                         COINIT_APARTMENTTHREADED |
                             COINIT_DISABLE_OLE1DDE);
 
+                try {
                 if (!stopToken.stop_requested()) {
                     std::scoped_lock lock(
                         shellIntegrationMutex_);
@@ -4992,6 +4647,10 @@ void App::StartShellIntegrationReconcile() {
                         ApplySendToRegistrationUnlocked(
                             sendToEnabled);
                     }
+                }
+                } catch (...) {
+                    // Shell/registry reconciliation is best effort; the
+                    // process must not terminate on a background exception.
                 }
 
                 if (SUCCEEDED(comResult)) {

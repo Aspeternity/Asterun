@@ -1,6 +1,7 @@
 #include "UsageStore.hpp"
 
 #include "ConfigIO.hpp"
+#include "ConfigValidation.hpp"
 #include "TextCodec.hpp"
 
 #include <algorithm>
@@ -9,6 +10,7 @@
 #include <fstream>
 #include <limits>
 #include <string>
+#include <unordered_set>
 
 namespace altrun {
 
@@ -62,20 +64,71 @@ UsageStore::UsageStore(
     : jsonPath_(std::move(jsonPath)),
       legacyTsvPath_(std::move(legacyTsvPath)) {}
 
+UsageStore::~UsageStore() { (void) Flush(); }
+
+void UsageStore::PersistLoop(std::stop_token stop) {
+    try {
+        std::unique_lock lock(persistMutex_);
+        for (;;) {
+            persistWake_.wait(lock, stop, [&] {
+                return generation_ != persistedGeneration_;
+            });
+            if (generation_ == persistedGeneration_) return;
+            // Rapid selections share one disk transaction; a stop request
+            // (explicit Flush or destruction) skips this short delay.
+            while (!stop.stop_requested()) {
+                const auto observed = generation_;
+                if (!persistWake_.wait_for(lock, std::chrono::milliseconds(40),
+                    [&] { return stop.stop_requested() || generation_ != observed; })) break;
+            }
+            const auto selected = generation_;
+            UsageMap snapshot = usage_;
+            lock.unlock();
+            const bool saved = SaveSnapshot(snapshot);
+            lock.lock();
+            if (saved) persistedGeneration_ = selected;
+            if (stop.stop_requested()) {
+                if (!saved || persistedGeneration_ == generation_) return;
+            } else if (!saved) {
+                persistWake_.wait(lock, stop, [&] { return generation_ != selected; });
+                if (stop.stop_requested()) return;
+            }
+        }
+    } catch (...) {
+        // Flush retries the current in-memory state if snapshotting failed.
+    }
+}
+
+bool UsageStore::Flush() {
+    if (persistThread_.joinable()) {
+        persistThread_.request_stop();
+        persistWake_.notify_all();
+        persistThread_.join();
+    }
+    std::scoped_lock lock(persistMutex_);
+    if (generation_ == persistedGeneration_) return true;
+    if (!SaveSnapshot(usage_)) return false;
+    persistedGeneration_ = generation_;
+    return true;
+}
+
 void UsageStore::Load(
     const std::unordered_map<std::wstring, std::wstring>& legacyIdMap) {
 
+    if (!Flush()) return;
     usage_.clear();
+    generation_ = persistedGeneration_ = 0;
     readOnlyDueToNewerSchema_ =
         false;
     unsupportedSchemaVersion_ = 0;
     recoveredFromBackup_ = false;
+    preserveInvalidInput_ = false;
 
     if (LoadJson()) {
         return;
     }
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return;
     }
 
@@ -90,7 +143,12 @@ bool UsageStore::LoadJson() {
     auto load =
         config::LoadJsonWithBackup(
             jsonPath_,
-            config::kUsageSchemaVersion);
+            config::kUsageSchemaVersion,
+            config::ValidUsage);
+
+    preserveInvalidInput_ =
+        load.status == config::JsonLoadStatus::InvalidExisting ||
+        (load.status == config::JsonLoadStatus::RecoveredBackup && !load.primaryRepaired);
 
     recoveredFromBackup_ =
         load.status ==
@@ -119,7 +177,7 @@ bool UsageStore::LoadJson() {
         }
 
         for (auto it = root["usage"].begin(); it != root["usage"].end(); ++it) {
-            if (!it.value().is_object()) continue;
+            if (!config::ValidUsageRecord(it.value())) continue;
 
             UsageStat stat;
             stat.launches = it.value().value("launches", std::uint64_t{0});
@@ -204,10 +262,11 @@ void UsageStore::Record(
     std::wstring_view commandId,
     std::wstring_view query) {
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return;
     }
 
+    std::scoped_lock lock(persistMutex_);
     const std::wstring selectedId(
         commandId);
 
@@ -215,23 +274,10 @@ void UsageStore::Record(
         usage_.try_emplace(
             selectedId);
 
-    UsageStat previousSelected;
-
-    if (!inserted) {
-        previousSelected =
-            selectedIt->second;
-    }
+    (void) inserted;
 
     auto& stat =
         selectedIt->second;
-
-    struct CompetingEvidenceRollback {
-        UsageStat* stat{};
-        std::uint32_t count{};
-    };
-
-    std::vector<CompetingEvidenceRollback>
-        competingRollbacks;
 
     if (stat.launches < std::numeric_limits<std::uint64_t>::max()) {
         ++stat.launches;
@@ -252,11 +298,6 @@ void UsageStore::Record(
                 other.queryLaunches.end()) {
                 continue;
             }
-
-            competingRollbacks.push_back({
-                &other,
-                competing->second,
-            });
 
             const auto evidence =
                 std::min(
@@ -287,28 +328,17 @@ void UsageStore::Record(
         count = std::min(count, kMaxQueryEvidence - 1) + 1;
     }
 
-    if (!Save()) {
-        if (inserted) {
-            usage_.erase(
-                selectedIt);
-        } else {
-            selectedIt->second =
-                std::move(
-                    previousSelected);
-        }
-
-        for (const auto& rollback :
-             competingRollbacks) {
-            if (rollback.stat) {
-                rollback.stat
-                    ->queryLaunches[key] =
-                    rollback.count;
-            }
-        }
+    ++generation_;
+    if (!persistThread_.joinable()) {
+        persistThread_ = std::jthread([this](std::stop_token stop) {
+            PersistLoop(stop);
+        });
     }
+    persistWake_.notify_all();
 }
 
 bool UsageStore::Clear() {
+    (void) Flush();
     UsageMap previous =
         std::move(
             usage_);
@@ -325,14 +355,57 @@ bool UsageStore::Clear() {
     return true;
 }
 
+bool UsageStore::Remove(std::wstring_view commandId) {
+    (void) Flush();
+    const auto found = usage_.find(std::wstring(commandId));
+    if (found == usage_.end()) return true;
+    UsageStat previous = std::move(found->second);
+    usage_.erase(found);
+    if (Save()) return true;
+    usage_.emplace(std::wstring(commandId), std::move(previous));
+    return false;
+}
+
+bool UsageStore::PruneMissingAutomatic(
+    const std::vector<Command>& liveCommands) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) return false;
+    constexpr std::int64_t kGraceSeconds = 365LL * 24 * 60 * 60;
+    const auto now = UnixTimeNow();
+    std::unordered_set<std::wstring> present;
+    present.reserve(liveCommands.size());
+    for (const auto& command : liveCommands) present.insert(command.id);
+    const auto obsolete = [&](const auto& item) {
+        const auto& id = item.first;
+        const auto lastUsed = item.second.lastUsedUnix;
+        const bool automatic = id.starts_with(L"start:") ||
+            id.starts_with(L"apppath:") || id.starts_with(L"path:") ||
+            id.starts_with(L"packaged:");
+        return automatic && lastUsed > 0 &&
+            lastUsed < now - kGraceSeconds && !present.contains(id);
+    };
+    if (std::none_of(usage_.begin(), usage_.end(), obsolete)) return true;
+    (void) Flush();
+    UsageMap previous = usage_;
+    std::erase_if(usage_, obsolete);
+    if (Save()) return true;
+    usage_ = std::move(previous);
+    return false;
+}
+
 bool UsageStore::Save() const {
-    if (readOnlyDueToNewerSchema_) {
+    return SaveSnapshot(usage_);
+}
+
+bool UsageStore::SaveSnapshot(const UsageMap& snapshot) const {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
+    try {
+
     nlohmann::json usage = nlohmann::json::object();
 
-    for (const auto& [id, stat] : usage_) {
+    for (const auto& [id, stat] : snapshot) {
         nlohmann::json entry = {
             {"launches", stat.launches},
             {"lastUsedUnix", stat.lastUsedUnix}
@@ -352,7 +425,10 @@ bool UsageStore::Save() const {
         {"usage", std::move(usage)}
     };
 
-    return config::SaveJsonAtomic(jsonPath_, root);
+    return config::SaveJsonAtomic(jsonPath_, root, config::ValidUsage);
+    } catch (...) {
+        return false;
+    }
 }
 
 } // namespace altrun

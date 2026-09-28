@@ -1,3 +1,4 @@
+#include "../platform/WindowsCommandLine.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -321,40 +322,9 @@ IsElevated() {
 }
 
 [[nodiscard]] std::wstring
-QuoteArgument(
-    std::wstring_view value) {
-    std::wstring result = L"\"";
-    std::size_t slashes = 0;
-
-    for (const wchar_t c : value) {
-        if (c == L'\\') {
-            ++slashes;
-            continue;
-        }
-
-        if (c == L'\"') {
-            result.append(
-                slashes * 2 + 1,
-                L'\\');
-            result.push_back(L'\"');
-            slashes = 0;
-            continue;
-        }
-
-        result.append(
-            slashes,
-            L'\\');
-        slashes = 0;
-        result.push_back(c);
-    }
-
-    result.append(
-        slashes * 2,
-        L'\\');
-    result.push_back(L'\"');
-    return result;
+QuoteArgument(std::wstring_view value) {
+    return altrun::win::QuoteWindowsArgument(value);
 }
-
 [[nodiscard]] bool
 LaunchNormal(
     const std::filesystem::path& exe,
@@ -672,11 +642,12 @@ int WINAPI wWinMain(
             args.backup;
     std::error_code cleanupError;
 
+    bool preserveRecovery = false;
     const auto cleanupWork =
         [&]() {
             archiveLock.Reset();
 
-            if (!protectedWorkRoot
+            if (!preserveRecovery && !protectedWorkRoot
                      .empty()) {
                 std::filesystem::
                     remove_all(
@@ -715,7 +686,7 @@ int WINAPI wWinMain(
             0;
 
         if (!altrun::win::
-                 ExtractZipWithShellSecure(
+                 ExtractZipVerifiedSecure(
                      args.archive,
                      transactionSource,
                      extractionError)) {
@@ -764,14 +735,28 @@ int WINAPI wWinMain(
     altrun::updater::
         TransactionJournal journal;
 
+    const auto restore = [&]() {
+        const auto recovery = altrun::updater::Rollback(transaction, journal);
+        if (!recovery.Complete()) {
+            preserveRecovery = true;
+            const auto log = transaction.backup / L"recovery-errors.txt";
+            std::ofstream output(log, std::ios::binary | std::ios::app);
+            for (const auto& failure : recovery.failures) {
+                output << failure.relative.generic_string() << ": "
+                       << failure.error.message() << '\n';
+            }
+            const auto message = L"The update could not be fully restored. Recovery files were kept at:\n" +
+                transaction.backup.wstring();
+            MessageBoxW(nullptr, message.c_str(), L"ALTRun Next", MB_OK | MB_ICONERROR);
+        }
+        return recovery.Complete();
+    };
+
     if (!altrun::updater::
              ApplyPackage(
                  transaction,
                  journal)) {
-        altrun::updater::
-            Rollback(
-                transaction,
-                journal);
+        restore();
         cleanupWork();
         return 3;
     }
@@ -791,9 +776,7 @@ int WINAPI wWinMain(
             args.healthEvent);
 
     if (!healthEvent) {
-        altrun::updater::Rollback(
-            transaction,
-            journal);
+        restore();
         cleanupWork();
         return 4;
     }
@@ -814,10 +797,9 @@ int WINAPI wWinMain(
             mainArguments,
             child)) {
         CloseHandle(healthEvent);
-        altrun::updater::Rollback(
-            transaction,
-            journal);
+        const bool restoredCompletely = restore();
         cleanupWork();
+        if (!restoredCompletely) return 7;
 
         PROCESS_INFORMATION restored{};
         if (LaunchMain(
@@ -844,15 +826,21 @@ int WINAPI wWinMain(
         TerminateProcess(
             child.hProcess,
             ERROR_GEN_FAILURE);
-        WaitForSingleObject(
-            child.hProcess,
-            5000);
+        const DWORD stopped = WaitForSingleObject(child.hProcess, 5000);
+        if (stopped != WAIT_OBJECT_0) {
+            CloseHandle(child.hProcess);
+            preserveRecovery = true;
+            const auto message = L"The updated application is still running. Recovery files were kept at:\n" +
+                transaction.backup.wstring();
+            MessageBoxW(nullptr, message.c_str(), L"ALTRun Next", MB_OK | MB_ICONERROR);
+            cleanupWork();
+            return 7;
+        }
         CloseHandle(child.hProcess);
 
-        altrun::updater::Rollback(
-            transaction,
-            journal);
+        const bool restoredCompletely = restore();
         cleanupWork();
+        if (!restoredCompletely) return 7;
 
         PROCESS_INFORMATION restored{};
         if (LaunchMain(

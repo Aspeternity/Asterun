@@ -181,6 +181,7 @@ private:
     std::filesystem::path jsonPath_;
     std::filesystem::path legacyIniPath_;
     Settings settings_;
+    bool preserveInvalidInput_{false};
     bool readOnlyDueToNewerSchema_{false};
     int unsupportedSchemaVersion_{0};
     bool recoveredFromBackup_{false};

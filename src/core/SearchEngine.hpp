@@ -38,6 +38,22 @@ using UsageMap =
 
 class SearchEngine {
 public:
+    struct PreparedField {
+        std::wstring normalized;
+        std::wstring initials;
+    };
+    struct PreparedCommand {
+        PreparedField keyword;
+        PreparedField title;
+        PreparedField target;
+        std::vector<PreparedField> aliases;
+        std::vector<PreparedField> distinctiveTokens;
+    };
+    using PreparedIndex = std::vector<PreparedCommand>;
+
+    [[nodiscard]] static PreparedIndex PrepareIndex(
+        std::span<const Command> commands);
+
     explicit SearchEngine(
         std::filesystem::path
             pinyinDictionaryDirectory = {});
@@ -49,7 +65,8 @@ public:
         std::wstring_view query,
         std::size_t limit = 12,
         bool allowWildcards = false,
-        bool allowPinyin = true) const;
+        bool allowPinyin = true,
+        const PreparedIndex* prepared = nullptr) const;
 
     [[nodiscard]] bool PinyinLoaded()
         const noexcept {
@@ -99,7 +116,8 @@ private:
     [[nodiscard]] static relevance::Match
     DerivedInitialMatchScore(
         std::wstring_view field,
-        std::wstring_view normalizedQuery);
+        std::wstring_view normalizedQuery,
+        const std::wstring* prepared = nullptr);
 
     [[nodiscard]] static int
     HybridPinyinPrefixScore(
@@ -116,7 +134,8 @@ private:
         const Command& command,
         std::wstring_view normalizedQuery,
         bool usePinyin,
-        bool allowTarget) const;
+        bool allowTarget,
+        const PreparedCommand* prepared = nullptr) const;
 
     [[nodiscard]] static relevance::Match
     CommandWildcardScore(

@@ -10,11 +10,16 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
+#include <string>
 #include <stop_token>
 #include <string_view>
 #include <vector>
 
 namespace altrun::win {
+
+[[nodiscard]] std::optional<std::string>
+Sha256File(const std::filesystem::path& path, std::uint32_t& nativeError);
 
 struct LockedVerifiedFile {
     HANDLE handle{INVALID_HANDLE_VALUE};
@@ -39,7 +44,7 @@ LockAndVerifySha256(
     std::uint32_t& nativeError);
 
 [[nodiscard]] bool
-ExtractZipWithShellSecure(
+ExtractZipVerifiedSecure(
     const std::filesystem::path& archive,
     const std::filesystem::path& destination,
     std::uint32_t& nativeError,

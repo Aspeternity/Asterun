@@ -40,6 +40,7 @@ enum class UpdateFailure {
     StagedPackageInvalid,
     UpdaterMissing,
     LaunchUpdaterFailed,
+    UnexpectedFailure,
 };
 
 struct UpdateSnapshot {

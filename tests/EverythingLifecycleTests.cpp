@@ -44,6 +44,16 @@ LRESULT CALLBACK WindowProc(
 int main() {
     const auto root = TestRoot();
 
+    assert(
+        IsEverythingServiceMissingError(
+            ERROR_SERVICE_DOES_NOT_EXIST));
+    assert(
+        IsEverythingServiceMissingError(
+            ERROR_FILE_NOT_FOUND));
+    assert(
+        !IsEverythingServiceMissingError(
+            ERROR_ACCESS_DENIED));
+
     std::error_code ec;
     std::filesystem::remove_all(
         root,
@@ -61,6 +71,48 @@ int main() {
                 NotInstalled);
         assert(result.nativeError == 0);
     }
+
+    // On a clean Windows machine with no Everything service and no managed
+    // source yet, provider enable is a valid first-install state. It must not
+    // surface ERROR_FILE_NOT_FOUND before the explicit acquisition flow.
+    SC_HANDLE manager =
+        OpenSCManagerW(
+            nullptr,
+            nullptr,
+            SC_MANAGER_CONNECT);
+    assert(manager != nullptr);
+
+    SC_HANDLE existingService =
+        OpenServiceW(
+            manager,
+            L"Everything",
+            SERVICE_QUERY_STATUS);
+
+    if (!existingService) {
+        const DWORD serviceError =
+            GetLastError();
+
+        if (IsEverythingServiceMissingError(
+                static_cast<std::uint32_t>(
+                    serviceError))) {
+            const auto policy =
+                SetManagedEverythingServiceEnabled(
+                    root,
+                    true);
+
+            assert(
+                policy.status ==
+                ManagedEverythingServicePolicyStatus::
+                    NotInstalled);
+            assert(policy.nativeError == 0);
+        }
+    } else {
+        CloseServiceHandle(
+            existingService);
+    }
+
+    CloseServiceHandle(
+        manager);
 
     const auto managed =
         ManagedEverythingExecutable(root);

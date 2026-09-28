@@ -20,16 +20,9 @@ $required = @(
     "Uninstall.exe",
     "VERSION",
     "README.md",
-    "CONFIG_SCHEMA.md",
-    "DESKTOP_VALIDATION.md",
-    "V0.5_RC_VALIDATION.md",
-    "V0.6_RC_VALIDATION.md",
-    "V0.7_BETA_VALIDATION.md",
-    "V0.8_BETA_VALIDATION.md",
-    "V0.7_RC_VALIDATION.md",
-    "EVERYTHING_COMPATIBILITY.md",
     "dict",
-    "third_party/cpp-pinyin-LICENSE.txt"
+    "third_party/cpp-pinyin-LICENSE.txt",
+    "third_party/miniz-LICENSE.txt"
 )
 
 foreach ($entry in $required) {
@@ -44,19 +37,6 @@ $allowedTopLevel = @(
     "Uninstall.exe",
     "VERSION",
     "README.md",
-    "CONFIG_SCHEMA.md",
-    "DESKTOP_VALIDATION.md",
-    "V0.5_RC_VALIDATION.md",
-    "V0.6_RC_VALIDATION.md",
-    "V0.7_BETA_VALIDATION.md",
-    "V0.8_BETA_VALIDATION.md",
-    "V0.7_RC_VALIDATION.md",
-    "EVERYTHING_COMPATIBILITY.md",
-    "commands.example.json",
-    "commands.example.tsv",
-    "settings.example.ini",
-    "settings.example.json",
-    "usage.example.json",
     "dict",
     "third_party"
 )
@@ -97,6 +77,84 @@ $unexpectedDlls = @(
 if ($unexpectedDlls.Count -ne 0) {
     $unexpectedDlls | ForEach-Object { Write-Host $_.FullName }
     throw "Release package contains unexpected runtime DLLs."
+}
+
+$iconAssets = @(
+    "src/resources/altrun_original.ico",
+    "src/resources/altrun_update.ico",
+    "src/resources/altrun_uninstall.ico"
+)
+
+foreach ($asset in $iconAssets) {
+    if (-not (Test-Path $asset -PathType Leaf)) {
+        throw "Missing executable icon asset: $asset"
+    }
+}
+
+$iconHashes = @(
+    $iconAssets |
+        ForEach-Object {
+            (Get-FileHash $_ -Algorithm SHA256).Hash
+        } |
+        Select-Object -Unique
+)
+
+if ($iconHashes.Count -ne 3) {
+    throw "ALTRun Next, Update, and Uninstall icon assets must be distinct."
+}
+
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class ALTRunIconProbe
+{
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern uint ExtractIconEx(
+        string file,
+        int index,
+        IntPtr[] large,
+        IntPtr[] small,
+        uint count);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyIcon(IntPtr icon);
+}
+"@
+
+function Test-EmbeddedExecutableIcon {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $large = New-Object IntPtr[] 1
+    $small = New-Object IntPtr[] 1
+    $count = [ALTRunIconProbe]::ExtractIconEx(
+        $Path,
+        0,
+        $large,
+        $small,
+        1)
+
+    $present =
+        $count -ge 1 -and
+        ($large[0] -ne [IntPtr]::Zero -or
+         $small[0] -ne [IntPtr]::Zero)
+
+    foreach ($handle in @($large[0], $small[0])) {
+        if ($handle -ne [IntPtr]::Zero) {
+            [void][ALTRunIconProbe]::DestroyIcon($handle)
+        }
+    }
+
+    return $present
+}
+
+foreach ($exe in @("ALTRunNext.exe", "Update.exe", "Uninstall.exe")) {
+    $path = Join-Path $verify $exe
+
+    if (-not (Test-EmbeddedExecutableIcon -Path $path)) {
+        throw "Packaged executable has no embedded icon resource: $exe"
+    }
 }
 
 $expectedVersion = (Get-Content VERSION -Raw).Trim()

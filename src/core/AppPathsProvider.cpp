@@ -178,7 +178,8 @@ void EnumerateAppPathsKey(
     std::vector<Command>& output,
     std::unordered_set<std::wstring>& seenTargets,
     ProviderAdmissionDiagnostics&
-        diagnostics) {
+        diagnostics,
+    std::stop_token stop) {
 
     HKEY appPaths{};
 
@@ -194,6 +195,7 @@ void EnumerateAppPathsKey(
     DWORD index = 0;
 
     for (;;) {
+        if (stop.stop_requested()) break;
         std::array<wchar_t, 512>
             nameBuffer{};
 
@@ -503,7 +505,7 @@ AppPathsProvider::Discover() const {
 }
 
 ProviderDiscoveryPayload
-AppPathsProvider::DiscoverDetailed() const {
+AppPathsProvider::DiscoverDetailed(std::stop_token stop) const {
 
     ProviderDiscoveryPayload payload;
     auto& commands = payload.commands;
@@ -520,19 +522,23 @@ AppPathsProvider::DiscoverDetailed() const {
         };
 
     for (const REGSAM view : views) {
+        if (stop.stop_requested()) break;
         EnumerateAppPathsKey(
             HKEY_CURRENT_USER,
             view,
             commands,
             seenTargets,
-            diagnostics);
+            diagnostics,
+            stop);
+        if (stop.stop_requested()) break;
 
         EnumerateAppPathsKey(
             HKEY_LOCAL_MACHINE,
             view,
             commands,
             seenTargets,
-            diagnostics);
+            diagnostics,
+            stop);
     }
 
     return payload;

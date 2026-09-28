@@ -167,6 +167,12 @@ private:
     void CreateAboutPage();
     void ApplyFonts();
     void Layout();
+    void LayoutGeneral();
+    void LayoutHotkeys(RECT client, int contentLeft, int contentWidth);
+    void LayoutProviders(int contentLeft, int contentWidth);
+    void LayoutAppearance(int contentLeft, int contentWidth);
+    void LayoutData(int contentLeft, int contentWidth);
+    void LayoutAbout(int contentLeft, int contentWidth);
     void PositionForShow();
     void ShowPage(Page page);
     void UpdateNavLabels();
