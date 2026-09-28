@@ -120,6 +120,10 @@ for path, tokens in {
 for path in (".github/workflows/build.yml", ".github/workflows/release.yml"):
     require(path, "permissions:\n  contents: read", "contents: write",
             "verify_release_contract.py", "verify_package.ps1")
+require(
+    ".github/workflows/build.yml",
+    '.prerelease == ($version | contains("-"))',
+)
 require("scripts/publish_versioned_release.sh", "Versioned tag $TAG is immutable",
         "--draft", "SHA256SUMS.txt", "update-manifest.json")
 forbidden = ("--force", "--cleanup-tag")

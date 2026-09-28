@@ -295,7 +295,7 @@ jobs:
           VERSION="$(tr -d '\r\n' < VERSION)"
           RELEASE_ID="${{ steps.publish-dev.outputs.release_id }}"
 
-          # Authenticated state verification catches draft/prerelease mistakes.
+          # dev-latest is always a GitHub prerelease Release, while the manifest\n          # prerelease field describes VERSION itself (stable 1.0.0 => false).\n          # Authenticated state verification catches Release-state mistakes.
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
             > authenticated-dev-release.json
           jq -e \
@@ -310,7 +310,7 @@ jobs:
           jq -e \
             --arg version "$VERSION" \
             --arg commit "$GITHUB_SHA" \
-            '.schemaVersion == 1 and .version == $version and .commit == $commit and .prerelease == true' \
+            '.schemaVersion == 1 and .version == $version and .commit == $commit and .prerelease == ($version | contains("-"))' \
             update-manifest.json \
             >/dev/null
 
