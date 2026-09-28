@@ -12,7 +12,9 @@ HISTORICAL_FILES = {
     Path("scripts/verify_branding.py"),
     Path("CHANGELOG.md"),
     Path("docs/DESKTOP_VALIDATION.md"),
-    Path("docs/CODE_REVIEW_FIXES_BETA3.md"),\n    Path("docs/EVERYTHING_BETA_VALIDATION.md"),\n    Path("docs/CLASSIC_UI_SPEC.md"),
+    Path("docs/CODE_REVIEW_FIXES_BETA3.md"),
+    Path("docs/EVERYTHING_BETA_VALIDATION.md"),
+    Path("docs/CLASSIC_UI_SPEC.md"),
 }
 
 TEXT_SUFFIXES = {
