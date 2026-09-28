@@ -246,7 +246,7 @@ try {
         Get-Content $settingsFixture -Raw |
         ConvertFrom-Json
 
-    $currentSettings.general.showTrayIcon = $false
+    $currentSettings.general.showTrayIcon = $true
     $currentSettings.general.startupBehavior = "silent"
     $currentSettings.update.autoCheck = $false
 
@@ -276,6 +276,166 @@ try {
         throw "Startup-performance fixture must exercise alpha.5.46 default-on integrations."
     }
 
+    $currentSettings |
+        ConvertTo-Json -Depth 12 |
+        Set-Content -Path (Join-Path $data "settings.json") -Encoding utf8 -NoNewline
+
+    # Regression: a primary hotkey conflict must not hide Asterun or
+    # remove the configured tray recovery path.
+    if (-not ("AsterunHotkeyConflictProbe" -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class AsterunHotkeyConflictProbe {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint virtualKey);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr FindWindow(string className, string windowName);
+
+    [DllImport("user32.dll")]
+    public static extern bool PostMessage(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    public static IntPtr FindTopLevelWindowForProcess(uint targetProcessId) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {
+            uint processId;
+            GetWindowThreadProcessId(hWnd, out processId);
+            if (processId == targetProcessId) {
+                found = hWnd;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NOTIFYICONIDENTIFIER {
+        public uint cbSize;
+        public IntPtr hWnd;
+        public uint uID;
+        public Guid guidItem;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT {
+        public int left;
+        public int top;
+        public int right;
+        public int bottom;
+    }
+
+    [DllImport("shell32.dll")]
+    public static extern int Shell_NotifyIconGetRect(
+        ref NOTIFYICONIDENTIFIER identifier,
+        out RECT iconLocation);
+
+    public static bool HasAsterunTrayIcon(IntPtr launcherWindow) {
+        NOTIFYICONIDENTIFIER identifier = new NOTIFYICONIDENTIFIER();
+        identifier.cbSize = (uint)Marshal.SizeOf(typeof(NOTIFYICONIDENTIFIER));
+        identifier.hWnd = launcherWindow;
+        identifier.uID = 1;
+        identifier.guidItem = new Guid("1f25fb11-dcd3-417c-a6d9-5d8591422ea8");
+
+        RECT rect;
+        return Shell_NotifyIconGetRect(ref identifier, out rect) >= 0;
+    }
+}
+'@
+    }
+
+    $conflictHotkeyId = 0x6A51
+    $modControl = 0x0002
+    $modShift = 0x0004
+    $modNoRepeat = 0x4000
+    $vkF24 = 0x87
+    $conflictModifiers = $modControl -bor $modShift -bor $modNoRepeat
+
+    if (-not [AsterunHotkeyConflictProbe]::RegisterHotKey(
+            [IntPtr]::Zero,
+            $conflictHotkeyId,
+            $conflictModifiers,
+            $vkF24)) {
+        throw "Unable to reserve the Asterun runtime-smoke conflict hotkey."
+    }
+
+    try {
+        $process = Start-Process -FilePath $exe -WorkingDirectory $tempRoot -PassThru
+
+        $dialog = [IntPtr]::Zero
+        $dialogDeadline = [DateTime]::UtcNow.AddSeconds(5)
+        while ([DateTime]::UtcNow -lt $dialogDeadline) {
+            $process.Refresh()
+            if ($process.HasExited) { break }
+            $dialog = [AsterunHotkeyConflictProbe]::FindWindow("#32770", "Asterun")
+            if ($dialog -ne [IntPtr]::Zero) { break }
+            Start-Sleep -Milliseconds 50
+        }
+
+        if ($dialog -eq [IntPtr]::Zero) {
+            throw "Primary-hotkey conflict did not show the Asterun startup warning."
+        }
+
+        if (-not [AsterunHotkeyConflictProbe]::PostMessage(
+                $dialog, 0x0111, [IntPtr]1, [IntPtr]::Zero)) {
+            throw "Unable to dismiss the Asterun primary-hotkey conflict warning."
+        }
+
+        Start-Sleep -Milliseconds 500
+        $process.Refresh()
+        if ($process.HasExited) {
+            throw "Asterun exited after a primary-hotkey conflict."
+        }
+
+        $launcher = [AsterunHotkeyConflictProbe]::FindTopLevelWindowForProcess([uint32]$process.Id)
+        if ($launcher -eq [IntPtr]::Zero) {
+            throw "Asterun top-level window was not available after the hotkey conflict."
+        }
+
+        $trayDeadline = [DateTime]::UtcNow.AddSeconds(3)
+        $trayVisible = $false
+        while ([DateTime]::UtcNow -lt $trayDeadline) {
+            if ([AsterunHotkeyConflictProbe]::HasAsterunTrayIcon($launcher)) {
+                $trayVisible = $true
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+
+        if (-not $trayVisible) {
+            throw "Asterun stayed alive after the hotkey conflict but its tray icon was not registered."
+        }
+
+        Write-Host "Primary-hotkey conflict keep-running + tray contract passed."
+    }
+    finally {
+        [void][AsterunHotkeyConflictProbe]::UnregisterHotKey([IntPtr]::Zero, $conflictHotkeyId)
+        if ($null -ne $process) {
+            try {
+                $process.Refresh()
+                if (-not $process.HasExited) {
+                    Stop-Process -Id $process.Id -Force
+                    Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+                }
+            } catch {}
+            $process = $null
+        }
+    }
+
+    $currentSettings.general.showTrayIcon = $false
     $currentSettings |
         ConvertTo-Json -Depth 12 |
         Set-Content -Path (Join-Path $data "settings.json") -Encoding utf8 -NoNewline

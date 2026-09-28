@@ -1,6 +1,13 @@
 # Asterun Roadmap
 
-Asterun 1.0.0 is the first stable 1.x baseline, promoted directly from the validated v0.8.0-beta.3 hardening line. Future work continues as post-1.0 maintenance and incremental feature development.
+Asterun 1.0.0 is the first stable 1.x baseline. Asterun 1.0.1 is the current maintenance release focused on tray identity, hotkey-conflict recovery and the approved transparent icon set.
+
+## v1.0.1 - Maintenance release
+
+- Separate Asterun's tray identity from the legacy tray GUID.
+- Keep the launcher running when startup hotkeys conflict, with one concise warning and Settings as the recovery path.
+- Replace the square-backed application/tray artwork with the approved transparent Asterun mark.
+- Add real-Windows regression coverage for hotkey conflict + tray visibility.
 
 ## v1.0.0 - First stable release
 

@@ -463,14 +463,12 @@ int App::Run() {
     // for a failed startup.
     SignalStartupHealthEvent();
 
+    bool startupHotkeyConflict = false;
+
     if (!RebindGlobalHotkey(
             settingsStore_.Data().hotkeyModifiers,
             settingsStore_.Data().hotkeyKey)) {
-        altrun::ui::ShowMessage(
-            nullptr,
-            Text(TextId::HotkeyBusy).data(),
-            L"Asterun",
-            MB_ICONWARNING | MB_OK);
+        startupHotkeyConflict = true;
     }
 
     if (!RebindAuxiliaryHotkey(
@@ -480,15 +478,7 @@ int App::Run() {
                 .auxiliaryHotkeyModifiers,
             settingsStore_.Data()
                 .auxiliaryHotkeyKey)) {
-
-        altrun::ui::ShowMessage(
-            nullptr,
-            settingsStore_.Data().language ==
-                    Language::ZhCN
-                ? L"辅助热键注册失败，主热键仍可继续使用。请检查该按键是否已被其他程序占用。"
-                : L"The auxiliary hotkey could not be registered. The primary hotkey remains available. Check whether another application already uses the binding.",
-            L"Asterun",
-            MB_ICONWARNING | MB_OK);
+        startupHotkeyConflict = true;
     }
 
     const auto shortcutManagerBinding =
@@ -502,12 +492,13 @@ int App::Run() {
             shortcutManagerBinding.enabled,
             shortcutManagerBinding.modifiers,
             shortcutManagerBinding.key)) {
+        startupHotkeyConflict = true;
+    }
+
+    if (startupHotkeyConflict) {
         altrun::ui::ShowMessage(
             nullptr,
-            settingsStore_.Data().language ==
-                    Language::ZhCN
-                ? L"“打开快捷项管理”全局快捷键注册失败。请检查该组合键是否已被其他程序占用。"
-                : L"The global Shortcut Manager hotkey could not be registered. Check whether another application already uses the binding.",
+            Text(TextId::HotkeyBusy).data(),
             L"Asterun",
             MB_ICONWARNING | MB_OK);
     }
