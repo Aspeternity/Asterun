@@ -1,125 +1,151 @@
 <p align="center">
-  <img src="src/resources/altrun_original.ico" width="88" height="88" alt="ALTRun Next icon">
+  <img src="src/resources/altrun_original.ico" width="88" height="88" alt="ALTRun Next 图标">
 </p>
 
 <h1 align="center">ALTRun Next</h1>
 
 <p align="center">
-  <strong>A fast, native, keyboard-first launcher for Windows.</strong><br>
-  Classic ALTRun spirit, modern Windows integration.
+  <strong>快速、原生、键盘优先的 Windows 启动器。</strong><br>
+  延续经典 ALTRun 的使用方式，并面向现代 Windows 重新构建。
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md">简体中文</a>
+  <a href="README.md"><strong>简体中文</strong></a> ·
+  <a href="README.en.md">English</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Aspeternity/ALTRunNext/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Aspeternity/ALTRunNext?display_name=tag&sort=semver"></a>
-  <a href="https://github.com/Aspeternity/ALTRunNext/actions/workflows/build.yml"><img alt="Build" src="https://github.com/Aspeternity/ALTRunNext/actions/workflows/build.yml/badge.svg?branch=main"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/Aspeternity/ALTRunNext"></a>
-  <img alt="Platform" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white">
+  <a href="https://github.com/Aspeternity/ALTRunNext/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Aspeternity/ALTRunNext?display_name=tag&sort=semver"></a>
+  <a href="https://github.com/Aspeternity/ALTRunNext/actions/workflows/build.yml"><img alt="构建状态" src="https://github.com/Aspeternity/ALTRunNext/actions/workflows/build.yml/badge.svg?branch=main"></a>
+  <a href="LICENSE"><img alt="许可证" src="https://img.shields.io/github/license/Aspeternity/ALTRunNext"></a>
+  <img alt="平台" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white">
   <img alt="C++23" src="https://img.shields.io/badge/C%2B%2B-23-00599C?logo=cplusplus&logoColor=white">
 </p>
 
 <p align="center">
-  <a href="#download">Download</a> ·
-  <a href="#highlights">Highlights</a> ·
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#everything-file-search">Everything Search</a> ·
-  <a href="#build-from-source">Build</a> ·
-  <a href="CHANGELOG.md">Changelog</a>
+  <a href="#界面预览">界面预览</a> ·
+  <a href="#下载">下载</a> ·
+  <a href="#核心特性">核心特性</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#everything-文件搜索">Everything 搜索</a> ·
+  <a href="#从源码构建">源码构建</a> ·
+  <a href="CHANGELOG.md">更新日志</a>
 </p>
 
 ---
 
-## About
+## 项目简介
 
-ALTRun Next is an independently implemented Windows launcher inspired by the classic ALTRun workflow: **small, fast, keyboard-first, and low-noise**.
+ALTRun Next 是一个独立实现的 Windows 启动器，设计灵感来自经典 ALTRun：**体积小、响应快、键盘优先、尽量不打扰用户**。
 
-The project keeps the compact launcher experience while adding the Windows integration expected from a modern daily-use tool: application discovery, pinyin and mixed-language search, usage-aware ranking, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model.
+在保留紧凑启动体验的基础上，ALTRun Next 加入了现代 Windows 日常使用需要的能力：程序发现、拼音与中英文混合搜索、使用习惯排序、自定义快捷项、可选 Everything 文件/文件夹搜索、原生更新与卸载，以及便携式数据结构。
 
-## v1.0.0 — Current Stable Release
+## v1.0.0 — 当前稳定版
 
-ALTRun Next 1.0.0 is the first stable 1.x release and the recommended version for normal use. Detailed release history is kept in [CHANGELOG.md](CHANGELOG.md), so the project homepage stays focused on installation, features and everyday use.
+ALTRun Next 1.0.0 是首个稳定 1.x 正式版本，也是目前推荐普通用户使用的版本。完整版本历史统一保存在 [CHANGELOG.md](CHANGELOG.md)，主页只保留下载、功能与使用信息。
 
-## Download
+## 界面预览
 
-| Architecture | Stable package |
+<p align="center">
+  <img src="docs/assets/readme/modern-compact.webp" alt="ALTRun Next Modern Compact 启动器界面" width="920">
+</p>
+
+<p align="center"><sub>Modern Compact — 现代紧凑启动器界面</sub></p>
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/assets/readme/classic.webp" alt="ALTRun Next Classic 启动器界面" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/assets/readme/settings-search-sources.webp" alt="ALTRun Next 搜索来源设置界面" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Classic — 延续经典 ALTRun 的紧凑界面</sub></td>
+    <td align="center"><sub>搜索来源 — Windows Providers 与托管 Everything</sub></td>
+  </tr>
+</table>
+
+> 预览图基于 Windows 实机界面截图进行轻量整理，用于 GitHub 项目展示。
+
+## 下载
+
+| 架构 | 稳定版 |
 | --- | --- |
-| Windows x64 | [Download ALTRunNext-x64.zip](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/ALTRunNext-x64.zip) |
-| Windows ARM64 | [Download ALTRunNext-ARM64.zip](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/ALTRunNext-ARM64.zip) |
+| Windows x64 | [下载 ALTRunNext-x64.zip](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/ALTRunNext-x64.zip) |
+| Windows ARM64 | [下载 ALTRunNext-ARM64.zip](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/ALTRunNext-ARM64.zip) |
 
-- [Latest stable release](https://github.com/Aspeternity/ALTRunNext/releases/latest)
-- [SHA-256 checksums](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/SHA256SUMS.txt)
-- Supported systems: **Windows 10 / Windows 11**
-- Distribution: **portable ZIP**, no installer required
+- [最新稳定版 Release](https://github.com/Aspeternity/ALTRunNext/releases/latest)
+- [SHA-256 校验值](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/SHA256SUMS.txt)
+- 支持系统：**Windows 10 / Windows 11**
+- 发布形式：**便携 ZIP**，无需安装器
 
-> Extract the ZIP to a normal writable folder before running. Do not run the application directly from inside the archive.
+> 请先把 ZIP 解压到正常可写目录，再运行程序；不要直接在压缩包内部启动。
 
-## Highlights
+## 核心特性
 
 | | |
 | --- | --- |
-| **Native and lightweight** | C++23 + Win32, designed for fast startup and a small portable footprint. |
-| **Two launcher styles** | Classic ALTRun-inspired UI and a Modern Compact Windows-oriented UI. |
-| **Keyboard-first workflow** | Default global launcher hotkey is <kbd>Alt</kbd> + <kbd>Space</kbd>. |
-| **Smart search** | Fuzzy matching, English initials, Chinese full-pinyin / pinyin-initial matching, and mixed-language queries. |
-| **Usage-aware ranking** | Frequency and recency help frequently used results move closer to the top. |
-| **Smart numeric launch** | Optional 1–9,0 quick launch with typing-intent arbitration instead of blindly consuming number keys. |
-| **Windows app discovery** | Start Menu, packaged/UWP/MSIX apps, App Paths and PATH providers. |
-| **Everything integration** | Optional fast file/folder search with ALTRun-managed acquisition or compatibility with external Everything installs. |
-| **User shortcuts** | Native Shortcut Manager with aliases, arguments, working directories, dynamic input and path conversion. |
-| **Portable data** | Settings, shortcuts, usage history and provider cache live under the local `data/` directory. |
-| **Native lifecycle tools** | Built-in `Update.exe` and `Uninstall.exe`, with x64 and ARM64 release packages. |
-| **Bilingual UI** | Simplified Chinese and English interfaces. |
+| **原生轻量** | C++23 + Win32，目标是快速启动和尽可能小的便携体积。 |
+| **两套启动器界面** | Classic 经典 ALTRun 风格 + Modern Compact 现代紧凑风格。 |
+| **键盘优先** | 默认全局唤醒快捷键为 <kbd>Alt</kbd> + <kbd>Space</kbd>。 |
+| **智能搜索** | 支持模糊匹配、英文首字母、中文全拼/拼音首字母以及中英文混合搜索。 |
+| **智能排序** | 根据使用频率和最近使用情况，让常用结果更靠前。 |
+| **智能数字键启动** | 可选 1–9、0 快速启动，并根据输入意图判断数字是继续输入还是执行结果。 |
+| **Windows 程序发现** | 支持开始菜单、UWP/MSIX、App Paths、PATH 等来源。 |
+| **Everything 集成** | 可选高速文件/文件夹搜索，支持 ALTRun 托管获取，也兼容用户自行维护的 Everything。 |
+| **快捷项管理** | 原生快捷项管理器，支持别名、参数、工作目录、动态输入与路径转换。 |
+| **便携数据** | 设置、快捷项、使用记录和搜索缓存都保存在本地 `data/` 目录。 |
+| **原生更新与卸载** | 自带 `Update.exe` 和 `Uninstall.exe`，提供 x64 / ARM64 版本。 |
+| **双语界面** | 支持简体中文和 English。 |
 
-## Quick Start
+## 快速开始
 
-1. Download the package for your architecture from the [latest release](https://github.com/Aspeternity/ALTRunNext/releases/latest).
-2. Extract the ZIP to a folder of your choice.
-3. Run `ALTRunNext.exe`.
-4. Press <kbd>Alt</kbd> + <kbd>Space</kbd> to open the launcher.
-5. Use the tray menu for **Settings**, **Shortcut Manager**, **About**, and exit controls.
+1. 从 [最新 Release](https://github.com/Aspeternity/ALTRunNext/releases/latest) 下载对应架构的 ZIP。
+2. 解压到你希望长期使用的目录。
+3. 运行 `ALTRunNext.exe`。
+4. 按 <kbd>Alt</kbd> + <kbd>Space</kbd> 唤出启动器。
+5. 通过托盘菜单进入 **设置**、**快捷项管理**、**关于** 或退出程序。
 
-ALTRun Next is portable. On first launch it creates its runtime data directory beside the executable.
+ALTRun Next 为便携软件。首次运行后会在程序旁创建运行时数据目录。
 
-## Search Sources
+## 搜索来源
 
-ALTRun Next can combine results from several Windows sources:
+ALTRun Next 可以把多个 Windows 来源统一到同一个搜索界面中：
 
-- Start Menu shortcuts
-- Packaged / UWP / MSIX applications
+- 开始菜单快捷方式
+- UWP / MSIX / Microsoft Store 应用
 - App Paths
-- Executables available through `PATH`
-- User-defined shortcuts
-- Optional Everything file and folder results
+- `PATH` 中的可执行程序
+- 用户自定义快捷项
+- 可选的 Everything 文件和文件夹结果
 
-Sources can be enabled or disabled independently from **Settings → Search Sources**.
+可以在 **设置 → 搜索来源** 中分别开启或关闭。
 
-## Everything File Search
+## Everything 文件搜索
 
-Everything integration is optional.
+Everything 集成是可选功能。
 
-When enabled from **Settings → Search Sources**, ALTRun Next can guide you through **Get and start Everything**. The managed flow verifies the downloaded package before use and keeps its own managed service/runtime lifecycle separate from external user-managed Everything installations.
+在 **设置 → 搜索来源** 中启用后，ALTRun Next 会提供 **获取并启动 Everything** 流程。托管模式会在使用前校验下载内容，并维护 ALTRun 自己的运行时/服务生命周期。
 
-If you already maintain your own compatible Everything installation, ALTRun Next is designed not to take ownership of that external installation.
+如果你已经自行安装并维护兼容的 Everything，ALTRun Next 的设计原则是不接管外部用户安装。
 
-## Launcher Styles
+## 启动器样式
 
 ### Classic
 
-The Classic style preserves the compact ALTRun-inspired layout and keyboard-centric interaction model. It includes authorized original visual/audio assets from classic ALTRun where noted below.
+Classic 保留经典 ALTRun 的紧凑布局和键盘操作方式，并在下方“致谢”中注明使用的原始授权素材。
 
 ### Modern Compact
 
-Modern Compact keeps the same search engine and result semantics while presenting a cleaner Windows 10/11-oriented shell with DPI-aware sizing and a compact result surface.
+Modern Compact 使用同一套搜索与排序核心，但提供更适合 Windows 10/11 的现代紧凑界面、DPI 自适应尺寸和更清晰的结果层级。
 
-Both styles share the same search, ranking, shortcut and provider core.
+两套界面共享相同的搜索、排序、快捷项和 Provider 核心。
 
-## Portable Data
+## 便携数据
 
-Runtime state is stored locally:
+运行时数据保存在程序本地：
 
 ```text
 ALTRunNext/
@@ -130,30 +156,30 @@ ALTRunNext/
 ├─ README.md
 ├─ dict/
 ├─ third_party/
-└─ data/                  # created at runtime
+└─ data/                  # 首次运行后创建
    ├─ settings.json
    ├─ commands.json
    ├─ usage.json
    └─ provider-cache.json
 ```
 
-Configuration files use versioned schemas, atomic writes and backup recovery. See [Config Core schemas](docs/CONFIG_SCHEMA.md) for implementation details.
+配置采用独立版本化 Schema、原子写入和备份恢复机制。详细设计见 [Config Core schemas](docs/CONFIG_SCHEMA.md)。
 
-## Release Channels
+## 发布渠道
 
-| Channel | Intended use | Link |
+| 渠道 | 用途 | 链接 |
 | --- | --- | --- |
-| **Stable** | Recommended for normal use. Versioned, immutable releases. | [Latest stable](https://github.com/Aspeternity/ALTRunNext/releases/latest) |
-| **Development** | Rolling build from the latest successful `main` CI. May contain unfinished changes. | [dev-latest](https://github.com/Aspeternity/ALTRunNext/releases/tag/dev-latest) |
+| **Stable** | 推荐普通用户使用。正式版本号、不可变 Release。 | [最新稳定版](https://github.com/Aspeternity/ALTRunNext/releases/latest) |
+| **Development** | 最新成功通过 CI 的 `main` 滚动构建，可能包含尚未完成的修改。 | [dev-latest](https://github.com/Aspeternity/ALTRunNext/releases/tag/dev-latest) |
 
-Official release assets include x64/ARM64 portable ZIPs, SHA-256 checksums and an update manifest.
+官方 Release 会提供 x64 / ARM64 便携包、SHA-256 校验文件和更新清单。
 
-## Build from Source
+## 从源码构建
 
-### Requirements
+### 环境要求
 
-- Windows 10 or Windows 11
-- Visual Studio 2022 with **Desktop development with C++**
+- Windows 10 或 Windows 11
+- Visual Studio 2022，并安装 **Desktop development with C++**
 - CMake **3.24+**
 - Git
 
@@ -166,58 +192,58 @@ cmake --build build --config Release
 
 ### ARM64
 
-Use a Visual Studio toolchain with ARM64 support:
+需要安装 Visual Studio ARM64 工具链：
 
 ```powershell
 cmake -S . -B build-arm64 -A ARM64
 cmake --build build-arm64 --config Release
 ```
 
-CMake fetches pinned build dependencies used by the project. Release artifacts are additionally checked by CI for version consistency, package contents and runtime smoke behavior.
+CMake 会获取项目锁定的构建依赖。正式发布包还会通过 CI 的版本一致性、包结构和运行时 Smoke Test 检查。
 
-## Documentation
+## 项目文档
 
-| Document | Purpose |
+| 文档 | 内容 |
 | --- | --- |
-| [CHANGELOG.md](CHANGELOG.md) | Release history and notable changes |
-| [ROADMAP.md](ROADMAP.md) | Completed milestones and future direction |
-| [docs/CONFIG_SCHEMA.md](docs/CONFIG_SCHEMA.md) | Portable configuration and migration contract |
-| [docs/UPDATE_SYSTEM.md](docs/UPDATE_SYSTEM.md) | Native updater architecture |
-| [docs/EVERYTHING_COMPATIBILITY.md](docs/EVERYTHING_COMPATIBILITY.md) | Everything integration and compatibility |
-| [docs/V1.0_RELEASE_VALIDATION.md](docs/V1.0_RELEASE_VALIDATION.md) | 1.0.0 release validation contract |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party notices and licenses |
+| [CHANGELOG.md](CHANGELOG.md) | 正式更新记录与历史版本变更 |
+| [ROADMAP.md](ROADMAP.md) | 已完成里程碑和后续方向 |
+| [docs/CONFIG_SCHEMA.md](docs/CONFIG_SCHEMA.md) | 便携配置、Schema 与迁移规则 |
+| [docs/UPDATE_SYSTEM.md](docs/UPDATE_SYSTEM.md) | 原生更新系统架构 |
+| [docs/EVERYTHING_COMPATIBILITY.md](docs/EVERYTHING_COMPATIBILITY.md) | Everything 集成与兼容策略 |
+| [docs/V1.0_RELEASE_VALIDATION.md](docs/V1.0_RELEASE_VALIDATION.md) | 1.0.0 正式版发布验证 |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | 第三方组件与许可证说明 |
 
-Long-form Alpha/Beta development notes live in the [changelog](CHANGELOG.md) rather than on the project homepage.
+原来首页里大量 Alpha / Beta 开发记录已经统一归档到 [CHANGELOG.md](CHANGELOG.md)，主页只保留用户真正需要的信息。
 
-## Feedback and Bug Reports
+## 问题反馈
 
-Found a reproducible bug or compatibility problem? Please open a [GitHub Issue](https://github.com/Aspeternity/ALTRunNext/issues).
+如果遇到可以复现的 Bug 或兼容性问题，请提交 [GitHub Issue](https://github.com/Aspeternity/ALTRunNext/issues)。
 
-Useful reports include:
+建议同时提供：
 
-- ALTRun Next version
-- Windows version and architecture
-- Reproduction steps
-- Expected vs. actual behavior
-- Screenshots or relevant error codes when available
+- ALTRun Next 版本
+- Windows 版本和系统架构
+- 复现步骤
+- 预期行为与实际行为
+- 可以说明问题的截图或错误代码
 
-## Acknowledgements
+## 致谢
 
-ALTRun Next is an independent implementation inspired by classic ALTRun.
+ALTRun Next 是受经典 ALTRun 启发的独立实现。
 
-Classic mode includes the original launcher background and two corner glyph assets, and the product uses the original ALTRun application icon and `Popup.wav`. These original assets are included with permission from the original author.
+Classic 模式包含原版启动器背景和两个角落图形素材，程序同时使用原版 ALTRun 应用图标与 `Popup.wav`。这些原始素材均已获得原作者授权使用。
 
-Everything is a third-party product by voidtools. Additional dependency and attribution information is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Everything 为 voidtools 的第三方产品。其他依赖、授权和归属信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-## License
+## 许可证
 
-The ALTRun Next source code is released under the [MIT License](LICENSE).
+ALTRun Next 源代码采用 [MIT License](LICENSE)。
 
-Bundled third-party components and original ALTRun assets remain subject to their respective licenses, notices and permissions.
+随项目分发的第三方组件和原始 ALTRun 素材仍分别遵循其对应许可证、声明和授权范围。
 
 ---
 
 <p align="center">
   <strong>ALTRun Next</strong><br>
-  Fast enough to disappear into your workflow.
+  让启动器足够快，快到融入你的工作流。
 </p>
