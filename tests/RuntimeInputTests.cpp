@@ -61,7 +61,7 @@ int main() {
         const auto resolved =
             ResolveRuntimeInput(
                 command,
-                L"ALTRun Next");
+                L"Asterun");
 
         assert(
             resolved.target ==
