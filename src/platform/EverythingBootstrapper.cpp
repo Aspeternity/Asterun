@@ -2914,12 +2914,24 @@ SetManagedEverythingServiceEnabled(
         };
     }
 
-    // Classify the existing service before requiring a local managed source.
-    // A clean/new portable ALTRun directory can legitimately coexist with an
-    // external Everything service, or with a stale ALTRun-owned protected
-    // service left from an older portable location. Requiring
-    // data\\tools\\Everything first incorrectly turns both cases into
-    // ERROR_FILE_NOT_FOUND and prevents the provider switch from staying on.
+    const auto managedExecutable =
+        ManagedEverythingExecutable(
+            dataDirectory);
+    const auto expectedServiceExecutable =
+        ManagedEverythingServiceExecutableForSource(
+            managedExecutable);
+
+    if (enabled &&
+        (!FileExists(
+             managedExecutable) ||
+         expectedServiceExecutable.empty())) {
+        return {
+            ManagedEverythingServicePolicyStatus::
+                Failed,
+            ERROR_FILE_NOT_FOUND,
+        };
+    }
+
     std::filesystem::path
         serviceExecutable;
     bool serviceExecutableExists =
@@ -2942,29 +2954,6 @@ SetManagedEverythingServiceEnabled(
         return {
             ManagedEverythingServicePolicyStatus::
                 External,
-            0,
-        };
-    }
-
-    const auto managedExecutable =
-        ManagedEverythingExecutable(
-            dataDirectory);
-    const auto expectedServiceExecutable =
-        ManagedEverythingServiceExecutableForSource(
-            managedExecutable);
-
-    if (enabled &&
-        (!FileExists(
-             managedExecutable) ||
-         expectedServiceExecutable.empty())) {
-        // The service is ALTRun-owned, but this portable directory has not
-        // acquired its matching managed source yet. This is not a permission
-        // failure: allow the setting to be enabled so the normal
-        // Get-and-start flow can download and then repair/retarget the service
-        // using the exact verified source.
-        return {
-            ManagedEverythingServicePolicyStatus::
-                NotInstalled,
             0,
         };
     }
