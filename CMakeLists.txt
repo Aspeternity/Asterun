@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 0.8.0 LANGUAGES CXX)
+project(ALTRunNext VERSION 0.8.0 LANGUAGES C CXX)
 
 file(
     STRINGS
@@ -33,6 +33,7 @@ set(JSON_Install OFF CACHE INTERNAL "")
 FetchContent_Declare(
     nlohmann_json
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(nlohmann_json)
@@ -45,10 +46,37 @@ FetchContent_MakeAvailable(nlohmann_json)
 FetchContent_Declare(
     cpp_pinyin
     URL https://github.com/wolfgitpr/cpp-pinyin/archive/refs/tags/1.0.2.tar.gz
+    URL_HASH SHA256=a7b869a1bfdeff066257f3ae903638a1913a0fb17f40fb72433a1a084259b892
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     SOURCE_SUBDIR _altrun_source_only
 )
 FetchContent_MakeAvailable(cpp_pinyin)
+
+# Keep the ZIP reader separate from the dependency's optional tools/tests.
+FetchContent_Declare(
+    miniz
+    URL https://github.com/richgel999/miniz/archive/refs/tags/3.1.2.tar.gz
+    URL_HASH SHA256=98468f8924934b723276680f85238b6c78bf1f8b49b4459cc9b7214a20e2e9fb
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR _altrun_source_only
+)
+FetchContent_MakeAvailable(miniz)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated/miniz")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/miniz/miniz_export.h"
+    "#pragma once\n#define MINIZ_EXPORT\n")
+add_library(miniz_static STATIC
+    "${miniz_SOURCE_DIR}/miniz.c"
+    "${miniz_SOURCE_DIR}/miniz_zip.c"
+    "${miniz_SOURCE_DIR}/miniz_tinfl.c"
+    "${miniz_SOURCE_DIR}/miniz_tdef.c"
+)
+target_include_directories(miniz_static PUBLIC
+    "${miniz_SOURCE_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/miniz")
+
+add_library(altrun_archive STATIC src/core/ArchiveExtractor.cpp)
+target_include_directories(altrun_archive PUBLIC src)
+target_link_libraries(altrun_archive PUBLIC miniz_static)
 
 file(
     GLOB_RECURSE
@@ -168,6 +196,10 @@ function(altrun_copy_pinyin_runtime target)
             ${CMAKE_COMMAND} -E copy_if_different
             "${cpp_pinyin_SOURCE_DIR}/LICENSE"
             "$<TARGET_FILE_DIR:${target}>/third_party/cpp-pinyin-LICENSE.txt"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${miniz_SOURCE_DIR}/LICENSE"
+            "$<TARGET_FILE_DIR:${target}>/third_party/miniz-LICENSE.txt"
         VERBATIM
     )
 endfunction()
@@ -178,6 +210,7 @@ if(WIN32)
     add_executable(ALTRunNext WIN32
         src/main.cpp
         src/app/App.cpp
+        src/app/AppUpdate.cpp
         src/core/AppPathsProvider.cpp
         src/core/CommandStore.cpp
         src/core/EverythingProvider.cpp
@@ -198,9 +231,11 @@ if(WIN32)
         src/platform/WindowsContext.cpp
         src/platform/WinUtil.cpp
         src/ui/LauncherWindow.cpp
+        src/ui/LauncherWindowLayout.cpp
         src/ui/Feedback.cpp
         src/ui/Feedback.rc
         src/ui/SettingsWindow.cpp
+        src/ui/SettingsWindowLayout.cpp
         src/ui/ShortcutEditorDialog.cpp
         src/ui/ShortcutManagerWindow.cpp
         src/ui/ShortcutPathConverterDialog.cpp
@@ -212,6 +247,27 @@ if(WIN32)
         src/app.manifest
     )
 
+    # Compile the shared application implementation once for the product and
+    # its real-window integration test. Entrypoints and resources stay on the
+    # individual executables.
+    get_target_property(altrun_app_sources ALTRunNext SOURCES)
+    list(REMOVE_ITEM altrun_app_sources
+        src/main.cpp src/resources.rc src/ui/Feedback.rc src/app.manifest)
+    set_property(TARGET ALTRunNext PROPERTY SOURCES
+        src/main.cpp src/resources.rc src/ui/Feedback.rc src/app.manifest)
+    add_library(altrun_windows_runtime STATIC ${altrun_app_sources})
+    target_include_directories(altrun_windows_runtime PRIVATE
+        src "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    target_link_libraries(altrun_windows_runtime PRIVATE
+        altrun_config altrun_archive)
+    target_compile_definitions(altrun_windows_runtime PRIVATE
+        UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
+        _WIN32_WINNT=0x0A00 WINVER=0x0A00)
+    if(MSVC)
+        target_compile_options(altrun_windows_runtime PRIVATE
+            /W4 /permissive- /utf-8 /EHsc)
+    endif()
+
     target_include_directories(
         ALTRunNext PRIVATE
         src
@@ -219,8 +275,10 @@ if(WIN32)
     )
     target_link_libraries(
         ALTRunNext PRIVATE
+        altrun_windows_runtime
         altrun_core
         altrun_config
+        altrun_archive
         shell32
         ole32
         oleaut32
@@ -238,6 +296,8 @@ if(WIN32)
         msi
         winhttp
         bcrypt
+        wintrust
+        crypt32
     )
     target_compile_definitions(
         ALTRunNext PRIVATE
@@ -283,6 +343,7 @@ if(WIN32)
     target_link_libraries(
         ALTRunNextUpdater
         PRIVATE
+            altrun_archive
             advapi32
             bcrypt
             ole32
@@ -389,6 +450,16 @@ function(altrun_enable_test_assertions target)
 endfunction()
 
 if(BUILD_TESTING)
+    add_executable(archive_extractor_tests tests/ArchiveExtractorTests.cpp)
+    target_link_libraries(archive_extractor_tests PRIVATE altrun_archive)
+    altrun_enable_test_assertions(archive_extractor_tests)
+    add_test(NAME archive_extractor_tests COMMAND archive_extractor_tests)
+
+    add_executable(windows_command_line_tests tests/WindowsCommandLineTests.cpp)
+    target_include_directories(windows_command_line_tests PRIVATE src)
+    altrun_enable_test_assertions(windows_command_line_tests)
+    add_test(NAME windows_command_line_tests COMMAND windows_command_line_tests)
+
     add_executable(
         update_runtime_tests
         tests/UpdateRuntimeTests.cpp
@@ -407,6 +478,7 @@ if(BUILD_TESTING)
         target_link_libraries(
             update_runtime_tests
             PRIVATE
+                altrun_archive
                 bcrypt
                 ole32
                 oleaut32
@@ -960,15 +1032,13 @@ if(BUILD_TESTING)
     )
 
     if(WIN32)
-        # Reuse the production translation units so this test can assert that
-        # Settings::Create really stays hidden and About is the first page.
-        get_target_property(window_runtime_sources ALTRunNext SOURCES)
-        list(REMOVE_ITEM window_runtime_sources src/main.cpp)
+        # Exercise the same compiled application implementation as the product.
         get_target_property(window_runtime_libraries ALTRunNext LINK_LIBRARIES)
         get_target_property(window_runtime_includes ALTRunNext INCLUDE_DIRECTORIES)
         get_target_property(window_runtime_definitions ALTRunNext COMPILE_DEFINITIONS)
         add_executable(window_presentation_runtime_tests
-            tests/WindowPresentationRuntimeTests.cpp ${window_runtime_sources})
+            tests/WindowPresentationRuntimeTests.cpp
+            src/resources.rc src/ui/Feedback.rc src/app.manifest)
         target_include_directories(window_presentation_runtime_tests PRIVATE ${window_runtime_includes})
         target_link_libraries(window_presentation_runtime_tests PRIVATE ${window_runtime_libraries})
         target_compile_definitions(window_presentation_runtime_tests PRIVATE ${window_runtime_definitions})
@@ -1341,6 +1411,7 @@ if(BUILD_TESTING)
             everything_lifecycle_tests
             tests/EverythingLifecycleTests.cpp
             src/platform/EverythingBootstrapper.cpp
+            src/platform/SecureArchive.cpp
             src/platform/SecureElevation.cpp
         )
 
@@ -1353,6 +1424,7 @@ if(BUILD_TESTING)
             everything_lifecycle_tests
             PRIVATE
                 altrun_core
+                altrun_archive
                 shell32
                 ole32
                 oleaut32
@@ -1361,6 +1433,8 @@ if(BUILD_TESTING)
                 uuid
                 winhttp
                 bcrypt
+                wintrust
+                crypt32
         )
 
         target_compile_definitions(

@@ -14,7 +14,7 @@ public:
     Discover() const override;
 
     [[nodiscard]] ProviderDiscoveryPayload
-    DiscoverDetailed() const override;
+    DiscoverDetailed(std::stop_token stop = {}) const override;
 
     [[nodiscard]] std::uint64_t
     ChangeToken() const override;

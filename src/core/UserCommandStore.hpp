@@ -72,6 +72,7 @@ private:
     std::filesystem::path legacyTsvPath_;
     std::vector<Command> commands_;
     std::unordered_map<std::wstring, std::wstring> legacyIdMap_;
+    bool preserveInvalidInput_{false};
     bool readOnlyDueToNewerSchema_{false};
     int unsupportedSchemaVersion_{0};
     bool recoveredFromBackup_{false};

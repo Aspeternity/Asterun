@@ -1,3 +1,4 @@
+#include "../platform/WindowsCommandLine.hpp"
 #include "../ui/Feedback.hpp"
 #include "../platform/SecureElevation.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
@@ -187,40 +188,9 @@ PathStartsWithDirectory(
 }
 
 [[nodiscard]] std::wstring
-QuoteArgument(
-    std::wstring_view value) {
-    std::wstring result = L"\"";
-    std::size_t slashes = 0;
-
-    for (const wchar_t c : value) {
-        if (c == L'\\') {
-            ++slashes;
-            continue;
-        }
-
-        if (c == L'\"') {
-            result.append(
-                slashes * 2 + 1,
-                L'\\');
-            result.push_back(L'\"');
-            slashes = 0;
-            continue;
-        }
-
-        result.append(
-            slashes,
-            L'\\');
-        slashes = 0;
-        result.push_back(c);
-    }
-
-    result.append(
-        slashes * 2,
-        L'\\');
-    result.push_back(L'\"');
-    return result;
+QuoteArgument(std::wstring_view value) {
+    return QuoteWindowsArgument(value);
 }
-
 [[nodiscard]] std::wstring
 ExtractExecutable(
     std::wstring_view command) {

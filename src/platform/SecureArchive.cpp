@@ -1,4 +1,5 @@
 #include "SecureArchive.hpp"
+#include "../core/ArchiveExtractor.hpp"
 
 #include <bcrypt.h>
 #include <shellapi.h>
@@ -21,119 +22,6 @@ namespace {
 ValidHandle(HANDLE handle) noexcept {
     return handle != nullptr &&
         handle != INVALID_HANDLE_VALUE;
-}
-
-template <typename T>
-struct ComPtr {
-    T* value{nullptr};
-
-    ~ComPtr() {
-        if (value) {
-            value->Release();
-        }
-    }
-
-    ComPtr() = default;
-    ComPtr(const ComPtr&) = delete;
-    ComPtr& operator=(
-        const ComPtr&) = delete;
-
-    [[nodiscard]] T** Put() {
-        if (value) {
-            value->Release();
-            value = nullptr;
-        }
-
-        return &value;
-    }
-
-    [[nodiscard]] T* Get() const {
-        return value;
-    }
-};
-
-struct ComApartment {
-    HRESULT result{
-        CoInitializeEx(
-            nullptr,
-            COINIT_APARTMENTTHREADED)};
-
-    ~ComApartment() {
-        if (SUCCEEDED(result)) {
-            CoUninitialize();
-        }
-    }
-
-    [[nodiscard]] bool Ready() const {
-        return SUCCEEDED(result) ||
-            result == RPC_E_CHANGED_MODE;
-    }
-};
-
-struct TreeStats {
-    std::uintmax_t bytes{0};
-    std::uint64_t files{0};
-
-    friend bool operator==(
-        const TreeStats&,
-        const TreeStats&) = default;
-};
-
-[[nodiscard]] TreeStats
-DirectoryStats(
-    const std::filesystem::path& root) {
-    TreeStats stats;
-    std::error_code ec;
-
-    if (!std::filesystem::exists(
-            root,
-            ec) ||
-        ec) {
-        return stats;
-    }
-
-    for (std::filesystem::
-             recursive_directory_iterator
-             it(root, ec),
-         end;
-         !ec && it != end;
-         it.increment(ec)) {
-        const DWORD attributes =
-            GetFileAttributesW(
-                it->path().c_str());
-
-        if (attributes ==
-                INVALID_FILE_ATTRIBUTES ||
-            (attributes &
-             FILE_ATTRIBUTE_REPARSE_POINT) !=
-                0) {
-            ec =
-                std::make_error_code(
-                    std::errc::
-                        too_many_symbolic_link_levels);
-            break;
-        }
-
-        if (it->is_regular_file(ec) &&
-            !ec) {
-            stats.bytes +=
-                it->file_size(ec);
-
-            if (!ec) {
-                ++stats.files;
-            }
-        }
-
-        if (ec) {
-            break;
-        }
-    }
-
-    if (ec) {
-        return {};
-    }
-
-    return stats;
 }
 
 [[nodiscard]] bool
@@ -333,6 +221,35 @@ HashHandleSha256(
 
 } // namespace
 
+std::optional<std::string> Sha256File(
+    const std::filesystem::path& path, std::uint32_t& nativeError) {
+    const HANDLE input = CreateFileW(path.c_str(), GENERIC_READ,
+        FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (!ValidHandle(input)) {
+        nativeError = GetLastError();
+        return std::nullopt;
+    }
+    FILE_ATTRIBUTE_TAG_INFO info{};
+    if (!GetFileInformationByHandleEx(input, FileAttributeTagInfo,
+            &info, sizeof(info))) {
+        nativeError = GetLastError();
+        CloseHandle(input);
+        return std::nullopt;
+    }
+    if ((info.FileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT |
+                                FILE_ATTRIBUTE_DIRECTORY)) != 0) {
+        nativeError = ERROR_REPARSE_TAG_INVALID;
+        CloseHandle(input);
+        return std::nullopt;
+    }
+    std::string digest;
+    const bool hashed = HashHandleSha256(input, digest, nativeError);
+    CloseHandle(input);
+    if (!hashed) return std::nullopt;
+    return digest;
+}
+
 LockedVerifiedFile::~LockedVerifiedFile() {
     Reset();
 }
@@ -491,265 +408,18 @@ bool LockAndVerifySha256(
     return true;
 }
 
-bool ExtractZipWithShellSecure(
+bool ExtractZipVerifiedSecure(
     const std::filesystem::path& archive,
     const std::filesystem::path& destination,
     std::uint32_t& nativeError,
     std::stop_token stopToken) {
-    std::error_code ec;
-
-    if (!archive.is_absolute() ||
-        !destination.is_absolute()) {
-        nativeError =
-            ERROR_INVALID_PARAMETER;
+    std::error_code error;
+    if (!altrun::ExtractArchive(archive, destination, error, stopToken)) {
+        nativeError = stopToken.stop_requested() ? ERROR_CANCELLED : ERROR_INVALID_DATA;
         return false;
     }
-
-    const DWORD destinationAttributes =
-        GetFileAttributesW(
-            destination.c_str());
-
-    if (destinationAttributes !=
-            INVALID_FILE_ATTRIBUTES &&
-        (destinationAttributes &
-         FILE_ATTRIBUTE_REPARSE_POINT) !=
-            0) {
-        nativeError =
-            ERROR_REPARSE_TAG_INVALID;
-        return false;
-    }
-
-    std::filesystem::create_directories(
-        destination,
-        ec);
-
-    if (ec) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                ec.value());
-        return false;
-    }
-
-    ComApartment apartment;
-
-    if (!apartment.Ready()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                apartment.result);
-        return false;
-    }
-
-    ComPtr<IShellDispatch> shell;
-
-    HRESULT hr =
-        CoCreateInstance(
-            CLSID_Shell,
-            nullptr,
-            CLSCTX_INPROC_SERVER,
-            IID_IShellDispatch,
-            reinterpret_cast<void**>(
-                shell.Put()));
-
-    if (FAILED(hr) ||
-        !shell.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                FAILED(hr)
-                    ? hr
-                    : E_FAIL);
-        return false;
-    }
-
-    VARIANT archiveVariant;
-    VariantInit(&archiveVariant);
-    archiveVariant.vt =
-        VT_BSTR;
-    archiveVariant.bstrVal =
-        SysAllocString(
-            archive.c_str());
-
-    VARIANT destinationVariant;
-    VariantInit(&destinationVariant);
-    destinationVariant.vt =
-        VT_BSTR;
-    destinationVariant.bstrVal =
-        SysAllocString(
-            destination.c_str());
-
-    if (!archiveVariant.bstrVal ||
-        !destinationVariant.bstrVal) {
-        VariantClear(
-            &archiveVariant);
-        VariantClear(
-            &destinationVariant);
-        nativeError =
-            ERROR_NOT_ENOUGH_MEMORY;
-        return false;
-    }
-
-    ComPtr<Folder> source;
-    ComPtr<Folder> destinationFolder;
-
-    hr = shell.Get()->NameSpace(
-        archiveVariant,
-        source.Put());
-
-    if (SUCCEEDED(hr)) {
-        hr = shell.Get()->NameSpace(
-            destinationVariant,
-            destinationFolder.Put());
-    }
-
-    VariantClear(
-        &archiveVariant);
-    VariantClear(
-        &destinationVariant);
-
-    if (FAILED(hr) ||
-        !source.Get() ||
-        !destinationFolder.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                FAILED(hr)
-                    ? hr
-                    : E_FAIL);
-        return false;
-    }
-
-    ComPtr<FolderItems> items;
-
-    hr = source.Get()->Items(
-        items.Put());
-
-    if (FAILED(hr) ||
-        !items.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                FAILED(hr)
-                    ? hr
-                    : E_FAIL);
-        return false;
-    }
-
-    VARIANT itemVariant;
-    VariantInit(&itemVariant);
-    itemVariant.vt =
-        VT_DISPATCH;
-    itemVariant.pdispVal =
-        items.Get();
-    itemVariant.pdispVal->AddRef();
-
-    VARIANT options;
-    VariantInit(&options);
-    options.vt = VT_I4;
-    options.lVal =
-        FOF_SILENT |
-        FOF_NOCONFIRMATION |
-        FOF_NOERRORUI |
-        FOF_NOCONFIRMMKDIR;
-
-    hr = destinationFolder.Get()->
-        CopyHere(
-            itemVariant,
-            options);
-
-    VariantClear(
-        &itemVariant);
-
-    if (FAILED(hr)) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                hr);
-        return false;
-    }
-
-    TreeStats previous;
-    int stableSamples = 0;
-    const auto deadline =
-        std::chrono::steady_clock::
-            now() +
-        std::chrono::seconds(30);
-
-    while (!stopToken
-                .stop_requested() &&
-           std::chrono::steady_clock::
-               now() < deadline) {
-        const TreeStats current =
-            DirectoryStats(destination);
-
-        std::error_code validate;
-        const bool essentials =
-            current.files > 0 &&
-            std::filesystem::
-                is_regular_file(
-                    destination /
-                        L"ALTRunNext.exe",
-                    validate) &&
-            !validate &&
-            std::filesystem::
-                is_regular_file(
-                    destination /
-                        L"Update.exe",
-                    validate) &&
-            !validate &&
-            std::filesystem::
-                is_regular_file(
-                    destination /
-                        L"Uninstall.exe",
-                    validate) &&
-            !validate &&
-            std::filesystem::
-                is_regular_file(
-                    destination /
-                        L"VERSION",
-                    validate) &&
-            !validate &&
-            std::filesystem::
-                is_regular_file(
-                    destination /
-                        L"README.md",
-                    validate) &&
-            !validate &&
-            std::filesystem::
-                is_regular_file(
-                    destination /
-                        L"third_party" /
-                        L"cpp-pinyin-LICENSE.txt",
-                    validate) &&
-            !validate &&
-            std::filesystem::
-                is_directory(
-                    destination /
-                        L"dict" /
-                        L"mandarin",
-                    validate) &&
-            !validate;
-
-        if (essentials &&
-            current == previous) {
-            ++stableSamples;
-        } else {
-            stableSamples = 0;
-        }
-
-        previous = current;
-
-        if (essentials &&
-            stableSamples >= 10) {
-            nativeError = 0;
-            return true;
-        }
-
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(
-                200));
-    }
-
-    nativeError =
-        stopToken.stop_requested()
-            ? ERROR_CANCELLED
-            : ERROR_TIMEOUT;
-    return false;
+    nativeError = 0;
+    return true;
 }
 
 } // namespace altrun::win

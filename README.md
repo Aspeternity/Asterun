@@ -23,6 +23,10 @@ The latest successful `main` build is always published to the fixed prerelease t
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
 
+## v0.8.0-beta.3 — Reliability and Code Review Fixes
+
+Beta.3 hardens configuration backup selection, preserves update recovery files when rollback fails, and replaces asynchronous Shell ZIP extraction with a synchronous CRC-checked reader. Managed Everything service copies now require a trusted voidtools signature before promotion. Search reuses contextual command views across keystrokes, selects only the top results, and the pinyin cache evicts in constant time. Usage learning becomes visible immediately while a background writer merges disk updates; stale automatic-source history is retired after a one-year grace period, and deleting a user shortcut clears its history. Provider scans respond to cancellation between entries. The release contract rejects unknown versions and pins all downloaded build dependencies by hash. Settings, Commands, Usage, and Provider Cache schemas remain 11/2/2/22. Windows fixed FileVersion/ProductVersion is `0.8.0.10003`.
+
 ## v0.8.0-beta.2 — Security & Release Hardening I
 
 Beta.2 keeps the accepted v0.8 product surface frozen and addresses release-blocking security and lifecycle gaps found during the post-Beta review. Updater and Uninstaller elevation now use cryptographically random dedicated worker directories and keep the worker executable plus its directory locked through UAC consent and process creation, removing the previous predictable PID/tick temporary-executable replacement window. Everything service elevation keeps its existing path semantics but receives the same launch-time executable/directory guard.

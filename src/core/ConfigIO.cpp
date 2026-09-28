@@ -57,7 +57,15 @@ int SchemaVersion(
             return 0;
         }
 
-        return schema.get<int>();
+        if (schema.is_number_unsigned() && schema.get<std::uint64_t>() >
+            static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+            return std::numeric_limits<int>::max();
+        }
+        const auto version = schema.get<std::int64_t>();
+        if (version < 0 || version > std::numeric_limits<int>::max()) {
+            return std::numeric_limits<int>::max();
+        }
+        return static_cast<int>(version);
     } catch (...) {
         return 0;
     }
@@ -90,74 +98,43 @@ bool ReplaceFile(
 JsonLoadResult
 LoadJsonWithBackup(
     const std::filesystem::path& path,
-    int maxSupportedSchemaVersion) {
+    int maxSupportedSchemaVersion,
+    JsonValidator validator) {
 
-    if (auto current =
-            LoadOne(path)) {
-
-        const int version =
-            SchemaVersion(*current);
-
-        if (version >
-            maxSupportedSchemaVersion) {
-            return {
-                JsonLoadStatus::
-                    UnsupportedSchema,
-                std::move(current),
-                version,
-            };
+    auto current = LoadOne(path);
+    if (current) {
+        const int version = SchemaVersion(*current);
+        if (version > maxSupportedSchemaVersion) {
+            return {JsonLoadStatus::UnsupportedSchema, std::move(current), version};
         }
-
-        return {
-            JsonLoadStatus::
-                LoadedPrimary,
-            std::move(current),
-            version,
-        };
+        if (!validator || validator(*current)) {
+            return {JsonLoadStatus::LoadedPrimary, std::move(current), version};
+        }
     }
 
-    std::filesystem::path backup =
-        path;
-
+    auto backup = path;
     backup += ".bak";
-
-    auto recovered =
-        LoadOne(backup);
-
-    if (!recovered) {
-        return {};
+    auto recovered = LoadOne(backup);
+    if (recovered) {
+        const int version = SchemaVersion(*recovered);
+        if (version > maxSupportedSchemaVersion) {
+            return {JsonLoadStatus::UnsupportedSchema, std::move(recovered), version};
+        }
+        if (!validator || validator(*recovered)) {
+            // Only a semantically valid primary may replace the good backup.
+            const bool repaired = SaveJsonAtomic(path, *recovered, validator);
+            return {JsonLoadStatus::RecoveredBackup, std::move(recovered), version, repaired};
+        }
     }
 
-    const int version =
-        SchemaVersion(*recovered);
-
-    if (version >
-        maxSupportedSchemaVersion) {
-        return {
-            JsonLoadStatus::
-                UnsupportedSchema,
-            std::move(recovered),
-            version,
-        };
+    std::error_code ec;
+    const bool exists = std::filesystem::exists(path, ec);
+    if (exists || ec || std::filesystem::exists(backup, ec) || ec) {
+        // A caller may salvage valid records for this session, but must not
+        // default-save over either recovery input.
+        return {JsonLoadStatus::InvalidExisting, std::move(current), 0};
     }
-
-    const nlohmann::json
-        repairValue =
-            *recovered;
-
-    // Repair a missing/corrupt primary immediately. SaveJsonAtomic preserves
-    // an existing good backup when the primary itself is invalid, so this
-    // cannot replace the recovery copy with corrupt data.
-    SaveJsonAtomic(
-        path,
-        repairValue);
-
-    return {
-        JsonLoadStatus::
-            RecoveredBackup,
-        std::move(recovered),
-        version,
-    };
+    return {};
 }
 
 std::optional<nlohmann::json>
@@ -175,7 +152,8 @@ LoadJsonWithBackup(
 
 bool SaveJsonAtomic(
     const std::filesystem::path& path,
-    const nlohmann::json& value) {
+    const nlohmann::json& value,
+    JsonValidator validator) {
 
     std::error_code ec;
 
@@ -204,7 +182,8 @@ bool SaveJsonAtomic(
             false);
 
     if (validation.is_discarded() ||
-        !validation.is_object()) {
+        !validation.is_object() ||
+        (validator && !validator(validation))) {
         return false;
     }
 
@@ -244,7 +223,8 @@ bool SaveJsonAtomic(
             ec) &&
         !ec) {
 
-        if (LoadOne(path)) {
+        const auto previous = LoadOne(path);
+        if (previous && (!validator || validator(*previous))) {
             std::filesystem::path
                 backup = path;
 

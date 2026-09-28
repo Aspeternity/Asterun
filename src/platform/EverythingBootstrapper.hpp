@@ -61,6 +61,7 @@ enum class EverythingBootstrapFailure {
     ServiceRepairFailed,
     ServiceUnavailable,
     ManagedLaunchFailed,
+    UnexpectedFailure,
 };
 
 enum class ManagedEverythingStopStatus {

@@ -74,6 +74,11 @@ QueryTokens(
     std::wstring_view field,
     std::wstring_view normalizedQuery);
 
+[[nodiscard]] Match MatchPreparedField(
+    std::wstring_view originalField,
+    std::wstring_view normalizedField,
+    std::wstring_view normalizedQuery);
+
 [[nodiscard]] Match MatchNormalizedText(
     std::wstring_view normalizedField,
     std::wstring_view normalizedQuery);

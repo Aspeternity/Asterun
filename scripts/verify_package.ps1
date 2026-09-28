@@ -29,7 +29,8 @@ $required = @(
     "V0.7_RC_VALIDATION.md",
     "EVERYTHING_COMPATIBILITY.md",
     "dict",
-    "third_party/cpp-pinyin-LICENSE.txt"
+    "third_party/cpp-pinyin-LICENSE.txt",
+    "third_party/miniz-LICENSE.txt"
 )
 
 foreach ($entry in $required) {

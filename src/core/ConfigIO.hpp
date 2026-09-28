@@ -13,6 +13,7 @@ inline constexpr int kUsageSchemaVersion = 2;
 
 enum class JsonLoadStatus {
     MissingOrInvalid,
+    InvalidExisting,
     LoadedPrimary,
     RecoveredBackup,
     UnsupportedSchema,
@@ -24,15 +25,16 @@ struct JsonLoadResult {
     std::optional<nlohmann::json> value;
     int schemaVersion{0};
 
-    [[nodiscard]] bool HasValue() const noexcept {
-        return value.has_value();
-    }
+    bool primaryRepaired{false};
 };
+
+using JsonValidator = bool (*)(const nlohmann::json&);
 
 [[nodiscard]] JsonLoadResult
 LoadJsonWithBackup(
     const std::filesystem::path& path,
-    int maxSupportedSchemaVersion);
+    int maxSupportedSchemaVersion,
+    JsonValidator validator = nullptr);
 
 [[nodiscard]] std::optional<nlohmann::json>
 LoadJsonWithBackup(
@@ -40,6 +42,7 @@ LoadJsonWithBackup(
 
 [[nodiscard]] bool SaveJsonAtomic(
     const std::filesystem::path& path,
-    const nlohmann::json& value);
+    const nlohmann::json& value,
+    JsonValidator validator = nullptr);
 
 } // namespace altrun::config

@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace altrun::updater {
@@ -33,7 +34,17 @@ ApplyPackage(
     const TransactionPaths& paths,
     TransactionJournal& journal);
 
-void Rollback(
+struct RecoveryFailure {
+    std::filesystem::path relative;
+    std::error_code error;
+};
+
+struct RollbackResult {
+    std::vector<RecoveryFailure> failures;
+    [[nodiscard]] bool Complete() const noexcept { return failures.empty(); }
+};
+
+[[nodiscard]] RollbackResult Rollback(
     const TransactionPaths& paths,
     const TransactionJournal& journal);
 

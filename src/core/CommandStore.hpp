@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <mutex>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -68,7 +69,8 @@ public:
     RefreshProviderCache(
         const ProviderEnableMap& enabled,
         const std::vector<std::string>&
-            selectedIds = {});
+            selectedIds = {},
+        std::stop_token stop = {});
 
     [[nodiscard]] std::vector<
         ProviderDescriptor>
@@ -109,9 +111,8 @@ public:
         return commands_;
     }
 
-    [[nodiscard]] std::size_t
-    ProviderCommandCount() const noexcept {
-        return providerCommandCount_;
+    [[nodiscard]] std::uint64_t Generation() const noexcept {
+        return generation_;
     }
 
     [[nodiscard]] const std::vector<Command>&
@@ -131,12 +132,6 @@ public:
     LegacyIdMap() const noexcept {
         return userCommandStore_
             .LegacyIdMap();
-    }
-
-    [[nodiscard]] const std::filesystem::path&
-    UserCommandsPath() const noexcept {
-        return userCommandStore_
-            .Path();
     }
 
     [[nodiscard]] bool
@@ -182,10 +177,9 @@ private:
     ProviderEnableMap
         providerEnabled_{
             providers::DefaultEnabled()};
-    std::size_t
-        providerCommandCount_{0};
     std::vector<Command>
         commands_;
+    std::uint64_t generation_{0};
     bool hasContextFolderTemplates_{false};
     CommandMergeStats
         mergeStats_;

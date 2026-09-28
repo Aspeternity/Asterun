@@ -1,6 +1,7 @@
 #include "UserCommandStore.hpp"
 
 #include "ConfigIO.hpp"
+#include "ConfigValidation.hpp"
 #include "TextCodec.hpp"
 
 #include <algorithm>
@@ -231,13 +232,14 @@ void UserCommandStore::Load() {
         false;
     unsupportedSchemaVersion_ = 0;
     recoveredFromBackup_ = false;
+    preserveInvalidInput_ = false;
 
     if (LoadJson()) {
         RebuildLegacyIdMap();
         return;
     }
 
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         RebuildLegacyIdMap();
         return;
     }
@@ -258,7 +260,12 @@ bool UserCommandStore::LoadJson() {
     auto load =
         config::LoadJsonWithBackup(
             jsonPath_,
-            config::kCommandsSchemaVersion);
+            config::kCommandsSchemaVersion,
+            config::ValidCommands);
+
+    preserveInvalidInput_ =
+        load.status == config::JsonLoadStatus::InvalidExisting ||
+        (load.status == config::JsonLoadStatus::RecoveredBackup && !load.primaryRepaired);
 
     recoveredFromBackup_ =
         load.status ==
@@ -295,7 +302,7 @@ bool UserCommandStore::LoadJson() {
         int fallbackOrder = 0;
 
         for (const auto& item : root["commands"]) {
-            if (!item.is_object()) continue;
+            if (!config::ValidCommandRecord(item)) continue;
 
             Command command;
             command.id = text::FromUtf8(item.value("id", std::string{}));
@@ -909,7 +916,7 @@ bool UserCommandStore::ExportTsv(
 }
 
 bool UserCommandStore::Save() const {
-    if (readOnlyDueToNewerSchema_) {
+    if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
 
@@ -949,7 +956,7 @@ bool UserCommandStore::Save() const {
         {"commands", std::move(commandArray)}
     };
 
-    return config::SaveJsonAtomic(jsonPath_, root);
+    return config::SaveJsonAtomic(jsonPath_, root, config::ValidCommands);
 }
 
 } // namespace altrun

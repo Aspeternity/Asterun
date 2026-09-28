@@ -323,7 +323,7 @@ PathProvider::Discover() const {
 }
 
 ProviderDiscoveryPayload
-PathProvider::DiscoverDetailed() const {
+PathProvider::DiscoverDetailed(std::stop_token stop) const {
 
     constexpr std::size_t kMaxPathApps =
         4096;
@@ -340,6 +340,7 @@ PathProvider::DiscoverDetailed() const {
 
     for (const auto& directory :
          PathDirectories()) {
+        if (stop.stop_requested()) break;
 
         if (added >= kMaxPathApps) {
             break;
@@ -361,6 +362,7 @@ PathProvider::DiscoverDetailed() const {
              end;
              it != end && added < kMaxPathApps;
              it.increment(ec)) {
+            if (stop.stop_requested()) break;
 
             if (ec) {
                 ec.clear();

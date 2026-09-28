@@ -277,38 +277,12 @@ CopyOneFile(
         }
     }
 
-    std::filesystem::copy_file(
-        source,
-        destination,
-        std::filesystem::
-            copy_options::
-                overwrite_existing,
-        ec);
-
-    if (ec) {
-        std::error_code recoveryError;
-
-        if (wasNew) {
-            std::filesystem::remove(
-                destination,
-                recoveryError);
-        } else {
-            std::filesystem::copy_file(
-                backup,
-                destination,
-                std::filesystem::
-                    copy_options::
-                        overwrite_existing,
-                recoveryError);
-        }
-
-        return false;
-    }
-
-    journal.files.push_back({
-        relative,
-        wasNew,
-    });
+    // Record before touching the destination. A failed copy can truncate an
+    // existing file and must remain eligible for the caller's rollback.
+    journal.files.push_back({relative, wasNew});
+    std::filesystem::copy_file(source, destination,
+        std::filesystem::copy_options::overwrite_existing, ec);
+    if (ec) return false;
 
     return true;
 }
@@ -516,71 +490,53 @@ bool ApplyPackage(
     return true;
 }
 
-void Rollback(
+RollbackResult Rollback(
     const TransactionPaths& paths,
     const TransactionJournal& journal) {
-    std::error_code ec;
-
-    for (auto it =
-             journal.files.rbegin();
-         it !=
-             journal.files.rend();
-         ++it) {
-        const auto destination =
-            paths.install /
-            it->relative;
-
-        if (it->wasNew) {
-            std::filesystem::remove(
-                destination,
-                ec);
-            ec.clear();
+    RollbackResult result;
+    const auto fail = [&](const std::filesystem::path& relative, std::error_code error) {
+        result.failures.push_back({relative, error ? error :
+            std::make_error_code(std::errc::io_error)});
+    };
+    for (auto it = journal.files.rbegin(); it != journal.files.rend(); ++it) {
+        const auto destination = paths.install / it->relative;
+        std::error_code ec;
+        auto parent = destination.parent_path();
+        bool safe = PlainDirectory(paths.install);
+        while (safe && parent != paths.install && parent != parent.root_path()) {
+            safe = PlainDirectory(parent);
+            parent = parent.parent_path();
+        }
+        if (!safe || IsReparsePoint(destination)) {
+            fail(it->relative, std::make_error_code(std::errc::permission_denied));
             continue;
         }
-
-        const auto backup =
-            paths.backup /
-            it->relative;
-
-        if (std::filesystem::
-                is_regular_file(
-                    backup,
-                    ec) &&
-            !ec &&
-            !IsReparsePoint(
-                destination)) {
-            std::filesystem::copy_file(
-                backup,
-                destination,
-                std::filesystem::
-                    copy_options::
-                        overwrite_existing,
-                ec);
+        if (it->wasNew) {
+            std::filesystem::remove(destination, ec);
+        } else {
+            const auto backup = paths.backup / it->relative;
+            if (!std::filesystem::is_regular_file(backup, ec) || ec || IsReparsePoint(backup)) {
+                fail(it->relative, ec);
+                continue;
+            }
+            std::filesystem::copy_file(backup, destination,
+                std::filesystem::copy_options::overwrite_existing, ec);
         }
-
-        ec.clear();
+        if (ec) fail(it->relative, ec);
     }
-
-    for (auto it =
-             journal.createdDirectories
-                 .rbegin();
-         it !=
-             journal.createdDirectories
-                 .rend();
-         ++it) {
-        const auto directory =
-            paths.install /
-            *it;
-
-        if (PlainDirectory(
-                directory)) {
-            std::filesystem::remove(
-                directory,
-                ec);
+    for (auto it = journal.createdDirectories.rbegin();
+         it != journal.createdDirectories.rend(); ++it) {
+        const auto directory = paths.install / *it;
+        std::error_code ec;
+        if (PlainDirectory(directory)) {
+            std::filesystem::remove(directory, ec);
+        } else if (IsReparsePoint(directory) ||
+                   (std::filesystem::exists(directory, ec) && !ec)) {
+            ec = std::make_error_code(std::errc::permission_denied);
         }
-
-        ec.clear();
+        if (ec) fail(*it, ec);
     }
+    return result;
 }
 
 } // namespace altrun::updater

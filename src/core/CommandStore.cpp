@@ -125,7 +125,8 @@ ProviderRefreshOutcome
 CommandStore::RefreshProviderCache(
     const ProviderEnableMap& enabled,
     const std::vector<std::string>&
-        selectedIds) {
+        selectedIds,
+    std::stop_token stop) {
 
     ProviderCacheData cache =
         providerCache_.Load();
@@ -133,7 +134,10 @@ CommandStore::RefreshProviderCache(
     auto results =
         providerRegistry_.Discover(
             enabled,
-            selectedIds);
+            selectedIds,
+            stop);
+
+    if (stop.stop_requested()) return ProviderRefreshOutcome::Failed;
 
     if (results.empty()) {
         return ProviderRefreshOutcome::
@@ -542,9 +546,6 @@ void CommandStore::RebuildMergedCommands(
             &command);
     }
 
-    providerCommandCount_ =
-        providerViews.size();
-
     CommandMergeResult merged =
         MergeCommandViews(
             userCommandStore_
@@ -554,6 +555,7 @@ void CommandStore::RebuildMergedCommands(
     commands_ =
         std::move(
             merged.commands);
+    ++generation_;
 
     mergeStats_ =
         merged.stats;

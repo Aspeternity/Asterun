@@ -1,8 +1,11 @@
+#include "../platform/WindowsCommandLine.hpp"
 #include "UpdateManager.hpp"
 
 #include "../core/ConfigIO.hpp"
+#include "../core/ArchiveExtractor.hpp"
 #include "../core/UpdateManifest.hpp"
 #include "SecureElevation.hpp"
+#include "SecureArchive.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -11,7 +14,6 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
-#include <bcrypt.h>
 #include <shellapi.h>
 #include <shldisp.h>
 #include <winhttp.h>
@@ -88,50 +90,6 @@ struct InternetHandle {
             WinHttpCloseHandle(
                 handle);
         }
-    }
-};
-
-template <typename T>
-struct ComPtr {
-    T* value{nullptr};
-    ~ComPtr() {
-        if (value) {
-            value->Release();
-        }
-    }
-    ComPtr() = default;
-    ComPtr(const ComPtr&) = delete;
-    ComPtr& operator=(
-        const ComPtr&) = delete;
-
-    [[nodiscard]] T** Put() {
-        if (value) {
-            value->Release();
-            value = nullptr;
-        }
-        return &value;
-    }
-
-    [[nodiscard]] T* Get() const {
-        return value;
-    }
-};
-
-struct ComApartment {
-    HRESULT result{
-        CoInitializeEx(
-            nullptr,
-            COINIT_APARTMENTTHREADED)};
-
-    ~ComApartment() {
-        if (SUCCEEDED(result)) {
-            CoUninitialize();
-        }
-    }
-
-    [[nodiscard]] bool Ready() const {
-        return SUCCEEDED(result) ||
-            result == RPC_E_CHANGED_MODE;
     }
 };
 
@@ -722,166 +680,6 @@ DownloadFile(
         0;
 }
 
-[[nodiscard]]
-std::optional<std::string>
-Sha256File(
-    const std::filesystem::path& path,
-    std::uint32_t& nativeError) {
-    BCRYPT_ALG_HANDLE algorithm =
-        nullptr;
-    BCRYPT_HASH_HANDLE hash =
-        nullptr;
-
-    DWORD objectLength = 0;
-    DWORD objectLengthBytes =
-        sizeof(objectLength);
-    DWORD hashLength = 0;
-    DWORD hashLengthBytes =
-        sizeof(hashLength);
-
-    if (BCryptOpenAlgorithmProvider(
-            &algorithm,
-            BCRYPT_SHA256_ALGORITHM,
-            nullptr,
-            0) != 0) {
-        nativeError =
-            ERROR_INVALID_FUNCTION;
-        return std::nullopt;
-    }
-
-    const auto cleanup =
-        [&]() {
-            if (hash) {
-                BCryptDestroyHash(hash);
-                hash = nullptr;
-            }
-            if (algorithm) {
-                BCryptCloseAlgorithmProvider(
-                    algorithm,
-                    0);
-                algorithm = nullptr;
-            }
-        };
-
-    if (BCryptGetProperty(
-            algorithm,
-            BCRYPT_OBJECT_LENGTH,
-            reinterpret_cast<PUCHAR>(
-                &objectLength),
-            sizeof(objectLength),
-            &objectLengthBytes,
-            0) != 0 ||
-        BCryptGetProperty(
-            algorithm,
-            BCRYPT_HASH_LENGTH,
-            reinterpret_cast<PUCHAR>(
-                &hashLength),
-            sizeof(hashLength),
-            &hashLengthBytes,
-            0) != 0 ||
-        hashLength != 32) {
-        cleanup();
-        nativeError =
-            ERROR_INVALID_DATA;
-        return std::nullopt;
-    }
-
-    std::vector<UCHAR> object(
-        objectLength);
-
-    if (BCryptCreateHash(
-            algorithm,
-            &hash,
-            object.data(),
-            objectLength,
-            nullptr,
-            0,
-            0) != 0) {
-        cleanup();
-        nativeError =
-            ERROR_INVALID_FUNCTION;
-        return std::nullopt;
-    }
-
-    std::ifstream input(
-        path,
-        std::ios::binary);
-
-    if (!input) {
-        cleanup();
-        nativeError =
-            ERROR_OPEN_FAILED;
-        return std::nullopt;
-    }
-
-    std::array<char, 64 * 1024>
-        buffer{};
-
-    while (input) {
-        input.read(
-            buffer.data(),
-            static_cast<
-                std::streamsize>(
-                buffer.size()));
-
-        const auto count =
-            input.gcount();
-
-        if (count > 0 &&
-            BCryptHashData(
-                hash,
-                reinterpret_cast<PUCHAR>(
-                    buffer.data()),
-                static_cast<ULONG>(
-                    count),
-                0) != 0) {
-            cleanup();
-            nativeError =
-                ERROR_INVALID_DATA;
-            return std::nullopt;
-        }
-    }
-
-    if (!input.eof()) {
-        cleanup();
-        nativeError =
-            ERROR_READ_FAULT;
-        return std::nullopt;
-    }
-
-    std::array<UCHAR, 32>
-        digest{};
-
-    if (BCryptFinishHash(
-            hash,
-            digest.data(),
-            static_cast<ULONG>(
-                digest.size()),
-            0) != 0) {
-        cleanup();
-        nativeError =
-            ERROR_INVALID_DATA;
-        return std::nullopt;
-    }
-
-    cleanup();
-
-    constexpr char hex[] =
-        "0123456789abcdef";
-    std::string result;
-    result.reserve(64);
-
-    for (const auto byte : digest) {
-        result.push_back(
-            hex[(byte >> 4) & 0x0f]);
-        result.push_back(
-            hex[byte & 0x0f]);
-    }
-
-    nativeError = 0;
-    return result;
-}
-
 [[nodiscard]] bool
 ReadFileText(
     const std::filesystem::path& path,
@@ -910,272 +708,17 @@ ReadFileText(
     return true;
 }
 
-struct TreeStats {
-    std::uintmax_t bytes{0};
-    std::uint64_t files{0};
-
-    friend bool operator==(
-        const TreeStats&,
-        const TreeStats&) = default;
-};
-
-[[nodiscard]] TreeStats
-DirectoryStats(
-    const std::filesystem::path& root) {
-    TreeStats stats;
-    std::error_code ec;
-
-    if (!std::filesystem::exists(
-            root,
-            ec) ||
-        ec) {
-        return stats;
-    }
-
-    for (std::filesystem::
-             recursive_directory_iterator
-             it(root, ec),
-         end;
-         !ec && it != end;
-         it.increment(ec)) {
-        if (it->is_regular_file(ec) &&
-            !ec) {
-            stats.bytes +=
-                it->file_size(ec);
-            if (!ec) {
-                ++stats.files;
-            }
-        }
-        ec.clear();
-    }
-
-    return stats;
-}
-
 [[nodiscard]] bool
-ExtractZipWithShell(
-    const std::filesystem::path& archive,
-    const std::filesystem::path& destination,
-    std::uint32_t& nativeError,
+ExtractZipVerified(const std::filesystem::path& archive,
+    const std::filesystem::path& destination, std::uint32_t& nativeError,
     std::stop_token stopToken) {
-    std::error_code ec;
-    std::filesystem::create_directories(
-        destination,
-        ec);
-
-    if (ec) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                ec.value());
+    std::error_code error;
+    if (!altrun::ExtractArchive(archive, destination, error, stopToken)) {
+        nativeError = stopToken.stop_requested() ? ERROR_CANCELLED : ERROR_INVALID_DATA;
         return false;
     }
-
-    ComApartment apartment;
-
-    if (!apartment.Ready()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                apartment.result);
-        return false;
-    }
-
-    ComPtr<IShellDispatch> shell;
-
-    HRESULT hr =
-        CoCreateInstance(
-            CLSID_Shell,
-            nullptr,
-            CLSCTX_INPROC_SERVER,
-            IID_IShellDispatch,
-            reinterpret_cast<void**>(
-                shell.Put()));
-
-    if (FAILED(hr) ||
-        !shell.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                hr);
-        return false;
-    }
-
-    VARIANT archiveVariant;
-    VariantInit(&archiveVariant);
-    archiveVariant.vt = VT_BSTR;
-    archiveVariant.bstrVal =
-        SysAllocString(
-            archive.c_str());
-
-    VARIANT destinationVariant;
-    VariantInit(&destinationVariant);
-    destinationVariant.vt = VT_BSTR;
-    destinationVariant.bstrVal =
-        SysAllocString(
-            destination.c_str());
-
-    if (!archiveVariant.bstrVal ||
-        !destinationVariant.bstrVal) {
-        VariantClear(
-            &archiveVariant);
-        VariantClear(
-            &destinationVariant);
-        nativeError =
-            ERROR_NOT_ENOUGH_MEMORY;
-        return false;
-    }
-
-    ComPtr<Folder> source;
-    ComPtr<Folder> destinationFolder;
-
-    hr = shell.Get()->NameSpace(
-        archiveVariant,
-        source.Put());
-
-    if (SUCCEEDED(hr)) {
-        hr = shell.Get()->NameSpace(
-            destinationVariant,
-            destinationFolder.Put());
-    }
-
-    VariantClear(
-        &archiveVariant);
-    VariantClear(
-        &destinationVariant);
-
-    if (FAILED(hr) ||
-        !source.Get() ||
-        !destinationFolder.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                FAILED(hr)
-                    ? hr
-                    : E_FAIL);
-        return false;
-    }
-
-    ComPtr<FolderItems> items;
-
-    hr = source.Get()->Items(
-        items.Put());
-
-    if (FAILED(hr) ||
-        !items.Get()) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                FAILED(hr)
-                    ? hr
-                    : E_FAIL);
-        return false;
-    }
-
-    VARIANT itemVariant;
-    VariantInit(&itemVariant);
-    itemVariant.vt =
-        VT_DISPATCH;
-    itemVariant.pdispVal =
-        items.Get();
-    itemVariant.pdispVal->AddRef();
-
-    VARIANT options;
-    VariantInit(&options);
-    options.vt = VT_I4;
-    options.lVal =
-        FOF_SILENT |
-        FOF_NOCONFIRMATION |
-        FOF_NOERRORUI |
-        FOF_NOCONFIRMMKDIR;
-
-    hr = destinationFolder.Get()->
-        CopyHere(
-            itemVariant,
-            options);
-
-    VariantClear(
-        &itemVariant);
-
-    if (FAILED(hr)) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                hr);
-        return false;
-    }
-
-    TreeStats previous;
-    int stableSamples = 0;
-    const auto deadline =
-        std::chrono::steady_clock::now() +
-        std::chrono::seconds(30);
-
-    while (!stopToken.stop_requested() &&
-           std::chrono::steady_clock::now() <
-               deadline) {
-        const TreeStats current =
-            DirectoryStats(destination);
-
-        const bool essentials =
-            current.files > 0 &&
-            std::filesystem::is_regular_file(
-                destination /
-                    L"ALTRunNext.exe",
-                ec) &&
-            !ec &&
-            std::filesystem::is_regular_file(
-                destination /
-                    L"Update.exe",
-                ec) &&
-            !ec &&
-            std::filesystem::is_regular_file(
-                destination /
-                    L"Uninstall.exe",
-                ec) &&
-            !ec &&
-            std::filesystem::is_regular_file(
-                destination /
-                    L"VERSION",
-                ec) &&
-            !ec &&
-            std::filesystem::is_regular_file(
-                destination /
-                    L"README.md",
-                ec) &&
-            !ec &&
-            std::filesystem::is_regular_file(
-                destination /
-                    L"third_party" /
-                    L"cpp-pinyin-LICENSE.txt",
-                ec) &&
-            !ec &&
-            std::filesystem::is_directory(
-                destination /
-                    L"dict" /
-                    L"mandarin",
-                ec) &&
-            !ec;
-
-        if (essentials &&
-            current == previous) {
-            ++stableSamples;
-        } else {
-            stableSamples = 0;
-        }
-
-        previous = current;
-
-        if (essentials &&
-            stableSamples >= 10) {
-            nativeError = 0;
-            return true;
-        }
-
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(
-                200));
-    }
-
-    nativeError =
-        stopToken.stop_requested()
-            ? ERROR_CANCELLED
-            : ERROR_TIMEOUT;
-    return false;
+    nativeError = 0;
+    return true;
 }
 
 [[nodiscard]] std::filesystem::path
@@ -1215,41 +758,9 @@ void MarkChecked(
 }
 
 [[nodiscard]] std::wstring
-QuoteArgument(
-    std::wstring_view value) {
-    std::wstring result = L"\"";
-
-    std::size_t backslashes = 0;
-
-    for (const wchar_t c : value) {
-        if (c == L'\\') {
-            ++backslashes;
-            continue;
-        }
-
-        if (c == L'\"') {
-            result.append(
-                backslashes * 2 + 1,
-                L'\\');
-            result.push_back(L'\"');
-            backslashes = 0;
-            continue;
-        }
-
-        result.append(
-            backslashes,
-            L'\\');
-        backslashes = 0;
-        result.push_back(c);
-    }
-
-    result.append(
-        backslashes * 2,
-        L'\\');
-    result.push_back(L'\"');
-    return result;
+QuoteArgument(std::wstring_view value) {
+    return QuoteWindowsArgument(value);
 }
-
 [[nodiscard]] bool
 DirectoryWritable(
     const std::filesystem::path& directory) {
@@ -1709,7 +1220,7 @@ PrepareUpdate(
         UpdateStage::Extracting,
         progress);
 
-    if (!ExtractZipWithShell(
+    if (!ExtractZipVerified(
             verifiedArchive,
             stagingDirectory,
             nativeError,

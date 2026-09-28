@@ -4,6 +4,7 @@
 #include "ProviderIds.hpp"
 
 #include <memory>
+#include <stop_token>
 #include <string>
 #include <vector>
 
@@ -20,7 +21,8 @@ public:
     Discover(
         const ProviderEnableMap& enabled,
         const std::vector<std::string>&
-            selectedIds = {}) const;
+            selectedIds = {},
+        std::stop_token stop = {}) const;
 
     [[nodiscard]] std::vector<ProviderChangeToken>
     ChangeTokens(

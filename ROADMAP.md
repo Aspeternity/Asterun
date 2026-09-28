@@ -1,5 +1,7 @@
 # ALTRun Next Roadmap
 
+The v0.8.0-beta.3 review cycle focuses on data-safe recovery, deterministic archive extraction, source authentication, bounded search costs, and a versioned release gate.
+
 ## v0.1.x - Classic foundation
 
 Completed:

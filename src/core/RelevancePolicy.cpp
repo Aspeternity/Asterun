@@ -345,6 +345,13 @@ namespace {
 
 } // namespace
 
+Match MatchPreparedField(
+    std::wstring_view originalField,
+    std::wstring_view normalizedField,
+    std::wstring_view normalizedQuery) {
+    return MatchPreparedText(originalField, normalizedField, normalizedQuery);
+}
+
 std::wstring Normalize(
     std::wstring_view text) {
     std::wstring result;

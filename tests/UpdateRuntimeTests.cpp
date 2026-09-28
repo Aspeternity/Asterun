@@ -282,9 +282,7 @@ int main() {
                 "data" /
                 "must-not-copy.txt"));
 
-        Rollback(
-            paths,
-            journal);
+        assert(Rollback(paths, journal).Complete());
 
         assert(
             Read(
@@ -376,9 +374,7 @@ int main() {
         assert(
             !journal.files.empty());
 
-        Rollback(
-            paths,
-            journal);
+        assert(Rollback(paths, journal).Complete());
 
         assert(
             !fs::exists(
@@ -518,6 +514,26 @@ int main() {
                 archive.c_str()));
     }
 #endif
+
+    {
+        const auto paths = Paths(root / "rollback-failure");
+        fs::create_directories(paths.source);
+        fs::create_directories(paths.install);
+        PopulateSource(paths.source);
+        PopulateInstall(paths.install);
+        TransactionJournal journal;
+        assert(ApplyPackage(paths, journal));
+        fs::remove(paths.install / "ALTRunNext.exe");
+        fs::create_directory(paths.install / "ALTRunNext.exe");
+        Write(paths.install / "ALTRunNext.exe" / "block", "blocked");
+        const auto result = Rollback(paths, journal);
+        assert(!result.Complete());
+        assert(result.failures.front().relative == fs::path("ALTRunNext.exe"));
+        assert(Read(paths.backup / "ALTRunNext.exe") == "old-app");
+        fs::remove_all(paths.install / "ALTRunNext.exe");
+        assert(Rollback(paths, journal).Complete());
+        assert(Read(paths.install / "ALTRunNext.exe") == "old-app");
+    }
 
     fs::remove_all(root, ec);
     return 0;

@@ -78,13 +78,15 @@ std::vector<ProviderDiscoveryResult>
 ProviderRegistry::Discover(
     const ProviderEnableMap& enabled,
     const std::vector<std::string>&
-        selectedIds) const {
+        selectedIds,
+    std::stop_token stop) const {
 
     std::vector<ProviderDiscoveryResult>
         results;
 
     for (const auto& provider :
          providers_) {
+        if (stop.stop_requested()) break;
 
         const auto& descriptor =
             provider->Descriptor();
@@ -104,7 +106,7 @@ ProviderRegistry::Discover(
 
         try {
             auto payload =
-                provider->DiscoverDetailed();
+                provider->DiscoverDetailed(stop);
 
             result.commands =
                 std::move(
