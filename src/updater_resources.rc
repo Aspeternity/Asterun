@@ -1,2 +1,1 @@
-// Dedicated updater branding: preserve the ALTRun Next star and add the blue refresh badge.
-1 ICON "resources/altrun_update.ico"
+// Asterun auxiliary executable icon.\n1 ICON "resources/asterun.ico"\n
