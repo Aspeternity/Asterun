@@ -347,15 +347,7 @@ jobs:
 
           echo "dev-latest release state is valid and its manifest is anonymously downloadable and coherent."
 
-      - name: Publish immutable versioned release
-        if: steps.publish-dev.outputs.published == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="$(tr -d '\r\n' < VERSION)"
-          bash scripts/publish_versioned_release.sh \
-            "v$VERSION" \
-            "$VERSION" \
-            "$GITHUB_SHA"
+      # main only maintains the rolling dev-latest prerelease.
+      # Immutable versioned releases are published exclusively by release.yml
+      # from explicit v* tags, preventing development builds from flooding
+      # the Releases page.
