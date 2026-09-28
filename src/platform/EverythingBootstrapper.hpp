@@ -83,6 +83,13 @@ struct EverythingServiceRepairResult {
     std::uint32_t nativeError{0};
 };
 
+// SCM can report either the service-specific missing code or a plain
+// file-not-found while an entry is absent/being removed. Both mean there is
+// no service policy to apply and must not block first-time provider enable.
+[[nodiscard]] bool
+IsEverythingServiceMissingError(
+    std::uint32_t nativeError) noexcept;
+
 enum class ManagedEverythingServicePolicyStatus {
     NotInstalled,
     External,
