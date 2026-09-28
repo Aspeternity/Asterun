@@ -3184,6 +3184,17 @@ void SettingsWindow::UpdatePageHeader() {
 
 
 void SettingsWindow::ShowPage(Page page) {
+    // Clicking the already selected navigation item must be a true no-op.
+    // Rebuilding the same page hides/shows every child, forces a frame change,
+    // and was visible on real desktops as a flash in the content pane.
+    // Keep the hidden-window path active so Show()/first creation can still
+    // refresh the page before its first visible frame.
+    if (page == page_ &&
+        hwnd_ &&
+        IsWindowVisible(hwnd_)) {
+        return;
+    }
+
     if (page_ == Page::Hotkeys &&
         page != Page::Hotkeys) {
         CancelHotkeyCapture(false);
@@ -3291,35 +3302,91 @@ void SettingsWindow::ShowPage(Page page) {
     // Reapply the target page's scroll state after the shared redraw guard
     // resumes. ShowScrollBar invoked while redraw is suspended can leave the
     // old non-client frame cached by USER32/DWM on the first page transition.
+    const bool hadVerticalScroll =
+        (GetWindowLongPtrW(
+             hwnd_,
+             GWL_STYLE) &
+         WS_VSCROLL) != 0;
+
     UpdatePageScrollBar();
 
-    // Force NCCALCSIZE with that final style, then lay out once more against
-    // the settled client rectangle. This is stronger than RDW_FRAME alone:
-    // real machines can otherwise keep painting the previous page's bar until
-    // a second navigation.
-    SetWindowPos(
+    const bool hasVerticalScroll =
+        (GetWindowLongPtrW(
+             hwnd_,
+             GWL_STYLE) &
+         WS_VSCROLL) != 0;
+    const bool scrollFrameChanged =
+        hadVerticalScroll !=
+        hasVerticalScroll;
+
+    // A non-client recalculation is only needed when the scrollbar actually
+    // changes the client width. The previous unconditional FRAMECHANGED +
+    // second Layout() forced a visible full-window transition for every page
+    // click, even between pages with identical frame geometry.
+    if (scrollFrameChanged) {
+        window_presentation::
+            ScopedRedrawSuspend
+                settleGuard(hwnd_);
+
+        SetWindowPos(
+            hwnd_,
+            nullptr,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_FRAMECHANGED);
+        Layout();
+
+        settleGuard.Resume();
+    }
+
+    // Let USER32 coalesce the final parent/child repaint instead of erasing
+    // and synchronously repainting the whole window on every navigation.
+    // Only the content pane and navigation buttons changed.
+    RECT client{};
+    GetClientRect(
         hwnd_,
-        nullptr,
-        0,
-        0,
-        0,
-        0,
-        SWP_NOMOVE |
-            SWP_NOSIZE |
-            SWP_NOZORDER |
-            SWP_NOACTIVATE |
-            SWP_FRAMECHANGED);
-    Layout();
+        &client);
+
+    RECT content{
+        Scale(
+            kSidebarWidthLogical),
+        client.top,
+        client.right,
+        client.bottom,
+    };
 
     RedrawWindow(
         hwnd_,
-        nullptr,
+        &content,
         nullptr,
         RDW_INVALIDATE |
-            RDW_ERASE |
-            RDW_FRAME |
+            RDW_NOERASE |
             RDW_ALLCHILDREN |
-            RDW_UPDATENOW);
+            (scrollFrameChanged
+                 ? RDW_FRAME
+                 : 0));
+
+    for (HWND navigation :
+         std::array<HWND, 6>{
+             navGeneral_,
+             navHotkeys_,
+             navProviders_,
+             navAppearance_,
+             navData_,
+             navAbout_}) {
+        if (navigation) {
+            InvalidateRect(
+                navigation,
+                nullptr,
+                FALSE);
+        }
+    }
 }
 
 void SettingsWindow::ApplyClassicBehaviorControl(UINT id) {
