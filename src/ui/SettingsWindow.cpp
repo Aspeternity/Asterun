@@ -31,8 +31,8 @@ namespace altrun {
 
 namespace {
 
-constexpr wchar_t kSettingsClass[] = L"ALTRunNext.Settings";
-constexpr wchar_t kSettingsTitle[] = L"ALTRun Next Settings";
+constexpr wchar_t kSettingsClass[] = L"Asterun.Settings";
+constexpr wchar_t kSettingsTitle[] = L"Asterun Settings";
 
 constexpr DWORD kSettingsWindowExStyle =
     WS_EX_APPWINDOW;
@@ -400,7 +400,7 @@ bool SettingsWindow::EnsureCreated() {
         nullptr,
         T(L"无法创建设置窗口。",
           L"Could not create the Settings window."),
-        L"ALTRun Next",
+        L"Asterun",
         MB_OK | MB_ICONERROR);
     return false;
 }
@@ -670,11 +670,11 @@ HWND SettingsWindow::CreateCheckbox(
 void SettingsWindow::CreateControls() {
     brandName_ =
         CreateStatic(
-            L"ALTRun",
+            L"Asterun",
             SS_CENTER | SS_NOPREFIX);
     brandSubtitle_ =
         CreateStatic(
-            L"Next",
+            L"Launch Faster, Go Further",
             SS_CENTER | SS_NOPREFIX);
 
     navGeneral_ =
@@ -1065,7 +1065,7 @@ void SettingsWindow::CreateDataPage() {
 void SettingsWindow::CreateAboutPage() {
     aboutName_ =
         CreateStatic(
-            L"ALTRun Next");
+            L"Asterun");
     aboutVersion_ =
         CreateStatic(
             L"",
@@ -1347,14 +1347,14 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         hwnd_,
-        T(L"ALTRun Next 设置",
-          L"ALTRun Next Settings"));
+        T(L"Asterun 设置",
+          L"Asterun Settings"));
     SetWindowTextW(
         brandName_,
-        L"ALTRun");
+        L"Asterun");
     SetWindowTextW(
         brandSubtitle_,
-        L"Next");
+        L"Launch Faster, Go Further");
     SetWindowTextW(
         generalBehaviorTitle_,
         T(L"Windows 与启动", L"Windows & startup"));
@@ -1575,8 +1575,8 @@ void SettingsWindow::ApplyLanguage() {
         uiStyle_,
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
-            T(L"经典 ALTRun",
-              L"Classic ALTRun")));
+            T(L"经典模式（ALTRun 风格）",
+              L"Classic (ALTRun-inspired)")));
     SendMessageW(
         uiStyle_,
         CB_ADDSTRING, 0,
@@ -1652,7 +1652,7 @@ void SettingsWindow::ApplyLanguage() {
 
     SetWindowTextW(
         aboutName_,
-        L"ALTRun Next");
+        L"Asterun");
 
     std::wstring version =
         L"v";
@@ -1850,8 +1850,8 @@ std::wstring SettingsWindow::HotkeyActionLabel(
     if (actionId ==
         hotkey_actions::kActivate) {
         return T(
-            L"唤起 ALTRun Next",
-            L"Show ALTRun Next");
+            L"唤起 Asterun",
+            L"Show Asterun");
     }
     if (actionId ==
         hotkey_actions::
@@ -1867,7 +1867,7 @@ std::wstring SettingsWindow::HotkeyActionLabel(
         return T(L"打开快捷项管理", L"Open Shortcut Manager");
     }
     if (actionId == hotkey_actions::kExitApplication) {
-        return T(L"退出 ALTRun Next", L"Exit ALTRun Next");
+        return T(L"退出 Asterun", L"Exit Asterun");
     }
     if (actionId ==
         hotkey_actions::
@@ -2731,8 +2731,8 @@ void SettingsWindow::RefreshProviderStatus() {
             showUpdateEverything = true;
 
             text +=
-                T(L" · ALTRun Next 托管",
-                  L" · Managed by ALTRun Next");
+                T(L" · Asterun 托管",
+                  L" · Managed by Asterun");
 
             if (!bootstrap.installedVersion.empty()) {
                 text += L" · v";
@@ -2823,7 +2823,7 @@ void SettingsWindow::RefreshProviderStatus() {
 
     const bool visible =
         page_ == Page::Providers;
-    // Only expose this after the ALTRun-managed Everything process has
+    // Only expose this after the Asterun-managed Everything process has
     // successfully started and owns the default IPC endpoint. Merely having
     // an install candidate/path is intentionally insufficient.
     const bool showTray =
@@ -3039,7 +3039,7 @@ ToggleManagedEverythingTrayIcon() {
             hwnd_,
             T(L"无法保存 Everything 托盘图标设置。",
               L"Could not save the Everything tray icon setting."),
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK |
                 MB_ICONERROR);
     }
@@ -3406,7 +3406,7 @@ void SettingsWindow::ApplyClassicBehaviorControl(UINT id) {
     if (!app_.SetClassicBehavior(numericQuickLaunch, executeSingleResult, pinyinSearch)) {
         altrun::ui::ShowMessage(hwnd_,
             T(L"无法保存搜索与执行设置。", L"Unable to save search and execution settings."),
-            L"ALTRun Next", MB_OK | MB_ICONERROR);
+            L"Asterun", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
     }
 }
@@ -3416,7 +3416,7 @@ void SettingsWindow::ImportCommands() {
     std::array<wchar_t, 32768> file{};
 
     const wchar_t filter[] =
-        L"ALTRun Next shortcuts\0*.tsv;*.txt\0"
+        L"Asterun shortcuts\0*.tsv;*.txt\0"
         L"All files\0*.*\0\0";
 
     OPENFILENAMEW open{};
@@ -3480,7 +3480,7 @@ void SettingsWindow::ImportCommands() {
 void SettingsWindow::ExportCommands() {
     std::array<wchar_t, 32768> file{};
     const std::wstring defaultName =
-        L"ALTRunNext-commands.tsv";
+        L"Asterun-commands.tsv";
 
     std::copy(
         defaultName.begin(),
@@ -3488,7 +3488,7 @@ void SettingsWindow::ExportCommands() {
         file.begin());
 
     const wchar_t filter[] =
-        L"ALTRun Next TSV\0*.tsv\0"
+        L"Asterun TSV\0*.tsv\0"
         L"All files\0*.*\0\0";
 
     OPENFILENAMEW save{};
@@ -3544,7 +3544,7 @@ void SettingsWindow::ClearUsageHistory() {
             hwnd_,
             T(L"清空使用历史失败。",
               L"Failed to clear usage history."),
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK | MB_ICONERROR);
         return;
     }
@@ -3606,7 +3606,7 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
     }
     if (!success) {
         altrun::ui::ShowMessage(hwnd_, T(L"无法保存此设置。", L"Unable to save this setting."),
-            L"ALTRun Next", MB_OK | MB_ICONERROR);
+            L"Asterun", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
     }
 }
@@ -3813,9 +3813,9 @@ void SettingsWindow::CommitPendingProviderChanges() {
                 ProviderChangeFailure::
                     SettingsPersistence) {
             message =
-                T(L"无法保存 ALTRun Next 的 settings.json，因此 Everything 开关没有生效。"
+                T(L"无法保存 Asterun 的 settings.json，因此 Everything 开关没有生效。"
                   L"\n\n这不是 Everything 服务安装状态错误；请检查当前数据目录的配置写入或只读保护状态。",
-                  L"ALTRun Next could not save settings.json, so the Everything switch was not applied."
+                  L"Asterun could not save settings.json, so the Everything switch was not applied."
                   L"\n\nThis is not an Everything-service installation error; check configuration write access or read-only recovery protection for the current data directory.");
         } else {
             message =
@@ -3829,7 +3829,7 @@ void SettingsWindow::CommitPendingProviderChanges() {
         altrun::ui::ShowMessage(
             hwnd_,
             message.c_str(),
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK |
                 MB_ICONERROR);
     }
@@ -3843,7 +3843,7 @@ void SettingsWindow::ApplyStartupBehaviorControl() {
     else if (index == 2) behavior = StartupBehavior::ShowLauncher;
     if (!app_.SetStartupBehavior(behavior)) {
         altrun::ui::ShowMessage(hwnd_, T(L"无法保存启动行为设置。", L"Unable to save startup behavior."),
-            L"ALTRun Next", MB_OK | MB_ICONERROR);
+            L"Asterun", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
     }
 }
@@ -3857,7 +3857,7 @@ void SettingsWindow::ApplyMonitorControl() {
     else if (monitorIndex == 2) popupMonitor = "primary";
     if (!app_.SetPopupMonitor(std::move(popupMonitor))) {
         altrun::ui::ShowMessage(hwnd_, T(L"无法保存启动器显示器设置。", L"Unable to save the launcher monitor setting."),
-            L"ALTRun Next", MB_OK | MB_ICONERROR);
+            L"Asterun", MB_OK | MB_ICONERROR);
         RefreshFromSettings();
     }
 }
@@ -3912,7 +3912,7 @@ void SettingsWindow::ApplyWindowPlacementControls() {
             hwnd_,
             T(L"无法保存窗口位置设置。",
               L"Unable to save window placement settings."),
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK | MB_ICONERROR);
         RefreshFromSettings();
     }
@@ -5915,7 +5915,7 @@ void SettingsWindow::TogglePrereleaseUpdates() {
             hwnd_,
             T(L"无法保存更新设置。",
               L"Could not save update settings."),
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK | MB_ICONERROR);
     }
 
@@ -6045,8 +6045,8 @@ void SettingsWindow::RefreshUpdateStatus() {
 
     case win::UpdateStage::Applying:
         text =
-            T(L"正在启动安全更新程序，ALTRun Next 将退出并自动重新启动。",
-              L"Starting the safe updater. ALTRun Next will exit and restart automatically.");
+            T(L"正在启动安全更新程序，Asterun 将退出并自动重新启动。",
+              L"Starting the safe updater. Asterun will exit and restart automatically.");
         actionText =
             T(L"正在更新...",
               L"Updating...");
@@ -6749,7 +6749,7 @@ LRESULT SettingsWindow::HandleMessage(
                         hwnd_,
                         T(L"无法保存更新设置。",
                           L"Could not save update settings."),
-                        L"ALTRun Next",
+                        L"Asterun",
                         MB_OK | MB_ICONERROR);
                 }
 
