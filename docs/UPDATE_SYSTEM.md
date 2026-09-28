@@ -1,6 +1,6 @@
 # Native update system
 
-ALTRun Next v0.7.0-alpha.9 introduces a native portable updater. It is designed around four constraints: update checks stay low-noise, installation is always user-triggered, portable user data is never replaced, and a failed new build can roll back to the previous application files.
+Asterun v0.7.0-alpha.9 introduces a native portable updater. It is designed around four constraints: update checks stay low-noise, installation is always user-triggered, portable user data is never replaced, and a failed new build can roll back to the previous application files.
 
 ## Channels
 
@@ -23,7 +23,7 @@ Automatic checks are throttled by `data/update/update-state.json` to at most onc
 `dev-latest` is part of the updater contract, not merely a convenience GitHub Release. The client anonymously reads:
 
 ```text
-https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/update-manifest.json
+https://github.com/Aspeternity/Asterun/releases/download/dev-latest/update-manifest.json
 ```
 
 A GitHub Draft Release is invisible at that endpoint and returns HTTP 404 even when authenticated CI can still enumerate the draft. The main workflow therefore treats publication as a verified transaction:
@@ -52,11 +52,11 @@ CI creates `update-manifest.json` after both architecture packages are built and
   "prerelease": true,
   "assets": {
     "x64": {
-      "name": "ALTRunNext-x64.zip",
+      "name": "Asterun-x64.zip",
       "sha256": "<sha256>"
     },
     "ARM64": {
-      "name": "ALTRunNext-ARM64.zip",
+      "name": "Asterun-ARM64.zip",
       "sha256": "<sha256>"
     }
   }
@@ -73,7 +73,7 @@ The main process uses native WinHTTP over HTTPS. An update ZIP is first stored w
 data/update/staging/<version>/
 ```
 
-Before installation, the staged tree must contain a matching `VERSION`, `ALTRunNext.exe`, `Update.exe` and `Uninstall.exe`.
+Before installation, the staged tree must contain a matching `VERSION`, `Asterun.exe`, `Update.exe` and `Uninstall.exe`.
 
 ## Apply / rollback
 
@@ -81,18 +81,18 @@ Before installation, the staged tree must contain a matching `VERSION`, `ALTRunN
 
 The helper:
 
-1. waits for the old ALTRun Next PID to exit;
+1. waits for the old Asterun PID to exit;
 2. validates the staged source again;
 3. backs up each existing application file that will be replaced under `data/update/backup/<old-version>`;
 4. copies the staged application files while explicitly skipping any staged `data/` subtree;
-5. restarts the new `ALTRunNext.exe` with a one-shot local health-event name;
+5. restarts the new `Asterun.exe` with a one-shot local health-event name;
 6. waits up to 30 seconds for normal startup to signal health;
 7. deletes backup/staging on success;
 8. on copy, launch or health failure, restores the backed-up files and relaunches the previous build.
 
-The normal ALTRun Next destructor still owns managed Everything shutdown during the update exit, so the updater does not duplicate or bypass the existing Everything lifecycle.
+The normal Asterun destructor still owns managed Everything shutdown during the update exit, so the updater does not duplicate or bypass the existing Everything lifecycle.
 
-If the installation directory is not writable, only the updater requests UAC. When running elevated, it attempts to create the restarted main process with the normal Explorer user's token so ALTRun Next does not remain elevated.
+If the installation directory is not writable, only the updater requests UAC. When running elevated, it attempts to create the restarted main process with the normal Explorer user's token so Asterun does not remain elevated.
 
 ## Data boundary
 
@@ -105,7 +105,7 @@ The current system provides HTTPS transport plus SHA-256 package integrity tied 
 
 ## Helper names from alpha.9.3
 
-The portable package uses only `Update.exe` and `Uninstall.exe`. The old `ALTRunNext.Updater.exe` filename is not shipped. During the current development cycle, upgrades from alpha.9/alpha.9.1 to alpha.9.2.x are performed manually, so no legacy helper-name compatibility layer is required.
+The portable package uses only `Update.exe` and `Uninstall.exe`. The old `Asterun.Updater.exe` filename is not shipped. During the current development cycle, upgrades from alpha.9/alpha.9.1 to alpha.9.2.x are performed manually, so no legacy helper-name compatibility layer is required.
 
 ## Native uninstall boundary
 
