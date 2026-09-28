@@ -3864,7 +3864,12 @@ bool App::SetClassicBehavior(
 bool App::SetProviderEnabled(
     std::string id,
     bool enabled,
-    bool refreshSettingsWindow) {
+    bool refreshSettingsWindow,
+    ProviderChangeDiagnostic* diagnostic) {
+
+    if (diagnostic) {
+        *diagnostic = {};
+    }
 
     const std::string providerId =
         id;
@@ -3910,6 +3915,14 @@ bool App::SetProviderEnabled(
                     Failed;
 
         if (servicePolicyFailed) {
+            if (diagnostic) {
+                diagnostic->failure =
+                    ProviderChangeFailure::
+                        EverythingServicePolicy;
+                diagnostic->nativeError =
+                    servicePolicy.nativeError;
+            }
+
             if (wasEnabled) {
                 if (!everythingProvider_) {
                     everythingProvider_ =
@@ -3928,6 +3941,12 @@ bool App::SetProviderEnabled(
                  .SetProviderEnabled(
                      std::move(id),
                      enabled)) {
+            if (diagnostic) {
+                diagnostic->failure =
+                    ProviderChangeFailure::
+                        SettingsPersistence;
+            }
+
             if (servicePolicy.status ==
                 win::ManagedEverythingServicePolicyStatus::
                     Applied) {
@@ -3979,6 +3998,11 @@ bool App::SetProviderEnabled(
              .SetProviderEnabled(
                  std::move(id),
                  enabled)) {
+        if (diagnostic) {
+            diagnostic->failure =
+                ProviderChangeFailure::
+                    SettingsPersistence;
+        }
         return false;
     }
 
