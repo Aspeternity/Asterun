@@ -437,7 +437,7 @@ bool CreateSecuredTemporaryExecutableCopy(
 
         const auto directory =
             root /
-            (L"ALTRunNext-Elevated." +
+            (L"Asterun-Elevated." +
              token);
 
         if (!CreateDirectoryW(
@@ -649,7 +649,7 @@ void ScheduleTemporaryWorkerSelfCleanup()
         !StartsWith(
             directory.filename()
                 .wstring(),
-            L"ALTRunNext-Elevated.")) {
+            L"Asterun-Elevated.")) {
         return;
     }
 
