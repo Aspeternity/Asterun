@@ -15,7 +15,7 @@ namespace {
 
 constexpr wchar_t
     kNextListStateProperty[] =
-        L"ALTRunNext.UiListView.State";
+        L"Asterun.UiListView.State";
 
 constexpr UINT_PTR
     kNextListSubclassId =
