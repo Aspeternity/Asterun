@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
   <assemblyIdentity version="1.0.0.30000" processorArchitecture="*"
-                    name="Aspeternity.ALTRunNext.Uninstall" type="win32"/>
-  <description>ALTRun Next Uninstaller</description>
+                    name="Aspeternity.Asterun.Uninstall" type="win32"/>
+  <description>Asterun Uninstaller</description>
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
     <application>
       <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
