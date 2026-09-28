@@ -97,7 +97,7 @@ EverythingIpcClient::EverythingIpcClient(
     EverythingIpcClientOptions options)
     : options_(std::move(options)) {
     replyWindowClass_ =
-        L"ALTRunNext.EverythingIpcReply." +
+        L"Asterun.EverythingIpcReply." +
         std::to_wstring(
             GetCurrentProcessId());
 
