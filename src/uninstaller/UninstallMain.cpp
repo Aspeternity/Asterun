@@ -32,9 +32,9 @@
 namespace {
 
 constexpr wchar_t kLauncherClass[] =
-    L"ALTRunNext.Launcher";
+    L"Asterun.Launcher";
 constexpr wchar_t kLauncherTitle[] =
-    L"ALTRun Next";
+    L"Asterun";
 constexpr wchar_t kEverythingService[] =
     L"Everything";
 
@@ -345,8 +345,8 @@ WaitForProcess(
     return false;
 }
 
-constexpr wchar_t kRecoveryMarker[] = L".altrun-uninstall-recovery";
-constexpr char kRecoverySignature[] = "ALTRunNext uninstall recovery v1";
+constexpr wchar_t kRecoveryMarker[] = L".asterun-uninstall-recovery";
+constexpr char kRecoverySignature[] = "Asterun uninstall recovery v1";
 
 [[nodiscard]] bool IsPlainFile(const std::filesystem::path& path) {
     const DWORD attributes = GetFileAttributesW(path.c_str());
@@ -406,7 +406,7 @@ ValidateInstallRoot(
     if (HasRecoveryMarker(install)) return true;
 
     for (const auto* name : {
-             L"ALTRunNext.exe",
+             L"Asterun.exe",
              L"VERSION",
          }) {
         ec.clear();
@@ -535,7 +535,7 @@ void RemoveStartupRegistration(
     constexpr wchar_t keyPath[] =
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     constexpr wchar_t valueName[] =
-        L"ALTRunNext";
+        L"Asterun";
 
     HKEY key = nullptr;
 
@@ -588,7 +588,7 @@ void RemoveStartupRegistration(
                 LowerPath(registered) ==
                     LowerPath(
                         install /
-                        L"ALTRunNext.exe")) {
+                        L"Asterun.exe")) {
                 RegDeleteValueW(
                     key,
                     valueName);
@@ -619,11 +619,11 @@ void RemoveStartupRegistration(
 }
 
 [[nodiscard]] bool
-GracefullyCloseALTRun(
+GracefullyCloseAsterun(
     const std::filesystem::path& install) {
     const auto expected =
         install /
-        L"ALTRunNext.exe";
+        L"Asterun.exe";
 
     HWND hwnd =
         FindWindowW(
@@ -778,7 +778,7 @@ ManagedEverythingServiceHostRoot() {
         std::filesystem::path(
             programFiles) /
         L"Aspeternity" /
-        L"ALTRunNext" /
+        L"Asterun" /
         L"EverythingService";
 
     CoTaskMemFree(
@@ -1040,7 +1040,7 @@ TerminateManagedEverythingProcesses(
     // A single Toolhelp snapshot is not a sufficient uninstall barrier:
     // Everything may still be completing service/client shutdown while the
     // snapshot is being walked. Repeat a few bounded passes and only touch
-    // executables whose resolved image path is inside ALTRun-owned roots.
+    // executables whose resolved image path is inside Asterun-owned roots.
     for (int pass = 0;
          pass < 4;
          ++pass) {
@@ -1105,7 +1105,7 @@ TerminateManagedEverythingProcesses(
                 150));
     }
 
-    // Final verification: never show uninstall success while an ALTRun-owned
+    // Final verification: never show uninstall success while an Asterun-owned
     // Everything image is still alive.
     HANDLE snapshot =
         CreateToolhelp32Snapshot(
@@ -1253,7 +1253,7 @@ ExplorerParkingDirectory(
         parent.parent_path();
 
     // Parking directly in the immediate parent can cause Explorer to
-    // immediately enumerate/select the ALTRun folder we are about to delete.
+    // immediately enumerate/select the Asterun folder we are about to delete.
     // Prefer one level farther out so the installation root is not a visible
     // child of the active Shell view.
     if (!grandparent.empty() &&
@@ -1566,7 +1566,7 @@ ServeShellReleaseBroker(
 
         // Do not try to acquire DELETE access from the broker here. Parking in
         // the immediate parent previously made Explorer enumerate/select the
-        // ALTRun folder and turned the broker's lease attempt into a frequent
+        // Asterun folder and turned the broker's lease attempt into a frequent
         // self-inflicted sharing timeout. Signal release immediately; the
         // elevated worker acknowledges release, waits for this broker to exit,
         // then acquires the lease before any destructive cleanup.
@@ -2034,7 +2034,7 @@ RemoveInstallation(
     // Delete retry/validation anchors last, independent of directory enumeration order.
     const auto anchor = [](const auto& path) {
         const auto name = LowerPath(path.filename());
-        return name == L"altrunnext.exe" || name == L"uninstall.exe" || name == L"version";
+        return name == L"asterun.exe" || name == L"uninstall.exe" || name == L"version";
     };
     std::stable_sort(entries.begin(), entries.end(), [&](const auto& a, const auto& b) {
         return anchor(a) < anchor(b);
@@ -2084,8 +2084,8 @@ PerformUninstall(
         return 2;
     }
 
-    gUninstallStage = ChineseUi() ? L"退出 ALTRun Next" : L"Close ALTRun Next";
-    if (!GracefullyCloseALTRun(
+    gUninstallStage = ChineseUi() ? L"退出 Asterun" : L"Close Asterun";
+    if (!GracefullyCloseAsterun(
             args.install)) {
         return 3;
     }
@@ -2111,7 +2111,7 @@ PerformUninstall(
     }
 
     // SCM can report a stopped/deleted service before its process image has
-    // fully disappeared. Verify both the portable client root and ALTRun's
+    // fully disappeared. Verify both the portable client root and Asterun's
     // protected service-host root before deleting any files.
     gUninstallStage = ChineseUi() ? L"确认 Everything 已完全退出" : L"Verify Everything has exited";
     if (!TerminateManagedEverythingProcesses(
@@ -2122,7 +2122,7 @@ PerformUninstall(
 
     RemovalFailure removalFailure;
 
-    // The Program Files host is ALTRun-owned regardless of whether this
+    // The Program Files host is Asterun-owned regardless of whether this
     // uninstall just removed the active protected service or is cleaning an
     // orphan left by an older portable-service migration. Failure here is
     // uninstall failure; do not silently claim that Everything was removed.
@@ -2184,16 +2184,16 @@ PerformUninstall(
     std::wstring message =
         args.deleteData
             ? (ChineseUi()
-                   ? L"ALTRun Next 已卸载完成。\n\n托管 Everything、后台服务和用户数据均已移除。"
-                   : L"ALTRun Next has been uninstalled.\n\nManaged Everything, its service, and user data were removed.")
+                   ? L"Asterun 已卸载完成。\n\n托管 Everything、后台服务和用户数据均已移除。"
+                   : L"Asterun has been uninstalled.\n\nManaged Everything, its service, and user data were removed.")
             : (ChineseUi()
-                   ? L"ALTRun Next 已卸载完成。\n\n托管 Everything 和后台服务已移除；用户数据仍保留在原目录的 data 文件夹中。"
-                   : L"ALTRun Next has been uninstalled.\n\nManaged Everything and its service were removed. User data remains in the original data folder.");
+                   ? L"Asterun 已卸载完成。\n\n托管 Everything 和后台服务已移除；用户数据仍保留在原目录的 data 文件夹中。"
+                   : L"Asterun has been uninstalled.\n\nManaged Everything and its service were removed. User data remains in the original data folder.");
 
     altrun::ui::ShowMessage(
         nullptr,
         message.c_str(),
-        L"ALTRun Next",
+        L"Asterun",
         MB_OK |
             MB_ICONINFORMATION |
             MB_SETFOREGROUND |
@@ -2220,9 +2220,9 @@ BeginUninstall() {
         altrun::ui::ShowMessage(
             nullptr,
             ChineseUi()
-                ? L"无法确认 ALTRun Next 安装目录，卸载已取消。"
-                : L"The ALTRun Next installation directory could not be validated. Uninstall was cancelled.",
-            L"ALTRun Next",
+                ? L"无法确认 Asterun 安装目录，卸载已取消。"
+                : L"The Asterun installation directory could not be validated. Uninstall was cancelled.",
+            L"Asterun",
             MB_OK |
                 MB_ICONERROR);
         return 11;
@@ -2278,13 +2278,13 @@ BeginUninstall() {
         }
 
         shellReleaseRequestName =
-            L"Local\\ALTRunNext.Uninstall.ReleaseRequest." +
+            L"Local\\Asterun.Uninstall.ReleaseRequest." +
             brokerToken;
         shellReleaseDoneName =
-            L"Local\\ALTRunNext.Uninstall.ReleaseDone." +
+            L"Local\\Asterun.Uninstall.ReleaseDone." +
             brokerToken;
         shellLeaseAcquiredName =
-            L"Local\\ALTRunNext.Uninstall.LeaseAcquired." +
+            L"Local\\Asterun.Uninstall.LeaseAcquired." +
             brokerToken;
 
         shellReleaseRequest.value =
@@ -2369,7 +2369,7 @@ BeginUninstall() {
             ChineseUi()
                 ? L"无法释放安装目录，请关闭占用目录的程序后重试。"
                 : L"Could not release the installation directory. Close programs using it and try again.",
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK |
                 MB_ICONERROR);
 
@@ -2396,7 +2396,7 @@ BeginUninstall() {
                 ChineseUi()
                     ? L"无法启动管理员卸载程序。"
                     : L"Could not start the elevated uninstaller.",
-                L"ALTRun Next",
+                L"Asterun",
                 MB_OK |
                     MB_ICONERROR);
         }
@@ -2434,7 +2434,7 @@ BeginUninstall() {
                 ChineseUi()
                     ? L"无法完成卸载前的资源管理器释放。"
                     : L"Could not complete the Explorer release handshake before uninstall.",
-                L"ALTRun Next",
+                L"Asterun",
                 MB_OK |
                     MB_ICONERROR |
                     MB_SETFOREGROUND |
@@ -2512,7 +2512,7 @@ int WINAPI wWinMain(
             altrun::ui::ShowMessage(
                 nullptr,
                 message.c_str(),
-                L"ALTRun Next",
+                L"Asterun",
                 MB_OK |
                     MB_ICONERROR |
                     MB_SETFOREGROUND |
