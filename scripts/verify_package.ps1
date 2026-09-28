@@ -15,7 +15,7 @@ if (Test-Path $verify) {
 Expand-Archive -Path $archivePath -DestinationPath $verify -Force
 
 $required = @(
-    "ALTRunNext.exe",
+    "Asterun.exe",
     "Update.exe",
     "Uninstall.exe",
     "VERSION",
@@ -32,7 +32,7 @@ foreach ($entry in $required) {
 }
 
 $allowedTopLevel = @(
-    "ALTRunNext.exe",
+    "Asterun.exe",
     "Update.exe",
     "Uninstall.exe",
     "VERSION",
@@ -80,34 +80,21 @@ if ($unexpectedDlls.Count -ne 0) {
 }
 
 $iconAssets = @(
-    "src/resources/altrun_original.ico",
-    "src/resources/altrun_update.ico",
-    "src/resources/altrun_uninstall.ico"
+    "src/resources/asterun.ico",
+    "src/resources/asterun_tray.ico"
 )
 
 foreach ($asset in $iconAssets) {
     if (-not (Test-Path $asset -PathType Leaf)) {
-        throw "Missing executable icon asset: $asset"
+        throw "Missing Asterun icon asset: $asset"
     }
-}
-
-$iconHashes = @(
-    $iconAssets |
-        ForEach-Object {
-            (Get-FileHash $_ -Algorithm SHA256).Hash
-        } |
-        Select-Object -Unique
-)
-
-if ($iconHashes.Count -ne 3) {
-    throw "ALTRun Next, Update, and Uninstall icon assets must be distinct."
 }
 
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 
-public static class ALTRunIconProbe
+public static class AsterunIconProbe
 {
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern uint ExtractIconEx(
@@ -128,7 +115,7 @@ function Test-EmbeddedExecutableIcon {
 
     $large = New-Object IntPtr[] 1
     $small = New-Object IntPtr[] 1
-    $count = [ALTRunIconProbe]::ExtractIconEx(
+    $count = [AsterunIconProbe]::ExtractIconEx(
         $Path,
         0,
         $large,
@@ -142,14 +129,14 @@ function Test-EmbeddedExecutableIcon {
 
     foreach ($handle in @($large[0], $small[0])) {
         if ($handle -ne [IntPtr]::Zero) {
-            [void][ALTRunIconProbe]::DestroyIcon($handle)
+            [void][AsterunIconProbe]::DestroyIcon($handle)
         }
     }
 
     return $present
 }
 
-foreach ($exe in @("ALTRunNext.exe", "Update.exe", "Uninstall.exe")) {
+foreach ($exe in @("Asterun.exe", "Update.exe", "Uninstall.exe")) {
     $path = Join-Path $verify $exe
 
     if (-not (Test-EmbeddedExecutableIcon -Path $path)) {
@@ -226,7 +213,7 @@ $expectedWindowsVersion =
     "{0}.{1}.{2}.{3}" -f $major, $minor, $patch, $revision
 
 $versionInfo =
-    (Get-Item (Join-Path $verify "ALTRunNext.exe")).VersionInfo
+    (Get-Item (Join-Path $verify "Asterun.exe")).VersionInfo
 
 $fileVersion =
     "{0}.{1}.{2}.{3}" -f
