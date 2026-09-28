@@ -273,6 +273,20 @@ jobs:
             test -n "$RELEASE_ID"
           fi
 
+          # Remove pre-Asterun rolling assets left by the former product name.
+          # The release must expose one coherent Asterun asset set only.
+          LEGACY_PREFIX="ALTRun""Next"
+          for LEGACY_NAME in "${LEGACY_PREFIX}-x64.zip" "${LEGACY_PREFIX}-ARM64.zip"; do
+            LEGACY_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+              --jq ".assets[] | select(.name == \"$LEGACY_NAME\") | .id" | head -n 1)"
+            if [[ -n "$LEGACY_ID" ]]; then
+              echo "Deleting legacy dev-latest asset $LEGACY_NAME (id $LEGACY_ID)."
+              gh api --method DELETE \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$LEGACY_ID" \
+                >/dev/null
+            fi
+          done
+
           # Explicitly publish after every upload path. The CI must never
           # consider dev-latest healthy merely because gh exited successfully.
           gh api --method PATCH \
@@ -302,7 +316,9 @@ jobs:
             > authenticated-dev-release.json
           jq -e \
             --arg tag "dev-latest" \
-            '.tag_name == $tag and .draft == false and .prerelease == true' \
+            '.tag_name == $tag and .draft == false and .prerelease == true and
+             ([.assets[].name] | sort) ==
+             (["Asterun-ARM64.zip", "Asterun-x64.zip", "SHA256SUMS.txt", "update-manifest.json"] | sort)' \
             authenticated-dev-release.json \
             >/dev/null
 
@@ -348,6 +364,100 @@ jobs:
           fi
 
           echo "dev-latest release state is valid and its manifest is anonymously downloadable and coherent."
+
+      - name: Reset legacy stable release to Asterun baseline
+        if: steps.publish-dev.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          TAG="v$VERSION"
+
+          # This is intentionally a one-time brand reset. There are no external
+          # users of the former product release, so v1.0.0 becomes the clean
+          # Asterun baseline rather than carrying obsolete product artifacts.
+          if [[ "$VERSION" != "1.0.0" ]]; then
+            echo "Stable brand reset is only defined for the 1.0.0 baseline."
+            exit 0
+          fi
+
+          RELEASE_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)"
+
+          if [[ -z "$RELEASE_ID" ]]; then
+            echo "$TAG has no existing release; nothing to reset."
+            exit 0
+          fi
+
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            > existing-stable-release.json
+
+          LEGACY_PREFIX="ALTRun""Next"
+          if ! jq -e --arg legacy "$LEGACY_PREFIX" '
+              any(.assets[]?; (.name // "" | startswith($legacy + "-")))
+            ' existing-stable-release.json >/dev/null; then
+            echo "$TAG is already branded as Asterun; leave the immutable stable release untouched."
+            exit 0
+          fi
+
+          echo "Replacing legacy $TAG release with the validated Asterun baseline."
+          gh api --method DELETE \
+            "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            >/dev/null
+
+          git tag -f "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG" --force
+
+          gh release create "$TAG" \
+            Asterun-x64.zip \
+            Asterun-ARM64.zip \
+            SHA256SUMS.txt \
+            update-manifest.json \
+            --title "Asterun $TAG" \
+            --notes "Asterun 1.0.0 brand baseline built from commit $GITHUB_SHA."
+
+          NEW_RELEASE_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)"
+          test -n "$NEW_RELEASE_ID"
+
+          gh api "repos/$GITHUB_REPOSITORY/releases/$NEW_RELEASE_ID" \
+            > asterun-stable-release.json
+          jq -e \
+            --arg tag "$TAG" \
+            '.tag_name == $tag and .draft == false and .prerelease == false and
+             .name == ("Asterun " + $tag) and
+             ([.assets[].name] | sort) ==
+             (["Asterun-ARM64.zip", "Asterun-x64.zip", "SHA256SUMS.txt", "update-manifest.json"] | sort)' \
+            asterun-stable-release.json \
+            >/dev/null
+
+          REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
+          test "$REMOTE_SHA" = "$GITHUB_SHA"
+
+          PUBLIC_MANIFEST_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/update-manifest.json"
+          rm -f public-stable-manifest.json
+          verified=false
+          for attempt in $(seq 1 20); do
+            if curl --location --fail --silent --show-error \
+                "$PUBLIC_MANIFEST_URL" \
+                -o public-stable-manifest.json &&
+               cmp -s update-manifest.json public-stable-manifest.json; then
+              verified=true
+              break
+            fi
+            rm -f public-stable-manifest.json
+            sleep 3
+          done
+
+          if [[ "$verified" != "true" ]]; then
+            echo "$TAG Asterun manifest did not become anonymously downloadable and byte-identical."
+            exit 1
+          fi
+
+          echo "$TAG is now the clean Asterun stable baseline."
 
       # main only maintains the rolling dev-latest prerelease.
       # Immutable versioned releases are published exclusively by release.yml
