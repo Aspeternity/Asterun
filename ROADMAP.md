@@ -1,6 +1,17 @@
 # ALTRun Next Roadmap
 
-The v0.8.0-beta.3 review cycle focuses on data-safe recovery, deterministic archive extraction, source authentication, bounded search costs, and a versioned release gate.
+ALTRun Next 1.0.0 is the first stable 1.x baseline, promoted directly from the validated v0.8.0-beta.3 hardening line. Future work continues as post-1.0 maintenance and incremental feature development.
+
+## v1.0.0 - First stable release
+
+Completed:
+
+- Promote the validated v0.8.0-beta.3 product and hardening baseline directly to 1.0.0 stable.
+- Freeze Settings / Commands / Usage / Provider Cache schemas at 11 / 2 / 2 / 22 for the initial 1.x release.
+- Retain the accepted Classic and Modern Compact launcher surfaces and shared search/ranking/numeric-intent behavior.
+- Ship managed Everything, native update/uninstall, portable packaging and Windows integration under the reviewed security/recovery contracts.
+- Publish immutable x64 and ARM64 release assets with SHA-256 checksums and update-manifest.json.
+- Treat later discovered non-blocking defects as 1.0.x maintenance work rather than delaying the first stable release.
 
 ## v0.1.x - Classic foundation
 
