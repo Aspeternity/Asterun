@@ -12,7 +12,7 @@ if ($env:OS -ne "Windows_NT") {
 
 $archivePath = (Resolve-Path $Archive).Path
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
-    "ALTRunNext-runtime-smoke-" + [guid]::NewGuid().ToString("N")
+    "Asterun-runtime-smoke-" + [guid]::NewGuid().ToString("N")
 )
 
 New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
@@ -24,14 +24,14 @@ $runKeyPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 try {
     Expand-Archive -Path $archivePath -DestinationPath $tempRoot -Force
 
-    $exe = Join-Path $tempRoot "ALTRunNext.exe"
+    $exe = Join-Path $tempRoot "Asterun.exe"
     $updater = Join-Path $tempRoot "Update.exe"
     $uninstaller = Join-Path $tempRoot "Uninstall.exe"
     $versionPath = Join-Path $tempRoot "VERSION"
     $data = Join-Path $tempRoot "data"
 
     if (-not (Test-Path $exe)) {
-        throw "Portable runtime smoke archive has no ALTRunNext.exe."
+        throw "Portable runtime smoke archive has no Asterun.exe."
     }
     if (-not (Test-Path $updater)) {
         throw "Portable runtime smoke archive has no Update.exe."
@@ -106,11 +106,11 @@ try {
     $process.Refresh()
 
     if ($process.HasExited) {
-        throw "ALTRunNext exited during portable runtime startup smoke with code $($process.ExitCode)."
+        throw "Asterun exited during portable runtime startup smoke with code $($process.ExitCode)."
     }
 
     $probeResidue = @(
-        Get-ChildItem -Path $data -Filter ".altrun-write-test-*.tmp" -File -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $data -Filter ".asterun-write-test-*.tmp" -File -ErrorAction SilentlyContinue
     )
 
     if ($probeResidue.Count -ne 0) {
@@ -281,12 +281,12 @@ try {
         Set-Content -Path (Join-Path $data "settings.json") -Encoding utf8 -NoNewline
 
     $sendToDirectory = Join-Path $env:APPDATA "Microsoft\Windows\SendTo"
-    $sendToLink = Join-Path $sendToDirectory "ALTRun Next.lnk"
+    $sendToLink = Join-Path $sendToDirectory "Asterun.lnk"
 
     Remove-Item $sendToLink -Force -ErrorAction SilentlyContinue
-    Remove-ItemProperty -Path $runKeyPath -Name "ALTRunNext" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $runKeyPath -Name "Asterun" -ErrorAction SilentlyContinue
 
-    $healthEventName = "ALTRunNext.RuntimeSmoke." + [guid]::NewGuid().ToString("N")
+    $healthEventName = "Asterun.RuntimeSmoke." + [guid]::NewGuid().ToString("N")
     $createdNew = $false
     $healthEvent = [System.Threading.EventWaitHandle]::new(
         $false,
@@ -314,12 +314,12 @@ try {
     }
 
     if (-not (Test-Path $sendToLink)) {
-        throw "Deferred SendTo reconciliation did not create ALTRun Next.lnk."
+        throw "Deferred SendTo reconciliation did not create Asterun.lnk."
     }
 
-    $runValue = (Get-ItemProperty -Path $runKeyPath -Name "ALTRunNext" -ErrorAction Stop).ALTRunNext
-    if ($runValue -notlike "*ALTRunNext.exe*") {
-        throw "Deferred startup registration did not create the ALTRunNext Run value."
+    $runValue = (Get-ItemProperty -Path $runKeyPath -Name "Asterun" -ErrorAction Stop).Asterun
+    if ($runValue -notlike "*Asterun.exe*") {
+        throw "Deferred startup registration did not create the Asterun Run value."
     }
 
     $firstLinkWriteTicks = (Get-Item $sendToLink).LastWriteTimeUtc.Ticks
@@ -333,7 +333,7 @@ try {
 
     # Re-launch with an already-correct Shell Link. Reconciliation may inspect
     # it in the background, but it must not rewrite the file.
-    $secondEventName = "ALTRunNext.RuntimeSmoke." + [guid]::NewGuid().ToString("N")
+    $secondEventName = "Asterun.RuntimeSmoke." + [guid]::NewGuid().ToString("N")
     $secondCreatedNew = $false
     $secondHealthEvent = [System.Threading.EventWaitHandle]::new(
         $false,
@@ -386,7 +386,7 @@ finally {
         Remove-Item $sendToLink -Force -ErrorAction SilentlyContinue
     }
 
-    Remove-ItemProperty -Path $runKeyPath -Name "ALTRunNext" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $runKeyPath -Name "Asterun" -ErrorAction SilentlyContinue
 
     if (Test-Path $tempRoot) {
         Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
