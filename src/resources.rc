@@ -1,7 +1,7 @@
 #include <winver.h>
 #include "ResourceIds.h"
 
-IDI_ALTRUN_APP ICON "resources/altrun_original.ico"
+IDI_ASTERUN_APP ICON "resources/asterun.ico"\nIDI_ASTERUN_TRAY ICON "resources/asterun_tray.ico"
 
 IDB_CLASSIC_SHORTCUT BITMAP "resources/classic_shortcut.bmp"
 IDB_CLASSIC_CLOSE BITMAP "resources/classic_close.bmp"
@@ -15,7 +15,7 @@ IDB_CLASSIC_SHORTCUT_200 BITMAP "resources/classic_shortcut_200.bmp"
 IDB_CLASSIC_CLOSE_200 BITMAP "resources/classic_close_200.bmp"
 IDB_CLASSIC_BACKGROUND BITMAP "resources/classic_bg.bmp"
 
-IDW_ALTRUN_POPUP WAVE "resources/altrun_popup.wav"
+IDW_CLASSIC_POPUP WAVE "resources/altrun_popup.wav"
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION 1,0,0,30000
@@ -35,11 +35,11 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName", "Aspeternity\0"
-            VALUE "FileDescription", "ALTRun Next\0"
+            VALUE "FileDescription", "Asterun\0"
             VALUE "FileVersion", "1.0.0\0"
-            VALUE "InternalName", "ALTRunNext\0"
-            VALUE "OriginalFilename", "ALTRunNext.exe\0"
-            VALUE "ProductName", "ALTRun Next\0"
+            VALUE "InternalName", "Asterun\0"
+            VALUE "OriginalFilename", "Asterun.exe\0"
+            VALUE "ProductName", "Asterun\0"
             VALUE "ProductVersion", "1.0.0\0"
         END
     END
