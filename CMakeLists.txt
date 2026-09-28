@@ -325,6 +325,7 @@ if(WIN32)
         WIN32
         src/updater/UpdaterMain.cpp
         src/updater/UpdaterTransaction.cpp
+        src/updater_resources.rc
         src/platform/SecureArchive.cpp
         src/platform/SecureElevation.cpp
     )
@@ -380,6 +381,7 @@ if(WIN32)
         WIN32
         src/uninstaller/UninstallMain.cpp
         src/uninstaller/uninstaller.manifest
+        src/uninstaller_resources.rc
         src/platform/SecureElevation.cpp
         src/ui/Feedback.cpp
         src/ui/Feedback.rc
