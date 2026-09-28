@@ -103,6 +103,11 @@ struct RemovalFailure {
     std::wstring lockOwners;
 };
 
+[[nodiscard]] bool
+RemoveAllWithRetry(
+    const std::filesystem::path& path,
+    RemovalFailure& failure);
+
 std::filesystem::path gRemovalFailurePath;
 std::wstring gRemovalFailureLockOwners;
 std::wstring gUninstallStage;
@@ -900,6 +905,9 @@ StopAndDeleteOwnedEverythingService(
         return result;
     }
 
+    const DWORD servicePid =
+        status.dwProcessId;
+
     if (status.dwCurrentState !=
         SERVICE_STOPPED) {
         SERVICE_STATUS stopStatus{};
@@ -956,6 +964,22 @@ StopAndDeleteOwnedEverythingService(
         }
     }
 
+    // SERVICE_STOPPED can be observed slightly before the hosting process
+    // has fully torn down. Revalidate the captured PID against the exact
+    // owned service image and wait/terminate it before deleting the service
+    // entry or protected host files.
+    if (servicePid != 0 &&
+        !StopOwnedProcess(
+            servicePid,
+            serviceExecutable)) {
+        result.success = false;
+        result.error =
+            GetLastError() != ERROR_SUCCESS
+                ? GetLastError()
+                : ERROR_TIMEOUT;
+        return result;
+    }
+
     if (!DeleteService(
             service.value)) {
         const DWORD error =
@@ -974,14 +998,115 @@ StopAndDeleteOwnedEverythingService(
 }
 
 [[nodiscard]] bool
-TerminateManagedEverythingProcesses(
-    const std::filesystem::path& install) {
-    const auto root =
+IsOwnedEverythingProcessPath(
+    const std::filesystem::path& install,
+    const std::filesystem::path& actual,
+    bool includeProtectedServiceHost) {
+    if (LowerPath(
+            actual.filename()) !=
+        L"everything.exe") {
+        return false;
+    }
+
+    const auto portableRoot =
         install /
         L"data" /
         L"tools" /
         L"Everything";
 
+    if (PathStartsWithDirectory(
+            actual,
+            portableRoot)) {
+        return true;
+    }
+
+    if (!includeProtectedServiceHost) {
+        return false;
+    }
+
+    const auto protectedRoot =
+        ManagedEverythingServiceHostRoot();
+
+    return !protectedRoot.empty() &&
+        PathStartsWithDirectory(
+            actual,
+            protectedRoot);
+}
+
+[[nodiscard]] bool
+TerminateManagedEverythingProcesses(
+    const std::filesystem::path& install,
+    bool includeProtectedServiceHost = false) {
+    // A single Toolhelp snapshot is not a sufficient uninstall barrier:
+    // Everything may still be completing service/client shutdown while the
+    // snapshot is being walked. Repeat a few bounded passes and only touch
+    // executables whose resolved image path is inside ALTRun-owned roots.
+    for (int pass = 0;
+         pass < 4;
+         ++pass) {
+        HANDLE snapshot =
+            CreateToolhelp32Snapshot(
+                TH32CS_SNAPPROCESS,
+                0);
+
+        if (snapshot ==
+            INVALID_HANDLE_VALUE) {
+            return false;
+        }
+
+        PROCESSENTRY32W entry{};
+        entry.dwSize =
+            sizeof(entry);
+        BOOL more =
+            Process32FirstW(
+                snapshot,
+                &entry);
+
+        bool foundOwned = false;
+        bool success = true;
+
+        while (more) {
+            std::filesystem::path actual;
+
+            if (ProcessPath(
+                    entry.th32ProcessID,
+                    actual) &&
+                IsOwnedEverythingProcessPath(
+                    install,
+                    actual,
+                    includeProtectedServiceHost)) {
+                foundOwned = true;
+
+                if (!StopOwnedProcess(
+                        entry.th32ProcessID,
+                        actual)) {
+                    success = false;
+                }
+            }
+
+            more =
+                Process32NextW(
+                    snapshot,
+                    &entry);
+        }
+
+        CloseHandle(snapshot);
+
+        if (!success) {
+            return false;
+        }
+
+        if (!foundOwned) {
+            return true;
+        }
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(
+                150));
+    }
+
+    // Final verification: never show uninstall success while an ALTRun-owned
+    // Everything image is still alive.
     HANDLE snapshot =
         CreateToolhelp32Snapshot(
             TH32CS_SNAPPROCESS,
@@ -999,8 +1124,7 @@ TerminateManagedEverythingProcesses(
         Process32FirstW(
             snapshot,
             &entry);
-
-    bool success = true;
+    bool remaining = false;
 
     while (more) {
         std::filesystem::path actual;
@@ -1008,13 +1132,12 @@ TerminateManagedEverythingProcesses(
         if (ProcessPath(
                 entry.th32ProcessID,
                 actual) &&
-            LowerPath(
-                actual.filename()) ==
-                L"everything.exe" &&
-            PathStartsWithDirectory(
+            IsOwnedEverythingProcessPath(
+                install,
                 actual,
-                root)) {
-            if (!StopOwnedProcess(entry.th32ProcessID, actual)) success = false;
+                includeProtectedServiceHost)) {
+            remaining = true;
+            break;
         }
 
         more =
@@ -1024,24 +1147,34 @@ TerminateManagedEverythingProcesses(
     }
 
     CloseHandle(snapshot);
-    return success;
+
+    if (remaining) {
+        SetLastError(
+            ERROR_BUSY);
+        return false;
+    }
+
+    return true;
 }
 
-void CleanupManagedEverythingServiceHostFiles() {
+[[nodiscard]] bool
+CleanupManagedEverythingServiceHostFiles(
+    RemovalFailure& failure) {
     const auto root =
         ManagedEverythingServiceHostRoot();
 
     if (root.empty()) {
-        return;
+        failure = {
+            ERROR_PATH_NOT_FOUND,
+            {},
+            {}};
+        return false;
     }
 
-    std::error_code ec;
-    std::filesystem::remove_all(
-        root,
-        ec);
-
-    if (ec) {
-        return;
+    if (!RemoveAllWithRetry(
+            root,
+            failure)) {
+        return false;
     }
 
     const auto altrun =
@@ -1049,7 +1182,7 @@ void CleanupManagedEverythingServiceHostFiles() {
     const auto vendor =
         altrun.parent_path();
 
-    ec.clear();
+    std::error_code ec;
     std::filesystem::remove(
         altrun,
         ec);
@@ -1057,6 +1190,8 @@ void CleanupManagedEverythingServiceHostFiles() {
     std::filesystem::remove(
         vendor,
         ec);
+
+    return true;
 }
 
 struct ComApartment {
@@ -1955,7 +2090,16 @@ PerformUninstall(
         return 3;
     }
 
-    gUninstallStage = ChineseUi() ? L"停止 Everything 服务" : L"Stop Everything service";
+    // Shut down the standard-user client before touching the service. This
+    // prevents a live managed client from racing service teardown.
+    gUninstallStage = ChineseUi() ? L"退出托管 Everything" : L"Close managed Everything";
+    if (!TerminateManagedEverythingProcesses(
+            args.install,
+            false)) {
+        return 5;
+    }
+
+    gUninstallStage = ChineseUi() ? L"停止并删除 Everything 服务" : L"Stop and remove Everything service";
     const auto service =
         StopAndDeleteOwnedEverythingService(
             args.install);
@@ -1966,18 +2110,36 @@ PerformUninstall(
         return 4;
     }
 
-    gUninstallStage = ChineseUi() ? L"退出托管 Everything" : L"Close managed Everything";
+    // SCM can report a stopped/deleted service before its process image has
+    // fully disappeared. Verify both the portable client root and ALTRun's
+    // protected service-host root before deleting any files.
+    gUninstallStage = ChineseUi() ? L"确认 Everything 已完全退出" : L"Verify Everything has exited";
     if (!TerminateManagedEverythingProcesses(
-            args.install)) {
+            args.install,
+            true)) {
         return 5;
     }
 
+    RemovalFailure removalFailure;
+
     // The Program Files host is ALTRun-owned regardless of whether this
     // uninstall just removed the active protected service or is cleaning an
-    // orphan left by an older portable-service migration.
-    CleanupManagedEverythingServiceHostFiles();
-
-    RemovalFailure removalFailure;
+    // orphan left by an older portable-service migration. Failure here is
+    // uninstall failure; do not silently claim that Everything was removed.
+    gUninstallStage = ChineseUi() ? L"删除 Everything 服务宿主" : L"Remove Everything service host";
+    if (!CleanupManagedEverythingServiceHostFiles(
+            removalFailure)) {
+        gRemovalFailurePath =
+            removalFailure.path;
+        gRemovalFailureLockOwners =
+            removalFailure.lockOwners;
+        SetLastError(
+            removalFailure.error !=
+                    ERROR_SUCCESS
+                ? removalFailure.error
+                : ERROR_GEN_FAILURE);
+        return 8;
+    }
     DirectoryHandle rootLease;
 
     gUninstallStage = ChineseUi() ? L"释放安装目录占用" : L"Release installation directory";
