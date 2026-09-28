@@ -16,7 +16,7 @@ if [[ ! "$COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]; then
   exit 1
 fi
 
-for asset in ALTRunNext-x64.zip ALTRunNext-ARM64.zip SHA256SUMS.txt update-manifest.json; do
+for asset in Asterun-x64.zip Asterun-ARM64.zip SHA256SUMS.txt update-manifest.json; do
   test -f "$asset"
 done
 
@@ -28,7 +28,7 @@ if [[ "$VERSION" == *-* ]]; then
   IS_PRERELEASE=true
 fi
 
-jq -e --arg version "$VERSION" --arg commit "${COMMIT,,}" --argjson prerelease "$IS_PRERELEASE" '.schemaVersion == 1 and .version == $version and .commit == $commit and .prerelease == $prerelease and .assets.x64.name == "ALTRunNext-x64.zip" and .assets.ARM64.name == "ALTRunNext-ARM64.zip"' update-manifest.json >/dev/null
+jq -e --arg version "$VERSION" --arg commit "${COMMIT,,}" --argjson prerelease "$IS_PRERELEASE" '.schemaVersion == 1 and .version == $version and .commit == $commit and .prerelease == $prerelease and .assets.x64.name == "Asterun-x64.zip" and .assets.ARM64.name == "Asterun-ARM64.zip"' update-manifest.json >/dev/null
 
 REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
 
@@ -43,7 +43,7 @@ fi
 verify_release() {
   local release_json="$1"
 
-  jq -e --arg tag "$TAG" --argjson prerelease "$IS_PRERELEASE" '.tag_name == $tag and .draft == false and .prerelease == $prerelease and ([.assets[].name] | sort) == (["ALTRunNext-ARM64.zip", "ALTRunNext-x64.zip", "SHA256SUMS.txt", "update-manifest.json"] | sort)' "$release_json" >/dev/null
+  jq -e --arg tag "$TAG" --argjson prerelease "$IS_PRERELEASE" '.tag_name == $tag and .draft == false and .prerelease == $prerelease and ([.assets[].name] | sort) == (["Asterun-ARM64.zip", "Asterun-x64.zip", "SHA256SUMS.txt", "update-manifest.json"] | sort)' "$release_json" >/dev/null
 
   local public_manifest_url="https://github.com/$REPOSITORY/releases/download/$TAG/update-manifest.json"
   local verified=false
@@ -86,7 +86,7 @@ if [[ "$IS_PRERELEASE" == "true" ]]; then
   extra_args+=(--prerelease)
 fi
 
-gh release create "$TAG" ALTRunNext-x64.zip ALTRunNext-ARM64.zip SHA256SUMS.txt update-manifest.json --draft "${extra_args[@]}" --title "ALTRun Next $TAG" --notes "Versioned build created automatically from commit $COMMIT."
+gh release create "$TAG" Asterun-x64.zip Asterun-ARM64.zip SHA256SUMS.txt update-manifest.json --draft "${extra_args[@]}" --title "Asterun $TAG" --notes "Versioned build created automatically from commit $COMMIT."
 
 release_id="$(gh api --paginate --slurp "repos/$REPOSITORY/releases?per_page=100" | jq -r --arg tag "$TAG" '[.[][] | select(.tag_name == $tag) | .id][0] // empty')"
 test -n "$release_id"
