@@ -342,11 +342,11 @@ UpdateManifestUrl(
         UpdateChannel::
             Development) {
         return
-            L"https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/update-manifest.json";
+            L"https://github.com/Aspeternity/Asterun/releases/download/dev-latest/update-manifest.json";
     }
 
     return
-        L"https://github.com/Aspeternity/ALTRunNext/releases/latest/download/update-manifest.json";
+        L"https://github.com/Aspeternity/Asterun/releases/latest/download/update-manifest.json";
 }
 
 std::wstring
@@ -362,8 +362,8 @@ UpdateAssetUrl(
         channel ==
                 UpdateChannel::
                     Development
-            ? L"https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/"
-            : L"https://github.com/Aspeternity/ALTRunNext/releases/latest/download/";
+            ? L"https://github.com/Aspeternity/Asterun/releases/download/dev-latest/"
+            : L"https://github.com/Aspeternity/Asterun/releases/latest/download/";
 
     result += WideAscii(
         assetName);
