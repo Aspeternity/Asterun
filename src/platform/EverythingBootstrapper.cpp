@@ -2923,29 +2923,10 @@ SetManagedEverythingServiceEnabled(
         };
     }
 
-    const auto managedExecutable =
-        ManagedEverythingExecutable(
-            dataDirectory);
-    const auto expectedServiceExecutable =
-        ManagedEverythingServiceExecutableForSource(
-            managedExecutable);
-
-    if (enabled &&
-        (!FileExists(
-             managedExecutable) ||
-         expectedServiceExecutable.empty())) {
-        // Enabling the provider is also the entry point into first-time
-        // acquisition. A missing managed source therefore means "not
-        // installed yet", not a failed privileged service transition.
-        // Persisting the provider choice lets the normal local bootstrap
-        // expose Get-and-start Everything.
-        return {
-            ManagedEverythingServicePolicyStatus::
-                NotInstalled,
-            0,
-        };
-    }
-
+    // An existing service must be classified by ownership before the
+    // current portable directory's managed source is considered. A stopped
+    // external/user-managed Everything service is still external even when
+    // this ALTRun directory has never downloaded Everything.
     std::filesystem::path
         serviceExecutable;
     bool serviceExecutableExists =
@@ -2977,6 +2958,28 @@ SetManagedEverythingServiceEnabled(
         return {
             ManagedEverythingServicePolicyStatus::
                 External,
+            0,
+        };
+    }
+
+    const auto managedExecutable =
+        ManagedEverythingExecutable(
+            dataDirectory);
+    const auto expectedServiceExecutable =
+        ManagedEverythingServiceExecutableForSource(
+            managedExecutable);
+
+    if (enabled &&
+        (!FileExists(
+             managedExecutable) ||
+         expectedServiceExecutable.empty())) {
+        // The service belongs to ALTRun, but this portable directory has no
+        // verified client/source yet. Persist the provider choice and let the
+        // explicit Get-and-start flow reacquire the source before any
+        // privileged service repair is attempted.
+        return {
+            ManagedEverythingServicePolicyStatus::
+                NotInstalled,
             0,
         };
     }
