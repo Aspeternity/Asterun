@@ -43,7 +43,7 @@ int main() {
     const auto makeInstall = [&](std::wstring_view name) {
         auto path = base / name;
         std::filesystem::create_directories(path / L"data");
-        for (auto file : {L"ALTRunNext.exe", L"VERSION", L"Uninstall.exe"})
+        for (auto file : {L"Asterun.exe", L"VERSION", L"Uninstall.exe"})
             std::ofstream(path / file) << "fixture";
         assert(ValidateInstallRoot(path));
         return path;
@@ -233,7 +233,7 @@ int main() {
     {
         const auto install = makeInstall(L"partial retry");
         assert(WriteRecoveryMarker(install));
-        std::filesystem::remove(install / L"ALTRunNext.exe");
+        std::filesystem::remove(install / L"Asterun.exe");
         std::filesystem::remove(install / L"VERSION");
         assert(ValidateInstallRoot(install));
         DirectoryHandle lease;
