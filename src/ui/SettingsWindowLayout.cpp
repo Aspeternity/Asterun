@@ -1,5 +1,6 @@
 #include "SettingsWindow.hpp"
 #include "UiComboBox.hpp"
+#include "../core/HotkeyRegistry.hpp"
 
 #include <algorithm>
 #include <array>

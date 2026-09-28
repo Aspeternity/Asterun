@@ -2487,7 +2487,7 @@ VerifyEverythingPublisher(const std::filesystem::path& staged,
     trust.dwStateAction = WTD_STATEACTION_VERIFY;
     trust.dwProvFlags = WTD_REVOCATION_CHECK_NONE;
     GUID action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
-    const LONG result = WinVerifyTrust(INVALID_HANDLE_VALUE, &action, &trust);
+    const LONG result = WinVerifyTrust(nullptr, &action, &trust);
 
     bool publisherMatches = false;
     if (result == ERROR_SUCCESS && trust.hWVTStateData) {
@@ -2513,9 +2513,9 @@ VerifyEverythingPublisher(const std::filesystem::path& staged,
         }
     }
     trust.dwStateAction = WTD_STATEACTION_CLOSE;
-    if (trust.hWVTStateData) WinVerifyTrust(INVALID_HANDLE_VALUE, &action, &trust);
+    if (trust.hWVTStateData) WinVerifyTrust(nullptr, &action, &trust);
     nativeError = result != ERROR_SUCCESS ? static_cast<std::uint32_t>(result) :
-        publisherMatches ? ERROR_SUCCESS : ERROR_INVALID_SIGNATURE;
+        publisherMatches ? ERROR_SUCCESS : TRUST_E_SUBJECT_NOT_TRUSTED;
     return result == ERROR_SUCCESS && publisherMatches;
 }
 
