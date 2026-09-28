@@ -338,7 +338,7 @@ ManagedEverythingServiceHostRoot() {
         std::filesystem::path(
             programFiles) /
         L"Aspeternity" /
-        L"ALTRunNext" /
+        L"Asterun" /
         L"EverythingService";
 
     CoTaskMemFree(
@@ -1595,7 +1595,7 @@ ConfigureManagedEverything(
         L"Everything.ini";
     const auto tempPath =
         executable.parent_path() /
-        L"Everything.ini.altrun.tmp";
+        L"Everything.ini.asterun.tmp";
 
     std::string existing;
 
@@ -2111,7 +2111,7 @@ OpenHttpRequest(
 
     handles.session.value =
         WinHttpOpen(
-            L"ALTRunNext/0.7 Managed Everything",
+            L"Asterun/0.7 Managed Everything",
             WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
             WINHTTP_NO_PROXY_NAME,
             WINHTTP_NO_PROXY_BYPASS,
@@ -2625,7 +2625,7 @@ CopyManagedEverythingToProtectedHost(
 
     const auto staged =
         parent /
-        (L".Everything.altrun." +
+        (L".Everything.asterun." +
          token +
          L".tmp");
 
@@ -3712,7 +3712,7 @@ StopManagedEverything(
 
     // Ownership is the safety boundary: never issue Everything's global
     // -exit command unless the active default IPC window belongs to the
-    // exact executable under ALTRun Next's managed tools directory.
+    // exact executable under Asterun's managed tools directory.
     if (!ManagedDefaultIpcRunning(
             executable)) {
         return {
@@ -4451,7 +4451,7 @@ RunEverythingBootstrap(
                     nativeError, progress);
     }
     const auto stagingDirectory = toolsRoot /
-        (L".altrun-extract-" + extractionToken);
+        (L".asterun-extract-" + extractionToken);
 
     if (!ExtractZipVerified(
             verifiedArchive,
