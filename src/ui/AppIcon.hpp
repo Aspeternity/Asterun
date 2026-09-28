@@ -19,7 +19,7 @@ namespace altrun::ui {
         LoadImageW(
             instance,
             MAKEINTRESOURCEW(
-                IDI_ALTRUN_APP),
+                IDI_ASTERUN_APP),
             IMAGE_ICON,
             GetSystemMetrics(metricX),
             GetSystemMetrics(metricY),
@@ -30,6 +30,30 @@ namespace altrun::ui {
         icon = LoadIconW(
             nullptr,
             IDI_APPLICATION);
+    }
+
+    return icon;
+}
+
+
+[[nodiscard]] inline HICON LoadTrayIcon(
+    HINSTANCE instance) {
+
+    HICON icon = static_cast<HICON>(
+        LoadImageW(
+            instance,
+            MAKEINTRESOURCEW(
+                IDI_ASTERUN_TRAY),
+            IMAGE_ICON,
+            GetSystemMetrics(SM_CXSMICON),
+            GetSystemMetrics(SM_CYSMICON),
+            LR_DEFAULTCOLOR |
+                LR_SHARED));
+
+    if (!icon) {
+        icon = LoadApplicationIcon(
+            instance,
+            true);
     }
 
     return icon;
