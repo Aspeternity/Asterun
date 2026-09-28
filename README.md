@@ -4,14 +4,14 @@ ALTRun Next is an independently implemented Windows launcher inspired by classic
 
 ## Downloads
 
-### Stable v0.7.0
+### Stable v1.0.0
 
-The current stable release is published at the immutable `v0.7.0` tag:
+The current stable release is published at the immutable `v1.0.0` tag:
 
-- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v0.7.0
-- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.7.0/ALTRunNext-x64.zip
-- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.7.0/ALTRunNext-ARM64.zip
-- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v0.7.0/SHA256SUMS.txt
+- Release: https://github.com/Aspeternity/ALTRunNext/releases/tag/v1.0.0
+- x64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v1.0.0/ALTRunNext-x64.zip
+- ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/v1.0.0/ALTRunNext-ARM64.zip
+- SHA-256 checksums: https://github.com/Aspeternity/ALTRunNext/releases/download/v1.0.0/SHA256SUMS.txt
 
 ### Rolling development build
 
@@ -22,6 +22,12 @@ The latest successful `main` build is always published to the fixed prerelease t
 - ARM64 direct download: https://github.com/Aspeternity/ALTRunNext/releases/download/dev-latest/ALTRunNext-ARM64.zip
 
 You no longer need to find the correct GitHub Actions run. The `dev-latest` release is replaced automatically only after a successful build and test run.
+
+## v1.0.0 — First Stable Release
+
+ALTRun Next 1.0.0 promotes the validated v0.8 beta line directly to the first stable 1.x release. The release keeps the accepted Classic ALTRun and Modern Compact launcher surfaces, keyboard-first search, smart numeric Quick Launch, pinyin/mixed-language matching, Windows application discovery, managed Everything file/folder search, native update/uninstall lifecycle, portable configuration, shortcut management and Windows integration.
+
+The final hardening pass focuses on release reliability rather than new product semantics: settings-window repaint regressions, managed Everything first-run/service lifecycle and uninstall cleanup, configuration recovery, archive/update rollback safety, protected service hosting, package minimization, and dedicated branded icons for Update.exe and Uninstall.exe were tightened without a schema migration. Settings, Commands, Usage and Provider Cache schemas remain **11 / 2 / 2 / 22**. Windows fixed FileVersion/ProductVersion is `1.0.0.30000`.
 
 ## v0.8.0-beta.3 — Reliability and Code Review Fixes
 
