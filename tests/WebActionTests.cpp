@@ -64,7 +64,7 @@ int main() {
         assert(results[0].action.commandIndex == 0);
         assert(
             results[0].target ==
-            L"https://www.google.com/search?q=ALTRun%20Next");
+            L"https://www.google.com/search?q=Asterun");
 
         const auto alias = BuildWebActionResults(
             commands, L"GOOGLE \u5FC3\u810F MRI", 10);
