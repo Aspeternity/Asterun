@@ -149,7 +149,7 @@ void ArmModalDestroyProbe(HWND window) {
 }
 
 void CALLBACK CancelEditor(HWND, UINT, UINT_PTR timer, DWORD) {
-    const HWND editor = FindWindowW(L"ALTRunNext.ShortcutEditor", nullptr);
+    const HWND editor = FindWindowW(L"Asterun.ShortcutEditor", nullptr);
     if (!editor) return;
     assert(IsWindowVisible(editor));
     assert(!IsWindowEnabled(modalOwner));
@@ -161,7 +161,7 @@ void CALLBACK CancelEditor(HWND, UINT, UINT_PTR timer, DWORD) {
 
 void CALLBACK CancelPathConverter(HWND, UINT, UINT_PTR timer, DWORD) {
     const HWND converter =
-        FindWindowW(L"ALTRunNext.ShortcutPathConverter", nullptr);
+        FindWindowW(L"Asterun.ShortcutPathConverter", nullptr);
     if (!converter) return;
     assert(IsWindowVisible(converter));
     assert(!IsWindowEnabled(modalOwner));
@@ -268,7 +268,7 @@ int main() {
         SettingsWindow settings(app, instance);
         for (int attempt = 0; attempt < 6; ++attempt) {
             assert(settings.Create());
-            const HWND window = FindWindowW(L"ALTRunNext.Settings", nullptr);
+            const HWND window = FindWindowW(L"Asterun.Settings", nullptr);
             assert(window && !IsWindowVisible(window));
             int firstShows = 0;
             assert(SetWindowSubclass(window, FirstShowProbe, 1,
@@ -494,7 +494,7 @@ int main() {
 
                 const HWND managerWindow =
                     FindWindowW(
-                        L"ALTRunNext.ShortcutManager",
+                        L"Asterun.ShortcutManager",
                         nullptr);
 
                 assert(
@@ -589,7 +589,7 @@ int main() {
 
                 assert(
                     FindWindowW(
-                        L"ALTRunNext.ShortcutManager",
+                        L"Asterun.ShortcutManager",
                         nullptr) == nullptr);
             };
 
