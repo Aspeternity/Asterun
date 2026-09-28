@@ -1020,8 +1020,8 @@ ProbeEverythingService(
             static_cast<std::uint32_t>(
                 GetLastError());
 
-        if (nativeError ==
-            ERROR_SERVICE_DOES_NOT_EXIST) {
+        if (IsEverythingServiceMissingError(
+                nativeError)) {
             nativeError = 0;
             return ServiceProbe::Missing;
         }
@@ -1334,8 +1334,8 @@ WaitForEverythingServiceStopped(
             static_cast<std::uint32_t>(
                 GetLastError());
 
-        if (nativeError ==
-            ERROR_SERVICE_DOES_NOT_EXIST) {
+        if (IsEverythingServiceMissingError(
+                nativeError)) {
             nativeError = 0;
             return true;
         }
@@ -2780,6 +2780,15 @@ NeedsInstall(
 
 } // namespace
 
+bool
+IsEverythingServiceMissingError(
+    std::uint32_t nativeError) noexcept {
+    return nativeError ==
+               ERROR_SERVICE_DOES_NOT_EXIST ||
+        nativeError ==
+               ERROR_FILE_NOT_FOUND;
+}
+
 std::filesystem::path
 ManagedEverythingExecutable(
     const std::filesystem::path&
@@ -2925,10 +2934,15 @@ SetManagedEverythingServiceEnabled(
         (!FileExists(
              managedExecutable) ||
          expectedServiceExecutable.empty())) {
+        // Enabling the provider is also the entry point into first-time
+        // acquisition. A missing managed source therefore means "not
+        // installed yet", not a failed privileged service transition.
+        // Persisting the provider choice lets the normal local bootstrap
+        // expose Get-and-start Everything.
         return {
             ManagedEverythingServicePolicyStatus::
-                Failed,
-            ERROR_FILE_NOT_FOUND,
+                NotInstalled,
+            0,
         };
     }
 
@@ -2941,6 +2955,15 @@ SetManagedEverythingServiceEnabled(
             serviceExecutable,
             serviceExecutableExists,
             nativeError)) {
+        if (IsEverythingServiceMissingError(
+                nativeError)) {
+            return {
+                ManagedEverythingServicePolicyStatus::
+                    NotInstalled,
+                0,
+            };
+        }
+
         return {
             ManagedEverythingServicePolicyStatus::
                 Failed,
@@ -2963,6 +2986,15 @@ SetManagedEverythingServiceEnabled(
     if (!QueryEverythingServiceStartType(
             startType,
             nativeError)) {
+        if (IsEverythingServiceMissingError(
+                nativeError)) {
+            return {
+                ManagedEverythingServicePolicyStatus::
+                    NotInstalled,
+                0,
+            };
+        }
+
         return {
             ManagedEverythingServicePolicyStatus::
                 Failed,
@@ -3084,8 +3116,8 @@ ApplyManagedEverythingServiceEnabledPolicy(
             static_cast<std::uint32_t>(
                 GetLastError());
 
-        if (error ==
-            ERROR_SERVICE_DOES_NOT_EXIST) {
+        if (IsEverythingServiceMissingError(
+                error)) {
             return {
                 true,
                 0,
@@ -3391,8 +3423,9 @@ RepairManagedEverythingServicePath(
         const DWORD error =
             GetLastError();
 
-        if (error !=
-            ERROR_SERVICE_DOES_NOT_EXIST) {
+        if (!IsEverythingServiceMissingError(
+                static_cast<std::uint32_t>(
+                    error))) {
             return {
                 false,
                 static_cast<std::uint32_t>(
