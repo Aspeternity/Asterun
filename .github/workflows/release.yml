@@ -121,15 +121,9 @@ jobs:
           Copy-Item build/Release/Uninstall.exe dist/Uninstall.exe
           Copy-Item -Recurse build/Release/dict dist/dict
           Copy-Item -Recurse build/Release/third_party dist/third_party
-          Copy-Item config/*.example.* dist/
-          Copy-Item docs/CONFIG_SCHEMA.md dist/CONFIG_SCHEMA.md
-          Copy-Item docs/DESKTOP_VALIDATION.md dist/DESKTOP_VALIDATION.md
-          Copy-Item docs/V0.5_RC_VALIDATION.md dist/V0.5_RC_VALIDATION.md
-          Copy-Item docs/V0.6_RC_VALIDATION.md dist/V0.6_RC_VALIDATION.md
-          Copy-Item docs/V0.7_BETA_VALIDATION.md dist/V0.7_BETA_VALIDATION.md
-          Copy-Item docs/V0.8_BETA_VALIDATION.md dist/V0.8_BETA_VALIDATION.md
-          Copy-Item docs/V0.7_RC_VALIDATION.md dist/V0.7_RC_VALIDATION.md
-          Copy-Item docs/EVERYTHING_COMPATIBILITY.md dist/EVERYTHING_COMPATIBILITY.md
+          # Keep the end-user portable archive intentionally small. Validation,
+          # schema and example files remain in the repository; the runtime does
+          # not consume them and creates its data directory on first launch.
           Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
