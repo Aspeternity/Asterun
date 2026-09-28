@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1
+
+- Replace the square-backed application/tray artwork with the approved transparent Asterun mark.
+- Give Asterun a product-specific tray GUID so it can coexist with legacy ALTRun Next without notification-area identity collisions.
+- Keep Asterun running when one or more startup global hotkeys are already occupied; show one concise warning instead of multiple dialogs.
+- Retry tray registration after clearing a stale Asterun shell entry and restore the configured persistent icon after Explorer recreates the taskbar.
+- Add Windows runtime coverage for the hotkey-conflict + tray-visibility regression.
+
+
 ## 1.0.0
 
 - Promote the validated v0.8 beta codebase directly to ALTRun Next 1.0.0 stable with no intentional search/ranking, shortcut, provider-ID or schema redesign.

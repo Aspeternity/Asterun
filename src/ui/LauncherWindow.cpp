@@ -2388,7 +2388,20 @@ void LauncherWindow::AddTrayIcon(
     if (!Shell_NotifyIconW(
             NIM_ADD,
             &data)) {
-        return;
+        NOTIFYICONDATAW stale{};
+        InitializeTrayIconIdentity(
+            stale,
+            hwnd_);
+        stale.uFlags = NIF_GUID;
+        Shell_NotifyIconW(
+            NIM_DELETE,
+            &stale);
+
+        if (!Shell_NotifyIconW(
+                NIM_ADD,
+                &data)) {
+            return;
+        }
     }
 
     data.uVersion =
@@ -3457,8 +3470,6 @@ LRESULT LauncherWindow::HandleMessage(
     if (taskbarCreatedMessage_ != 0 &&
         message == taskbarCreatedMessage_) {
         const bool restorePersistentIcon =
-            trayIconAdded_ &&
-            !notificationOnlyTrayIcon_ &&
             app_.SettingsData().showTrayIcon;
 
         trayIconAdded_ = false;

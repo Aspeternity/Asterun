@@ -70,6 +70,19 @@ def main() -> int:
                         f"{path.relative_to(ROOT)}:{number}: stale brand token {token!r}: {line.strip()}"
                     )
 
+    identity_path = ROOT / "src/platform/AppIdentity.hpp"
+    identity_text = identity_path.read_text(encoding="utf-8")
+    legacy_tray_guid_parts = (
+        "0x8a395c23",
+        "0x15dc",
+        "0x516a",
+        "0xb9, 0x3c, 0xd9, 0x37, 0xde, 0xbb, 0xd4, 0xa2",
+    )
+    if all(part in identity_text for part in legacy_tray_guid_parts):
+        failures.append(
+            "src/platform/AppIdentity.hpp: Asterun must not reuse the legacy tray GUID"
+        )
+
     if failures:
         print("Asterun branding verification failed:")
         for failure in failures:
