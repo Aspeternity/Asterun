@@ -86,9 +86,9 @@ The launcher requests approximately three times the visible result count from ea
 
 v0.5.0-beta.1 promotes `everything.filesystem` into Settings > Search sources and bumps settings to schemaVersion 3. The provider remains default-off. Enabling the checkbox creates the dynamic provider in the running process; disabling it tears the dynamic provider down and returns immediately to static-only search.
 
-The Search Sources page re-probes the Everything IPC window every second while visible and after completed dynamic queries. Diagnostics report current availability plus the last query status, returned/total result counts, latency and native error when present. Availability is intentionally not latched: Everything may be started after ALTRun Next or restarted after a failure, and a later query can recover without restarting the launcher.
+The Search Sources page re-probes the Everything IPC window every second while visible and after completed dynamic queries. Diagnostics report current availability plus the last query status, returned/total result counts, latency and native error when present. Availability is intentionally not latched: Everything may be started after Asterun or restarted after a failure, and a later query can recover without restarting the launcher.
 
-If Everything is enabled but unavailable, the dynamic request completes as `Unavailable` and ALTRun Next keeps the already-produced User Command/Application results. This is the supported fallback mode; ALTRun Next never auto-starts Everything and does not emulate IPC for Everything Lite.
+If Everything is enabled but unavailable, the dynamic request completes as `Unavailable` and Asterun keeps the already-produced User Command/Application results. This is the supported fallback mode; Asterun never auto-starts Everything and does not emulate IPC for Everything Lite.
 
 Schema-2 -> schema-3 migration preserves an alpha-era explicit `everything.filesystem=true` value. When the key was absent, schema 3 writes the formal default `false`. A schema-3 file presented to a schema-2 reader enters the existing newer-schema read-only path and remains byte-for-byte unchanged.
 
@@ -97,7 +97,7 @@ Everything results and diagnostics remain ephemeral: no File/Folder result, matc
 
 ## Beta 2 compatibility hardening
 
-v0.5.0-beta.2 keeps the 1.4-compatible Query2/WM_COPYDATA transport and adds conservative named-instance discovery. The unnamed `EVERYTHING_TASKBAR_NOTIFICATION` endpoint always wins. If it is absent, ALTRun Next recognizes the documented `EVERYTHING_TASKBAR_NOTIFICATION_(instance)` form and uses it only when exactly one named endpoint is present. Multiple named endpoints are treated as ambiguous and trigger static-search fallback.
+v0.5.0-beta.2 keeps the 1.4-compatible Query2/WM_COPYDATA transport and adds conservative named-instance discovery. The unnamed `EVERYTHING_TASKBAR_NOTIFICATION` endpoint always wins. If it is absent, Asterun recognizes the documented `EVERYTHING_TASKBAR_NOTIFICATION_(instance)` form and uses it only when exactly one named endpoint is present. Multiple named endpoints are treated as ambiguous and trigger static-search fallback.
 
 The runtime now validates the reply sender HWND in addition to the reply token, limits accepted payload size, enforces the requested result ceiling and rejects inconsistent LIST2 total/count/offset combinations. Drive/root results preserve their root identity, and regression coverage includes UNC and extended-length paths.
 

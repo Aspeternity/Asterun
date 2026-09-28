@@ -241,7 +241,7 @@ CreateProtectedWorkRoot(
 
         root =
             install /
-            (L".altrun-update-work." +
+            (L".asterun-update-work." +
              token);
 
         if (CreateDirectoryW(
@@ -747,7 +747,7 @@ int WINAPI wWinMain(
             }
             const auto message = L"The update could not be fully restored. Recovery files were kept at:\n" +
                 transaction.backup.wstring();
-            MessageBoxW(nullptr, message.c_str(), L"ALTRun Next", MB_OK | MB_ICONERROR);
+            MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
         }
         return recovery.Complete();
     };
@@ -783,7 +783,7 @@ int WINAPI wWinMain(
 
     const auto mainExe =
         args.install /
-        L"ALTRunNext.exe";
+        L"Asterun.exe";
 
     std::wstring mainArguments =
         L"--post-update-health-event " +
@@ -832,7 +832,7 @@ int WINAPI wWinMain(
             preserveRecovery = true;
             const auto message = L"The updated application is still running. Recovery files were kept at:\n" +
                 transaction.backup.wstring();
-            MessageBoxW(nullptr, message.c_str(), L"ALTRun Next", MB_OK | MB_ICONERROR);
+            MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
             cleanupWork();
             return 7;
         }

@@ -252,7 +252,7 @@ RelativePortablePath(
     }
 
     // Keep relative conversion intentionally local to the portable tree.
-    // One parent hop covers the common "ALTRunNext + sibling Tools"
+    // One parent hop covers the common "Asterun + sibling Tools"
     // layout without turning machine-specific system paths into fragile
     // chains such as ..\\..\\Windows.
     if (LeadingParentCount(relative) > 1) {

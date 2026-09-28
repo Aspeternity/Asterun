@@ -33,7 +33,7 @@ namespace altrun {
 namespace {
 
 constexpr wchar_t kShortcutManagerClass[] =
-    L"ALTRunNext.ShortcutManager";
+    L"Asterun.ShortcutManager";
 
 constexpr int kDefaultWidthLogical = 720;
 constexpr int kDefaultHeightLogical = 480;
@@ -648,8 +648,8 @@ void ShortcutManagerWindow::ApplyLanguage() {
 
     SetWindowTextW(
         hwnd_,
-        T(L"ALTRun Next 快捷项管理",
-          L"ALTRun Next Shortcut Manager"));
+        T(L"Asterun 快捷项管理",
+          L"Asterun Shortcut Manager"));
 
     SetWindowTextW(
         add_,
@@ -713,7 +713,7 @@ void ShortcutManagerWindow::Show(
             nullptr,
             T(L"无法创建快捷项管理窗口。",
               L"Could not create the Shortcut Manager."),
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK | MB_ICONERROR);
         return;
     }
@@ -2019,7 +2019,7 @@ void ShortcutManagerWindow::LocateSelected() {
             hwnd_,
             T(L"无法打开目标所在目录。目标可能已移动、删除，或不是文件系统路径。",
               L"Could not open the target location. It may have moved, been deleted, or may not be a filesystem path."),
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK |
                 MB_ICONINFORMATION);
     }
@@ -2040,7 +2040,7 @@ void ShortcutManagerWindow::CopySelectedTarget() {
             hwnd_,
             T(L"无法复制目标到剪贴板。",
               L"Could not copy the target to the clipboard."),
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK |
                 MB_ICONERROR);
     }

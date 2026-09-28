@@ -26,14 +26,14 @@ static void Zip(const fs::path& path,
 }
 
 int main() {
-    const auto root = fs::temp_directory_path() / "ALTRunNext-ArchiveExtractorTests";
+    const auto root = fs::temp_directory_path() / "Asterun-ArchiveExtractorTests";
     std::error_code error;
     fs::remove_all(root, error);
     fs::create_directories(root);
     const auto archive = fs::absolute(root / "good.zip");
-    Zip(archive, "dict/mandarin/word.txt", "ALTRunNext.exe");
+    Zip(archive, "dict/mandarin/word.txt", "Asterun.exe");
     assert(altrun::ExtractArchive(archive, fs::absolute(root / "good"), error));
-    assert(fs::file_size(root / "good" / "ALTRunNext.exe") == 3);
+    assert(fs::file_size(root / "good" / "Asterun.exe") == 3);
     assert(fs::file_size(root / "good" / "dict" / "mandarin" / "word.txt") == 3);
     assert(!altrun::ExtractArchive(archive, fs::absolute(root / "good"), error));
 

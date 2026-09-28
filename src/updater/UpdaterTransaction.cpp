@@ -402,7 +402,7 @@ bool ValidateSource(
     }
 
     for (const auto* name : {
-             L"ALTRunNext.exe",
+             L"Asterun.exe",
              L"Update.exe",
              L"Uninstall.exe",
              L"VERSION",

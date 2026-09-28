@@ -40,7 +40,7 @@ bool EndsWithInsensitive(
 
 int main() {
     const std::filesystem::path base =
-        LR"(C:\Portable\ALTRunNext)";
+        LR"(C:\Portable\Asterun)";
 
     assert(
         win::ResolvePortablePath(
@@ -61,7 +61,7 @@ int main() {
             L"data",
             base,
             true) ==
-        LR"(C:\Portable\ALTRunNext\data)");
+        LR"(C:\Portable\Asterun\data)");
 
     assert(win::IsUncPath(
         LR"(\\server\share\tool.exe)"));
@@ -122,7 +122,7 @@ int main() {
         const auto portableSystem =
             win::MakePortablePath(
                 systemTarget,
-                LR"(D:\Portable\ALTRunNext)",
+                LR"(D:\Portable\Asterun)",
                 false);
 
         assert(portableSystem);

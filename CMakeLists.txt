@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ALTRunNext VERSION 1.0.0 LANGUAGES C CXX)
+project(Asterun VERSION 1.0.0 LANGUAGES C CXX)
 
 file(
     STRINGS
     "${CMAKE_CURRENT_SOURCE_DIR}/VERSION"
-    ALTRUN_VERSION
+    ASTERUN_VERSION
     LIMIT_COUNT 1
 )
-string(STRIP "${ALTRUN_VERSION}" ALTRUN_VERSION)
+string(STRIP "${ASTERUN_VERSION}" ASTERUN_VERSION)
 
-if(ALTRUN_VERSION STREQUAL "")
-    message(FATAL_ERROR "VERSION must contain the ALTRun Next version.")
+if(ASTERUN_VERSION STREQUAL "")
+    message(FATAL_ERROR "VERSION must contain the Asterun version.")
 endif()
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -40,7 +40,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 
 # cpp-pinyin is intentionally NOT added through its upstream CMake project.
 # On Windows 1.0.2 can still produce cpp-pinyin.dll despite the parent trying
-# to force BUILD_SHARED_LIBS=OFF. ALTRun Next therefore populates the source
+# to force BUILD_SHARED_LIBS=OFF. Asterun therefore populates the source
 # tree only and owns an explicit STATIC target. This guarantees the portable
 # EXE never has a runtime dependency on cpp-pinyin.dll.
 FetchContent_Declare(
@@ -207,7 +207,7 @@ endfunction()
 if(WIN32)
     enable_language(RC)
 
-    add_executable(ALTRunNext WIN32
+    add_executable(Asterun WIN32
         src/main.cpp
         src/app/App.cpp
         src/app/AppUpdate.cpp
@@ -250,10 +250,10 @@ if(WIN32)
     # Compile the shared application implementation once for the product and
     # its real-window integration test. Entrypoints and resources stay on the
     # individual executables.
-    get_target_property(altrun_app_sources ALTRunNext SOURCES)
+    get_target_property(altrun_app_sources Asterun SOURCES)
     list(REMOVE_ITEM altrun_app_sources
         src/main.cpp src/resources.rc src/ui/Feedback.rc src/app.manifest)
-    set_property(TARGET ALTRunNext PROPERTY SOURCES
+    set_property(TARGET Asterun PROPERTY SOURCES
         src/main.cpp src/resources.rc src/ui/Feedback.rc src/app.manifest)
     add_library(altrun_windows_runtime STATIC ${altrun_app_sources})
     target_include_directories(altrun_windows_runtime PRIVATE
@@ -269,12 +269,12 @@ if(WIN32)
     endif()
 
     target_include_directories(
-        ALTRunNext PRIVATE
+        Asterun PRIVATE
         src
         "${CMAKE_CURRENT_BINARY_DIR}/generated"
     )
     target_link_libraries(
-        ALTRunNext PRIVATE
+        Asterun PRIVATE
         altrun_windows_runtime
         altrun_core
         altrun_config
@@ -300,7 +300,7 @@ if(WIN32)
         crypt32
     )
     target_compile_definitions(
-        ALTRunNext PRIVATE
+        Asterun PRIVATE
         UNICODE
         _UNICODE
         WIN32_LEAN_AND_MEAN
@@ -310,18 +310,18 @@ if(WIN32)
     )
 
     if(MSVC)
-        target_compile_options(ALTRunNext PRIVATE /W4 /permissive- /utf-8 /EHsc)
-        target_link_options(ALTRunNext PRIVATE /SUBSYSTEM:WINDOWS)
+        target_compile_options(Asterun PRIVATE /W4 /permissive- /utf-8 /EHsc)
+        target_link_options(Asterun PRIVATE /SUBSYSTEM:WINDOWS)
     endif()
 
-    set_target_properties(ALTRunNext PROPERTIES
-        OUTPUT_NAME "ALTRunNext"
+    set_target_properties(Asterun PROPERTIES
+        OUTPUT_NAME "Asterun"
     )
 
-    altrun_copy_pinyin_runtime(ALTRunNext)
+    altrun_copy_pinyin_runtime(Asterun)
 
     add_executable(
-        ALTRunNextUpdater
+        AsterunUpdater
         WIN32
         src/updater/UpdaterMain.cpp
         src/updater/UpdaterTransaction.cpp
@@ -331,7 +331,7 @@ if(WIN32)
     )
 
     target_compile_definitions(
-        ALTRunNextUpdater
+        AsterunUpdater
         PRIVATE
             UNICODE
             _UNICODE
@@ -342,7 +342,7 @@ if(WIN32)
     )
 
     target_link_libraries(
-        ALTRunNextUpdater
+        AsterunUpdater
         PRIVATE
             altrun_archive
             advapi32
@@ -355,7 +355,7 @@ if(WIN32)
 
     if(MSVC)
         target_compile_options(
-            ALTRunNextUpdater
+            AsterunUpdater
             PRIVATE
                 /W4
                 /permissive-
@@ -363,21 +363,21 @@ if(WIN32)
                 /EHsc
         )
         target_link_options(
-            ALTRunNextUpdater
+            AsterunUpdater
             PRIVATE
                 /SUBSYSTEM:WINDOWS
         )
     endif()
 
     set_target_properties(
-        ALTRunNextUpdater
+        AsterunUpdater
         PROPERTIES
             OUTPUT_NAME
                 "Update"
     )
 
     add_executable(
-        ALTRunNextUninstaller
+        AsterunUninstaller
         WIN32
         src/uninstaller/UninstallMain.cpp
         src/uninstaller/uninstaller.manifest
@@ -387,10 +387,10 @@ if(WIN32)
         src/ui/Feedback.rc
     )
 
-    target_include_directories(ALTRunNextUninstaller PRIVATE src)
+    target_include_directories(AsterunUninstaller PRIVATE src)
 
     target_compile_definitions(
-        ALTRunNextUninstaller
+        AsterunUninstaller
         PRIVATE
             UNICODE
             _UNICODE
@@ -401,7 +401,7 @@ if(WIN32)
     )
 
     target_link_libraries(
-        ALTRunNextUninstaller
+        AsterunUninstaller
         PRIVATE
             advapi32
             bcrypt
@@ -417,7 +417,7 @@ if(WIN32)
 
     if(MSVC)
         target_compile_options(
-            ALTRunNextUninstaller
+            AsterunUninstaller
             PRIVATE
                 /W4
                 /permissive-
@@ -425,14 +425,14 @@ if(WIN32)
                 /EHsc
         )
         target_link_options(
-            ALTRunNextUninstaller
+            AsterunUninstaller
             PRIVATE
                 /SUBSYSTEM:WINDOWS
         )
     endif()
 
     set_target_properties(
-        ALTRunNextUninstaller
+        AsterunUninstaller
         PROPERTIES
             OUTPUT_NAME
                 "Uninstall"
@@ -1035,9 +1035,9 @@ if(BUILD_TESTING)
 
     if(WIN32)
         # Exercise the same compiled application implementation as the product.
-        get_target_property(window_runtime_libraries ALTRunNext LINK_LIBRARIES)
-        get_target_property(window_runtime_includes ALTRunNext INCLUDE_DIRECTORIES)
-        get_target_property(window_runtime_definitions ALTRunNext COMPILE_DEFINITIONS)
+        get_target_property(window_runtime_libraries Asterun LINK_LIBRARIES)
+        get_target_property(window_runtime_includes Asterun INCLUDE_DIRECTORIES)
+        get_target_property(window_runtime_definitions Asterun COMPILE_DEFINITIONS)
         add_executable(window_presentation_runtime_tests
             tests/WindowPresentationRuntimeTests.cpp
             src/resources.rc src/ui/Feedback.rc src/app.manifest)
@@ -1052,8 +1052,8 @@ if(BUILD_TESTING)
         set_tests_properties(window_presentation_runtime_tests PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 
         add_executable(uninstall_runtime_tests tests/UninstallRuntimeTests.cpp src/platform/SecureElevation.cpp src/ui/Feedback.cpp)
-        get_target_property(uninstall_libraries ALTRunNextUninstaller LINK_LIBRARIES)
-        get_target_property(uninstall_definitions ALTRunNextUninstaller COMPILE_DEFINITIONS)
+        get_target_property(uninstall_libraries AsterunUninstaller LINK_LIBRARIES)
+        get_target_property(uninstall_definitions AsterunUninstaller COMPILE_DEFINITIONS)
         target_link_libraries(uninstall_runtime_tests PRIVATE ${uninstall_libraries})
         target_compile_definitions(uninstall_runtime_tests PRIVATE ${uninstall_definitions})
         target_include_directories(uninstall_runtime_tests PRIVATE src)

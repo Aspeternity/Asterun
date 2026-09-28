@@ -27,7 +27,7 @@ namespace altrun {
 namespace {
 
 constexpr wchar_t kShortcutEditorClass[] =
-    L"ALTRunNext.ShortcutEditor";
+    L"Asterun.ShortcutEditor";
 
 constexpr int kEditorWidthLogical = 590;
 constexpr int kInitialEditorHeightLogical = 420;
@@ -497,7 +497,7 @@ bool ShortcutEditorDialog::Show(
                     Language::ZhCN
                 ? L"无法创建快捷项编辑窗口。"
                 : L"Could not create the shortcut editor.",
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK | MB_ICONERROR);
         return false;
     }
@@ -524,7 +524,7 @@ bool ShortcutEditorDialog::ShowNew(
                     Language::ZhCN
                 ? L"无法创建快捷项编辑窗口。"
                 : L"Could not create the shortcut editor.",
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK | MB_ICONERROR);
         return false;
     }

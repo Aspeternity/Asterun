@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="src/resources/altrun_original.ico" width="88" height="88" alt="ALTRun Next 图标">
+  <img src="docs/assets/brand/asterun-hero.webp" width="100%" alt="Asterun — Launch Faster, Go Further">
 </p>
 
-<h1 align="center">ALTRun Next</h1>
+<h1 align="center">Asterun</h1>
 
 <p align="center">
-  <strong>快速、原生、键盘优先的 Windows 启动器。</strong><br>
-  延续经典 ALTRun 的使用方式，并面向现代 Windows 重新构建。
+  <strong>快速、智能、键盘优先的 Windows 启动器。</strong><br>
+  <sub>Launch Faster, Go Further</sub>
 </p>
 
 <p align="center">
@@ -15,9 +15,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Aspeternity/ALTRunNext/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Aspeternity/ALTRunNext?display_name=tag&sort=semver"></a>
-  <a href="https://github.com/Aspeternity/ALTRunNext/actions/workflows/build.yml"><img alt="构建状态" src="https://github.com/Aspeternity/ALTRunNext/actions/workflows/build.yml/badge.svg?branch=main"></a>
-  <a href="LICENSE"><img alt="许可证" src="https://img.shields.io/github/license/Aspeternity/ALTRunNext"></a>
+  <a href="https://github.com/Aspeternity/Asterun/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Aspeternity/Asterun?display_name=tag&sort=semver"></a>
+  <a href="https://github.com/Aspeternity/Asterun/actions/workflows/build.yml"><img alt="构建状态" src="https://github.com/Aspeternity/Asterun/actions/workflows/build.yml/badge.svg?branch=main"></a>
+  <a href="LICENSE"><img alt="许可证" src="https://img.shields.io/github/license/Aspeternity/Asterun"></a>
   <img alt="平台" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white">
   <img alt="C++23" src="https://img.shields.io/badge/C%2B%2B-23-00599C?logo=cplusplus&logoColor=white">
 </p>
@@ -36,18 +36,18 @@
 
 ## 项目简介
 
-ALTRun Next 是一个独立实现的 Windows 启动器，设计灵感来自经典 ALTRun：**体积小、响应快、键盘优先、尽量不打扰用户**。
+Asterun 是一款面向 Windows 10/11 的原生、轻量、键盘优先启动器，目标是在尽可能低的打扰下，让“搜索 → 定位 → 启动”足够快地融入日常工作流。
 
-在保留紧凑启动体验的基础上，ALTRun Next 加入了现代 Windows 日常使用需要的能力：程序发现、拼音与中英文混合搜索、使用习惯排序、自定义快捷项、可选 Everything 文件/文件夹搜索、原生更新与卸载，以及便携式数据结构。
+它以 C++23 + Win32 构建，将程序发现、拼音与中英文混合搜索、使用习惯排序、智能数字键启动、自定义快捷项、可选 Everything 文件/文件夹搜索、原生更新与卸载统一在一个紧凑的启动体验中。
 
 ## v1.0.0 — 当前稳定版
 
-ALTRun Next 1.0.0 是首个稳定 1.x 正式版本，也是目前推荐普通用户使用的版本。完整版本历史统一保存在 [CHANGELOG.md](CHANGELOG.md)，主页只保留下载、功能与使用信息。
+Asterun 1.0.0 是首个稳定 1.x 正式版本，也是目前推荐普通用户使用的版本。完整版本历史统一保存在 [CHANGELOG.md](CHANGELOG.md)，主页只保留下载、功能与使用信息。
 
 ## 界面预览
 
 <p align="center">
-  <img src="docs/assets/readme/modern-compact.webp" alt="ALTRun Next Modern Compact 启动器界面" width="920">
+  <img src="docs/assets/readme/modern-compact.webp" alt="Asterun Modern Compact 启动器界面" width="920">
 </p>
 
 <p align="center"><sub>Modern Compact — 现代紧凑启动器界面</sub></p>
@@ -55,14 +55,14 @@ ALTRun Next 1.0.0 是首个稳定 1.x 正式版本，也是目前推荐普通用
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/assets/readme/classic.webp" alt="ALTRun Next Classic 启动器界面" width="100%">
+      <img src="docs/assets/readme/classic.webp" alt="Asterun Classic 启动器界面" width="100%">
     </td>
     <td align="center" width="50%">
-      <img src="docs/assets/readme/settings-search-sources.webp" alt="ALTRun Next 搜索来源设置界面" width="100%">
+      <img src="docs/assets/readme/settings-search-sources.webp" alt="Asterun 搜索来源设置界面" width="100%">
     </td>
   </tr>
   <tr>
-    <td align="center"><sub>Classic — 延续经典 ALTRun 的紧凑界面</sub></td>
+    <td align="center"><sub>Classic — 受经典 ALTRun 启发的紧凑界面</sub></td>
     <td align="center"><sub>搜索来源 — Windows Providers 与托管 Everything</sub></td>
   </tr>
 </table>
@@ -73,11 +73,11 @@ ALTRun Next 1.0.0 是首个稳定 1.x 正式版本，也是目前推荐普通用
 
 | 架构 | 稳定版 |
 | --- | --- |
-| Windows x64 | [下载 ALTRunNext-x64.zip](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/ALTRunNext-x64.zip) |
-| Windows ARM64 | [下载 ALTRunNext-ARM64.zip](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/ALTRunNext-ARM64.zip) |
+| Windows x64 | [下载 Asterun-x64.zip](https://github.com/Aspeternity/Asterun/releases/latest/download/Asterun-x64.zip) |
+| Windows ARM64 | [下载 Asterun-ARM64.zip](https://github.com/Aspeternity/Asterun/releases/latest/download/Asterun-ARM64.zip) |
 
-- [最新稳定版 Release](https://github.com/Aspeternity/ALTRunNext/releases/latest)
-- [SHA-256 校验值](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/SHA256SUMS.txt)
+- [最新稳定版 Release](https://github.com/Aspeternity/Asterun/releases/latest)
+- [SHA-256 校验值](https://github.com/Aspeternity/Asterun/releases/latest/download/SHA256SUMS.txt)
 - 支持系统：**Windows 10 / Windows 11**
 - 发布形式：**便携 ZIP**，无需安装器
 
@@ -88,13 +88,13 @@ ALTRun Next 1.0.0 是首个稳定 1.x 正式版本，也是目前推荐普通用
 | | |
 | --- | --- |
 | **原生轻量** | C++23 + Win32，目标是快速启动和尽可能小的便携体积。 |
-| **两套启动器界面** | Classic 经典 ALTRun 风格 + Modern Compact 现代紧凑风格。 |
+| **两套启动器界面** | Classic（ALTRun-inspired）+ Modern Compact 现代紧凑风格。 |
 | **键盘优先** | 默认全局唤醒快捷键为 <kbd>Alt</kbd> + <kbd>Space</kbd>。 |
 | **智能搜索** | 支持模糊匹配、英文首字母、中文全拼/拼音首字母以及中英文混合搜索。 |
 | **智能排序** | 根据使用频率和最近使用情况，让常用结果更靠前。 |
 | **智能数字键启动** | 可选 1–9、0 快速启动，并根据输入意图判断数字是继续输入还是执行结果。 |
 | **Windows 程序发现** | 支持开始菜单、UWP/MSIX、App Paths、PATH 等来源。 |
-| **Everything 集成** | 可选高速文件/文件夹搜索，支持 ALTRun 托管获取，也兼容用户自行维护的 Everything。 |
+| **Everything 集成** | 可选高速文件/文件夹搜索，支持 Asterun 托管获取，也兼容用户自行维护的 Everything。 |
 | **快捷项管理** | 原生快捷项管理器，支持别名、参数、工作目录、动态输入与路径转换。 |
 | **便携数据** | 设置、快捷项、使用记录和搜索缓存都保存在本地 `data/` 目录。 |
 | **原生更新与卸载** | 自带 `Update.exe` 和 `Uninstall.exe`，提供 x64 / ARM64 版本。 |
@@ -102,17 +102,17 @@ ALTRun Next 1.0.0 是首个稳定 1.x 正式版本，也是目前推荐普通用
 
 ## 快速开始
 
-1. 从 [最新 Release](https://github.com/Aspeternity/ALTRunNext/releases/latest) 下载对应架构的 ZIP。
+1. 从 [最新 Release](https://github.com/Aspeternity/Asterun/releases/latest) 下载对应架构的 ZIP。
 2. 解压到你希望长期使用的目录。
-3. 运行 `ALTRunNext.exe`。
+3. 运行 `Asterun.exe`。
 4. 按 <kbd>Alt</kbd> + <kbd>Space</kbd> 唤出启动器。
 5. 通过托盘菜单进入 **设置**、**快捷项管理**、**关于** 或退出程序。
 
-ALTRun Next 为便携软件。首次运行后会在程序旁创建运行时数据目录。
+Asterun 为便携软件。首次运行后会在程序旁创建运行时数据目录。
 
 ## 搜索来源
 
-ALTRun Next 可以把多个 Windows 来源统一到同一个搜索界面中：
+Asterun 可以把多个 Windows 来源统一到同一个搜索界面中：
 
 - 开始菜单快捷方式
 - UWP / MSIX / Microsoft Store 应用
@@ -127,9 +127,9 @@ ALTRun Next 可以把多个 Windows 来源统一到同一个搜索界面中：
 
 Everything 集成是可选功能。
 
-在 **设置 → 搜索来源** 中启用后，ALTRun Next 会提供 **获取并启动 Everything** 流程。托管模式会在使用前校验下载内容，并维护 ALTRun 自己的运行时/服务生命周期。
+在 **设置 → 搜索来源** 中启用后，Asterun 会提供 **获取并启动 Everything** 流程。托管模式会在使用前校验下载内容，并维护 Asterun 自己的运行时/服务生命周期。
 
-如果你已经自行安装并维护兼容的 Everything，ALTRun Next 的设计原则是不接管外部用户安装。
+如果你已经自行安装并维护兼容的 Everything，Asterun 的设计原则是不接管外部用户安装。
 
 ## 启动器样式
 
@@ -148,8 +148,8 @@ Modern Compact 使用同一套搜索与排序核心，但提供更适合 Windows
 运行时数据保存在程序本地：
 
 ```text
-ALTRunNext/
-├─ ALTRunNext.exe
+Asterun/
+├─ Asterun.exe
 ├─ Update.exe
 ├─ Uninstall.exe
 ├─ VERSION
@@ -169,8 +169,8 @@ ALTRunNext/
 
 | 渠道 | 用途 | 链接 |
 | --- | --- | --- |
-| **Stable** | 推荐普通用户使用。正式版本号、不可变 Release。 | [最新稳定版](https://github.com/Aspeternity/ALTRunNext/releases/latest) |
-| **Development** | 最新成功通过 CI 的 `main` 滚动构建，可能包含尚未完成的修改。 | [dev-latest](https://github.com/Aspeternity/ALTRunNext/releases/tag/dev-latest) |
+| **Stable** | 推荐普通用户使用。正式版本号、不可变 Release。 | [最新稳定版](https://github.com/Aspeternity/Asterun/releases/latest) |
+| **Development** | 最新成功通过 CI 的 `main` 滚动构建，可能包含尚未完成的修改。 | [dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) |
 
 官方 Release 会提供 x64 / ARM64 便携包、SHA-256 校验文件和更新清单。
 
@@ -217,11 +217,11 @@ CMake 会获取项目锁定的构建依赖。正式发布包还会通过 CI 的�
 
 ## 问题反馈
 
-如果遇到可以复现的 Bug 或兼容性问题，请提交 [GitHub Issue](https://github.com/Aspeternity/ALTRunNext/issues)。
+如果遇到可以复现的 Bug 或兼容性问题，请提交 [GitHub Issue](https://github.com/Aspeternity/Asterun/issues)。
 
 建议同时提供：
 
-- ALTRun Next 版本
+- Asterun 版本
 - Windows 版本和系统架构
 - 复现步骤
 - 预期行为与实际行为
@@ -229,21 +229,21 @@ CMake 会获取项目锁定的构建依赖。正式发布包还会通过 CI 的�
 
 ## 致谢
 
-ALTRun Next 是受经典 ALTRun 启发的独立实现。
+Asterun 是独立开发的 Windows 启动器。Classic 模式的交互与视觉方向受到经典 ALTRun 启发。
 
-Classic 模式包含原版启动器背景和两个角落图形素材，程序同时使用原版 ALTRun 应用图标与 `Popup.wav`。这些原始素材均已获得原作者授权使用。
+Classic 模式包含经授权使用的原版启动器背景、两个角落图形素材以及 `Popup.wav`。**Asterun 的应用图标、托盘图标与品牌视觉均为 Asterun 自有设计，不再使用原版 ALTRun 应用图标。**
 
 Everything 为 voidtools 的第三方产品。其他依赖、授权和归属信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 许可证
 
-ALTRun Next 源代码采用 [MIT License](LICENSE)。
+Asterun 源代码采用 [MIT License](LICENSE)。
 
 随项目分发的第三方组件和原始 ALTRun 素材仍分别遵循其对应许可证、声明和授权范围。
 
 ---
 
 <p align="center">
-  <strong>ALTRun Next</strong><br>
-  让启动器足够快，快到融入你的工作流。
+  <strong>Asterun</strong><br>
+  Launch Faster, Go Further
 </p>

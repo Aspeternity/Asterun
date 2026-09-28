@@ -861,7 +861,7 @@ bool UserCommandStore::ExportTsv(
 
     output.write("\xEF\xBB\xBF", 3);
     output <<
-        "# ALTRun Next commands TSV v3\n"
+        "# Asterun commands TSV v3\n"
         "# keyword\tname\taliases\ttype\ttarget\targuments\tworkingDirectory\tenabled\trunAsAdmin\tpinned\tsortOrder\truntimeInputMode\n";
 
     std::vector<const Command*> ordered;

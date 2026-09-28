@@ -129,7 +129,7 @@ int wmain() {
 
     const auto root =
         std::filesystem::temp_directory_path() /
-        "ALTRunNext-launch-target-inspector";
+        "Asterun-launch-target-inspector";
 
     std::error_code ec;
     std::filesystem::remove_all(

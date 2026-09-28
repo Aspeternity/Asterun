@@ -10,7 +10,7 @@ using namespace altrun::win;
 
 int main() {
     const std::wstring expected =
-        L"ALTRun Next \u526a\u8d34\u677f "
+        L"Asterun \u526a\u8d34\u677f "
         L"D:\\Folder With Spaces";
 
     assert(

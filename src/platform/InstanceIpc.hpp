@@ -6,7 +6,7 @@ namespace altrun::instance_ipc {
 
 inline constexpr wchar_t
     kLauncherWindowClass[] =
-        L"ALTRunNext.Launcher";
+        L"Asterun.Launcher";
 
 inline constexpr ULONG_PTR
     kAddShortcutCopyData =

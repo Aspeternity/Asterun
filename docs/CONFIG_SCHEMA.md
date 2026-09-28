@@ -1,9 +1,9 @@
 # Config Core schemas
 
-ALTRun Next now stores live configuration under the portable `data/` directory:
+Asterun now stores live configuration under the portable `data/` directory:
 
 ```text
-ALTRunNext.exe
+Asterun.exe
 data/
 ├─ settings.json
 ├─ commands.json
@@ -60,9 +60,9 @@ v0.7.0-alpha.8 keeps every persisted schema unchanged. Managed Everything Bootst
 
 v0.7.0-alpha.8.1 also keeps every persisted schema unchanged. It only fixes runtime staging of a verified Everything archive from the temporary `.zip.download` filename to the Shell-recognized `.zip` filename before extraction.
 
-v0.7.0-alpha.8.2 also keeps every persisted schema unchanged. Managed Everything's own `Everything.ini` and Windows service are third-party runtime state under `data/tools/Everything` / Windows SCM, not ALTRun Next configuration schema fields. ALTRun Next still persists only the existing `everything.filesystem` provider boolean.
+v0.7.0-alpha.8.2 also keeps every persisted schema unchanged. Managed Everything's own `Everything.ini` and Windows service are third-party runtime state under `data/tools/Everything` / Windows SCM, not Asterun configuration schema fields. Asterun still persists only the existing `everything.filesystem` provider boolean.
 
-v0.7.0-alpha.8.3 also keeps every persisted schema unchanged. Managed-client process ownership and shutdown are session/runtime lifecycle state only. Exiting ALTRun Next or disabling `everything.filesystem` may stop the ALTRun Next-managed Everything client, but does not persist a new preference and does not stop/delete the Windows Everything Service.
+v0.7.0-alpha.8.3 also keeps every persisted schema unchanged. Managed-client process ownership and shutdown are session/runtime lifecycle state only. Exiting Asterun or disabling `everything.filesystem` may stop the Asterun-managed Everything client, but does not persist a new preference and does not stop/delete the Windows Everything Service.
 
 v0.7.0-alpha.8.4 also keeps every persisted schema unchanged. Everything Service ImagePath inspection and stale-path repair are Windows runtime/service state only. No service path, elevation state or repair result is written to settings.json, commands.json, usage.json or provider-cache.json.
 
@@ -91,9 +91,9 @@ file.json.bak  ← previous version
 file.json
 ```
 
-If the live JSON is unreadable, ALTRun Next attempts to read the `.bak` copy. Starting with v0.4.0-beta.2, a valid backup also repairs the live primary automatically. A corrupt primary is never copied over a known-good backup.
+If the live JSON is unreadable, Asterun attempts to read the `.bak` copy. Starting with v0.4.0-beta.2, a valid backup also repairs the live primary automatically. A corrupt primary is never copied over a known-good backup.
 
-If `settings.json`, `commands.json` or `usage.json` has a `schemaVersion` newer than the running binary supports, ALTRun Next reads known fields when possible but treats that document as **read-only**. This makes temporary downgrades non-destructive: the older binary does not rewrite the newer document. The Data page lists files currently protected this way.
+If `settings.json`, `commands.json` or `usage.json` has a `schemaVersion` newer than the running binary supports, Asterun reads known fields when possible but treats that document as **read-only**. This makes temporary downgrades non-destructive: the older binary does not rewrite the newer document. The Data page lists files currently protected this way.
 
 Starting with v0.4.0-rc.1, each user-data store also remembers when the current startup recovered from a `.bak` file. The Data page reports those recovered files for the rest of the session, even though the primary JSON has already been repaired. Startup also probes whether the portable `data/` directory is writable and warns when changes may not persist.
 
@@ -187,7 +187,7 @@ Each command supports:
 
 Automatic provider commands are never written into `commands.json`.
 
-Starting with v0.6.0-alpha.4, user commands may use `{folder}` in `target`, `arguments` or `workingDirectory`. This is a runtime template, not a schema field. It resolves only from a real filesystem folder captured when ALTRun Next is invoked from File Explorer or Total Commander.
+Starting with v0.6.0-alpha.4, user commands may use `{folder}` in `target`, `arguments` or `workingDirectory`. This is a runtime template, not a schema field. It resolves only from a real filesystem folder captured when Asterun is invoked from File Explorer or Total Commander.
 
 Starting with v0.7.0-alpha.4, a command with runtime input enabled may use `{input}` in `target`, `arguments` or `workingDirectory`. `raw` replaces the token unchanged; `url-encoded` replaces it with UTF-8 percent-encoded text. Application and Command-line shortcuts without a placeholder append the resolved input to fixed arguments. URL and Folder shortcuts require a placeholder. The legacy `{query}` token remains accepted as an alias for `{input}` so older web-search shortcuts keep working.
 

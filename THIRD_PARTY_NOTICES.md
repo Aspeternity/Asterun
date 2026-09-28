@@ -7,7 +7,7 @@ distributed as `third_party/miniz-LICENSE.txt` with the application.
 
 ## Original ALTRun Classic visual assets
 
-ALTRun Next includes the original Classic background and two bitmap glyphs extracted from the original ALTRun repository:
+Asterun's **Classic** mode includes the original Classic background and two bitmap glyphs extracted from the original ALTRun repository:
 
 - `Form/frmALTRun.dfm` → `imgBackground.Picture.Data` (original `BG.jpg` JPEG payload; retained as `classic_bg.jpg` source/provenance asset and materialized to `classic_bg.bmp` for native runtime loading)
 - `Form/frmALTRun.dfm` → `btnShortCut.Glyph.Data`
@@ -15,17 +15,18 @@ ALTRun Next includes the original Classic background and two bitmap glyphs extra
 
 Source repository: `etworker/ALTRun`.
 
-These three visual assets are included in ALTRun Next with permission from the original ALTRun author. The surrounding ALTRun Next implementation remains independently developed.
+These visual assets are included in Asterun with permission from the original ALTRun author. The surrounding Asterun implementation is independently developed.
 
-## Original ALTRun application icon and popup sound
+## Original ALTRun popup sound
 
-ALTRun Next also includes two additional original ALTRun assets from `etworker/ALTRun`
-with permission from the original author:
+Asterun also includes the original `Res/Popup.wav` from `etworker/ALTRun`, redistributed with permission from the original author:
 
-- `ALTRun.res` / `Res/Carracho.ico` → `src/resources/altrun_original.ico` (the original `MAINICON`; the extracted icon is byte-identical to `Res/Carracho.ico`)
 - `Res/Popup.wav` → `src/resources/altrun_popup.wav`
 
-The application icon is used for the ALTRun Next executable, top-level product windows and
-notification-area icon. The original `Popup.wav` is embedded once and is used by ALTRun Next's
-existing sound-feedback policy. These assets are redistributed under the author's permission;
-the surrounding ALTRun Next implementation remains independently developed.
+The sound is embedded once and used by Asterun's existing optional sound-feedback policy.
+
+## Asterun brand assets
+
+The **Asterun** application icon, notification-area icon, wordmark, orbital-star visual language, and README hero are Asterun brand assets. They are independent of the original ALTRun application icon.
+
+Other third-party dependencies remain subject to their respective licenses and notices.

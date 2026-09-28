@@ -62,7 +62,7 @@ void PlayFeedback(FeedbackCue cue) {
     // Use the authorized original ALTRun Popup.wav for every accepted
     // application feedback event. The existing policy still owns when a cue is
     // allowed; a new cue replaces the previous one instead of queueing audio.
-    PlaySoundW(MAKEINTRESOURCEW(IDW_ALTRUN_POPUP),
+    PlaySoundW(MAKEINTRESOURCEW(IDW_CLASSIC_POPUP),
                GetModuleHandleW(nullptr), SND_RESOURCE | SND_ASYNC | SND_NODEFAULT);
 }
 
@@ -149,11 +149,11 @@ bool ConfirmEverythingSetup(
             : L"Enable Everything file search";
     config.pszContent =
         chinese
-            ? L"ALTRun Next 会优先使用电脑上已有的 Everything。\n\n"
+            ? L"Asterun 会优先使用电脑上已有的 Everything。\n\n"
               L"如果没有找到，将从 voidtools 官方获取最新稳定版并自动完成必要设置。"
               L"首次启用文件索引时，Windows 可能会请求一次管理员权限。\n\n"
               L"下载文件会在使用前验证完整性。"
-            : L"ALTRun Next will use an existing Everything installation when possible.\n\n"
+            : L"Asterun will use an existing Everything installation when possible.\n\n"
               L"If none is available, it will get the latest stable release from voidtools and configure what is needed automatically. "
               L"Windows may request administrator approval once when file indexing is first enabled.\n\n"
               L"Downloaded files are integrity-checked before use.";
@@ -215,17 +215,17 @@ ChooseUninstallData(
         TDF_ALLOW_DIALOG_CANCELLATION;
     config.pszWindowTitle =
         chinese
-            ? L"卸载 ALTRun Next"
-            : L"Uninstall ALTRun Next";
+            ? L"卸载 Asterun"
+            : L"Uninstall Asterun";
     config.pszMainInstruction =
         chinese
             ? L"是否保留个人数据？"
             : L"Keep your personal data?";
     config.pszContent =
         chinese
-            ? L"ALTRun Next 和由其管理的 Everything 组件都会被移除；你自己安装的 Everything 不会受到影响。\n\n"
+            ? L"Asterun 和由其管理的 Everything 组件都会被移除；你自己安装的 Everything 不会受到影响。\n\n"
               L"快捷项、设置和使用记录可以保留，方便以后重新安装。“彻底卸载”会同时删除这些个人数据。"
-            : L"ALTRun Next and the Everything components it manages will be removed; Everything installations you manage yourself are not changed.\n\n"
+            : L"Asterun and the Everything components it manages will be removed; Everything installations you manage yourself are not changed.\n\n"
               L"Shortcuts, settings and usage history can be kept for a future reinstall. “Remove everything” deletes this personal data as well.";
     config.cButtons =
         static_cast<UINT>(
@@ -291,8 +291,8 @@ bool ConfirmPermanentUserDataDeletion(
         TDF_ALLOW_DIALOG_CANCELLATION;
     config.pszWindowTitle =
         chinese
-            ? L"彻底卸载 ALTRun Next"
-            : L"Remove ALTRun Next completely";
+            ? L"彻底卸载 Asterun"
+            : L"Remove Asterun completely";
     config.pszMainInstruction =
         chinese
             ? L"同时删除个人数据？"

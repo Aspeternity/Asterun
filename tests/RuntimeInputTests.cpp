@@ -61,11 +61,11 @@ int main() {
         const auto resolved =
             ResolveRuntimeInput(
                 command,
-                L"ALTRun Next");
+                L"Asterun");
 
         assert(
             resolved.target ==
-            L"https://example.com/?q=ALTRun%20Next");
+            L"https://example.com/?q=Asterun");
     }
 
     {

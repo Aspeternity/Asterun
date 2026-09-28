@@ -51,11 +51,11 @@ function Get-AuthenticodeSummary {
 
 $install = [System.IO.Path]::GetFullPath($InstallRoot)
 $managedRoot = Join-Path $install "data\tools\Everything"
-$protectedRoot = Join-Path $env:ProgramFiles "Aspeternity\ALTRunNext\EverythingService"
+$protectedRoot = Join-Path $env:ProgramFiles "Aspeternity\Asterun\EverythingService"
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
-Write-Host "ALTRun Next managed Everything validation"
+Write-Host "Asterun managed Everything validation"
 Write-Host "  Install root:   $install"
 Write-Host "  Managed root:   $managedRoot"
 Write-Host "  Protected root: $protectedRoot"
@@ -104,7 +104,7 @@ if (-not $service) {
         if (-not $serviceExe.StartsWith(
                 $protectedFull,
                 [System.StringComparison]::OrdinalIgnoreCase)) {
-            $failures.Add("Everything service is not hosted under the protected ALTRun Next Program Files root: $serviceExe")
+            $failures.Add("Everything service is not hosted under the protected Asterun Program Files root: $serviceExe")
         }
 
         if (-not (Test-Path -LiteralPath $serviceExe -PathType Leaf)) {

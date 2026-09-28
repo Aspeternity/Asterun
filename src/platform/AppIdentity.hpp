@@ -5,7 +5,7 @@
 namespace altrun::app_identity {
 
 inline constexpr wchar_t kAppUserModelId[] =
-    L"Aspeternity.ALTRunNext";
+    L"Aspeternity.Asterun";
 
 inline constexpr GUID kTrayIconGuid{
     0x8a395c23,

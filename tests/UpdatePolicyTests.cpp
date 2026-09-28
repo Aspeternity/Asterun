@@ -1021,10 +1021,10 @@ int main() {
 
     assert(
         IsSafeUpdateAssetName(
-            "ALTRunNext-x64.zip"));
+            "Asterun-x64.zip"));
     assert(
         !IsSafeUpdateAssetName(
-            "../ALTRunNext.zip"));
+            "../Asterun.zip"));
     assert(
         !IsSafeUpdateAssetName(
             "folder/file.zip"));
@@ -1041,12 +1041,12 @@ int main() {
         "\"prerelease\":true,"
         "\"assets\":{"
         "\"x64\":{"
-        "\"name\":\"ALTRunNext-x64.zip\","
+        "\"name\":\"Asterun-x64.zip\","
         "\"sha256\":\"" +
         hash +
         "\"},"
         "\"ARM64\":{"
-        "\"name\":\"ALTRunNext-ARM64.zip\","
+        "\"name\":\"Asterun-ARM64.zip\","
         "\"sha256\":\"" +
         hash +
         "\"}"
@@ -1063,7 +1063,7 @@ int main() {
     assert(manifest->prerelease);
     assert(
         manifest->x64.name ==
-        "ALTRunNext-x64.zip");
+        "Asterun-x64.zip");
     assert(
         manifest->arm64.sha256 ==
         hash);
@@ -1081,7 +1081,7 @@ int main() {
             hash +
             "\"},"
             "\"ARM64\":{"
-            "\"name\":\"ALTRunNext-ARM64.zip\","
+            "\"name\":\"Asterun-ARM64.zip\","
             "\"sha256\":\"" +
             hash +
             "\"}"
@@ -1097,12 +1097,12 @@ int main() {
         "\"commit\":\"short\","
         "\"assets\":{"
         "\"x64\":{"
-        "\"name\":\"ALTRunNext-x64.zip\","
+        "\"name\":\"Asterun-x64.zip\","
         "\"sha256\":\"" +
         hash +
         "\"},"
         "\"ARM64\":{"
-        "\"name\":\"ALTRunNext-ARM64.zip\","
+        "\"name\":\"Asterun-ARM64.zip\","
         "\"sha256\":\"" +
         hash +
         "\"}"

@@ -59,12 +59,12 @@ int main() {
         };
 
         const auto results = BuildWebActionResults(
-            commands, L"g ALTRun Next", 10);
+            commands, L"g Asterun", 10);
         assert(results.size() == 1);
         assert(results[0].action.commandIndex == 0);
         assert(
             results[0].target ==
-            L"https://www.google.com/search?q=ALTRun%20Next");
+            L"https://www.google.com/search?q=Asterun");
 
         const auto alias = BuildWebActionResults(
             commands, L"GOOGLE \u5FC3\u810F MRI", 10);
@@ -98,7 +98,7 @@ int main() {
         // not the legacy {query} WebAction compatibility path.
         assert(BuildWebActionResults(
             commands,
-            L"g ALTRun Next",
+            L"g Asterun",
             10).empty());
     }
 
@@ -110,7 +110,7 @@ int main() {
                 L"https://github.com"),
         };
         assert(BuildWebActionResults(
-            commands, L"gh ALTRunNext", 10).empty());
+            commands, L"gh Asterun", 10).empty());
     }
 
     {

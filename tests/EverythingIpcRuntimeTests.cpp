@@ -382,7 +382,7 @@ public:
         : mode_(mode),
           windowClass_(
               windowClass.empty()
-                  ? L"ALTRunNext.TestEverythingIpc." +
+                  ? L"Asterun.TestEverythingIpc." +
                         std::to_wstring(
                             GetCurrentProcessId()) +
                         L"." +
@@ -812,7 +812,7 @@ int main() {
     {
         EverythingIpcClient client(
             OptionsFor(
-                L"ALTRunNext."
+                L"Asterun."
                 L"TestEverythingIpc."
                 L"Missing"));
         ResultCollector collector;
@@ -1072,7 +1072,7 @@ int main() {
 
     {
         const std::wstring windowClass =
-            L"ALTRunNext.TestEverythingIpc.Recovery." +
+            L"Asterun.TestEverythingIpc.Recovery." +
             std::to_wstring(
                 GetCurrentProcessId());
 
@@ -1138,7 +1138,7 @@ int main() {
 
     {
         const std::wstring baseClass =
-            L"ALTRunNext.TestEverythingIpc.Named." +
+            L"Asterun.TestEverythingIpc.Named." +
             std::to_wstring(
                 GetCurrentProcessId());
         const std::wstring namedClass =
@@ -1197,7 +1197,7 @@ int main() {
 
     {
         const std::wstring baseClass =
-            L"ALTRunNext.TestEverythingIpc.Ambiguous." +
+            L"Asterun.TestEverythingIpc.Ambiguous." +
             std::to_wstring(
                 GetCurrentProcessId());
 

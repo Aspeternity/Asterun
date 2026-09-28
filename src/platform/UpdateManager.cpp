@@ -45,7 +45,7 @@ constexpr std::uint64_t
 
 constexpr wchar_t
     kStableLatestReleaseMetadataUrl[] =
-        L"https://api.github.com/repos/Aspeternity/ALTRunNext/releases/latest";
+        L"https://api.github.com/repos/Aspeternity/Asterun/releases/latest";
 
 struct InternetHandle {
     std::atomic<HINTERNET>
@@ -218,7 +218,7 @@ OpenRequest(
 
     const HINTERNET session =
         WinHttpOpen(
-            L"ALTRunNext Update/0.8",
+            L"Asterun Update/1.0",
             WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
             WINHTTP_NO_PROXY_NAME,
             WINHTTP_NO_PROXY_BYPASS,
@@ -767,7 +767,7 @@ DirectoryWritable(
     std::error_code ec;
     const auto probe =
         directory /
-        (L".altrun-update-write-" +
+        (L".asterun-update-write-" +
          std::to_wstring(
              GetCurrentProcessId()) +
          L".tmp");
@@ -1259,7 +1259,7 @@ PrepareUpdate(
             manifest.version ||
         !std::filesystem::is_regular_file(
             stagingDirectory /
-                L"ALTRunNext.exe",
+                L"Asterun.exe",
             ec) ||
         ec ||
         !std::filesystem::is_regular_file(
@@ -1361,7 +1361,7 @@ bool LaunchPreparedUpdate(
     }
 
     const std::wstring healthEvent =
-        L"Local\\Aspeternity.ALTRunNext.UpdateHealth." +
+        L"Local\\Aspeternity.Asterun.UpdateHealth." +
         healthToken;
 
     std::wstring arguments =

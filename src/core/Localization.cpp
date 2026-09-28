@@ -7,7 +7,7 @@ std::wstring_view LocalizedText(TextId id, Language language) {
 
     switch (id) {
     case TextId::CreateWindowFailed:
-        return zh ? L"无法创建 ALTRun Next 启动器窗口。" : L"Unable to create ALTRun Next launcher window.";
+        return zh ? L"无法创建 Asterun 启动器窗口。" : L"Unable to create Asterun launcher window.";
     case TextId::UnableToLaunch:
         return zh ? L"无法启动：" : L"Unable to launch:";
     case TextId::UnableToCopy:
@@ -16,8 +16,8 @@ std::wstring_view LocalizedText(TextId id, Language language) {
         return zh ? L"复制文本" : L"Copy text";
     case TextId::HotkeyBusy:
         return zh
-            ? L"Alt+Space 已被其他程序占用。\n\nALTRun Next 会继续在系统托盘运行；后续版本将支持自定义快捷键。"
-            : L"Alt+Space is already in use by another application.\n\nALTRun Next will keep running in the tray; hotkey customization will be added next.";
+            ? L"Alt+Space 已被其他程序占用。\n\nAsterun 会继续在系统托盘运行；后续版本将支持自定义快捷键。"
+            : L"Alt+Space is already in use by another application.\n\nAsterun will keep running in the tray; hotkey customization will be added next.";
     case TextId::SearchPlaceholder:
         return zh ? L"输入快捷词、程序名或路径…" : L"Type a keyword, app name, or path...";
     case TextId::CommandPrefix:
@@ -29,7 +29,7 @@ std::wstring_view LocalizedText(TextId id, Language language) {
     case TextId::TrayAppearance:
         return zh ? L"界面" : L"Appearance";
     case TextId::TrayClassic:
-        return zh ? L"经典 ALTRun" : L"Classic ALTRun";
+        return zh ? L"经典模式（ALTRun 风格）" : L"Classic (ALTRun-inspired)";
     case TextId::TrayModern:
         return zh ? L"现代紧凑" : L"Modern Compact";
     case TextId::TrayLanguage:

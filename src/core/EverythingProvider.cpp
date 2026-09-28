@@ -133,7 +133,7 @@ void EverythingProvider::QueryBroad(
     const std::size_t outputLimit =
         request.limit;
 
-    // Everything truncates before ALTRun Next applies its own relevance
+    // Everything truncates before Asterun applies its own relevance
     // policy. For broad short queries that can starve the post-filtered set:
     // a relevant prefix such as v2rayN may sit outside Everything's first
     // few dozen rows while unrelated path/name hits occupy the initial page.

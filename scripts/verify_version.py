@@ -56,7 +56,7 @@ base_version = f"{major}.{minor}.{patch}"
 
 cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
 project_match = re.search(
-    r"project\(ALTRunNext\s+VERSION\s+([0-9.]+)\s+LANGUAGES",
+    r"project\(Asterun\s+VERSION\s+([0-9.]+)\s+LANGUAGES",
     cmake,
 )
 if not project_match:
@@ -109,7 +109,7 @@ if f"## {version}" not in changelog:
     fail(f"CHANGELOG.md has no current version heading for {version}")
 
 template = (ROOT / "src/core/Version.hpp.in").read_text(encoding="utf-8")
-if "@ALTRUN_VERSION@" not in template:
+if "@ASTERUN_VERSION@" not in template:
     fail("Version.hpp.in no longer derives the runtime version from VERSION")
 
 print(

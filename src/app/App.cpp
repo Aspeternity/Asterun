@@ -46,7 +46,7 @@ constexpr std::uint64_t
 
 constexpr wchar_t
     kUpdateDispatchClass[] =
-        L"ALTRunNext.UpdateDispatch";
+        L"Asterun.UpdateDispatch";
 
 constexpr UINT_PTR
     kUpdateReconcileTimerId =
@@ -181,7 +181,7 @@ bool ProbeDirectoryWritable(
 
     const auto probe =
         directory /
-        (".altrun-write-test-" +
+        (".asterun-write-test-" +
          std::to_string(
              GetCurrentProcessId()) +
          ".tmp");
@@ -342,7 +342,7 @@ App::~App() {
 
 int App::Run() {
     // Keep shell-facing surfaces attached to one stable product identity even
-    // though ALTRun Next is portable and unpackaged.
+    // though Asterun is portable and unpackaged.
     const HRESULT appIdentityResult =
         SetCurrentProcessExplicitAppUserModelID(
             app_identity::kAppUserModelId);
@@ -387,13 +387,13 @@ int App::Run() {
         CreateMutexW(
             nullptr,
             FALSE,
-            L"Local\\Aspeternity.ALTRunNext.SingleInstance.v1");
+            L"Local\\Aspeternity.Asterun.SingleInstance.v1");
 
     if (!singleInstanceMutex_) {
         altrun::ui::ShowMessage(
             nullptr,
-            L"Unable to create the ALTRun Next single-instance guard.",
-            L"ALTRun Next",
+            L"Unable to create the Asterun single-instance guard.",
+            L"Asterun",
             MB_ICONERROR | MB_OK);
         return 1;
     }
@@ -407,9 +407,9 @@ int App::Run() {
             altrun::ui::ShowMessage(
                 nullptr,
                 settingsStore_.Data().language == Language::ZhCN
-                    ? L"ALTRun Next 已经在运行，但无法把“发送到”请求交给现有实例。"
-                    : L"ALTRun Next is already running, but the Send To request could not be forwarded to the existing instance.",
-                L"ALTRun Next",
+                    ? L"Asterun 已经在运行，但无法把“发送到”请求交给现有实例。"
+                    : L"Asterun is already running, but the Send To request could not be forwarded to the existing instance.",
+                L"Asterun",
                 MB_ICONWARNING | MB_OK);
             return 1;
         }
@@ -417,9 +417,9 @@ int App::Run() {
         altrun::ui::ShowMessage(
             nullptr,
             settingsStore_.Data().language == Language::ZhCN
-                ? L"ALTRun Next 已经在运行。\n\n请检查系统托盘，避免多个实例同时抢占全局热键。"
-                : L"ALTRun Next is already running.\n\nCheck the system tray. Multiple instances are blocked to prevent global-hotkey conflicts.",
-            L"ALTRun Next",
+                ? L"Asterun 已经在运行。\n\n请检查系统托盘，避免多个实例同时抢占全局热键。"
+                : L"Asterun is already running.\n\nCheck the system tray. Multiple instances are blocked to prevent global-hotkey conflicts.",
+            L"Asterun",
             MB_ICONINFORMATION | MB_OK);
         return 0;
     }
@@ -435,9 +435,9 @@ int App::Run() {
         altrun::ui::ShowMessage(
             nullptr,
             settingsStore_.Data().language == Language::ZhCN
-                ? L"ALTRun Next 的 data 目录当前不可写。\n\n程序仍会继续运行，但设置、快捷项和使用记录可能无法保存。请将程序移动到可写目录或检查文件夹权限。"
-                : L"The ALTRun Next data directory is not writable.\n\nThe launcher will continue running, but settings, shortcuts and usage history may not persist. Move ALTRun Next to a writable folder or check folder permissions.",
-            L"ALTRun Next",
+                ? L"Asterun 的 data 目录当前不可写。\n\n程序仍会继续运行，但设置、快捷项和使用记录可能无法保存。请将程序移动到可写目录或检查文件夹权限。"
+                : L"The Asterun data directory is not writable.\n\nThe launcher will continue running, but settings, shortcuts and usage history may not persist. Move Asterun to a writable folder or check folder permissions.",
+            L"Asterun",
             MB_ICONWARNING | MB_OK);
     }
 
@@ -452,7 +452,7 @@ int App::Run() {
         altrun::ui::ShowMessage(
             nullptr,
             Text(TextId::CreateWindowFailed).data(),
-            L"ALTRun Next",
+            L"Asterun",
             MB_ICONERROR | MB_OK);
         return 1;
     }
@@ -469,7 +469,7 @@ int App::Run() {
         altrun::ui::ShowMessage(
             nullptr,
             Text(TextId::HotkeyBusy).data(),
-            L"ALTRun Next",
+            L"Asterun",
             MB_ICONWARNING | MB_OK);
     }
 
@@ -487,7 +487,7 @@ int App::Run() {
                     Language::ZhCN
                 ? L"辅助热键注册失败，主热键仍可继续使用。请检查该按键是否已被其他程序占用。"
                 : L"The auxiliary hotkey could not be registered. The primary hotkey remains available. Check whether another application already uses the binding.",
-            L"ALTRun Next",
+            L"Asterun",
             MB_ICONWARNING | MB_OK);
     }
 
@@ -508,7 +508,7 @@ int App::Run() {
                     Language::ZhCN
                 ? L"“打开快捷项管理”全局快捷键注册失败。请检查该组合键是否已被其他程序占用。"
                 : L"The global Shortcut Manager hotkey could not be registered. Check whether another application already uses the binding.",
-            L"ALTRun Next",
+            L"Asterun",
             MB_ICONWARNING | MB_OK);
     }
 
@@ -701,9 +701,9 @@ int App::Run() {
                         kAuxiliaryHotkeyId)) {
 
                 if (window_) {
-                    // Capture the foreground Windows context before ALTRun Next
+                    // Capture the foreground Windows context before Asterun
                     // takes focus. Hiding an already-visible launcher must not
-                    // replace the session snapshot with ALTRun Next itself.
+                    // replace the session snapshot with Asterun itself.
                     if (!window_->IsVisible()) {
                         CaptureActivationContext();
                     }
@@ -1404,7 +1404,7 @@ App::DataCompatibilityWarning() const {
         message +=
             zh
                 ? L"检测到由较新版本生成的数据文件。为避免降级覆盖数据，以下文件已进入只读兼容模式："
-                : L"Data created by a newer ALTRun Next version was detected. To prevent downgrade data loss, these files are read-only:";
+                : L"Data created by a newer Asterun version was detected. To prevent downgrade data loss, these files are read-only:";
 
         message += L"\r\n";
 
@@ -2364,7 +2364,7 @@ void App::StopManagedEverythingLifecycle() {
     // the active default Everything IPC window belongs to our exact managed
     // executable path. Normal application exit leaves the service policy
     // unchanged; disabling the Everything provider separately stops and
-    // disables an ALTRun-owned service through SetProviderEnabled().
+    // disables an Asterun-owned service through SetProviderEnabled().
     (void)win::StopManagedEverything(
         dataDirectory_);
 
@@ -4125,7 +4125,7 @@ bool App::SetManagedEverythingShowTrayIcon(
         EverythingBootstrapStatus();
 
     // Never rewrite a user-managed/external Everything installation. Keep the
-    // preference for a future ALTRun-managed copy, but only restart/apply it
+    // preference for a future Asterun-managed copy, but only restart/apply it
     // when the current executable is ours.
     const bool managed =
         bootstrap.source ==
@@ -4231,7 +4231,7 @@ bool App::ApplyStartupRegistrationUnlocked(
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 
     constexpr wchar_t kValueName[] =
-        L"ALTRunNext";
+        L"Asterun";
 
     if (!enabled) {
         HKEY key{};
@@ -4415,7 +4415,7 @@ bool App::ApplySendToRegistrationUnlocked(
         sendToRaw);
     CoTaskMemFree(sendToRaw);
 
-    linkPath /= L"ALTRun Next.lnk";
+    linkPath /= L"Asterun.lnk";
 
     std::error_code ec;
 
@@ -4578,7 +4578,7 @@ bool App::ApplySendToRegistrationUnlocked(
                 0)) &&
         SUCCEEDED(
             shellLink->SetDescription(
-                L"Add to ALTRun Next shortcuts"));
+                L"Add to Asterun shortcuts"));
 
     if (success) {
         success =
@@ -4731,7 +4731,7 @@ void App::ShowSettings() {
             altrun::ui::ShowMessage(
                 nullptr,
                 L"Unable to create Settings window.",
-                L"ALTRun Next",
+                L"Asterun",
                 MB_ICONERROR | MB_OK);
             return;
         }
@@ -4748,7 +4748,7 @@ void App::ShowAbout() {
             altrun::ui::ShowMessage(
                 nullptr,
                 L"Unable to create Settings window.",
-                L"ALTRun Next",
+                L"Asterun",
                 MB_ICONERROR | MB_OK);
             return;
         }
@@ -4787,7 +4787,7 @@ void App::OpenProjectPage() {
     ShellExecuteW(
         nullptr,
         L"open",
-        L"https://github.com/Aspeternity/ALTRunNext",
+        L"https://github.com/Aspeternity/Asterun",
         nullptr,
         nullptr,
         SW_SHOWNORMAL);
@@ -4867,7 +4867,7 @@ bool App::ExecuteResult(
                     TextId::
                         UnableToCopy))
                 .c_str(),
-            L"ALTRun Next",
+            L"Asterun",
             MB_ICONERROR | MB_OK);
 
         return false;
@@ -4966,7 +4966,7 @@ bool App::ExecuteResult(
     altrun::ui::ShowMessage(
         nullptr,
         message.c_str(),
-        L"ALTRun Next",
+        L"Asterun",
         MB_ICONERROR | MB_OK);
 
     return false;
@@ -5006,9 +5006,9 @@ bool App::LaunchCommand(
                 nullptr,
                 settingsStore_.Data().language ==
                         Language::ZhCN
-                    ? L"此命令需要 {folder}，但当前没有可用的文件系统目录上下文。\n\n请从文件资源管理器或 Total Commander 的真实目录中唤起 ALTRun Next。"
-                    : L"This command requires {folder}, but no filesystem-folder context is available.\n\nInvoke ALTRun Next from a real folder in File Explorer or Total Commander.",
-                L"ALTRun Next",
+                    ? L"此命令需要 {folder}，但当前没有可用的文件系统目录上下文。\n\n请从文件资源管理器或 Total Commander 的真实目录中唤起 Asterun。"
+                    : L"This command requires {folder}, but no filesystem-folder context is available.\n\nInvoke Asterun from a real folder in File Explorer or Total Commander.",
+                L"Asterun",
                 MB_ICONINFORMATION | MB_OK);
             return false;
         }
@@ -5104,7 +5104,7 @@ bool App::LaunchCommand(
             altrun::ui::ShowMessage(
                 nullptr,
                 message.c_str(),
-                L"ALTRun Next",
+                L"Asterun",
                 MB_ICONERROR | MB_OK);
 
             return false;
@@ -5146,7 +5146,7 @@ bool App::LaunchCommand(
         altrun::ui::ShowMessage(
             nullptr,
             message.c_str(),
-            L"ALTRun Next",
+            L"Asterun",
             MB_ICONERROR | MB_OK);
 
         return false;

@@ -1,6 +1,6 @@
-# ALTRun Next Roadmap
+# Asterun Roadmap
 
-ALTRun Next 1.0.0 is the first stable 1.x baseline, promoted directly from the validated v0.8.0-beta.3 hardening line. Future work continues as post-1.0 maintenance and incremental feature development.
+Asterun 1.0.0 is the first stable 1.x baseline, promoted directly from the validated v0.8.0-beta.3 hardening line. Future work continues as post-1.0 maintenance and incremental feature development.
 
 ## v1.0.0 - First stable release
 
@@ -169,8 +169,8 @@ Completed in v0.7.0:
 - Managed Everything Bootstrap: local-first reuse/start plus user-confirmed official portable download, SHA-256 verification and IPC readiness
 - alpha.8.1 fixes the real-Windows verified archive handoff by promoting .zip.download to .zip only after SHA-256 succeeds
 - alpha.8.2 completes the managed runtime path with Everything Service-backed NTFS indexing and a headless/no-tray managed client
-- alpha.8.3 closes managed-client lifecycle: app exit/source disable stops only ALTRun Next's owned Everything client while retaining the Windows service
-- alpha.8.4 repairs stale persistent Everything Service paths after the portable ALTRun Next folder is moved/re-extracted
+- alpha.8.3 closes managed-client lifecycle: app exit/source disable stops only Asterun's owned Everything client while retaining the Windows service
+- alpha.8.4 repairs stale persistent Everything Service paths after the portable Asterun folder is moved/re-extracted
 - alpha.9 adds native Stable / Development update channels, SHA-256 verified staged download and transactional helper-based apply/rollback
 - alpha.9.2 adds portable native `Update.exe` / `Uninstall.exe` lifecycle ownership
 - alpha.9.4 freezes the Managed Everything provider lifecycle after real Windows validation

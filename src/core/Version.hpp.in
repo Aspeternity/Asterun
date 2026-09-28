@@ -5,9 +5,9 @@
 namespace altrun {
 
 inline constexpr std::string_view
-    kVersion = "@ALTRUN_VERSION@";
+    kVersion = "@ASTERUN_VERSION@";
 
 inline constexpr std::wstring_view
-    kVersionWide = L"@ALTRUN_VERSION@";
+    kVersionWide = L"@ASTERUN_VERSION@";
 
 } // namespace altrun

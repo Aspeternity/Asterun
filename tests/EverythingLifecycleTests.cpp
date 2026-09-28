@@ -21,7 +21,7 @@ std::filesystem::path TestRoot() {
     std::filesystem::path root =
         std::filesystem::temp_directory_path();
     root /=
-        L"ALTRunNext-EverythingLifecycle-" +
+        L"Asterun-EverythingLifecycle-" +
         std::to_wstring(
             GetCurrentProcessId());
     return root;

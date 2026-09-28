@@ -199,7 +199,7 @@ int main() {
         GetModuleHandleW(nullptr);
 
     const wchar_t dummyClass[] =
-        L"ALTRunNext.WindowsContextRuntimeTest";
+        L"Asterun.WindowsContextRuntimeTest";
 
     WNDCLASSW windowClass{};
     windowClass.lpfnWndProc =

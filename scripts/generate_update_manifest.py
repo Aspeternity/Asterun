@@ -43,8 +43,8 @@ def main() -> int:
     checksums = parse_checksums(args.checksums)
 
     required = {
-        "x64": "ALTRunNext-x64.zip",
-        "ARM64": "ALTRunNext-ARM64.zip",
+        "x64": "Asterun-x64.zip",
+        "ARM64": "Asterun-ARM64.zip",
     }
 
     for name in required.values():
