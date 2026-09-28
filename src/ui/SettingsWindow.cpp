@@ -3730,6 +3730,8 @@ void SettingsWindow::CommitPendingProviderChanges() {
 
     bool failed = false;
     bool everythingFailed = false;
+    ProviderChangeDiagnostic
+        everythingDiagnostic;
 
     // Apply all ordinary discovery providers in one Settings save / cache
     // merge / Launcher refresh. This is the expensive work that used to run
@@ -3750,7 +3752,8 @@ void SettingsWindow::CommitPendingProviderChanges() {
                 providers::
                     kEverythingFilesystem),
             *everythingChange,
-            false)) {
+            false,
+            &everythingDiagnostic)) {
         failed = true;
         everythingFailed = true;
     }
@@ -3782,13 +3785,50 @@ void SettingsWindow::CommitPendingProviderChanges() {
     RefreshProviderStatus();
 
     if (failed) {
+        std::wstring message;
+
+        if (everythingFailed &&
+            everythingDiagnostic.failure ==
+                ProviderChangeFailure::
+                    EverythingServicePolicy) {
+            message =
+                T(L"无法读取或应用 Everything 服务状态。",
+                  L"Unable to query or apply the Everything service state.");
+
+            if (everythingDiagnostic.nativeError != 0) {
+                message +=
+                    T(L"\n\nWindows 错误代码：",
+                      L"\n\nWindows error code: ");
+                message +=
+                    std::to_wstring(
+                        everythingDiagnostic.nativeError);
+            }
+
+            message +=
+                T(L"\n\nEverything 开关已恢复原状态。",
+                  L"\n\nThe Everything switch was restored to its previous state.");
+        } else if (
+            everythingFailed &&
+            everythingDiagnostic.failure ==
+                ProviderChangeFailure::
+                    SettingsPersistence) {
+            message =
+                T(L"无法保存 ALTRun Next 的 settings.json，因此 Everything 开关没有生效。"
+                  L"\n\n这不是 Everything 服务安装状态错误；请检查当前数据目录的配置写入或只读保护状态。",
+                  L"ALTRun Next could not save settings.json, so the Everything switch was not applied."
+                  L"\n\nThis is not an Everything-service installation error; check configuration write access or read-only recovery protection for the current data directory.");
+        } else {
+            message =
+                everythingFailed
+                    ? T(L"Everything 搜索来源未能应用，开关已恢复实际状态。",
+                        L"The Everything search source could not be applied. The switch was restored to its actual state.")
+                    : T(L"部分搜索来源设置无法保存，未成功的开关已恢复实际状态。",
+                        L"Some search-source settings could not be saved. Failed switches were restored to their actual state.");
+        }
+
         altrun::ui::ShowMessage(
             hwnd_,
-            everythingFailed
-                ? T(L"部分搜索来源未能应用；Everything 托管模式可能需要 Windows 管理员权限。未成功的开关已恢复实际状态。",
-                    L"Some search-source changes could not be applied. Managed Everything may require Windows administrator approval. Failed switches were restored to their actual state.")
-                : T(L"部分搜索来源设置无法保存，未成功的开关已恢复实际状态。",
-                    L"Some search-source settings could not be saved. Failed switches were restored to their actual state."),
+            message,
             L"ALTRun Next",
             MB_OK |
                 MB_ICONERROR);
