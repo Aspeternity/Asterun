@@ -83,9 +83,10 @@ struct EverythingServiceRepairResult {
     std::uint32_t nativeError{0};
 };
 
-// SCM can report either the service-specific missing code or a plain
-// file-not-found while an entry is absent/being removed. Both mean there is
-// no service policy to apply and must not block first-time provider enable.
+// Real-machine beta.3 validation observed ERROR_FILE_NOT_FOUND during the
+// first-enable path on a machine with no Everything service. For ALTRun's
+// provider policy, both codes are non-installed states and must not block the
+// explicit Get-and-start acquisition flow.
 [[nodiscard]] bool
 IsEverythingServiceMissingError(
     std::uint32_t nativeError) noexcept;
