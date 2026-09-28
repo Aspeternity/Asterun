@@ -17,6 +17,6 @@
 | M8 重复基础代码 | `src/platform/SecureArchive.cpp`、`WindowsCommandLine.hpp`、`ArchiveExtractor.cpp` | 文件哈希、参数编码、归档提取各自只有一个底层实现；调用端仍维持自己的安全前置条件。 |
 | M9、M10 结构和构建 | `src/app/AppUpdate.cpp`、`src/ui/*Layout.cpp`、`CMakeLists.txt` | 拆分更新协调和两个窗口布局；应用生产实现只编译一次，产品和真实窗口测试共用静态目标，入口/资源仍由各 EXE 持有。 |
 
-本地 Release 构建及 32 项 CTest 全部通过。`scripts/verify_version.py`、`scripts/verify_release_contract.py`、发布脚本语法检查和 `git diff --check` 通过。搜索微基准使用 1/100/1000/10000 条合成命令，10,000 条的稳态查询平均约 8.6 ms（旧路径）与 0.8 ms（预计算 + Top K）；这是 Linux 合成负载，不代表 Windows 输入到绘制耗时，也未计入一次性索引准备。
+本地 Release 构建及 32 项 CTest 全部通过。`scripts/verify_version.py`、`scripts/verify_release_contract.py`、发布脚本语法检查和 `git diff --check` 通过。Windows CI Build #716 的 x64、ARM64 构建与包契约、Windows 10 API 基线及 25 项兼容性测试、25 项桌面运行时烟测、核心测试全部通过。搜索微基准使用 1/100/1000/10000 条合成命令，10,000 条的稳态查询平均约 8.6 ms（旧路径）与 0.8 ms（预计算 + Top K）；这是 Linux 合成负载，不代表 Windows 输入到绘制耗时，也未计入一次性索引准备。
 
-Windows CI 应运行仓库现有的 x64/ARM64 构建、Windows 10 API 基线、真实窗口/Everything/更新运行时测试及包契约；`docs/V0.8_BETA_VALIDATION.md` 新增坏配置、签名拒绝、慢速或损坏解压、受阻回滚、后台写入及搜索负载的手工验收点。通过前不要合并或发布 beta.3。
+`docs/V0.8_BETA_VALIDATION.md` 新增坏配置、签名拒绝、慢速或损坏解压、受阻回滚、后台写入及搜索负载的手工验收点。Windows CI 不能代替官方 Everything x64/ARM64 签名、UAC 和真实桌面交互的实机验收；完成这些验收前不要合并或发布 beta.3。
