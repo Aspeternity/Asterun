@@ -37,7 +37,7 @@ namespace {
 
 constexpr const wchar_t* kWindowClass =
     instance_ipc::kLauncherWindowClass;
-constexpr wchar_t kWindowTitle[] = L"ALTRun Next";
+constexpr wchar_t kWindowTitle[] = L"Asterun";
 
 void InitializeTrayIconIdentity(
     NOTIFYICONDATAW& data,
@@ -2384,7 +2384,7 @@ void LauncherWindow::AddTrayIcon(
             true);
     wcscpy_s(
         data.szTip,
-        L"ALTRun Next");
+        L"Asterun");
 
     if (!Shell_NotifyIconW(
             NIM_ADD,
@@ -2464,7 +2464,7 @@ void LauncherWindow::ShowStartupNotification(
 
     wcsncpy_s(
         data.szInfoTitle,
-        L"ALTRun Next",
+        L"Asterun",
         _TRUNCATE);
     wcsncpy_s(
         data.szInfo,
@@ -2923,7 +2923,7 @@ void LauncherWindow::ShowResultContextMenu(
                 zh
                     ? L"无法打开目标所在目录。目标可能已移动、删除，或不是文件系统路径。"
                     : L"Could not open the target's containing folder. It may have moved, been deleted, or may not be a filesystem path.",
-                L"ALTRun Next",
+                L"Asterun",
                 MB_OK |
                     MB_ICONINFORMATION);
         }
