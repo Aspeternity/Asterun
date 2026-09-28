@@ -27,7 +27,7 @@ namespace altrun {
 namespace {
 
 constexpr wchar_t kPathConverterClass[] =
-    L"ALTRunNext.ShortcutPathConverter";
+    L"Asterun.ShortcutPathConverter";
 
 constexpr UINT kIdPortable = 54101;
 constexpr UINT kIdAbsolute = 54102;
@@ -720,7 +720,7 @@ bool ShortcutPathConverterDialog::Show(
                     Language::ZhCN
                 ? L"无法创建路径转换窗口。"
                 : L"Could not create the path conversion window.",
-            L"ALTRun Next",
+            L"Asterun",
             MB_OK | MB_ICONERROR);
         return false;
     }
@@ -1169,8 +1169,8 @@ void ShortcutPathConverterDialog::CreateControls() {
 void ShortcutPathConverterDialog::ApplyLanguage() {
     SetWindowTextW(
         hwnd_,
-        T(L"ALTRun Next 路径转换",
-          L"ALTRun Next Path Conversion"));
+        T(L"Asterun 路径转换",
+          L"Asterun Path Conversion"));
 
     SetWindowTextW(
         modeTitle_,
