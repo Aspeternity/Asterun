@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="src/resources/altrun_original.ico" width="88" height="88" alt="ALTRun Next icon">
+  <img src="src/resources/altrun_original.ico" width="88" height="88" alt="Asterun icon">
 </p>
 
-<h1 align="center">ALTRun Next</h1>
+<h1 align="center">Asterun</h1>
 
 <p align="center">
   <strong>A fast, native, keyboard-first launcher for Windows.</strong><br>
@@ -15,8 +15,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Aspeternity/ALTRunNext/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Aspeternity/ALTRunNext?display_name=tag&sort=semver"></a>
-  <a href="https://github.com/Aspeternity/ALTRunNext/actions/workflows/build.yml"><img alt="Build" src="https://github.com/Aspeternity/ALTRunNext/actions/workflows/build.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/Aspeternity/Asterun/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Aspeternity/ALTRunNext?display_name=tag&sort=semver"></a>
+  <a href="https://github.com/Aspeternity/Asterun/actions/workflows/build.yml"><img alt="Build" src="https://github.com/Aspeternity/Asterun/actions/workflows/build.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/Aspeternity/ALTRunNext"></a>
   <img alt="Platform" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white">
   <img alt="C++23" src="https://img.shields.io/badge/C%2B%2B-23-00599C?logo=cplusplus&logoColor=white">
@@ -36,18 +36,18 @@
 
 ## About
 
-ALTRun Next is an independently implemented Windows launcher inspired by the classic ALTRun workflow: **small, fast, keyboard-first, and low-noise**.
+Asterun is an independently implemented Windows launcher inspired by the classic ALTRun workflow: **small, fast, keyboard-first, and low-noise**.
 
 The project keeps the compact launcher experience while adding the Windows integration expected from a modern daily-use tool: application discovery, pinyin and mixed-language search, usage-aware ranking, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model.
 
 ## v1.0.0 — Current Stable Release
 
-ALTRun Next 1.0.0 is the first stable 1.x release and the recommended version for normal use. Detailed release history is kept in [CHANGELOG.md](CHANGELOG.md), so the project homepage stays focused on installation, features and everyday use.
+Asterun 1.0.0 is the first stable 1.x release and the recommended version for normal use. Detailed release history is kept in [CHANGELOG.md](CHANGELOG.md), so the project homepage stays focused on installation, features and everyday use.
 
 ## Interface Preview
 
 <p align="center">
-  <img src="docs/assets/readme/modern-compact.webp" alt="ALTRun Next Modern Compact launcher" width="920">
+  <img src="docs/assets/readme/modern-compact.webp" alt="Asterun Modern Compact launcher" width="920">
 </p>
 
 <p align="center"><sub>Modern Compact — the modern launcher surface</sub></p>
@@ -55,10 +55,10 @@ ALTRun Next 1.0.0 is the first stable 1.x release and the recommended version fo
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/assets/readme/classic.webp" alt="ALTRun Next Classic launcher" width="100%">
+      <img src="docs/assets/readme/classic.webp" alt="Asterun Classic launcher" width="100%">
     </td>
     <td align="center" width="50%">
-      <img src="docs/assets/readme/settings-search-sources.webp" alt="ALTRun Next Search Sources settings" width="100%">
+      <img src="docs/assets/readme/settings-search-sources.webp" alt="Asterun Search Sources settings" width="100%">
     </td>
   </tr>
   <tr>
@@ -73,11 +73,11 @@ ALTRun Next 1.0.0 is the first stable 1.x release and the recommended version fo
 
 | Architecture | Stable package |
 | --- | --- |
-| Windows x64 | [Download ALTRunNext-x64.zip](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/ALTRunNext-x64.zip) |
-| Windows ARM64 | [Download ALTRunNext-ARM64.zip](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/ALTRunNext-ARM64.zip) |
+| Windows x64 | [Download Asterun-x64.zip](https://github.com/Aspeternity/Asterun/releases/latest/download/Asterun-x64.zip) |
+| Windows ARM64 | [Download Asterun-ARM64.zip](https://github.com/Aspeternity/Asterun/releases/latest/download/Asterun-ARM64.zip) |
 
-- [Latest stable release](https://github.com/Aspeternity/ALTRunNext/releases/latest)
-- [SHA-256 checksums](https://github.com/Aspeternity/ALTRunNext/releases/latest/download/SHA256SUMS.txt)
+- [Latest stable release](https://github.com/Aspeternity/Asterun/releases/latest)
+- [SHA-256 checksums](https://github.com/Aspeternity/Asterun/releases/latest/download/SHA256SUMS.txt)
 - Supported systems: **Windows 10 / Windows 11**
 - Distribution: **portable ZIP**, no installer required
 
@@ -102,17 +102,17 @@ ALTRun Next 1.0.0 is the first stable 1.x release and the recommended version fo
 
 ## Quick Start
 
-1. Download the package for your architecture from the [latest release](https://github.com/Aspeternity/ALTRunNext/releases/latest).
+1. Download the package for your architecture from the [latest release](https://github.com/Aspeternity/Asterun/releases/latest).
 2. Extract the ZIP to a folder of your choice.
-3. Run `ALTRunNext.exe`.
+3. Run `Asterun.exe`.
 4. Press <kbd>Alt</kbd> + <kbd>Space</kbd> to open the launcher.
 5. Use the tray menu for **Settings**, **Shortcut Manager**, **About**, and exit controls.
 
-ALTRun Next is portable. On first launch it creates its runtime data directory beside the executable.
+Asterun is portable. On first launch it creates its runtime data directory beside the executable.
 
 ## Search Sources
 
-ALTRun Next can combine results from several Windows sources:
+Asterun can combine results from several Windows sources:
 
 - Start Menu shortcuts
 - Packaged / UWP / MSIX applications
@@ -127,9 +127,9 @@ Sources can be enabled or disabled independently from **Settings → Search Sour
 
 Everything integration is optional.
 
-When enabled from **Settings → Search Sources**, ALTRun Next can guide you through **Get and start Everything**. The managed flow verifies the downloaded package before use and keeps its own managed service/runtime lifecycle separate from external user-managed Everything installations.
+When enabled from **Settings → Search Sources**, Asterun can guide you through **Get and start Everything**. The managed flow verifies the downloaded package before use and keeps its own managed service/runtime lifecycle separate from external user-managed Everything installations.
 
-If you already maintain your own compatible Everything installation, ALTRun Next is designed not to take ownership of that external installation.
+If you already maintain your own compatible Everything installation, Asterun is designed not to take ownership of that external installation.
 
 ## Launcher Styles
 
@@ -148,8 +148,8 @@ Both styles share the same search, ranking, shortcut and provider core.
 Runtime state is stored locally:
 
 ```text
-ALTRunNext/
-├─ ALTRunNext.exe
+Asterun/
+├─ Asterun.exe
 ├─ Update.exe
 ├─ Uninstall.exe
 ├─ VERSION
@@ -169,8 +169,8 @@ Configuration files use versioned schemas, atomic writes and backup recovery. Se
 
 | Channel | Intended use | Link |
 | --- | --- | --- |
-| **Stable** | Recommended for normal use. Versioned, immutable releases. | [Latest stable](https://github.com/Aspeternity/ALTRunNext/releases/latest) |
-| **Development** | Rolling build from the latest successful `main` CI. May contain unfinished changes. | [dev-latest](https://github.com/Aspeternity/ALTRunNext/releases/tag/dev-latest) |
+| **Stable** | Recommended for normal use. Versioned, immutable releases. | [Latest stable](https://github.com/Aspeternity/Asterun/releases/latest) |
+| **Development** | Rolling build from the latest successful `main` CI. May contain unfinished changes. | [dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) |
 
 Official release assets include x64/ARM64 portable ZIPs, SHA-256 checksums and an update manifest.
 
@@ -217,11 +217,11 @@ Long-form Alpha/Beta development notes live in the [changelog](CHANGELOG.md) rat
 
 ## Feedback and Bug Reports
 
-Found a reproducible bug or compatibility problem? Please open a [GitHub Issue](https://github.com/Aspeternity/ALTRunNext/issues).
+Found a reproducible bug or compatibility problem? Please open a [GitHub Issue](https://github.com/Aspeternity/Asterun/issues).
 
 Useful reports include:
 
-- ALTRun Next version
+- Asterun version
 - Windows version and architecture
 - Reproduction steps
 - Expected vs. actual behavior
@@ -229,7 +229,7 @@ Useful reports include:
 
 ## Acknowledgements
 
-ALTRun Next is an independent implementation inspired by classic ALTRun.
+Asterun is an independent implementation inspired by classic ALTRun.
 
 Classic mode includes the original launcher background and two corner glyph assets, and the product uses the original ALTRun application icon and `Popup.wav`. These original assets are included with permission from the original author.
 
@@ -237,13 +237,13 @@ Everything is a third-party product by voidtools. Additional dependency and attr
 
 ## License
 
-The ALTRun Next source code is released under the [MIT License](LICENSE).
+The Asterun source code is released under the [MIT License](LICENSE).
 
 Bundled third-party components and original ALTRun assets remain subject to their respective licenses, notices and permissions.
 
 ---
 
 <p align="center">
-  <strong>ALTRun Next</strong><br>
+  <strong>Asterun</strong><br>
   Fast enough to disappear into your workflow.
 </p>
