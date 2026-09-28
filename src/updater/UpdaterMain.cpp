@@ -323,7 +323,7 @@ IsElevated() {
 
 [[nodiscard]] std::wstring
 QuoteArgument(std::wstring_view value) {
-    return QuoteWindowsArgument(value);
+    return altrun::win::QuoteWindowsArgument(value);
 }
 [[nodiscard]] bool
 LaunchNormal(
