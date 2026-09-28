@@ -65,7 +65,7 @@ int main() {
 
         assert(
             resolved.target ==
-            L"https://example.com/?q=ALTRun%20Next");
+            L"https://example.com/?q=Asterun");
     }
 
     {
