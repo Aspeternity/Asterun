@@ -48,7 +48,7 @@ jobs:
         run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
       - name: Build Windows smoke tests
         shell: pwsh
-        run: cmake --build build-smoke --config Release --target ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests archive_extractor_tests windows_command_line_tests --parallel
+        run: cmake --build build-smoke --config Release --target AsterunUpdater AsterunUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests archive_extractor_tests windows_command_line_tests --parallel
       - name: Run Windows smoke tests
         shell: pwsh
         run: ctest --test-dir build-smoke -C Release -R "^(windows_provider_smoke_tests|launch_target_inspector_tests|path_portability_tests|user_command_path_update_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_lifecycle_tests|everything_ipc_runtime_tests|update_policy_tests|update_runtime_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|upgrade_matrix_tests|clipboard_runtime_tests|windows_context_runtime_tests|feedback_runtime_tests|uninstall_runtime_tests|window_presentation_runtime_tests|archive_extractor_tests|windows_command_line_tests)$" --output-on-failure
@@ -64,12 +64,12 @@ jobs:
         run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
       - name: Build x64 compatibility target
         shell: pwsh
-        run: cmake --build build-compat --config Release --target ALTRunNext ALTRunNextUpdater ALTRunNextUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests archive_extractor_tests windows_command_line_tests --parallel
+        run: cmake --build build-compat --config Release --target Asterun AsterunUpdater AsterunUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests archive_extractor_tests windows_command_line_tests --parallel
       - name: Verify compatibility artifact
         shell: pwsh
         run: |
-          if (-not (Test-Path build-compat/Release/ALTRunNext.exe)) {
-            throw "Windows compatibility build did not produce ALTRunNext.exe."
+          if (-not (Test-Path build-compat/Release/Asterun.exe)) {
+            throw "Windows compatibility build did not produce Asterun.exe."
           }
           if (-not (Test-Path build-compat/Release/Update.exe)) {
             throw "Windows compatibility build did not produce Update.exe."
@@ -103,20 +103,20 @@ jobs:
           $pinyinDlls = @(Get-ChildItem build -Recurse -File -Filter "cpp-pinyin.dll" -ErrorAction SilentlyContinue)
           if ($pinyinDlls.Count -ne 0) {
             $pinyinDlls | ForEach-Object { Write-Host $_.FullName }
-            throw "cpp-pinyin.dll was produced. ALTRun Next must link cpp-pinyin statically."
+            throw "cpp-pinyin.dll was produced. Asterun must link cpp-pinyin statically."
           }
 
           $unexpectedDlls = @(Get-ChildItem build/Release -File -Filter "*.dll" -ErrorAction SilentlyContinue)
           if ($unexpectedDlls.Count -ne 0) {
             $unexpectedDlls | ForEach-Object { Write-Host $_.FullName }
-            throw "Unexpected runtime DLL found beside ALTRunNext.exe."
+            throw "Unexpected runtime DLL found beside Asterun.exe."
           }
 
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item build/Release/ALTRunNext.exe dist/ALTRunNext.exe
+          Copy-Item build/Release/Asterun.exe dist/Asterun.exe
           Copy-Item build/Release/Update.exe dist/Update.exe
           Copy-Item build/Release/Uninstall.exe dist/Uninstall.exe
           Copy-Item -Recurse build/Release/dict dist/dict
@@ -126,21 +126,21 @@ jobs:
           # not consume them and creates its data directory on first launch.
           Copy-Item VERSION dist/VERSION
           Copy-Item README.md dist/README.md
-          Compress-Archive -Path dist/* -DestinationPath ALTRunNext-${{ matrix.arch }}.zip
+          Compress-Archive -Path dist/* -DestinationPath Asterun-${{ matrix.arch }}.zip
 
       - name: Verify package contract
         shell: pwsh
-        run: '& ./scripts/verify_package.ps1 -Archive "ALTRunNext-${{ matrix.arch }}.zip"'
+        run: '& ./scripts/verify_package.ps1 -Archive "Asterun-${{ matrix.arch }}.zip"'
 
       - name: Verify packaged x64 runtime startup
         if: matrix.arch == 'x64'
         shell: pwsh
-        run: '& ./scripts/verify_runtime_smoke.ps1 -Archive "ALTRunNext-x64.zip"'
+        run: '& ./scripts/verify_runtime_smoke.ps1 -Archive "Asterun-x64.zip"'
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ALTRunNext-${{ matrix.arch }}
-          path: ALTRunNext-${{ matrix.arch }}.zip
+          name: Asterun-${{ matrix.arch }}
+          path: Asterun-${{ matrix.arch }}.zip
 
   release:
     needs: [preflight, test-core, windows-smoke, windows-compat, build]
@@ -158,11 +158,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find artifacts -type f -name 'ALTRunNext-x64.zip' -exec cp {} ALTRunNext-x64.zip \;
-          find artifacts -type f -name 'ALTRunNext-ARM64.zip' -exec cp {} ALTRunNext-ARM64.zip \;
-          test -f ALTRunNext-x64.zip
-          test -f ALTRunNext-ARM64.zip
-          sha256sum ALTRunNext-x64.zip ALTRunNext-ARM64.zip > SHA256SUMS.txt
+          find artifacts -type f -name 'Asterun-x64.zip' -exec cp {} Asterun-x64.zip \;
+          find artifacts -type f -name 'Asterun-ARM64.zip' -exec cp {} Asterun-ARM64.zip \;
+          test -f Asterun-x64.zip
+          test -f Asterun-ARM64.zip
+          sha256sum Asterun-x64.zip Asterun-ARM64.zip > SHA256SUMS.txt
           test "$(wc -l < SHA256SUMS.txt)" -eq 2
           sha256sum -c SHA256SUMS.txt
           VERSION="$(tr -d '\r\n' < VERSION)"
