@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0
+
+- Promote the validated v0.8 beta codebase directly to ALTRun Next 1.0.0 stable with no intentional search/ranking, shortcut, provider-ID or schema redesign.
+- Ship the accepted Classic ALTRun and Modern Compact launcher experiences, smart numeric Quick Launch, pinyin/mixed-language search, Windows application discovery, shortcut management and portable data model as the first stable 1.x baseline.
+- Harden managed Everything first acquisition, service ownership/repair, protected service hosting, tray behavior and uninstall cleanup while preserving external/user-managed Everything installations.
+- Harden configuration backup recovery, archive extraction, secure elevation, update apply/rollback, reparse handling and release artifact integrity.
+- Keep the portable archive minimal: ALTRunNext.exe, Update.exe, Uninstall.exe, VERSION, README.md, runtime dictionaries and required third-party notices.
+- Give Update.exe and Uninstall.exe dedicated branded icon variants while preserving the original ALTRun application icon for the main executable.
+- Preserve Settings schema 11, Commands schema 2, Usage schema 2 and Provider Cache schema 22 for compatibility with the validated beta line.
+- Publish Windows fixed FileVersion/ProductVersion `1.0.0.30000`.
+
 ## 0.8.0-beta.3
 
 - Preserve a healthy configuration backup when the primary JSON has invalid command/settings/usage semantics; report failed repairs instead of overwriting recoverable data.
