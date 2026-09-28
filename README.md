@@ -39,7 +39,9 @@ ALTRun Next is an independently implemented Windows launcher inspired by the cla
 
 The project keeps the compact launcher experience while adding the Windows integration expected from a modern daily-use tool: application discovery, pinyin and mixed-language search, usage-aware ranking, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model.
 
-**ALTRun Next 1.0.0 is the current stable release.**
+## v1.0.0 — Current Stable Release
+
+ALTRun Next 1.0.0 is the first stable 1.x release and the recommended version for normal use. Detailed release history is kept in [CHANGELOG.md](CHANGELOG.md), so the project homepage stays focused on installation, features and everyday use.
 
 ## Download
 
