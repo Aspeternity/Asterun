@@ -1,12 +1,6 @@
 # Asterun Roadmap
 
-Asterun 1.0.0 is the first stable 1.x baseline. Asterun 1.0.2 is the current maintenance release; 1.0.1 introduced the Asterun tray/icon recovery work and 1.0.2 hardens update checks against transient GitHub gateway failures.
-
-## v1.0.2 - Update reliability maintenance
-
-- Retry transient GitHub update-check failures (HTTP 502/503/504) before surfacing an error.
-- Keep retry delays short and cancellation-aware.
-- Replace raw transient gateway codes with a concise retry-later message.
+Asterun 1.0.0 is the first stable 1.x baseline. Asterun 1.0.1 is the current maintenance release, focused on tray identity, startup hotkey recovery, update reliability and final brand/UI defaults.
 
 ## v1.0.1 - Maintenance release
 
@@ -14,6 +8,10 @@ Asterun 1.0.0 is the first stable 1.x baseline. Asterun 1.0.2 is the current mai
 - Keep the launcher running when startup hotkeys conflict, with one concise warning and Settings as the recovery path.
 - Replace the square-backed application/tray artwork with the approved transparent Asterun mark.
 - Add real-Windows regression coverage for hotkey conflict + tray visibility.
+- Retry transient GitHub update-check failures (HTTP 502/503/504) with short cancellation-aware delays.
+- Make Modern Compact the default launcher style for new settings.
+- Show the user-facing Windows notification identity as Asterun.
+- Give Update.exe and Uninstall.exe distinct transparent Asterun-family icons.
 
 ## v1.0.0 - First stable release
 

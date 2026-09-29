@@ -27,7 +27,7 @@ enum class StartupBehavior {
 };
 
 struct Settings {
-    UiStyle uiStyle{UiStyle::Classic};
+    UiStyle uiStyle{UiStyle::ModernCompact};
     Language language{Language::ZhCN};
 
     bool startWithWindows{true};
