@@ -81,13 +81,31 @@ if ($unexpectedDlls.Count -ne 0) {
 
 $iconAssets = @(
     "src/resources/asterun.ico",
-    "src/resources/asterun_tray.ico"
+    "src/resources/asterun_tray.ico",
+    "src/resources/asterun_update.ico",
+    "src/resources/asterun_uninstall.ico"
 )
 
 foreach ($asset in $iconAssets) {
     if (-not (Test-Path $asset -PathType Leaf)) {
         throw "Missing Asterun icon asset: $asset"
     }
+}
+
+$executableIconAssets = @(
+    "src/resources/asterun.ico",
+    "src/resources/asterun_update.ico",
+    "src/resources/asterun_uninstall.ico"
+)
+$executableIconHashes = @(
+    $executableIconAssets |
+        ForEach-Object {
+            (Get-FileHash $_ -Algorithm SHA256).Hash
+        } |
+        Select-Object -Unique
+)
+if ($executableIconHashes.Count -ne 3) {
+    throw "Asterun.exe, Update.exe and Uninstall.exe must use distinct icon assets."
 }
 
 Add-Type -TypeDefinition @"

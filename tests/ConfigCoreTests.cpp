@@ -48,6 +48,10 @@ std::string ReadText(
 } // namespace
 
 int main() {
+    assert(
+        Settings{}.uiStyle ==
+        UiStyle::ModernCompact);
+
     {
         FeedbackPolicy feedback;
         assert(!feedback.Accept(FeedbackCue::Reveal, 1));

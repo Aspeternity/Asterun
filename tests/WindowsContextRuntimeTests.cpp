@@ -1,3 +1,4 @@
+#include "platform/AppIdentity.hpp"
 #include "platform/WindowsContext.hpp"
 
 #include <objbase.h>
@@ -163,6 +164,12 @@ DecodeTotalCommanderPath(
 } // namespace
 
 int main() {
+    assert(
+        std::wstring_view(
+            altrun::app_identity::
+                kAppUserModelId) ==
+        L"Asterun");
+
     const HRESULT comResult =
         CoInitializeEx(
             nullptr,

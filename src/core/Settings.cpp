@@ -379,7 +379,7 @@ bool SettingsStore::LoadJson() {
                     appearance.value(
                         "launcher",
                         std::string(
-                            "classic")));
+                            "modern-compact")));
 
             settings_.uiStyle =
                 (ui == "modern" ||
