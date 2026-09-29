@@ -53,9 +53,15 @@ int main() {
         failProperty = failure == 0;
         failSubclass = failure == 1 ? 0x1A57 : failure == 2 ? 0x1A58 : 0;
         stateDeletes = 0;
-        const HWND list = CreateWindowExW(0, WC_LISTVIEWW, L"", WS_CHILD | LVS_REPORT,
+        const HWND list = CreateWindowExW(0, WC_LISTVIEWW, L"", WS_CHILD | WS_VISIBLE | LVS_REPORT,
             0, 0, 300, 200, owner, nullptr, instance, nullptr);
         assert(list);
+        // As in the product, populate columns before styling the report view.
+        // Common controls can defer creating the Header until the first column.
+        LVCOLUMNW column{};
+        column.mask = LVCF_WIDTH;
+        column.cx = 150;
+        assert(ListView_InsertColumn(list, 0, &column) == 0);
         const HWND header = ListView_GetHeader(list);
         assert(header);
         const LONG_PTR headerStyle = GetWindowLongPtrW(header, GWL_STYLE);

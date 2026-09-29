@@ -1060,7 +1060,8 @@ if(BUILD_TESTING)
         target_link_libraries(app_lifecycle_runtime_tests PRIVATE ${window_runtime_libraries})
         target_compile_definitions(app_lifecycle_runtime_tests PRIVATE ${window_runtime_definitions})
 
-        add_executable(ui_listview_failure_tests tests/UiListViewFailureTests.cpp)
+        add_executable(ui_listview_failure_tests
+            tests/UiListViewFailureTests.cpp src/app.manifest)
         target_include_directories(ui_listview_failure_tests PRIVATE src)
         target_link_libraries(ui_listview_failure_tests PRIVATE user32 gdi32 comctl32 uxtheme)
         target_compile_definitions(ui_listview_failure_tests PRIVATE ${window_runtime_definitions})

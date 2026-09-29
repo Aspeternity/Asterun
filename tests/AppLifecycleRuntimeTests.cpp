@@ -198,6 +198,8 @@ struct AppLifecycleRuntimeFixture {
             // Each notification is posted by a worker while the actual editor
             // or path converter's nested GetMessage loop is running.
             for (int kind = 0; kind < 8; ++kind) {
+                std::cout << (converter ? "Path converter" : "Shortcut editor")
+                          << " notification case " << kind << std::endl;
                 bool posted = false;
                 std::function<void()> verify;
                 modalClass = converter ? L"Asterun.ShortcutPathConverter" : L"Asterun.ShortcutEditor";
@@ -220,7 +222,6 @@ struct AppLifecycleRuntimeFixture {
                             verify = [&] {
                                 assert(window.pendingNumericIntent_.active == (kind == 1));
                                 assert(app.detectedProviderIds_.empty()); // no AppsFolder ID collision
-                                window.CancelPendingNumericIntent();
                             };
                             break;
                         case 2:
@@ -296,6 +297,7 @@ struct AppLifecycleRuntimeFixture {
                 KillTimer(nullptr, timer);
                 assert(posted);
                 verify();
+                window.CancelPendingNumericIntent();
             }
         }
         // Shutdown must join late producers while their target is still alive.
