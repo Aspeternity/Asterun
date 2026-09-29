@@ -45,6 +45,10 @@ IsUpdateVersionNewer(
     std::string_view current,
     std::string_view candidate);
 
+[[nodiscard]] bool
+IsTransientUpdateHttpStatus(
+    std::uint32_t status);
+
 [[nodiscard]] std::wstring
 UpdateManifestUrl(
     UpdateChannel channel);

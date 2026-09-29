@@ -7,6 +7,7 @@
 - Keep Asterun running when one or more startup global hotkeys are already occupied; show one concise warning instead of multiple dialogs.
 - Retry tray registration after clearing a stale Asterun shell entry and restore the configured persistent icon after Explorer recreates the taskbar.
 - Add Windows runtime coverage for the hotkey-conflict + tray-visibility regression.
+- Retry transient GitHub update-check failures (HTTP 502/503/504) before surfacing an error, and replace raw gateway codes with a concise retry-later message.
 
 
 ## 1.0.0

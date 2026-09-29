@@ -6060,8 +6060,12 @@ void SettingsWindow::RefreshUpdateStatus() {
         switch (status.failure) {
         case win::UpdateFailure::ManifestDownloadFailed:
             text +=
-                T(L"无法获取更新清单",
-                  L"could not fetch the update manifest");
+                IsTransientUpdateHttpStatus(
+                    status.nativeError)
+                    ? T(L"暂时无法检查更新，请稍后重试",
+                        L"temporarily unable to check for updates; try again later")
+                    : T(L"无法获取更新清单",
+                        L"could not fetch the update manifest");
             break;
         case win::UpdateFailure::CheckTimedOut:
             text +=
@@ -6138,7 +6142,9 @@ void SettingsWindow::RefreshUpdateStatus() {
         if (status.nativeError != 0 &&
             status.failure !=
                 win::UpdateFailure::
-                    CheckTimedOut) {
+                    CheckTimedOut &&
+            !IsTransientUpdateHttpStatus(
+                status.nativeError)) {
             text +=
                 T(L"  ·  系统错误 ",
                   L"  ·  native error ");
