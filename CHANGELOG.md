@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2
+
+- Retry transient GitHub update-check failures (HTTP 502/503/504) up to three attempts before surfacing an error.
+- Keep retry delays short and cancellation-aware so update checks remain responsive.
+- Replace raw transient gateway status codes with a concise “try again later” message.
+
 ## 1.0.1
 
 - Replace the square-backed application/tray artwork with the approved transparent Asterun mark.
@@ -7,7 +13,6 @@
 - Keep Asterun running when one or more startup global hotkeys are already occupied; show one concise warning instead of multiple dialogs.
 - Retry tray registration after clearing a stale Asterun shell entry and restore the configured persistent icon after Explorer recreates the taskbar.
 - Add Windows runtime coverage for the hotkey-conflict + tray-visibility regression.
-- Retry transient GitHub update-check failures (HTTP 502/503/504) before surfacing an error, and replace raw gateway codes with a concise retry-later message.
 
 
 ## 1.0.0

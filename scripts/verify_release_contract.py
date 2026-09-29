@@ -12,6 +12,7 @@ SUPPORTED = {
     "0.8.0-beta.3": (11, 2, 2, 22, "0.8.0.10003"),
     "1.0.0": (11, 2, 2, 22, "1.0.0.30000"),
     "1.0.1": (11, 2, 2, 22, "1.0.1.30000"),
+    "1.0.2": (11, 2, 2, 22, "1.0.2.30000"),
 }
 
 
@@ -114,7 +115,7 @@ for path, tokens in {
     "tests/ArchiveExtractorTests.cpp": ("escape.zip", "corrupt.zip", "operation_canceled"),
     "tests/ConfigCoreTests.cpp": ("WasRecoveredFromBackup()", "commands-recovered.json"),
     "tests/UpdateRuntimeTests.cpp": ("Rollback(",),
-    "tests/UpdatePolicyTests.cpp": ('"0.8.0-beta.3"', '"1.0.0"', '"1.0.1"'),
+    "tests/UpdatePolicyTests.cpp": ('"0.8.0-beta.3"', '"1.0.0"', '"1.0.1"', '"1.0.2"'),
 }.items():
     require(path, *tokens)
 

@@ -40,9 +40,9 @@ Asterun is a native, lightweight, keyboard-first launcher for Windows 10/11, des
 
 Built with C++23 + Win32, Asterun brings application discovery, pinyin and mixed-language search, usage-aware ranking, smart numeric launch, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model into one compact launcher experience.
 
-## v1.0.1 — Current Stable Release
+## v1.0.2 — Current Stable Release
 
-Asterun 1.0.1 is the current stable release and the recommended version for normal use. Detailed release history is kept in [CHANGELOG.md](CHANGELOG.md), so the project homepage stays focused on installation, features and everyday use.
+Asterun 1.0.2 is the current stable release and the recommended version for normal use. Detailed release history is kept in [CHANGELOG.md](CHANGELOG.md), so the project homepage stays focused on installation, features and everyday use.
 
 ## Interface Preview
 
