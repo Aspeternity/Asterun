@@ -335,6 +335,14 @@ bool IsUpdateVersionNewer(
         *comparison > 0;
 }
 
+bool IsTransientUpdateHttpStatus(
+    std::uint32_t status) {
+    return
+        status == 502 ||
+        status == 503 ||
+        status == 504;
+}
+
 std::wstring
 UpdateManifestUrl(
     UpdateChannel channel) {

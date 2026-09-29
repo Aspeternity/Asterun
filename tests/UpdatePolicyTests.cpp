@@ -764,6 +764,12 @@ int main() {
     assert(!IsUpdateVersionNewer("1.0.1", "1.0.0"));
     assert(!IsUpdateVersionNewer("1.0.0", "0.8.0-beta.3"));
 
+    assert(IsTransientUpdateHttpStatus(502));
+    assert(IsTransientUpdateHttpStatus(503));
+    assert(IsTransientUpdateHttpStatus(504));
+    assert(!IsTransientUpdateHttpStatus(404));
+    assert(!IsTransientUpdateHttpStatus(500));
+
     assert(IsUpdateVersionNewer(
         "0.8.0-alpha.5.42", "0.8.0-alpha.5.43"));
     assert(!IsUpdateVersionNewer(

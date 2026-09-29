@@ -133,6 +133,15 @@ IsNetworkTimeout(
 }
 
 [[nodiscard]] bool
+IsRetryableUpdateCheckError(
+    std::uint32_t error) {
+    return
+        IsTransientUpdateHttpStatus(
+            error) ||
+        IsNetworkTimeout(error);
+}
+
+[[nodiscard]] bool
 CrackHttpsUrl(
     std::wstring_view url,
     std::wstring& host,
@@ -502,6 +511,69 @@ DownloadText(
     return !output.empty();
 }
 
+[[nodiscard]] bool
+WaitForUpdateRetryDelay(
+    std::stop_token stopToken,
+    std::chrono::milliseconds delay) {
+    constexpr auto kSlice =
+        std::chrono::milliseconds{50};
+
+    while (delay.count() > 0) {
+        if (stopToken.stop_requested()) {
+            return false;
+        }
+
+        const auto slice =
+            std::min(delay, kSlice);
+        std::this_thread::sleep_for(
+            slice);
+        delay -= slice;
+    }
+
+    return !stopToken.stop_requested();
+}
+
+[[nodiscard]] bool
+DownloadTextWithRetry(
+    std::wstring_view url,
+    std::string& output,
+    std::uint32_t& nativeError,
+    std::stop_token stopToken) {
+    constexpr std::array<
+        std::chrono::milliseconds,
+        2>
+        kRetryDelays{
+            std::chrono::milliseconds{250},
+            std::chrono::milliseconds{750},
+        };
+
+    for (std::size_t attempt = 0;; ++attempt) {
+        if (DownloadText(
+                url,
+                output,
+                nativeError,
+                stopToken)) {
+            return true;
+        }
+
+        if (stopToken.stop_requested() ||
+            !IsRetryableUpdateCheckError(
+                nativeError) ||
+            attempt >=
+                kRetryDelays.size()) {
+            return false;
+        }
+
+        if (!WaitForUpdateRetryDelay(
+                stopToken,
+                kRetryDelays[attempt])) {
+            nativeError =
+                ERROR_CANCELLED;
+            return false;
+        }
+    }
+}
+
 [[nodiscard]]
 std::optional<std::string>
 ParseLatestStableReleaseVersion(
@@ -844,7 +916,7 @@ CheckForUpdate(
     std::string text;
     std::uint32_t nativeError = 0;
 
-    if (!DownloadText(
+    if (!DownloadTextWithRetry(
             UpdateManifestUrl(
                 channel),
             text,
@@ -860,7 +932,7 @@ CheckForUpdate(
             std::string releaseText;
             std::uint32_t releaseError = 0;
 
-            if (DownloadText(
+            if (DownloadTextWithRetry(
                     kStableLatestReleaseMetadataUrl,
                     releaseText,
                     releaseError,
