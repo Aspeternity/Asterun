@@ -255,6 +255,8 @@ public:
     }
 
 private:
+    friend struct AppLifecycleRuntimeFixture;
+
     static constexpr int
         kGlobalHotkeyId = 0xA171;
 
@@ -323,6 +325,9 @@ private:
 
     void StartProviderMonitor();
     void HandleProviderChangedSignal();
+    void StopProviderDebounceTimer();
+    void PostUiNotification(UINT message, WPARAM wParam = 0, LPARAM lParam = 0);
+    bool HandleUiNotification(UINT message, WPARAM wParam, LPARAM lParam);
     void FlushDetectedProviderChanges();
     void HandleDynamicQueryCompleted();
     void HandleEverythingBootstrapCompleted(
@@ -451,6 +456,8 @@ private:
 
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};
+    bool ownsPrimaryInstance_{false};
+    bool shuttingDown_{false};
     bool dataDirectoryWritable_{true};
     bool hotkeyRegistered_{false};
     UINT currentHotkeyModifiers_{0};

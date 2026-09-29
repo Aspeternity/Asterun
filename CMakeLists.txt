@@ -1051,6 +1051,28 @@ if(BUILD_TESTING)
         add_test(NAME window_presentation_runtime_tests COMMAND window_presentation_runtime_tests)
         set_tests_properties(window_presentation_runtime_tests PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 
+        # Fault injection stays in the test translation units; the product has
+        # no test switches. Other application objects are reused from runtime.
+        add_executable(app_lifecycle_runtime_tests
+            tests/AppLifecycleRuntimeTests.cpp
+            src/resources.rc src/ui/Feedback.rc src/app.manifest)
+        target_include_directories(app_lifecycle_runtime_tests PRIVATE ${window_runtime_includes})
+        target_link_libraries(app_lifecycle_runtime_tests PRIVATE ${window_runtime_libraries})
+        target_compile_definitions(app_lifecycle_runtime_tests PRIVATE ${window_runtime_definitions})
+
+        add_executable(ui_listview_failure_tests tests/UiListViewFailureTests.cpp)
+        target_include_directories(ui_listview_failure_tests PRIVATE src)
+        target_link_libraries(ui_listview_failure_tests PRIVATE user32 gdi32 comctl32 uxtheme)
+        target_compile_definitions(ui_listview_failure_tests PRIVATE ${window_runtime_definitions})
+        foreach(target app_lifecycle_runtime_tests ui_listview_failure_tests)
+            if(MSVC)
+                target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+            endif()
+            altrun_enable_test_assertions(${target})
+            add_test(NAME ${target} COMMAND ${target})
+            set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+        endforeach()
+
         add_executable(uninstall_runtime_tests tests/UninstallRuntimeTests.cpp src/platform/SecureElevation.cpp src/ui/Feedback.cpp)
         get_target_property(uninstall_libraries AsterunUninstaller LINK_LIBRARIES)
         get_target_property(uninstall_definitions AsterunUninstaller COMPILE_DEFINITIONS)
@@ -1474,7 +1496,6 @@ if(BUILD_TESTING)
             everything_ipc_runtime_tests
             tests/EverythingIpcRuntimeTests.cpp
             src/core/EverythingProvider.cpp
-            src/platform/EverythingIpcClient.cpp
         )
 
         target_include_directories(

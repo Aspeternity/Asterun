@@ -50,6 +50,7 @@ public:
 
 private:
     friend struct NumericIntentRuntimeFixture;
+    friend struct AppLifecycleRuntimeFixture;
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kShortcutIpcMessage = WM_APP + 19;
     static constexpr UINT_PTR

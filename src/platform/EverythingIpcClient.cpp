@@ -422,11 +422,19 @@ EverythingIpcClient::SchedulePendingQuery(
     KillTimer(
         hwnd,
         kDebounceTimerId);
-    SetTimer(
-        hwnd,
-        kDebounceTimerId,
-        TimerDelay(options_.debounce),
-        nullptr);
+    if (!SetTimer(hwnd, kDebounceTimerId, TimerDelay(options_.debounce), nullptr)) {
+        const DWORD error = GetLastError();
+        std::optional<PendingQuery> failed;
+        {
+            std::scoped_lock lock(pendingMutex_);
+            failed = std::move(pending_);
+            pending_.reset();
+        }
+        if (failed) {
+            CompletePending(std::move(*failed), EverythingQueryStatus::Unavailable,
+                error ? error : ERROR_NOT_ENOUGH_MEMORY);
+        }
+    }
 }
 
 void
@@ -564,12 +572,11 @@ EverythingIpcClient::SendPendingQuery(
     if (inFlight_ &&
         inFlight_->replyToken ==
             token) {
-        SetTimer(
-            hwnd,
-            kReplyTimerId,
-            TimerDelay(
-                options_.replyTimeout),
-            nullptr);
+        if (!SetTimer(hwnd, kReplyTimerId, TimerDelay(options_.replyTimeout), nullptr)) {
+            const DWORD error = GetLastError();
+            CompleteInFlight(EverythingQueryStatus::Unavailable,
+                error ? error : ERROR_NOT_ENOUGH_MEMORY);
+        }
     }
 }
 

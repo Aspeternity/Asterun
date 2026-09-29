@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <memory>
 
 namespace altrun::ui {
 namespace {
@@ -1529,24 +1530,17 @@ void InitializeNextListView(
         ListState(list);
 
     if (!state) {
-        state =
-            new NextListState();
-
-        if (!SetPropW(
-                list,
-                kNextListStateProperty,
-                reinterpret_cast<HANDLE>(
-                    state))) {
-            delete state;
+        auto pending = std::make_unique<NextListState>();
+        if (!SetPropW(list, kNextListStateProperty,
+                reinterpret_cast<HANDLE>(pending.get()))) {
             return;
         }
-
-        SetWindowSubclass(
-            list,
-            NextListSubclassProc,
-            kNextListSubclassId,
-            reinterpret_cast<DWORD_PTR>(
-                state));
+        if (!SetWindowSubclass(list, NextListSubclassProc, kNextListSubclassId,
+                reinterpret_cast<DWORD_PTR>(pending.get()))) {
+            RemovePropW(list, kNextListStateProperty);
+            return;
+        }
+        state = pending.release(); // WM_NCDESTROY now owns the cleanup path.
     }
 
     state->dpi =
@@ -1591,38 +1585,19 @@ void InitializeNextListView(
                 kNextHeaderSubclassId);
         }
 
-        state->header =
-            header;
-
-        LONG_PTR headerStyle =
-            GetWindowLongPtrW(
-                header,
-                GWL_STYLE);
-        headerStyle &=
-            ~static_cast<LONG_PTR>(
-                HDS_FULLDRAG);
-        headerStyle |=
-            static_cast<LONG_PTR>(
-                HDS_NOSIZING);
-        SetWindowLongPtrW(
-            header,
-            GWL_STYLE,
-            headerStyle);
-
-        // The native Header remains the column/layout/accessibility model.
-        // UiListView exclusively owns divider hit testing, mouse capture,
-        // preview and commit; native Header resize gestures are disabled.
-        SetWindowTheme(
-            header,
-            L"",
-            L"");
-
-        SetWindowSubclass(
-            header,
-            NextHeaderSubclassProc,
-            kNextHeaderSubclassId,
-            reinterpret_cast<DWORD_PTR>(
-                state));
+        // Only replace native Header behavior after its callback is installed.
+        // Failure leaves a usable native Header; the list still owns state.
+        if (SetWindowSubclass(header, NextHeaderSubclassProc, kNextHeaderSubclassId,
+                reinterpret_cast<DWORD_PTR>(state))) {
+            state->header = header;
+            LONG_PTR headerStyle = GetWindowLongPtrW(header, GWL_STYLE);
+            headerStyle &= ~static_cast<LONG_PTR>(HDS_FULLDRAG);
+            headerStyle |= static_cast<LONG_PTR>(HDS_NOSIZING);
+            SetWindowLongPtrW(header, GWL_STYLE, headerStyle);
+            SetWindowTheme(header, L"", L"");
+        } else if (state->header != header) {
+            state->header = nullptr;
+        }
     }
 
     ListView_SetBkColor(

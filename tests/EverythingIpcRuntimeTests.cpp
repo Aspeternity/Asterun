@@ -16,6 +16,26 @@
 #include <thread>
 #include <vector>
 
+// Compile the production client with only SetTimer fault-injected. No test
+// hooks or altered timer policy are compiled into Asterun itself.
+#include <atomic>
+namespace {
+std::atomic<UINT_PTR> failTimerId{0};
+std::atomic<unsigned> timerFailures{0};
+UINT_PTR WINAPI TestSetTimer(HWND hwnd, UINT_PTR id, UINT delay, TIMERPROC proc) {
+    UINT_PTR expected = id;
+    if (failTimerId.compare_exchange_strong(expected, 0)) {
+        ++timerFailures;
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return 0;
+    }
+    return SetTimer(hwnd, id, delay, proc);
+}
+}
+#define SetTimer TestSetTimer
+#include "../src/platform/EverythingIpcClient.cpp"
+#undef SetTimer
+
 using namespace std::chrono_literals;
 using namespace altrun;
 using namespace altrun::everything_ipc;
@@ -809,6 +829,30 @@ OptionsFor(
 } // namespace
 
 int main() {
+    for (const UINT_PTR timerId : {UINT_PTR{0x351}, UINT_PTR{0x352}}) {
+        FakeEverythingServer server(FakeEverythingServer::Mode::NoReply);
+        ResultCollector collector;
+        EverythingIpcClient client(OptionsFor(server.WindowClass()));
+        timerFailures = 0;
+        failTimerId = timerId;
+        client.QueryAsync({9001, L"timer failure", 8}, collector.Callback());
+        assert(collector.WaitFor(1));
+        auto results = collector.Snapshot();
+        assert(timerFailures == 1 && failTimerId == 0);
+        assert(results.size() == 1 && results[0].generation == 9001);
+        assert(results[0].status == EverythingQueryStatus::Unavailable);
+        assert(results[0].nativeError == ERROR_NOT_ENOUGH_MEMORY);
+        assert(server.ReceivedCount() == (timerId == 0x351 ? 0U : 1U));
+
+        // The same client must remain usable and complete exactly once per
+        // query. With timer creation restored, the silent peer now times out.
+        client.QueryAsync({9002, L"recovery", 8}, collector.Callback());
+        assert(collector.WaitFor(2));
+        results = collector.Snapshot();
+        assert(results.size() == 2 && results[1].generation == 9002);
+        assert(results[1].status == EverythingQueryStatus::ReplyTimeout);
+    }
+
     {
         EverythingIpcClient client(
             OptionsFor(
