@@ -254,7 +254,8 @@ struct LauncherResourceRuntimeFixture {
                 assert(total == 1 && probe.changes == 1 && probe.editRefreshes == 1);
                 if (show) {
                     assert(window.IsVisible());
-                    const auto expected = app.Search(L"", window.maxResults_);
+                    const auto candidates = app.Search(L"", window.maxResults_ * 3);
+                    const auto expected = MergeLauncherResultsRanked(candidates, {}, window.maxResults_);
                     assert(!expected.empty() && window.results_.size() == expected.size());
                     for (std::size_t i = 0; i < expected.size(); ++i) {
                         assert(window.results_[i].id == expected[i].id);
