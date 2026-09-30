@@ -1,5 +1,6 @@
 #include "../platform/WindowsCommandLine.hpp"
 #include "UpdateManager.hpp"
+#include "UpdateHttpRequest.hpp"
 
 #include "../core/ConfigIO.hpp"
 #include "../core/ArchiveExtractor.hpp"
@@ -201,7 +202,7 @@ CrackHttpsUrl(
 struct HttpRequest {
     InternetHandle session;
     InternetHandle connection;
-    InternetHandle request;
+    update_http::Request request;
 };
 
 [[nodiscard]] bool
@@ -211,6 +212,11 @@ OpenRequest(
     std::uint64_t& contentLength,
     std::uint32_t& nativeError,
     std::stop_token stopToken) {
+    if (stopToken.stop_requested()) {
+        nativeError = ERROR_CANCELLED;
+        return false;
+    }
+
     std::wstring host;
     std::wstring object;
     INTERNET_PORT port = 0;
@@ -231,7 +237,7 @@ OpenRequest(
             WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
             WINHTTP_NO_PROXY_NAME,
             WINHTTP_NO_PROXY_BYPASS,
-            0);
+            WINHTTP_FLAG_ASYNC);
 
     handles.session.Reset(
         session);
@@ -244,7 +250,7 @@ OpenRequest(
     }
 
     // Per-operation bounds plus the App-level absolute check watchdog prevent
-    // a pathological synchronous request from remaining Checking forever.
+    // a pathological network request from remaining Checking forever.
     if (!WinHttpSetTimeouts(
             session,
             5000,
@@ -284,13 +290,7 @@ OpenRequest(
             WINHTTP_DEFAULT_ACCEPT_TYPES,
             WINHTTP_FLAG_SECURE);
 
-    handles.request.Reset(
-        request);
-
-    if (!request) {
-        nativeError =
-            static_cast<std::uint32_t>(
-                GetLastError());
+    if (!handles.request.Attach(request, nativeError)) {
         return false;
     }
 
@@ -308,51 +308,13 @@ OpenRequest(
         return false;
     }
 
-    // request_stop() can now abort a blocked synchronous WinHTTP operation.
-    std::stop_callback cancelOnStop{
-        stopToken,
-        [&handles]() {
-            handles.request.Close();
-        }};
-
-    if (stopToken.stop_requested()) {
-        nativeError =
-            ERROR_CANCELLED;
-        return false;
-    }
-
-    if (!WinHttpSendRequest(
-            request,
-            WINHTTP_NO_ADDITIONAL_HEADERS,
-            0,
-            WINHTTP_NO_REQUEST_DATA,
-            0,
-            0,
-            0)) {
-        nativeError =
-            stopToken.stop_requested()
-                ? ERROR_CANCELLED
-                : static_cast<
-                      std::uint32_t>(
-                      GetLastError());
-        return false;
-    }
-
-    if (!WinHttpReceiveResponse(
-            request,
-            nullptr)) {
-        nativeError =
-            stopToken.stop_requested()
-                ? ERROR_CANCELLED
-                : static_cast<
-                      std::uint32_t>(
-                      GetLastError());
+    if (!handles.request.Send(stopToken, nativeError) ||
+        !handles.request.Receive(stopToken, nativeError)) {
         return false;
     }
 
     if (stopToken.stop_requested()) {
-        nativeError =
-            ERROR_CANCELLED;
+        nativeError = ERROR_CANCELLED;
         return false;
     }
 
@@ -435,12 +397,6 @@ DownloadText(
         return false;
     }
 
-    std::stop_callback cancelOnStop{
-        stopToken,
-        [&handles]() {
-            handles.request.Close();
-        }};
-
     if (stopToken.stop_requested()) {
         nativeError =
             ERROR_CANCELLED;
@@ -449,10 +405,9 @@ DownloadText(
 
     output.clear();
 
-    // Fixed-size direct reads stay under the receive timeout and remain
-    // interruptible through the request handle above.
-    std::array<char, 16 * 1024>
-        buffer{};
+    // Preserve fixed-size direct reads. The request owns the buffer until
+    // HANDLE_CLOSING, including when cancellation precedes a late callback.
+    constexpr DWORD kReadBytes = 16 * 1024;
 
     for (;;) {
         if (stopToken.stop_requested()) {
@@ -461,31 +416,9 @@ DownloadText(
             return false;
         }
 
-        const HINTERNET request =
-            handles.request.Get();
-
-        if (!request) {
-            nativeError =
-                stopToken.stop_requested()
-                    ? ERROR_CANCELLED
-                    : ERROR_INVALID_HANDLE;
-            return false;
-        }
-
         DWORD read = 0;
 
-        if (!WinHttpReadData(
-                request,
-                buffer.data(),
-                static_cast<DWORD>(
-                    buffer.size()),
-                &read)) {
-            nativeError =
-                stopToken.stop_requested()
-                    ? ERROR_CANCELLED
-                    : static_cast<
-                          std::uint32_t>(
-                          GetLastError());
+        if (!handles.request.Read(kReadBytes, read, stopToken, nativeError)) {
             return false;
         }
 
@@ -502,7 +435,7 @@ DownloadText(
         }
 
         output.append(
-            buffer.data(),
+            handles.request.Data(),
             static_cast<std::size_t>(
                 read));
     }
@@ -638,12 +571,6 @@ DownloadFile(
         return false;
     }
 
-    std::stop_callback cancelOnStop{
-        stopToken,
-        [&handles]() {
-            handles.request.Close();
-        }};
-
     if (stopToken.stop_requested()) {
         nativeError =
             ERROR_CANCELLED;
@@ -669,8 +596,7 @@ DownloadFile(
         UpdateStage::Downloading,
         progress);
 
-    std::array<char, 64 * 1024>
-        buffer{};
+    constexpr DWORD kReadBytes = 64 * 1024;
 
     for (;;) {
         if (stopToken.stop_requested()) {
@@ -679,31 +605,9 @@ DownloadFile(
             return false;
         }
 
-        const HINTERNET request =
-            handles.request.Get();
-
-        if (!request) {
-            nativeError =
-                stopToken.stop_requested()
-                    ? ERROR_CANCELLED
-                    : ERROR_INVALID_HANDLE;
-            return false;
-        }
-
         DWORD read = 0;
 
-        if (!WinHttpReadData(
-                request,
-                buffer.data(),
-                static_cast<DWORD>(
-                    buffer.size()),
-                &read)) {
-            nativeError =
-                stopToken.stop_requested()
-                    ? ERROR_CANCELLED
-                    : static_cast<
-                          std::uint32_t>(
-                          GetLastError());
+        if (!handles.request.Read(kReadBytes, read, stopToken, nativeError)) {
             return false;
         }
 
@@ -720,7 +624,7 @@ DownloadFile(
         }
 
         output.write(
-            buffer.data(),
+            handles.request.Data(),
             static_cast<
                 std::streamsize>(
                 read));
