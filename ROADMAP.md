@@ -1,6 +1,12 @@
 # Asterun Roadmap
 
-Asterun 1.0.0 is the first stable 1.x baseline. Asterun 1.0.1 is the current maintenance release, focused on tray identity, startup hotkey recovery, update reliability and final brand/UI defaults.
+Asterun 1.0.2 is the current maintenance release, combining the accepted lifecycle/resource hardening and Modern Compact typography adjustment.
+
+## v1.0.2 - Stability and resource maintenance
+
+- Integrate accepted Batch 1, 2, 2.5, 3 and 4 lifecycle, HTTP cancellation, cache/resource and Show refresh fixes.
+- Retain the owner-accepted Modern Compact font adjustment; stop further font diagnostics.
+- Preserve existing search, ranking, numeric intent, data schemas and update/uninstall protocols.
 
 ## v1.0.1 - Maintenance release
 

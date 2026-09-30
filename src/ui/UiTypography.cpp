@@ -1,5 +1,7 @@
 #include "UiTypography.hpp"
 
+#include <initializer_list>
+
 namespace altrun::ui {
 
 namespace {
@@ -16,6 +18,37 @@ constexpr int
     kModernLauncherTitlePointSize = 10;
 constexpr int
     kModernLauncherSearchLogicalHeight96 = -14;
+
+int CALLBACK FoundModernFont(
+    const LOGFONTW*, const TEXTMETRICW*, DWORD, LPARAM context) {
+    *reinterpret_cast<bool*>(context) = true;
+    return 0;
+}
+
+[[nodiscard]] const wchar_t* ModernLauncherFace() noexcept {
+    // Select once, including for English UI: result names can mix Latin and Han.
+    // Enumeration owns no fonts and the temporary screen DC is always released.
+    static const wchar_t* const face = []() -> const wchar_t* {
+        HDC dc = GetDC(nullptr);
+        if (!dc) return L"Segoe UI";
+        const wchar_t* selected = L"Segoe UI";
+        for (const wchar_t* candidate : {L"Microsoft YaHei UI", L"Microsoft YaHei"}) {
+            LOGFONTW query{};
+            query.lfCharSet = DEFAULT_CHARSET;
+            lstrcpynW(query.lfFaceName, candidate, LF_FACESIZE);
+            bool found = false;
+            EnumFontFamiliesExW(dc, &query, FoundModernFont,
+                reinterpret_cast<LPARAM>(&found), 0);
+            if (found) {
+                selected = candidate;
+                break;
+            }
+        }
+        ReleaseDC(nullptr, dc);
+        return selected;
+    }();
+    return face;
+}
 
 [[nodiscard]] const wchar_t*
 ApplicationFace(
@@ -107,10 +140,10 @@ UiFontSpec LauncherFontSpec(
 
     if (role == UiFontRole::LauncherSearch) {
         // Use one DPI-scaled logical height for the native EDIT. Keeping one
-        // Segoe UI HFONT lets Windows font linking handle Han glyphs without
-        // changing the whole control's font when mixed Latin/CJK text appears.
+        // CJK-capable HFONT avoids changing the control's font as mixed
+        // Latin/CJK text appears; Windows font linking remains the fallback.
         return {
-            L"Segoe UI",
+            ModernLauncherFace(),
             0,
             kModernLauncherSearchLogicalHeight96,
             FW_NORMAL,
@@ -127,10 +160,10 @@ UiFontSpec LauncherFontSpec(
                 : kModernLauncherBodyPointSize;
 
     return {
-        L"Segoe UI",
+        ModernLauncherFace(),
         pointSize,
         0,
-        RoleWeight(role),
+        role == UiFontRole::BodySemibold ? FW_NORMAL : RoleWeight(role),
         DEFAULT_CHARSET,
         CLEARTYPE_NATURAL_QUALITY,
     };

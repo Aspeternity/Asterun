@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(Asterun VERSION 1.0.1 LANGUAGES C CXX)
+project(Asterun VERSION 1.0.2 LANGUAGES C CXX)
 
 file(
     STRINGS
@@ -1051,6 +1051,36 @@ if(BUILD_TESTING)
         add_test(NAME window_presentation_runtime_tests COMMAND window_presentation_runtime_tests)
         set_tests_properties(window_presentation_runtime_tests PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 
+        # Fault injection stays in the test translation units; the product has
+        # no test switches. Other application objects are reused from runtime.
+        add_executable(app_lifecycle_runtime_tests
+            tests/AppLifecycleRuntimeTests.cpp
+            src/resources.rc src/ui/Feedback.rc src/app.manifest)
+        target_include_directories(app_lifecycle_runtime_tests PRIVATE ${window_runtime_includes})
+        target_link_libraries(app_lifecycle_runtime_tests PRIVATE ${window_runtime_libraries})
+        target_compile_definitions(app_lifecycle_runtime_tests PRIVATE ${window_runtime_definitions})
+
+        add_executable(launcher_resource_runtime_tests
+            tests/LauncherResourceRuntimeTests.cpp
+            src/resources.rc src/ui/Feedback.rc src/app.manifest)
+        target_include_directories(launcher_resource_runtime_tests PRIVATE ${window_runtime_includes})
+        target_link_libraries(launcher_resource_runtime_tests PRIVATE ${window_runtime_libraries} psapi)
+        target_compile_definitions(launcher_resource_runtime_tests PRIVATE ${window_runtime_definitions})
+
+        add_executable(ui_listview_failure_tests
+            tests/UiListViewFailureTests.cpp src/app.manifest)
+        target_include_directories(ui_listview_failure_tests PRIVATE src)
+        target_link_libraries(ui_listview_failure_tests PRIVATE user32 gdi32 comctl32 uxtheme)
+        target_compile_definitions(ui_listview_failure_tests PRIVATE ${window_runtime_definitions})
+        foreach(target app_lifecycle_runtime_tests ui_listview_failure_tests launcher_resource_runtime_tests)
+            if(MSVC)
+                target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+            endif()
+            altrun_enable_test_assertions(${target})
+            add_test(NAME ${target} COMMAND ${target})
+            set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+        endforeach()
+
         add_executable(uninstall_runtime_tests tests/UninstallRuntimeTests.cpp src/platform/SecureElevation.cpp src/ui/Feedback.cpp)
         get_target_property(uninstall_libraries AsterunUninstaller LINK_LIBRARIES)
         get_target_property(uninstall_definitions AsterunUninstaller COMPILE_DEFINITIONS)
@@ -1470,11 +1500,48 @@ if(BUILD_TESTING)
             COMMAND everything_lifecycle_tests
         )
 
+        # Everything-only transport: deterministic callback races plus real
+        # WinHTTP loopback cancellation, independent of external network speed.
+        add_executable(everything_http_transport_tests
+            tests/EverythingHttpTransportTests.cpp
+            src/platform/SecureArchive.cpp src/platform/SecureElevation.cpp)
+        get_target_property(everything_test_libraries everything_lifecycle_tests LINK_LIBRARIES)
+        get_target_property(everything_test_definitions everything_lifecycle_tests COMPILE_DEFINITIONS)
+        target_link_libraries(everything_http_transport_tests PRIVATE ${everything_test_libraries})
+        add_executable(everything_http_runtime_tests tests/EverythingHttpRuntimeTests.cpp)
+        target_link_libraries(everything_http_runtime_tests PRIVATE winhttp ws2_32)
+        foreach(target everything_http_transport_tests everything_http_runtime_tests)
+            target_include_directories(${target} PRIVATE src)
+            target_compile_definitions(${target} PRIVATE ${everything_test_definitions})
+            if(MSVC)
+                target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+            endif()
+            altrun_enable_test_assertions(${target})
+            add_test(NAME ${target} COMMAND ${target})
+            set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+        endforeach()
+
+        # UpdateManager retains its own fixed-read transport and policy tests.
+        add_executable(update_http_transport_tests tests/UpdateHttpTransportTests.cpp
+            src/platform/SecureArchive.cpp src/platform/SecureElevation.cpp)
+        target_link_libraries(update_http_transport_tests PRIVATE ${everything_test_libraries} altrun_config)
+        add_executable(update_http_runtime_tests tests/UpdateHttpRuntimeTests.cpp)
+        target_link_libraries(update_http_runtime_tests PRIVATE winhttp ws2_32)
+        foreach(target update_http_transport_tests update_http_runtime_tests)
+            target_include_directories(${target} PRIVATE src)
+            target_compile_definitions(${target} PRIVATE ${everything_test_definitions})
+            if(MSVC)
+                target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+            endif()
+            altrun_enable_test_assertions(${target})
+            add_test(NAME ${target} COMMAND ${target})
+            set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+        endforeach()
+
         add_executable(
             everything_ipc_runtime_tests
             tests/EverythingIpcRuntimeTests.cpp
             src/core/EverythingProvider.cpp
-            src/platform/EverythingIpcClient.cpp
         )
 
         target_include_directories(

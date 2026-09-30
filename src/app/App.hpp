@@ -255,6 +255,9 @@ public:
     }
 
 private:
+    friend struct AppLifecycleRuntimeFixture;
+    friend struct LauncherResourceRuntimeFixture;
+
     static constexpr int
         kGlobalHotkeyId = 0xA171;
 
@@ -323,6 +326,9 @@ private:
 
     void StartProviderMonitor();
     void HandleProviderChangedSignal();
+    void StopProviderDebounceTimer();
+    void PostUiNotification(UINT message, WPARAM wParam = 0, LPARAM lParam = 0);
+    bool HandleUiNotification(UINT message, WPARAM wParam, LPARAM lParam);
     void FlushDetectedProviderChanges();
     void HandleDynamicQueryCompleted();
     void HandleEverythingBootstrapCompleted(
@@ -373,6 +379,7 @@ private:
         std::vector<std::size_t> indices;
         SearchEngine::PreparedIndex prepared;
     };
+    void ReleaseStaleSearchCaches() const;
     mutable ContextSearchCache contextSearchCache_;
     mutable SearchEngine::PreparedIndex baseSearchIndex_;
     mutable std::uint64_t baseSearchGeneration_{0};
@@ -451,6 +458,8 @@ private:
 
     DWORD uiThreadId_{0};
     HANDLE singleInstanceMutex_{};
+    bool ownsPrimaryInstance_{false};
+    bool shuttingDown_{false};
     bool dataDirectoryWritable_{true};
     bool hotkeyRegistered_{false};
     UINT currentHotkeyModifiers_{0};

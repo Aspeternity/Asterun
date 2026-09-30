@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.2
+
+- Prevent secondary and forwarded instances from stopping the primary instance's managed Everything.
+- Deliver background completion notifications through the UI dispatcher so modal dialogs cannot swallow them.
+- Fix ListView subclass installation cleanup and Everything IPC timer failure completion.
+- Make Everything downloads and update HTTP requests safely cancellable while retaining callback state until final handle closure.
+- Release obsolete contextual search caches and prepared indices; load Classic bitmaps and DCs only on first Classic use and retain them for reuse.
+- Remove duplicate synchronous search refreshes during ordinary launcher Show operations.
+- Use a consistent available Chinese/Latin text font in Modern Compact and regular-weight result titles; preserve Classic typography and existing layout.
+- Add targeted lifecycle, cancellation, cache, resource, DPI and input regression coverage.
+- Preserve search matching/ranking, pinyin, Usage, numeric Quick Launch, Everything behavior, update/uninstall protocols and all data schemas.
+
 ## 1.0.1
 
 - Replace the square-backed application/tray artwork with the approved transparent Asterun mark.

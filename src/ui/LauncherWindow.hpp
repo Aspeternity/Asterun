@@ -50,6 +50,8 @@ public:
 
 private:
     friend struct NumericIntentRuntimeFixture;
+    friend struct AppLifecycleRuntimeFixture;
+    friend struct LauncherResourceRuntimeFixture;
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kShortcutIpcMessage = WM_APP + 19;
     static constexpr UINT_PTR
@@ -66,6 +68,8 @@ private:
     LRESULT HandleMessage(UINT message, WPARAM wParam, LPARAM lParam);
     LRESULT HandleEditMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
+    bool EnsureClassicResources();
+    void ReleaseClassicResources();
     void CreateChildren();
     void ApplyFonts();
     void RecreateBrushes();

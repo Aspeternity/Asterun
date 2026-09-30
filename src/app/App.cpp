@@ -54,7 +54,9 @@ constexpr UINT_PTR
 
 constexpr UINT
     kPackagedProviderChangedMessage =
-        WM_APP + 0x176;
+        WM_APP + 0x177; // 0x176 is the numeric continuation notification.
+
+constexpr UINT_PTR kProviderDebounceTimerId = 0xA172;
 
 [[nodiscard]] HRESULT
 ActivatePackagedApplication(
@@ -277,7 +279,9 @@ App::App(
           !startupHealthEvent_.empty()) {}
 
 App::~App() {
+    shuttingDown_ = true;
     StopUpdateReconcileTimer();
+    StopProviderDebounceTimer();
     ++updateGeneration_;
 
     if (updateThread_.joinable()) {
@@ -290,16 +294,7 @@ App::~App() {
         shellIntegrationThread_.join();
     }
 
-    DestroyUpdateDispatchWindow();
-
     StopManagedEverythingLifecycle();
-
-    if (providerDebounceTimer_ != 0) {
-        KillTimer(
-            nullptr,
-            providerDebounceTimer_);
-        providerDebounceTimer_ = 0;
-    }
 
     if (providerMonitorThread_.joinable()) {
         providerMonitorThread_.request_stop();
@@ -310,6 +305,9 @@ App::~App() {
         providerRefreshThread_.request_stop();
         providerRefreshThread_.join();
     }
+
+    // All producers have stopped; none can post to a destroyed/recycled HWND.
+    DestroyUpdateDispatchWindow();
 
     if (hotkeyRegistered_) {
         UnregisterHotKey(
@@ -371,17 +369,6 @@ int App::Run() {
         settingsStore_.Data()
             .addToSendToMenu);
 
-    if (providers::IsEnabled(
-            settingsStore_.Data()
-                .providerEnabled,
-            providers::
-                kEverythingFilesystem,
-            false)) {
-        everythingProvider_ =
-            std::make_unique<
-                EverythingProvider>();
-    }
-
     SetLastError(ERROR_SUCCESS);
     singleInstanceMutex_ =
         CreateMutexW(
@@ -424,7 +411,7 @@ int App::Run() {
         return 0;
     }
 
-    // Update notifications use a message-only HWND so nested Windows message
+    // Background notifications use a message-only HWND so nested Windows message
     // loops dispatch them normally. A thread-message fallback remains only
     // for the exceptional case where this invisible dispatcher cannot exist.
     CreateUpdateDispatchWindow();
@@ -444,6 +431,7 @@ int App::Run() {
     commandStore_.Reload(
         settingsStore_.Data()
             .providerEnabled);
+    ReleaseStaleSearchCaches();
     usageStore_.Load(
         commandStore_.LegacyIdMap());
 
@@ -456,6 +444,22 @@ int App::Run() {
             MB_ICONERROR | MB_OK);
         return 1;
     }
+
+    // Only a successfully initialized primary instance owns external lifecycle
+    // cleanup. Rejected/forwarding instances and failed startup release only
+    // their own resources, even when they share this installation directory.
+    if (providers::IsEnabled(
+            settingsStore_.Data()
+                .providerEnabled,
+            providers::
+                kEverythingFilesystem,
+            false)) {
+        everythingProvider_ =
+            std::make_unique<
+                EverythingProvider>();
+    }
+
+    ownsPrimaryInstance_ = true;
 
     // A post-update health signal means the new executable loaded its data
     // and created the real desktop window successfully. Signal before any
@@ -600,50 +604,8 @@ int App::Run() {
 
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
-        if (msg.message == kNumericProbeMessage && msg.hwnd == nullptr) {
-            if (window_) window_->ApplyNumericContinuation(
-                static_cast<std::uint64_t>(msg.wParam),
-                static_cast<classic_behavior::ContinuationEvidence>(msg.lParam));
-            continue;
-        }
-        if (msg.message ==
-                kDynamicQueryMessage &&
-            msg.hwnd == nullptr) {
-            HandleDynamicQueryCompleted();
-            continue;
-        }
-
-        if (msg.message ==
-                kEverythingBootstrapMessage &&
-            msg.hwnd == nullptr) {
-            HandleEverythingBootstrapCompleted(
-                static_cast<std::uint64_t>(
-                    msg.wParam));
-            continue;
-        }
-
-        if (msg.message ==
-                kUpdateStatusMessage &&
-            msg.hwnd == nullptr) {
-            HandleUpdateStatusMessage(
-                static_cast<std::uint64_t>(
-                    msg.wParam));
-            continue;
-        }
-
-        if (msg.message == kProviderRefreshMessage &&
-            msg.hwnd == nullptr) {
-            HandleProviderRefreshCompleted(
-                static_cast<
-                    ProviderRefreshOutcome>(
-                        msg.wParam));
-            continue;
-        }
-
-        if (msg.message ==
-                kProviderChangedMessage &&
-            msg.hwnd == nullptr) {
-            HandleProviderChangedSignal();
+        if (msg.hwnd == nullptr &&
+            HandleUiNotification(msg.message, msg.wParam, msg.lParam)) {
             continue;
         }
 
@@ -661,16 +623,12 @@ int App::Run() {
 
         if (msg.message == WM_TIMER &&
             msg.hwnd == nullptr &&
+            updateDispatchWindow_ == nullptr &&
             providerDebounceTimer_ != 0 &&
             msg.wParam ==
                 providerDebounceTimer_) {
 
-            KillTimer(
-                nullptr,
-                providerDebounceTimer_);
-
-            providerDebounceTimer_ = 0;
-
+            StopProviderDebounceTimer();
             FlushDetectedProviderChanges();
             continue;
         }
@@ -721,6 +679,7 @@ void App::ReloadCommands() {
     commandStore_.Reload(
         settingsStore_.Data()
             .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     if (window_) {
         window_->RefreshResults();
@@ -740,9 +699,27 @@ bool App::HasStaticQueryContinuation(
             query);
 }
 
+void App::ReleaseStaleSearchCaches() const {
+    const auto generation = commandStore_.Generation();
+    // Only old generations or a removed contextual feature are disposable.
+    // Swapping with empty objects releases capacity as well as their contents.
+    if (contextSearchCache_.generation != 0 &&
+        (contextSearchCache_.generation != generation ||
+         !commandStore_.HasContextFolderTemplates())) {
+        ContextSearchCache empty;
+        std::swap(contextSearchCache_, empty);
+    }
+    if (baseSearchGeneration_ != 0 && baseSearchGeneration_ != generation) {
+        SearchEngine::PreparedIndex{}.swap(baseSearchIndex_);
+        baseSearchGeneration_ = 0;
+    }
+}
+
 std::vector<LauncherResult> App::Search(
     std::wstring_view query,
     std::size_t limit) const {
+
+    ReleaseStaleSearchCaches();
 
     // A missing/stale generated provider snapshot is rebuilt in the
     // background. Never expose the transient user-only command vector as if
@@ -1024,7 +1001,7 @@ void App::BeginNumericContinuationProbe(std::uint64_t token, std::wstring query)
     if (!DynamicSearchEnabled()) return; // The bounded UI deadline resolves unknown as text.
     everythingProvider_->ProbeContinuation(token, std::move(query),
         [this](std::uint64_t generation, classic_behavior::ContinuationEvidence evidence) {
-            if (uiThreadId_ != 0) PostThreadMessageW(uiThreadId_, kNumericProbeMessage,
+            PostUiNotification(kNumericProbeMessage,
                 static_cast<WPARAM>(generation), static_cast<LPARAM>(evidence));
         });
 }
@@ -1056,13 +1033,7 @@ void App::BeginDynamicSearch(
                     std::move(response);
             }
 
-            if (uiThreadId_ != 0) {
-                PostThreadMessageW(
-                    uiThreadId_,
-                    kDynamicQueryMessage,
-                    0,
-                    0);
-            }
+            PostUiNotification(kDynamicQueryMessage);
         });
 }
 
@@ -1134,8 +1105,6 @@ bool App::StartEverythingBootstrap(
     const bool showManagedTrayIcon =
         settingsStore_.Data()
             .managedEverythingShowTrayIcon;
-    const DWORD targetThread =
-        uiThreadId_;
     const std::uint64_t generation =
         ++everythingBootstrapGeneration_;
 
@@ -1146,7 +1115,6 @@ bool App::StartEverythingBootstrap(
              allowDownload,
              showManagedTrayIcon,
              forceManagedUpdate,
-             targetThread,
              generation](
                 std::stop_token stopToken) {
                 try {
@@ -1186,14 +1154,7 @@ bool App::StartEverythingBootstrap(
                     everythingBootstrapStatus_.running = false;
                 }
 
-                if (targetThread != 0) {
-                    PostThreadMessageW(
-                        targetThread,
-                        kEverythingBootstrapMessage,
-                        static_cast<WPARAM>(
-                            generation),
-                        0);
-                }
+                PostUiNotification(kEverythingBootstrapMessage, static_cast<WPARAM>(generation));
             });
 
     if (settingsWindow_) {
@@ -1253,8 +1214,6 @@ bool App::StartEverythingUpdateCheck() {
 
     const auto dataDirectory =
         dataDirectory_;
-    const DWORD targetThread =
-        uiThreadId_;
     const std::uint64_t generation =
         ++everythingBootstrapGeneration_;
 
@@ -1262,7 +1221,6 @@ bool App::StartEverythingUpdateCheck() {
         std::jthread(
             [this,
              dataDirectory,
-             targetThread,
              generation](
                 std::stop_token stopToken) {
                 const auto progress =
@@ -1289,14 +1247,7 @@ bool App::StartEverythingUpdateCheck() {
                         result;
                 }
 
-                if (targetThread != 0) {
-                    PostThreadMessageW(
-                        targetThread,
-                        kEverythingBootstrapMessage,
-                        static_cast<WPARAM>(
-                            generation),
-                        0);
-                }
+                PostUiNotification(kEverythingBootstrapMessage, static_cast<WPARAM>(generation));
             });
 
     if (settingsWindow_) {
@@ -1459,6 +1410,8 @@ bool App::CreateUserCommand(
         return false;
     }
 
+    ReleaseStaleSearchCaches();
+
     if (window_) window_->RefreshResults();
     if (shortcutManagerWindow_) {
         if (createdId) {
@@ -1480,6 +1433,8 @@ bool App::UpdateUserCommand(
             std::move(command))) {
         return false;
     }
+
+    ReleaseStaleSearchCaches();
 
     if (window_) window_->RefreshResults();
     if (shortcutManagerWindow_) {
@@ -1511,6 +1466,8 @@ bool App::DeleteUserCommand(
         return false;
     }
 
+    ReleaseStaleSearchCaches();
+
     // A deleted user shortcut has a permanent identity; stale usage cannot
     // improve another command's ranking and need not survive the deletion.
     (void) usageStore_.Remove(id);
@@ -1532,6 +1489,8 @@ bool App::MoveUserCommand(
         return false;
     }
 
+    ReleaseStaleSearchCaches();
+
     if (window_) window_->RefreshResults();
     if (shortcutManagerWindow_) {
         shortcutManagerWindow_->Refresh(id);
@@ -1547,6 +1506,8 @@ bool App::ApplyUserCommandPathUpdates(
                  updates)) {
         return false;
     }
+
+    ReleaseStaleSearchCaches();
 
     if (window_) {
         window_->RefreshResults();
@@ -1579,6 +1540,8 @@ bool App::ImportUserCommands(
             skipped)) {
         return false;
     }
+
+    ReleaseStaleSearchCaches();
 
     if (window_) {
         window_->RefreshResults();
@@ -1678,9 +1641,6 @@ void App::StartProviderRefresh(
             .join();
     }
 
-    const DWORD targetThread =
-        uiThreadId_;
-
     const ProviderEnableMap
         enabledSnapshot =
             settingsStore_.Data()
@@ -1689,7 +1649,6 @@ void App::StartProviderRefresh(
     providerRefreshThread_ =
         std::jthread(
             [this,
-             targetThread,
              enabledSnapshot,
              selectedIds =
                  std::move(
@@ -1718,14 +1677,7 @@ void App::StartProviderRefresh(
                             Failed;
                 }
 
-                if (targetThread != 0) {
-                    PostThreadMessageW(
-                        targetThread,
-                        kProviderRefreshMessage,
-                        static_cast<WPARAM>(
-                            outcome),
-                        0);
-                }
+                PostUiNotification(kProviderRefreshMessage, static_cast<WPARAM>(outcome));
             });
 }
 
@@ -1747,6 +1699,7 @@ void App::HandleProviderRefreshCompleted(
     commandStore_.PublishProviderCache(
         settingsStore_.Data()
             .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     if (outcome == ProviderRefreshOutcome::Success &&
         commandStore_.IndexSearchable()) {
@@ -1819,12 +1772,9 @@ void App::StartProviderMonitor() {
                 .providerEnabled;
     }
 
-    const DWORD targetThread =
-        uiThreadId_;
-
     providerMonitorThread_ =
         std::jthread(
-            [this, targetThread](
+            [this](
                 std::stop_token
                     stopToken) {
 
@@ -2105,13 +2055,7 @@ void App::StartProviderMonitor() {
                                         id));
                         }
 
-                        if (targetThread != 0) {
-                            PostThreadMessageW(
-                                targetThread,
-                                kProviderChangedMessage,
-                                0,
-                                0);
-                        }
+                        PostUiNotification(kProviderChangedMessage);
                     };
 
                 {
@@ -2275,21 +2219,19 @@ void App::StartProviderMonitor() {
             });
 }
 
-void App::HandleProviderChangedSignal() {
+void App::StopProviderDebounceTimer() {
     if (providerDebounceTimer_ != 0) {
-        KillTimer(
-            nullptr,
-            providerDebounceTimer_);
+        KillTimer(updateDispatchWindow_, providerDebounceTimer_);
         providerDebounceTimer_ = 0;
     }
+}
 
-    providerDebounceTimer_ =
-        SetTimer(
-            nullptr,
-            0,
-            750,
-            nullptr);
-
+void App::HandleProviderChangedSignal() {
+    StopProviderDebounceTimer();
+    // The debounce completion must survive the same modal loops as the
+    // notification that scheduled it. Keep the existing 750 ms policy.
+    providerDebounceTimer_ = SetTimer(updateDispatchWindow_,
+        updateDispatchWindow_ ? kProviderDebounceTimerId : 0, 750, nullptr);
     if (providerDebounceTimer_ == 0) {
         FlushDetectedProviderChanges();
     }
@@ -2356,8 +2298,9 @@ void App::StopManagedEverythingLifecycle() {
     // executable path. Normal application exit leaves the service policy
     // unchanged; disabling the Everything provider separately stops and
     // disables an Asterun-owned service through SetProviderEnabled().
-    (void)win::StopManagedEverything(
-        dataDirectory_);
+    if (ownsPrimaryInstance_) {
+        (void)win::StopManagedEverything(dataDirectory_);
+    }
 
     {
         std::scoped_lock lock(
@@ -2414,6 +2357,34 @@ void App::HandleEverythingBootstrapCompleted(
     }
 }
 
+bool App::HandleUiNotification(UINT message, WPARAM wParam, LPARAM lParam) {
+    if (shuttingDown_) return false;
+    switch (message) {
+    case kNumericProbeMessage:
+        if (window_) window_->ApplyNumericContinuation(
+            static_cast<std::uint64_t>(wParam),
+            static_cast<classic_behavior::ContinuationEvidence>(lParam));
+        return true;
+    case kDynamicQueryMessage:
+        HandleDynamicQueryCompleted();
+        return true;
+    case kEverythingBootstrapMessage:
+        HandleEverythingBootstrapCompleted(static_cast<std::uint64_t>(wParam));
+        return true;
+    case kProviderRefreshMessage:
+        HandleProviderRefreshCompleted(static_cast<ProviderRefreshOutcome>(wParam));
+        return true;
+    case kProviderChangedMessage:
+        HandleProviderChangedSignal();
+        return true;
+    case kUpdateStatusMessage:
+        HandleUpdateStatusMessage(static_cast<std::uint64_t>(wParam));
+        return true;
+    default:
+        return false;
+    }
+}
+
 LRESULT CALLBACK
 App::UpdateDispatchWindowProc(
     HWND hwnd,
@@ -2443,7 +2414,16 @@ App::UpdateDispatchWindowProc(
                 self));
     }
 
-    if (self) {
+    if (self && !self->shuttingDown_) {
+        if (self->HandleUiNotification(message, wParam, lParam)) return 0;
+
+        if (message == WM_TIMER && self->providerDebounceTimer_ != 0 &&
+            wParam == kProviderDebounceTimerId) {
+            self->StopProviderDebounceTimer();
+            self->FlushDetectedProviderChanges();
+            return 0;
+        }
+
         if (message ==
                 kPackagedProviderChangedMessage) {
 
@@ -2458,14 +2438,6 @@ App::UpdateDispatchWindowProc(
             }
 
             self->HandleProviderChangedSignal();
-            return 0;
-        }
-
-        if (message ==
-                kUpdateStatusMessage) {
-            self->HandleUpdateStatusMessage(
-                static_cast<std::uint64_t>(
-                    wParam));
             return 0;
         }
 
@@ -2550,32 +2522,20 @@ void App::DestroyUpdateDispatchWindow() {
     }
 }
 
-void App::PostUpdateStatusNotification(
-    std::uint64_t generation) {
-    const HWND dispatcher =
-        updateDispatchWindow_;
+void App::PostUiNotification(UINT message, WPARAM wParam, LPARAM lParam) {
+    // Created before producers start and destroyed only after they have joined.
+    const HWND dispatcher = updateDispatchWindow_;
+    if (dispatcher && PostMessageW(dispatcher, message, wParam, lParam)) return;
 
-    if (dispatcher &&
-        IsWindow(dispatcher) &&
-        PostMessageW(
-            dispatcher,
-            kUpdateStatusMessage,
-            static_cast<WPARAM>(
-                generation),
-            0)) {
-        return;
-    }
-
-    // Last-resort fallback for dispatcher creation/post failure. Normal
-    // update delivery never depends on this lossy thread-message path.
+    // Exceptional fallback only. Normal delivery is dispatched by nested
+    // modal loops as well as App::Run(), without changing handler semantics.
     if (uiThreadId_ != 0) {
-        PostThreadMessageW(
-            uiThreadId_,
-            kUpdateStatusMessage,
-            static_cast<WPARAM>(
-                generation),
-            0);
+        PostThreadMessageW(uiThreadId_, message, wParam, lParam);
     }
+}
+
+void App::PostUpdateStatusNotification(std::uint64_t generation) {
+    PostUiNotification(kUpdateStatusMessage, static_cast<WPARAM>(generation));
 }
 
 void App::StartUpdateReconcileTimer() {
@@ -2994,6 +2954,7 @@ bool App::RestoreDefaultSettings() {
     commandStore_.ReloadProviderCache(
         settingsStore_.Data()
             .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     everythingProvider_.reset();
 
@@ -4001,6 +3962,7 @@ bool App::SetProviderEnabled(
         .ReloadProviderCache(
             settingsStore_.Data()
                 .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     {
         std::scoped_lock lock(
@@ -4080,6 +4042,7 @@ bool App::SetProviderEnabledBatch(
         .ReloadProviderCache(
             settingsStore_.Data()
                 .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     {
         std::scoped_lock lock(
