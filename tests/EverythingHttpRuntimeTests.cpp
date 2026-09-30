@@ -2,6 +2,7 @@
 #include <ws2tcpip.h>
 #include "platform/EverythingHttpRequest.hpp"
 #include <cassert>
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <iostream>
@@ -52,7 +53,7 @@ struct Peer {
             }
             if (mode != 1) {
                 const std::string response = "HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\n" +
-                    std::string(mode == 0 ? "data" : "");
+                    std::string(mode == 0 ? "data" : "d");
                 assert(send(client, response.data(), static_cast<int>(response.size()), 0) == static_cast<int>(response.size()));
             }
             // Deliberately stall headers/body until the client cancels. No
@@ -72,13 +73,15 @@ struct Peer {
 int main() {
     WSADATA data{}; assert(WSAStartup(MAKEWORD(2, 2), &data) == 0);
     for (int cycle = 0; cycle < 12; ++cycle) for (int mode : {0, 1, 2}) {
+        std::cout << "Loopback cycle " << cycle << ", mode " << mode << std::endl;
         Peer peer(mode);
+        std::atomic<int> stage{};
         std::promise<void> waiting, completed;
         auto ready = waiting.get_future(); auto done = completed.get_future();
         auto worker = std::make_unique<std::jthread>([&](std::stop_token token) {
             Internet session{WinHttpOpen(L"Asterun transport regression", WINHTTP_ACCESS_TYPE_NO_PROXY,
                 WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC)};
-            assert(session.value);
+            assert(session.value); stage = 1;
             assert(WinHttpSetTimeouts(session.value, 5000, 5000, 10000, 10000));
             Internet connection{WinHttpConnect(session.value, L"127.0.0.1", peer.port, 0)};
             assert(connection.value);
@@ -87,12 +90,21 @@ int main() {
                 std::uint32_t error{};
                 assert(request.Attach(WinHttpOpenRequest(connection.value, L"GET", L"/", nullptr,
                     WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0), error));
-                assert(request.Send(token, error));
+                assert(request.Send(token, error)); stage = 2;
                 if (mode == 1) waiting.set_value();
                 bool ok = request.Receive(token, error);
                 if (mode != 1) {
-                    assert(ok); waiting.set_value();
+                    assert(ok); stage = 3;
                     DWORD available{};
+                    if (mode == 2) {
+                        // Permit ReceiveResponse's read-ahead, then consume the
+                        // prefix before waiting on a genuinely stalled body.
+                        assert(request.Available(available, token, error) && available == 1);
+                        DWORD read{};
+                        assert(request.Read(available, read, token, error) && read == 1);
+                        assert(request.Data()[0] == 'd');
+                    }
+                    waiting.set_value(); stage = 4;
                     ok = request.Available(available, token, error);
                     if (mode == 0) {
                         assert(ok);
@@ -111,7 +123,10 @@ int main() {
             }
             completed.set_value();
         });
-        assert(ready.wait_for(3s) == std::future_status::ready);
+        const auto readyStatus = ready.wait_for(10s);
+        if (readyStatus != std::future_status::ready)
+            std::cerr << "Request did not reach cancellation phase; stage=" << stage.load() << std::endl;
+        assert(readyStatus == std::future_status::ready);
         if (mode == 0) {
             assert(done.wait_for(3s) == std::future_status::ready);
             worker->request_stop(); // no live request/callback after completion

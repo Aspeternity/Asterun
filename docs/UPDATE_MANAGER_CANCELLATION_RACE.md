@@ -4,7 +4,7 @@
 
 严重程度：High（静态审查确认并发模式违反 WinHTTP 契约，尚无实机崩溃复现）。
 
-位置：`src/platform/UpdateManager.cpp` 的 `InternetHandle`（约第 51 行）、同步 session 创建（约第 228 行），以及 OpenRequest / DownloadText / DownloadPackage 中的 stop_callback（约第 312、438、641 行）。
+位置：`src/platform/UpdateManager.cpp` 的 `InternetHandle`（约第 51 行）、同步 session 创建（约第 228 行），以及 OpenRequest / DownloadText / DownloadFile 中的 stop_callback（约第 312、438、641 行）。
 
 现状：session 未设置 WINHTTP_FLAG_ASYNC。停止回调通过原子 exchange 取得并关闭 request；与此同时下载线程可能还在 WinHttpSendRequest、ReceiveResponse 或 ReadData 内。也可能已取得 Get() 返回的 handle，随后在取消关闭后才调用下一次 API。
 
