@@ -20,6 +20,7 @@ struct Internet {
 struct Peer {
     SOCKET listener{INVALID_SOCKET};
     unsigned short port{};
+    std::promise<void> received;
     std::jthread thread;
     explicit Peer(int mode) {
         listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -51,6 +52,8 @@ struct Peer {
                 if (bytes <= 0) break;
                 request.append(buffer, bytes);
             }
+            assert(request.find("\r\n\r\n") != std::string::npos);
+            received.set_value();
             if (mode != 1) {
                 const std::string response = "HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\n" +
                     std::string(mode == 0 ? "data" : "d");
@@ -75,6 +78,7 @@ int main() {
     for (int cycle = 0; cycle < 12; ++cycle) for (int mode : {0, 1, 2}) {
         std::cout << "Loopback cycle " << cycle << ", mode " << mode << std::endl;
         Peer peer(mode);
+        auto received = peer.received.get_future();
         std::atomic<int> stage{};
         std::promise<void> waiting, completed;
         auto ready = waiting.get_future(); auto done = completed.get_future();
@@ -90,9 +94,11 @@ int main() {
                 std::uint32_t error{};
                 assert(request.Attach(WinHttpOpenRequest(connection.value, L"GET", L"/", nullptr,
                     WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0), error));
-                assert(request.Send(token, error)); stage = 2;
+                // A silent peer may stall SendRequest itself. Do not require
+                // its completion before allowing the test to request stop.
                 if (mode == 1) waiting.set_value();
-                bool ok = request.Receive(token, error);
+                bool ok = request.Send(token, error); stage = 2;
+                if (ok) ok = request.Receive(token, error);
                 if (mode != 1) {
                     assert(ok); stage = 3;
                     DWORD available{};
@@ -131,6 +137,8 @@ int main() {
             assert(done.wait_for(3s) == std::future_status::ready);
             worker->request_stop(); // no live request/callback after completion
         } else {
+            // Prove that real network I/O reached the peer before cancellation.
+            assert(received.wait_for(3s) == std::future_status::ready);
             assert(done.wait_for(40ms) == std::future_status::timeout);
         }
         const auto start = std::chrono::steady_clock::now();
