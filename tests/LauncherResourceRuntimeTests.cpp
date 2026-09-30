@@ -6,23 +6,47 @@
 #include <cstring>
 #include <iostream>
 #include <vector>
+#include <unordered_set>
 
 namespace {
 unsigned loads{}, failLoad{};
 bool failInfo{}, failDc{};
+std::unordered_set<HGDIOBJ> ownedBitmaps;
+std::unordered_set<HDC> ownedDcs;
 HANDLE WINAPI TestLoadImage(HINSTANCE instance, LPCWSTR name, UINT type, int x, int y, UINT flags) {
     if (type == IMAGE_BITMAP && ++loads == failLoad) return nullptr;
-    return LoadImageW(instance, name, type, x, y, flags);
+    HANDLE image = LoadImageW(instance, name, type, x, y, flags);
+    if (type == IMAGE_BITMAP && image) assert(ownedBitmaps.insert(image).second);
+    return image;
 }
 int WINAPI TestGetObject(HANDLE object, int bytes, LPVOID info) {
     return failInfo ? 0 : GetObjectW(object, bytes, info);
 }
-HDC WINAPI TestCreateDc(HDC dc) { return failDc ? nullptr : CreateCompatibleDC(dc); }
+HDC WINAPI TestCreateDc(HDC dc) {
+    if (failDc) return nullptr;
+    HDC created = CreateCompatibleDC(dc);
+    if (created) assert(ownedDcs.insert(created).second);
+    return created;
 }
+BOOL WINAPI TestDeleteObject(HGDIOBJ object) {
+    const BOOL result = DeleteObject(object);
+    if (ownedBitmaps.contains(object)) { assert(result); ownedBitmaps.erase(object); }
+    return result;
+}
+BOOL WINAPI TestDeleteDc(HDC dc) {
+    const BOOL result = DeleteDC(dc);
+    if (ownedDcs.contains(dc)) { assert(result); ownedDcs.erase(dc); }
+    return result;
+}
+}
+#define DeleteObject TestDeleteObject
+#define DeleteDC TestDeleteDc
 #define LoadImageW TestLoadImage
 #define GetObjectW TestGetObject
 #define CreateCompatibleDC TestCreateDc
 #include "../src/ui/LauncherWindow.cpp"
+#undef DeleteDC
+#undef DeleteObject
 #undef CreateCompatibleDC
 #undef GetObjectW
 #undef LoadImageW
@@ -87,6 +111,14 @@ struct LauncherResourceRuntimeFixture {
         settings.showTrayIcon = false; settings.soundEnabled = false;
         settings.autoCheckUpdates = false;
         const auto resourceCount = static_cast<unsigned>(kClassicShortcutResourceIds.size() + kClassicCloseResourceIds.size() + 1);
+        // Warm Win32's first DC/bitmap initialization before process-wide counts.
+        {
+            LauncherWindow warmup(app, instance);
+            assert(warmup.EnsureClassicResources());
+            warmup.ReleaseClassicResources();
+        }
+        GdiFlush();
+        assert(ownedBitmaps.empty() && ownedDcs.empty());
         // Every partial load must roll back. Also permit retry after DC/info failure.
         for (unsigned failure = 1; failure <= resourceCount + 2; ++failure) {
             LauncherWindow w(app, instance);
@@ -94,11 +126,16 @@ struct LauncherResourceRuntimeFixture {
             loads = 0; failLoad = failure <= resourceCount ? failure : 0;
             failInfo = failure == resourceCount + 1; failDc = failure == resourceCount + 2;
             assert(!w.EnsureClassicResources()); Empty(w);
+            GdiFlush(); assert(ownedBitmaps.empty() && ownedDcs.empty());
+            std::cout << "Failure " << failure << ": before=" << before << ", after failure="
+                << GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS) << std::endl;
             assert(GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS) == before);
             failLoad = 0; failInfo = failDc = false;
             assert(w.EnsureClassicResources());
             const auto loaded = loads; assert(w.EnsureClassicResources()); assert(loads == loaded);
             w.ReleaseClassicResources(); Empty(w);
+            GdiFlush(); assert(ownedBitmaps.empty() && ownedDcs.empty());
+            std::cout << "After retry=" << GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS) << std::endl;
             assert(GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS) == before);
         }
         // Compare lazy Classic pixels against Classic-first initialization at all asset DPIs.
@@ -125,6 +162,7 @@ struct LauncherResourceRuntimeFixture {
                 assert(loads == resourceCount && dc == w.classicBitmapDc_ && bitmap == w.classicBackgroundBitmap_);
                 Destroy(w);
             }
+            assert(ownedBitmaps.empty() && ownedDcs.empty());
             if (cycle == 0) warm = Sample("warm");
             if (cycle == 10 || cycle == 20) {
                 auto current = Sample(cycle == 10 ? "cycle10" : "cycle20");
