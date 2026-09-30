@@ -105,6 +105,61 @@ struct LauncherResourceRuntimeFixture {
         SelectObject(dc, old); DeleteDC(dc); DeleteObject(bitmap);
         return result;
     }
+    struct ShowProbe {
+        LauncherWindow* window;
+        unsigned changes{};
+        std::uint64_t editRefreshes{};
+    };
+    static LRESULT CALLBACK ObserveChange(HWND hwnd, UINT message, WPARAM w, LPARAM l,
+                                         UINT_PTR, DWORD_PTR data) {
+        auto& probe = *reinterpret_cast<ShowProbe*>(data);
+        const bool change = message == WM_COMMAND && LOWORD(w) == 1001 && HIWORD(w) == EN_CHANGE;
+        const auto before = probe.window->searchGeneration_;
+        const auto result = DefSubclassProc(hwnd, message, w, l);
+        if (change) {
+            ++probe.changes;
+            probe.editRefreshes += probe.window->searchGeneration_ - before;
+        }
+        return result;
+    }
+    static void MeasureShows(App& app, HINSTANCE instance) {
+        auto& settings = const_cast<Settings&>(app.SettingsData());
+        for (const auto* provider : {"windows.startmenu", "windows.packaged", "windows.apppaths",
+                                     "windows.path", "everything.filesystem"}) {
+            settings.providerEnabled[provider] = false;
+        }
+        app.ReloadCommands();
+        assert(app.CanRevealLauncher());
+        for (auto style : {UiStyle::ModernCompact, UiStyle::Classic}) {
+            settings.uiStyle = style;
+            LauncherWindow window(app, instance); assert(window.Create());
+            ShowProbe probe{&window};
+            assert(SetWindowSubclass(window.hwnd_, ObserveChange, 1, reinterpret_cast<DWORD_PTR>(&probe)));
+            const auto measure = [&](const char* scenario, bool show) {
+                probe.changes = 0; probe.editRefreshes = 0;
+                const auto before = window.searchGeneration_;
+                if (show) window.Show();
+                else SetWindowTextW(window.edit_, L"");
+                const auto total = window.searchGeneration_ - before;
+                // No Hide inside this interval; RefreshResults alone advances generation.
+                assert(window.CurrentQuery().empty());
+                assert(total >= probe.editRefreshes);
+                std::cout << "SHOW_MEASURE style=" << (style == UiStyle::Classic ? "Classic" : "Modern")
+                    << " case=" << scenario << " EN_CHANGE=" << probe.changes
+                    << " edit_refresh=" << probe.editRefreshes << " explicit_refresh="
+                    << total - probe.editRefreshes << " total=" << total << std::endl;
+            };
+            measure("first-empty", true);
+            window.Hide(); measure("hide-empty", true);
+            SetWindowTextW(window.edit_, L"previous query");
+            window.Hide(); measure("hide-nonempty", true);
+            measure("set-empty-from-empty", false);
+            SetWindowTextW(window.edit_, L"previous query");
+            measure("set-empty-from-nonempty", false);
+            RemoveWindowSubclass(window.hwnd_, ObserveChange, 1);
+            Destroy(window);
+        }
+    }
     static void Run(HINSTANCE instance) {
         App app(instance);
         auto& settings = const_cast<Settings&>(app.settingsStore_.Data());
@@ -171,6 +226,7 @@ struct LauncherResourceRuntimeFixture {
                 assert(current.handles <= warm.handles + 4);
             }
         }
+        MeasureShows(app, instance);
     }
 };
 }
