@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 #include "ui/LauncherWindow.hpp"
 #include <windows.h>
+#include <objbase.h>
 #include <psapi.h>
 #include <cassert>
 #include <cstring>
