@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "ui/LauncherWindow.hpp"
+#include "NumericIntentRuntimeFixture.hpp"
 #include <windows.h>
 #include <psapi.h>
 #include <cassert>
@@ -122,6 +123,104 @@ struct LauncherResourceRuntimeFixture {
         }
         return result;
     }
+    static LRESULT CALLBACK OmitResetNotification(HWND hwnd, UINT message, WPARAM w, LPARAM l,
+                                                  UINT_PTR, DWORD_PTR) {
+        // Test-only: model a reset that leaves the already-empty EDIT unchanged
+        // without delivering EN_CHANGE. The explicit Show fallback must still run.
+        if (message == WM_SETTEXT) return TRUE;
+        return DefSubclassProc(hwnd, message, w, l);
+    }
+    static void VerifyInputAfterShow(App& app, LauncherWindow& window) {
+        auto& settings = const_cast<Settings&>(app.SettingsData());
+        const auto change = [&](UINT message, WPARAM w, LPARAM l = 0) {
+            const auto before = window.searchGeneration_;
+            SendMessageW(window.edit_, message, w, l);
+            assert(window.searchGeneration_ == before + 1);
+        };
+        window.Hide(); window.Show();
+        change(WM_CHAR, L'a', 1); change(WM_CHAR, L'b', 1);
+        assert(window.CurrentQuery() == L"ab");
+        SendMessageW(window.edit_, EM_SETSEL, 1, 2);
+        change(WM_CHAR, L'c', 1);
+        assert(window.CurrentQuery() == L"ac");
+        SendMessageW(window.edit_, WM_IME_STARTCOMPOSITION, 0, 0);
+        assert(window.imeComposing_);
+        change(WM_SETTEXT, 0, reinterpret_cast<LPARAM>(L"中文"));
+        assert(window.CurrentQuery() == L"中文" && window.imeComposing_);
+        SendMessageW(window.edit_, WM_IME_ENDCOMPOSITION, 0, 0);
+        assert(!window.imeComposing_);
+        change(WM_SETTEXT, 0, reinterpret_cast<LPARAM>(L"中文输入"));
+
+        LauncherResult first, second, dynamic;
+        first.id = L"first"; first.title = L"Alpha";
+        second.id = L"second"; second.title = L"Beta";
+        dynamic.id = L"dynamic"; dynamic.title = L"Gamma";
+        dynamic.providerId = "everything.filesystem";
+        window.staticResults_ = {first, second}; window.dynamicResults_.clear();
+        window.RebuildVisibleResults(false, false, false);
+        assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
+        const auto generation = window.searchGeneration_;
+        SendMessageW(window.edit_, WM_KEYDOWN, VK_DOWN, 1);
+        assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 1);
+        SendMessageW(window.edit_, WM_KEYDOWN, VK_DOWN, 1);
+        assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
+        SendMessageW(window.edit_, WM_KEYDOWN, VK_UP, 1);
+        assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 1);
+        SendMessageW(window.edit_, WM_KEYDOWN, VK_TAB, 1);
+        assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
+        assert(window.searchGeneration_ == generation);
+
+        // Observe the actual single-result execution decision without launching
+        // anything: this synthetic result has no executable command index.
+        settings.executeSingleResultImmediately = true;
+        window.staticResults_ = {first};
+        window.immediateExecutionPending_ = true;
+        SendMessageW(window.edit_, WM_IME_STARTCOMPOSITION, 0, 0);
+        window.RebuildVisibleResults(true, false, false);
+        assert(window.immediateExecutionPending_); // composing: no execution
+        SendMessageW(window.edit_, WM_IME_ENDCOMPOSITION, 0, 0);
+        window.RebuildVisibleResults(true, false, false);
+        assert(!window.immediateExecutionPending_); // ExecuteResultSnapshot reached
+        window.immediateExecutionPending_ = true;
+        window.RebuildVisibleResults(true, false, true);
+        assert(window.immediateExecutionPending_); // empty query never auto-executes
+        settings.executeSingleResultImmediately = false;
+        window.immediateExecutionPending_ = false;
+
+        // Real dynamic query scheduling uses a deliberately absent test endpoint.
+        // Inject completion at the public UI entry point; transport is separately
+        // covered by the existing IPC/provider tests, with no network dependency.
+        EverythingIpcClientOptions options;
+        options.everythingWindowClass = L"Asterun.Batch4.AbsentEverythingEndpoint";
+        options.discoverNamedInstances = false;
+        app.everythingProvider_ = std::make_unique<EverythingProvider>(options);
+        settings.providerEnabled["everything.filesystem"] = true;
+        assert(app.DynamicSearchEnabled());
+        window.Hide(); window.Show();
+        assert(!window.dynamicQueryPending_); // empty Show does not start Everything
+        change(WM_SETTEXT, 0, reinterpret_cast<LPARAM>(L"batch4dynamic"));
+        assert(window.dynamicQueryPending_);
+        const auto dynamicGeneration = window.searchGeneration_;
+        window.staticResults_ = {first, second}; window.dynamicResults_.clear();
+        window.RebuildVisibleResults(false, false, false);
+        SendMessageW(window.list_, LB_SETCURSEL, 1, 0);
+        const auto selected = window.results_[1].id;
+        window.ApplyDynamicResults(dynamicGeneration - 1, {dynamic});
+        assert(window.dynamicQueryPending_ && window.dynamicResults_.empty());
+        window.ApplyDynamicResults(dynamicGeneration, {dynamic});
+        assert(!window.dynamicQueryPending_ && window.results_.size() == 3);
+        assert(window.searchGeneration_ == dynamicGeneration); // no synchronous search
+        const auto selection = SendMessageW(window.list_, LB_GETCURSEL, 0, 0);
+        assert(selection != LB_ERR && window.results_[static_cast<std::size_t>(selection)].id == selected);
+        const auto expected = MergeLauncherResultsRanked(window.staticResults_, {&dynamic, 1}, window.maxResults_);
+        for (std::size_t i = 0; i < expected.size(); ++i) assert(window.results_[i].id == expected[i].id);
+        window.Hide(); window.Show();
+        const auto nextGeneration = window.searchGeneration_;
+        window.ApplyDynamicResults(dynamicGeneration, {dynamic});
+        assert(window.dynamicResults_.empty() && window.searchGeneration_ == nextGeneration);
+        settings.providerEnabled["everything.filesystem"] = false;
+        app.everythingProvider_.reset(); // join callbacks before App test state expires
+    }
     static void MeasureShows(App& app, HINSTANCE instance) {
         auto& settings = const_cast<Settings&>(app.SettingsData());
         for (const auto* provider : {"windows.startmenu", "windows.packaged", "windows.apppaths",
@@ -130,6 +229,14 @@ struct LauncherResourceRuntimeFixture {
         }
         app.ReloadCommands();
         assert(app.CanRevealLauncher());
+        Command command;
+        command.keyword = L"batch4fixture"; command.title = L"Batch4 alpha";
+        command.target = LR"(C:\AsterunBatch4Fixture\alpha.exe)";
+        std::wstring firstId, secondId;
+        assert(app.CreateUserCommand(command, &firstId));
+        command.title = L"Batch4 beta"; command.target = LR"(C:\AsterunBatch4Fixture\beta.exe)";
+        assert(app.CreateUserCommand(command, &secondId));
+        app.usageStore_.Record(secondId);
         for (auto style : {UiStyle::ModernCompact, UiStyle::Classic}) {
             settings.uiStyle = style;
             LauncherWindow window(app, instance); assert(window.Create());
@@ -143,7 +250,18 @@ struct LauncherResourceRuntimeFixture {
                 const auto total = window.searchGeneration_ - before;
                 // No Hide inside this interval; RefreshResults alone advances generation.
                 assert(window.CurrentQuery().empty());
-                assert(total >= probe.editRefreshes);
+                assert(total == 1 && probe.changes == 1 && probe.editRefreshes == 1);
+                if (show) {
+                    assert(window.IsVisible());
+                    const auto expected = app.Search(L"", window.maxResults_);
+                    assert(!expected.empty() && window.results_.size() == expected.size());
+                    for (std::size_t i = 0; i < expected.size(); ++i) {
+                        assert(window.results_[i].id == expected[i].id);
+                        assert(window.results_[i].score == expected[i].score);
+                        assert(window.results_[i].usageScore == expected[i].usageScore);
+                    }
+                    assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
+                }
                 std::cout << "SHOW_MEASURE style=" << (style == UiStyle::Classic ? "Classic" : "Modern")
                     << " case=" << scenario << " EN_CHANGE=" << probe.changes
                     << " edit_refresh=" << probe.editRefreshes << " explicit_refresh="
@@ -156,9 +274,28 @@ struct LauncherResourceRuntimeFixture {
             measure("set-empty-from-empty", false);
             SetWindowTextW(window.edit_, L"previous query");
             measure("set-empty-from-nonempty", false);
+            for (int repeat = 0; repeat < 8; ++repeat) {
+                window.Hide(); measure("repeat-empty", true);
+                SetWindowTextW(window.edit_, L"previous query");
+                SendMessageW(window.list_, LB_SETCURSEL, 1, 0);
+                window.Hide(); measure("repeat-nonempty", true);
+            }
+            window.Hide(); // already-empty EDIT: suppress only this test notification
+            assert(SetWindowSubclass(window.edit_, OmitResetNotification, 2, 0));
+            probe.changes = 0; probe.editRefreshes = 0;
+            const auto beforeFallback = window.searchGeneration_;
+            window.Show();
+            assert(window.searchGeneration_ == beforeFallback + 1 && probe.changes == 0);
+            assert(RemoveWindowSubclass(window.edit_, OmitResetNotification, 2));
+            std::cout << "SHOW_FALLBACK total=1 EN_CHANGE=0" << std::endl;
+            VerifyInputAfterShow(app, window);
             RemoveWindowSubclass(window.hwnd_, ObserveChange, 1);
             Destroy(window);
+            NumericIntentRuntimeFixture::Run(app, instance);
         }
+        assert(app.DeleteUserCommand(firstId));
+        assert(app.DeleteUserCommand(secondId));
+        std::cout << "Show input/IME/selection/single-result/numeric/dynamic/usage regression passed" << std::endl;
     }
     static void Run(HINSTANCE instance) {
         App app(instance);
