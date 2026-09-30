@@ -87,6 +87,52 @@ struct LauncherResourceRuntimeFixture {
         SendMessageW(w.hwnd_, WM_DPICHANGED, MAKEWPARAM(dpi, dpi), reinterpret_cast<LPARAM>(&rect));
         assert(w.dpi_ == dpi);
     }
+    static void VerifyTypography(App& app, HINSTANCE instance) {
+        auto& settings = const_cast<Settings&>(app.SettingsData());
+        const auto previousLanguage = settings.language;
+        const auto previousStyle = settings.uiStyle;
+        settings.uiStyle = UiStyle::ModernCompact;
+        for (auto language : {Language::ZhCN, Language::EnUS}) {
+            settings.language = language;
+            LauncherWindow window(app, instance); assert(window.Create());
+            for (UINT dpi : {96U, 120U, 144U, 168U, 192U, 240U, 288U}) {
+                Dpi(window, dpi);
+                HDC dc = GetDC(window.edit_); assert(dc);
+                RECT edit{}; assert(GetClientRect(window.edit_, &edit));
+                assert(reinterpret_cast<HFONT>(SendMessageW(window.edit_, WM_GETFONT, 0, 0)) == window.searchFont_);
+                const auto spec = ui::LauncherFontSpec(settings.uiStyle, language, ui::UiFontRole::LauncherSearch);
+                const bool cjkFace = lstrcmpW(spec.face, L"Segoe UI") != 0;
+                for (HFONT font : {window.searchFont_, window.normalFont_, window.boldFont_, window.auxiliaryFont_}) {
+                    assert(font);
+                    LOGFONTW logical{};
+                    assert(GetObjectW(font, sizeof(logical), &logical) == sizeof(logical));
+                    assert(lstrcmpW(logical.lfFaceName, spec.face) == 0 && logical.lfWeight == FW_NORMAL);
+                    auto old = SelectObject(dc, font); assert(old && old != HGDI_ERROR);
+                    TEXTMETRICW metrics{}; assert(GetTextMetricsW(dc, &metrics));
+                    if (font == window.searchFont_) {
+                        // Measure the realized font, not just its requested em height.
+                        assert(metrics.tmHeight <= edit.bottom - edit.top);
+                    }
+                    const wchar_t* sample = cjkFace
+                        ? L"腾讯会议 中文输入 Palworld 幻兽帕鲁 PowerShell"
+                        : L"PowerShell Palworld 0123456789";
+                    const int length = lstrlenW(sample);
+                    std::vector<WORD> glyphs(static_cast<std::size_t>(length));
+                    assert(GetGlyphIndicesW(dc, sample, length, glyphs.data(), GGI_MARK_NONEXISTING_GLYPHS) != GDI_ERROR);
+                    for (WORD glyph : glyphs) assert(glyph != 0xffff);
+                    SIZE extent{}; assert(GetTextExtentPoint32W(dc, sample, length, &extent));
+                    assert(extent.cx > 0 && extent.cy > 0);
+                    SelectObject(dc, old);
+                }
+                assert(ReleaseDC(window.edit_, dc));
+                std::cout << "TYPOGRAPHY language=" << (language == Language::ZhCN ? "zh" : "en")
+                    << " dpi=" << dpi << " direct-CJK-glyphs=" << cjkFace << std::endl;
+            }
+            Destroy(window);
+        }
+        settings.language = previousLanguage;
+        settings.uiStyle = previousStyle;
+    }
     static std::vector<unsigned char> Pixels(LauncherWindow& w) {
         constexpr int width = 900, height = 300;
         BITMAPINFO info{}; info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -365,6 +411,7 @@ struct LauncherResourceRuntimeFixture {
                 assert(current.handles <= warm.handles + 4);
             }
         }
+        VerifyTypography(app, instance);
         MeasureShows(app, instance);
     }
 };
