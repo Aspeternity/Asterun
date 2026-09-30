@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "core/EverythingProvider.hpp"
 #include "ui/LauncherWindow.hpp"
 #include "NumericIntentRuntimeFixture.hpp"
 #include <windows.h>
