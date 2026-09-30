@@ -400,34 +400,31 @@ LauncherWindow::~LauncherWindow() {
     if (selectionBrush_) DeleteObject(selectionBrush_);
     if (focusAccentBrush_) DeleteObject(focusAccentBrush_);
     if (framePen_) DeleteObject(framePen_);
+    ReleaseClassicResources();
+}
+
+void LauncherWindow::ReleaseClassicResources() {
     if (classicBitmapDc_) DeleteDC(classicBitmapDc_);
-    for (HBITMAP bitmap :
-         classicShortcutBitmaps_) {
-        if (bitmap) {
-            DeleteObject(bitmap);
-        }
+    classicBitmapDc_ = nullptr;
+    for (auto& bitmap : classicShortcutBitmaps_) {
+        if (bitmap) DeleteObject(bitmap);
+        bitmap = nullptr;
     }
-    for (HBITMAP bitmap :
-         classicCloseBitmaps_) {
-        if (bitmap) {
-            DeleteObject(bitmap);
-        }
+    for (auto& bitmap : classicCloseBitmaps_) {
+        if (bitmap) DeleteObject(bitmap);
+        bitmap = nullptr;
     }
     if (classicBackgroundBitmap_) DeleteObject(classicBackgroundBitmap_);
+    classicBackgroundBitmap_ = nullptr;
+    classicBackgroundSize_ = {};
 }
 
 bool LauncherWindow::IsModern() const {
     return app_.SettingsData().uiStyle == UiStyle::ModernCompact;
 }
 
-bool LauncherWindow::Create() {
-    INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES};
-    InitCommonControlsEx(&controls);
-
-    taskbarCreatedMessage_ =
-        RegisterWindowMessageW(
-            L"TaskbarCreated");
-
+bool LauncherWindow::EnsureClassicResources() {
+    if (classicBitmapDc_) return true;
     if (!LoadClassicBitmapResources(
             instance_,
             kClassicShortcutResourceIds,
@@ -436,6 +433,7 @@ bool LauncherWindow::Create() {
             instance_,
             kClassicCloseResourceIds,
             classicCloseBitmaps_)) {
+        ReleaseClassicResources();
         return false;
     }
 
@@ -458,6 +456,7 @@ bool LauncherWindow::Create() {
             sizeof(classicBackgroundInfo),
             &classicBackgroundInfo) !=
             sizeof(classicBackgroundInfo)) {
+        ReleaseClassicResources();
         return false;
     }
 
@@ -470,8 +469,22 @@ bool LauncherWindow::Create() {
         CreateCompatibleDC(nullptr);
 
     if (!classicBitmapDc_) {
+        ReleaseClassicResources();
         return false;
     }
+
+    return true;
+}
+
+bool LauncherWindow::Create() {
+    INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES};
+    InitCommonControlsEx(&controls);
+
+    taskbarCreatedMessage_ =
+        RegisterWindowMessageW(
+            L"TaskbarCreated");
+
+    if (!IsModern() && !EnsureClassicResources()) return false;
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -932,6 +945,9 @@ void LauncherWindow::UpdateWindowChrome() {
 }
 
 void LauncherWindow::ApplyAppearance() {
+    // First Classic use loads the original DPI variants once. Keep them when
+    // returning to Modern; a failed load leaves no partial resources to retain.
+    if (!IsModern()) (void)EnsureClassicResources();
     const auto metrics =
         IsModern()
             ? ui::kModernCompactLauncherMetrics

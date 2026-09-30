@@ -256,6 +256,7 @@ public:
 
 private:
     friend struct AppLifecycleRuntimeFixture;
+    friend struct LauncherResourceRuntimeFixture;
 
     static constexpr int
         kGlobalHotkeyId = 0xA171;
@@ -378,6 +379,7 @@ private:
         std::vector<std::size_t> indices;
         SearchEngine::PreparedIndex prepared;
     };
+    void ReleaseStaleSearchCaches() const;
     mutable ContextSearchCache contextSearchCache_;
     mutable SearchEngine::PreparedIndex baseSearchIndex_;
     mutable std::uint64_t baseSearchGeneration_{0};

@@ -182,6 +182,67 @@ struct AppLifecycleRuntimeFixture {
         }
     }
 
+    static void SearchCacheLifetime(HINSTANCE instance) {
+        WriteSettings();
+        App app(instance);
+        app.settingsStore_.Load();
+        app.ReloadCommands();
+        Command command;
+        command.keyword = L"cachefixture";
+        command.title = L"Cache fixture";
+        command.target = L"C:\\Windows\\notepad.exe";
+        std::wstring id;
+        assert(app.CreateUserCommand(command, &id));
+        assert(!app.Search(L"cachefixture", 10).empty());
+        assert(!app.baseSearchIndex_.empty());
+        app.activationContext_.kind = win::WindowsContextKind::Explorer;
+        app.activationContext_.explorerBrowserWindow = reinterpret_cast<HWND>(1);
+        app.activationContext_.explorerViewWindow = reinterpret_cast<HWND>(2);
+        app.activationContext_.explorerFolder = L"C:\\Context";
+        auto emptyContext = [&] {
+            const auto& cache = app.contextSearchCache_;
+            assert(cache.generation == 0 && cache.folder.empty());
+            assert(cache.commands.capacity() == 0 && cache.indices.capacity() == 0);
+            assert(cache.prepared.capacity() == 0);
+        };
+        for (int cycle = 0; cycle < 24; ++cycle) {
+            command.arguments = L"{folder}";
+            assert(app.UpdateUserCommand(id, command));
+            // Invalidation occurs immediately, even with no Launcher/search.
+            assert(app.baseSearchIndex_.capacity() == 0 && app.baseSearchGeneration_ == 0);
+            auto first = app.Search(L"cachefixture", 10);
+            assert(!first.empty());
+            auto* commands = app.contextSearchCache_.commands.data();
+            auto* prepared = app.contextSearchCache_.prepared.data();
+            const auto generation = app.contextSearchCache_.generation;
+            auto again = app.Search(L"cachefixture", 10);
+            assert(again.size() == first.size() && again[0].id == first[0].id && again[0].score == first[0].score);
+            assert(app.contextSearchCache_.commands.data() == commands);
+            assert(app.contextSearchCache_.prepared.data() == prepared);
+            assert(app.contextSearchCache_.generation == generation);
+            {
+                const auto context = app.activationContext_;
+                LauncherWindow hidden(app, instance);
+                hidden.Hide();
+                assert(app.contextSearchCache_.commands.data() == commands);
+                assert(app.contextSearchCache_.prepared.data() == prepared);
+                app.activationContext_ = context;
+            }
+            command.arguments.clear();
+            assert(app.UpdateUserCommand(id, command)); // remove last folder template
+            emptyContext();
+            assert(!app.Search(L"cachefixture", 10).empty());
+            assert(!app.baseSearchIndex_.empty());
+        }
+        command.arguments = L"{folder}";
+        assert(app.UpdateUserCommand(id, command));
+        assert(!app.Search(L"cachefixture", 10).empty());
+        // Publication makes both old generations unusable immediately.
+        app.ReloadCommands(); emptyContext();
+        assert(!app.Search(L"cachefixture", 10).empty());
+        assert(app.DeleteUserCommand(id)); emptyContext();
+    }
+
     static void UpdateWatchdog(HINSTANCE instance) {
         // Exercise the unchanged App generation arbitration as completion races
         // the absolute watchdog. Transport-level handle races are tested separately.
@@ -370,6 +431,7 @@ int main() {
     altrun::AppLifecycleRuntimeFixture::Ownership(instance);
     altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
     altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
+    altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
     if (SUCCEEDED(com)) CoUninitialize();
     std::filesystem::remove_all(fixtureRoot);
     std::cout << "Primary ownership and modal dispatcher regressions passed\n";
