@@ -1,7 +1,6 @@
 #include "app/App.hpp"
 #include "ui/LauncherWindow.hpp"
 #include <windows.h>
-#include <objbase.h>
 #include <psapi.h>
 #include <cassert>
 #include <cstring>
@@ -27,6 +26,9 @@ HDC WINAPI TestCreateDc(HDC dc) { return failDc ? nullptr : CreateCompatibleDC(d
 #undef CreateCompatibleDC
 #undef GetObjectW
 #undef LoadImageW
+
+// Include COM after the product TU: rpcndr.h defines the legacy small macro.
+#include <objbase.h>
 
 namespace {
 struct Resources {
