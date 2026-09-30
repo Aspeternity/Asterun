@@ -3962,6 +3962,7 @@ bool App::SetProviderEnabled(
         .ReloadProviderCache(
             settingsStore_.Data()
                 .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     {
         std::scoped_lock lock(
@@ -4041,6 +4042,7 @@ bool App::SetProviderEnabledBatch(
         .ReloadProviderCache(
             settingsStore_.Data()
                 .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     {
         std::scoped_lock lock(
