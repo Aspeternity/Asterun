@@ -1213,6 +1213,71 @@ struct ComApartment {
 };
 
 [[nodiscard]] bool
+SameFileIdentity(
+    const std::filesystem::path& left,
+    const std::filesystem::path& right) {
+    HANDLE leftHandle =
+        CreateFileW(
+            left.c_str(),
+            FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ |
+                FILE_SHARE_WRITE |
+                FILE_SHARE_DELETE,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr);
+
+    if (leftHandle ==
+        INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    HANDLE rightHandle =
+        CreateFileW(
+            right.c_str(),
+            FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ |
+                FILE_SHARE_WRITE |
+                FILE_SHARE_DELETE,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr);
+
+    if (rightHandle ==
+        INVALID_HANDLE_VALUE) {
+        CloseHandle(
+            leftHandle);
+        return false;
+    }
+
+    BY_HANDLE_FILE_INFORMATION leftInfo{};
+    BY_HANDLE_FILE_INFORMATION rightInfo{};
+
+    const bool success =
+        GetFileInformationByHandle(
+            leftHandle,
+            &leftInfo) &&
+        GetFileInformationByHandle(
+            rightHandle,
+            &rightInfo);
+
+    CloseHandle(
+        rightHandle);
+    CloseHandle(
+        leftHandle);
+
+    return success &&
+        leftInfo.dwVolumeSerialNumber ==
+            rightInfo.dwVolumeSerialNumber &&
+        leftInfo.nFileIndexHigh ==
+            rightInfo.nFileIndexHigh &&
+        leftInfo.nFileIndexLow ==
+            rightInfo.nFileIndexLow;
+}
+
+[[nodiscard]] bool
 RemoveOwnedSendToShortcutAt(
     const std::filesystem::path& shortcut,
     const std::filesystem::path& install) {
@@ -1297,18 +1362,17 @@ RemoveOwnedSendToShortcutAt(
                     static_cast<int>(
                         arguments.size())));
 
-        // The stable identity of Asterun's SendTo entry is the target
-        // executable plus its dedicated --add-shortcut action. Working
-        // directory and icon metadata can be normalized by the Shell and are
-        // not ownership signals.
+        // Shell Link path text can be normalized (for example to a
+        // short/alternate spelling), so ownership must not depend on exact
+        // path-string equality. Compare the resolved target by Windows file
+        // identity, then require Asterun's dedicated SendTo action.
         owned =
             targetOk &&
             argumentsOk &&
-            LowerPath(
+            SameFileIdentity(
                 std::filesystem::path(
-                    target.data())) ==
-                LowerPath(
-                    install /
+                    target.data()),
+                install /
                     L"Asterun.exe") &&
             std::wstring_view(
                 arguments.data()) ==
