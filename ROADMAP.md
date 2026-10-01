@@ -1,6 +1,13 @@
 # Asterun Roadmap
 
-Asterun 1.0.2 is the current maintenance release, combining the accepted lifecycle/resource hardening and Modern Compact typography adjustment.
+Asterun 1.0.3 is the current maintenance release, focused on complete Uninstall.exe cleanup of Asterun-owned SendTo integration while preserving portable-app behavior.
+
+## v1.0.3 - Uninstall Shell integration cleanup
+
+- Remove only the Asterun-owned `SendTo\\Asterun.lnk` during Uninstall.exe by validating Windows file identity and the dedicated `--add-shortcut` action.
+- Preserve foreign/same-named shortcuts and keep normal application exit behavior unchanged.
+- Refresh the README settings preview with current Asterun branding.
+- Preserve search, UI/runtime behavior and all persisted data schemas.
 
 ## v1.0.2 - Stability and resource maintenance
 
