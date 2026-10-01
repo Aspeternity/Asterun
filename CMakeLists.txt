@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(Asterun VERSION 1.0.2 LANGUAGES C CXX)
+project(Asterun VERSION 1.0.3 LANGUAGES C CXX)
 
 file(
     STRINGS
