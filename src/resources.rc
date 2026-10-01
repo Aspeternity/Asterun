@@ -19,8 +19,8 @@ IDB_CLASSIC_BACKGROUND BITMAP "resources/classic_bg.bmp"
 IDW_CLASSIC_POPUP WAVE "resources/altrun_popup.wav"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,2,30000
- PRODUCTVERSION 1,0,2,30000
+ FILEVERSION 1,0,3,30000
+ PRODUCTVERSION 1,0,3,30000
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -37,11 +37,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Aspeternity\0"
             VALUE "FileDescription", "Asterun\0"
-            VALUE "FileVersion", "1.0.2\0"
+            VALUE "FileVersion", "1.0.3\0"
             VALUE "InternalName", "Asterun\0"
             VALUE "OriginalFilename", "Asterun.exe\0"
             VALUE "ProductName", "Asterun\0"
-            VALUE "ProductVersion", "1.0.2\0"
+            VALUE "ProductVersion", "1.0.3\0"
         END
     END
     BLOCK "VarFileInfo"
