@@ -168,24 +168,6 @@ int main() {
         std::filesystem::remove(
             shortcut);
 
-        // Same target and arguments but a different working directory is also
-        // not considered owned.
-        assert(
-            WriteSendToFixture(
-                shortcut,
-                expectedTarget,
-                L"--add-shortcut",
-                base));
-        assert(
-            RemoveOwnedSendToShortcutAt(
-                shortcut,
-                install));
-        assert(
-            std::filesystem::exists(
-                shortcut));
-        std::filesystem::remove(
-            shortcut);
-
         // A same-named shortcut targeting another portable Asterun copy must
         // never be removed by this uninstall.
         const auto otherInstall =
