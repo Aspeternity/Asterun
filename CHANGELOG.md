@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.3
+
+- Clean Asterun's owned `SendTo\\Asterun.lnk` registration during `Uninstall.exe` after verifying that the Shell Link resolves to the current portable `Asterun.exe` and uses the dedicated `--add-shortcut` action.
+- Preserve same-named user shortcuts, foreign portable Asterun copies, malformed entries and unexpected filesystem objects instead of deleting by filename alone.
+- Keep normal Asterun exit behavior unchanged; SendTo remains a persistent opt-in Shell integration until the user disables it or runs the uninstaller.
+- Refresh the README settings preview with the current Asterun-branded interface.
+- Preserve existing search, UI/runtime behavior and persisted data schemas outside this uninstall cleanup.
+
 ## 1.0.2
 
 - Prevent secondary and forwarded instances from stopping the primary instance's managed Everything.
