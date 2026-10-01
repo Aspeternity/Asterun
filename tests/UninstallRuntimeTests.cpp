@@ -6,6 +6,72 @@
 #include <cassert>
 #include <iostream>
 
+[[nodiscard]] bool
+WriteSendToFixture(
+    const std::filesystem::path& shortcut,
+    const std::filesystem::path& target,
+    std::wstring_view arguments,
+    const std::filesystem::path& workingDirectory) {
+    std::filesystem::create_directories(
+        shortcut.parent_path());
+
+    ComApartment apartment;
+
+    if (!apartment.Ready()) {
+        return false;
+    }
+
+    IShellLinkW* shellLink =
+        nullptr;
+
+    if (FAILED(
+            CoCreateInstance(
+                CLSID_ShellLink,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_PPV_ARGS(
+                    &shellLink))) ||
+        !shellLink) {
+        return false;
+    }
+
+    IPersistFile* persist =
+        nullptr;
+
+    bool success =
+        SUCCEEDED(
+            shellLink->SetPath(
+                target.c_str())) &&
+        SUCCEEDED(
+            shellLink->SetArguments(
+                std::wstring(
+                    arguments)
+                    .c_str())) &&
+        SUCCEEDED(
+            shellLink->SetWorkingDirectory(
+                workingDirectory
+                    .c_str())) &&
+        SUCCEEDED(
+            shellLink->QueryInterface(
+                IID_PPV_ARGS(
+                    &persist))) &&
+        persist;
+
+    if (success) {
+        success =
+            SUCCEEDED(
+                persist->Save(
+                    shortcut.c_str(),
+                    TRUE));
+    }
+
+    if (persist) {
+        persist->Release();
+    }
+    shellLink->Release();
+    return success;
+}
+
 int main() {
     int argc = 0;
     auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -48,6 +114,119 @@ int main() {
         assert(ValidateInstallRoot(path));
         return path;
     };
+
+    {
+        const auto install =
+            makeInstall(
+                L"sendto ownership");
+        const auto sendTo =
+            base /
+            L"sendto-fixture";
+        const auto shortcut =
+            sendTo /
+            L"Asterun.lnk";
+        const auto expectedTarget =
+            install /
+            L"Asterun.exe";
+
+        // Missing registration is already clean.
+        assert(
+            RemoveOwnedSendToShortcutAt(
+                shortcut,
+                install));
+
+        // Exact Asterun-owned registration is removed.
+        assert(
+            WriteSendToFixture(
+                shortcut,
+                expectedTarget,
+                L"--add-shortcut",
+                install));
+        assert(
+            RemoveOwnedSendToShortcutAt(
+                shortcut,
+                install));
+        assert(
+            !std::filesystem::exists(
+                shortcut));
+
+        // Same executable but different arguments is not Asterun's SendTo
+        // registration and must be preserved.
+        assert(
+            WriteSendToFixture(
+                shortcut,
+                expectedTarget,
+                L"--different-action",
+                install));
+        assert(
+            RemoveOwnedSendToShortcutAt(
+                shortcut,
+                install));
+        assert(
+            std::filesystem::exists(
+                shortcut));
+        std::filesystem::remove(
+            shortcut);
+
+        // A same-named shortcut targeting another portable Asterun copy must
+        // never be removed by this uninstall.
+        const auto otherInstall =
+            base /
+            L"other Asterun";
+        std::filesystem::create_directories(
+            otherInstall);
+        const auto otherTarget =
+            otherInstall /
+            L"Asterun.exe";
+        std::ofstream(
+            otherTarget) <<
+            "fixture";
+
+        assert(
+            WriteSendToFixture(
+                shortcut,
+                otherTarget,
+                L"--add-shortcut",
+                otherInstall));
+        assert(
+            RemoveOwnedSendToShortcutAt(
+                shortcut,
+                install));
+        assert(
+            std::filesystem::exists(
+                shortcut));
+        std::filesystem::remove(
+            shortcut);
+
+        // A corrupt or user-created regular file with the same name is left
+        // alone rather than being deleted by name alone.
+        std::ofstream(
+            shortcut) <<
+            "not a shell link";
+        assert(
+            RemoveOwnedSendToShortcutAt(
+                shortcut,
+                install));
+        assert(
+            std::filesystem::exists(
+                shortcut));
+        std::filesystem::remove(
+            shortcut);
+
+        // Never recurse into or remove an unexpected directory/reparse-style
+        // entry at the integration path.
+        std::filesystem::create_directories(
+            shortcut);
+        assert(
+            RemoveOwnedSendToShortcutAt(
+                shortcut,
+                install));
+        assert(
+            std::filesystem::is_directory(
+                shortcut));
+        std::filesystem::remove(
+            shortcut);
+    }
 
     {
         const auto install =
