@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - 'release-trigger/v*'
 
 permissions:
   contents: read
@@ -12,12 +14,48 @@ jobs:
   preflight:
     name: Release tag preflight
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release_ref.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve and guard release trigger
+        id: release_ref
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "$GITHUB_REF" in
+            refs/tags/v*)
+              tag="$GITHUB_REF_NAME"
+              ;;
+            refs/heads/release-trigger/v*)
+              tag="${GITHUB_REF_NAME#release-trigger/}"
+              git fetch --no-tags origin main:refs/remotes/origin/main
+              main_sha="$(git rev-parse origin/main)"
+              head_sha="$(git rev-parse HEAD)"
+              if [[ "$head_sha" != "$main_sha" ]]; then
+                echo "Release trigger must point exactly at current main: trigger=$head_sha main=$main_sha"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unsupported release ref: $GITHUB_REF"
+              exit 1
+              ;;
+          esac
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag derived from ref: $tag"
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Verify Asterun branding
         run: python3 scripts/verify_branding.py
       - name: Verify tag matches VERSION
-        run: python3 scripts/verify_tag_version.py "$GITHUB_REF_NAME"
+        run: python3 scripts/verify_tag_version.py "${{ steps.release_ref.outputs.tag }}"
       - name: Verify version metadata
         run: python3 scripts/verify_version.py
       - name: Verify release contract
@@ -183,6 +221,6 @@ jobs:
           set -euo pipefail
           VERSION="$(tr -d '\r\n' < VERSION)"
           bash scripts/publish_versioned_release.sh \
-            "$GITHUB_REF_NAME" \
+            "${{ needs.preflight.outputs.release_tag }}" \
             "$VERSION" \
             "$GITHUB_SHA"
