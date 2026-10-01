@@ -1280,8 +1280,6 @@ RemoveOwnedSendToShortcutAt(
             target{};
         std::array<wchar_t, 32768>
             arguments{};
-        std::array<wchar_t, 32768>
-            workingDirectory{};
 
         const bool targetOk =
             SUCCEEDED(
@@ -1298,21 +1296,14 @@ RemoveOwnedSendToShortcutAt(
                     arguments.data(),
                     static_cast<int>(
                         arguments.size())));
-        const bool workingDirectoryOk =
-            SUCCEEDED(
-                shellLink->
-                    GetWorkingDirectory(
-                        workingDirectory.data(),
-                        static_cast<int>(
-                            workingDirectory
-                                .size()))) &&
-            workingDirectory.front() !=
-                L'\0';
 
+        // The stable identity of Asterun's SendTo entry is the target
+        // executable plus its dedicated --add-shortcut action. Working
+        // directory and icon metadata can be normalized by the Shell and are
+        // not ownership signals.
         owned =
             targetOk &&
             argumentsOk &&
-            workingDirectoryOk &&
             LowerPath(
                 std::filesystem::path(
                     target.data())) ==
@@ -1321,12 +1312,7 @@ RemoveOwnedSendToShortcutAt(
                     L"Asterun.exe") &&
             std::wstring_view(
                 arguments.data()) ==
-                L"--add-shortcut" &&
-            LowerPath(
-                std::filesystem::path(
-                    workingDirectory
-                        .data())) ==
-                LowerPath(install);
+                L"--add-shortcut";
     }
 
     persist->Release();
