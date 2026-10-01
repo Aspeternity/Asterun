@@ -1213,6 +1213,178 @@ struct ComApartment {
 };
 
 [[nodiscard]] bool
+RemoveOwnedSendToShortcutAt(
+    const std::filesystem::path& shortcut,
+    const std::filesystem::path& install) {
+    const DWORD attributes =
+        GetFileAttributesW(
+            shortcut.c_str());
+
+    if (attributes ==
+        INVALID_FILE_ATTRIBUTES) {
+        const DWORD error =
+            GetLastError();
+        return error ==
+                   ERROR_FILE_NOT_FOUND ||
+            error ==
+                   ERROR_PATH_NOT_FOUND;
+    }
+
+    // Never follow a directory or reparse point while cleaning a Shell
+    // integration path. Asterun creates a regular .lnk file here.
+    if (attributes &
+        (FILE_ATTRIBUTE_DIRECTORY |
+         FILE_ATTRIBUTE_REPARSE_POINT)) {
+        return true;
+    }
+
+    ComApartment apartment;
+
+    if (!apartment.Ready()) {
+        return false;
+    }
+
+    IShellLinkW* shellLink =
+        nullptr;
+
+    if (FAILED(
+            CoCreateInstance(
+                CLSID_ShellLink,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_PPV_ARGS(
+                    &shellLink))) ||
+        !shellLink) {
+        return false;
+    }
+
+    IPersistFile* persist =
+        nullptr;
+
+    if (FAILED(
+            shellLink->QueryInterface(
+                IID_PPV_ARGS(
+                    &persist))) ||
+        !persist) {
+        shellLink->Release();
+        return false;
+    }
+
+    bool owned = false;
+
+    if (SUCCEEDED(
+            persist->Load(
+                shortcut.c_str(),
+                STGM_READ))) {
+        std::array<wchar_t, 32768>
+            target{};
+        std::array<wchar_t, 32768>
+            arguments{};
+        std::array<wchar_t, 32768>
+            workingDirectory{};
+
+        const bool targetOk =
+            SUCCEEDED(
+                shellLink->GetPath(
+                    target.data(),
+                    static_cast<int>(
+                        target.size()),
+                    nullptr,
+                    SLGP_RAWPATH)) &&
+            target.front() != L'\0';
+        const bool argumentsOk =
+            SUCCEEDED(
+                shellLink->GetArguments(
+                    arguments.data(),
+                    static_cast<int>(
+                        arguments.size())));
+        const bool workingDirectoryOk =
+            SUCCEEDED(
+                shellLink->
+                    GetWorkingDirectory(
+                        workingDirectory.data(),
+                        static_cast<int>(
+                            workingDirectory
+                                .size()))) &&
+            workingDirectory.front() !=
+                L'\0';
+
+        owned =
+            targetOk &&
+            argumentsOk &&
+            workingDirectoryOk &&
+            LowerPath(
+                std::filesystem::path(
+                    target.data())) ==
+                LowerPath(
+                    install /
+                    L"Asterun.exe") &&
+            std::wstring_view(
+                arguments.data()) ==
+                L"--add-shortcut" &&
+            LowerPath(
+                std::filesystem::path(
+                    workingDirectory
+                        .data())) ==
+                LowerPath(install);
+    }
+
+    persist->Release();
+    shellLink->Release();
+
+    if (!owned) {
+        return true;
+    }
+
+    if (DeleteFileW(
+            shortcut.c_str())) {
+        return true;
+    }
+
+    const DWORD error =
+        GetLastError();
+    return error ==
+               ERROR_FILE_NOT_FOUND ||
+        error ==
+               ERROR_PATH_NOT_FOUND;
+}
+
+void RemoveSendToRegistration(
+    const std::filesystem::path& install) {
+    PWSTR sendToRaw =
+        nullptr;
+
+    const HRESULT result =
+        SHGetKnownFolderPath(
+            FOLDERID_SendTo,
+            KF_FLAG_DEFAULT,
+            nullptr,
+            &sendToRaw);
+
+    if (FAILED(result) ||
+        !sendToRaw ||
+        !*sendToRaw) {
+        if (sendToRaw) {
+            CoTaskMemFree(
+                sendToRaw);
+        }
+        return;
+    }
+
+    std::filesystem::path shortcut(
+        sendToRaw);
+    CoTaskMemFree(
+        sendToRaw);
+    shortcut /=
+        L"Asterun.lnk";
+
+    (void)
+        RemoveOwnedSendToShortcutAt(
+            shortcut,
+            install);
+}
+
+[[nodiscard]] bool
 FileUrlToPath(
     BSTR url,
     std::filesystem::path& path) {
@@ -2413,6 +2585,8 @@ BeginUninstall() {
     worker.Reset();
 
     RemoveStartupRegistration(
+        install);
+    RemoveSendToRegistration(
         install);
 
     if (deleteData &&
