@@ -27,6 +27,7 @@
   <a href="#下载">下载</a> ·
   <a href="#核心特性">核心特性</a> ·
   <a href="#快速开始">快速开始</a> ·
+  <a href="docs/USER_GUIDE.md"><strong>使用教程</strong></a> ·
   <a href="#everything-文件搜索">Everything 搜索</a> ·
   <a href="#从源码构建">源码构建</a> ·
   <a href="CHANGELOG.md">更新日志</a>
@@ -205,6 +206,7 @@ CMake 会获取项目锁定的构建依赖。正式发布包还会通过 CI 的�
 
 | 文档 | 内容 |
 | --- | --- |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 中文完整使用教程：快捷键、智能数字键、Everything、快捷项与便携使用 |
 | [CHANGELOG.md](CHANGELOG.md) | 正式更新记录与历史版本变更 |
 | [ROADMAP.md](ROADMAP.md) | 已完成里程碑和后续方向 |
 | [docs/CONFIG_SCHEMA.md](docs/CONFIG_SCHEMA.md) | 便携配置、Schema 与迁移规则 |
