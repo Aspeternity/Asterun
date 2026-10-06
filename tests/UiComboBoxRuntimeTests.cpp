@@ -9,6 +9,7 @@ namespace {
 constexpr wchar_t kParentClass[] =
     L"Asterun.UiComboBoxRuntimeTest";
 int gWheelMessages = 0;
+int gSelectionNotifications = 0;
 
 LRESULT CALLBACK ParentProc(
     HWND hwnd,
@@ -19,6 +20,13 @@ LRESULT CALLBACK ParentProc(
     if (message == WM_MOUSEWHEEL ||
         message == WM_MOUSEHWHEEL) {
         ++gWheelMessages;
+        return 0;
+    }
+
+    if (message == WM_COMMAND &&
+        HIWORD(wParam) ==
+            CBN_SELCHANGE) {
+        ++gSelectionNotifications;
         return 0;
     }
 
@@ -117,6 +125,7 @@ int main() {
         combo);
 
     gWheelMessages = 0;
+    gSelectionNotifications = 0;
 
     SendMessageW(
         combo,
@@ -128,6 +137,8 @@ int main() {
 
     assert(
         gWheelMessages == 1);
+    assert(
+        gSelectionNotifications == 0);
     assert(
         SendMessageW(
             combo,
@@ -147,6 +158,8 @@ int main() {
     assert(
         gWheelMessages == 2);
     assert(
+        gSelectionNotifications == 0);
+    assert(
         SendMessageW(
             combo,
             CB_GETCURSEL,
@@ -163,6 +176,8 @@ int main() {
 
     assert(
         gWheelMessages == 3);
+    assert(
+        gSelectionNotifications == 0);
     assert(
         SendMessageW(
             combo,
