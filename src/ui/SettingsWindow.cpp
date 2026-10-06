@@ -4333,16 +4333,8 @@ void SettingsWindow::ScrollCurrentPage(
 
     offset = next;
 
-    Layout();
-
-    RedrawWindow(
-        hwnd_,
-        nullptr,
-        nullptr,
-        RDW_INVALIDATE |
-            RDW_ERASE |
-            RDW_ALLCHILDREN |
-            RDW_UPDATENOW);
+    LayoutCurrentPage();
+    RedrawCurrentPage();
 }
 
 bool SettingsWindow::HotkeyControlDesiredVisible(
@@ -6484,15 +6476,8 @@ LRESULT SettingsWindow::HandleMessage(
 
             if (next != offset) {
                 offset = next;
-                Layout();
-                RedrawWindow(
-                    hwnd_,
-                    nullptr,
-                    nullptr,
-                    RDW_INVALIDATE |
-                        RDW_ERASE |
-                        RDW_ALLCHILDREN |
-                        RDW_UPDATENOW);
+                LayoutCurrentPage();
+                RedrawCurrentPage();
             }
             return 0;
         }
@@ -6623,9 +6608,11 @@ LRESULT SettingsWindow::HandleMessage(
                 hwnd_) {
                 ReleaseCapture();
             }
+            const RECT track =
+                PageScrollTrackRect();
             InvalidateRect(
                 hwnd_,
-                nullptr,
+                &track,
                 FALSE);
             return 0;
         }
@@ -6634,9 +6621,11 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_CAPTURECHANGED:
         if (pageScrollDragging_) {
             pageScrollDragging_ = false;
+            const RECT track =
+                PageScrollTrackRect();
             InvalidateRect(
                 hwnd_,
-                nullptr,
+                &track,
                 FALSE);
         }
         break;
