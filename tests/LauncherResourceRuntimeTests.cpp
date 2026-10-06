@@ -277,20 +277,22 @@ struct LauncherResourceRuntimeFixture {
             instance);
         assert(window.Create());
 
-        window.Show();
+        // Background GitHub runners are not guaranteed to grant foreground
+        // activation. LauncherWindow::Show() correctly hides again on a
+        // resulting WA_INACTIVE, which made this foreground-specific test
+        // fail before it reached the handoff under CI. Expose the already
+        // created launcher without activation, then opportunistically acquire
+        // foreground only when USER32 permits it.
+        ShowWindow(
+            window.hwnd_,
+            SW_SHOWNOACTIVATE);
         assert(window.IsVisible());
 
         bool foregroundObservable =
+            SetForegroundWindow(
+                window.hwnd_) != FALSE &&
             GetForegroundWindow() ==
                 window.hwnd_;
-
-        if (!foregroundObservable) {
-            foregroundObservable =
-                SetForegroundWindow(
-                    window.hwnd_) != FALSE &&
-                GetForegroundWindow() ==
-                    window.hwnd_;
-        }
 
         SendMessageW(
             window.hwnd_,
