@@ -14,6 +14,9 @@ namespace {
 constexpr UINT_PTR kNextComboSubclassId =
     0xC0B0;
 
+constexpr UINT_PTR kNextComboListSubclassId =
+    0xC0B1;
+
 [[nodiscard]] UINT ComboDpi(
     HWND combo) noexcept {
 
@@ -554,6 +557,168 @@ void DrawNextComboBoxSurface(
         buffer);
 }
 
+void DrawNextComboListFrame(
+    HWND list,
+    HDC dc) {
+
+    if (!list ||
+        !dc) {
+        return;
+    }
+
+    RECT rect{};
+    GetClientRect(
+        list,
+        &rect);
+
+    if (rect.right <= rect.left ||
+        rect.bottom <= rect.top) {
+        return;
+    }
+
+    HBRUSH frame =
+        CreateSolidBrush(
+            kApplicationPalette.frame);
+    FrameRect(
+        dc,
+        &rect,
+        frame);
+    DeleteObject(
+        frame);
+}
+
+LRESULT CALLBACK NextComboListSubclassProc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    UINT_PTR subclassId,
+    DWORD_PTR) {
+
+    switch (message) {
+    case WM_PAINT: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        HDC dc =
+            GetDC(
+                hwnd);
+        if (dc) {
+            DrawNextComboListFrame(
+                hwnd,
+                dc);
+            ReleaseDC(
+                hwnd,
+                dc);
+        }
+
+        return result;
+    }
+
+    case WM_PRINTCLIENT: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+        DrawNextComboListFrame(
+            hwnd,
+            reinterpret_cast<HDC>(
+                wParam));
+        return result;
+    }
+
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(
+            hwnd,
+            NextComboListSubclassProc,
+            subclassId);
+        break;
+
+    default:
+        break;
+    }
+
+    return DefSubclassProc(
+        hwnd,
+        message,
+        wParam,
+        lParam);
+}
+
+void ApplyNextComboListVisuals(
+    HWND list) {
+
+    if (!list) {
+        return;
+    }
+
+    SetWindowSubclass(
+        list,
+        NextComboListSubclassProc,
+        kNextComboListSubclassId,
+        0);
+
+    const LONG_PTR style =
+        GetWindowLongPtrW(
+            list,
+            GWL_STYLE);
+    const LONG_PTR desiredStyle =
+        style &
+        ~static_cast<LONG_PTR>(
+            WS_BORDER);
+
+    const LONG_PTR exStyle =
+        GetWindowLongPtrW(
+            list,
+            GWL_EXSTYLE);
+    const LONG_PTR desiredExStyle =
+        exStyle &
+        ~static_cast<LONG_PTR>(
+            WS_EX_CLIENTEDGE |
+            WS_EX_STATICEDGE);
+
+    bool frameChanged = false;
+
+    if (desiredStyle !=
+        style) {
+        SetWindowLongPtrW(
+            list,
+            GWL_STYLE,
+            desiredStyle);
+        frameChanged = true;
+    }
+
+    if (desiredExStyle !=
+        exStyle) {
+        SetWindowLongPtrW(
+            list,
+            GWL_EXSTYLE,
+            desiredExStyle);
+        frameChanged = true;
+    }
+
+    if (frameChanged) {
+        SetWindowPos(
+            list,
+            nullptr,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_FRAMECHANGED);
+    }
+}
+
 LRESULT CALLBACK NextComboSubclassProc(
     HWND hwnd,
     UINT message,
@@ -895,6 +1060,9 @@ void MoveNextComboBox(
             combo,
             &comboInfo) &&
         comboInfo.hwndList) {
+        ApplyNextComboListVisuals(
+            comboInfo.hwndList);
+
         const bool needsScroll =
             itemCount >
             visibleItems;
