@@ -379,6 +379,54 @@ inline constexpr int
 
 inline constexpr int
     kSettingsComboRowLogical = 54;
+
+// Shared Next ComboBox geometry. Keep every Asterun dropdown on one sizing
+// contract so short lists never grow a pointless scrollbar and future
+// consumers do not invent window-specific dropdown heights.
+inline constexpr int
+    kNextComboBoxItemHeightLogical = 30;
+inline constexpr int
+    kNextComboBoxChromeHeightLogical = 4;
+inline constexpr std::size_t
+    kNextComboBoxMaxVisibleItems = 6;
+
+[[nodiscard]] constexpr std::size_t
+NextComboBoxVisibleItems(
+    std::size_t itemCount,
+    std::size_t maxVisibleItems =
+        kNextComboBoxMaxVisibleItems) noexcept {
+
+    return maxVisibleItems == 0
+        ? 0
+        : std::min(
+              itemCount,
+              maxVisibleItems);
+}
+
+[[nodiscard]] constexpr int
+NextComboBoxDropHeightForDpi(
+    std::size_t itemCount,
+    unsigned dpi,
+    std::size_t maxVisibleItems =
+        kNextComboBoxMaxVisibleItems) noexcept {
+
+    const auto visibleItems =
+        NextComboBoxVisibleItems(
+            itemCount,
+            maxVisibleItems);
+
+    return
+        Scale(
+            kNextComboBoxItemHeightLogical,
+            dpi) *
+            (1 +
+             static_cast<int>(
+                 visibleItems)) +
+        Scale(
+            kNextComboBoxChromeHeightLogical,
+            dpi);
+}
+
 inline constexpr int
     kSettingsCardRadiusLogical = 8;
 inline constexpr int
