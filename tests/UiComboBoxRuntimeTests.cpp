@@ -337,12 +337,9 @@ int main() {
     int closedChevronPixels = 0;
     int expandedChevronPixels = 0;
     const int arrowLeft =
-        std::max(
-            0,
-            comboWidth -
-                altrun::ui::Scale(
-                    36,
-                    96));
+        comboWidth > 36
+            ? comboWidth - 36
+            : 0;
 
     for (int y = 0;
          y < comboHeight;
