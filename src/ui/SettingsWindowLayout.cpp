@@ -187,9 +187,10 @@ RECT SettingsWindow::ContentPaneRect() const {
     client.left =
         std::min(
             client.right,
-            Scale(
-                kSidebarWidthLogical) +
-                1);
+            static_cast<LONG>(
+                Scale(
+                    kSidebarWidthLogical) +
+                1));
     return client;
 }
 
