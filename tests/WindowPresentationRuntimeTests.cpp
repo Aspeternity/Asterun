@@ -371,6 +371,60 @@ int main() {
                 0);
             assertNoNativeSettingsScroll();
 
+            // Wheel scrolling must move the active page immediately without
+            // reviving the native scrollbar. Returning to the original offset
+            // also verifies that the synchronous repaint path leaves layout
+            // coordinates stable.
+            const HWND startWithWindows =
+                GetDlgItem(
+                    window,
+                    51100);
+            assert(startWithWindows);
+
+            RECT beforeWheel{};
+            RECT afterWheelDown{};
+            RECT afterWheelUp{};
+
+            assert(GetWindowRect(
+                startWithWindows,
+                &beforeWheel));
+
+            SendMessageW(
+                window,
+                WM_MOUSEWHEEL,
+                MAKEWPARAM(
+                    0,
+                    static_cast<WORD>(
+                        static_cast<SHORT>(
+                            -WHEEL_DELTA))),
+                0);
+
+            assert(GetWindowRect(
+                startWithWindows,
+                &afterWheelDown));
+            assert(
+                afterWheelDown.top <
+                beforeWheel.top);
+            assertNoNativeSettingsScroll();
+
+            SendMessageW(
+                window,
+                WM_MOUSEWHEEL,
+                MAKEWPARAM(
+                    0,
+                    static_cast<WORD>(
+                        static_cast<SHORT>(
+                            WHEEL_DELTA))),
+                0);
+
+            assert(GetWindowRect(
+                startWithWindows,
+                &afterWheelUp));
+            assert(
+                afterWheelUp.top ==
+                beforeWheel.top);
+            assertNoNativeSettingsScroll();
+
             for (const UINT pageId :
                  {51005u, 51002u}) {
                 SendMessageW(
