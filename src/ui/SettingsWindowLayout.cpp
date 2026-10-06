@@ -189,13 +189,12 @@ void SettingsWindow::LayoutGeneral() {
                     Scale(16)),
             Scale(24),
             TRUE);
-        MoveWindow(
+        ui::MoveNextComboBox(
             startupBehavior_,
             startupComboX,
             startupTop + Scale(10),
             startupComboWidth,
-            Scale(180),
-            TRUE);
+            dpi_);
 
         const int trayTop = startupTop + comboRowHeight;
         MoveWindow(showTrayIcon_, behaviorX, trayTop, behaviorWidth, toggleHeight, TRUE);
@@ -283,13 +282,12 @@ void SettingsWindow::LayoutGeneral() {
                 Scale(24),
                 TRUE);
 
-            MoveWindow(
+            ui::MoveNextComboBox(
                 combo,
                 comboX,
                 top + Scale(10),
                 comboWidth,
-                Scale(180),
-                TRUE);
+                dpi_);
         }
     }
 
@@ -667,13 +665,12 @@ void SettingsWindow::LayoutAppearance(int contentLeft, int contentWidth) {
                     Scale(16)),
             Scale(24),
             TRUE);
-        MoveWindow(
+        ui::MoveNextComboBox(
             uiStyle_,
             styleComboX,
             Scale(158),
             styleComboWidth,
-            Scale(180),
-            TRUE);
+            dpi_);
 
         MoveWindow(
             appearanceAppTitle_,
@@ -695,13 +692,12 @@ void SettingsWindow::LayoutAppearance(int contentLeft, int contentWidth) {
                     Scale(16)),
             Scale(24),
             TRUE);
-        MoveWindow(
+        ui::MoveNextComboBox(
             language_,
             languageComboX,
             Scale(282),
             languageComboWidth,
-            Scale(180),
-            TRUE);
+            dpi_);
     }
 
 void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
