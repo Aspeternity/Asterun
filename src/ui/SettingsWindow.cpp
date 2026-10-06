@@ -6489,7 +6489,203 @@ LRESULT SettingsWindow::HandleMessage(
         break;
     }
 
-    case WM_LBUTTONDOWN:
+    case WM_MOUSEMOVE: {
+        POINTS raw =
+            MAKEPOINTS(lParam);
+        POINT point{
+            raw.x,
+            raw.y,
+        };
+
+        if (pageScrollDragging_) {
+            const RECT track =
+                PageScrollTrackRect();
+            const RECT thumb =
+                PageScrollThumbRect();
+            const int maximum =
+                PageScrollMaximum();
+            const int travel =
+                std::max(
+                    1,
+                    (track.bottom -
+                     track.top) -
+                        (thumb.bottom -
+                         thumb.top));
+            int& offset =
+                page_ == Page::General
+                    ? generalScrollOffset_
+                    : hotkeyScrollOffset_;
+            const int next =
+                std::clamp(
+                    pageScrollDragStartOffset_ +
+                        static_cast<int>(
+                            (static_cast<long long>(
+                                 point.y -
+                                 pageScrollDragAnchorY_) *
+                             maximum) /
+                            travel),
+                    0,
+                    maximum);
+
+            if (next != offset) {
+                offset = next;
+                Layout();
+                RedrawWindow(
+                    hwnd_,
+                    nullptr,
+                    nullptr,
+                    RDW_INVALIDATE |
+                        RDW_ERASE |
+                        RDW_ALLCHILDREN |
+                        RDW_UPDATENOW);
+            }
+            return 0;
+        }
+
+        const RECT track =
+            PageScrollTrackRect();
+        const bool hovered =
+            PageScrollMaximum() > 0 &&
+            PtInRect(
+                &track,
+                point) != FALSE;
+
+        if (hovered !=
+            pageScrollHovered_) {
+            pageScrollHovered_ =
+                hovered;
+            InvalidateRect(
+                hwnd_,
+                &track,
+                FALSE);
+        }
+
+        if (hovered) {
+            TRACKMOUSEEVENT trackMouse{
+                sizeof(trackMouse),
+                TME_LEAVE,
+                hwnd_,
+                0,
+            };
+            TrackMouseEvent(
+                &trackMouse);
+        }
+        break;
+    }
+
+    case WM_MOUSELEAVE:
+        if (!pageScrollDragging_ &&
+            pageScrollHovered_) {
+            const RECT track =
+                PageScrollTrackRect();
+            pageScrollHovered_ = false;
+            InvalidateRect(
+                hwnd_,
+                &track,
+                FALSE);
+        }
+        return 0;
+
+    case WM_LBUTTONDOWN: {
+        dismissComboFocus();
+
+        if (!capturingHotkeyActionId_
+                 .empty()) {
+            CancelHotkeyCapture();
+        }
+
+        POINTS raw =
+            MAKEPOINTS(lParam);
+        POINT point{
+            raw.x,
+            raw.y,
+        };
+        const RECT track =
+            PageScrollTrackRect();
+
+        if (PageScrollMaximum() > 0 &&
+            PtInRect(
+                &track,
+                point)) {
+            const RECT thumb =
+                PageScrollThumbRect();
+
+            pageScrollHovered_ = true;
+
+            if (PtInRect(
+                    &thumb,
+                    point)) {
+                pageScrollDragging_ = true;
+                pageScrollDragAnchorY_ =
+                    point.y;
+                pageScrollDragStartOffset_ =
+                    page_ == Page::General
+                        ? generalScrollOffset_
+                        : hotkeyScrollOffset_;
+                SetCapture(
+                    hwnd_);
+            } else {
+                RECT client{};
+                GetClientRect(
+                    hwnd_,
+                    &client);
+                const int pageStep =
+                    page_ == Page::Hotkeys
+                        ? std::max(
+                              Scale(80),
+                              static_cast<int>(
+                                  HotkeyScrollViewport()
+                                      .bottom -
+                                  HotkeyScrollViewport()
+                                      .top) -
+                                  Scale(40))
+                        : std::max(
+                              Scale(80),
+                              static_cast<int>(
+                                  client.bottom) -
+                                  Scale(80));
+
+                ScrollCurrentPage(
+                    point.y <
+                            thumb.top
+                        ? -pageStep
+                        : pageStep);
+            }
+
+            InvalidateRect(
+                hwnd_,
+                &track,
+                FALSE);
+            return 0;
+        }
+        break;
+    }
+
+    case WM_LBUTTONUP:
+        if (pageScrollDragging_) {
+            pageScrollDragging_ = false;
+            if (GetCapture() ==
+                hwnd_) {
+                ReleaseCapture();
+            }
+            InvalidateRect(
+                hwnd_,
+                nullptr,
+                FALSE);
+            return 0;
+        }
+        break;
+
+    case WM_CAPTURECHANGED:
+        if (pageScrollDragging_) {
+            pageScrollDragging_ = false;
+            InvalidateRect(
+                hwnd_,
+                nullptr,
+                FALSE);
+        }
+        break;
+
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:
         dismissComboFocus();
@@ -7000,68 +7196,7 @@ LRESULT SettingsWindow::HandleMessage(
     }
 
     case WM_VSCROLL:
-        if (page_ == Page::General ||
-            page_ == Page::Hotkeys) {
-            SCROLLINFO info{};
-            info.cbSize =
-                sizeof(info);
-            info.fMask =
-                SIF_ALL;
-
-            GetScrollInfo(
-                hwnd_,
-                SB_VERT,
-                &info);
-
-            const int current =
-                page_ == Page::General
-                    ? generalScrollOffset_
-                    : hotkeyScrollOffset_;
-            int next =
-                current;
-
-            switch (LOWORD(wParam)) {
-            case SB_LINEUP:
-                next -= Scale(40);
-                break;
-            case SB_LINEDOWN:
-                next += Scale(40);
-                break;
-            case SB_PAGEUP:
-                next -=
-                    static_cast<int>(
-                        info.nPage);
-                break;
-            case SB_PAGEDOWN:
-                next +=
-                    static_cast<int>(
-                        info.nPage);
-                break;
-            case SB_THUMBPOSITION:
-            case SB_THUMBTRACK:
-                next =
-                    info.nTrackPos;
-                break;
-            case SB_TOP:
-                next = 0;
-                break;
-            case SB_BOTTOM:
-                next =
-                    std::max(
-                        0,
-                        info.nMax -
-                            static_cast<int>(
-                                info.nPage) +
-                            1);
-                break;
-            default:
-                return 0;
-            }
-
-            ScrollCurrentPage(
-                next -
-                    current);
-        }
+        // Native non-client scrollbars are intentionally disabled.
         return 0;
 
     case WM_MOUSEWHEEL:
@@ -7461,6 +7596,9 @@ LRESULT SettingsWindow::HandleMessage(
                     174,
                     560));
         }
+
+        DrawPageScrollBar(
+            dc);
 
         EndPaint(
             hwnd_,
