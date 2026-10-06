@@ -570,21 +570,37 @@ void DrawNextComboBoxSurface(
 }
 
 void DrawNextComboListFrame(
-    HWND list,
-    HDC dc) {
+    HWND list) {
 
-    if (!list ||
-        !dc) {
+    if (!list) {
         return;
     }
 
-    RECT rect{};
-    GetClientRect(
-        list,
-        &rect);
+    RECT windowRect{};
+    if (!GetWindowRect(
+            list,
+            &windowRect)) {
+        return;
+    }
 
-    if (rect.right <= rect.left ||
-        rect.bottom <= rect.top) {
+    RECT frameRect{
+        0,
+        0,
+        windowRect.right -
+            windowRect.left,
+        windowRect.bottom -
+            windowRect.top,
+    };
+
+    if (frameRect.right <= 0 ||
+        frameRect.bottom <= 0) {
+        return;
+    }
+
+    HDC dc =
+        GetWindowDC(
+            list);
+    if (!dc) {
         return;
     }
 
@@ -593,10 +609,14 @@ void DrawNextComboListFrame(
             kApplicationPalette.frame);
     FrameRect(
         dc,
-        &rect,
+        &frameRect,
         frame);
     DeleteObject(
         frame);
+
+    ReleaseDC(
+        list,
+        dc);
 }
 
 LRESULT CALLBACK NextComboListSubclassProc(
@@ -616,22 +636,12 @@ LRESULT CALLBACK NextComboListSubclassProc(
                 wParam,
                 lParam);
 
-        HDC dc =
-            GetDC(
-                hwnd);
-        if (dc) {
-            DrawNextComboListFrame(
-                hwnd,
-                dc);
-            ReleaseDC(
-                hwnd,
-                dc);
-        }
-
+        DrawNextComboListFrame(
+            hwnd);
         return result;
     }
 
-    case WM_PRINTCLIENT: {
+    case WM_NCPAINT: {
         const LRESULT result =
             DefSubclassProc(
                 hwnd,
@@ -639,9 +649,7 @@ LRESULT CALLBACK NextComboListSubclassProc(
                 wParam,
                 lParam);
         DrawNextComboListFrame(
-            hwnd,
-            reinterpret_cast<HDC>(
-                wParam));
+            hwnd);
         return result;
     }
 
