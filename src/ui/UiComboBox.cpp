@@ -1,4 +1,5 @@
 #include "UiComboBox.hpp"
+#include "UiComboPopup.hpp"
 
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
@@ -648,19 +649,12 @@ LRESULT CALLBACK NextComboSubclassProc(
 
     case WM_MOUSEWHEEL:
     case WM_MOUSEHWHEEL: {
-        const bool dropped =
-            SendMessageW(
-                hwnd,
-                CB_GETDROPPEDSTATE,
-                0,
-                0) != 0;
-
-        if (dropped) {
-            return DefSubclassProc(
+        if (HandleNextComboPopupWheel(
                 hwnd,
                 message,
                 wParam,
-                lParam);
+                lParam)) {
+            return 0;
         }
 
         HWND parent =
@@ -678,27 +672,105 @@ LRESULT CALLBACK NextComboSubclassProc(
         return 0;
     }
 
+    case CB_GETDROPPEDSTATE:
+        return IsNextComboPopupVisible(
+                   hwnd)
+            ? TRUE
+            : FALSE;
+
     case CB_SHOWDROPDOWN: {
+        const bool show =
+            wParam != FALSE;
+
+        if (show) {
+            SetFocus(
+                hwnd);
+            SetTrackedDroppedState(
+                hwnd,
+                true);
+
+            if (!ShowNextComboPopup(
+                    hwnd,
+                    ComboDpi(
+                        hwnd))) {
+                SetTrackedDroppedState(
+                    hwnd,
+                    false);
+                InvalidateRect(
+                    hwnd,
+                    nullptr,
+                    FALSE);
+                return FALSE;
+            }
+
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+            return TRUE;
+        }
+
+        HideNextComboPopup(
+            hwnd,
+            true);
         SetTrackedDroppedState(
             hwnd,
-            wParam != FALSE);
-
-        const LRESULT result =
-            DefSubclassProc(
-                hwnd,
-                message,
-                wParam,
-                lParam);
-
+            false);
         InvalidateRect(
             hwnd,
             nullptr,
             FALSE);
-        return result;
+        return TRUE;
     }
 
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS: {
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN: {
+        if (HandleNextComboPopupKey(
+                hwnd,
+                message,
+                wParam,
+                lParam)) {
+            return 0;
+        }
+
+        const bool altDown =
+            (GetKeyState(
+                 VK_MENU) &
+             0x8000) != 0;
+
+        if (wParam == VK_F4 ||
+            (altDown &&
+             wParam == VK_DOWN)) {
+            SetFocus(
+                hwnd);
+            SetTrackedDroppedState(
+                hwnd,
+                true);
+
+            if (!ShowNextComboPopup(
+                    hwnd,
+                    ComboDpi(
+                        hwnd))) {
+                SetTrackedDroppedState(
+                    hwnd,
+                    false);
+            }
+
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+            return 0;
+        }
+
+        return DefSubclassProc(
+            hwnd,
+            message,
+            wParam,
+            lParam);
+    }
+
+    case WM_SETFOCUS: {
         const LRESULT result =
             DefSubclassProc(
                 hwnd,
@@ -716,11 +788,72 @@ LRESULT CALLBACK NextComboSubclassProc(
         return result;
     }
 
+    case WM_KILLFOCUS: {
+        HideNextComboPopup(
+            hwnd,
+            true);
+        SetTrackedDroppedState(
+            hwnd,
+            false);
+
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        RedrawWindow(
+            hwnd,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_NOERASE |
+                RDW_UPDATENOW);
+        return result;
+    }
+
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONDBLCLK: {
+        SetFocus(
+            hwnd);
+
+        if (IsNextComboPopupVisible(
+                hwnd)) {
+            HideNextComboPopup(
+                hwnd,
+                true);
+            SetTrackedDroppedState(
+                hwnd,
+                false);
+        } else {
+            SetTrackedDroppedState(
+                hwnd,
+                true);
+
+            if (!ShowNextComboPopup(
+                    hwnd,
+                    ComboDpi(
+                        hwnd))) {
+                SetTrackedDroppedState(
+                    hwnd,
+                    false);
+            }
+        }
+
+        InvalidateRect(
+            hwnd,
+            nullptr,
+            FALSE);
+        return 0;
+    }
+
+    case WM_LBUTTONUP:
+        return 0;
+
     case CB_SETCURSEL:
     case WM_SETFONT:
-    case WM_ENABLE:
-    case WM_LBUTTONDOWN:
-    case WM_LBUTTONUP: {
+    case WM_ENABLE: {
         const LRESULT result =
             DefSubclassProc(
                 hwnd,
@@ -736,6 +869,8 @@ LRESULT CALLBACK NextComboSubclassProc(
     }
 
     case WM_NCDESTROY:
+        DestroyNextComboPopup(
+            hwnd);
         RemovePropW(
             hwnd,
             kNextComboHoveredProperty);
