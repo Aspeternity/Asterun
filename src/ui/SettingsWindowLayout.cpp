@@ -93,6 +93,22 @@ void SettingsWindow::Layout() {
         navHeight,
         TRUE);
 
+    LayoutCurrentPage();
+}
+
+void SettingsWindow::LayoutCurrentPage() {
+    if (!hwnd_) {
+        return;
+    }
+
+    RECT client{};
+    GetClientRect(
+        hwnd_,
+        &client);
+
+    const int sidebar =
+        Scale(
+            kSidebarWidthLogical);
     const int contentLeft =
         sidebar +
         Scale(
@@ -108,7 +124,6 @@ void SettingsWindow::Layout() {
             Scale(360),
             contentRight -
                 contentLeft);
-
     const int pageScroll =
         page_ == Page::General
             ? generalScrollOffset_
@@ -126,13 +141,73 @@ void SettingsWindow::Layout() {
         TRUE);
 
     switch (page_) {
-    case Page::General: LayoutGeneral(); break;
-    case Page::Hotkeys: LayoutHotkeys(client, contentLeft, contentWidth); break;
-    case Page::Providers: LayoutProviders(contentLeft, contentWidth); break;
-    case Page::Appearance: LayoutAppearance(contentLeft, contentWidth); break;
-    case Page::Data: LayoutData(contentLeft, contentWidth); break;
-    case Page::About: LayoutAbout(contentLeft, contentWidth); break;
+    case Page::General:
+        LayoutGeneral();
+        break;
+    case Page::Hotkeys:
+        LayoutHotkeys(
+            client,
+            contentLeft,
+            contentWidth);
+        break;
+    case Page::Providers:
+        LayoutProviders(
+            contentLeft,
+            contentWidth);
+        break;
+    case Page::Appearance:
+        LayoutAppearance(
+            contentLeft,
+            contentWidth);
+        break;
+    case Page::Data:
+        LayoutData(
+            contentLeft,
+            contentWidth);
+        break;
+    case Page::About:
+        LayoutAbout(
+            contentLeft,
+            contentWidth);
+        break;
     }
+}
+
+RECT SettingsWindow::ContentPaneRect() const {
+    RECT client{};
+
+    if (!hwnd_) {
+        return client;
+    }
+
+    GetClientRect(
+        hwnd_,
+        &client);
+
+    client.left =
+        std::min(
+            client.right,
+            Scale(
+                kSidebarWidthLogical) +
+                1);
+    return client;
+}
+
+void SettingsWindow::RedrawCurrentPage() {
+    if (!hwnd_) {
+        return;
+    }
+
+    RECT content =
+        ContentPaneRect();
+
+    RedrawWindow(
+        hwnd_,
+        &content,
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_NOERASE |
+            RDW_ALLCHILDREN);
 }
 
 void SettingsWindow::LayoutGeneral() {
