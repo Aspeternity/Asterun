@@ -921,6 +921,16 @@ void DrawNextComboBoxItem(
     const DRAWITEMSTRUCT& item,
     UINT dpi) {
 
+    // CBS_OWNERDRAWFIXED asks the parent to draw both the popup list items
+    // and the closed selection field. The closed field is already painted
+    // completely by NextComboSubclassProc; touching it here can leave native
+    // owner-draw artifacts at the button/selection boundary while the popup
+    // opens or closes.
+    if ((item.itemState &
+         ODS_COMBOBOXEDIT) != 0) {
+        return;
+    }
+
     RECT rect =
         item.rcItem;
 
