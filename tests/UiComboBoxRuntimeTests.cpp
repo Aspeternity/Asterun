@@ -21,6 +21,7 @@ int gSelectionCancelNotifications = 0;
 UINT gQuietMoveFlags = 0;
 int gQuietMoveNotifications = 0;
 bool gQuietMoveSawNoRedrawNoCopy = false;
+int gQuietMoveMetricMutations = 0;
 
 LRESULT CALLBACK ParentProc(
     HWND hwnd,
@@ -90,6 +91,11 @@ LRESULT CALLBACK QuietMoveProbe(
                     true;
             }
         }
+    }
+
+    if (message == CB_SETITEMHEIGHT ||
+        message == CB_SETMINVISIBLE) {
+        ++gQuietMoveMetricMutations;
     }
 
     if (message == WM_NCDESTROY) {
@@ -179,6 +185,16 @@ int main() {
                     item)) != CB_ERR);
     }
 
+    // Establish the same metrics the real Settings window applies during
+    // font/DPI setup. The scroll-only move below must not touch them again.
+    altrun::ui::
+        ApplyNextComboBoxMetrics(
+            combo,
+            96);
+    ValidateRect(
+        combo,
+        nullptr);
+
     assert(SetWindowSubclass(
         combo,
         QuietMoveProbe,
@@ -188,6 +204,7 @@ int main() {
     gQuietMoveFlags = 0;
     gQuietMoveNotifications = 0;
     gQuietMoveSawNoRedrawNoCopy = false;
+    gQuietMoveMetricMutations = 0;
 
     altrun::ui::
         MoveNextComboBox(
@@ -206,6 +223,16 @@ int main() {
     // actual move produced at least one position change carrying both flags.
     assert(
         gQuietMoveSawNoRedrawNoCopy);
+    assert(
+        gQuietMoveMetricMutations ==
+        0);
+
+    RECT pendingPaint{};
+    assert(
+        !GetUpdateRect(
+            combo,
+            &pendingPaint,
+            FALSE));
 
     assert(
         SendMessageW(
