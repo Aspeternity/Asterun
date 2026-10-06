@@ -386,7 +386,7 @@ inline constexpr int
 inline constexpr int
     kNextComboBoxItemHeightLogical = 30;
 inline constexpr int
-    kNextComboBoxChromeHeightLogical = 4;
+    kNextComboBoxChromeHeightLogical = 14;
 inline constexpr std::size_t
     kNextComboBoxMaxVisibleItems = 6;
 
