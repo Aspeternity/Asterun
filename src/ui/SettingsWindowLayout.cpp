@@ -208,7 +208,8 @@ void SettingsWindow::RedrawCurrentPage() {
         nullptr,
         RDW_INVALIDATE |
             RDW_NOERASE |
-            RDW_ALLCHILDREN);
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
 }
 
 void SettingsWindow::LayoutGeneral() {
