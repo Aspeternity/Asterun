@@ -14,9 +14,6 @@ namespace {
 constexpr UINT_PTR kNextComboSubclassId =
     0xC0B0;
 
-constexpr UINT_PTR kNextComboListSubclassId =
-    0xC0B1;
-
 [[nodiscard]] UINT ComboDpi(
     HWND combo) noexcept {
 
@@ -222,9 +219,7 @@ void DrawNextComboBoxSurfaceDirect(
             border);
 
     const int radius =
-        Scale(
-            kNextComboBoxCornerRadiusLogical,
-            dpi);
+        Scale(6, dpi);
 
     RoundRect(
         dc,
@@ -247,9 +242,7 @@ void DrawNextComboBoxSurfaceDirect(
         border);
 
     const int arrowAreaWidth =
-        Scale(
-            kNextComboBoxArrowAreaWidthLogical,
-            dpi);
+        Scale(36, dpi);
     RECT arrowArea{
         std::max(
             surface.left,
@@ -284,12 +277,8 @@ void DrawNextComboBoxSurfaceDirect(
             arrowArea;
         InflateRect(
             &buttonRect,
-            -Scale(
-                kNextComboBoxArrowButtonInsetLogical,
-                dpi),
-            -Scale(
-                kNextComboBoxArrowButtonInsetLogical,
-                dpi));
+            -Scale(4, dpi),
+            -Scale(4, dpi));
 
         HBRUSH buttonFill =
             CreateSolidBrush(
@@ -307,9 +296,7 @@ void DrawNextComboBoxSurfaceDirect(
                     NULL_PEN));
 
         const int buttonRadius =
-            Scale(
-                kNextComboBoxCornerRadiusLogical,
-                dpi);
+            Scale(6, dpi);
 
         RoundRect(
             dc,
@@ -449,9 +436,7 @@ void DrawNextComboBoxSurfaceDirect(
 
     RECT textRect{
         surface.left +
-            Scale(
-                kNextComboBoxTextInsetLogical,
-                dpi),
+            Scale(12, dpi),
         surface.top,
         arrowArea.left -
             Scale(6, dpi),
@@ -567,176 +552,6 @@ void DrawNextComboBoxSurface(
         bitmap);
     DeleteDC(
         buffer);
-}
-
-void DrawNextComboListFrame(
-    HWND list) {
-
-    if (!list) {
-        return;
-    }
-
-    RECT windowRect{};
-    if (!GetWindowRect(
-            list,
-            &windowRect)) {
-        return;
-    }
-
-    RECT frameRect{
-        0,
-        0,
-        windowRect.right -
-            windowRect.left,
-        windowRect.bottom -
-            windowRect.top,
-    };
-
-    if (frameRect.right <= 0 ||
-        frameRect.bottom <= 0) {
-        return;
-    }
-
-    HDC dc =
-        GetWindowDC(
-            list);
-    if (!dc) {
-        return;
-    }
-
-    HBRUSH frame =
-        CreateSolidBrush(
-            kApplicationPalette.frame);
-    FrameRect(
-        dc,
-        &frameRect,
-        frame);
-    DeleteObject(
-        frame);
-
-    ReleaseDC(
-        list,
-        dc);
-}
-
-LRESULT CALLBACK NextComboListSubclassProc(
-    HWND hwnd,
-    UINT message,
-    WPARAM wParam,
-    LPARAM lParam,
-    UINT_PTR subclassId,
-    DWORD_PTR) {
-
-    switch (message) {
-    case WM_PAINT: {
-        const LRESULT result =
-            DefSubclassProc(
-                hwnd,
-                message,
-                wParam,
-                lParam);
-
-        DrawNextComboListFrame(
-            hwnd);
-        return result;
-    }
-
-    case WM_NCPAINT: {
-        const LRESULT result =
-            DefSubclassProc(
-                hwnd,
-                message,
-                wParam,
-                lParam);
-        DrawNextComboListFrame(
-            hwnd);
-        return result;
-    }
-
-    case WM_NCDESTROY:
-        RemoveWindowSubclass(
-            hwnd,
-            NextComboListSubclassProc,
-            subclassId);
-        break;
-
-    default:
-        break;
-    }
-
-    return DefSubclassProc(
-        hwnd,
-        message,
-        wParam,
-        lParam);
-}
-
-void ApplyNextComboListVisuals(
-    HWND list) {
-
-    if (!list) {
-        return;
-    }
-
-    SetWindowSubclass(
-        list,
-        NextComboListSubclassProc,
-        kNextComboListSubclassId,
-        0);
-
-    const LONG_PTR style =
-        GetWindowLongPtrW(
-            list,
-            GWL_STYLE);
-    const LONG_PTR desiredStyle =
-        style &
-        ~static_cast<LONG_PTR>(
-            WS_BORDER);
-
-    const LONG_PTR exStyle =
-        GetWindowLongPtrW(
-            list,
-            GWL_EXSTYLE);
-    const LONG_PTR desiredExStyle =
-        exStyle &
-        ~static_cast<LONG_PTR>(
-            WS_EX_CLIENTEDGE |
-            WS_EX_STATICEDGE);
-
-    bool frameChanged = false;
-
-    if (desiredStyle !=
-        style) {
-        SetWindowLongPtrW(
-            list,
-            GWL_STYLE,
-            desiredStyle);
-        frameChanged = true;
-    }
-
-    if (desiredExStyle !=
-        exStyle) {
-        SetWindowLongPtrW(
-            list,
-            GWL_EXSTYLE,
-            desiredExStyle);
-        frameChanged = true;
-    }
-
-    if (frameChanged) {
-        SetWindowPos(
-            list,
-            nullptr,
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE |
-                SWP_NOSIZE |
-                SWP_NOZORDER |
-                SWP_NOACTIVATE |
-                SWP_FRAMECHANGED);
-    }
 }
 
 LRESULT CALLBACK NextComboSubclassProc(
@@ -1080,9 +895,6 @@ void MoveNextComboBox(
             combo,
             &comboInfo) &&
         comboInfo.hwndList) {
-        ApplyNextComboListVisuals(
-            comboInfo.hwndList);
-
         const bool needsScroll =
             itemCount >
             visibleItems;
@@ -1357,9 +1169,7 @@ void DrawNextComboBoxItem(
             RECT textRect =
                 rect;
             textRect.left +=
-                Scale(
-                    kNextComboBoxTextInsetLogical,
-                    dpi);
+                Scale(12, dpi);
             textRect.right -=
                 Scale(6, dpi);
 
@@ -1408,66 +1218,20 @@ void DrawNextComboBoxItem(
         (item.itemState &
          ODS_DISABLED) != 0;
 
-    HBRUSH background =
+    const COLORREF background =
+        selected
+            ? RGB(231, 242, 252)
+            : RGB(255, 255, 255);
+
+    HBRUSH fill =
         CreateSolidBrush(
-            kApplicationPalette
-                .controlBackground);
+            background);
     FillRect(
         item.hDC,
         &rect,
-        background);
+        fill);
     DeleteObject(
-        background);
-
-    if (selected) {
-        RECT selection =
-            rect;
-        InflateRect(
-            &selection,
-            -Scale(
-                kNextComboBoxPopupSelectionInsetXLogical,
-                dpi),
-            -Scale(
-                kNextComboBoxPopupSelectionInsetYLogical,
-                dpi));
-
-        HBRUSH selectionFill =
-            CreateSolidBrush(
-                kApplicationPalette
-                    .selectionBackground);
-        HGDIOBJ oldBrush =
-            SelectObject(
-                item.hDC,
-                selectionFill);
-        HGDIOBJ oldPen =
-            SelectObject(
-                item.hDC,
-                GetStockObject(
-                    NULL_PEN));
-
-        const int selectionRadius =
-            Scale(
-                kNextComboBoxPopupSelectionRadiusLogical,
-                dpi);
-
-        RoundRect(
-            item.hDC,
-            selection.left,
-            selection.top,
-            selection.right,
-            selection.bottom,
-            selectionRadius,
-            selectionRadius);
-
-        SelectObject(
-            item.hDC,
-            oldPen);
-        SelectObject(
-            item.hDC,
-            oldBrush);
-        DeleteObject(
-            selectionFill);
-    }
+        fill);
 
     if (item.itemID ==
             static_cast<UINT>(-1)) {
@@ -1486,13 +1250,9 @@ void DrawNextComboBoxItem(
     RECT textRect =
         rect;
     textRect.left +=
-        Scale(
-            kNextComboBoxTextInsetLogical,
-            dpi);
+        Scale(12, dpi);
     textRect.right -=
-        Scale(
-            kNextComboBoxTextInsetLogical,
-            dpi);
+        Scale(12, dpi);
 
     SetBkMode(
         item.hDC,
@@ -1501,9 +1261,7 @@ void DrawNextComboBoxItem(
         item.hDC,
         disabled
             ? kApplicationPalette.mutedText
-            : selected
-                ? kApplicationPalette.selectionText
-                : kApplicationPalette.text);
+            : kApplicationPalette.text);
 
     HGDIOBJ oldFont =
         SelectObject(
@@ -1535,16 +1293,11 @@ LRESULT ColorNextComboBoxList(
         kApplicationPalette.text);
     SetBkColor(
         dc,
-        kApplicationPalette
-            .controlBackground);
-
-    static HBRUSH background =
-        CreateSolidBrush(
-            kApplicationPalette
-                .controlBackground);
+        RGB(255, 255, 255));
 
     return reinterpret_cast<LRESULT>(
-        background);
+        GetStockObject(
+            WHITE_BRUSH));
 }
 
 } // namespace altrun::ui
