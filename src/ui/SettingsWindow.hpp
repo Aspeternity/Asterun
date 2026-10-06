@@ -167,6 +167,9 @@ private:
     void CreateAboutPage();
     void ApplyFonts();
     void Layout();
+    void LayoutCurrentPage();
+    [[nodiscard]] RECT ContentPaneRect() const;
+    void RedrawCurrentPage();
     void LayoutGeneral();
     void LayoutHotkeys(RECT client, int contentLeft, int contentWidth);
     void LayoutProviders(int contentLeft, int contentWidth);
