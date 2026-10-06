@@ -20,6 +20,7 @@ int gSelectionOkNotifications = 0;
 int gSelectionCancelNotifications = 0;
 UINT gQuietMoveFlags = 0;
 int gQuietMoveNotifications = 0;
+bool gQuietMoveSawNoRedrawNoCopy = false;
 
 LRESULT CALLBACK ParentProc(
     HWND hwnd,
@@ -78,6 +79,16 @@ LRESULT CALLBACK QuietMoveProbe(
             gQuietMoveFlags =
                 position->flags;
             ++gQuietMoveNotifications;
+
+            constexpr UINT requiredFlags =
+                SWP_NOREDRAW |
+                SWP_NOCOPYBITS;
+            if ((position->flags &
+                 requiredFlags) ==
+                requiredFlags) {
+                gQuietMoveSawNoRedrawNoCopy =
+                    true;
+            }
         }
     }
 
@@ -176,6 +187,7 @@ int main() {
 
     gQuietMoveFlags = 0;
     gQuietMoveNotifications = 0;
+    gQuietMoveSawNoRedrawNoCopy = false;
 
     altrun::ui::
         MoveNextComboBox(
@@ -188,12 +200,12 @@ int main() {
 
     assert(
         gQuietMoveNotifications > 0);
+    // Native ComboBox bookkeeping can emit additional WM_WINDOWPOSCHANGING
+    // notifications after our SetWindowPos call, so the final notification
+    // is not guaranteed to retain the quiet-move flags. Require that the
+    // actual move produced at least one position change carrying both flags.
     assert(
-        (gQuietMoveFlags &
-         SWP_NOREDRAW) != 0);
-    assert(
-        (gQuietMoveFlags &
-         SWP_NOCOPYBITS) != 0);
+        gQuietMoveSawNoRedrawNoCopy);
 
     assert(
         SendMessageW(
