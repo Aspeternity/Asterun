@@ -225,7 +225,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
             metrics.behavior.right -
                 metrics.behavior.left,
             Scale(26),
-            TRUE);
+            repaint);
 
         MoveWindow(
             searchBehaviorTitle_,
@@ -234,7 +234,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
             metrics.search.right -
                 metrics.search.left,
             Scale(26),
-            TRUE);
+            repaint);
 
         const int toggleHeight = Scale(settings_layout::kToggleRowLogical);
         const int comboRowHeight = Scale(ui::kSettingsComboRowLogical);
@@ -266,7 +266,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
                     startupLabelX -
                     Scale(16)),
             Scale(24),
-            TRUE);
+            repaint);
         ui::MoveNextComboBox(
             startupBehavior_,
             startupComboX,
@@ -300,7 +300,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
             metrics.placement.right -
                 metrics.placement.left,
             Scale(26),
-            TRUE);
+            repaint);
 
         const int rowHeight =
             Scale(
@@ -359,7 +359,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
                         labelX -
                         Scale(16)),
                 Scale(24),
-                TRUE);
+                repaint);
 
             ui::MoveNextComboBox(
                 combo,
@@ -421,7 +421,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
             globalTitleTop,
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
         MoveWindow(
             hotkeyLauncherTitle_,
@@ -429,7 +429,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
             launcherTitleTop,
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
         int globalTop =
             globalCardTop;
@@ -482,7 +482,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                         inner -
                         Scale(14)),
                 Scale(24),
-                TRUE);
+                repaint);
 
             MoveWindow(
                 row.capture,
@@ -492,7 +492,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                      Scale(34)) / 2,
                 captureWidth,
                 Scale(34),
-                TRUE);
+                repaint);
 
             if (row.enabled) {
                 MoveWindow(
@@ -503,7 +503,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                          Scale(32)) / 2,
                     toggleWidth,
                     Scale(32),
-                    TRUE);
+                    repaint);
             }
 
             const int auxiliaryTop =
@@ -528,7 +528,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                         Scale(22),
                         auxiliaryHeight -
                             Scale(8)),
-                    TRUE);
+                    repaint);
             } else {
                 SetWindowRgn(
                     row.status,
@@ -554,7 +554,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                      Scale(26)) / 2,
                 resetWidth,
                 Scale(26),
-                TRUE);
+                repaint);
 
             if (global) {
                 globalTop +=
@@ -585,7 +585,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
             resetAllTop,
             resetAllWidth,
             resetAllHeight,
-            TRUE);
+            repaint);
 
         ClipHotkeyControlsToViewport(repaint);
     }
