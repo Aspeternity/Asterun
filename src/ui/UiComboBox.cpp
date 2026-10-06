@@ -1130,15 +1130,35 @@ void MoveNextComboBox(
             needsScroll);
     }
 
-    MoveWindow(
-        combo,
-        x,
-        y,
-        width,
+    const int height =
         NextComboBoxDropHeightForDpi(
             itemCount,
-            dpi),
-        repaint);
+            dpi);
+
+    if (repaint) {
+        MoveWindow(
+            combo,
+            x,
+            y,
+            width,
+            height,
+            TRUE);
+    } else {
+        // Settings scroll commits one final content-pane repaint. Prevent
+        // USER32 from copying stale ComboBox client pixels to the new
+        // position while the control is moving between those frames.
+        SetWindowPos(
+            combo,
+            nullptr,
+            x,
+            y,
+            width,
+            height,
+            SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_NOREDRAW |
+                SWP_NOCOPYBITS);
+    }
 }
 
 void RefreshNextComboBoxState(
