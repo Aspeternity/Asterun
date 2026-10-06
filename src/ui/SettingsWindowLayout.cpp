@@ -96,7 +96,7 @@ void SettingsWindow::Layout() {
     LayoutCurrentPage();
 }
 
-void SettingsWindow::LayoutCurrentPage() {
+void SettingsWindow::LayoutCurrentPage(BOOL repaint) {
     if (!hwnd_) {
         return;
     }
@@ -138,17 +138,18 @@ void SettingsWindow::LayoutCurrentPage() {
             pageScroll,
         contentWidth,
         Scale(40),
-        TRUE);
+        repaint);
 
     switch (page_) {
     case Page::General:
-        LayoutGeneral();
+        LayoutGeneral(repaint);
         break;
     case Page::Hotkeys:
         LayoutHotkeys(
             client,
             contentLeft,
-            contentWidth);
+            contentWidth,
+            repaint);
         break;
     case Page::Providers:
         LayoutProviders(
@@ -212,7 +213,7 @@ void SettingsWindow::RedrawCurrentPage() {
             RDW_UPDATENOW);
 }
 
-void SettingsWindow::LayoutGeneral() {
+void SettingsWindow::LayoutGeneral(BOOL repaint) {
         const auto metrics =
             BuildGeneralLayout(
                 generalScrollOffset_);
@@ -241,7 +242,7 @@ void SettingsWindow::LayoutGeneral() {
         const int behaviorWidth = metrics.behavior.right - metrics.behavior.left - Scale(2);
 
         MoveWindow(startWithWindows_, behaviorX, metrics.behavior.top + Scale(1),
-            behaviorWidth, toggleHeight, TRUE);
+            behaviorWidth, toggleHeight, repaint);
 
         const int startupTop = metrics.behavior.top + toggleHeight;
         const int startupComboWidth =
@@ -271,14 +272,15 @@ void SettingsWindow::LayoutGeneral() {
             startupComboX,
             startupTop + Scale(10),
             startupComboWidth,
-            dpi_);
+            dpi_,
+            repaint);
 
         const int trayTop = startupTop + comboRowHeight;
-        MoveWindow(showTrayIcon_, behaviorX, trayTop, behaviorWidth, toggleHeight, TRUE);
+        MoveWindow(showTrayIcon_, behaviorX, trayTop, behaviorWidth, toggleHeight, repaint);
         MoveWindow(soundEnabled_, behaviorX, trayTop + toggleHeight,
-            behaviorWidth, toggleHeight, TRUE);
+            behaviorWidth, toggleHeight, repaint);
         MoveWindow(addToSendToMenu_, behaviorX, trayTop + 2 * toggleHeight,
-            behaviorWidth, toggleHeight, TRUE);
+            behaviorWidth, toggleHeight, repaint);
 
         const int searchX = metrics.search.left + Scale(1);
         const int searchWidth = metrics.search.right - metrics.search.left - Scale(2);
@@ -288,7 +290,7 @@ void SettingsWindow::LayoutGeneral() {
         for (std::size_t i = 0; i < searchRows.size(); ++i) {
             MoveWindow(searchRows[i], searchX,
                 metrics.search.top + Scale(1) + static_cast<int>(i) * toggleHeight,
-                searchWidth, toggleHeight, TRUE);
+                searchWidth, toggleHeight, repaint);
         }
 
         MoveWindow(
@@ -364,11 +366,12 @@ void SettingsWindow::LayoutGeneral() {
                 comboX,
                 top + Scale(10),
                 comboWidth,
-                dpi_);
+                dpi_,
+                repaint);
         }
     }
 
-void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidth) {
+void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidth, BOOL repaint) {
         const int width =
             std::min(
                 contentWidth,
@@ -584,7 +587,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
             resetAllHeight,
             TRUE);
 
-        ClipHotkeyControlsToViewport();
+        ClipHotkeyControlsToViewport(repaint);
     }
 
 void SettingsWindow::LayoutProviders(int contentLeft, int contentWidth) {
