@@ -485,8 +485,7 @@ HWND CreateNextComboBox(
                 WS_TABSTOP |
                 CBS_DROPDOWNLIST |
                 CBS_OWNERDRAWFIXED |
-                CBS_HASSTRINGS |
-                WS_VSCROLL,
+                CBS_HASSTRINGS,
             0,
             0,
             0,
@@ -585,6 +584,47 @@ void MoveNextComboBox(
             static_cast<WPARAM>(
                 visibleItems),
             0);
+    }
+
+    // The ComboBox owns a separate LISTBOX window. Do not give every short
+    // list a permanent native scrollbar; only expose one when the shared
+    // visible-item cap actually hides entries.
+    COMBOBOXINFO comboInfo{};
+    comboInfo.cbSize =
+        sizeof(comboInfo);
+
+    if (GetComboBoxInfo(
+            combo,
+            &comboInfo) &&
+        comboInfo.hwndList) {
+        const bool needsScroll =
+            itemCount >
+            visibleItems;
+
+        LONG_PTR listStyle =
+            GetWindowLongPtrW(
+                comboInfo.hwndList,
+                GWL_STYLE);
+        const LONG_PTR desiredStyle =
+            needsScroll
+                ? listStyle |
+                      WS_VSCROLL
+                : listStyle &
+                      ~static_cast<LONG_PTR>(
+                          WS_VSCROLL);
+
+        if (desiredStyle !=
+            listStyle) {
+            SetWindowLongPtrW(
+                comboInfo.hwndList,
+                GWL_STYLE,
+                desiredStyle);
+        }
+
+        ShowScrollBar(
+            comboInfo.hwndList,
+            SB_VERT,
+            needsScroll);
     }
 
     MoveWindow(
