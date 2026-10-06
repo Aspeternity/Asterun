@@ -197,6 +197,20 @@ int main() {
             parent);
     assert(screen);
 
+    RECT comboRect{};
+    GetClientRect(
+        combo,
+        &comboRect);
+    const int comboWidth =
+        comboRect.right -
+        comboRect.left;
+    const int comboHeight =
+        comboRect.bottom -
+        comboRect.top;
+    assert(
+        comboWidth > 40 &&
+        comboHeight > 10);
+
     HDC paintDc =
         CreateCompatibleDC(
             screen);
@@ -205,8 +219,8 @@ int main() {
     HBITMAP paintBitmap =
         CreateCompatibleBitmap(
             screen,
-            32,
-            32);
+            comboWidth,
+            comboHeight);
     assert(paintBitmap);
 
     HGDIOBJ oldBitmap =
@@ -219,12 +233,8 @@ int main() {
             17,
             34,
             51);
-    RECT paintRect{
-        0,
-        0,
-        32,
-        32,
-    };
+    RECT paintRect =
+        comboRect;
     HBRUSH sentinelBrush =
         CreateSolidBrush(
             sentinel);
@@ -258,17 +268,53 @@ int main() {
             closedField,
             96);
 
+    COMBOBOXINFO comboInfo{};
+    comboInfo.cbSize =
+        sizeof(comboInfo);
+    assert(
+        GetComboBoxInfo(
+            combo,
+            &comboInfo));
+
+    const int selectionProbeX =
+        std::clamp(
+            comboInfo.rcItem.left + 2,
+            0,
+            comboWidth - 1);
+    const int selectionProbeY =
+        std::clamp(
+            comboInfo.rcItem.top + 2,
+            0,
+            comboHeight - 1);
+    const int buttonProbeX =
+        std::clamp(
+            (comboInfo.rcButton.left +
+             comboInfo.rcButton.right) / 2,
+            0,
+            comboWidth - 1);
+    const int buttonProbeY =
+        std::clamp(
+            (comboInfo.rcButton.top +
+             comboInfo.rcButton.bottom) / 2,
+            0,
+            comboHeight - 1);
+
+    // The closed selection field must be painted synchronously during focus
+    // transitions, while the native button/chevron area remains untouched.
     assert(
         GetPixel(
             paintDc,
-            4,
-            4) ==
-        sentinel);
+            selectionProbeX,
+            selectionProbeY) ==
+        RGB(
+            248,
+            252,
+            255));
     assert(
         GetPixel(
             paintDc,
-            20,
-            20) ==
+            buttonProbeX,
+            buttonProbeY) ==
         sentinel);
 
     SelectObject(
@@ -285,20 +331,6 @@ int main() {
             CB_SHOWDROPDOWN,
             TRUE,
             0) != CB_ERR);
-
-    RECT comboRect{};
-    GetClientRect(
-        combo,
-        &comboRect);
-    const int comboWidth =
-        comboRect.right -
-        comboRect.left;
-    const int comboHeight =
-        comboRect.bottom -
-        comboRect.top;
-    assert(
-        comboWidth > 40 &&
-        comboHeight > 10);
 
     HDC expandedDc =
         CreateCompatibleDC(
