@@ -309,6 +309,10 @@ private:
         int scrollOffset) const;
     void UpdatePageScrollBar();
     void ScrollCurrentPage(int delta);
+    [[nodiscard]] int PageScrollMaximum() const;
+    [[nodiscard]] RECT PageScrollTrackRect() const;
+    [[nodiscard]] RECT PageScrollThumbRect() const;
+    void DrawPageScrollBar(HDC dc);
     [[nodiscard]] RECT
     HotkeyScrollViewport() const;
     [[nodiscard]] int
@@ -443,6 +447,10 @@ private:
     bool syncing_{false};
     int generalScrollOffset_{0};
     int hotkeyScrollOffset_{0};
+    bool pageScrollHovered_{false};
+    bool pageScrollDragging_{false};
+    int pageScrollDragAnchorY_{0};
+    int pageScrollDragStartOffset_{0};
     std::string capturingHotkeyActionId_;
     std::unordered_map<std::string, bool>
         pendingProviderStates_;
