@@ -32,8 +32,6 @@ constexpr wchar_t kShortcutEditorClass[] =
 constexpr int kEditorWidthLogical = 590;
 constexpr int kInitialEditorHeightLogical = 420;
 constexpr int kRuntimeTestExtraHeightLogical = 42;
-constexpr int kTypeDropdownHeightLogical = 150;
-constexpr int kRuntimeInputDropdownHeightLogical = 110;
 constexpr int kControlRowHeightLogical = 28;
 constexpr int kFooterButtonHeightLogical = 32;
 constexpr int kFooterBottomMarginLogical = 16;
@@ -1072,11 +1070,6 @@ void ShortcutEditorDialog::ApplyLanguage() {
         CB_SETCURSEL,
         selected,
         0);
-    SendMessageW(
-        type_,
-        CB_SETMINVISIBLE,
-        5,
-        0);
 
     SetWindowTextW(
         runtimeInputLabel_,
@@ -1119,11 +1112,6 @@ void ShortcutEditorDialog::ApplyLanguage() {
         runtimeInput_,
         CB_SETCURSEL,
         runtimeSelected,
-        0);
-    SendMessageW(
-        runtimeInput_,
-        CB_SETMINVISIBLE,
-        3,
         0);
 
     SetWindowTextW(
@@ -1429,14 +1417,12 @@ void ShortcutEditorDialog::Layout() {
         formLabelWidth,
         labelHeight,
         TRUE);
-    MoveWindow(
+    ui::MoveNextComboBox(
         type_,
         formFieldLeft,
         y,
         typeWidth,
-        Scale(
-            kTypeDropdownHeightLogical),
-        TRUE);
+        dpi_);
 
     const int typeHintLeft =
         formFieldLeft +
@@ -1468,14 +1454,12 @@ void ShortcutEditorDialog::Layout() {
         formLabelWidth,
         labelHeight,
         TRUE);
-    MoveWindow(
+    ui::MoveNextComboBox(
         runtimeInput_,
         formFieldLeft,
         y,
         runtimeWidth,
-        Scale(
-            kRuntimeInputDropdownHeightLogical),
-        TRUE);
+        dpi_);
 
     const int runtimeHintLeft =
         formFieldLeft +
