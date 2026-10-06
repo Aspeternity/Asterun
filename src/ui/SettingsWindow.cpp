@@ -4333,7 +4333,10 @@ void SettingsWindow::ScrollCurrentPage(
 
     offset = next;
 
+    window_presentation::ScopedRedrawSuspend
+        redrawGuard(hwnd_);
     LayoutCurrentPage();
+    redrawGuard.Resume();
     RedrawCurrentPage();
 }
 
@@ -6476,7 +6479,11 @@ LRESULT SettingsWindow::HandleMessage(
 
             if (next != offset) {
                 offset = next;
+
+                window_presentation::ScopedRedrawSuspend
+                    redrawGuard(hwnd_);
                 LayoutCurrentPage();
+                redrawGuard.Resume();
                 RedrawCurrentPage();
             }
             return 0;
