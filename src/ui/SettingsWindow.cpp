@@ -3299,51 +3299,7 @@ void SettingsWindow::ShowPage(Page page) {
 
     redrawGuard.Resume();
 
-    // Reapply the target page's scroll state after the shared redraw guard
-    // resumes. ShowScrollBar invoked while redraw is suspended can leave the
-    // old non-client frame cached by USER32/DWM on the first page transition.
-    const bool hadVerticalScroll =
-        (GetWindowLongPtrW(
-             hwnd_,
-             GWL_STYLE) &
-         WS_VSCROLL) != 0;
-
     UpdatePageScrollBar();
-
-    const bool hasVerticalScroll =
-        (GetWindowLongPtrW(
-             hwnd_,
-             GWL_STYLE) &
-         WS_VSCROLL) != 0;
-    const bool scrollFrameChanged =
-        hadVerticalScroll !=
-        hasVerticalScroll;
-
-    // A non-client recalculation is only needed when the scrollbar actually
-    // changes the client width. The previous unconditional FRAMECHANGED +
-    // second Layout() forced a visible full-window transition for every page
-    // click, even between pages with identical frame geometry.
-    if (scrollFrameChanged) {
-        window_presentation::
-            ScopedRedrawSuspend
-                settleGuard(hwnd_);
-
-        SetWindowPos(
-            hwnd_,
-            nullptr,
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE |
-                SWP_NOSIZE |
-                SWP_NOZORDER |
-                SWP_NOACTIVATE |
-                SWP_FRAMECHANGED);
-        Layout();
-
-        settleGuard.Resume();
-    }
 
     // Let USER32 coalesce the final parent/child repaint instead of erasing
     // and synchronously repainting the whole window on every navigation.
