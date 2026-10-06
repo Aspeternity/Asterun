@@ -3404,8 +3404,23 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
     }
 
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
+    case WM_COMMAND: {
+        const UINT id =
+            LOWORD(wParam);
+        const UINT notify =
+            HIWORD(wParam);
+        HWND commandControl =
+            reinterpret_cast<HWND>(
+                lParam);
+
+        if (id == kIdType ||
+            id == kIdRuntimeInput) {
+            ui::RefreshNextComboBoxState(
+                commandControl,
+                notify);
+        }
+
+        switch (id) {
         case kIdKeyword:
             if (HIWORD(wParam) ==
                 EN_KILLFOCUS) {
@@ -3516,6 +3531,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             break;
         }
         break;
+    }
 
     case WM_CLOSE:
         CloseWindow();
