@@ -851,9 +851,79 @@ LRESULT CALLBACK NextComboSubclassProc(
     case WM_LBUTTONUP:
         return 0;
 
-    case CB_SETCURSEL:
-    case WM_SETFONT:
     case WM_ENABLE: {
+        if (wParam == FALSE &&
+            IsNextComboPopupVisible(
+                hwnd)) {
+            HideNextComboPopup(
+                hwnd,
+                true);
+            SetTrackedDroppedState(
+                hwnd,
+                false);
+        }
+
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        InvalidateRect(
+            hwnd,
+            nullptr,
+            FALSE);
+        return result;
+    }
+
+    case WM_SHOWWINDOW:
+        if (wParam == FALSE &&
+            IsNextComboPopupVisible(
+                hwnd)) {
+            HideNextComboPopup(
+                hwnd,
+                true);
+            SetTrackedDroppedState(
+                hwnd,
+                false);
+        }
+        return DefSubclassProc(
+            hwnd,
+            message,
+            wParam,
+            lParam);
+
+    case WM_WINDOWPOSCHANGED: {
+        const bool hadPopup =
+            IsNextComboPopupVisible(
+                hwnd);
+
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        if (hadPopup) {
+            HideNextComboPopup(
+                hwnd,
+                true);
+            SetTrackedDroppedState(
+                hwnd,
+                false);
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+        }
+
+        return result;
+    }
+
+    case CB_SETCURSEL:
+    case WM_SETFONT: {
         const LRESULT result =
             DefSubclassProc(
                 hwnd,
