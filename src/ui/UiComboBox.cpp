@@ -31,6 +31,10 @@ constexpr wchar_t
     kNextComboDroppedProperty[] =
         L"Asterun.NextCombo.Dropped";
 
+constexpr wchar_t
+    kNextComboHoveredProperty[] =
+        L"Asterun.NextCombo.Hovered";
+
 void SetTrackedDroppedState(
     HWND combo,
     bool dropped) {
@@ -71,6 +75,58 @@ TrackedDroppedState(
             CB_GETDROPPEDSTATE,
             0,
             0) != 0;
+}
+
+void SetTrackedHoveredState(
+    HWND combo,
+    bool hovered) {
+
+    if (!combo) {
+        return;
+    }
+
+    SetPropW(
+        combo,
+        kNextComboHoveredProperty,
+        reinterpret_cast<HANDLE>(
+            static_cast<ULONG_PTR>(
+                hovered ? 2 : 1)));
+}
+
+[[nodiscard]] bool
+TrackedHoveredState(
+    HWND combo) {
+
+    const HANDLE value =
+        combo
+            ? GetPropW(
+                  combo,
+                  kNextComboHoveredProperty)
+            : nullptr;
+
+    return value &&
+        reinterpret_cast<ULONG_PTR>(
+            value) == 2;
+}
+
+[[nodiscard]] COLORREF
+NextComboFillColor(
+    HWND combo) {
+
+    const bool active =
+        combo &&
+        (GetFocus() == combo ||
+         TrackedDroppedState(
+             combo));
+    const bool hovered =
+        TrackedHoveredState(
+            combo);
+
+    return active
+        ? RGB(248, 252, 255)
+        : hovered
+            ? RGB(251, 252, 253)
+            : RGB(255, 255, 255);
 }
 
 [[nodiscard]] HFONT ComboFont(
@@ -132,31 +188,17 @@ void DrawNextComboBoxSurfaceDirect(
         GetFocus() == combo ||
         dropped;
 
-    POINT cursor{};
-    POINT clientCursor{};
-    bool hovered = false;
-
-    if (GetCursorPos(&cursor)) {
-        clientCursor = cursor;
-        hovered =
-            ScreenToClient(
-                combo,
-                &clientCursor) &&
-            PtInRect(
-                &rect,
-                clientCursor);
-    }
+    const bool hovered =
+        TrackedHoveredState(
+            combo);
 
     const COLORREF borderColor =
         active
             ? kApplicationPalette.accent
             : kApplicationPalette.frame;
     const COLORREF fillColor =
-        active
-            ? RGB(248, 252, 255)
-            : hovered
-                ? RGB(251, 252, 253)
-                : RGB(255, 255, 255);
+        NextComboFillColor(
+            combo);
 
     HBRUSH fill =
         CreateSolidBrush(
@@ -211,12 +253,24 @@ void DrawNextComboBoxSurfaceDirect(
         surface.bottom,
     };
 
-    const bool arrowHovered =
-        enabled &&
+    POINT cursor{};
+    POINT clientCursor{};
+    bool arrowHovered = false;
+
+    if (enabled &&
         hovered &&
-        PtInRect(
-            &arrowArea,
-            clientCursor);
+        GetCursorPos(
+            &cursor)) {
+        clientCursor =
+            cursor;
+        arrowHovered =
+            ScreenToClient(
+                combo,
+                &clientCursor) &&
+            PtInRect(
+                &arrowArea,
+                clientCursor);
+    }
 
     if (arrowHovered || dropped) {
         RECT buttonRect =
@@ -556,19 +610,41 @@ LRESULT CALLBACK NextComboSubclassProc(
                 wParam,
                 lParam);
 
-        InvalidateRect(
-            hwnd,
-            nullptr,
-            FALSE);
+        if (!TrackedHoveredState(
+                hwnd)) {
+            SetTrackedHoveredState(
+                hwnd,
+                true);
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+        }
+
         return result;
     }
 
-    case WM_MOUSELEAVE:
-        InvalidateRect(
-            hwnd,
-            nullptr,
-            FALSE);
-        return 0;
+    case WM_MOUSELEAVE: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        if (TrackedHoveredState(
+                hwnd)) {
+            SetTrackedHoveredState(
+                hwnd,
+                false);
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+        }
+
+        return result;
+    }
 
     case WM_MOUSEWHEEL:
     case WM_MOUSEHWHEEL: {
@@ -621,10 +697,27 @@ LRESULT CALLBACK NextComboSubclassProc(
         return result;
     }
 
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        RedrawWindow(
+            hwnd,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_NOERASE |
+                RDW_UPDATENOW);
+        return result;
+    }
+
     case CB_SETCURSEL:
     case WM_SETFONT:
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
     case WM_ENABLE:
     case WM_LBUTTONDOWN:
     case WM_LBUTTONUP: {
@@ -643,6 +736,9 @@ LRESULT CALLBACK NextComboSubclassProc(
     }
 
     case WM_NCDESTROY:
+        RemovePropW(
+            hwnd,
+            kNextComboHoveredProperty);
         RemovePropW(
             hwnd,
             kNextComboDroppedProperty);
@@ -701,6 +797,9 @@ HWND CreateNextComboBox(
             static_cast<DWORD_PTR>(
                 hostBackground));
         SetTrackedDroppedState(
+            combo,
+            false);
+        SetTrackedHoveredState(
             combo,
             false);
     }
@@ -1019,13 +1118,93 @@ void DrawNextComboBoxItem(
     const DRAWITEMSTRUCT& item,
     UINT dpi) {
 
-    // CBS_OWNERDRAWFIXED asks the parent to draw both the popup list items
-    // and the closed selection field. The closed field is already painted
-    // completely by NextComboSubclassProc; touching it here can leave native
-    // owner-draw artifacts at the button/selection boundary while the popup
-    // opens or closes.
+    // CBS_OWNERDRAWFIXED asks the parent to paint the closed selection
+    // field synchronously during focus transitions. Returning TRUE without
+    // painting it creates a transient blank frame before our subclass WM_PAINT
+    // runs. Paint only the native selection rectangle here; the shared
+    // subclass remains the sole owner of the border and chevron area.
     if ((item.itemState &
          ODS_COMBOBOXEDIT) != 0) {
+        RECT rect =
+            item.rcItem;
+
+        COMBOBOXINFO comboInfo{};
+        comboInfo.cbSize =
+            sizeof(comboInfo);
+
+        if (GetComboBoxInfo(
+                item.hwndItem,
+                &comboInfo)) {
+            RECT clipped{};
+            if (IntersectRect(
+                    &clipped,
+                    &rect,
+                    &comboInfo.rcItem)) {
+                rect =
+                    clipped;
+            }
+        }
+
+        HBRUSH fill =
+            CreateSolidBrush(
+                NextComboFillColor(
+                    item.hwndItem));
+        FillRect(
+            item.hDC,
+            &rect,
+            fill);
+        DeleteObject(
+            fill);
+
+        if (item.itemID !=
+            static_cast<UINT>(-1)) {
+            wchar_t text[512]{};
+            SendMessageW(
+                item.hwndItem,
+                CB_GETLBTEXT,
+                item.itemID,
+                reinterpret_cast<LPARAM>(
+                    text));
+
+            RECT textRect =
+                rect;
+            textRect.left +=
+                Scale(12, dpi);
+            textRect.right -=
+                Scale(6, dpi);
+
+            SetBkMode(
+                item.hDC,
+                TRANSPARENT);
+            SetTextColor(
+                item.hDC,
+                IsWindowEnabled(
+                    item.hwndItem)
+                    ? kApplicationPalette.text
+                    : kApplicationPalette.mutedText);
+
+            HGDIOBJ oldFont =
+                SelectObject(
+                    item.hDC,
+                    ComboFont(
+                        item.hwndItem));
+
+            DrawTextW(
+                item.hDC,
+                text,
+                -1,
+                &textRect,
+                DT_LEFT |
+                    DT_VCENTER |
+                    DT_SINGLELINE |
+                    DT_END_ELLIPSIS |
+                    DT_NOPREFIX);
+
+            SelectObject(
+                item.hDC,
+                oldFont);
+        }
+
         return;
     }
 
