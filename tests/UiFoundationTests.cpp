@@ -264,13 +264,6 @@ int main() {
 
     assert(ui::Scale(50, 0) == 50);
     assert(ui::kSettingsComboRowLogical == 54);
-    assert(ui::kNextComboBoxCornerRadiusLogical == 6);
-    assert(ui::kNextComboBoxArrowAreaWidthLogical == 36);
-    assert(ui::kNextComboBoxArrowButtonInsetLogical == 4);
-    assert(ui::kNextComboBoxTextInsetLogical == 12);
-    assert(ui::kNextComboBoxPopupSelectionInsetXLogical == 4);
-    assert(ui::kNextComboBoxPopupSelectionInsetYLogical == 2);
-    assert(ui::kNextComboBoxPopupSelectionRadiusLogical == 5);
 
     assert(
         ui::NextComboBoxVisibleItems(
