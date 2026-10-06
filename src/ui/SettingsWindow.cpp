@@ -3323,10 +3323,7 @@ void SettingsWindow::ShowPage(Page page) {
         nullptr,
         RDW_INVALIDATE |
             RDW_NOERASE |
-            RDW_ALLCHILDREN |
-            (scrollFrameChanged
-                 ? RDW_FRAME
-                 : 0));
+            RDW_ALLCHILDREN);
 
     for (HWND navigation :
          std::array<HWND, 6>{
@@ -4282,8 +4279,9 @@ void SettingsWindow::DrawPageScrollBar(
     const int radius =
         std::max(
             1,
-            (thumb.right -
-             thumb.left) / 2);
+            static_cast<int>(
+                thumb.right -
+                thumb.left) / 2);
 
     RoundRect(
         dc,
@@ -6463,10 +6461,11 @@ LRESULT SettingsWindow::HandleMessage(
             const int travel =
                 std::max(
                     1,
-                    (track.bottom -
-                     track.top) -
+                    static_cast<int>(
+                        track.bottom -
+                        track.top -
                         (thumb.bottom -
-                         thumb.top));
+                         thumb.top)));
             int& offset =
                 page_ == Page::General
                     ? generalScrollOffset_
