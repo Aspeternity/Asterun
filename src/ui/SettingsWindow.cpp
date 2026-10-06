@@ -4333,10 +4333,10 @@ void SettingsWindow::ScrollCurrentPage(
 
     offset = next;
 
-    window_presentation::ScopedRedrawSuspend
-        redrawGuard(hwnd_);
-    LayoutCurrentPage();
-    redrawGuard.Resume();
+    // Keep the top-level Settings HWND continuously visible/hit-testable.
+    // Child controls move without repaint and the content pane is committed
+    // once after every control has reached its final position.
+    LayoutCurrentPage(FALSE);
     RedrawCurrentPage();
 }
 
@@ -4374,7 +4374,8 @@ bool SettingsWindow::HotkeyControlDesiredVisible(
 }
 
 void SettingsWindow::
-ClipHotkeyControlsToViewport() {
+ClipHotkeyControlsToViewport(
+    BOOL repaint) {
     if (page_ != Page::Hotkeys) {
         return;
     }
@@ -4399,9 +4400,12 @@ ClipHotkeyControlsToViewport() {
                 control,
                 nullptr,
                 FALSE);
-            ShowWindow(
-                control,
-                SW_HIDE);
+            if (IsWindowVisible(
+                    control)) {
+                ShowWindow(
+                    control,
+                    SW_HIDE);
+            }
             continue;
         }
 
@@ -4427,9 +4431,12 @@ ClipHotkeyControlsToViewport() {
                 control,
                 nullptr,
                 FALSE);
-            ShowWindow(
-                control,
-                SW_HIDE);
+            if (IsWindowVisible(
+                    control)) {
+                ShowWindow(
+                    control,
+                    SW_HIDE);
+            }
             continue;
         }
 
@@ -4448,24 +4455,30 @@ ClipHotkeyControlsToViewport() {
             !SetWindowRgn(
                 control,
                 region,
-                TRUE)) {
+                repaint)) {
             DeleteObject(
                 region);
         }
 
-        ShowWindow(
-            control,
-            SW_SHOW);
+        if (!IsWindowVisible(
+                control)) {
+            ShowWindow(
+                control,
+                SW_SHOW);
+        }
     }
 
     if (hotkeyResetAll_) {
         SetWindowRgn(
             hotkeyResetAll_,
             nullptr,
-            FALSE);
-        ShowWindow(
-            hotkeyResetAll_,
-            SW_SHOW);
+            repaint);
+        if (!IsWindowVisible(
+                hotkeyResetAll_)) {
+            ShowWindow(
+                hotkeyResetAll_,
+                SW_SHOW);
+        }
     }
 }
 
@@ -6479,11 +6492,7 @@ LRESULT SettingsWindow::HandleMessage(
 
             if (next != offset) {
                 offset = next;
-
-                window_presentation::ScopedRedrawSuspend
-                    redrawGuard(hwnd_);
-                LayoutCurrentPage();
-                redrawGuard.Resume();
+                LayoutCurrentPage(FALSE);
                 RedrawCurrentPage();
             }
             return 0;
