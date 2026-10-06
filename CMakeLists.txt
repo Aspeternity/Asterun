@@ -241,6 +241,7 @@ if(WIN32)
         src/ui/ShortcutPathConverterDialog.cpp
         src/ui/TopLevelWindowPresentation.cpp
         src/ui/UiComboBox.cpp
+        src/ui/UiComboPopup.cpp
         src/ui/UiListView.cpp
         src/ui/UiTypography.cpp
         src/resources.rc
@@ -1077,6 +1078,7 @@ if(BUILD_TESTING)
             ui_combobox_runtime_tests
             tests/UiComboBoxRuntimeTests.cpp
             src/ui/UiComboBox.cpp
+            src/ui/UiComboPopup.cpp
         )
         target_include_directories(
             ui_combobox_runtime_tests
