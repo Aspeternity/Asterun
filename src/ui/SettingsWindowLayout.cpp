@@ -8,6 +8,46 @@
 
 namespace altrun {
 
+namespace {
+
+void MoveSettingsChild(
+    HWND window,
+    int x,
+    int y,
+    int width,
+    int height,
+    BOOL repaint) noexcept {
+
+    if (!window) {
+        return;
+    }
+
+    if (repaint) {
+        MoveWindow(
+            window,
+            x,
+            y,
+            width,
+            height,
+            TRUE);
+        return;
+    }
+
+    SetWindowPos(
+        window,
+        nullptr,
+        x,
+        y,
+        width,
+        height,
+        SWP_NOZORDER |
+            SWP_NOACTIVATE |
+            SWP_NOREDRAW |
+            SWP_NOCOPYBITS);
+}
+
+} // namespace
+
 void SettingsWindow::Layout() {
     if (!hwnd_) return;
 
@@ -129,7 +169,7 @@ void SettingsWindow::LayoutCurrentPage(BOOL repaint) {
             ? generalScrollOffset_
             : 0;
 
-    MoveWindow(
+    MoveSettingsChild(
         pageTitle_,
         contentLeft,
         Scale(
@@ -218,7 +258,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
             BuildGeneralLayout(
                 generalScrollOffset_);
 
-        MoveWindow(
+        MoveSettingsChild(
             generalBehaviorTitle_,
             metrics.behavior.left,
             metrics.behaviorTitleTop,
@@ -227,7 +267,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
             Scale(26),
             repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             searchBehaviorTitle_,
             metrics.search.left,
             metrics.searchTitleTop,
@@ -241,7 +281,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
         const int behaviorX = metrics.behavior.left + Scale(1);
         const int behaviorWidth = metrics.behavior.right - metrics.behavior.left - Scale(2);
 
-        MoveWindow(startWithWindows_, behaviorX, metrics.behavior.top + Scale(1),
+        MoveSettingsChild(startWithWindows_, behaviorX, metrics.behavior.top + Scale(1),
             behaviorWidth, toggleHeight, repaint);
 
         const int startupTop = metrics.behavior.top + toggleHeight;
@@ -256,7 +296,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
         const int startupLabelX =
             metrics.behavior.left +
             Scale(18);
-        MoveWindow(
+        MoveSettingsChild(
             startupBehaviorLabel_,
             startupLabelX,
             startupTop + Scale(15),
@@ -276,10 +316,10 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
             repaint);
 
         const int trayTop = startupTop + comboRowHeight;
-        MoveWindow(showTrayIcon_, behaviorX, trayTop, behaviorWidth, toggleHeight, repaint);
-        MoveWindow(soundEnabled_, behaviorX, trayTop + toggleHeight,
+        MoveSettingsChild(showTrayIcon_, behaviorX, trayTop, behaviorWidth, toggleHeight, repaint);
+        MoveSettingsChild(soundEnabled_, behaviorX, trayTop + toggleHeight,
             behaviorWidth, toggleHeight, repaint);
-        MoveWindow(addToSendToMenu_, behaviorX, trayTop + 2 * toggleHeight,
+        MoveSettingsChild(addToSendToMenu_, behaviorX, trayTop + 2 * toggleHeight,
             behaviorWidth, toggleHeight, repaint);
 
         const int searchX = metrics.search.left + Scale(1);
@@ -288,12 +328,12 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
             pinyinSearch_, numericQuickLaunch_, executeSingleResult_,
         };
         for (std::size_t i = 0; i < searchRows.size(); ++i) {
-            MoveWindow(searchRows[i], searchX,
+            MoveSettingsChild(searchRows[i], searchX,
                 metrics.search.top + Scale(1) + static_cast<int>(i) * toggleHeight,
                 searchWidth, toggleHeight, repaint);
         }
 
-        MoveWindow(
+        MoveSettingsChild(
             placementSectionTitle_,
             metrics.placement.left,
             metrics.placementTitleTop,
@@ -349,7 +389,7 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
                 comboWidth -
                 Scale(18);
 
-            MoveWindow(
+            MoveSettingsChild(
                 placementRows[i].first,
                 labelX,
                 top + Scale(15),
@@ -415,7 +455,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
             launcherTitleTop +
             Scale(32);
 
-        MoveWindow(
+        MoveSettingsChild(
             hotkeyGlobalTitle_,
             contentLeft,
             globalTitleTop,
@@ -423,7 +463,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
             Scale(26),
             repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             hotkeyLauncherTitle_,
             contentLeft,
             launcherTitleTop,
@@ -469,7 +509,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                 resetGap -
                 resetWidth;
 
-            MoveWindow(
+            MoveSettingsChild(
                 row.title,
                 cardLeft + inner,
                 top +
@@ -484,7 +524,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                 Scale(24),
                 repaint);
 
-            MoveWindow(
+            MoveSettingsChild(
                 row.capture,
                 captureX,
                 top +
@@ -495,7 +535,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                 repaint);
 
             if (row.enabled) {
-                MoveWindow(
+                MoveSettingsChild(
                     row.enabled,
                     toggleX,
                     top +
@@ -518,7 +558,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
 
             if (row.statusVisible &&
                 auxiliaryHeight > 0) {
-                MoveWindow(
+                MoveSettingsChild(
                     row.status,
                     captureX,
                     auxiliaryTop +
@@ -537,7 +577,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                 ShowWindow(
                     row.status,
                     SW_HIDE);
-                MoveWindow(
+                MoveSettingsChild(
                     row.status,
                     captureX,
                     auxiliaryTop,
@@ -546,7 +586,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                     FALSE);
             }
 
-            MoveWindow(
+            MoveSettingsChild(
                 row.reset,
                 resetX,
                 top +
@@ -577,7 +617,7 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
                     Scale(18) -
                     resetAllHeight);
 
-        MoveWindow(
+        MoveSettingsChild(
             hotkeyResetAll_,
             cardRight -
                 inner -
