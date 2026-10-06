@@ -388,7 +388,7 @@ inline constexpr int
 inline constexpr int
     kNextComboBoxChromeHeightLogical = 14;
 inline constexpr int
-    kNextComboPopupGapLogical = 4;
+    kNextComboPopupGapLogical = 3;
 inline constexpr int
     kNextComboPopupPaddingLogical = 4;
 inline constexpr int
