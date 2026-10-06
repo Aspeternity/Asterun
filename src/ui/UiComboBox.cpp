@@ -27,6 +27,52 @@ constexpr UINT_PTR kNextComboSubclassId =
         : 96;
 }
 
+constexpr wchar_t
+    kNextComboDroppedProperty[] =
+        L"Asterun.NextCombo.Dropped";
+
+void SetTrackedDroppedState(
+    HWND combo,
+    bool dropped) {
+
+    if (!combo) {
+        return;
+    }
+
+    SetPropW(
+        combo,
+        kNextComboDroppedProperty,
+        reinterpret_cast<HANDLE>(
+            static_cast<ULONG_PTR>(
+                dropped ? 2 : 1)));
+}
+
+[[nodiscard]] bool
+TrackedDroppedState(
+    HWND combo) {
+
+    const HANDLE value =
+        combo
+            ? GetPropW(
+                  combo,
+                  kNextComboDroppedProperty)
+            : nullptr;
+
+    if (value) {
+        return
+            reinterpret_cast<ULONG_PTR>(
+                value) == 2;
+    }
+
+    return
+        combo &&
+        SendMessageW(
+            combo,
+            CB_GETDROPPEDSTATE,
+            0,
+            0) != 0;
+}
+
 [[nodiscard]] HFONT ComboFont(
     HWND combo) noexcept {
 
@@ -80,11 +126,8 @@ void DrawNextComboBoxSurfaceDirect(
     const bool enabled =
         IsWindowEnabled(combo) != FALSE;
     const bool dropped =
-        SendMessageW(
-            combo,
-            CB_GETDROPPEDSTATE,
-            0,
-            0) != 0;
+        TrackedDroppedState(
+            combo);
     const bool active =
         GetFocus() == combo ||
         dropped;
@@ -254,43 +297,63 @@ void DrawNextComboBoxSurfaceDirect(
         Scale(3, dpi);
 
     if (dropped) {
+        const int apexY =
+            arrowCenterY -
+            arrowHalfHeight;
+        const int armY =
+            arrowCenterY +
+            arrowHalfHeight / 2;
+
         MoveToEx(
             dc,
             arrowCenterX -
                 arrowHalfWidth,
-            arrowCenterY +
-                arrowHalfHeight / 2,
+            armY,
             nullptr);
         LineTo(
             dc,
             arrowCenterX,
-            arrowCenterY -
-                arrowHalfHeight);
+            apexY);
+
+        MoveToEx(
+            dc,
+            arrowCenterX,
+            apexY,
+            nullptr);
         LineTo(
             dc,
             arrowCenterX +
                 arrowHalfWidth,
-            arrowCenterY +
-                arrowHalfHeight / 2);
+            armY);
     } else {
+        const int apexY =
+            arrowCenterY +
+            arrowHalfHeight;
+        const int armY =
+            arrowCenterY -
+            arrowHalfHeight / 2;
+
         MoveToEx(
             dc,
             arrowCenterX -
                 arrowHalfWidth,
-            arrowCenterY -
-                arrowHalfHeight / 2,
+            armY,
             nullptr);
         LineTo(
             dc,
             arrowCenterX,
-            arrowCenterY +
-                arrowHalfHeight);
+            apexY);
+
+        MoveToEx(
+            dc,
+            arrowCenterX,
+            apexY,
+            nullptr);
         LineTo(
             dc,
             arrowCenterX +
                 arrowHalfWidth,
-            arrowCenterY -
-                arrowHalfHeight / 2);
+            armY);
     }
 
     SelectObject(
@@ -539,8 +602,26 @@ LRESULT CALLBACK NextComboSubclassProc(
         return 0;
     }
 
+    case CB_SHOWDROPDOWN: {
+        SetTrackedDroppedState(
+            hwnd,
+            wParam != FALSE);
+
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        InvalidateRect(
+            hwnd,
+            nullptr,
+            FALSE);
+        return result;
+    }
+
     case CB_SETCURSEL:
-    case CB_SHOWDROPDOWN:
     case WM_SETFONT:
     case WM_SETFOCUS:
     case WM_KILLFOCUS:
@@ -554,18 +635,17 @@ LRESULT CALLBACK NextComboSubclassProc(
                 wParam,
                 lParam);
 
-        RedrawWindow(
+        InvalidateRect(
             hwnd,
             nullptr,
-            nullptr,
-            RDW_INVALIDATE |
-                RDW_NOERASE |
-                RDW_UPDATENOW);
-
+            FALSE);
         return result;
     }
 
     case WM_NCDESTROY:
+        RemovePropW(
+            hwnd,
+            kNextComboDroppedProperty);
         RemoveWindowSubclass(
             hwnd,
             NextComboSubclassProc,
@@ -620,6 +700,9 @@ HWND CreateNextComboBox(
             kNextComboSubclassId,
             static_cast<DWORD_PTR>(
                 hostBackground));
+        SetTrackedDroppedState(
+            combo,
+            false);
     }
 
     return combo;
@@ -764,17 +847,32 @@ void RefreshNextComboBoxState(
 
     switch (notification) {
     case CBN_DROPDOWN:
-    case CBN_CLOSEUP:
-    case CBN_SELCHANGE:
-    case CBN_SELENDOK:
-    case CBN_SELENDCANCEL:
-        RedrawWindow(
+        SetTrackedDroppedState(
+            combo,
+            true);
+        InvalidateRect(
             combo,
             nullptr,
+            FALSE);
+        break;
+
+    case CBN_CLOSEUP:
+    case CBN_SELENDOK:
+    case CBN_SELENDCANCEL:
+        SetTrackedDroppedState(
+            combo,
+            false);
+        InvalidateRect(
+            combo,
             nullptr,
-            RDW_INVALIDATE |
-                RDW_NOERASE |
-                RDW_UPDATENOW);
+            FALSE);
+        break;
+
+    case CBN_SELCHANGE:
+        InvalidateRect(
+            combo,
+            nullptr,
+            FALSE);
         break;
 
     default:
