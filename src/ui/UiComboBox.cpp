@@ -79,24 +79,30 @@ void DrawNextComboBoxSurface(
         ComboDpi(combo);
     const bool enabled =
         IsWindowEnabled(combo) != FALSE;
-    const bool active =
-        GetFocus() == combo ||
+    const bool dropped =
         SendMessageW(
             combo,
             CB_GETDROPPEDSTATE,
             0,
             0) != 0;
+    const bool active =
+        GetFocus() == combo ||
+        dropped;
 
     POINT cursor{};
-    RECT screenRect{};
-    const bool hovered =
-        GetCursorPos(&cursor) &&
-        GetWindowRect(
-            combo,
-            &screenRect) &&
-        PtInRect(
-            &screenRect,
-            cursor);
+    POINT clientCursor{};
+    bool hovered = false;
+
+    if (GetCursorPos(&cursor)) {
+        clientCursor = cursor;
+        hovered =
+            ScreenToClient(
+                combo,
+                &clientCursor) &&
+            PtInRect(
+                &rect,
+                clientCursor);
+    }
 
     const COLORREF borderColor =
         active
@@ -106,7 +112,7 @@ void DrawNextComboBoxSurface(
         active
             ? RGB(248, 252, 255)
             : hovered
-                ? RGB(250, 251, 253)
+                ? RGB(251, 252, 253)
                 : RGB(255, 255, 255);
 
     HBRUSH fill =
@@ -150,17 +156,84 @@ void DrawNextComboBoxSurface(
     DeleteObject(
         border);
 
+    const int arrowAreaWidth =
+        Scale(36, dpi);
+    RECT arrowArea{
+        std::max(
+            surface.left,
+            surface.right -
+                arrowAreaWidth),
+        surface.top,
+        surface.right,
+        surface.bottom,
+    };
+
+    const bool arrowHovered =
+        enabled &&
+        hovered &&
+        PtInRect(
+            &arrowArea,
+            clientCursor);
+
+    if (arrowHovered || dropped) {
+        RECT buttonRect =
+            arrowArea;
+        InflateRect(
+            &buttonRect,
+            -Scale(4, dpi),
+            -Scale(4, dpi));
+
+        HBRUSH buttonFill =
+            CreateSolidBrush(
+                dropped
+                    ? RGB(237, 247, 254)
+                    : RGB(244, 247, 249));
+        HGDIOBJ oldButtonBrush =
+            SelectObject(
+                dc,
+                buttonFill);
+        HGDIOBJ oldButtonPen =
+            SelectObject(
+                dc,
+                GetStockObject(
+                    NULL_PEN));
+
+        const int buttonRadius =
+            Scale(6, dpi);
+
+        RoundRect(
+            dc,
+            buttonRect.left,
+            buttonRect.top,
+            buttonRect.right,
+            buttonRect.bottom,
+            buttonRadius,
+            buttonRadius);
+
+        SelectObject(
+            dc,
+            oldButtonPen);
+        SelectObject(
+            dc,
+            oldButtonBrush);
+        DeleteObject(
+            buttonFill);
+    }
+
     const int arrowCenterX =
-        surface.right -
-        Scale(17, dpi);
+        arrowArea.left +
+        (arrowArea.right -
+         arrowArea.left) / 2;
     const int arrowCenterY =
-        surface.top +
-        (surface.bottom -
-         surface.top) / 2;
+        arrowArea.top +
+        (arrowArea.bottom -
+         arrowArea.top) / 2;
 
     const COLORREF arrowColor =
         enabled
-            ? RGB(92, 100, 108)
+            ? dropped
+                ? kApplicationPalette.accent
+                : RGB(78, 86, 94)
             : RGB(166, 172, 179);
 
     HPEN arrowPen =
@@ -168,31 +241,57 @@ void DrawNextComboBoxSurface(
             PS_SOLID,
             std::max(
                 1,
-                Scale(1, dpi)),
+                Scale(2, dpi)),
             arrowColor);
     oldPen =
         SelectObject(
             dc,
             arrowPen);
 
-    MoveToEx(
-        dc,
-        arrowCenterX -
-            Scale(4, dpi),
-        arrowCenterY -
-            Scale(2, dpi),
-        nullptr);
-    LineTo(
-        dc,
-        arrowCenterX,
-        arrowCenterY +
-            Scale(2, dpi));
-    LineTo(
-        dc,
-        arrowCenterX +
-            Scale(4, dpi),
-        arrowCenterY -
-            Scale(2, dpi));
+    const int arrowHalfWidth =
+        Scale(5, dpi);
+    const int arrowHalfHeight =
+        Scale(3, dpi);
+
+    if (dropped) {
+        MoveToEx(
+            dc,
+            arrowCenterX -
+                arrowHalfWidth,
+            arrowCenterY +
+                arrowHalfHeight / 2,
+            nullptr);
+        LineTo(
+            dc,
+            arrowCenterX,
+            arrowCenterY -
+                arrowHalfHeight);
+        LineTo(
+            dc,
+            arrowCenterX +
+                arrowHalfWidth,
+            arrowCenterY +
+                arrowHalfHeight / 2);
+    } else {
+        MoveToEx(
+            dc,
+            arrowCenterX -
+                arrowHalfWidth,
+            arrowCenterY -
+                arrowHalfHeight / 2,
+            nullptr);
+        LineTo(
+            dc,
+            arrowCenterX,
+            arrowCenterY +
+                arrowHalfHeight);
+        LineTo(
+            dc,
+            arrowCenterX +
+                arrowHalfWidth,
+            arrowCenterY -
+                arrowHalfHeight / 2);
+    }
 
     SelectObject(
         dc,
@@ -222,8 +321,8 @@ void DrawNextComboBoxSurface(
         surface.left +
             Scale(12, dpi),
         surface.top,
-        arrowCenterX -
-            Scale(12, dpi),
+        arrowArea.left -
+            Scale(6, dpi),
         surface.bottom,
     };
 
@@ -387,7 +486,6 @@ HWND CreateNextComboBox(
                 CBS_DROPDOWNLIST |
                 CBS_OWNERDRAWFIXED |
                 CBS_HASSTRINGS |
-                CBS_NOINTEGRALHEIGHT |
                 WS_VSCROLL,
             0,
             0,
@@ -447,6 +545,57 @@ void ApplyNextComboBoxMetrics(
         combo,
         nullptr,
         FALSE);
+}
+
+void MoveNextComboBox(
+    HWND combo,
+    int x,
+    int y,
+    int width,
+    UINT dpi,
+    BOOL repaint) {
+
+    if (!combo) {
+        return;
+    }
+
+    ApplyNextComboBoxMetrics(
+        combo,
+        dpi);
+
+    const LRESULT countResult =
+        SendMessageW(
+            combo,
+            CB_GETCOUNT,
+            0,
+            0);
+    const std::size_t itemCount =
+        countResult > 0
+            ? static_cast<std::size_t>(
+                  countResult)
+            : 0;
+    const std::size_t visibleItems =
+        NextComboBoxVisibleItems(
+            itemCount);
+
+    if (visibleItems > 0) {
+        SendMessageW(
+            combo,
+            CB_SETMINVISIBLE,
+            static_cast<WPARAM>(
+                visibleItems),
+            0);
+    }
+
+    MoveWindow(
+        combo,
+        x,
+        y,
+        width,
+        NextComboBoxDropHeightForDpi(
+            itemCount,
+            dpi),
+        repaint);
 }
 
 int MeasureNextComboBoxPreferredWidth(
@@ -564,8 +713,10 @@ int MeasureNextComboBoxPreferredWidth(
         combo,
         dc);
 
+    // Left text inset + fixed dropdown affordance + breathing room.
+    // Keep this in sync with DrawNextComboBoxSurface().
     const int chrome =
-        Scale(52, dpi);
+        Scale(58, dpi);
 
     return std::clamp(
         widest + chrome,
@@ -577,7 +728,9 @@ UINT NextComboBoxItemHeight(
     UINT dpi) noexcept {
 
     return static_cast<UINT>(
-        Scale(30, dpi));
+        Scale(
+            kNextComboBoxItemHeightLogical,
+            dpi));
 }
 
 void DrawNextComboBoxItem(
