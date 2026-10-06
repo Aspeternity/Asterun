@@ -387,6 +387,20 @@ inline constexpr int
     kNextComboBoxItemHeightLogical = 30;
 inline constexpr int
     kNextComboBoxChromeHeightLogical = 14;
+inline constexpr int
+    kNextComboBoxCornerRadiusLogical = 6;
+inline constexpr int
+    kNextComboBoxArrowAreaWidthLogical = 36;
+inline constexpr int
+    kNextComboBoxArrowButtonInsetLogical = 4;
+inline constexpr int
+    kNextComboBoxTextInsetLogical = 12;
+inline constexpr int
+    kNextComboBoxPopupSelectionInsetXLogical = 4;
+inline constexpr int
+    kNextComboBoxPopupSelectionInsetYLogical = 2;
+inline constexpr int
+    kNextComboBoxPopupSelectionRadiusLogical = 5;
 inline constexpr std::size_t
     kNextComboBoxMaxVisibleItems = 6;
 
