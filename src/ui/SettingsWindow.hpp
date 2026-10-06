@@ -167,11 +167,11 @@ private:
     void CreateAboutPage();
     void ApplyFonts();
     void Layout();
-    void LayoutCurrentPage();
+    void LayoutCurrentPage(BOOL repaint = TRUE);
     [[nodiscard]] RECT ContentPaneRect() const;
     void RedrawCurrentPage();
-    void LayoutGeneral();
-    void LayoutHotkeys(RECT client, int contentLeft, int contentWidth);
+    void LayoutGeneral(BOOL repaint = TRUE);
+    void LayoutHotkeys(RECT client, int contentLeft, int contentWidth, BOOL repaint = TRUE);
     void LayoutProviders(int contentLeft, int contentWidth);
     void LayoutAppearance(int contentLeft, int contentWidth);
     void LayoutData(int contentLeft, int contentWidth);
@@ -323,7 +323,7 @@ private:
     [[nodiscard]] bool
     HotkeyControlDesiredVisible(
         HWND control) const;
-    void ClipHotkeyControlsToViewport();
+    void ClipHotkeyControlsToViewport(BOOL repaint = TRUE);
 
     [[nodiscard]] RECT
     BehaviorCardRect() const;
