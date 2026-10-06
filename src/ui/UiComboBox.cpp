@@ -222,7 +222,9 @@ void DrawNextComboBoxSurfaceDirect(
             border);
 
     const int radius =
-        Scale(6, dpi);
+        Scale(
+            kNextComboBoxCornerRadiusLogical,
+            dpi);
 
     RoundRect(
         dc,
@@ -245,7 +247,9 @@ void DrawNextComboBoxSurfaceDirect(
         border);
 
     const int arrowAreaWidth =
-        Scale(36, dpi);
+        Scale(
+            kNextComboBoxArrowAreaWidthLogical,
+            dpi);
     RECT arrowArea{
         std::max(
             surface.left,
@@ -280,8 +284,12 @@ void DrawNextComboBoxSurfaceDirect(
             arrowArea;
         InflateRect(
             &buttonRect,
-            -Scale(4, dpi),
-            -Scale(4, dpi));
+            -Scale(
+                kNextComboBoxArrowButtonInsetLogical,
+                dpi),
+            -Scale(
+                kNextComboBoxArrowButtonInsetLogical,
+                dpi));
 
         HBRUSH buttonFill =
             CreateSolidBrush(
@@ -299,7 +307,9 @@ void DrawNextComboBoxSurfaceDirect(
                     NULL_PEN));
 
         const int buttonRadius =
-            Scale(6, dpi);
+            Scale(
+                kNextComboBoxCornerRadiusLogical,
+                dpi);
 
         RoundRect(
             dc,
@@ -439,7 +449,9 @@ void DrawNextComboBoxSurfaceDirect(
 
     RECT textRect{
         surface.left +
-            Scale(12, dpi),
+            Scale(
+                kNextComboBoxTextInsetLogical,
+                dpi),
         surface.top,
         arrowArea.left -
             Scale(6, dpi),
@@ -1337,7 +1349,9 @@ void DrawNextComboBoxItem(
             RECT textRect =
                 rect;
             textRect.left +=
-                Scale(12, dpi);
+                Scale(
+                    kNextComboBoxTextInsetLogical,
+                    dpi);
             textRect.right -=
                 Scale(6, dpi);
 
@@ -1386,20 +1400,66 @@ void DrawNextComboBoxItem(
         (item.itemState &
          ODS_DISABLED) != 0;
 
-    const COLORREF background =
-        selected
-            ? RGB(231, 242, 252)
-            : RGB(255, 255, 255);
-
-    HBRUSH fill =
+    HBRUSH background =
         CreateSolidBrush(
-            background);
+            kApplicationPalette
+                .controlBackground);
     FillRect(
         item.hDC,
         &rect,
-        fill);
+        background);
     DeleteObject(
-        fill);
+        background);
+
+    if (selected) {
+        RECT selection =
+            rect;
+        InflateRect(
+            &selection,
+            -Scale(
+                kNextComboBoxPopupSelectionInsetXLogical,
+                dpi),
+            -Scale(
+                kNextComboBoxPopupSelectionInsetYLogical,
+                dpi));
+
+        HBRUSH selectionFill =
+            CreateSolidBrush(
+                kApplicationPalette
+                    .selectionBackground);
+        HGDIOBJ oldBrush =
+            SelectObject(
+                item.hDC,
+                selectionFill);
+        HGDIOBJ oldPen =
+            SelectObject(
+                item.hDC,
+                GetStockObject(
+                    NULL_PEN));
+
+        const int selectionRadius =
+            Scale(
+                kNextComboBoxPopupSelectionRadiusLogical,
+                dpi);
+
+        RoundRect(
+            item.hDC,
+            selection.left,
+            selection.top,
+            selection.right,
+            selection.bottom,
+            selectionRadius,
+            selectionRadius);
+
+        SelectObject(
+            item.hDC,
+            oldPen);
+        SelectObject(
+            item.hDC,
+            oldBrush);
+        DeleteObject(
+            selectionFill);
+    }
 
     if (item.itemID ==
             static_cast<UINT>(-1)) {
@@ -1418,9 +1478,13 @@ void DrawNextComboBoxItem(
     RECT textRect =
         rect;
     textRect.left +=
-        Scale(12, dpi);
+        Scale(
+            kNextComboBoxTextInsetLogical,
+            dpi);
     textRect.right -=
-        Scale(12, dpi);
+        Scale(
+            kNextComboBoxTextInsetLogical,
+            dpi);
 
     SetBkMode(
         item.hDC,
@@ -1429,7 +1493,9 @@ void DrawNextComboBoxItem(
         item.hDC,
         disabled
             ? kApplicationPalette.mutedText
-            : kApplicationPalette.text);
+            : selected
+                ? kApplicationPalette.selectionText
+                : kApplicationPalette.text);
 
     HGDIOBJ oldFont =
         SelectObject(
@@ -1461,11 +1527,16 @@ LRESULT ColorNextComboBoxList(
         kApplicationPalette.text);
     SetBkColor(
         dc,
-        RGB(255, 255, 255));
+        kApplicationPalette
+            .controlBackground);
+
+    static HBRUSH background =
+        CreateSolidBrush(
+            kApplicationPalette
+                .controlBackground);
 
     return reinterpret_cast<LRESULT>(
-        GetStockObject(
-            WHITE_BRUSH));
+        background);
 }
 
 } // namespace altrun::ui
