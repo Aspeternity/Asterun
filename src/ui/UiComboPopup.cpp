@@ -918,6 +918,13 @@ LRESULT CALLBACK PopupProc(
     }
 
     case WM_NCDESTROY: {
+        const LRESULT result =
+            DefWindowProcW(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
         if (state->combo &&
             PopupForCombo(
                 state->combo) ==
@@ -932,7 +939,7 @@ LRESULT CALLBACK PopupProc(
             GWLP_USERDATA,
             0);
         delete state;
-        return 0;
+        return result;
     }
 
     default:
@@ -1157,11 +1164,37 @@ bool ShowNextComboPopup(
     MONITORINFO monitorInfo{
         sizeof(monitorInfo),
     };
-    GetMonitorInfoW(
-        MonitorFromWindow(
-            combo,
-            MONITOR_DEFAULTTONEAREST),
-        &monitorInfo);
+    const bool haveMonitorInfo =
+        GetMonitorInfoW(
+            MonitorFromWindow(
+                combo,
+                MONITOR_DEFAULTTONEAREST),
+            &monitorInfo) != FALSE;
+
+    if (!haveMonitorInfo) {
+        RECT work{};
+        if (SystemParametersInfoW(
+                SPI_GETWORKAREA,
+                0,
+                &work,
+                0)) {
+            monitorInfo.rcWork =
+                work;
+        } else {
+            monitorInfo.rcWork = {
+                comboRect.left,
+                comboRect.top,
+                comboRect.left +
+                    std::max(
+                        width,
+                        1),
+                comboRect.bottom +
+                    std::max(
+                        height,
+                        1),
+            };
+        }
+    }
 
     int x =
         comboRect.left;
@@ -1224,10 +1257,14 @@ bool ShowNextComboPopup(
         return false;
     }
 
-    SetPropW(
-        combo,
-        kPopupProperty,
-        popup);
+    if (!SetPropW(
+            combo,
+            kPopupProperty,
+            popup)) {
+        DestroyWindow(
+            popup);
+        return false;
+    }
 
     ApplyRoundedRegion(
         popup,
