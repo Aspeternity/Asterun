@@ -216,7 +216,8 @@ void EnsureActiveVisible(
                 rowHeight,
         std::max(
             padding,
-            client.right -
+            static_cast<int>(
+                client.right) -
                 padding -
                 scrollbarReserve),
         padding +
@@ -432,8 +433,9 @@ void DrawPopupDirect(
                     state.dpi);
             const int accentHeight =
                 std::min(
-                    visual.bottom -
-                        visual.top -
+                    static_cast<int>(
+                        visual.bottom -
+                        visual.top) -
                         S(8, state.dpi),
                     S(
                         kNextComboPopupAccentHeightLogical,
@@ -1142,8 +1144,9 @@ bool ShowNextComboPopup(
     const int width =
         std::max(
             1,
-            comboRect.right -
-                comboRect.left);
+            static_cast<int>(
+                comboRect.right -
+                comboRect.left));
     const int padding =
         S(
             kNextComboPopupPaddingLogical,
@@ -1216,8 +1219,10 @@ bool ShowNextComboPopup(
         } else {
             y =
                 std::max(
-                    monitorInfo.rcWork.top,
-                    monitorInfo.rcWork.bottom -
+                    static_cast<int>(
+                        monitorInfo.rcWork.top),
+                    static_cast<int>(
+                        monitorInfo.rcWork.bottom) -
                         height);
         }
     }
@@ -1225,10 +1230,13 @@ bool ShowNextComboPopup(
     x =
         std::clamp(
             x,
-            monitorInfo.rcWork.left,
+            static_cast<int>(
+                monitorInfo.rcWork.left),
             std::max(
-                monitorInfo.rcWork.left,
-                monitorInfo.rcWork.right -
+                static_cast<int>(
+                    monitorInfo.rcWork.left),
+                static_cast<int>(
+                    monitorInfo.rcWork.right) -
                     width));
 
     HWND owner =
