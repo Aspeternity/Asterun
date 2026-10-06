@@ -459,8 +459,16 @@ int main() {
                 RedrawSuspendProbe,
                 3));
 
+            int topLevelPageSwitchRedrawSuspends = 0;
+            assert(SetWindowSubclass(
+                window,
+                RedrawSuspendProbe,
+                4,
+                reinterpret_cast<DWORD_PTR>(
+                    &topLevelPageSwitchRedrawSuspends)));
+
             for (const UINT pageId :
-                 {51005u, 51002u}) {
+                 {51006u, 51005u, 51002u, 51003u, 51004u}) {
                 SendMessageW(
                     window,
                     WM_COMMAND,
@@ -479,6 +487,17 @@ int main() {
                     0);
                 assertNoNativeSettingsScroll();
             }
+
+            // Navigation must keep the top-level Settings window continuously
+            // visible. Temporarily disabling top-level redraw can expose the
+            // Explorer/browser behind it for a frame.
+            assert(
+                topLevelPageSwitchRedrawSuspends ==
+                0);
+            assert(RemoveWindowSubclass(
+                window,
+                RedrawSuspendProbe,
+                4));
 
             SetWindowPos(
                 window,
