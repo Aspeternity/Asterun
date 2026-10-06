@@ -3223,38 +3223,61 @@ void SettingsWindow::ShowPage(Page page) {
         }
     }
 
-    window_presentation::ScopedRedrawSuspend redrawGuard(hwnd_);
-
     page_ = page;
 
-    const auto setVisible =
+    const auto setVisibleQuiet =
         [](const std::vector<HWND>& controls,
            bool visible) {
             for (HWND control : controls) {
-                ShowWindow(
+                if (!control) {
+                    continue;
+                }
+
+                const bool currentlyVisible =
+                    (GetWindowLongPtrW(
+                         control,
+                         GWL_STYLE) &
+                     WS_VISIBLE) != 0;
+
+                if (currentlyVisible ==
+                    visible) {
+                    continue;
+                }
+
+                SetWindowPos(
                     control,
-                    visible
-                        ? SW_SHOW
-                        : SW_HIDE);
+                    nullptr,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE |
+                        SWP_NOSIZE |
+                        SWP_NOZORDER |
+                        SWP_NOACTIVATE |
+                        SWP_NOREDRAW |
+                        (visible
+                             ? SWP_SHOWWINDOW
+                             : SWP_HIDEWINDOW));
             }
         };
 
-    setVisible(
+    setVisibleQuiet(
         generalControls_,
         page == Page::General);
-    setVisible(
+    setVisibleQuiet(
         hotkeyControls_,
         page == Page::Hotkeys);
-    setVisible(
+    setVisibleQuiet(
         appearanceControls_,
         page == Page::Appearance);
-    setVisible(
+    setVisibleQuiet(
         providerControls_,
         page == Page::Providers);
-    setVisible(
+    setVisibleQuiet(
         dataControls_,
         page == Page::Data);
-    setVisible(
+    setVisibleQuiet(
         aboutControls_,
         page == Page::About);
 
@@ -3295,14 +3318,12 @@ void SettingsWindow::ShowPage(Page page) {
 
     UpdateNavLabels();
     UpdatePageHeader();
-    Layout();
-
-    redrawGuard.Resume();
-
     UpdatePageScrollBar();
 
-    // Let USER32 coalesce the final parent/child repaint instead of erasing
-    // and synchronously repainting the whole window on every navigation.
+    // Never suspend redraw on the visible top-level Settings HWND. Quietly
+    // settle only the active content page, then commit one final frame.
+    LayoutCurrentPage(FALSE);
+
     // Only the content pane and navigation buttons changed.
     RECT client{};
     GetClientRect(
@@ -3323,7 +3344,8 @@ void SettingsWindow::ShowPage(Page page) {
         nullptr,
         RDW_INVALIDATE |
             RDW_NOERASE |
-            RDW_ALLCHILDREN);
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
 
     for (HWND navigation :
          std::array<HWND, 6>{
@@ -3334,10 +3356,13 @@ void SettingsWindow::ShowPage(Page page) {
              navData_,
              navAbout_}) {
         if (navigation) {
-            InvalidateRect(
+            RedrawWindow(
                 navigation,
                 nullptr,
-                FALSE);
+                nullptr,
+                RDW_INVALIDATE |
+                    RDW_NOERASE |
+                    RDW_UPDATENOW);
         }
     }
 }
