@@ -279,24 +279,28 @@ int main() {
 
     const int selectionProbeX =
         std::clamp(
-            comboInfo.rcItem.left + 2,
+            static_cast<int>(
+                comboInfo.rcItem.left) + 2,
             0,
             comboWidth - 1);
     const int selectionProbeY =
         std::clamp(
-            comboInfo.rcItem.top + 2,
+            static_cast<int>(
+                comboInfo.rcItem.top) + 2,
             0,
             comboHeight - 1);
     const int buttonProbeX =
         std::clamp(
-            (comboInfo.rcButton.left +
-             comboInfo.rcButton.right) / 2,
+            static_cast<int>(
+                (comboInfo.rcButton.left +
+                 comboInfo.rcButton.right) / 2),
             0,
             comboWidth - 1);
     const int buttonProbeY =
         std::clamp(
-            (comboInfo.rcButton.top +
-             comboInfo.rcButton.bottom) / 2,
+            static_cast<int>(
+                (comboInfo.rcButton.top +
+                 comboInfo.rcButton.bottom) / 2),
             0,
             comboHeight - 1);
 
