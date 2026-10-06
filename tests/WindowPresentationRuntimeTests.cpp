@@ -399,87 +399,15 @@ int main() {
                 0,
                 normalSettingsRect.right -
                     normalSettingsRect.left,
-                compactOuterHeight,
-                SWP_NOMOVE |
-                    SWP_NOZORDER |
-                    SWP_NOACTIVATE);
-
-            SendMessageW(
-                window,
-                WM_COMMAND,
-                MAKEWPARAM(
-                    51001,
-                    BN_CLICKED),
-                0);
-            assert(
-                GetWindowLongPtrW(
-                    window,
-                    GWL_STYLE) &
-                WS_VSCROLL);
-
-            for (const UINT pageId :
-                 {51005u, 51002u}) {
-                SendMessageW(
-                    window,
-                    WM_COMMAND,
-                    MAKEWPARAM(
-                        pageId,
-                        BN_CLICKED),
-                    0);
-                assert(
-                    !(GetWindowLongPtrW(
-                          window,
-                          GWL_STYLE) &
-                      WS_VSCROLL));
-
-                SCROLLINFO cleared{};
-                cleared.cbSize =
-                    sizeof(cleared);
-                cleared.fMask =
-                    SIF_RANGE |
-                    SIF_PAGE |
-                    SIF_POS;
-                if (GetScrollInfo(
-                        window,
-                        SB_VERT,
-                        &cleared)) {
-                    assert(
-                        cleared.nMin == 0);
-                    assert(
-                        cleared.nMax == 0);
-                    assert(
-                        cleared.nPos == 0);
-                }
-
-                SendMessageW(
-                    window,
-                    WM_COMMAND,
-                    MAKEWPARAM(
-                        51001,
-                        BN_CLICKED),
-                    0);
-                assert(
-                    GetWindowLongPtrW(
-                        window,
-                        GWL_STYLE) &
-                    WS_VSCROLL);
-            }
-
-            SetWindowPos(
-                window,
-                nullptr,
-                0,
-                0,
-                normalSettingsRect.right -
-                    normalSettingsRect.left,
                 normalSettingsRect.bottom -
                     normalSettingsRect.top,
                 SWP_NOMOVE |
                     SWP_NOZORDER |
                     SWP_NOACTIVATE);
 
-            // Repeated General -> Sources -> Appearance -> Sources must settle
-            // the native frame on the very first visit, including high DPI.
+            // Repeated General -> Sources -> Appearance -> Sources must keep
+            // overlay scrolling frame-neutral on the first visit, including
+            // high DPI.
             for (int pass = 0; pass < 3; ++pass) {
                 SendMessageW(window, WM_COMMAND, MAKEWPARAM(51001, BN_CLICKED), 0);
                 SendMessageW(window, WM_COMMAND, MAKEWPARAM(51005, BN_CLICKED), 0);
