@@ -2848,17 +2848,48 @@ void SettingsWindow::RefreshProviderStatus() {
                 720);
     }
 
-    window_presentation::ScopedRedrawSuspend
-        redrawGuard(
-            atomicProviderUpdate
-                ? hwnd_
-                : nullptr);
+    const auto setProviderVisibleQuiet =
+        [](HWND control,
+           bool shouldShow) {
+            if (!control) {
+                return;
+            }
+
+            const bool currentlyVisible =
+                (GetWindowLongPtrW(
+                     control,
+                     GWL_STYLE) &
+                 WS_VISIBLE) != 0;
+
+            if (currentlyVisible ==
+                shouldShow) {
+                return;
+            }
+
+            SetWindowPos(
+                control,
+                nullptr,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE |
+                    SWP_NOSIZE |
+                    SWP_NOZORDER |
+                    SWP_NOACTIVATE |
+                    SWP_NOREDRAW |
+                    (shouldShow
+                         ? SWP_SHOWWINDOW
+                         : SWP_HIDEWINDOW));
+        };
 
     providerTrayVisible_ = showTray;
     providerActionsVisible_ = showActions;
 
     if (managedEverythingTrayIcon_) {
-        ShowWindow(managedEverythingTrayIcon_, visible && showTray ? SW_SHOW : SW_HIDE);
+        setProviderVisibleQuiet(
+            managedEverythingTrayIcon_,
+            visible && showTray);
         EnableWindow(
             managedEverythingTrayIcon_,
             enabled &&
@@ -2880,33 +2911,27 @@ void SettingsWindow::RefreshProviderStatus() {
                     L"Check for updates"));
     }
 
-    ShowWindow(
+    setProviderVisibleQuiet(
         providerGetEverything_,
         visible &&
-                showGetEverything
-            ? SW_SHOW
-            : SW_HIDE);
+            showGetEverything);
 
-    ShowWindow(
+    setProviderVisibleQuiet(
         providerUpdateEverything_,
         visible &&
-                showUpdateEverything
-            ? SW_SHOW
-            : SW_HIDE);
+            showUpdateEverything);
 
-    ShowWindow(
+    setProviderVisibleQuiet(
         providerRecheckEverything_,
         visible &&
-                showRecheck
-            ? SW_SHOW
-            : SW_HIDE);
+            showRecheck);
 
     SetWindowTextW(
         providerStatus_,
         text.c_str());
 
     if (visible && layoutChanged) {
-        Layout();
+        LayoutCurrentPage(FALSE);
     }
 
     if (atomicProviderUpdate) {
@@ -2924,8 +2949,6 @@ void SettingsWindow::RefreshProviderStatus() {
             &providerDirtyRect,
             Scale(2),
             Scale(2));
-
-        redrawGuard.Resume();
 
         // Repaint only the Everything card. Repainting the entire Settings
         // window made unrelated provider labels visibly blink even though
