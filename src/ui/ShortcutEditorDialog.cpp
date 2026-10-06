@@ -2226,6 +2226,17 @@ void ShortcutEditorDialog::UpdateRuntimeTestVisibility() {
     const bool visible =
         SelectedRuntimeInputMode() !=
         RuntimeInputMode::None;
+    const bool labelVisible =
+        IsWindowVisible(
+            testInputLabel_) != FALSE;
+    const bool inputVisible =
+        IsWindowVisible(
+            testInput_) != FALSE;
+
+    if (labelVisible == visible &&
+        inputVisible == visible) {
+        return;
+    }
 
     ShowWindow(
         testInputLabel_,
