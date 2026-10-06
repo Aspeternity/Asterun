@@ -974,8 +974,7 @@ LRESULT CALLBACK PopupProc(
     };
     wc.style =
         CS_HREDRAW |
-        CS_VREDRAW |
-        CS_DROPSHADOW;
+        CS_VREDRAW;
     wc.lpfnWndProc =
         PopupProc;
     wc.hInstance =
