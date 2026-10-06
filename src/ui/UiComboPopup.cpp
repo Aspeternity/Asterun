@@ -335,15 +335,27 @@ void DrawPopupDirect(
         S(
             kNextComboPopupRadiusLogical,
             state.dpi);
+    constexpr int frameInset = 1;
+    const int frameRadius =
+        std::max(
+            1,
+            popupRadius -
+                frameInset);
+    const int frameDiameter =
+        frameRadius * 2;
 
     RoundRect(
         dc,
-        client.left,
-        client.top,
-        client.right - 1,
-        client.bottom - 1,
-        popupRadius,
-        popupRadius);
+        client.left +
+            frameInset,
+        client.top +
+            frameInset,
+        client.right -
+            frameInset,
+        client.bottom -
+            frameInset,
+        frameDiameter,
+        frameDiameter);
 
     SelectObject(
         dc,
