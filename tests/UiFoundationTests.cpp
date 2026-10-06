@@ -264,6 +264,16 @@ int main() {
 
     assert(ui::Scale(50, 0) == 50);
     assert(ui::kSettingsComboRowLogical == 54);
+    assert(ui::kNextComboPopupGapLogical == 4);
+    assert(ui::kNextComboPopupPaddingLogical == 4);
+    assert(ui::kNextComboPopupRadiusLogical == 10);
+    assert(ui::kNextComboPopupRowHeightLogical == 36);
+    assert(ui::kNextComboPopupRowRadiusLogical == 6);
+    assert(ui::kNextComboPopupTextInsetLogical == 16);
+    assert(ui::kNextComboPopupAccentWidthLogical == 3);
+    assert(ui::kNextComboPopupAccentHeightLogical == 16);
+    assert(ui::kNextComboPopupScrollbarWidthLogical == 4);
+    assert(ui::kNextComboPopupScrollbarInsetLogical == 4);
 
     assert(
         ui::NextComboBoxVisibleItems(
