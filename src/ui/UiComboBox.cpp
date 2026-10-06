@@ -48,7 +48,7 @@ constexpr UINT_PTR kNextComboSubclassId =
     return font;
 }
 
-void DrawNextComboBoxSurface(
+void DrawNextComboBoxSurfaceDirect(
     HWND combo,
     HDC dc,
     COLORREF hostBackground) {
@@ -356,6 +356,87 @@ void DrawNextComboBoxSurface(
         oldFont);
 }
 
+void DrawNextComboBoxSurface(
+    HWND combo,
+    HDC dc,
+    COLORREF hostBackground) {
+
+    RECT rect{};
+    GetClientRect(
+        combo,
+        &rect);
+
+    const int width =
+        rect.right -
+        rect.left;
+    const int height =
+        rect.bottom -
+        rect.top;
+
+    if (width <= 0 ||
+        height <= 0) {
+        return;
+    }
+
+    HDC buffer =
+        CreateCompatibleDC(
+            dc);
+    HBITMAP bitmap =
+        buffer
+            ? CreateCompatibleBitmap(
+                  dc,
+                  width,
+                  height)
+            : nullptr;
+
+    if (!buffer ||
+        !bitmap) {
+        if (bitmap) {
+            DeleteObject(
+                bitmap);
+        }
+        if (buffer) {
+            DeleteDC(
+                buffer);
+        }
+
+        DrawNextComboBoxSurfaceDirect(
+            combo,
+            dc,
+            hostBackground);
+        return;
+    }
+
+    HGDIOBJ oldBitmap =
+        SelectObject(
+            buffer,
+            bitmap);
+
+    DrawNextComboBoxSurfaceDirect(
+        combo,
+        buffer,
+        hostBackground);
+
+    BitBlt(
+        dc,
+        0,
+        0,
+        width,
+        height,
+        buffer,
+        0,
+        0,
+        SRCCOPY);
+
+    SelectObject(
+        buffer,
+        oldBitmap);
+    DeleteObject(
+        bitmap);
+    DeleteDC(
+        buffer);
+}
+
 LRESULT CALLBACK NextComboSubclassProc(
     HWND hwnd,
     UINT message,
@@ -426,6 +507,38 @@ LRESULT CALLBACK NextComboSubclassProc(
             FALSE);
         return 0;
 
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL: {
+        const bool dropped =
+            SendMessageW(
+                hwnd,
+                CB_GETDROPPEDSTATE,
+                0,
+                0) != 0;
+
+        if (dropped) {
+            return DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+        }
+
+        HWND parent =
+            GetParent(
+                hwnd);
+
+        if (parent) {
+            SendMessageW(
+                parent,
+                message,
+                wParam,
+                lParam);
+        }
+
+        return 0;
+    }
+
     case CB_SETCURSEL:
     case CB_SHOWDROPDOWN:
     case WM_SETFONT:
@@ -441,10 +554,13 @@ LRESULT CALLBACK NextComboSubclassProc(
                 wParam,
                 lParam);
 
-        InvalidateRect(
+        RedrawWindow(
             hwnd,
             nullptr,
-            FALSE);
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_NOERASE |
+                RDW_UPDATENOW);
 
         return result;
     }
@@ -636,6 +752,34 @@ void MoveNextComboBox(
             itemCount,
             dpi),
         repaint);
+}
+
+void RefreshNextComboBoxState(
+    HWND combo,
+    UINT notification) {
+
+    if (!combo) {
+        return;
+    }
+
+    switch (notification) {
+    case CBN_DROPDOWN:
+    case CBN_CLOSEUP:
+    case CBN_SELCHANGE:
+    case CBN_SELENDOK:
+    case CBN_SELENDCANCEL:
+        RedrawWindow(
+            combo,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_NOERASE |
+                RDW_UPDATENOW);
+        break;
+
+    default:
+        break;
+    }
 }
 
 int MeasureNextComboBoxPreferredWidth(
