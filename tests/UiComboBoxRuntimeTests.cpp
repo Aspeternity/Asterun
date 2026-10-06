@@ -116,6 +116,27 @@ int main() {
             96,
             FALSE);
 
+    COMBOBOXINFO popupInfo{};
+    popupInfo.cbSize =
+        sizeof(popupInfo);
+    assert(
+        GetComboBoxInfo(
+            combo,
+            &popupInfo));
+    assert(
+        popupInfo.hwndList);
+    assert(
+        (GetWindowLongPtrW(
+             popupInfo.hwndList,
+             GWL_STYLE) &
+         WS_BORDER) == 0);
+    assert(
+        (GetWindowLongPtrW(
+             popupInfo.hwndList,
+             GWL_EXSTYLE) &
+         (WS_EX_CLIENTEDGE |
+          WS_EX_STATICEDGE)) == 0);
+
     assert(
         SendMessageW(
             combo,
@@ -197,6 +218,90 @@ int main() {
         GetDC(
             parent);
     assert(screen);
+
+    HDC itemDc =
+        CreateCompatibleDC(
+            screen);
+    assert(itemDc);
+
+    HBITMAP itemBitmap =
+        CreateCompatibleBitmap(
+            screen,
+            180,
+            30);
+    assert(itemBitmap);
+
+    HGDIOBJ oldItemBitmap =
+        SelectObject(
+            itemDc,
+            itemBitmap);
+
+    RECT itemRect{
+        0,
+        0,
+        180,
+        30,
+    };
+    HBRUSH initialItemBrush =
+        CreateSolidBrush(
+            RGB(
+                17,
+                34,
+                51));
+    FillRect(
+        itemDc,
+        &itemRect,
+        initialItemBrush);
+    DeleteObject(
+        initialItemBrush);
+
+    DRAWITEMSTRUCT popupItem{};
+    popupItem.CtlType =
+        ODT_COMBOBOX;
+    popupItem.CtlID =
+        100;
+    popupItem.itemID =
+        1;
+    popupItem.itemState =
+        ODS_SELECTED;
+    popupItem.hwndItem =
+        combo;
+    popupItem.hDC =
+        itemDc;
+    popupItem.rcItem =
+        itemRect;
+
+    altrun::ui::
+        DrawNextComboBoxItem(
+            popupItem,
+            96);
+
+    // Modern popup selection keeps a white margin and uses the shared
+    // selection token inside the inset rounded highlight.
+    assert(
+        GetPixel(
+            itemDc,
+            1,
+            15) ==
+        altrun::ui::
+            kApplicationPalette
+                .controlBackground);
+    assert(
+        GetPixel(
+            itemDc,
+            8,
+            15) ==
+        altrun::ui::
+            kApplicationPalette
+                .selectionBackground);
+
+    SelectObject(
+        itemDc,
+        oldItemBitmap);
+    DeleteObject(
+        itemBitmap);
+    DeleteDC(
+        itemDc);
 
     RECT comboRect{};
     GetClientRect(
