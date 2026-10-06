@@ -191,6 +191,96 @@ int main() {
             0,
             0) == 1);
 
+    HDC screen =
+        GetDC(
+            parent);
+    assert(screen);
+
+    HDC paintDc =
+        CreateCompatibleDC(
+            screen);
+    assert(paintDc);
+
+    HBITMAP paintBitmap =
+        CreateCompatibleBitmap(
+            screen,
+            32,
+            32);
+    assert(paintBitmap);
+
+    HGDIOBJ oldBitmap =
+        SelectObject(
+            paintDc,
+            paintBitmap);
+
+    const COLORREF sentinel =
+        RGB(
+            17,
+            34,
+            51);
+    RECT paintRect{
+        0,
+        0,
+        32,
+        32,
+    };
+    HBRUSH sentinelBrush =
+        CreateSolidBrush(
+            sentinel);
+    FillRect(
+        paintDc,
+        &paintRect,
+        sentinelBrush);
+    DeleteObject(
+        sentinelBrush);
+
+    DRAWITEMSTRUCT closedField{};
+    closedField.CtlType =
+        ODT_COMBOBOX;
+    closedField.CtlID =
+        100;
+    closedField.itemID =
+        1;
+    closedField.itemState =
+        ODS_COMBOBOXEDIT |
+        ODS_SELECTED |
+        ODS_FOCUS;
+    closedField.hwndItem =
+        combo;
+    closedField.hDC =
+        paintDc;
+    closedField.rcItem =
+        paintRect;
+
+    altrun::ui::
+        DrawNextComboBoxItem(
+            closedField,
+            96);
+
+    assert(
+        GetPixel(
+            paintDc,
+            4,
+            4) ==
+        sentinel);
+    assert(
+        GetPixel(
+            paintDc,
+            20,
+            20) ==
+        sentinel);
+
+    SelectObject(
+        paintDc,
+        oldBitmap);
+    DeleteObject(
+        paintBitmap);
+    DeleteDC(
+        paintDc);
+    ReleaseDC(
+        parent,
+        screen);
+
     DestroyWindow(
         parent);
     UnregisterClassW(
