@@ -1061,10 +1061,6 @@ void MoveNextComboBox(
         return;
     }
 
-    ApplyNextComboBoxMetrics(
-        combo,
-        dpi);
-
     const LRESULT countResult =
         SendMessageW(
             combo,
@@ -1076,6 +1072,35 @@ void MoveNextComboBox(
             ? static_cast<std::size_t>(
                   countResult)
             : 0;
+    const int height =
+        NextComboBoxDropHeightForDpi(
+            itemCount,
+            dpi);
+
+    if (!repaint) {
+        // Settings scrolling is position-only. Metrics, native LISTBOX
+        // bookkeeping and invalidation were already established by the normal
+        // layout/font/DPI path; touching them here creates pending paints that
+        // can trail the moving control by one frame. Keep the quiet move truly
+        // quiet and let the host repaint the content pane once at the end.
+        SetWindowPos(
+            combo,
+            nullptr,
+            x,
+            y,
+            width,
+            height,
+            SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_NOREDRAW |
+                SWP_NOCOPYBITS);
+        return;
+    }
+
+    ApplyNextComboBoxMetrics(
+        combo,
+        dpi);
+
     const std::size_t visibleItems =
         NextComboBoxVisibleItems(
             itemCount);
@@ -1130,35 +1155,13 @@ void MoveNextComboBox(
             needsScroll);
     }
 
-    const int height =
-        NextComboBoxDropHeightForDpi(
-            itemCount,
-            dpi);
-
-    if (repaint) {
-        MoveWindow(
-            combo,
-            x,
-            y,
-            width,
-            height,
-            TRUE);
-    } else {
-        // Settings scroll commits one final content-pane repaint. Prevent
-        // USER32 from copying stale ComboBox client pixels to the new
-        // position while the control is moving between those frames.
-        SetWindowPos(
-            combo,
-            nullptr,
-            x,
-            y,
-            width,
-            height,
-            SWP_NOZORDER |
-                SWP_NOACTIVATE |
-                SWP_NOREDRAW |
-                SWP_NOCOPYBITS);
-    }
+    MoveWindow(
+        combo,
+        x,
+        y,
+        width,
+        height,
+        TRUE);
 }
 
 void RefreshNextComboBoxState(
