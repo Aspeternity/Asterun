@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <array>
 #include <cassert>
 
 namespace {
@@ -86,10 +87,15 @@ int main() {
                     255));
     assert(combo);
 
-    for (const wchar_t* item : {
-             L"First",
-             L"Second",
-             L"Third"}) {
+    constexpr std::array<const wchar_t*, 3>
+        items{
+            L"First",
+            L"Second",
+            L"Third",
+        };
+
+    for (const wchar_t* item :
+         items) {
         assert(
             SendMessageW(
                 combo,
