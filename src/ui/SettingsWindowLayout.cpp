@@ -194,22 +194,26 @@ void SettingsWindow::LayoutCurrentPage(BOOL repaint) {
     case Page::Providers:
         LayoutProviders(
             contentLeft,
-            contentWidth);
+            contentWidth,
+            repaint);
         break;
     case Page::Appearance:
         LayoutAppearance(
             contentLeft,
-            contentWidth);
+            contentWidth,
+            repaint);
         break;
     case Page::Data:
         LayoutData(
             contentLeft,
-            contentWidth);
+            contentWidth,
+            repaint);
         break;
     case Page::About:
         LayoutAbout(
             contentLeft,
-            contentWidth);
+            contentWidth,
+            repaint);
         break;
     }
 }
@@ -630,19 +634,19 @@ void SettingsWindow::LayoutHotkeys(RECT client, int contentLeft, int contentWidt
         ClipHotkeyControlsToViewport(repaint);
     }
 
-void SettingsWindow::LayoutProviders(int contentLeft, int contentWidth) {
+void SettingsWindow::LayoutProviders(int contentLeft, int contentWidth, BOOL repaint) {
         const int width =
             std::min(
                 contentWidth,
                 Scale(720));
 
-        MoveWindow(
+        MoveSettingsChild(
             providerSectionTitle_,
             contentLeft,
             Scale(108),
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
         const RECT appCard =
             ProviderCardRect();
@@ -661,7 +665,7 @@ void SettingsWindow::LayoutProviders(int contentLeft, int contentWidth) {
         for (std::size_t i = 0;
              i < appRows.size();
              ++i) {
-            MoveWindow(
+            MoveSettingsChild(
                 appRows[i],
                 appCard.left +
                     Scale(1),
@@ -673,73 +677,73 @@ void SettingsWindow::LayoutProviders(int contentLeft, int contentWidth) {
                     appCard.left -
                     Scale(2),
                 rowHeight,
-                TRUE);
+                repaint);
         }
 
-        MoveWindow(
+        MoveSettingsChild(
             providerFilesTitle_,
             contentLeft,
             Scale(362),
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
         const int filesTop =
             Scale(394);
 
-        MoveWindow(
+        MoveSettingsChild(
             providerEverything_,
             contentLeft + Scale(1),
             filesTop + Scale(1),
             width - Scale(2),
             rowHeight,
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             managedEverythingTrayIcon_,
             contentLeft + Scale(1),
             filesTop + Scale(1) +
                 rowHeight,
             width - Scale(2),
             rowHeight,
-            TRUE);
+            repaint);
 
         const int statusTop = filesTop + rowHeight * (providerTrayVisible_ ? 2 : 1) + Scale(10);
         const int actionsTop = statusTop + Scale(50);
-        MoveWindow(
+        MoveSettingsChild(
             providerStatus_,
             contentLeft + Scale(18),
             statusTop,
             width - Scale(36),
             Scale(42),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             providerGetEverything_,
             contentLeft + Scale(18),
             actionsTop,
             Scale(210),
             Scale(34),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             providerUpdateEverything_,
             contentLeft + Scale(18),
             actionsTop,
             Scale(210),
             Scale(34),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             providerRecheckEverything_,
             contentLeft + Scale(240),
             actionsTop,
             Scale(128),
             Scale(34),
-            TRUE);
+            repaint);
     }
 
-void SettingsWindow::LayoutAppearance(int contentLeft, int contentWidth) {
+void SettingsWindow::LayoutAppearance(int contentLeft, int contentWidth, BOOL repaint) {
         const int width =
             std::min(
                 contentWidth,
@@ -765,15 +769,15 @@ void SettingsWindow::LayoutAppearance(int contentLeft, int contentWidth) {
             inner -
             languageComboWidth;
 
-        MoveWindow(
+        MoveSettingsChild(
             appearanceLauncherTitle_,
             contentLeft,
             Scale(108),
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             uiStyleLabel_,
             contentLeft + inner,
             Scale(157),
@@ -784,23 +788,24 @@ void SettingsWindow::LayoutAppearance(int contentLeft, int contentWidth) {
                     inner -
                     Scale(16)),
             Scale(24),
-            TRUE);
+            repaint);
         ui::MoveNextComboBox(
             uiStyle_,
             styleComboX,
             Scale(158),
             styleComboWidth,
-            dpi_);
+            dpi_,
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             appearanceAppTitle_,
             contentLeft,
             Scale(232),
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             languageLabel_,
             contentLeft + inner,
             Scale(281),
@@ -811,16 +816,17 @@ void SettingsWindow::LayoutAppearance(int contentLeft, int contentWidth) {
                     inner -
                     Scale(16)),
             Scale(24),
-            TRUE);
+            repaint);
         ui::MoveNextComboBox(
             language_,
             languageComboX,
             Scale(282),
             languageComboWidth,
-            dpi_);
+            dpi_,
+            repaint);
     }
 
-void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
+void SettingsWindow::LayoutData(int contentLeft, int contentWidth, BOOL repaint) {
         const int width =
             std::min(
                 contentWidth,
@@ -830,18 +836,18 @@ void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
         const int gap =
             Scale(12);
 
-        MoveWindow(
+        MoveSettingsChild(
             dataPathLabel_,
             contentLeft,
             Scale(108),
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
         const int openWidth =
             Scale(144);
 
-        MoveWindow(
+        MoveSettingsChild(
             dataPath_,
             contentLeft + inner,
             Scale(158),
@@ -849,8 +855,8 @@ void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
                 inner * 3 -
                 openWidth,
             Scale(24),
-            TRUE);
-        MoveWindow(
+            repaint);
+        MoveSettingsChild(
             openDataFolder_,
             contentLeft +
                 width -
@@ -859,29 +865,29 @@ void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
             Scale(152),
             openWidth,
             Scale(34),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             dataTransferLabel_,
             contentLeft,
             Scale(232),
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
         const int transferWidth =
             (width -
              inner * 2 -
              gap) / 2;
 
-        MoveWindow(
+        MoveSettingsChild(
             dataImportTsv_,
             contentLeft + inner,
             Scale(278),
             transferWidth,
             Scale(34),
-            TRUE);
-        MoveWindow(
+            repaint);
+        MoveSettingsChild(
             dataExport_,
             contentLeft +
                 inner +
@@ -890,15 +896,15 @@ void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
             Scale(278),
             transferWidth,
             Scale(34),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             dataMaintenanceLabel_,
             contentLeft,
             Scale(360),
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
         const int maintenanceWidth =
             (width -
@@ -907,14 +913,14 @@ void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
         const int maintenanceTop =
             Scale(406);
 
-        MoveWindow(
+        MoveSettingsChild(
             dataClearUsage_,
             contentLeft + inner,
             maintenanceTop,
             maintenanceWidth,
             Scale(34),
-            TRUE);
-        MoveWindow(
+            repaint);
+        MoveSettingsChild(
             dataRebuildIndex_,
             contentLeft +
                 inner +
@@ -923,8 +929,8 @@ void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
             maintenanceTop,
             maintenanceWidth,
             Scale(34),
-            TRUE);
-        MoveWindow(
+            repaint);
+        MoveSettingsChild(
             dataResetSettings_,
             contentLeft +
                 inner +
@@ -933,18 +939,18 @@ void SettingsWindow::LayoutData(int contentLeft, int contentWidth) {
             maintenanceTop,
             maintenanceWidth,
             Scale(34),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             dataStatus_,
             contentLeft,
             Scale(478),
             width,
             Scale(54),
-            TRUE);
+            repaint);
     }
 
-void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth) {
+void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth, BOOL repaint) {
         const int width =
             std::min(
                 contentWidth,
@@ -954,13 +960,13 @@ void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth) {
         const int actionWidth =
             Scale(140);
 
-        MoveWindow(
+        MoveSettingsChild(
             aboutName_,
             contentLeft,
             Scale(108),
             width,
             Scale(42),
-            TRUE);
+            repaint);
 
         int versionWidth =
             Scale(132);
@@ -1003,15 +1009,15 @@ void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth) {
         const int versionRowHeight =
             Scale(24);
 
-        MoveWindow(
+        MoveSettingsChild(
             aboutVersion_,
             contentLeft,
             versionRowTop,
             versionWidth + Scale(2),
             versionRowHeight,
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             openGitHub_,
             contentLeft +
                 versionWidth +
@@ -1019,23 +1025,23 @@ void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth) {
             versionRowTop,
             Scale(82),
             versionRowHeight,
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             aboutDescription_,
             contentLeft,
             Scale(174),
             width,
             Scale(24),
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             updateSectionTitle_,
             contentLeft,
             Scale(214),
             width,
             Scale(26),
-            TRUE);
+            repaint);
 
         const int updateTop =
             Scale(246);
@@ -1044,22 +1050,22 @@ void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth) {
                 settings_layout::
                     kToggleRowLogical);
 
-        MoveWindow(
+        MoveSettingsChild(
             updateAutoCheck_,
             contentLeft + Scale(1),
             updateTop + Scale(1),
             width - Scale(2),
             rowHeight,
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             updatePrerelease_,
             contentLeft + Scale(1),
             updateTop +
                 rowHeight,
             width - Scale(2),
             rowHeight,
-            TRUE);
+            repaint);
 
         const int statusRowTop =
             updateTop +
@@ -1071,7 +1077,7 @@ void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth) {
         const int rowCenterOffset =
             Scale(32);
 
-        MoveWindow(
+        MoveSettingsChild(
             updateStatus_,
             contentLeft + inner,
             statusRowTop +
@@ -1081,9 +1087,9 @@ void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth) {
                 inner * 3 -
                 actionWidth,
             statusHeight,
-            TRUE);
+            repaint);
 
-        MoveWindow(
+        MoveSettingsChild(
             updateAction_,
             contentLeft +
                 width -
@@ -1094,7 +1100,7 @@ void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth) {
                 actionHeight / 2,
             actionWidth,
             actionHeight,
-            TRUE);
+            repaint);
     }
 
 } // namespace altrun
