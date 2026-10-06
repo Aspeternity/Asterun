@@ -323,15 +323,15 @@ int main() {
     assert(
         ui::NextComboBoxDropHeightForDpi(
             3,
-            96) == 124);
+            96) == 134);
     assert(
         ui::NextComboBoxDropHeightForDpi(
             5,
-            96) == 184);
+            96) == 194);
     assert(
         ui::NextComboBoxDropHeightForDpi(
             8,
-            96) == 214);
+            96) == 224);
 
     assert(ui::kSettingsCardRadiusLogical == 8);
     assert(ui::kSettingsNavHeightLogical == 40);
