@@ -6651,9 +6651,11 @@ LRESULT SettingsWindow::HandleMessage(
             // previous unconditional SetFocus(hwnd_) inserted an unnecessary
             // Combo A -> Settings -> Combo B transition and made the old
             // ComboBox visibly repaint before the new one received focus.
-            POINT point{};
+            POINT screenPoint{};
             GetCursorPos(
-                &point);
+                &screenPoint);
+            POINT point =
+                screenPoint;
             ScreenToClient(
                 hwnd_,
                 &point);
@@ -6692,12 +6694,7 @@ LRESULT SettingsWindow::HandleMessage(
                      .empty()) {
                 const HWND clicked =
                     WindowFromPoint(
-                        [] {
-                            POINT screen{};
-                            GetCursorPos(
-                                &screen);
-                            return screen;
-                        }());
+                        screenPoint);
 
                 if (LOWORD(wParam) !=
                         WM_LBUTTONDOWN ||
