@@ -1072,6 +1072,45 @@ if(BUILD_TESTING)
         target_include_directories(ui_listview_failure_tests PRIVATE src)
         target_link_libraries(ui_listview_failure_tests PRIVATE user32 gdi32 comctl32 uxtheme)
         target_compile_definitions(ui_listview_failure_tests PRIVATE ${window_runtime_definitions})
+
+        add_executable(
+            ui_combobox_runtime_tests
+            tests/UiComboBoxRuntimeTests.cpp
+            src/ui/UiComboBox.cpp
+        )
+        target_include_directories(
+            ui_combobox_runtime_tests
+            PRIVATE src
+        )
+        target_link_libraries(
+            ui_combobox_runtime_tests
+            PRIVATE
+                user32
+                gdi32
+                comctl32
+        )
+        target_compile_definitions(
+            ui_combobox_runtime_tests
+            PRIVATE ${window_runtime_definitions}
+        )
+        if(MSVC)
+            target_compile_options(
+                ui_combobox_runtime_tests
+                PRIVATE /W4 /permissive- /utf-8 /EHsc
+            )
+        endif()
+        altrun_enable_test_assertions(
+            ui_combobox_runtime_tests
+        )
+        add_test(
+            NAME ui_combobox_runtime_tests
+            COMMAND ui_combobox_runtime_tests
+        )
+        set_tests_properties(
+            ui_combobox_runtime_tests
+            PROPERTIES TIMEOUT 15 RUN_SERIAL TRUE
+        )
+
         foreach(target app_lifecycle_runtime_tests ui_listview_failure_tests launcher_resource_runtime_tests)
             if(MSVC)
                 target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
