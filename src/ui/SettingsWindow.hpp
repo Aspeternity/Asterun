@@ -172,10 +172,10 @@ private:
     void RedrawCurrentPage();
     void LayoutGeneral(BOOL repaint = TRUE);
     void LayoutHotkeys(RECT client, int contentLeft, int contentWidth, BOOL repaint = TRUE);
-    void LayoutProviders(int contentLeft, int contentWidth);
-    void LayoutAppearance(int contentLeft, int contentWidth);
-    void LayoutData(int contentLeft, int contentWidth);
-    void LayoutAbout(int contentLeft, int contentWidth);
+    void LayoutProviders(int contentLeft, int contentWidth, BOOL repaint = TRUE);
+    void LayoutAppearance(int contentLeft, int contentWidth, BOOL repaint = TRUE);
+    void LayoutData(int contentLeft, int contentWidth, BOOL repaint = TRUE);
+    void LayoutAbout(int contentLeft, int contentWidth, BOOL repaint = TRUE);
     void PositionForShow();
     void ShowPage(Page page);
     void UpdateNavLabels();
