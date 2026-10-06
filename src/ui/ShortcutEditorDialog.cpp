@@ -3497,8 +3497,6 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             return 0;
 
         case kIdAdvancedToggle: {
-            const UINT notify =
-                HIWORD(wParam);
             const bool toggleActivated =
                 notify == BN_CLICKED ||
                 notify ==
