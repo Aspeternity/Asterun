@@ -5,8 +5,11 @@
 #include "UiTheme.hpp"
 
 #include <commctrl.h>
+#include <windowsx.h>
 
 #include <algorithm>
+#include <cstdlib>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -697,6 +700,9 @@ void ClosePopup(
         RemovePropW(
             combo,
             kPopupProperty);
+        RefreshNextComboBoxState(
+            combo,
+            CBN_CLOSEUP);
         NotifyCombo(
             combo,
             CBN_CLOSEUP);
@@ -1237,6 +1243,9 @@ bool ShowNextComboPopup(
         SWP_NOACTIVATE |
             SWP_SHOWWINDOW);
 
+    RefreshNextComboBoxState(
+        combo,
+        CBN_DROPDOWN);
     NotifyCombo(
         combo,
         CBN_DROPDOWN);
@@ -1328,6 +1337,21 @@ bool HandleNextComboPopupKey(
     if (message != WM_KEYDOWN &&
         message != WM_SYSKEYDOWN) {
         return false;
+    }
+
+    const bool altDown =
+        (GetKeyState(
+             VK_MENU) &
+         0x8000) != 0;
+
+    if (message == WM_SYSKEYDOWN &&
+        altDown &&
+        (wParam == VK_UP ||
+         wParam == VK_DOWN)) {
+        HideNextComboPopup(
+            combo,
+            true);
+        return true;
     }
 
     switch (wParam) {
