@@ -4087,91 +4087,52 @@ void SettingsWindow::UpdatePageScrollBar() {
         return;
     }
 
+    // Settings uses an in-client overlay indicator. Keep USER32's non-client
+    // scrollbar disabled so it cannot change client width or fight the app's
+    // visual language.
+    HideSettingsVerticalScrollBar(
+        hwnd_);
+
+    if (page_ == Page::General) {
+        generalScrollOffset_ =
+            std::clamp(
+                generalScrollOffset_,
+                0,
+                PageScrollMaximum());
+    } else if (page_ == Page::Hotkeys) {
+        hotkeyScrollOffset_ =
+            std::clamp(
+                hotkeyScrollOffset_,
+                0,
+                PageScrollMaximum());
+    }
+}
+
+int SettingsWindow::PageScrollMaximum() const {
+    if (!hwnd_) {
+        return 0;
+    }
+
     if (page_ == Page::General) {
         RECT client{};
         GetClientRect(
             hwnd_,
             &client);
 
-        auto full =
+        const auto full =
             BuildGeneralLayout(0);
 
-        int maximum =
-            settings_layout::
-                MaxScrollOffset(
-                    full,
-                    static_cast<int>(
-                        client.bottom),
-                    dpi_);
-
-        if (maximum > 0) {
-            ShowScrollBar(
-                hwnd_,
-                SB_VERT,
-                TRUE);
-        } else {
-            HideSettingsVerticalScrollBar(
-                hwnd_);
-        }
-
-        // Showing the scrollbar changes the client width and can switch the
-        // General page into its narrow stacked layout. Recalculate once using
-        // the final client area before clamping the scroll position.
-        GetClientRect(
-            hwnd_,
-            &client);
-
-        full =
-            BuildGeneralLayout(0);
-
-        maximum =
-            settings_layout::
-                MaxScrollOffset(
-                    full,
-                    static_cast<int>(
-                        client.bottom),
-                    dpi_);
-
-        generalScrollOffset_ =
-            std::clamp(
-                generalScrollOffset_,
-                0,
-                maximum);
-
-        SCROLLINFO info{};
-        info.cbSize =
-            sizeof(info);
-        info.fMask =
-            SIF_RANGE |
-            SIF_PAGE |
-            SIF_POS;
-        info.nMin = 0;
-        info.nMax =
-            std::max(
-                0,
-                full.contentBottom +
-                    Scale(10) - 1);
-        info.nPage =
-            static_cast<UINT>(
-                std::max(
-                    1,
-                    static_cast<int>(
-                        client.bottom)));
-        info.nPos =
-            generalScrollOffset_;
-
-        SetScrollInfo(
-            hwnd_,
-            SB_VERT,
-            &info,
-            TRUE);
-        return;
+        return settings_layout::
+            MaxScrollOffset(
+                full,
+                static_cast<int>(
+                    client.bottom),
+                dpi_);
     }
 
     if (page_ == Page::Hotkeys) {
         const RECT viewport =
             HotkeyScrollViewport();
-
         const int pageHeight =
             std::max(
                 1,
@@ -4184,54 +4145,207 @@ void SettingsWindow::UpdatePageScrollBar() {
                 HotkeyContentBottom() -
                     static_cast<int>(
                         viewport.top));
-        const int maximum =
-            std::max(
-                0,
-                contentHeight -
-                    pageHeight);
 
-        hotkeyScrollOffset_ =
-            std::clamp(
-                hotkeyScrollOffset_,
-                0,
-                maximum);
-
-        if (maximum > 0) {
-            ShowScrollBar(
-                hwnd_,
-                SB_VERT,
-                TRUE);
-        } else {
-            HideSettingsVerticalScrollBar(
-                hwnd_);
-        }
-
-        SCROLLINFO info{};
-        info.cbSize =
-            sizeof(info);
-        info.fMask =
-            SIF_RANGE |
-            SIF_PAGE |
-            SIF_POS;
-        info.nMin = 0;
-        info.nMax =
-            contentHeight - 1;
-        info.nPage =
-            static_cast<UINT>(
+        return std::max(
+            0,
+            contentHeight -
                 pageHeight);
-        info.nPos =
-            hotkeyScrollOffset_;
+    }
 
-        SetScrollInfo(
+    return 0;
+}
+
+RECT SettingsWindow::PageScrollTrackRect() const {
+    RECT client{};
+    if (!hwnd_) {
+        return client;
+    }
+
+    GetClientRect(
+        hwnd_,
+        &client);
+
+    const int hitWidth =
+        Scale(14);
+    const int rightInset =
+        Scale(3);
+    const int verticalInset =
+        Scale(14);
+
+    return {
+        std::max(
+            client.left,
+            client.right -
+                rightInset -
+                hitWidth),
+        client.top +
+            verticalInset,
+        client.right -
+            rightInset,
+        std::max(
+            client.top +
+                verticalInset,
+            client.bottom -
+                verticalInset),
+    };
+}
+
+RECT SettingsWindow::PageScrollThumbRect() const {
+    RECT track =
+        PageScrollTrackRect();
+    const int maximum =
+        PageScrollMaximum();
+
+    if (maximum <= 0 ||
+        track.bottom <= track.top) {
+        return {};
+    }
+
+    const int trackHeight =
+        track.bottom -
+        track.top;
+    int viewportHeight = 1;
+
+    if (page_ == Page::Hotkeys) {
+        const RECT viewport =
+            HotkeyScrollViewport();
+        viewportHeight =
+            std::max(
+                1,
+                static_cast<int>(
+                    viewport.bottom -
+                    viewport.top));
+    } else {
+        RECT client{};
+        GetClientRect(
             hwnd_,
-            SB_VERT,
-            &info,
-            TRUE);
+            &client);
+        viewportHeight =
+            std::max(
+                1,
+                static_cast<int>(
+                    client.bottom));
+    }
+
+    const int contentHeight =
+        viewportHeight +
+        maximum;
+    const int minimumThumb =
+        Scale(48);
+    const int thumbHeight =
+        std::clamp(
+            static_cast<int>(
+                (static_cast<long long>(
+                     trackHeight) *
+                 viewportHeight) /
+                std::max(
+                    1,
+                    contentHeight)),
+            std::min(
+                minimumThumb,
+                trackHeight),
+            trackHeight);
+    const int travel =
+        std::max(
+            0,
+            trackHeight -
+                thumbHeight);
+    const int offset =
+        page_ == Page::General
+            ? generalScrollOffset_
+            : hotkeyScrollOffset_;
+    const int thumbTop =
+        track.top +
+        (maximum > 0
+             ? static_cast<int>(
+                   (static_cast<long long>(
+                        travel) *
+                    offset) /
+                   maximum)
+             : 0);
+
+    const int visualWidth =
+        Scale(
+            pageScrollHovered_ ||
+                    pageScrollDragging_
+                ? 6
+                : 4);
+    const int centerX =
+        track.left +
+        (track.right -
+         track.left) / 2;
+
+    return {
+        centerX -
+            visualWidth / 2,
+        thumbTop,
+        centerX -
+            visualWidth / 2 +
+            visualWidth,
+        thumbTop +
+            thumbHeight,
+    };
+}
+
+void SettingsWindow::DrawPageScrollBar(
+    HDC dc) {
+
+    if (!dc ||
+        PageScrollMaximum() <= 0) {
         return;
     }
 
-    HideSettingsVerticalScrollBar(
-        hwnd_);
+    RECT thumb =
+        PageScrollThumbRect();
+
+    if (thumb.right <= thumb.left ||
+        thumb.bottom <= thumb.top) {
+        return;
+    }
+
+    const COLORREF color =
+        pageScrollDragging_
+            ? RGB(105, 115, 124)
+            : pageScrollHovered_
+                ? RGB(126, 135, 144)
+                : RGB(166, 173, 181);
+
+    HBRUSH brush =
+        CreateSolidBrush(
+            color);
+    HGDIOBJ oldBrush =
+        SelectObject(
+            dc,
+            brush);
+    HGDIOBJ oldPen =
+        SelectObject(
+            dc,
+            GetStockObject(
+                NULL_PEN));
+
+    const int radius =
+        std::max(
+            1,
+            (thumb.right -
+             thumb.left) / 2);
+
+    RoundRect(
+        dc,
+        thumb.left,
+        thumb.top,
+        thumb.right,
+        thumb.bottom,
+        radius,
+        radius);
+
+    SelectObject(
+        dc,
+        oldPen);
+    SelectObject(
+        dc,
+        oldBrush);
+    DeleteObject(
+        brush);
 }
 
 void SettingsWindow::ScrollCurrentPage(
@@ -4245,25 +4359,8 @@ void SettingsWindow::ScrollCurrentPage(
 
     UpdatePageScrollBar();
 
-    SCROLLINFO info{};
-    info.cbSize =
-        sizeof(info);
-    info.fMask =
-        SIF_RANGE |
-        SIF_PAGE;
-
-    GetScrollInfo(
-        hwnd_,
-        SB_VERT,
-        &info);
-
     const int maximum =
-        std::max(
-            0,
-            info.nMax -
-                static_cast<int>(
-                    info.nPage) +
-                1);
+        PageScrollMaximum();
 
     int& offset =
         page_ == Page::General
