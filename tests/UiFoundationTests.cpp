@@ -264,7 +264,7 @@ int main() {
 
     assert(ui::Scale(50, 0) == 50);
     assert(ui::kSettingsComboRowLogical == 54);
-    assert(ui::kNextComboPopupGapLogical == 4);
+    assert(ui::kNextComboPopupGapLogical == 3);
     assert(ui::kNextComboPopupPaddingLogical == 4);
     assert(ui::kNextComboPopupRadiusLogical == 10);
     assert(ui::kNextComboPopupRowHeightLogical == 36);
