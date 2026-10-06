@@ -2,6 +2,7 @@
 #include "ui/UiTheme.hpp"
 
 #include <windows.h>
+#include <commctrl.h>
 
 #include <algorithm>
 #include <array>
@@ -17,6 +18,8 @@ int gDropdownNotifications = 0;
 int gCloseupNotifications = 0;
 int gSelectionOkNotifications = 0;
 int gSelectionCancelNotifications = 0;
+UINT gQuietMoveFlags = 0;
+int gQuietMoveNotifications = 0;
 
 LRESULT CALLBACK ParentProc(
     HWND hwnd,
@@ -53,6 +56,39 @@ LRESULT CALLBACK ParentProc(
     }
 
     return DefWindowProcW(
+        hwnd,
+        message,
+        wParam,
+        lParam);
+}
+
+LRESULT CALLBACK QuietMoveProbe(
+    HWND hwnd,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    UINT_PTR subclassId,
+    DWORD_PTR) {
+
+    if (message == WM_WINDOWPOSCHANGING) {
+        const auto* position =
+            reinterpret_cast<const WINDOWPOS*>(
+                lParam);
+        if (position) {
+            gQuietMoveFlags =
+                position->flags;
+            ++gQuietMoveNotifications;
+        }
+    }
+
+    if (message == WM_NCDESTROY) {
+        RemoveWindowSubclass(
+            hwnd,
+            QuietMoveProbe,
+            subclassId);
+    }
+
+    return DefSubclassProc(
         hwnd,
         message,
         wParam,
@@ -132,6 +168,15 @@ int main() {
                     item)) != CB_ERR);
     }
 
+    assert(SetWindowSubclass(
+        combo,
+        QuietMoveProbe,
+        17,
+        0));
+
+    gQuietMoveFlags = 0;
+    gQuietMoveNotifications = 0;
+
     altrun::ui::
         MoveNextComboBox(
             combo,
@@ -140,6 +185,15 @@ int main() {
             180,
             96,
             FALSE);
+
+    assert(
+        gQuietMoveNotifications > 0);
+    assert(
+        (gQuietMoveFlags &
+         SWP_NOREDRAW) != 0);
+    assert(
+        (gQuietMoveFlags &
+         SWP_NOCOPYBITS) != 0);
 
     assert(
         SendMessageW(
