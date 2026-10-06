@@ -13,6 +13,10 @@ constexpr wchar_t kParentClass[] =
     L"Asterun.UiComboBoxRuntimeTest";
 int gWheelMessages = 0;
 int gSelectionNotifications = 0;
+int gDropdownNotifications = 0;
+int gCloseupNotifications = 0;
+int gSelectionOkNotifications = 0;
+int gSelectionCancelNotifications = 0;
 
 LRESULT CALLBACK ParentProc(
     HWND hwnd,
@@ -26,11 +30,26 @@ LRESULT CALLBACK ParentProc(
         return 0;
     }
 
-    if (message == WM_COMMAND &&
-        HIWORD(wParam) ==
-            CBN_SELCHANGE) {
-        ++gSelectionNotifications;
-        return 0;
+    if (message == WM_COMMAND) {
+        switch (HIWORD(wParam)) {
+        case CBN_SELCHANGE:
+            ++gSelectionNotifications;
+            return 0;
+        case CBN_DROPDOWN:
+            ++gDropdownNotifications;
+            return 0;
+        case CBN_CLOSEUP:
+            ++gCloseupNotifications;
+            return 0;
+        case CBN_SELENDOK:
+            ++gSelectionOkNotifications;
+            return 0;
+        case CBN_SELENDCANCEL:
+            ++gSelectionCancelNotifications;
+            return 0;
+        default:
+            break;
+        }
     }
 
     return DefWindowProcW(
@@ -76,6 +95,12 @@ int main() {
             instance,
             nullptr);
     assert(parent);
+
+    ShowWindow(
+        parent,
+        SW_SHOWNOACTIVATE);
+    UpdateWindow(
+        parent);
 
     HWND combo =
         altrun::ui::
@@ -134,6 +159,10 @@ int main() {
 
     gWheelMessages = 0;
     gSelectionNotifications = 0;
+    gDropdownNotifications = 0;
+    gCloseupNotifications = 0;
+    gSelectionOkNotifications = 0;
+    gSelectionCancelNotifications = 0;
 
     SendMessageW(
         combo,
@@ -336,6 +365,14 @@ int main() {
             CB_SHOWDROPDOWN,
             TRUE,
             0) != CB_ERR);
+    assert(
+        SendMessageW(
+            combo,
+            CB_GETDROPPEDSTATE,
+            0,
+            0) == TRUE);
+    assert(
+        gDropdownNotifications == 1);
 
     HDC expandedDc =
         CreateCompatibleDC(
@@ -406,12 +443,6 @@ int main() {
     assert(
         expandedChevronPixels > 0);
 
-    SendMessageW(
-        combo,
-        CB_SHOWDROPDOWN,
-        FALSE,
-        0);
-
     SelectObject(
         expandedDc,
         oldExpandedBitmap);
@@ -419,6 +450,85 @@ int main() {
         expandedBitmap);
     DeleteDC(
         expandedDc);
+
+    // Custom popup keyboard navigation commits only on Enter.
+    SendMessageW(
+        combo,
+        WM_KEYDOWN,
+        VK_DOWN,
+        0);
+    assert(
+        SendMessageW(
+            combo,
+            CB_GETCURSEL,
+            0,
+            0) == 1);
+
+    SendMessageW(
+        combo,
+        WM_KEYDOWN,
+        VK_RETURN,
+        0);
+
+    assert(
+        SendMessageW(
+            combo,
+            CB_GETCURSEL,
+            0,
+            0) == 2);
+    assert(
+        SendMessageW(
+            combo,
+            CB_GETDROPPEDSTATE,
+            0,
+            0) == FALSE);
+    assert(
+        gSelectionNotifications == 1);
+    assert(
+        gSelectionOkNotifications == 1);
+    assert(
+        gCloseupNotifications == 1);
+
+    // Reopen and cancel: selection must stay unchanged.
+    assert(
+        SendMessageW(
+            combo,
+            CB_SHOWDROPDOWN,
+            TRUE,
+            0) != CB_ERR);
+    assert(
+        gDropdownNotifications == 2);
+
+    SendMessageW(
+        combo,
+        WM_KEYDOWN,
+        VK_UP,
+        0);
+    SendMessageW(
+        combo,
+        WM_KEYDOWN,
+        VK_ESCAPE,
+        0);
+
+    assert(
+        SendMessageW(
+            combo,
+            CB_GETCURSEL,
+            0,
+            0) == 2);
+    assert(
+        SendMessageW(
+            combo,
+            CB_GETDROPPEDSTATE,
+            0,
+            0) == FALSE);
+    assert(
+        gSelectionNotifications == 1);
+    assert(
+        gSelectionCancelNotifications == 1);
+    assert(
+        gCloseupNotifications == 2);
+
     ReleaseDC(
         parent,
         screen);
