@@ -6647,20 +6647,57 @@ LRESULT SettingsWindow::HandleMessage(
                 WM_RBUTTONDOWN ||
             LOWORD(wParam) ==
                 WM_MBUTTONDOWN) {
-            // Native ComboBox controls keep their selection highlight while
-            // focused. Any click elsewhere inside Settings should dismiss that
-            // focus first; the clicked child can then take focus normally.
-            dismissComboFocus();
+            // Let interactive child controls transfer focus directly. The
+            // previous unconditional SetFocus(hwnd_) inserted an unnecessary
+            // Combo A -> Settings -> Combo B transition and made the old
+            // ComboBox visibly repaint before the new one received focus.
+            POINT point{};
+            GetCursorPos(
+                &point);
+            ScreenToClient(
+                hwnd_,
+                &point);
+
+            HWND clickedChild =
+                ChildWindowFromPointEx(
+                    hwnd_,
+                    point,
+                    CWP_SKIPINVISIBLE |
+                        CWP_SKIPDISABLED);
+
+            bool passiveSurface = false;
+
+            if (clickedChild &&
+                clickedChild != hwnd_) {
+                wchar_t className[32]{};
+
+                if (GetClassNameW(
+                        clickedChild,
+                        className,
+                        static_cast<int>(
+                            _countof(
+                                className))) > 0) {
+                    passiveSurface =
+                        lstrcmpiW(
+                            className,
+                            L"Static") == 0;
+                }
+            }
+
+            if (passiveSurface) {
+                dismissComboFocus();
+            }
 
             if (!capturingHotkeyActionId_
                      .empty()) {
-                POINT point{};
-                GetCursorPos(
-                    &point);
-
                 const HWND clicked =
                     WindowFromPoint(
-                        point);
+                        [] {
+                            POINT screen{};
+                            GetCursorPos(
+                                &screen);
+                            return screen;
+                        }());
 
                 if (LOWORD(wParam) !=
                         WM_LBUTTONDOWN ||
@@ -6732,12 +6769,31 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_COMMAND: {
         const UINT id = LOWORD(wParam);
         const UINT notify = HIWORD(wParam);
+        HWND commandControl =
+            reinterpret_cast<HWND>(
+                lParam);
+
+        switch (id) {
+        case kIdStartupBehavior:
+        case kIdPopupMonitor:
+        case kIdLauncherPlacement:
+        case kIdSettingsPlacement:
+        case kIdShortcutManagerPlacement:
+        case kIdUiStyle:
+        case kIdLanguage:
+            ui::RefreshNextComboBoxState(
+                commandControl,
+                notify);
+            break;
+
+        default:
+            break;
+        }
 
         const auto redrawClickedToggle =
             [&]() {
                 HWND control =
-                    reinterpret_cast<HWND>(
-                        lParam);
+                    commandControl;
                 if (!control) {
                     return;
                 }
