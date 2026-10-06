@@ -1,4 +1,5 @@
 #include "ui/UiComboBox.hpp"
+#include "ui/UiTheme.hpp"
 
 #include <windows.h>
 
@@ -277,6 +278,113 @@ int main() {
         paintBitmap);
     DeleteDC(
         paintDc);
+
+    assert(
+        SendMessageW(
+            combo,
+            CB_SHOWDROPDOWN,
+            TRUE,
+            0) != CB_ERR);
+
+    RECT comboRect{};
+    GetClientRect(
+        combo,
+        &comboRect);
+    const int comboWidth =
+        comboRect.right -
+        comboRect.left;
+    const int comboHeight =
+        comboRect.bottom -
+        comboRect.top;
+    assert(
+        comboWidth > 40 &&
+        comboHeight > 10);
+
+    HDC expandedDc =
+        CreateCompatibleDC(
+            screen);
+    assert(expandedDc);
+
+    HBITMAP expandedBitmap =
+        CreateCompatibleBitmap(
+            screen,
+            comboWidth,
+            comboHeight);
+    assert(expandedBitmap);
+
+    HGDIOBJ oldExpandedBitmap =
+        SelectObject(
+            expandedDc,
+            expandedBitmap);
+
+    SendMessageW(
+        combo,
+        WM_PRINTCLIENT,
+        reinterpret_cast<WPARAM>(
+            expandedDc),
+        PRF_CLIENT);
+
+    constexpr COLORREF
+        kClosedChevronColor =
+            RGB(
+                78,
+                86,
+                94);
+    const COLORREF expandedChevronColor =
+        altrun::ui::
+            kApplicationPalette.accent;
+
+    int closedChevronPixels = 0;
+    int expandedChevronPixels = 0;
+    const int arrowLeft =
+        std::max(
+            0,
+            comboWidth -
+                altrun::ui::Scale(
+                    36,
+                    96));
+
+    for (int y = 0;
+         y < comboHeight;
+         ++y) {
+        for (int x = arrowLeft;
+             x < comboWidth;
+             ++x) {
+            const COLORREF pixel =
+                GetPixel(
+                    expandedDc,
+                    x,
+                    y);
+
+            if (pixel ==
+                kClosedChevronColor) {
+                ++closedChevronPixels;
+            }
+            if (pixel ==
+                expandedChevronColor) {
+                ++expandedChevronPixels;
+            }
+        }
+    }
+
+    assert(
+        closedChevronPixels == 0);
+    assert(
+        expandedChevronPixels > 0);
+
+    SendMessageW(
+        combo,
+        CB_SHOWDROPDOWN,
+        FALSE,
+        0);
+
+    SelectObject(
+        expandedDc,
+        oldExpandedBitmap);
+    DeleteObject(
+        expandedBitmap);
+    DeleteDC(
+        expandedDc);
     ReleaseDC(
         parent,
         screen);
