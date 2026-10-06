@@ -304,10 +304,10 @@ int main() {
                 IsWindowVisible(window) &&
                 HasAboutHeading(window));
 
-            // Reproduce the real high-DPI/small-work-area path that can make
-            // General genuinely need its native vertical bar. The regression
-            // is only meaningful if the bar was first visible; Providers and
-            // Appearance must then remove both the style and the scroll range.
+            // Reproduce the real high-DPI/small-work-area path where General
+            // genuinely needs scrolling. Settings now owns an in-client
+            // overlay indicator, so the top-level HWND must never regain a
+            // native WS_VSCROLL frame or USER32 scroll range.
             RECT normalSettingsRect{};
             assert(GetWindowRect(
                 window,
@@ -320,6 +320,77 @@ int main() {
                     static_cast<int>(
                         settingsDpi),
                     96);
+
+            SetWindowPos(
+                window,
+                nullptr,
+                0,
+                0,
+                normalSettingsRect.right -
+                    normalSettingsRect.left,
+                compactOuterHeight,
+                SWP_NOMOVE |
+                    SWP_NOZORDER |
+                    SWP_NOACTIVATE);
+
+            const auto assertNoNativeSettingsScroll =
+                [&]() {
+                    assert(
+                        !(GetWindowLongPtrW(
+                              window,
+                              GWL_STYLE) &
+                          WS_VSCROLL));
+
+                    SCROLLINFO cleared{};
+                    cleared.cbSize =
+                        sizeof(cleared);
+                    cleared.fMask =
+                        SIF_RANGE |
+                        SIF_PAGE |
+                        SIF_POS;
+
+                    if (GetScrollInfo(
+                            window,
+                            SB_VERT,
+                            &cleared)) {
+                        assert(
+                            cleared.nMin == 0);
+                        assert(
+                            cleared.nMax == 0);
+                        assert(
+                            cleared.nPos == 0);
+                    }
+                };
+
+            SendMessageW(
+                window,
+                WM_COMMAND,
+                MAKEWPARAM(
+                    51001,
+                    BN_CLICKED),
+                0);
+            assertNoNativeSettingsScroll();
+
+            for (const UINT pageId :
+                 {51005u, 51002u}) {
+                SendMessageW(
+                    window,
+                    WM_COMMAND,
+                    MAKEWPARAM(
+                        pageId,
+                        BN_CLICKED),
+                    0);
+                assertNoNativeSettingsScroll();
+
+                SendMessageW(
+                    window,
+                    WM_COMMAND,
+                    MAKEWPARAM(
+                        51001,
+                        BN_CLICKED),
+                    0);
+                assertNoNativeSettingsScroll();
+            }
 
             SetWindowPos(
                 window,
