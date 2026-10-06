@@ -122,6 +122,21 @@ LRESULT CALLBACK FirstShowProbe(HWND window, UINT message, WPARAM wParam,
     return result;
 }
 
+LRESULT CALLBACK RedrawSuspendProbe(HWND window, UINT message,
+                                      WPARAM wParam, LPARAM lParam,
+                                      UINT_PTR, DWORD_PTR data) {
+    if (message == WM_SETREDRAW &&
+        wParam == FALSE) {
+        ++*reinterpret_cast<int*>(data);
+    }
+
+    return DefSubclassProc(
+        window,
+        message,
+        wParam,
+        lParam);
+}
+
 HWND modalOwner{};
 bool observedEditor{};
 bool observedPathConverter{};
@@ -384,6 +399,14 @@ int main() {
             RECT beforeWheel{};
             RECT afterWheelDown{};
             RECT afterWheelUp{};
+            int topLevelRedrawSuspends = 0;
+
+            assert(SetWindowSubclass(
+                window,
+                RedrawSuspendProbe,
+                3,
+                reinterpret_cast<DWORD_PTR>(
+                    &topLevelRedrawSuspends)));
 
             assert(GetWindowRect(
                 startWithWindows,
@@ -424,6 +447,17 @@ int main() {
                 afterWheelUp.top ==
                 beforeWheel.top);
             assertNoNativeSettingsScroll();
+
+            // Scrolling must never suspend redraw on the top-level Settings
+            // HWND. Doing so briefly changes USER32's visible/hit-test state
+            // and can route a subsequent wheel message to the window behind.
+            assert(
+                topLevelRedrawSuspends ==
+                0);
+            assert(RemoveWindowSubclass(
+                window,
+                RedrawSuspendProbe,
+                3));
 
             for (const UINT pageId :
                  {51005u, 51002u}) {
