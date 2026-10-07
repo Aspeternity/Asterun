@@ -52,7 +52,8 @@ private:
     void CloseWindow();
     void ApplyLanguage();
     void UpdateWindowTitle();
-    void Layout();
+    void Layout(
+        BOOL repaint = TRUE);
     void DrawEditorChrome(
         HDC dc) const;
     void DrawAdvancedHeader(

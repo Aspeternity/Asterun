@@ -175,6 +175,7 @@ bool observedPathConverter{};
 bool observedModalDestroy{};
 bool ownerEnabledAtModalDestroy{};
 bool expectedOwnerEnabledAtModalDestroy{};
+bool observedKeywordCaretAtEnd{};
 
 LRESULT CALLBACK ModalDestroyProbe(HWND window, UINT message, WPARAM wParam,
                                    LPARAM lParam, UINT_PTR subclassId,
@@ -218,6 +219,61 @@ void CALLBACK CancelPathConverter(HWND, UINT, UINT_PTR timer, DWORD) {
     PostMessageW(converter, WM_CLOSE, 0, 0);
 }
 
+void CALLBACK InspectKeywordCaretAndCancel(
+    HWND,
+    UINT,
+    UINT_PTR timer,
+    DWORD) {
+
+    const HWND editor =
+        FindWindowW(
+            L"Asterun.ShortcutEditor",
+            nullptr);
+
+    if (!editor) {
+        return;
+    }
+
+    constexpr UINT kKeywordId = 53102;
+    const HWND keyword =
+        GetDlgItem(
+            editor,
+            kKeywordId);
+    assert(keyword);
+
+    const int length =
+        GetWindowTextLengthW(
+            keyword);
+    assert(length > 0);
+
+    DWORD selectionStart = 0;
+    DWORD selectionEnd = 0;
+    SendMessageW(
+        keyword,
+        EM_GETSEL,
+        reinterpret_cast<WPARAM>(
+            &selectionStart),
+        reinterpret_cast<LPARAM>(
+            &selectionEnd));
+
+    observedKeywordCaretAtEnd =
+        selectionStart ==
+            static_cast<DWORD>(
+                length) &&
+        selectionEnd ==
+            static_cast<DWORD>(
+                length);
+
+    KillTimer(
+        nullptr,
+        timer);
+    PostMessageW(
+        editor,
+        WM_CLOSE,
+        0,
+        0);
+}
+
 void CALLBACK ExerciseAdvancedToggle(
     HWND,
     UINT,
@@ -255,12 +311,19 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(admin);
 
     int topLevelRedrawSuspends = 0;
+    PaintMessageCounts advancedPaint{};
     assert(SetWindowSubclass(
         editor,
         RedrawSuspendProbe,
         23,
         reinterpret_cast<DWORD_PTR>(
             &topLevelRedrawSuspends)));
+    assert(SetWindowSubclass(
+        editor,
+        PaintMessageProbe,
+        24,
+        reinterpret_cast<DWORD_PTR>(
+            &advancedPaint)));
 
     RECT collapsed{};
     RECT expanded{};
@@ -324,6 +387,31 @@ void CALLBACK ExerciseAdvancedToggle(
         topLevelRedrawSuspends ==
         0);
 
+    // Rapid synchronous toggles must not expose a background-erase frame.
+    // End collapsed so the following modal fixtures keep the original size.
+    advancedPaint = {};
+    for (int pass = 0;
+         pass < 8;
+         ++pass) {
+        SendMessageW(
+            editor,
+            WM_COMMAND,
+            MAKEWPARAM(
+                kAdvancedToggleId,
+                BN_CLICKED),
+            reinterpret_cast<LPARAM>(
+                toggle));
+    }
+    assert(!IsWindowVisible(
+        arguments));
+    assert(!IsWindowVisible(
+        admin));
+    assert(advancedPaint.erase == 0);
+
+    assert(RemoveWindowSubclass(
+        editor,
+        PaintMessageProbe,
+        24));
     assert(RemoveWindowSubclass(
         editor,
         RedrawSuspendProbe,
@@ -788,6 +876,46 @@ int main() {
             assert(!IsWindowVisible(owner));
             assert(GetActiveWindow() != owner);
         }
+
+        // Editing an existing shortcut should place the insertion caret at
+        // the end of the keyword string instead of position zero.
+        Command caretProbe;
+        caretProbe.keyword = L"caretprobe";
+        caretProbe.title = L"Caret probe";
+        caretProbe.target = L"notepad.exe";
+        caretProbe.type = CommandType::Application;
+        caretProbe.enabled = true;
+
+        std::wstring caretProbeId;
+        assert(app.CreateUserCommand(
+            caretProbe,
+            &caretProbeId));
+        assert(!caretProbeId.empty());
+
+        observedKeywordCaretAtEnd = false;
+        modalOwner = owner;
+        EnableWindow(
+            owner,
+            TRUE);
+        const auto caretTimer =
+            SetTimer(
+                nullptr,
+                0,
+                20,
+                InspectKeywordCaretAndCancel);
+        assert(caretTimer);
+        assert(
+            !ShortcutEditorDialog::Show(
+                app,
+                instance,
+                owner,
+                caretProbeId));
+        KillTimer(
+            nullptr,
+            caretTimer);
+        assert(observedKeywordCaretAtEnd);
+        assert(app.DeleteUserCommand(
+            caretProbeId));
 
         // Advanced disclosure must expand/collapse to the correct final
         // geometry without ever suspending redraw on the top-level editor.
