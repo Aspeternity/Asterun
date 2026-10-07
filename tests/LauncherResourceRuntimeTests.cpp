@@ -15,10 +15,11 @@ namespace {
 unsigned loads{}, failLoad{};
 bool failInfo{}, failDc{};
 unsigned imeContextGets{};
+unsigned imeOpenStatusReads{};
 unsigned imeCompositionCancels{};
-unsigned imeCloseRequests{};
+unsigned imeSetOpenRequests{};
 unsigned imeContextReleases{};
-BOOL imeLastOpenStatus{TRUE};
+BOOL imeCurrentOpenStatus{TRUE};
 std::unordered_set<HGDIOBJ> ownedBitmaps;
 std::unordered_set<HDC> ownedDcs;
 HANDLE WINAPI TestLoadImage(HINSTANCE instance, LPCWSTR name, UINT type, int x, int y, UINT flags) {
@@ -52,6 +53,11 @@ HIMC WINAPI TestImmGetContext(HWND window) {
     return reinterpret_cast<HIMC>(
         static_cast<ULONG_PTR>(1));
 }
+BOOL WINAPI TestImmGetOpenStatus(HIMC context) {
+    assert(context);
+    ++imeOpenStatusReads;
+    return imeCurrentOpenStatus;
+}
 BOOL WINAPI TestImmNotifyIME(HIMC context, DWORD action, DWORD index, DWORD value) {
     assert(context);
     assert(action == NI_COMPOSITIONSTR);
@@ -62,8 +68,8 @@ BOOL WINAPI TestImmNotifyIME(HIMC context, DWORD action, DWORD index, DWORD valu
 }
 BOOL WINAPI TestImmSetOpenStatus(HIMC context, BOOL open) {
     assert(context);
-    ++imeCloseRequests;
-    imeLastOpenStatus = open;
+    ++imeSetOpenRequests;
+    imeCurrentOpenStatus = open;
     return TRUE;
 }
 BOOL WINAPI TestImmReleaseContext(HWND window, HIMC context) {
@@ -72,12 +78,20 @@ BOOL WINAPI TestImmReleaseContext(HWND window, HIMC context) {
     ++imeContextReleases;
     return TRUE;
 }
-void ResetImeProbe() {
+void ResetImeProbe(BOOL openStatus = TRUE) {
     imeContextGets = 0;
+    imeOpenStatusReads = 0;
     imeCompositionCancels = 0;
-    imeCloseRequests = 0;
+    imeSetOpenRequests = 0;
     imeContextReleases = 0;
-    imeLastOpenStatus = TRUE;
+    imeCurrentOpenStatus = openStatus;
+}
+void ClearImeProbeCounts() {
+    imeContextGets = 0;
+    imeOpenStatusReads = 0;
+    imeCompositionCancels = 0;
+    imeSetOpenRequests = 0;
+    imeContextReleases = 0;
 }
 }
 #define DeleteObject TestDeleteObject
@@ -86,6 +100,7 @@ void ResetImeProbe() {
 #define GetObjectW TestGetObject
 #define CreateCompatibleDC TestCreateDc
 #define ImmGetContext TestImmGetContext
+#define ImmGetOpenStatus TestImmGetOpenStatus
 #define ImmNotifyIME TestImmNotifyIME
 #define ImmSetOpenStatus TestImmSetOpenStatus
 #define ImmReleaseContext TestImmReleaseContext
@@ -93,6 +108,7 @@ void ResetImeProbe() {
 #undef ImmReleaseContext
 #undef ImmSetOpenStatus
 #undef ImmNotifyIME
+#undef ImmGetOpenStatus
 #undef ImmGetContext
 #undef DeleteDC
 #undef DeleteObject
@@ -333,48 +349,103 @@ struct LauncherResourceRuntimeFixture {
 
         settings.defaultEnglishInputOnReveal =
             true;
-        ResetImeProbe();
+        ResetImeProbe(TRUE);
 
         window.PrepareInputForReveal(
             false);
 
         assert(imeContextGets == 1);
+        assert(imeOpenStatusReads == 1);
         assert(imeCompositionCancels == 1);
-        assert(imeCloseRequests == 1);
-        assert(imeLastOpenStatus == FALSE);
+        assert(imeSetOpenRequests == 1);
+        assert(imeCurrentOpenStatus == FALSE);
+        assert(imeContextReleases == 1);
+        assert(window.imeRevealOverrideActive_);
+        assert(window.imeRevealOriginalOpen_);
+
+        // Hiding a session restores the IME state Asterun temporarily closed.
+        ClearImeProbeCounts();
+
+        window.RestoreInputOverride();
+
+        assert(imeContextGets == 1);
+        assert(imeOpenStatusReads == 1);
+        assert(imeCompositionCancels == 0);
+        assert(imeSetOpenRequests == 1);
+        assert(imeCurrentOpenStatus == TRUE);
+        assert(imeContextReleases == 1);
+        assert(!window.imeRevealOverrideActive_);
+
+        // A user's manual switch back to Chinese wins. Restore observes that
+        // the IME is already open and must not write over that state.
+        ResetImeProbe(TRUE);
+        window.PrepareInputForReveal(
+            false);
+        assert(imeCurrentOpenStatus == FALSE);
+        imeCurrentOpenStatus = TRUE;
+        ClearImeProbeCounts();
+
+        window.RestoreInputOverride();
+
+        assert(imeContextGets == 1);
+        assert(imeOpenStatusReads == 1);
+        assert(imeSetOpenRequests == 0);
+        assert(imeCurrentOpenStatus == TRUE);
         assert(imeContextReleases == 1);
 
-        // A repeated Show() in the same visible session passes wasVisible=true
-        // and must leave a user's manual switch back to Chinese untouched.
-        ResetImeProbe();
+        // Re-entering Show in the same visible session must not impose a new
+        // override after the user changes input mode.
+        ResetImeProbe(TRUE);
 
         window.PrepareInputForReveal(
             true);
 
         assert(imeContextGets == 0);
+        assert(imeOpenStatusReads == 0);
         assert(imeCompositionCancels == 0);
-        assert(imeCloseRequests == 0);
+        assert(imeSetOpenRequests == 0);
         assert(imeContextReleases == 0);
 
-        // The opt-out restores the historical behavior for a fresh session.
+        // If the EDIT already starts in direct input mode, do not manufacture
+        // an override session or a later restore.
+        ResetImeProbe(FALSE);
+
+        window.PrepareInputForReveal(
+            false);
+
+        assert(imeContextGets == 1);
+        assert(imeOpenStatusReads == 1);
+        assert(imeCompositionCancels == 0);
+        assert(imeSetOpenRequests == 0);
+        assert(imeContextReleases == 1);
+        assert(!window.imeRevealOverrideActive_);
+
+        ClearImeProbeCounts();
+        window.RestoreInputOverride();
+        assert(imeContextGets == 0);
+        assert(imeSetOpenRequests == 0);
+
+        // The opt-out restores historical behavior for every fresh session.
         settings.defaultEnglishInputOnReveal =
             false;
-        ResetImeProbe();
+        ResetImeProbe(TRUE);
 
         window.PrepareInputForReveal(
             false);
 
         assert(imeContextGets == 0);
+        assert(imeOpenStatusReads == 0);
         assert(imeCompositionCancels == 0);
-        assert(imeCloseRequests == 0);
+        assert(imeSetOpenRequests == 0);
         assert(imeContextReleases == 0);
+        assert(imeCurrentOpenStatus == TRUE);
 
         settings.defaultEnglishInputOnReveal =
             previous;
         Destroy(window);
 
         std::cout
-            << "Launcher reveal English-input preference passed"
+            << "Launcher reveal English-input session restore passed"
             << std::endl;
     }
 
