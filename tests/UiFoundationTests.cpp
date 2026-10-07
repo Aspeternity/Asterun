@@ -264,6 +264,85 @@ int main() {
 
     assert(ui::Scale(50, 0) == 50);
     assert(ui::kSettingsComboRowLogical == 54);
+    assert(ui::kNextComboPopupGapLogical == 3);
+    assert(ui::kNextComboPopupPaddingLogical == 4);
+    assert(ui::kNextComboPopupRadiusLogical == 10);
+    assert(ui::kNextComboPopupRowHeightLogical == 36);
+    assert(ui::kNextComboPopupRowRadiusLogical == 6);
+    assert(ui::kNextComboPopupTextInsetLogical == 16);
+    assert(ui::kNextComboPopupAccentWidthLogical == 3);
+    assert(ui::kNextComboPopupAccentHeightLogical == 16);
+    assert(ui::kNextComboPopupScrollbarWidthLogical == 4);
+    assert(ui::kNextComboPopupScrollbarInsetLogical == 4);
+
+    assert(
+        ui::NextComboBoxVisibleItems(
+            0) == 0);
+    assert(
+        ui::NextComboBoxVisibleItems(
+            3) == 3);
+    assert(
+        ui::NextComboBoxVisibleItems(
+            5) == 5);
+    assert(
+        ui::NextComboBoxVisibleItems(
+            8) == 6);
+    assert(
+        ui::NextComboBoxVisibleItems(
+            8,
+            4) == 4);
+
+    for (const unsigned dpi :
+         std::array<unsigned, 5>{
+             96u,
+             120u,
+             144u,
+             168u,
+             192u}) {
+        const int item =
+            ui::Scale(
+                ui::kNextComboBoxItemHeightLogical,
+                dpi);
+        const int chrome =
+            ui::Scale(
+                ui::kNextComboBoxChromeHeightLogical,
+                dpi);
+
+        assert(
+            ui::NextComboBoxDropHeightForDpi(
+                0,
+                dpi) ==
+            item + chrome);
+        assert(
+            ui::NextComboBoxDropHeightForDpi(
+                3,
+                dpi) ==
+            item * 4 + chrome);
+        assert(
+            ui::NextComboBoxDropHeightForDpi(
+                5,
+                dpi) ==
+            item * 6 + chrome);
+        assert(
+            ui::NextComboBoxDropHeightForDpi(
+                8,
+                dpi) ==
+            item * 7 + chrome);
+    }
+
+    assert(
+        ui::NextComboBoxDropHeightForDpi(
+            3,
+            96) == 134);
+    assert(
+        ui::NextComboBoxDropHeightForDpi(
+            5,
+            96) == 194);
+    assert(
+        ui::NextComboBoxDropHeightForDpi(
+            8,
+            96) == 224);
+
     assert(ui::kSettingsCardRadiusLogical == 8);
     assert(ui::kSettingsNavHeightLogical == 40);
     assert(ui::kSettingsNavGapLogical == 4);

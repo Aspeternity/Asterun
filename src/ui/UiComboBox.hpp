@@ -14,6 +14,18 @@ void ApplyNextComboBoxMetrics(
     HWND combo,
     UINT dpi);
 
+void MoveNextComboBox(
+    HWND combo,
+    int x,
+    int y,
+    int width,
+    UINT dpi,
+    BOOL repaint = TRUE);
+
+void RefreshNextComboBoxState(
+    HWND combo,
+    UINT notification);
+
 [[nodiscard]] int
 MeasureNextComboBoxPreferredWidth(
     HWND combo,

@@ -268,6 +268,75 @@ struct LauncherResourceRuntimeFixture {
         settings.providerEnabled["everything.filesystem"] = false;
         app.everythingProvider_.reset(); // join callbacks before App test state expires
     }
+    static void VerifyTopLevelForegroundHandoff(
+        App& app,
+        HINSTANCE instance) {
+
+        LauncherWindow window(
+            app,
+            instance);
+        assert(window.Create());
+
+        // Background GitHub runners are not guaranteed to grant foreground
+        // activation. LauncherWindow::Show() correctly hides again on a
+        // resulting WA_INACTIVE, which made this foreground-specific test
+        // fail before it reached the handoff under CI. Expose the already
+        // created launcher without activation, then opportunistically acquire
+        // foreground only when USER32 permits it.
+        ShowWindow(
+            window.hwnd_,
+            SW_SHOWNOACTIVATE);
+        assert(window.IsVisible());
+
+        bool foregroundObservable =
+            SetForegroundWindow(
+                window.hwnd_) != FALSE &&
+            GetForegroundWindow() ==
+                window.hwnd_;
+
+        SendMessageW(
+            window.hwnd_,
+            WM_COMMAND,
+            MAKEWPARAM(
+                LauncherWindow::
+                    kMenuSettings,
+                0),
+            0);
+
+        const HWND settings =
+            FindWindowW(
+                L"Asterun.Settings",
+                nullptr);
+
+        assert(settings);
+        assert(IsWindowVisible(settings));
+        assert(!window.IsVisible());
+
+        // Interactive Windows CI exposes foreground ownership. Keep the state
+        // checks unconditional, and assert the actual handoff whenever USER32
+        // allows this test process to observe foreground transitions.
+        if (foregroundObservable) {
+            assert(
+                GetForegroundWindow() ==
+                settings);
+        }
+
+        SendMessageW(
+            settings,
+            WM_CLOSE,
+            0,
+            0);
+        assert(
+            !IsWindow(
+                settings));
+
+        Destroy(window);
+
+        std::cout
+            << "Launcher -> Settings foreground handoff passed"
+            << std::endl;
+    }
+
     static void MeasureShows(App& app, HINSTANCE instance) {
         auto& settings = const_cast<Settings&>(app.SettingsData());
         for (const auto* provider : {"windows.startmenu", "windows.packaged", "windows.apppaths",
@@ -412,6 +481,9 @@ struct LauncherResourceRuntimeFixture {
             }
         }
         VerifyTypography(app, instance);
+        VerifyTopLevelForegroundHandoff(
+            app,
+            instance);
         MeasureShows(app, instance);
     }
 };

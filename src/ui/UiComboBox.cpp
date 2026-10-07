@@ -1,4 +1,5 @@
 #include "UiComboBox.hpp"
+#include "UiComboPopup.hpp"
 
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
@@ -27,6 +28,108 @@ constexpr UINT_PTR kNextComboSubclassId =
         : 96;
 }
 
+constexpr wchar_t
+    kNextComboDroppedProperty[] =
+        L"Asterun.NextCombo.Dropped";
+
+constexpr wchar_t
+    kNextComboHoveredProperty[] =
+        L"Asterun.NextCombo.Hovered";
+
+void SetTrackedDroppedState(
+    HWND combo,
+    bool dropped) {
+
+    if (!combo) {
+        return;
+    }
+
+    SetPropW(
+        combo,
+        kNextComboDroppedProperty,
+        reinterpret_cast<HANDLE>(
+            static_cast<ULONG_PTR>(
+                dropped ? 2 : 1)));
+}
+
+[[nodiscard]] bool
+TrackedDroppedState(
+    HWND combo) {
+
+    const HANDLE value =
+        combo
+            ? GetPropW(
+                  combo,
+                  kNextComboDroppedProperty)
+            : nullptr;
+
+    if (value) {
+        return
+            reinterpret_cast<ULONG_PTR>(
+                value) == 2;
+    }
+
+    return
+        combo &&
+        SendMessageW(
+            combo,
+            CB_GETDROPPEDSTATE,
+            0,
+            0) != 0;
+}
+
+void SetTrackedHoveredState(
+    HWND combo,
+    bool hovered) {
+
+    if (!combo) {
+        return;
+    }
+
+    SetPropW(
+        combo,
+        kNextComboHoveredProperty,
+        reinterpret_cast<HANDLE>(
+            static_cast<ULONG_PTR>(
+                hovered ? 2 : 1)));
+}
+
+[[nodiscard]] bool
+TrackedHoveredState(
+    HWND combo) {
+
+    const HANDLE value =
+        combo
+            ? GetPropW(
+                  combo,
+                  kNextComboHoveredProperty)
+            : nullptr;
+
+    return value &&
+        reinterpret_cast<ULONG_PTR>(
+            value) == 2;
+}
+
+[[nodiscard]] COLORREF
+NextComboFillColor(
+    HWND combo) {
+
+    const bool active =
+        combo &&
+        (GetFocus() == combo ||
+         TrackedDroppedState(
+             combo));
+    const bool hovered =
+        TrackedHoveredState(
+            combo);
+
+    return active
+        ? RGB(248, 252, 255)
+        : hovered
+            ? RGB(251, 252, 253)
+            : RGB(255, 255, 255);
+}
+
 [[nodiscard]] HFONT ComboFont(
     HWND combo) noexcept {
 
@@ -48,7 +151,7 @@ constexpr UINT_PTR kNextComboSubclassId =
     return font;
 }
 
-void DrawNextComboBoxSurface(
+void DrawNextComboBoxSurfaceDirect(
     HWND combo,
     HDC dc,
     COLORREF hostBackground) {
@@ -79,35 +182,24 @@ void DrawNextComboBoxSurface(
         ComboDpi(combo);
     const bool enabled =
         IsWindowEnabled(combo) != FALSE;
+    const bool dropped =
+        TrackedDroppedState(
+            combo);
     const bool active =
         GetFocus() == combo ||
-        SendMessageW(
-            combo,
-            CB_GETDROPPEDSTATE,
-            0,
-            0) != 0;
+        dropped;
 
-    POINT cursor{};
-    RECT screenRect{};
     const bool hovered =
-        GetCursorPos(&cursor) &&
-        GetWindowRect(
-            combo,
-            &screenRect) &&
-        PtInRect(
-            &screenRect,
-            cursor);
+        TrackedHoveredState(
+            combo);
 
     const COLORREF borderColor =
         active
             ? kApplicationPalette.accent
             : kApplicationPalette.frame;
     const COLORREF fillColor =
-        active
-            ? RGB(248, 252, 255)
-            : hovered
-                ? RGB(250, 251, 253)
-                : RGB(255, 255, 255);
+        NextComboFillColor(
+            combo);
 
     HBRUSH fill =
         CreateSolidBrush(
@@ -150,17 +242,96 @@ void DrawNextComboBoxSurface(
     DeleteObject(
         border);
 
+    const int arrowAreaWidth =
+        Scale(36, dpi);
+    RECT arrowArea{
+        std::max(
+            surface.left,
+            surface.right -
+                arrowAreaWidth),
+        surface.top,
+        surface.right,
+        surface.bottom,
+    };
+
+    POINT cursor{};
+    POINT clientCursor{};
+    bool arrowHovered = false;
+
+    if (enabled &&
+        hovered &&
+        GetCursorPos(
+            &cursor)) {
+        clientCursor =
+            cursor;
+        arrowHovered =
+            ScreenToClient(
+                combo,
+                &clientCursor) &&
+            PtInRect(
+                &arrowArea,
+                clientCursor);
+    }
+
+    if (arrowHovered || dropped) {
+        RECT buttonRect =
+            arrowArea;
+        InflateRect(
+            &buttonRect,
+            -Scale(4, dpi),
+            -Scale(4, dpi));
+
+        HBRUSH buttonFill =
+            CreateSolidBrush(
+                dropped
+                    ? RGB(237, 247, 254)
+                    : RGB(244, 247, 249));
+        HGDIOBJ oldButtonBrush =
+            SelectObject(
+                dc,
+                buttonFill);
+        HGDIOBJ oldButtonPen =
+            SelectObject(
+                dc,
+                GetStockObject(
+                    NULL_PEN));
+
+        const int buttonRadius =
+            Scale(6, dpi);
+
+        RoundRect(
+            dc,
+            buttonRect.left,
+            buttonRect.top,
+            buttonRect.right,
+            buttonRect.bottom,
+            buttonRadius,
+            buttonRadius);
+
+        SelectObject(
+            dc,
+            oldButtonPen);
+        SelectObject(
+            dc,
+            oldButtonBrush);
+        DeleteObject(
+            buttonFill);
+    }
+
     const int arrowCenterX =
-        surface.right -
-        Scale(17, dpi);
+        arrowArea.left +
+        (arrowArea.right -
+         arrowArea.left) / 2;
     const int arrowCenterY =
-        surface.top +
-        (surface.bottom -
-         surface.top) / 2;
+        arrowArea.top +
+        (arrowArea.bottom -
+         arrowArea.top) / 2;
 
     const COLORREF arrowColor =
         enabled
-            ? RGB(92, 100, 108)
+            ? dropped
+                ? kApplicationPalette.accent
+                : RGB(78, 86, 94)
             : RGB(166, 172, 179);
 
     HPEN arrowPen =
@@ -168,31 +339,77 @@ void DrawNextComboBoxSurface(
             PS_SOLID,
             std::max(
                 1,
-                Scale(1, dpi)),
+                Scale(2, dpi)),
             arrowColor);
     oldPen =
         SelectObject(
             dc,
             arrowPen);
 
-    MoveToEx(
-        dc,
-        arrowCenterX -
-            Scale(4, dpi),
-        arrowCenterY -
-            Scale(2, dpi),
-        nullptr);
-    LineTo(
-        dc,
-        arrowCenterX,
-        arrowCenterY +
-            Scale(2, dpi));
-    LineTo(
-        dc,
-        arrowCenterX +
-            Scale(4, dpi),
-        arrowCenterY -
-            Scale(2, dpi));
+    const int arrowHalfWidth =
+        Scale(5, dpi);
+    const int arrowHalfHeight =
+        Scale(3, dpi);
+
+    if (dropped) {
+        const int apexY =
+            arrowCenterY -
+            arrowHalfHeight;
+        const int armY =
+            arrowCenterY +
+            arrowHalfHeight / 2;
+
+        MoveToEx(
+            dc,
+            arrowCenterX -
+                arrowHalfWidth,
+            armY,
+            nullptr);
+        LineTo(
+            dc,
+            arrowCenterX,
+            apexY);
+
+        MoveToEx(
+            dc,
+            arrowCenterX,
+            apexY,
+            nullptr);
+        LineTo(
+            dc,
+            arrowCenterX +
+                arrowHalfWidth,
+            armY);
+    } else {
+        const int apexY =
+            arrowCenterY +
+            arrowHalfHeight;
+        const int armY =
+            arrowCenterY -
+            arrowHalfHeight / 2;
+
+        MoveToEx(
+            dc,
+            arrowCenterX -
+                arrowHalfWidth,
+            armY,
+            nullptr);
+        LineTo(
+            dc,
+            arrowCenterX,
+            apexY);
+
+        MoveToEx(
+            dc,
+            arrowCenterX,
+            apexY,
+            nullptr);
+        LineTo(
+            dc,
+            arrowCenterX +
+                arrowHalfWidth,
+            armY);
+    }
 
     SelectObject(
         dc,
@@ -222,8 +439,8 @@ void DrawNextComboBoxSurface(
         surface.left +
             Scale(12, dpi),
         surface.top,
-        arrowCenterX -
-            Scale(12, dpi),
+        arrowArea.left -
+            Scale(6, dpi),
         surface.bottom,
     };
 
@@ -255,6 +472,87 @@ void DrawNextComboBoxSurface(
     SelectObject(
         dc,
         oldFont);
+}
+
+void DrawNextComboBoxSurface(
+    HWND combo,
+    HDC dc,
+    COLORREF hostBackground) {
+
+    RECT rect{};
+    GetClientRect(
+        combo,
+        &rect);
+
+    const int width =
+        rect.right -
+        rect.left;
+    const int height =
+        rect.bottom -
+        rect.top;
+
+    if (width <= 0 ||
+        height <= 0) {
+        return;
+    }
+
+    HDC buffer =
+        CreateCompatibleDC(
+            dc);
+    HBITMAP bitmap =
+        buffer
+            ? CreateCompatibleBitmap(
+                  dc,
+                  width,
+                  height)
+            : nullptr;
+
+    if (!buffer ||
+        !bitmap) {
+        if (bitmap) {
+            DeleteObject(
+                bitmap);
+        }
+        if (buffer) {
+            DeleteDC(
+                buffer);
+        }
+
+        DrawNextComboBoxSurfaceDirect(
+            combo,
+            dc,
+            hostBackground);
+        return;
+    }
+
+    HGDIOBJ oldBitmap =
+        SelectObject(
+            buffer,
+            bitmap);
+
+    DrawNextComboBoxSurfaceDirect(
+        combo,
+        buffer,
+        hostBackground);
+
+    BitBlt(
+        dc,
+        0,
+        0,
+        width,
+        height,
+        buffer,
+        0,
+        0,
+        SRCCOPY);
+
+    SelectObject(
+        buffer,
+        oldBitmap);
+    DeleteObject(
+        bitmap);
+    DeleteDC(
+        buffer);
 }
 
 LRESULT CALLBACK NextComboSubclassProc(
@@ -313,28 +611,258 @@ LRESULT CALLBACK NextComboSubclassProc(
                 wParam,
                 lParam);
 
+        if (!TrackedHoveredState(
+                hwnd)) {
+            SetTrackedHoveredState(
+                hwnd,
+                true);
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+        }
+
+        return result;
+    }
+
+    case WM_MOUSELEAVE: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        if (TrackedHoveredState(
+                hwnd)) {
+            SetTrackedHoveredState(
+                hwnd,
+                false);
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+        }
+
+        return result;
+    }
+
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL: {
+        if (HandleNextComboPopupWheel(
+                hwnd,
+                message,
+                wParam,
+                lParam)) {
+            return 0;
+        }
+
+        HWND parent =
+            GetParent(
+                hwnd);
+
+        if (parent) {
+            SendMessageW(
+                parent,
+                message,
+                wParam,
+                lParam);
+        }
+
+        return 0;
+    }
+
+    case CB_GETDROPPEDSTATE:
+        return IsNextComboPopupVisible(
+                   hwnd)
+            ? TRUE
+            : FALSE;
+
+    case CB_SHOWDROPDOWN: {
+        const bool show =
+            wParam != FALSE;
+
+        if (show) {
+            SetFocus(
+                hwnd);
+            SetTrackedDroppedState(
+                hwnd,
+                true);
+
+            if (!ShowNextComboPopup(
+                    hwnd,
+                    ComboDpi(
+                        hwnd))) {
+                SetTrackedDroppedState(
+                    hwnd,
+                    false);
+                InvalidateRect(
+                    hwnd,
+                    nullptr,
+                    FALSE);
+                return FALSE;
+            }
+
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+            return TRUE;
+        }
+
+        HideNextComboPopup(
+            hwnd,
+            true);
+        SetTrackedDroppedState(
+            hwnd,
+            false);
         InvalidateRect(
             hwnd,
             nullptr,
             FALSE);
+        return TRUE;
+    }
+
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN: {
+        if (HandleNextComboPopupKey(
+                hwnd,
+                message,
+                wParam,
+                lParam)) {
+            return 0;
+        }
+
+        const bool altDown =
+            (GetKeyState(
+                 VK_MENU) &
+             0x8000) != 0;
+
+        if (wParam == VK_F4 ||
+            (altDown &&
+             wParam == VK_DOWN)) {
+            SetFocus(
+                hwnd);
+            SetTrackedDroppedState(
+                hwnd,
+                true);
+
+            if (!ShowNextComboPopup(
+                    hwnd,
+                    ComboDpi(
+                        hwnd))) {
+                SetTrackedDroppedState(
+                    hwnd,
+                    false);
+            }
+
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+            return 0;
+        }
+
+        return DefSubclassProc(
+            hwnd,
+            message,
+            wParam,
+            lParam);
+    }
+
+    case WM_SETFOCUS: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        RedrawWindow(
+            hwnd,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_NOERASE |
+                RDW_UPDATENOW);
         return result;
     }
 
-    case WM_MOUSELEAVE:
+    case WM_KILLFOCUS: {
+        HideNextComboPopup(
+            hwnd,
+            true);
+        SetTrackedDroppedState(
+            hwnd,
+            false);
+
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        RedrawWindow(
+            hwnd,
+            nullptr,
+            nullptr,
+            RDW_INVALIDATE |
+                RDW_NOERASE |
+                RDW_UPDATENOW);
+        return result;
+    }
+
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONDBLCLK: {
+        SetFocus(
+            hwnd);
+
+        if (IsNextComboPopupVisible(
+                hwnd)) {
+            HideNextComboPopup(
+                hwnd,
+                true);
+            SetTrackedDroppedState(
+                hwnd,
+                false);
+        } else {
+            SetTrackedDroppedState(
+                hwnd,
+                true);
+
+            if (!ShowNextComboPopup(
+                    hwnd,
+                    ComboDpi(
+                        hwnd))) {
+                SetTrackedDroppedState(
+                    hwnd,
+                    false);
+            }
+        }
+
         InvalidateRect(
             hwnd,
             nullptr,
             FALSE);
         return 0;
+    }
 
-    case CB_SETCURSEL:
-    case CB_SHOWDROPDOWN:
-    case WM_SETFONT:
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
-    case WM_ENABLE:
-    case WM_LBUTTONDOWN:
-    case WM_LBUTTONUP: {
+    case WM_LBUTTONUP:
+        return 0;
+
+    case WM_ENABLE: {
+        if (wParam == FALSE &&
+            IsNextComboPopupVisible(
+                hwnd)) {
+            HideNextComboPopup(
+                hwnd,
+                true);
+            SetTrackedDroppedState(
+                hwnd,
+                false);
+        }
+
         const LRESULT result =
             DefSubclassProc(
                 hwnd,
@@ -346,11 +874,79 @@ LRESULT CALLBACK NextComboSubclassProc(
             hwnd,
             nullptr,
             FALSE);
+        return result;
+    }
+
+    case WM_SHOWWINDOW:
+        if (wParam == FALSE &&
+            IsNextComboPopupVisible(
+                hwnd)) {
+            HideNextComboPopup(
+                hwnd,
+                true);
+            SetTrackedDroppedState(
+                hwnd,
+                false);
+        }
+        return DefSubclassProc(
+            hwnd,
+            message,
+            wParam,
+            lParam);
+
+    case WM_WINDOWPOSCHANGED: {
+        const bool hadPopup =
+            IsNextComboPopupVisible(
+                hwnd);
+
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        if (hadPopup) {
+            HideNextComboPopup(
+                hwnd,
+                true);
+            SetTrackedDroppedState(
+                hwnd,
+                false);
+            InvalidateRect(
+                hwnd,
+                nullptr,
+                FALSE);
+        }
 
         return result;
     }
 
+    case CB_SETCURSEL:
+    case WM_SETFONT: {
+        const LRESULT result =
+            DefSubclassProc(
+                hwnd,
+                message,
+                wParam,
+                lParam);
+
+        InvalidateRect(
+            hwnd,
+            nullptr,
+            FALSE);
+        return result;
+    }
+
     case WM_NCDESTROY:
+        DestroyNextComboPopup(
+            hwnd);
+        RemovePropW(
+            hwnd,
+            kNextComboHoveredProperty);
+        RemovePropW(
+            hwnd,
+            kNextComboDroppedProperty);
         RemoveWindowSubclass(
             hwnd,
             NextComboSubclassProc,
@@ -386,9 +982,7 @@ HWND CreateNextComboBox(
                 WS_TABSTOP |
                 CBS_DROPDOWNLIST |
                 CBS_OWNERDRAWFIXED |
-                CBS_HASSTRINGS |
-                CBS_NOINTEGRALHEIGHT |
-                WS_VSCROLL,
+                CBS_HASSTRINGS,
             0,
             0,
             0,
@@ -407,6 +1001,12 @@ HWND CreateNextComboBox(
             kNextComboSubclassId,
             static_cast<DWORD_PTR>(
                 hostBackground));
+        SetTrackedDroppedState(
+            combo,
+            false);
+        SetTrackedHoveredState(
+            combo,
+            false);
     }
 
     return combo;
@@ -447,6 +1047,164 @@ void ApplyNextComboBoxMetrics(
         combo,
         nullptr,
         FALSE);
+}
+
+void MoveNextComboBox(
+    HWND combo,
+    int x,
+    int y,
+    int width,
+    UINT dpi,
+    BOOL repaint) {
+
+    if (!combo) {
+        return;
+    }
+
+    const LRESULT countResult =
+        SendMessageW(
+            combo,
+            CB_GETCOUNT,
+            0,
+            0);
+    const std::size_t itemCount =
+        countResult > 0
+            ? static_cast<std::size_t>(
+                  countResult)
+            : 0;
+    const int height =
+        NextComboBoxDropHeightForDpi(
+            itemCount,
+            dpi);
+
+    if (!repaint) {
+        // Settings scrolling is position-only. Metrics, native LISTBOX
+        // bookkeeping and invalidation were already established by the normal
+        // layout/font/DPI path; touching them here creates pending paints that
+        // can trail the moving control by one frame. Keep the quiet move truly
+        // quiet and let the host repaint the content pane once at the end.
+        SetWindowPos(
+            combo,
+            nullptr,
+            x,
+            y,
+            width,
+            height,
+            SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_NOREDRAW |
+                SWP_NOCOPYBITS);
+        return;
+    }
+
+    ApplyNextComboBoxMetrics(
+        combo,
+        dpi);
+
+    const std::size_t visibleItems =
+        NextComboBoxVisibleItems(
+            itemCount);
+
+    if (visibleItems > 0) {
+        SendMessageW(
+            combo,
+            CB_SETMINVISIBLE,
+            static_cast<WPARAM>(
+                visibleItems),
+            0);
+    }
+
+    // The ComboBox owns a separate LISTBOX window. Do not give every short
+    // list a permanent native scrollbar; only expose one when the shared
+    // visible-item cap actually hides entries.
+    COMBOBOXINFO comboInfo{};
+    comboInfo.cbSize =
+        sizeof(comboInfo);
+
+    if (GetComboBoxInfo(
+            combo,
+            &comboInfo) &&
+        comboInfo.hwndList) {
+        const bool needsScroll =
+            itemCount >
+            visibleItems;
+
+        LONG_PTR listStyle =
+            GetWindowLongPtrW(
+                comboInfo.hwndList,
+                GWL_STYLE);
+        const LONG_PTR desiredStyle =
+            needsScroll
+                ? listStyle |
+                      WS_VSCROLL
+                : listStyle &
+                      ~static_cast<LONG_PTR>(
+                          WS_VSCROLL);
+
+        if (desiredStyle !=
+            listStyle) {
+            SetWindowLongPtrW(
+                comboInfo.hwndList,
+                GWL_STYLE,
+                desiredStyle);
+        }
+
+        ShowScrollBar(
+            comboInfo.hwndList,
+            SB_VERT,
+            needsScroll);
+    }
+
+    MoveWindow(
+        combo,
+        x,
+        y,
+        width,
+        height,
+        TRUE);
+}
+
+void RefreshNextComboBoxState(
+    HWND combo,
+    UINT notification) {
+
+    if (!combo) {
+        return;
+    }
+
+    switch (notification) {
+    case CBN_DROPDOWN:
+        SetTrackedDroppedState(
+            combo,
+            true);
+        InvalidateRect(
+            combo,
+            nullptr,
+            FALSE);
+        break;
+
+    case CBN_CLOSEUP:
+    case CBN_SELENDOK:
+    case CBN_SELENDCANCEL:
+        SetTrackedDroppedState(
+            combo,
+            false);
+        InvalidateRect(
+            combo,
+            nullptr,
+            FALSE);
+        break;
+
+    case CBN_SELCHANGE:
+        InvalidateRect(
+            combo,
+            nullptr,
+            FALSE);
+        break;
+
+    default:
+        break;
+    }
 }
 
 int MeasureNextComboBoxPreferredWidth(
@@ -564,8 +1322,10 @@ int MeasureNextComboBoxPreferredWidth(
         combo,
         dc);
 
+    // Left text inset + fixed dropdown affordance + breathing room.
+    // Keep this in sync with DrawNextComboBoxSurface().
     const int chrome =
-        Scale(52, dpi);
+        Scale(58, dpi);
 
     return std::clamp(
         widest + chrome,
@@ -577,12 +1337,104 @@ UINT NextComboBoxItemHeight(
     UINT dpi) noexcept {
 
     return static_cast<UINT>(
-        Scale(30, dpi));
+        Scale(
+            kNextComboBoxItemHeightLogical,
+            dpi));
 }
 
 void DrawNextComboBoxItem(
     const DRAWITEMSTRUCT& item,
     UINT dpi) {
+
+    // CBS_OWNERDRAWFIXED asks the parent to paint the closed selection
+    // field synchronously during focus transitions. Returning TRUE without
+    // painting it creates a transient blank frame before our subclass WM_PAINT
+    // runs. Paint only the native selection rectangle here; the shared
+    // subclass remains the sole owner of the border and chevron area.
+    if ((item.itemState &
+         ODS_COMBOBOXEDIT) != 0) {
+        RECT rect =
+            item.rcItem;
+
+        COMBOBOXINFO comboInfo{};
+        comboInfo.cbSize =
+            sizeof(comboInfo);
+
+        if (GetComboBoxInfo(
+                item.hwndItem,
+                &comboInfo)) {
+            RECT clipped{};
+            if (IntersectRect(
+                    &clipped,
+                    &rect,
+                    &comboInfo.rcItem)) {
+                rect =
+                    clipped;
+            }
+        }
+
+        HBRUSH fill =
+            CreateSolidBrush(
+                NextComboFillColor(
+                    item.hwndItem));
+        FillRect(
+            item.hDC,
+            &rect,
+            fill);
+        DeleteObject(
+            fill);
+
+        if (item.itemID !=
+            static_cast<UINT>(-1)) {
+            wchar_t text[512]{};
+            SendMessageW(
+                item.hwndItem,
+                CB_GETLBTEXT,
+                item.itemID,
+                reinterpret_cast<LPARAM>(
+                    text));
+
+            RECT textRect =
+                rect;
+            textRect.left +=
+                Scale(12, dpi);
+            textRect.right -=
+                Scale(6, dpi);
+
+            SetBkMode(
+                item.hDC,
+                TRANSPARENT);
+            SetTextColor(
+                item.hDC,
+                IsWindowEnabled(
+                    item.hwndItem)
+                    ? kApplicationPalette.text
+                    : kApplicationPalette.mutedText);
+
+            HGDIOBJ oldFont =
+                SelectObject(
+                    item.hDC,
+                    ComboFont(
+                        item.hwndItem));
+
+            DrawTextW(
+                item.hDC,
+                text,
+                -1,
+                &textRect,
+                DT_LEFT |
+                    DT_VCENTER |
+                    DT_SINGLELINE |
+                    DT_END_ELLIPSIS |
+                    DT_NOPREFIX);
+
+            SelectObject(
+                item.hDC,
+                oldFont);
+        }
+
+        return;
+    }
 
     RECT rect =
         item.rcItem;

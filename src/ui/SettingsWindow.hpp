@@ -167,12 +167,15 @@ private:
     void CreateAboutPage();
     void ApplyFonts();
     void Layout();
-    void LayoutGeneral();
-    void LayoutHotkeys(RECT client, int contentLeft, int contentWidth);
-    void LayoutProviders(int contentLeft, int contentWidth);
-    void LayoutAppearance(int contentLeft, int contentWidth);
-    void LayoutData(int contentLeft, int contentWidth);
-    void LayoutAbout(int contentLeft, int contentWidth);
+    void LayoutCurrentPage(BOOL repaint = TRUE);
+    [[nodiscard]] RECT ContentPaneRect() const;
+    void RedrawCurrentPage();
+    void LayoutGeneral(BOOL repaint = TRUE);
+    void LayoutHotkeys(RECT client, int contentLeft, int contentWidth, BOOL repaint = TRUE);
+    void LayoutProviders(int contentLeft, int contentWidth, BOOL repaint = TRUE);
+    void LayoutAppearance(int contentLeft, int contentWidth, BOOL repaint = TRUE);
+    void LayoutData(int contentLeft, int contentWidth, BOOL repaint = TRUE);
+    void LayoutAbout(int contentLeft, int contentWidth, BOOL repaint = TRUE);
     void PositionForShow();
     void ShowPage(Page page);
     void UpdateNavLabels();
@@ -309,6 +312,10 @@ private:
         int scrollOffset) const;
     void UpdatePageScrollBar();
     void ScrollCurrentPage(int delta);
+    [[nodiscard]] int PageScrollMaximum() const;
+    [[nodiscard]] RECT PageScrollTrackRect() const;
+    [[nodiscard]] RECT PageScrollThumbRect() const;
+    void DrawPageScrollBar(HDC dc);
     [[nodiscard]] RECT
     HotkeyScrollViewport() const;
     [[nodiscard]] int
@@ -316,7 +323,7 @@ private:
     [[nodiscard]] bool
     HotkeyControlDesiredVisible(
         HWND control) const;
-    void ClipHotkeyControlsToViewport();
+    void ClipHotkeyControlsToViewport(BOOL repaint = TRUE);
 
     [[nodiscard]] RECT
     BehaviorCardRect() const;
@@ -443,6 +450,10 @@ private:
     bool syncing_{false};
     int generalScrollOffset_{0};
     int hotkeyScrollOffset_{0};
+    bool pageScrollHovered_{false};
+    bool pageScrollDragging_{false};
+    int pageScrollDragAnchorY_{0};
+    int pageScrollDragStartOffset_{0};
     std::string capturingHotkeyActionId_;
     std::unordered_map<std::string, bool>
         pendingProviderStates_;
