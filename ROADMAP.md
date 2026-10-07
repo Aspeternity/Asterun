@@ -1,6 +1,13 @@
 # Asterun Roadmap
 
-Asterun 1.0.3 is the current maintenance release, focused on complete Uninstall.exe cleanup of Asterun-owned SendTo integration while preserving portable-app behavior.
+Asterun 1.0.3 remains the current stable release. v1.0.4 is the active development line for small launcher-input and shortcut-discoverability improvements.
+
+## v1.0.4 - Launcher input polish
+
+- Start each new Launcher session in direct English input by default, with an opt-out preference and no global keyboard-layout switch.
+- Keep manual switching back to Chinese available for the rest of the current Launcher session.
+- Follow with compact multi-keyword presentation after the input behavior passes real-machine validation.
+- Advance Settings schema to 12 for downgrade-safe persistence of the new preference.
 
 ## v1.0.3 - Uninstall Shell integration cleanup
 
