@@ -326,6 +326,13 @@ struct LauncherResourceRuntimeFixture {
             settings
                 .defaultEnglishInputOnReveal;
 
+        // App is constructed directly in this runtime fixture, so populate
+        // the searchable index before using LauncherWindow::Show(). Without
+        // this, Show() correctly defers reveal before it reaches any input
+        // session policy.
+        app.ReloadCommands();
+        assert(app.CanRevealLauncher());
+
         LauncherWindow window(
             app,
             instance);
