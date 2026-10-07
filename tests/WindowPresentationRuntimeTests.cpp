@@ -143,6 +143,7 @@ bool observedPathConverter{};
 bool observedModalDestroy{};
 bool ownerEnabledAtModalDestroy{};
 bool expectedOwnerEnabledAtModalDestroy{};
+int advancedTogglePositionChanges{};
 
 LRESULT CALLBACK ModalDestroyProbe(HWND window, UINT message, WPARAM wParam,
                                    LPARAM lParam, UINT_PTR subclassId,
@@ -184,6 +185,129 @@ void CALLBACK CancelPathConverter(HWND, UINT, UINT_PTR timer, DWORD) {
     ArmModalDestroyProbe(converter);
     KillTimer(nullptr, timer);
     PostMessageW(converter, WM_CLOSE, 0, 0);
+}
+
+LRESULT CALLBACK AdvancedToggleMoveProbe(
+    HWND window,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    UINT_PTR subclassId,
+    DWORD_PTR) {
+
+    if (message == WM_WINDOWPOSCHANGED) {
+        ++advancedTogglePositionChanges;
+    }
+
+    if (message == WM_NCDESTROY) {
+        RemoveWindowSubclass(
+            window,
+            AdvancedToggleMoveProbe,
+            subclassId);
+    }
+
+    return DefSubclassProc(
+        window,
+        message,
+        wParam,
+        lParam);
+}
+
+void CALLBACK ExerciseAdvancedToggle(
+    HWND,
+    UINT,
+    UINT_PTR timer,
+    DWORD) {
+
+    const HWND editor =
+        FindWindowW(
+            L"Asterun.ShortcutEditor",
+            nullptr);
+
+    if (!editor) {
+        return;
+    }
+
+    constexpr UINT kAdvancedToggleId = 53117;
+    const HWND toggle =
+        GetDlgItem(
+            editor,
+            kAdvancedToggleId);
+    assert(toggle);
+
+    assert(SetWindowSubclass(
+        toggle,
+        AdvancedToggleMoveProbe,
+        23,
+        0));
+
+    RECT collapsed{};
+    RECT expanded{};
+    RECT collapsedAgain{};
+
+    assert(GetWindowRect(
+        editor,
+        &collapsed));
+
+    advancedTogglePositionChanges = 0;
+
+    SendMessageW(
+        editor,
+        WM_COMMAND,
+        MAKEWPARAM(
+            kAdvancedToggleId,
+            BN_CLICKED),
+        reinterpret_cast<LPARAM>(
+            toggle));
+
+    assert(GetWindowRect(
+        editor,
+        &expanded));
+    assert(
+        (expanded.bottom -
+         expanded.top) >
+        (collapsed.bottom -
+         collapsed.top));
+    assert(
+        advancedTogglePositionChanges ==
+        1);
+
+    advancedTogglePositionChanges = 0;
+
+    SendMessageW(
+        editor,
+        WM_COMMAND,
+        MAKEWPARAM(
+            kAdvancedToggleId,
+            BN_CLICKED),
+        reinterpret_cast<LPARAM>(
+            toggle));
+
+    assert(GetWindowRect(
+        editor,
+        &collapsedAgain));
+    assert(
+        (collapsedAgain.bottom -
+         collapsedAgain.top) ==
+        (collapsed.bottom -
+         collapsed.top));
+    assert(
+        advancedTogglePositionChanges ==
+        1);
+
+    assert(RemoveWindowSubclass(
+        toggle,
+        AdvancedToggleMoveProbe,
+        23));
+
+    KillTimer(
+        nullptr,
+        timer);
+    PostMessageW(
+        editor,
+        WM_CLOSE,
+        0,
+        0);
 }
 
 } // namespace
@@ -556,6 +680,37 @@ int main() {
             assert(!IsWindowVisible(owner));
             assert(GetActiveWindow() != owner);
         }
+
+        // Advanced disclosure resize must settle exactly once per toggle. The
+        // previous path laid the dialog out from synchronous WM_SIZE and then
+        // laid it out again explicitly, which made the owner-drawn separator
+        // flash through an intermediate frame.
+        EnableWindow(
+            owner,
+            TRUE);
+        ShowWindow(
+            owner,
+            SW_HIDE);
+        modalOwner = owner;
+        timer =
+            SetTimer(
+                nullptr,
+                0,
+                20,
+                ExerciseAdvancedToggle);
+        assert(timer);
+        assert(
+            !ShortcutEditorDialog::ShowNew(
+                app,
+                instance,
+                owner,
+                seed));
+        KillTimer(
+            nullptr,
+            timer);
+        assert(
+            IsWindowEnabled(
+                owner));
 
         // A visible Shortcut Manager owner must already be re-enabled before
         // either modal child is destroyed. The old ordering destroyed the
