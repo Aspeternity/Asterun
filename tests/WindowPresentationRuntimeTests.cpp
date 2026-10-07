@@ -196,7 +196,17 @@ LRESULT CALLBACK AdvancedToggleMoveProbe(
     DWORD_PTR) {
 
     if (message == WM_WINDOWPOSCHANGED) {
-        ++advancedTogglePositionChanges;
+        const auto* position =
+            reinterpret_cast<const WINDOWPOS*>(
+                lParam);
+
+        if (position &&
+            (((position->flags &
+               SWP_NOMOVE) == 0) ||
+             ((position->flags &
+               SWP_NOSIZE) == 0))) {
+            ++advancedTogglePositionChanges;
+        }
     }
 
     if (message == WM_NCDESTROY) {
@@ -681,10 +691,13 @@ int main() {
             assert(GetActiveWindow() != owner);
         }
 
-        // Advanced disclosure resize must settle exactly once per toggle. The
-        // previous path laid the dialog out from synchronous WM_SIZE and then
-        // laid it out again explicitly, which made the owner-drawn separator
-        // flash through an intermediate frame.
+        // Advanced disclosure resize must settle with one geometry-affecting
+        // layout move per toggle. Native button bookkeeping may emit extra
+        // WM_WINDOWPOSCHANGED notifications with SWP_NOMOVE/SWP_NOSIZE; the
+        // probe deliberately ignores those non-geometry events. The previous
+        // path performed one layout from synchronous WM_SIZE and another
+        // explicit layout, which made the owner-drawn separator flash through
+        // an intermediate frame.
         EnableWindow(
             owner,
             TRUE);
