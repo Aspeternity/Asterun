@@ -1520,17 +1520,26 @@ void LauncherWindow::Show() {
     SetFocus(edit_);
     SendMessageW(edit_, EM_SETSEL, 0, -1);
 
-    if (!wasVisible &&
-        app_.SettingsData()
-            .defaultEnglishInputOnReveal) {
-        PrepareEnglishInputForReveal(
-            edit_);
-    }
+    PrepareInputForReveal(
+        wasVisible);
 
     // EN_CHANGE normally already refreshed the empty query before reveal.
     // Retain the explicit refresh only when resetting EDIT did not do so.
     if (!refreshedByReset) RefreshResults();
     if (!wasVisible && IsWindowVisible(hwnd_)) ui::PlayFeedback(FeedbackCue::Reveal);
+}
+
+void LauncherWindow::PrepareInputForReveal(
+    bool wasVisible) noexcept {
+
+    if (wasVisible ||
+        !app_.SettingsData()
+             .defaultEnglishInputOnReveal) {
+        return;
+    }
+
+    PrepareEnglishInputForReveal(
+        edit_);
 }
 
 void LauncherWindow::Hide() {
