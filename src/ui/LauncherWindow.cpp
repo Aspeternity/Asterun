@@ -20,6 +20,7 @@
 #include <windowsx.h>
 #include <commctrl.h>
 #include <dwmapi.h>
+#include <imm.h>
 #include <shellapi.h>
 
 #include <algorithm>
@@ -38,6 +39,37 @@ namespace {
 constexpr const wchar_t* kWindowClass =
     instance_ipc::kLauncherWindowClass;
 constexpr wchar_t kWindowTitle[] = L"Asterun";
+
+void PrepareEnglishInputForReveal(
+    HWND edit) noexcept {
+
+    if (!edit) {
+        return;
+    }
+
+    HIMC inputContext =
+        ImmGetContext(
+            edit);
+
+    if (!inputContext) {
+        return;
+    }
+
+    // Keep the user's current keyboard layout/input method selected. We only
+    // close this EDIT's IME context for the new launcher session, so typing
+    // starts as direct Latin input without changing other applications.
+    ImmNotifyIME(
+        inputContext,
+        NI_COMPOSITIONSTR,
+        CPS_CANCEL,
+        0);
+    ImmSetOpenStatus(
+        inputContext,
+        FALSE);
+    ImmReleaseContext(
+        edit,
+        inputContext);
+}
 
 void InitializeTrayIconIdentity(
     NOTIFYICONDATAW& data,
@@ -1487,6 +1519,14 @@ void LauncherWindow::Show() {
     SetForegroundWindow(hwnd_);
     SetFocus(edit_);
     SendMessageW(edit_, EM_SETSEL, 0, -1);
+
+    if (!wasVisible &&
+        app_.SettingsData()
+            .defaultEnglishInputOnReveal) {
+        PrepareEnglishInputForReveal(
+            edit_);
+    }
+
     // EN_CHANGE normally already refreshed the empty query before reveal.
     // Retain the explicit refresh only when resetting EDIT did not do so.
     if (!refreshedByReset) RefreshResults();
