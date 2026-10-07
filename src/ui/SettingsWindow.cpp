@@ -5453,8 +5453,8 @@ void SettingsWindow::DrawActionButton(
         item.hDC,
         oldFont);
 
-    if (ShouldDrawOwnerDrawFocusCue(
-            item)) {
+    if (item.itemState &
+        ODS_FOCUS) {
         RECT focus =
             surface;
         InflateRect(
