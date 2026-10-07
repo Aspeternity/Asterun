@@ -175,6 +175,8 @@ public:
     [[nodiscard]] DWORD
     HotkeyActionLastError(
         std::string_view actionId) const noexcept;
+    bool SetDefaultEnglishInputOnReveal(
+        bool enabled);
     bool SetClassicBehavior(
         bool numericQuickLaunch,
         bool executeSingleResultImmediately,
