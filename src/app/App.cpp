@@ -3778,6 +3778,24 @@ DWORD App::HotkeyActionLastError(
     return ERROR_SUCCESS;
 }
 
+bool App::
+SetDefaultEnglishInputOnReveal(
+    bool enabled) {
+
+    if (!settingsStore_
+             .SetDefaultEnglishInputOnReveal(
+                 enabled)) {
+        return false;
+    }
+
+    if (settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
 bool App::SetClassicBehavior(
     bool numericQuickLaunch,
     bool executeSingleResultImmediately,
