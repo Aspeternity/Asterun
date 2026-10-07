@@ -64,8 +64,9 @@ inline bool ValidSettingsNode(const nlohmann::json& node) {
         "key", "channel"}, Type::string) ||
         !FieldsHaveType(node, {"startWithWindows", "showTrayIcon", "soundEnabled",
         "addToSendToMenu", "launcherLastValid", "settingsLastValid",
-        "shortcutManagerLastValid", "enabled", "pinyinSearch", "numericQuickLaunch",
-        "executeSingleResultImmediately", "autoCheck"}, Type::boolean) ||
+        "shortcutManagerLastValid", "enabled", "defaultEnglishInputOnReveal",
+        "pinyinSearch", "numericQuickLaunch", "executeSingleResultImmediately",
+        "autoCheck"}, Type::boolean) ||
         !FieldsHaveType(node, {"launcherLastX", "launcherLastY", "settingsLastX",
         "settingsLastY", "shortcutManagerLastX", "shortcutManagerLastY"}, Type::number_integer) ||
         !FieldsHaveType(node, {"modifiers"}, Type::array)) return false;
