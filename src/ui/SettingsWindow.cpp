@@ -3724,17 +3724,8 @@ void SettingsWindow::ToggleProviderSetting(
         providerId] =
         !ToggleChecked(id);
 
-    RedrawWindow(
-        reinterpret_cast<HWND>(
-            GetDlgItem(
-                hwnd_,
-                static_cast<int>(id))),
-        nullptr,
-        nullptr,
-        RDW_INVALIDATE |
-            RDW_NOERASE |
-            RDW_UPDATENOW);
-
+    // WM_COMMAND commits the pending state and repaints only the clicked
+    // owner-draw row. Do not schedule a second paint here.
     KillTimer(
         hwnd_,
         kProviderCommitTimerId);
@@ -5887,8 +5878,8 @@ void SettingsWindow::DrawGeneralToggle(
             separator);
     }
 
-    if (item.itemState &
-        ODS_FOCUS) {
+    if (ShouldDrawOwnerDrawFocusCue(
+            item)) {
         RECT focusBar{
             rect.left +
                 Scale(5),
