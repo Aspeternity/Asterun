@@ -129,6 +129,7 @@ private:
     void ShowNewShortcutForPath(
         std::wstring_view path);
     void ShowTrayMenu(POINT point);
+    void PrepareTopLevelForegroundHandoff();
     void ShowResultContextMenu(
         POINT point);
 

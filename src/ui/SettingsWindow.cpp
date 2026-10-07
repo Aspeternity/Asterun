@@ -2848,17 +2848,48 @@ void SettingsWindow::RefreshProviderStatus() {
                 720);
     }
 
-    window_presentation::ScopedRedrawSuspend
-        redrawGuard(
-            atomicProviderUpdate
-                ? hwnd_
-                : nullptr);
+    const auto setProviderVisibleQuiet =
+        [](HWND control,
+           bool shouldShow) {
+            if (!control) {
+                return;
+            }
+
+            const bool currentlyVisible =
+                (GetWindowLongPtrW(
+                     control,
+                     GWL_STYLE) &
+                 WS_VISIBLE) != 0;
+
+            if (currentlyVisible ==
+                shouldShow) {
+                return;
+            }
+
+            SetWindowPos(
+                control,
+                nullptr,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE |
+                    SWP_NOSIZE |
+                    SWP_NOZORDER |
+                    SWP_NOACTIVATE |
+                    SWP_NOREDRAW |
+                    (shouldShow
+                         ? SWP_SHOWWINDOW
+                         : SWP_HIDEWINDOW));
+        };
 
     providerTrayVisible_ = showTray;
     providerActionsVisible_ = showActions;
 
     if (managedEverythingTrayIcon_) {
-        ShowWindow(managedEverythingTrayIcon_, visible && showTray ? SW_SHOW : SW_HIDE);
+        setProviderVisibleQuiet(
+            managedEverythingTrayIcon_,
+            visible && showTray);
         EnableWindow(
             managedEverythingTrayIcon_,
             enabled &&
@@ -2880,33 +2911,27 @@ void SettingsWindow::RefreshProviderStatus() {
                     L"Check for updates"));
     }
 
-    ShowWindow(
+    setProviderVisibleQuiet(
         providerGetEverything_,
         visible &&
-                showGetEverything
-            ? SW_SHOW
-            : SW_HIDE);
+            showGetEverything);
 
-    ShowWindow(
+    setProviderVisibleQuiet(
         providerUpdateEverything_,
         visible &&
-                showUpdateEverything
-            ? SW_SHOW
-            : SW_HIDE);
+            showUpdateEverything);
 
-    ShowWindow(
+    setProviderVisibleQuiet(
         providerRecheckEverything_,
         visible &&
-                showRecheck
-            ? SW_SHOW
-            : SW_HIDE);
+            showRecheck);
 
     SetWindowTextW(
         providerStatus_,
         text.c_str());
 
     if (visible && layoutChanged) {
-        Layout();
+        LayoutCurrentPage(FALSE);
     }
 
     if (atomicProviderUpdate) {
@@ -2924,8 +2949,6 @@ void SettingsWindow::RefreshProviderStatus() {
             &providerDirtyRect,
             Scale(2),
             Scale(2));
-
-        redrawGuard.Resume();
 
         // Repaint only the Everything card. Repainting the entire Settings
         // window made unrelated provider labels visibly blink even though
@@ -3223,38 +3246,61 @@ void SettingsWindow::ShowPage(Page page) {
         }
     }
 
-    window_presentation::ScopedRedrawSuspend redrawGuard(hwnd_);
-
     page_ = page;
 
-    const auto setVisible =
+    const auto setVisibleQuiet =
         [](const std::vector<HWND>& controls,
            bool visible) {
             for (HWND control : controls) {
-                ShowWindow(
+                if (!control) {
+                    continue;
+                }
+
+                const bool currentlyVisible =
+                    (GetWindowLongPtrW(
+                         control,
+                         GWL_STYLE) &
+                     WS_VISIBLE) != 0;
+
+                if (currentlyVisible ==
+                    visible) {
+                    continue;
+                }
+
+                SetWindowPos(
                     control,
-                    visible
-                        ? SW_SHOW
-                        : SW_HIDE);
+                    nullptr,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE |
+                        SWP_NOSIZE |
+                        SWP_NOZORDER |
+                        SWP_NOACTIVATE |
+                        SWP_NOREDRAW |
+                        (visible
+                             ? SWP_SHOWWINDOW
+                             : SWP_HIDEWINDOW));
             }
         };
 
-    setVisible(
+    setVisibleQuiet(
         generalControls_,
         page == Page::General);
-    setVisible(
+    setVisibleQuiet(
         hotkeyControls_,
         page == Page::Hotkeys);
-    setVisible(
+    setVisibleQuiet(
         appearanceControls_,
         page == Page::Appearance);
-    setVisible(
+    setVisibleQuiet(
         providerControls_,
         page == Page::Providers);
-    setVisible(
+    setVisibleQuiet(
         dataControls_,
         page == Page::Data);
-    setVisible(
+    setVisibleQuiet(
         aboutControls_,
         page == Page::About);
 
@@ -3295,58 +3341,12 @@ void SettingsWindow::ShowPage(Page page) {
 
     UpdateNavLabels();
     UpdatePageHeader();
-    Layout();
-
-    redrawGuard.Resume();
-
-    // Reapply the target page's scroll state after the shared redraw guard
-    // resumes. ShowScrollBar invoked while redraw is suspended can leave the
-    // old non-client frame cached by USER32/DWM on the first page transition.
-    const bool hadVerticalScroll =
-        (GetWindowLongPtrW(
-             hwnd_,
-             GWL_STYLE) &
-         WS_VSCROLL) != 0;
-
     UpdatePageScrollBar();
 
-    const bool hasVerticalScroll =
-        (GetWindowLongPtrW(
-             hwnd_,
-             GWL_STYLE) &
-         WS_VSCROLL) != 0;
-    const bool scrollFrameChanged =
-        hadVerticalScroll !=
-        hasVerticalScroll;
+    // Never suspend redraw on the visible top-level Settings HWND. Quietly
+    // settle only the active content page, then commit one final frame.
+    LayoutCurrentPage(FALSE);
 
-    // A non-client recalculation is only needed when the scrollbar actually
-    // changes the client width. The previous unconditional FRAMECHANGED +
-    // second Layout() forced a visible full-window transition for every page
-    // click, even between pages with identical frame geometry.
-    if (scrollFrameChanged) {
-        window_presentation::
-            ScopedRedrawSuspend
-                settleGuard(hwnd_);
-
-        SetWindowPos(
-            hwnd_,
-            nullptr,
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE |
-                SWP_NOSIZE |
-                SWP_NOZORDER |
-                SWP_NOACTIVATE |
-                SWP_FRAMECHANGED);
-        Layout();
-
-        settleGuard.Resume();
-    }
-
-    // Let USER32 coalesce the final parent/child repaint instead of erasing
-    // and synchronously repainting the whole window on every navigation.
     // Only the content pane and navigation buttons changed.
     RECT client{};
     GetClientRect(
@@ -3368,9 +3368,7 @@ void SettingsWindow::ShowPage(Page page) {
         RDW_INVALIDATE |
             RDW_NOERASE |
             RDW_ALLCHILDREN |
-            (scrollFrameChanged
-                 ? RDW_FRAME
-                 : 0));
+            RDW_UPDATENOW);
 
     for (HWND navigation :
          std::array<HWND, 6>{
@@ -3381,10 +3379,13 @@ void SettingsWindow::ShowPage(Page page) {
              navData_,
              navAbout_}) {
         if (navigation) {
-            InvalidateRect(
+            RedrawWindow(
                 navigation,
                 nullptr,
-                FALSE);
+                nullptr,
+                RDW_INVALIDATE |
+                    RDW_NOERASE |
+                    RDW_UPDATENOW);
         }
     }
 }
@@ -4087,91 +4088,52 @@ void SettingsWindow::UpdatePageScrollBar() {
         return;
     }
 
+    // Settings uses an in-client overlay indicator. Keep USER32's non-client
+    // scrollbar disabled so it cannot change client width or fight the app's
+    // visual language.
+    HideSettingsVerticalScrollBar(
+        hwnd_);
+
+    if (page_ == Page::General) {
+        generalScrollOffset_ =
+            std::clamp(
+                generalScrollOffset_,
+                0,
+                PageScrollMaximum());
+    } else if (page_ == Page::Hotkeys) {
+        hotkeyScrollOffset_ =
+            std::clamp(
+                hotkeyScrollOffset_,
+                0,
+                PageScrollMaximum());
+    }
+}
+
+int SettingsWindow::PageScrollMaximum() const {
+    if (!hwnd_) {
+        return 0;
+    }
+
     if (page_ == Page::General) {
         RECT client{};
         GetClientRect(
             hwnd_,
             &client);
 
-        auto full =
+        const auto full =
             BuildGeneralLayout(0);
 
-        int maximum =
-            settings_layout::
-                MaxScrollOffset(
-                    full,
-                    static_cast<int>(
-                        client.bottom),
-                    dpi_);
-
-        if (maximum > 0) {
-            ShowScrollBar(
-                hwnd_,
-                SB_VERT,
-                TRUE);
-        } else {
-            HideSettingsVerticalScrollBar(
-                hwnd_);
-        }
-
-        // Showing the scrollbar changes the client width and can switch the
-        // General page into its narrow stacked layout. Recalculate once using
-        // the final client area before clamping the scroll position.
-        GetClientRect(
-            hwnd_,
-            &client);
-
-        full =
-            BuildGeneralLayout(0);
-
-        maximum =
-            settings_layout::
-                MaxScrollOffset(
-                    full,
-                    static_cast<int>(
-                        client.bottom),
-                    dpi_);
-
-        generalScrollOffset_ =
-            std::clamp(
-                generalScrollOffset_,
-                0,
-                maximum);
-
-        SCROLLINFO info{};
-        info.cbSize =
-            sizeof(info);
-        info.fMask =
-            SIF_RANGE |
-            SIF_PAGE |
-            SIF_POS;
-        info.nMin = 0;
-        info.nMax =
-            std::max(
-                0,
-                full.contentBottom +
-                    Scale(10) - 1);
-        info.nPage =
-            static_cast<UINT>(
-                std::max(
-                    1,
-                    static_cast<int>(
-                        client.bottom)));
-        info.nPos =
-            generalScrollOffset_;
-
-        SetScrollInfo(
-            hwnd_,
-            SB_VERT,
-            &info,
-            TRUE);
-        return;
+        return settings_layout::
+            MaxScrollOffset(
+                full,
+                static_cast<int>(
+                    client.bottom),
+                dpi_);
     }
 
     if (page_ == Page::Hotkeys) {
         const RECT viewport =
             HotkeyScrollViewport();
-
         const int pageHeight =
             std::max(
                 1,
@@ -4184,54 +4146,208 @@ void SettingsWindow::UpdatePageScrollBar() {
                 HotkeyContentBottom() -
                     static_cast<int>(
                         viewport.top));
-        const int maximum =
-            std::max(
-                0,
-                contentHeight -
-                    pageHeight);
 
-        hotkeyScrollOffset_ =
-            std::clamp(
-                hotkeyScrollOffset_,
-                0,
-                maximum);
-
-        if (maximum > 0) {
-            ShowScrollBar(
-                hwnd_,
-                SB_VERT,
-                TRUE);
-        } else {
-            HideSettingsVerticalScrollBar(
-                hwnd_);
-        }
-
-        SCROLLINFO info{};
-        info.cbSize =
-            sizeof(info);
-        info.fMask =
-            SIF_RANGE |
-            SIF_PAGE |
-            SIF_POS;
-        info.nMin = 0;
-        info.nMax =
-            contentHeight - 1;
-        info.nPage =
-            static_cast<UINT>(
+        return std::max(
+            0,
+            contentHeight -
                 pageHeight);
-        info.nPos =
-            hotkeyScrollOffset_;
+    }
 
-        SetScrollInfo(
+    return 0;
+}
+
+RECT SettingsWindow::PageScrollTrackRect() const {
+    RECT client{};
+    if (!hwnd_) {
+        return client;
+    }
+
+    GetClientRect(
+        hwnd_,
+        &client);
+
+    const int hitWidth =
+        Scale(14);
+    const int rightInset =
+        Scale(3);
+    const int verticalInset =
+        Scale(14);
+
+    return {
+        std::max(
+            client.left,
+            client.right -
+                rightInset -
+                hitWidth),
+        client.top +
+            verticalInset,
+        client.right -
+            rightInset,
+        std::max(
+            client.top +
+                verticalInset,
+            client.bottom -
+                verticalInset),
+    };
+}
+
+RECT SettingsWindow::PageScrollThumbRect() const {
+    RECT track =
+        PageScrollTrackRect();
+    const int maximum =
+        PageScrollMaximum();
+
+    if (maximum <= 0 ||
+        track.bottom <= track.top) {
+        return {};
+    }
+
+    const int trackHeight =
+        track.bottom -
+        track.top;
+    int viewportHeight = 1;
+
+    if (page_ == Page::Hotkeys) {
+        const RECT viewport =
+            HotkeyScrollViewport();
+        viewportHeight =
+            std::max(
+                1,
+                static_cast<int>(
+                    viewport.bottom -
+                    viewport.top));
+    } else {
+        RECT client{};
+        GetClientRect(
             hwnd_,
-            SB_VERT,
-            &info,
-            TRUE);
+            &client);
+        viewportHeight =
+            std::max(
+                1,
+                static_cast<int>(
+                    client.bottom));
+    }
+
+    const int contentHeight =
+        viewportHeight +
+        maximum;
+    const int minimumThumb =
+        Scale(48);
+    const int thumbHeight =
+        std::clamp(
+            static_cast<int>(
+                (static_cast<long long>(
+                     trackHeight) *
+                 viewportHeight) /
+                std::max(
+                    1,
+                    contentHeight)),
+            std::min(
+                minimumThumb,
+                trackHeight),
+            trackHeight);
+    const int travel =
+        std::max(
+            0,
+            trackHeight -
+                thumbHeight);
+    const int offset =
+        page_ == Page::General
+            ? generalScrollOffset_
+            : hotkeyScrollOffset_;
+    const int thumbTop =
+        track.top +
+        (maximum > 0
+             ? static_cast<int>(
+                   (static_cast<long long>(
+                        travel) *
+                    offset) /
+                   maximum)
+             : 0);
+
+    const int visualWidth =
+        Scale(
+            pageScrollHovered_ ||
+                    pageScrollDragging_
+                ? 6
+                : 4);
+    const int centerX =
+        track.left +
+        (track.right -
+         track.left) / 2;
+
+    return {
+        centerX -
+            visualWidth / 2,
+        thumbTop,
+        centerX -
+            visualWidth / 2 +
+            visualWidth,
+        thumbTop +
+            thumbHeight,
+    };
+}
+
+void SettingsWindow::DrawPageScrollBar(
+    HDC dc) {
+
+    if (!dc ||
+        PageScrollMaximum() <= 0) {
         return;
     }
 
-    HideSettingsVerticalScrollBar(
-        hwnd_);
+    RECT thumb =
+        PageScrollThumbRect();
+
+    if (thumb.right <= thumb.left ||
+        thumb.bottom <= thumb.top) {
+        return;
+    }
+
+    const COLORREF color =
+        pageScrollDragging_
+            ? RGB(105, 115, 124)
+            : pageScrollHovered_
+                ? RGB(126, 135, 144)
+                : RGB(166, 173, 181);
+
+    HBRUSH brush =
+        CreateSolidBrush(
+            color);
+    HGDIOBJ oldBrush =
+        SelectObject(
+            dc,
+            brush);
+    HGDIOBJ oldPen =
+        SelectObject(
+            dc,
+            GetStockObject(
+                NULL_PEN));
+
+    const int radius =
+        std::max(
+            1,
+            static_cast<int>(
+                thumb.right -
+                thumb.left) / 2);
+
+    RoundRect(
+        dc,
+        thumb.left,
+        thumb.top,
+        thumb.right,
+        thumb.bottom,
+        radius,
+        radius);
+
+    SelectObject(
+        dc,
+        oldPen);
+    SelectObject(
+        dc,
+        oldBrush);
+    DeleteObject(
+        brush);
 }
 
 void SettingsWindow::ScrollCurrentPage(
@@ -4245,25 +4361,8 @@ void SettingsWindow::ScrollCurrentPage(
 
     UpdatePageScrollBar();
 
-    SCROLLINFO info{};
-    info.cbSize =
-        sizeof(info);
-    info.fMask =
-        SIF_RANGE |
-        SIF_PAGE;
-
-    GetScrollInfo(
-        hwnd_,
-        SB_VERT,
-        &info);
-
     const int maximum =
-        std::max(
-            0,
-            info.nMax -
-                static_cast<int>(
-                    info.nPage) +
-                1);
+        PageScrollMaximum();
 
     int& offset =
         page_ == Page::General
@@ -4282,16 +4381,11 @@ void SettingsWindow::ScrollCurrentPage(
 
     offset = next;
 
-    Layout();
-
-    RedrawWindow(
-        hwnd_,
-        nullptr,
-        nullptr,
-        RDW_INVALIDATE |
-            RDW_ERASE |
-            RDW_ALLCHILDREN |
-            RDW_UPDATENOW);
+    // Keep the top-level Settings HWND continuously visible/hit-testable.
+    // Child controls move without repaint and the content pane is committed
+    // once after every control has reached its final position.
+    LayoutCurrentPage(FALSE);
+    RedrawCurrentPage();
 }
 
 bool SettingsWindow::HotkeyControlDesiredVisible(
@@ -4328,7 +4422,8 @@ bool SettingsWindow::HotkeyControlDesiredVisible(
 }
 
 void SettingsWindow::
-ClipHotkeyControlsToViewport() {
+ClipHotkeyControlsToViewport(
+    BOOL repaint) {
     if (page_ != Page::Hotkeys) {
         return;
     }
@@ -4353,9 +4448,12 @@ ClipHotkeyControlsToViewport() {
                 control,
                 nullptr,
                 FALSE);
-            ShowWindow(
-                control,
-                SW_HIDE);
+            if (IsWindowVisible(
+                    control)) {
+                ShowWindow(
+                    control,
+                    SW_HIDE);
+            }
             continue;
         }
 
@@ -4381,9 +4479,12 @@ ClipHotkeyControlsToViewport() {
                 control,
                 nullptr,
                 FALSE);
-            ShowWindow(
-                control,
-                SW_HIDE);
+            if (IsWindowVisible(
+                    control)) {
+                ShowWindow(
+                    control,
+                    SW_HIDE);
+            }
             continue;
         }
 
@@ -4402,24 +4503,30 @@ ClipHotkeyControlsToViewport() {
             !SetWindowRgn(
                 control,
                 region,
-                TRUE)) {
+                repaint)) {
             DeleteObject(
                 region);
         }
 
-        ShowWindow(
-            control,
-            SW_SHOW);
+        if (!IsWindowVisible(
+                control)) {
+            ShowWindow(
+                control,
+                SW_SHOW);
+        }
     }
 
     if (hotkeyResetAll_) {
         SetWindowRgn(
             hotkeyResetAll_,
             nullptr,
-            FALSE);
-        ShowWindow(
-            hotkeyResetAll_,
-            SW_SHOW);
+            repaint);
+        if (!IsWindowVisible(
+                hotkeyResetAll_)) {
+            ShowWindow(
+                hotkeyResetAll_,
+                SW_SHOW);
+        }
     }
 }
 
@@ -6392,7 +6499,201 @@ LRESULT SettingsWindow::HandleMessage(
         break;
     }
 
-    case WM_LBUTTONDOWN:
+    case WM_MOUSEMOVE: {
+        POINTS raw =
+            MAKEPOINTS(lParam);
+        POINT point{
+            raw.x,
+            raw.y,
+        };
+
+        if (pageScrollDragging_) {
+            const RECT track =
+                PageScrollTrackRect();
+            const RECT thumb =
+                PageScrollThumbRect();
+            const int maximum =
+                PageScrollMaximum();
+            const int travel =
+                std::max(
+                    1,
+                    static_cast<int>(
+                        track.bottom -
+                        track.top -
+                        (thumb.bottom -
+                         thumb.top)));
+            int& offset =
+                page_ == Page::General
+                    ? generalScrollOffset_
+                    : hotkeyScrollOffset_;
+            const int next =
+                std::clamp(
+                    pageScrollDragStartOffset_ +
+                        static_cast<int>(
+                            (static_cast<long long>(
+                                 point.y -
+                                 pageScrollDragAnchorY_) *
+                             maximum) /
+                            travel),
+                    0,
+                    maximum);
+
+            if (next != offset) {
+                offset = next;
+                LayoutCurrentPage(FALSE);
+                RedrawCurrentPage();
+            }
+            return 0;
+        }
+
+        const RECT track =
+            PageScrollTrackRect();
+        const bool hovered =
+            PageScrollMaximum() > 0 &&
+            PtInRect(
+                &track,
+                point) != FALSE;
+
+        if (hovered !=
+            pageScrollHovered_) {
+            pageScrollHovered_ =
+                hovered;
+            InvalidateRect(
+                hwnd_,
+                &track,
+                FALSE);
+        }
+
+        if (hovered) {
+            TRACKMOUSEEVENT trackMouse{
+                sizeof(trackMouse),
+                TME_LEAVE,
+                hwnd_,
+                0,
+            };
+            TrackMouseEvent(
+                &trackMouse);
+        }
+        break;
+    }
+
+    case WM_MOUSELEAVE:
+        if (!pageScrollDragging_ &&
+            pageScrollHovered_) {
+            const RECT track =
+                PageScrollTrackRect();
+            pageScrollHovered_ = false;
+            InvalidateRect(
+                hwnd_,
+                &track,
+                FALSE);
+        }
+        return 0;
+
+    case WM_LBUTTONDOWN: {
+        dismissComboFocus();
+
+        if (!capturingHotkeyActionId_
+                 .empty()) {
+            CancelHotkeyCapture();
+        }
+
+        POINTS raw =
+            MAKEPOINTS(lParam);
+        POINT point{
+            raw.x,
+            raw.y,
+        };
+        const RECT track =
+            PageScrollTrackRect();
+
+        if (PageScrollMaximum() > 0 &&
+            PtInRect(
+                &track,
+                point)) {
+            const RECT thumb =
+                PageScrollThumbRect();
+
+            pageScrollHovered_ = true;
+
+            if (PtInRect(
+                    &thumb,
+                    point)) {
+                pageScrollDragging_ = true;
+                pageScrollDragAnchorY_ =
+                    point.y;
+                pageScrollDragStartOffset_ =
+                    page_ == Page::General
+                        ? generalScrollOffset_
+                        : hotkeyScrollOffset_;
+                SetCapture(
+                    hwnd_);
+            } else {
+                RECT client{};
+                GetClientRect(
+                    hwnd_,
+                    &client);
+                const int pageStep =
+                    page_ == Page::Hotkeys
+                        ? std::max(
+                              Scale(80),
+                              static_cast<int>(
+                                  HotkeyScrollViewport()
+                                      .bottom -
+                                  HotkeyScrollViewport()
+                                      .top) -
+                                  Scale(40))
+                        : std::max(
+                              Scale(80),
+                              static_cast<int>(
+                                  client.bottom) -
+                                  Scale(80));
+
+                ScrollCurrentPage(
+                    point.y <
+                            thumb.top
+                        ? -pageStep
+                        : pageStep);
+            }
+
+            InvalidateRect(
+                hwnd_,
+                &track,
+                FALSE);
+            return 0;
+        }
+        break;
+    }
+
+    case WM_LBUTTONUP:
+        if (pageScrollDragging_) {
+            pageScrollDragging_ = false;
+            if (GetCapture() ==
+                hwnd_) {
+                ReleaseCapture();
+            }
+            const RECT track =
+                PageScrollTrackRect();
+            InvalidateRect(
+                hwnd_,
+                &track,
+                FALSE);
+            return 0;
+        }
+        break;
+
+    case WM_CAPTURECHANGED:
+        if (pageScrollDragging_) {
+            pageScrollDragging_ = false;
+            const RECT track =
+                PageScrollTrackRect();
+            InvalidateRect(
+                hwnd_,
+                &track,
+                FALSE);
+        }
+        break;
+
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:
         dismissComboFocus();
@@ -6410,20 +6711,54 @@ LRESULT SettingsWindow::HandleMessage(
                 WM_RBUTTONDOWN ||
             LOWORD(wParam) ==
                 WM_MBUTTONDOWN) {
-            // Native ComboBox controls keep their selection highlight while
-            // focused. Any click elsewhere inside Settings should dismiss that
-            // focus first; the clicked child can then take focus normally.
-            dismissComboFocus();
+            // Let interactive child controls transfer focus directly. The
+            // previous unconditional SetFocus(hwnd_) inserted an unnecessary
+            // Combo A -> Settings -> Combo B transition and made the old
+            // ComboBox visibly repaint before the new one received focus.
+            POINT screenPoint{};
+            GetCursorPos(
+                &screenPoint);
+            POINT point =
+                screenPoint;
+            ScreenToClient(
+                hwnd_,
+                &point);
+
+            HWND clickedChild =
+                ChildWindowFromPointEx(
+                    hwnd_,
+                    point,
+                    CWP_SKIPINVISIBLE |
+                        CWP_SKIPDISABLED);
+
+            bool passiveSurface = false;
+
+            if (clickedChild &&
+                clickedChild != hwnd_) {
+                wchar_t className[32]{};
+
+                if (GetClassNameW(
+                        clickedChild,
+                        className,
+                        static_cast<int>(
+                            _countof(
+                                className))) > 0) {
+                    passiveSurface =
+                        lstrcmpiW(
+                            className,
+                            L"Static") == 0;
+                }
+            }
+
+            if (passiveSurface) {
+                dismissComboFocus();
+            }
 
             if (!capturingHotkeyActionId_
                      .empty()) {
-                POINT point{};
-                GetCursorPos(
-                    &point);
-
                 const HWND clicked =
                     WindowFromPoint(
-                        point);
+                        screenPoint);
 
                 if (LOWORD(wParam) !=
                         WM_LBUTTONDOWN ||
@@ -6495,12 +6830,31 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_COMMAND: {
         const UINT id = LOWORD(wParam);
         const UINT notify = HIWORD(wParam);
+        HWND commandControl =
+            reinterpret_cast<HWND>(
+                lParam);
+
+        switch (id) {
+        case kIdStartupBehavior:
+        case kIdPopupMonitor:
+        case kIdLauncherPlacement:
+        case kIdSettingsPlacement:
+        case kIdShortcutManagerPlacement:
+        case kIdUiStyle:
+        case kIdLanguage:
+            ui::RefreshNextComboBoxState(
+                commandControl,
+                notify);
+            break;
+
+        default:
+            break;
+        }
 
         const auto redrawClickedToggle =
             [&]() {
                 HWND control =
-                    reinterpret_cast<HWND>(
-                        lParam);
+                    commandControl;
                 if (!control) {
                     return;
                 }
@@ -6903,68 +7257,7 @@ LRESULT SettingsWindow::HandleMessage(
     }
 
     case WM_VSCROLL:
-        if (page_ == Page::General ||
-            page_ == Page::Hotkeys) {
-            SCROLLINFO info{};
-            info.cbSize =
-                sizeof(info);
-            info.fMask =
-                SIF_ALL;
-
-            GetScrollInfo(
-                hwnd_,
-                SB_VERT,
-                &info);
-
-            const int current =
-                page_ == Page::General
-                    ? generalScrollOffset_
-                    : hotkeyScrollOffset_;
-            int next =
-                current;
-
-            switch (LOWORD(wParam)) {
-            case SB_LINEUP:
-                next -= Scale(40);
-                break;
-            case SB_LINEDOWN:
-                next += Scale(40);
-                break;
-            case SB_PAGEUP:
-                next -=
-                    static_cast<int>(
-                        info.nPage);
-                break;
-            case SB_PAGEDOWN:
-                next +=
-                    static_cast<int>(
-                        info.nPage);
-                break;
-            case SB_THUMBPOSITION:
-            case SB_THUMBTRACK:
-                next =
-                    info.nTrackPos;
-                break;
-            case SB_TOP:
-                next = 0;
-                break;
-            case SB_BOTTOM:
-                next =
-                    std::max(
-                        0,
-                        info.nMax -
-                            static_cast<int>(
-                                info.nPage) +
-                            1);
-                break;
-            default:
-                return 0;
-            }
-
-            ScrollCurrentPage(
-                next -
-                    current);
-        }
+        // Native non-client scrollbars are intentionally disabled.
         return 0;
 
     case WM_MOUSEWHEEL:
@@ -7364,6 +7657,9 @@ LRESULT SettingsWindow::HandleMessage(
                     174,
                     560));
         }
+
+        DrawPageScrollBar(
+            dc);
 
         EndPaint(
             hwnd_,

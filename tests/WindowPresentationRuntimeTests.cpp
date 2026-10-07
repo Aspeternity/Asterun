@@ -122,6 +122,21 @@ LRESULT CALLBACK FirstShowProbe(HWND window, UINT message, WPARAM wParam,
     return result;
 }
 
+LRESULT CALLBACK RedrawSuspendProbe(HWND window, UINT message,
+                                      WPARAM wParam, LPARAM lParam,
+                                      UINT_PTR, DWORD_PTR data) {
+    if (message == WM_SETREDRAW &&
+        wParam == FALSE) {
+        ++*reinterpret_cast<int*>(data);
+    }
+
+    return DefSubclassProc(
+        window,
+        message,
+        wParam,
+        lParam);
+}
+
 HWND modalOwner{};
 bool observedEditor{};
 bool observedPathConverter{};
@@ -169,6 +184,127 @@ void CALLBACK CancelPathConverter(HWND, UINT, UINT_PTR timer, DWORD) {
     ArmModalDestroyProbe(converter);
     KillTimer(nullptr, timer);
     PostMessageW(converter, WM_CLOSE, 0, 0);
+}
+
+void CALLBACK ExerciseAdvancedToggle(
+    HWND,
+    UINT,
+    UINT_PTR timer,
+    DWORD) {
+
+    const HWND editor =
+        FindWindowW(
+            L"Asterun.ShortcutEditor",
+            nullptr);
+
+    if (!editor) {
+        return;
+    }
+
+    constexpr UINT kAdvancedToggleId = 53117;
+    constexpr UINT kArgumentsId = 53107;
+    constexpr UINT kAdminId = 53111;
+
+    const HWND toggle =
+        GetDlgItem(
+            editor,
+            kAdvancedToggleId);
+    const HWND arguments =
+        GetDlgItem(
+            editor,
+            kArgumentsId);
+    const HWND admin =
+        GetDlgItem(
+            editor,
+            kAdminId);
+
+    assert(toggle);
+    assert(arguments);
+    assert(admin);
+
+    int topLevelRedrawSuspends = 0;
+    assert(SetWindowSubclass(
+        editor,
+        RedrawSuspendProbe,
+        23,
+        reinterpret_cast<DWORD_PTR>(
+            &topLevelRedrawSuspends)));
+
+    RECT collapsed{};
+    RECT expanded{};
+    RECT collapsedAgain{};
+
+    assert(GetWindowRect(
+        editor,
+        &collapsed));
+    assert(!IsWindowVisible(
+        arguments));
+    assert(!IsWindowVisible(
+        admin));
+
+    SendMessageW(
+        editor,
+        WM_COMMAND,
+        MAKEWPARAM(
+            kAdvancedToggleId,
+            BN_CLICKED),
+        reinterpret_cast<LPARAM>(
+            toggle));
+
+    assert(GetWindowRect(
+        editor,
+        &expanded));
+    assert(
+        (expanded.bottom -
+         expanded.top) >
+        (collapsed.bottom -
+         collapsed.top));
+    assert(IsWindowVisible(
+        arguments));
+    assert(IsWindowVisible(
+        admin));
+    assert(
+        topLevelRedrawSuspends ==
+        0);
+
+    SendMessageW(
+        editor,
+        WM_COMMAND,
+        MAKEWPARAM(
+            kAdvancedToggleId,
+            BN_CLICKED),
+        reinterpret_cast<LPARAM>(
+            toggle));
+
+    assert(GetWindowRect(
+        editor,
+        &collapsedAgain));
+    assert(
+        (collapsedAgain.bottom -
+         collapsedAgain.top) ==
+        (collapsed.bottom -
+         collapsed.top));
+    assert(!IsWindowVisible(
+        arguments));
+    assert(!IsWindowVisible(
+        admin));
+    assert(
+        topLevelRedrawSuspends ==
+        0);
+
+    assert(RemoveWindowSubclass(
+        editor,
+        RedrawSuspendProbe,
+        23));
+
+    KillTimer(
+        nullptr,
+        timer);
+    PostMessageW(
+        editor,
+        WM_CLOSE,
+        0,
+        0);
 }
 
 } // namespace
@@ -304,10 +440,10 @@ int main() {
                 IsWindowVisible(window) &&
                 HasAboutHeading(window));
 
-            // Reproduce the real high-DPI/small-work-area path that can make
-            // General genuinely need its native vertical bar. The regression
-            // is only meaningful if the bar was first visible; Providers and
-            // Appearance must then remove both the style and the scroll range.
+            // Reproduce the real high-DPI/small-work-area path where General
+            // genuinely needs scrolling. Settings now owns an in-client
+            // overlay indicator, so the top-level HWND must never regain a
+            // native WS_VSCROLL frame or USER32 scroll range.
             RECT normalSettingsRect{};
             assert(GetWindowRect(
                 window,
@@ -333,6 +469,35 @@ int main() {
                     SWP_NOZORDER |
                     SWP_NOACTIVATE);
 
+            const auto assertNoNativeSettingsScroll =
+                [&]() {
+                    assert(
+                        !(GetWindowLongPtrW(
+                              window,
+                              GWL_STYLE) &
+                          WS_VSCROLL));
+
+                    SCROLLINFO cleared{};
+                    cleared.cbSize =
+                        sizeof(cleared);
+                    cleared.fMask =
+                        SIF_RANGE |
+                        SIF_PAGE |
+                        SIF_POS;
+
+                    if (GetScrollInfo(
+                            window,
+                            SB_VERT,
+                            &cleared)) {
+                        assert(
+                            cleared.nMin == 0);
+                        assert(
+                            cleared.nMax == 0);
+                        assert(
+                            cleared.nPos == 0);
+                    }
+                };
+
             SendMessageW(
                 window,
                 WM_COMMAND,
@@ -340,14 +505,91 @@ int main() {
                     51001,
                     BN_CLICKED),
                 0);
-            assert(
-                GetWindowLongPtrW(
+            assertNoNativeSettingsScroll();
+
+            // Wheel scrolling must move the active page immediately without
+            // reviving the native scrollbar. Returning to the original offset
+            // also verifies that the synchronous repaint path leaves layout
+            // coordinates stable.
+            const HWND startWithWindows =
+                GetDlgItem(
                     window,
-                    GWL_STYLE) &
-                WS_VSCROLL);
+                    51100);
+            assert(startWithWindows);
+
+            RECT beforeWheel{};
+            RECT afterWheelDown{};
+            RECT afterWheelUp{};
+            int topLevelRedrawSuspends = 0;
+
+            assert(SetWindowSubclass(
+                window,
+                RedrawSuspendProbe,
+                3,
+                reinterpret_cast<DWORD_PTR>(
+                    &topLevelRedrawSuspends)));
+
+            assert(GetWindowRect(
+                startWithWindows,
+                &beforeWheel));
+
+            SendMessageW(
+                window,
+                WM_MOUSEWHEEL,
+                MAKEWPARAM(
+                    0,
+                    static_cast<WORD>(
+                        static_cast<SHORT>(
+                            -WHEEL_DELTA))),
+                0);
+
+            assert(GetWindowRect(
+                startWithWindows,
+                &afterWheelDown));
+            assert(
+                afterWheelDown.top <
+                beforeWheel.top);
+            assertNoNativeSettingsScroll();
+
+            SendMessageW(
+                window,
+                WM_MOUSEWHEEL,
+                MAKEWPARAM(
+                    0,
+                    static_cast<WORD>(
+                        static_cast<SHORT>(
+                            WHEEL_DELTA))),
+                0);
+
+            assert(GetWindowRect(
+                startWithWindows,
+                &afterWheelUp));
+            assert(
+                afterWheelUp.top ==
+                beforeWheel.top);
+            assertNoNativeSettingsScroll();
+
+            // Scrolling must never suspend redraw on the top-level Settings
+            // HWND. Doing so briefly changes USER32's visible/hit-test state
+            // and can route a subsequent wheel message to the window behind.
+            assert(
+                topLevelRedrawSuspends ==
+                0);
+            assert(RemoveWindowSubclass(
+                window,
+                RedrawSuspendProbe,
+                3));
+
+            int topLevelPageSwitchRedrawSuspends = 0;
+            assert(SetWindowSubclass(
+                window,
+                RedrawSuspendProbe,
+                4,
+                reinterpret_cast<DWORD_PTR>(
+                    &topLevelPageSwitchRedrawSuspends)));
 
             for (const UINT pageId :
-                 {51005u, 51002u}) {
+                 {51006u, 51005u, 51002u, 51003u, 51004u}) {
                 SendMessageW(
                     window,
                     WM_COMMAND,
@@ -355,30 +597,7 @@ int main() {
                         pageId,
                         BN_CLICKED),
                     0);
-                assert(
-                    !(GetWindowLongPtrW(
-                          window,
-                          GWL_STYLE) &
-                      WS_VSCROLL));
-
-                SCROLLINFO cleared{};
-                cleared.cbSize =
-                    sizeof(cleared);
-                cleared.fMask =
-                    SIF_RANGE |
-                    SIF_PAGE |
-                    SIF_POS;
-                if (GetScrollInfo(
-                        window,
-                        SB_VERT,
-                        &cleared)) {
-                    assert(
-                        cleared.nMin == 0);
-                    assert(
-                        cleared.nMax == 0);
-                    assert(
-                        cleared.nPos == 0);
-                }
+                assertNoNativeSettingsScroll();
 
                 SendMessageW(
                     window,
@@ -387,12 +606,19 @@ int main() {
                         51001,
                         BN_CLICKED),
                     0);
-                assert(
-                    GetWindowLongPtrW(
-                        window,
-                        GWL_STYLE) &
-                    WS_VSCROLL);
+                assertNoNativeSettingsScroll();
             }
+
+            // Navigation must keep the top-level Settings window continuously
+            // visible. Temporarily disabling top-level redraw can expose the
+            // Explorer/browser behind it for a frame.
+            assert(
+                topLevelPageSwitchRedrawSuspends ==
+                0);
+            assert(RemoveWindowSubclass(
+                window,
+                RedrawSuspendProbe,
+                4));
 
             SetWindowPos(
                 window,
@@ -407,8 +633,9 @@ int main() {
                     SWP_NOZORDER |
                     SWP_NOACTIVATE);
 
-            // Repeated General -> Sources -> Appearance -> Sources must settle
-            // the native frame on the very first visit, including high DPI.
+            // Repeated General -> Sources -> Appearance -> Sources must keep
+            // overlay scrolling frame-neutral on the first visit, including
+            // high DPI.
             for (int pass = 0; pass < 3; ++pass) {
                 SendMessageW(window, WM_COMMAND, MAKEWPARAM(51001, BN_CLICKED), 0);
                 SendMessageW(window, WM_COMMAND, MAKEWPARAM(51005, BN_CLICKED), 0);
@@ -450,6 +677,38 @@ int main() {
             assert(!IsWindowVisible(owner));
             assert(GetActiveWindow() != owner);
         }
+
+        // Advanced disclosure must expand/collapse to the correct final
+        // geometry without ever suspending redraw on the top-level editor.
+        // Exact native child-window position-message counts are intentionally
+        // not asserted: BUTTON/EDIT bookkeeping can emit extra position
+        // notifications without representing an extra visible layout frame.
+        EnableWindow(
+            owner,
+            TRUE);
+        ShowWindow(
+            owner,
+            SW_HIDE);
+        modalOwner = owner;
+        const auto advancedTimer =
+            SetTimer(
+                nullptr,
+                0,
+                20,
+                ExerciseAdvancedToggle);
+        assert(advancedTimer);
+        assert(
+            !ShortcutEditorDialog::ShowNew(
+                app,
+                instance,
+                owner,
+                seed));
+        KillTimer(
+            nullptr,
+            advancedTimer);
+        assert(
+            IsWindowEnabled(
+                owner));
 
         // A visible Shortcut Manager owner must already be re-enabled before
         // either modal child is destroyed. The old ordering destroyed the

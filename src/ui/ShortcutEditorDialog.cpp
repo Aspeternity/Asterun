@@ -32,8 +32,6 @@ constexpr wchar_t kShortcutEditorClass[] =
 constexpr int kEditorWidthLogical = 590;
 constexpr int kInitialEditorHeightLogical = 420;
 constexpr int kRuntimeTestExtraHeightLogical = 42;
-constexpr int kTypeDropdownHeightLogical = 150;
-constexpr int kRuntimeInputDropdownHeightLogical = 110;
 constexpr int kControlRowHeightLogical = 28;
 constexpr int kFooterButtonHeightLogical = 32;
 constexpr int kFooterBottomMarginLogical = 16;
@@ -1072,11 +1070,6 @@ void ShortcutEditorDialog::ApplyLanguage() {
         CB_SETCURSEL,
         selected,
         0);
-    SendMessageW(
-        type_,
-        CB_SETMINVISIBLE,
-        5,
-        0);
 
     SetWindowTextW(
         runtimeInputLabel_,
@@ -1119,11 +1112,6 @@ void ShortcutEditorDialog::ApplyLanguage() {
         runtimeInput_,
         CB_SETCURSEL,
         runtimeSelected,
-        0);
-    SendMessageW(
-        runtimeInput_,
-        CB_SETMINVISIBLE,
-        3,
         0);
 
     SetWindowTextW(
@@ -1429,14 +1417,12 @@ void ShortcutEditorDialog::Layout() {
         formLabelWidth,
         labelHeight,
         TRUE);
-    MoveWindow(
+    ui::MoveNextComboBox(
         type_,
         formFieldLeft,
         y,
         typeWidth,
-        Scale(
-            kTypeDropdownHeightLogical),
-        TRUE);
+        dpi_);
 
     const int typeHintLeft =
         formFieldLeft +
@@ -1468,14 +1454,12 @@ void ShortcutEditorDialog::Layout() {
         formLabelWidth,
         labelHeight,
         TRUE);
-    MoveWindow(
+    ui::MoveNextComboBox(
         runtimeInput_,
         formFieldLeft,
         y,
         runtimeWidth,
-        Scale(
-            kRuntimeInputDropdownHeightLogical),
-        TRUE);
+        dpi_);
 
     const int runtimeHintLeft =
         formFieldLeft +
@@ -2196,27 +2180,30 @@ void ShortcutEditorDialog::RefreshDynamicLayout() {
         return;
     }
 
+    // Resizing the dialog synchronously sends WM_SIZE. Suppress that one
+    // intermediate layout pass and settle the complete dynamic form once,
+    // after the final client size is known.
+    dynamicLayoutInProgress_ = true;
     ResizeForContent();
+    dynamicLayoutInProgress_ = false;
+
     Layout();
 
     // Runtime-input and Advanced toggles can move most child controls at
-    // once. Erase the parent and invalidate all children after the complete
-    // move so the previous control rectangles cannot remain as paint trails.
+    // once. Commit one final frame only after every control is in its final
+    // position so the disclosure separator never paints an intermediate
+    // geometry.
     RedrawWindow(
         hwnd_,
         nullptr,
         nullptr,
         RDW_INVALIDATE |
             RDW_ERASE |
-            RDW_ALLCHILDREN);
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
 }
 
 void ShortcutEditorDialog::UpdateAdvancedVisibility() {
-    const int command =
-        advancedExpanded_
-            ? SW_SHOW
-            : SW_HIDE;
-
     for (HWND control : {
              argumentsLabel_,
              arguments_,
@@ -2224,24 +2211,79 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
              workdir_,
              browseWorkdir_,
              admin_}) {
-        ShowWindow(
+        if (!control) {
+            continue;
+        }
+
+        const bool currentlyVisible =
+            (GetWindowLongPtrW(
+                 control,
+                 GWL_STYLE) &
+             WS_VISIBLE) != 0;
+
+        if (currentlyVisible ==
+            advancedExpanded_) {
+            continue;
+        }
+
+        SetWindowPos(
             control,
-            command);
+            nullptr,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_NOREDRAW |
+                (advancedExpanded_
+                     ? SWP_SHOWWINDOW
+                     : SWP_HIDEWINDOW));
     }
 
-    SetWindowTextW(
-        advancedToggle_,
-        advancedExpanded_
-            ? T(L"▾ 高级选项",
-                L"▾ Advanced")
-            : T(L"▸ 高级选项",
-                L"▸ Advanced"));
+    // This owner-drawn child includes the disclosure separator itself. Keep
+    // the text/state change paint-free until RefreshDynamicLayout commits the
+    // final frame; never suspend redraw on the top-level dialog.
+    if (advancedToggle_) {
+        SendMessageW(
+            advancedToggle_,
+            WM_SETREDRAW,
+            FALSE,
+            0);
+
+        SetWindowTextW(
+            advancedToggle_,
+            advancedExpanded_
+                ? T(L"▾ 高级选项",
+                    L"▾ Advanced")
+                : T(L"▸ 高级选项",
+                    L"▸ Advanced"));
+
+        SendMessageW(
+            advancedToggle_,
+            WM_SETREDRAW,
+            TRUE,
+            0);
+    }
 }
 
 void ShortcutEditorDialog::UpdateRuntimeTestVisibility() {
     const bool visible =
         SelectedRuntimeInputMode() !=
         RuntimeInputMode::None;
+    const bool labelVisible =
+        IsWindowVisible(
+            testInputLabel_) != FALSE;
+    const bool inputVisible =
+        IsWindowVisible(
+            testInput_) != FALSE;
+
+    if (labelVisible == visible &&
+        inputVisible == visible) {
+        return;
+    }
 
     ShowWindow(
         testInputLabel_,
@@ -3304,7 +3346,9 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
 
     case WM_SIZE:
-        Layout();
+        if (!dynamicLayoutInProgress_) {
+            Layout();
+        }
         return 0;
 
     case WM_ERASEBKGND:
@@ -3420,8 +3464,23 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
     }
 
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
+    case WM_COMMAND: {
+        const UINT id =
+            LOWORD(wParam);
+        const UINT notify =
+            HIWORD(wParam);
+        HWND commandControl =
+            reinterpret_cast<HWND>(
+                lParam);
+
+        if (id == kIdType ||
+            id == kIdRuntimeInput) {
+            ui::RefreshNextComboBoxState(
+                commandControl,
+                notify);
+        }
+
+        switch (id) {
         case kIdKeyword:
             if (HIWORD(wParam) ==
                 EN_KILLFOCUS) {
@@ -3487,8 +3546,6 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             return 0;
 
         case kIdAdvancedToggle: {
-            const UINT notify =
-                HIWORD(wParam);
             const bool toggleActivated =
                 notify == BN_CLICKED ||
                 notify ==
@@ -3532,6 +3589,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             break;
         }
         break;
+    }
 
     case WM_CLOSE:
         CloseWindow();

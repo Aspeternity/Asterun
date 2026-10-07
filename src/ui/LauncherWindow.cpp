@@ -2980,6 +2980,23 @@ void LauncherWindow::ShowResultContextMenu(
     }
 }
 
+void LauncherWindow::PrepareTopLevelForegroundHandoff() {
+    if (!hwnd_ ||
+        GetForegroundWindow() == hwnd_) {
+        return;
+    }
+
+    // Tray commands are intentionally deferred until TrackPopupMenu has fully
+    // unwound. By then Windows may already have restored the previously active
+    // application (for example a full-screen browser). Reclaim the foreground
+    // on the launcher host while this process still owns the user-initiated
+    // tray interaction, then let the destination window take foreground before
+    // the launcher is hidden. This avoids a browser -> Settings activation
+    // bounce on the first click/wheel input.
+    (void)SetForegroundWindow(
+        hwnd_);
+}
+
 void LauncherWindow::ShowTrayMenu(POINT point) {
     HMENU menu = CreatePopupMenu();
     if (!menu) {
@@ -3119,7 +3136,9 @@ void LauncherWindow::ShowTrayMenu(POINT point) {
         // Fully unwind both the menu modal loop and the tray callback before
         // creating/activating Settings, About or Shortcut Manager. WM_NULL is
         // the documented tray-menu dismissal nudge; FIFO ordering guarantees
-        // it is processed before our deferred command.
+        // it is processed before our deferred command. The deferred command
+        // then reclaims the launcher as the foreground handoff source and
+        // activates the destination before hiding the launcher.
         PostMessageW(
             hwnd_,
             WM_NULL,
@@ -3300,8 +3319,9 @@ LRESULT LauncherWindow::HandleEditMessage(
                 if (*actionId ==
                     hotkey_actions::
                         kOpenSettings) {
-                    Hide();
+                    PrepareTopLevelForegroundHandoff();
                     app_.ShowSettings();
+                    Hide();
                 } else if (
                     *actionId ==
                     hotkey_actions::
@@ -3601,16 +3621,19 @@ LRESULT LauncherWindow::HandleMessage(
             Show();
             return 0;
         case kMenuShortcuts:
-            Hide();
+            PrepareTopLevelForegroundHandoff();
             app_.ShowShortcutManager();
+            Hide();
             return 0;
         case kMenuSettings:
-            Hide();
+            PrepareTopLevelForegroundHandoff();
             app_.ShowSettings();
+            Hide();
             return 0;
         case kMenuAbout:
-            Hide();
+            PrepareTopLevelForegroundHandoff();
             app_.ShowAbout();
+            Hide();
             return 0;
         case kMenuExit:
             DestroyWindow(hwnd_);
