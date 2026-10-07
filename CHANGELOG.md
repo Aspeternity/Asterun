@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.4
+
+- Development baseline for the next 1.0.x maintenance release.
+- Add an opt-out preference that makes each new Launcher session start in direct English input without changing the system keyboard layout or other applications.
+- Advance settings schema to 12 for downgrade-safe persistence of the launcher input preference.
+
 ## 1.0.3
 
 - Clean Asterun's owned `SendTo\\Asterun.lnk` registration during `Uninstall.exe` after verifying that the Shell Link resolves to the current portable `Asterun.exe` and uses the dedicated `--add-shortcut` action.
