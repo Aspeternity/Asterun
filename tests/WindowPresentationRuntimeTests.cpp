@@ -246,6 +246,12 @@ void CALLBACK InspectKeywordCaretAndCancel(
             keyword);
     assert(length > 0);
 
+    // The product contract is first-focus placement. Force that focus
+    // synchronously in the headless runtime fixture instead of depending on
+    // whether CI grants this modal the process foreground window.
+    SetFocus(
+        keyword);
+
     DWORD selectionStart = 0;
     DWORD selectionEnd = 0;
     SendMessageW(

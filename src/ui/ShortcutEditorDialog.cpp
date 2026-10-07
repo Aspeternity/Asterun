@@ -645,6 +645,12 @@ bool ShortcutEditorDialog::RunModal() {
         EnableWindow(owner_, FALSE);
     }
 
+    // Place the caret at the end on the keyword EDIT's actual first focus,
+    // not merely after window creation. Activation timing differs between
+    // interactive desktops and CI, and native EDIT focus handling can reset a
+    // selection that was applied before EN_SETFOCUS.
+    keywordInitialCaretPending_ = true;
+
     window_presentation::
         RevealFullyPainted(
             hwnd_);
@@ -652,23 +658,6 @@ bool ShortcutEditorDialog::RunModal() {
     if (GetForegroundWindow() == hwnd_) {
         SetFocus(keyword_);
     }
-
-    // Existing shortcuts should be ready to append/edit immediately. The
-    // initial activation/focus sequence can run after RunModal enters its
-    // message loop and native EDIT focus handling may reset a synchronous
-    // selection back to position zero. Queue the final caret placement after
-    // those activation messages instead. For a brand-new empty field this is
-    // still equivalent to position zero.
-    PostMessageW(
-        keyword_,
-        EM_SETSEL,
-        static_cast<WPARAM>(-1),
-        static_cast<LPARAM>(-1));
-    PostMessageW(
-        keyword_,
-        EM_SCROLLCARET,
-        0,
-        0);
 
     MSG msg{};
     bool sawQuit = false;
@@ -3515,7 +3504,30 @@ LRESULT ShortcutEditorDialog::HandleMessage(
 
         switch (id) {
         case kIdKeyword:
-            if (HIWORD(wParam) ==
+            if (notify ==
+                    EN_SETFOCUS &&
+                keywordInitialCaretPending_) {
+                keywordInitialCaretPending_ =
+                    false;
+
+                const int length =
+                    GetWindowTextLengthW(
+                        keyword_);
+
+                SendMessageW(
+                    keyword_,
+                    EM_SETSEL,
+                    static_cast<WPARAM>(
+                        length),
+                    static_cast<LPARAM>(
+                        length));
+                SendMessageW(
+                    keyword_,
+                    EM_SCROLLCARET,
+                    0,
+                    0);
+            } else if (
+                notify ==
                 EN_KILLFOCUS) {
                 MaybeAutoFillName();
             }
