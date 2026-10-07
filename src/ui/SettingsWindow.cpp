@@ -42,28 +42,6 @@ constexpr DWORD kSettingsWindowStyle =
     WS_MINIMIZEBOX |
     WS_CLIPCHILDREN;
 
-[[nodiscard]] bool
-ShouldDrawOwnerDrawFocusCue(
-    const DRAWITEMSTRUCT& item) noexcept {
-
-    if ((item.itemState &
-         ODS_FOCUS) == 0 ||
-        (item.itemState &
-         ODS_NOFOCUSRECT) != 0) {
-        return false;
-    }
-
-    const LRESULT uiState =
-        SendMessageW(
-            item.hwndItem,
-            WM_QUERYUISTATE,
-            0,
-            0);
-
-    return (uiState &
-            UISF_HIDEFOCUS) == 0;
-}
-
 struct SettingsCreationGeometry {
     RECT outer{};
     UINT dpi{96};
@@ -5878,29 +5856,6 @@ void SettingsWindow::DrawGeneralToggle(
             separator);
     }
 
-    if (ShouldDrawOwnerDrawFocusCue(
-            item)) {
-        RECT focusBar{
-            rect.left +
-                Scale(5),
-            rect.top +
-                Scale(12),
-            rect.left +
-                Scale(7),
-            rect.bottom -
-                Scale(12),
-        };
-
-        HBRUSH focusBrush =
-            CreateSolidBrush(
-                kAccent);
-        FillRect(
-            item.hDC,
-            &focusBar,
-            focusBrush);
-        DeleteObject(
-            focusBrush);
-    }
 }
 
 void SettingsWindow::PositionForShow() {
