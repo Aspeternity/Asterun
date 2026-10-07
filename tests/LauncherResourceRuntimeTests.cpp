@@ -326,13 +326,6 @@ struct LauncherResourceRuntimeFixture {
             settings
                 .defaultEnglishInputOnReveal;
 
-        // App is constructed directly in this runtime fixture, so populate
-        // the searchable index before using LauncherWindow::Show(). Without
-        // this, Show() correctly defers reveal before it reaches any input
-        // session policy.
-        app.ReloadCommands();
-        assert(app.CanRevealLauncher());
-
         LauncherWindow window(
             app,
             instance);
@@ -340,12 +333,10 @@ struct LauncherResourceRuntimeFixture {
 
         settings.defaultEnglishInputOnReveal =
             true;
-        ShowWindow(
-            window.hwnd_,
-            SW_HIDE);
         ResetImeProbe();
 
-        window.Show();
+        window.PrepareInputForReveal(
+            false);
 
         assert(imeContextGets == 1);
         assert(imeCompositionCancels == 1);
@@ -353,14 +344,12 @@ struct LauncherResourceRuntimeFixture {
         assert(imeLastOpenStatus == FALSE);
         assert(imeContextReleases == 1);
 
-        // Re-entering Show while the same launcher session is already visible
-        // must not override a manual switch back to Chinese input.
-        ShowWindow(
-            window.hwnd_,
-            SW_SHOWNOACTIVATE);
+        // A repeated Show() in the same visible session passes wasVisible=true
+        // and must leave a user's manual switch back to Chinese untouched.
         ResetImeProbe();
 
-        window.Show();
+        window.PrepareInputForReveal(
+            true);
 
         assert(imeContextGets == 0);
         assert(imeCompositionCancels == 0);
@@ -370,12 +359,10 @@ struct LauncherResourceRuntimeFixture {
         // The opt-out restores the historical behavior for a fresh session.
         settings.defaultEnglishInputOnReveal =
             false;
-        ShowWindow(
-            window.hwnd_,
-            SW_HIDE);
         ResetImeProbe();
 
-        window.Show();
+        window.PrepareInputForReveal(
+            false);
 
         assert(imeContextGets == 0);
         assert(imeCompositionCancels == 0);
