@@ -366,7 +366,7 @@ struct LauncherResourceRuntimeFixture {
         // Hiding a session restores the IME state Asterun temporarily closed.
         ClearImeProbeCounts();
 
-        window.RestoreInputOverride();
+        window.Hide();
 
         assert(imeContextGets == 1);
         assert(imeOpenStatusReads == 1);
