@@ -653,16 +653,18 @@ bool ShortcutEditorDialog::RunModal() {
         SetFocus(keyword_);
     }
 
-    // Existing shortcuts should be ready to append/edit immediately. Native
-    // EDIT resets its selection to the beginning after SetWindowTextW(), so
-    // explicitly place the insertion caret at the end after initial content
-    // has been loaded. The same call is a no-op for a brand-new empty field.
-    SendMessageW(
+    // Existing shortcuts should be ready to append/edit immediately. The
+    // initial activation/focus sequence can run after RunModal enters its
+    // message loop and native EDIT focus handling may reset a synchronous
+    // selection back to position zero. Queue the final caret placement after
+    // those activation messages instead. For a brand-new empty field this is
+    // still equivalent to position zero.
+    PostMessageW(
         keyword_,
         EM_SETSEL,
         static_cast<WPARAM>(-1),
         static_cast<LPARAM>(-1));
-    SendMessageW(
+    PostMessageW(
         keyword_,
         EM_SCROLLCARET,
         0,
