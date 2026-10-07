@@ -130,6 +130,8 @@ private:
         std::wstring_view path);
     void ShowTrayMenu(POINT point);
     void PrepareTopLevelForegroundHandoff();
+    void PrepareInputForReveal(
+        bool wasVisible) noexcept;
     void ShowResultContextMenu(
         POINT point);
 
