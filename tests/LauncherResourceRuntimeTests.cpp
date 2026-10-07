@@ -3,6 +3,7 @@
 #include "ui/LauncherWindow.hpp"
 #include "NumericIntentRuntimeFixture.hpp"
 #include <windows.h>
+#include <imm.h>
 #include <psapi.h>
 #include <cassert>
 #include <cstring>
@@ -13,6 +14,11 @@
 namespace {
 unsigned loads{}, failLoad{};
 bool failInfo{}, failDc{};
+unsigned imeContextGets{};
+unsigned imeCompositionCancels{};
+unsigned imeCloseRequests{};
+unsigned imeContextReleases{};
+BOOL imeLastOpenStatus{TRUE};
 std::unordered_set<HGDIOBJ> ownedBitmaps;
 std::unordered_set<HDC> ownedDcs;
 HANDLE WINAPI TestLoadImage(HINSTANCE instance, LPCWSTR name, UINT type, int x, int y, UINT flags) {
@@ -40,13 +46,54 @@ BOOL WINAPI TestDeleteDc(HDC dc) {
     if (ownedDcs.contains(dc)) { assert(result); ownedDcs.erase(dc); }
     return result;
 }
+HIMC WINAPI TestImmGetContext(HWND window) {
+    assert(window);
+    ++imeContextGets;
+    return reinterpret_cast<HIMC>(
+        static_cast<ULONG_PTR>(1));
+}
+BOOL WINAPI TestImmNotifyIME(HIMC context, DWORD action, DWORD index, DWORD value) {
+    assert(context);
+    assert(action == NI_COMPOSITIONSTR);
+    assert(index == CPS_CANCEL);
+    assert(value == 0);
+    ++imeCompositionCancels;
+    return TRUE;
+}
+BOOL WINAPI TestImmSetOpenStatus(HIMC context, BOOL open) {
+    assert(context);
+    ++imeCloseRequests;
+    imeLastOpenStatus = open;
+    return TRUE;
+}
+BOOL WINAPI TestImmReleaseContext(HWND window, HIMC context) {
+    assert(window);
+    assert(context);
+    ++imeContextReleases;
+    return TRUE;
+}
+void ResetImeProbe() {
+    imeContextGets = 0;
+    imeCompositionCancels = 0;
+    imeCloseRequests = 0;
+    imeContextReleases = 0;
+    imeLastOpenStatus = TRUE;
+}
 }
 #define DeleteObject TestDeleteObject
 #define DeleteDC TestDeleteDc
 #define LoadImageW TestLoadImage
 #define GetObjectW TestGetObject
 #define CreateCompatibleDC TestCreateDc
+#define ImmGetContext TestImmGetContext
+#define ImmNotifyIME TestImmNotifyIME
+#define ImmSetOpenStatus TestImmSetOpenStatus
+#define ImmReleaseContext TestImmReleaseContext
 #include "../src/ui/LauncherWindow.cpp"
+#undef ImmReleaseContext
+#undef ImmSetOpenStatus
+#undef ImmNotifyIME
+#undef ImmGetContext
 #undef DeleteDC
 #undef DeleteObject
 #undef CreateCompatibleDC
@@ -268,6 +315,75 @@ struct LauncherResourceRuntimeFixture {
         settings.providerEnabled["everything.filesystem"] = false;
         app.everythingProvider_.reset(); // join callbacks before App test state expires
     }
+    static void VerifyRevealInputPreference(
+        App& app,
+        HINSTANCE instance) {
+
+        auto& settings =
+            const_cast<Settings&>(
+                app.SettingsData());
+        const bool previous =
+            settings
+                .defaultEnglishInputOnReveal;
+
+        LauncherWindow window(
+            app,
+            instance);
+        assert(window.Create());
+
+        settings.defaultEnglishInputOnReveal =
+            true;
+        ShowWindow(
+            window.hwnd_,
+            SW_HIDE);
+        ResetImeProbe();
+
+        window.Show();
+
+        assert(imeContextGets == 1);
+        assert(imeCompositionCancels == 1);
+        assert(imeCloseRequests == 1);
+        assert(imeLastOpenStatus == FALSE);
+        assert(imeContextReleases == 1);
+
+        // Re-entering Show while the same launcher session is already visible
+        // must not override a manual switch back to Chinese input.
+        ShowWindow(
+            window.hwnd_,
+            SW_SHOWNOACTIVATE);
+        ResetImeProbe();
+
+        window.Show();
+
+        assert(imeContextGets == 0);
+        assert(imeCompositionCancels == 0);
+        assert(imeCloseRequests == 0);
+        assert(imeContextReleases == 0);
+
+        // The opt-out restores the historical behavior for a fresh session.
+        settings.defaultEnglishInputOnReveal =
+            false;
+        ShowWindow(
+            window.hwnd_,
+            SW_HIDE);
+        ResetImeProbe();
+
+        window.Show();
+
+        assert(imeContextGets == 0);
+        assert(imeCompositionCancels == 0);
+        assert(imeCloseRequests == 0);
+        assert(imeContextReleases == 0);
+
+        settings.defaultEnglishInputOnReveal =
+            previous;
+        Destroy(window);
+
+        std::cout
+            << "Launcher reveal English-input preference passed"
+            << std::endl;
+    }
+
     static void VerifyTopLevelForegroundHandoff(
         App& app,
         HINSTANCE instance) {
@@ -481,6 +597,9 @@ struct LauncherResourceRuntimeFixture {
             }
         }
         VerifyTypography(app, instance);
+        VerifyRevealInputPreference(
+            app,
+            instance);
         VerifyTopLevelForegroundHandoff(
             app,
             instance);
