@@ -328,8 +328,11 @@ void SettingsWindow::LayoutGeneral(BOOL repaint) {
 
         const int searchX = metrics.search.left + Scale(1);
         const int searchWidth = metrics.search.right - metrics.search.left - Scale(2);
-        std::array<HWND, 3> searchRows{
-            pinyinSearch_, numericQuickLaunch_, executeSingleResult_,
+        std::array<HWND, 4> searchRows{
+            defaultEnglishInputOnReveal_,
+            pinyinSearch_,
+            numericQuickLaunch_,
+            executeSingleResult_,
         };
         for (std::size_t i = 0; i < searchRows.size(); ++i) {
             MoveSettingsChild(searchRows[i], searchX,
