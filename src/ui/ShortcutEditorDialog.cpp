@@ -2180,27 +2180,30 @@ void ShortcutEditorDialog::RefreshDynamicLayout() {
         return;
     }
 
+    // Resizing the dialog synchronously sends WM_SIZE. Suppress that one
+    // intermediate layout pass and settle the complete dynamic form once,
+    // after the final client size is known.
+    dynamicLayoutInProgress_ = true;
     ResizeForContent();
+    dynamicLayoutInProgress_ = false;
+
     Layout();
 
     // Runtime-input and Advanced toggles can move most child controls at
-    // once. Erase the parent and invalidate all children after the complete
-    // move so the previous control rectangles cannot remain as paint trails.
+    // once. Commit one final frame only after every control is in its final
+    // position so the disclosure separator never paints an intermediate
+    // geometry.
     RedrawWindow(
         hwnd_,
         nullptr,
         nullptr,
         RDW_INVALIDATE |
             RDW_ERASE |
-            RDW_ALLCHILDREN);
+            RDW_ALLCHILDREN |
+            RDW_UPDATENOW);
 }
 
 void ShortcutEditorDialog::UpdateAdvancedVisibility() {
-    const int command =
-        advancedExpanded_
-            ? SW_SHOW
-            : SW_HIDE;
-
     for (HWND control : {
              argumentsLabel_,
              arguments_,
@@ -2208,18 +2211,62 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
              workdir_,
              browseWorkdir_,
              admin_}) {
-        ShowWindow(
+        if (!control) {
+            continue;
+        }
+
+        const bool currentlyVisible =
+            (GetWindowLongPtrW(
+                 control,
+                 GWL_STYLE) &
+             WS_VISIBLE) != 0;
+
+        if (currentlyVisible ==
+            advancedExpanded_) {
+            continue;
+        }
+
+        SetWindowPos(
             control,
-            command);
+            nullptr,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_NOREDRAW |
+                (advancedExpanded_
+                     ? SWP_SHOWWINDOW
+                     : SWP_HIDEWINDOW));
     }
 
-    SetWindowTextW(
-        advancedToggle_,
-        advancedExpanded_
-            ? T(L"▾ 高级选项",
-                L"▾ Advanced")
-            : T(L"▸ 高级选项",
-                L"▸ Advanced"));
+    // This owner-drawn child includes the disclosure separator itself. Keep
+    // the text/state change paint-free until RefreshDynamicLayout commits the
+    // final frame; never suspend redraw on the top-level dialog.
+    if (advancedToggle_) {
+        SendMessageW(
+            advancedToggle_,
+            WM_SETREDRAW,
+            FALSE,
+            0);
+
+        SetWindowTextW(
+            advancedToggle_,
+            advancedExpanded_
+                ? T(L"▾ 高级选项",
+                    L"▾ Advanced")
+                : T(L"▸ 高级选项",
+                    L"▸ Advanced"));
+
+        SendMessageW(
+            advancedToggle_,
+            WM_SETREDRAW,
+            TRUE,
+            0);
+    }
 }
 
 void ShortcutEditorDialog::UpdateRuntimeTestVisibility() {
@@ -3299,7 +3346,9 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         break;
 
     case WM_SIZE:
-        Layout();
+        if (!dynamicLayoutInProgress_) {
+            Layout();
+        }
         return 0;
 
     case WM_ERASEBKGND:
