@@ -42,6 +42,28 @@ constexpr DWORD kSettingsWindowStyle =
     WS_MINIMIZEBOX |
     WS_CLIPCHILDREN;
 
+[[nodiscard]] bool
+ShouldDrawOwnerDrawFocusCue(
+    const DRAWITEMSTRUCT& item) noexcept {
+
+    if ((item.itemState &
+         ODS_FOCUS) == 0 ||
+        (item.itemState &
+         ODS_NOFOCUSRECT) != 0) {
+        return false;
+    }
+
+    const LRESULT uiState =
+        SendMessageW(
+            item.hwndItem,
+            WM_QUERYUISTATE,
+            0,
+            0);
+
+    return (uiState &
+            UISF_HIDEFOCUS) == 0;
+}
+
 struct SettingsCreationGeometry {
     RECT outer{};
     UINT dpi{96};
@@ -3413,7 +3435,11 @@ void SettingsWindow::ApplyClassicBehaviorControl(UINT id) {
     default: return;
     }
 
-    if (!app_.SetClassicBehavior(numericQuickLaunch, executeSingleResult, pinyinSearch)) {
+    if (!app_.SetClassicBehavior(
+            numericQuickLaunch,
+            executeSingleResult,
+            pinyinSearch,
+            false)) {
         altrun::ui::ShowMessage(hwnd_,
             T(L"无法保存搜索与执行设置。", L"Unable to save search and execution settings."),
             L"Asterun", MB_OK | MB_ICONERROR);
@@ -3608,15 +3634,36 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
     const auto settings = app_.SettingsData();
     bool success = true;
     switch (id) {
-    case kIdStartWithWindows: success = app_.SetStartWithWindows(!settings.startWithWindows); break;
-    case kIdSoundEnabled: success = app_.SetSoundEnabled(!settings.soundEnabled); break;
-    case kIdShowTrayIcon: success = app_.SetShowTrayIcon(!settings.showTrayIcon); break;
-    case kIdAddToSendToMenu: success = app_.SetAddToSendToMenu(!settings.addToSendToMenu); break;
+    case kIdStartWithWindows:
+        success =
+            app_.SetStartWithWindows(
+                !settings.startWithWindows,
+                false);
+        break;
+    case kIdSoundEnabled:
+        success =
+            app_.SetSoundEnabled(
+                !settings.soundEnabled,
+                false);
+        break;
+    case kIdShowTrayIcon:
+        success =
+            app_.SetShowTrayIcon(
+                !settings.showTrayIcon,
+                false);
+        break;
+    case kIdAddToSendToMenu:
+        success =
+            app_.SetAddToSendToMenu(
+                !settings.addToSendToMenu,
+                false);
+        break;
     case kIdDefaultEnglishInputOnReveal:
         success =
             app_.SetDefaultEnglishInputOnReveal(
                 !settings
-                     .defaultEnglishInputOnReveal);
+                     .defaultEnglishInputOnReveal,
+                false);
         break;
     default: return;
     }
@@ -3677,13 +3724,16 @@ void SettingsWindow::ToggleProviderSetting(
         providerId] =
         !ToggleChecked(id);
 
-    InvalidateRect(
+    RedrawWindow(
         reinterpret_cast<HWND>(
             GetDlgItem(
                 hwnd_,
                 static_cast<int>(id))),
         nullptr,
-        TRUE);
+        nullptr,
+        RDW_INVALIDATE |
+            RDW_NOERASE |
+            RDW_UPDATENOW);
 
     KillTimer(
         hwnd_,
@@ -5412,8 +5462,8 @@ void SettingsWindow::DrawActionButton(
         item.hDC,
         oldFont);
 
-    if (item.itemState &
-        ODS_FOCUS) {
+    if (ShouldDrawOwnerDrawFocusCue(
+            item)) {
         RECT focus =
             surface;
         InflateRect(
@@ -6882,12 +6932,13 @@ LRESULT SettingsWindow::HandleMessage(
                     return;
                 }
 
-                InvalidateRect(
+                RedrawWindow(
                     control,
                     nullptr,
-                    TRUE);
-                UpdateWindow(
-                    control);
+                    nullptr,
+                    RDW_INVALIDATE |
+                        RDW_NOERASE |
+                        RDW_UPDATENOW);
             };
 
         // BS_OWNERDRAW buttons report the second press of a rapid

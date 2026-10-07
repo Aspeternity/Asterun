@@ -137,6 +137,38 @@ LRESULT CALLBACK RedrawSuspendProbe(HWND window, UINT message,
         lParam);
 }
 
+struct PaintMessageCounts {
+    int paint{};
+    int erase{};
+};
+
+LRESULT CALLBACK PaintMessageProbe(
+    HWND window,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    UINT_PTR,
+    DWORD_PTR data) {
+
+    auto& counts =
+        *reinterpret_cast<
+            PaintMessageCounts*>(
+                data);
+
+    if (message == WM_PAINT) {
+        ++counts.paint;
+    } else if (
+        message == WM_ERASEBKGND) {
+        ++counts.erase;
+    }
+
+    return DefSubclassProc(
+        window,
+        message,
+        wParam,
+        lParam);
+}
+
 HWND modalOwner{};
 bool observedEditor{};
 bool observedPathConverter{};
@@ -632,6 +664,85 @@ int main() {
                 SWP_NOMOVE |
                     SWP_NOZORDER |
                     SWP_NOACTIVATE);
+
+            // Toggling one General setting must remain row-local. The old
+            // success path called RefreshFromSettings(), invalidating every
+            // switch row and making unrelated controls flash on rapid clicks.
+            SendMessageW(
+                window,
+                WM_COMMAND,
+                MAKEWPARAM(
+                    51001,
+                    BN_CLICKED),
+                0);
+
+            const HWND defaultEnglish =
+                GetDlgItem(
+                    window,
+                    51133);
+            const HWND pinyin =
+                GetDlgItem(
+                    window,
+                    51134);
+            assert(defaultEnglish);
+            assert(pinyin);
+
+            RedrawWindow(
+                pinyin,
+                nullptr,
+                nullptr,
+                RDW_INVALIDATE |
+                    RDW_ERASE |
+                    RDW_UPDATENOW);
+
+            PaintMessageCounts siblingPaint{};
+            assert(SetWindowSubclass(
+                pinyin,
+                PaintMessageProbe,
+                5,
+                reinterpret_cast<DWORD_PTR>(
+                    &siblingPaint)));
+
+            const bool originalEnglishPreference =
+                app.SettingsData()
+                    .defaultEnglishInputOnReveal;
+
+            SendMessageW(
+                window,
+                WM_COMMAND,
+                MAKEWPARAM(
+                    51133,
+                    BN_CLICKED),
+                reinterpret_cast<LPARAM>(
+                    defaultEnglish));
+
+            assert(
+                app.SettingsData()
+                    .defaultEnglishInputOnReveal !=
+                originalEnglishPreference);
+            assert(siblingPaint.paint == 0);
+            assert(siblingPaint.erase == 0);
+
+            SendMessageW(
+                window,
+                WM_COMMAND,
+                MAKEWPARAM(
+                    51133,
+                    BN_CLICKED),
+                reinterpret_cast<LPARAM>(
+                    defaultEnglish));
+
+            assert(
+                app.SettingsData()
+                    .defaultEnglishInputOnReveal ==
+                originalEnglishPreference);
+            assert(siblingPaint.paint == 0);
+            assert(siblingPaint.erase == 0);
+
+            assert(RemoveWindowSubclass(
+                pinyin,
+                PaintMessageProbe,
+                5));
 
             // Repeated General -> Sources -> Appearance -> Sources must keep
             // overlay scrolling frame-neutral on the first visit, including

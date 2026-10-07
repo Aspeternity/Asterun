@@ -132,6 +132,7 @@ private:
     void PrepareTopLevelForegroundHandoff();
     void PrepareInputForReveal(
         bool wasVisible) noexcept;
+    void RestoreInputOverride() noexcept;
     void ShowResultContextMenu(
         POINT point);
 
@@ -182,6 +183,8 @@ private:
     UINT taskbarCreatedMessage_{0};
     bool firstRevealPending_{true};
     bool imeComposing_{false};
+    bool imeRevealOverrideActive_{false};
+    bool imeRevealOriginalOpen_{false};
     bool contextActionModalActive_{false};
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};

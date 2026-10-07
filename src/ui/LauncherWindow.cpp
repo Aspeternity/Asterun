@@ -40,10 +40,63 @@ constexpr const wchar_t* kWindowClass =
     instance_ipc::kLauncherWindowClass;
 constexpr wchar_t kWindowTitle[] = L"Asterun";
 
-void PrepareEnglishInputForReveal(
-    HWND edit) noexcept {
+[[nodiscard]] bool BeginEnglishInputOverride(
+    HWND edit,
+    bool& originalOpen) noexcept {
+
+    originalOpen = false;
 
     if (!edit) {
+        return false;
+    }
+
+    HIMC inputContext =
+        ImmGetContext(
+            edit);
+
+    if (!inputContext) {
+        return false;
+    }
+
+    originalOpen =
+        ImmGetOpenStatus(
+            inputContext) != FALSE;
+
+    // If this EDIT already starts in direct input mode, there is nothing for
+    // Asterun to override and therefore nothing to restore when it hides.
+    if (!originalOpen) {
+        ImmReleaseContext(
+            edit,
+            inputContext);
+        return false;
+    }
+
+    // Keep the user's current keyboard layout/input method selected. Only the
+    // launcher's EDIT IME context is closed for this launcher session.
+    ImmNotifyIME(
+        inputContext,
+        NI_COMPOSITIONSTR,
+        CPS_CANCEL,
+        0);
+
+    const bool changed =
+        ImmSetOpenStatus(
+            inputContext,
+            FALSE) != FALSE;
+
+    ImmReleaseContext(
+        edit,
+        inputContext);
+
+    return changed;
+}
+
+void RestoreEnglishInputOverride(
+    HWND edit,
+    bool originalOpen) noexcept {
+
+    if (!edit ||
+        !originalOpen) {
         return;
     }
 
@@ -55,17 +108,19 @@ void PrepareEnglishInputForReveal(
         return;
     }
 
-    // Keep the user's current keyboard layout/input method selected. We only
-    // close this EDIT's IME context for the new launcher session, so typing
-    // starts as direct Latin input without changing other applications.
-    ImmNotifyIME(
-        inputContext,
-        NI_COMPOSITIONSTR,
-        CPS_CANCEL,
-        0);
-    ImmSetOpenStatus(
-        inputContext,
-        FALSE);
+    const bool currentOpen =
+        ImmGetOpenStatus(
+            inputContext) != FALSE;
+
+    // Restore only when the EDIT is still in the exact direct-input state
+    // Asterun imposed. If the user manually switched back to Chinese during
+    // the session, currentOpen is already true and their choice wins.
+    if (!currentOpen) {
+        ImmSetOpenStatus(
+            inputContext,
+            TRUE);
+    }
+
     ImmReleaseContext(
         edit,
         inputContext);
@@ -1533,13 +1588,34 @@ void LauncherWindow::PrepareInputForReveal(
     bool wasVisible) noexcept {
 
     if (wasVisible ||
+        imeRevealOverrideActive_ ||
         !app_.SettingsData()
              .defaultEnglishInputOnReveal) {
         return;
     }
 
-    PrepareEnglishInputForReveal(
-        edit_);
+    bool originalOpen = false;
+
+    if (BeginEnglishInputOverride(
+            edit_,
+            originalOpen)) {
+        imeRevealOverrideActive_ = true;
+        imeRevealOriginalOpen_ =
+            originalOpen;
+    }
+}
+
+void LauncherWindow::RestoreInputOverride() noexcept {
+    if (!imeRevealOverrideActive_) {
+        return;
+    }
+
+    RestoreEnglishInputOverride(
+        edit_,
+        imeRevealOriginalOpen_);
+
+    imeRevealOverrideActive_ = false;
+    imeRevealOriginalOpen_ = false;
 }
 
 void LauncherWindow::Hide() {
@@ -1549,6 +1625,8 @@ void LauncherWindow::Hide() {
     immediateExecutionPending_ = false;
     dynamicQueryPending_ = false;
     ++searchGeneration_;
+
+    RestoreInputOverride();
 
     if (hwnd_) {
         ShowWindow(hwnd_, SW_HIDE);
