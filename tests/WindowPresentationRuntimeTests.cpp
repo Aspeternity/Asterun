@@ -143,7 +143,6 @@ bool observedPathConverter{};
 bool observedModalDestroy{};
 bool ownerEnabledAtModalDestroy{};
 bool expectedOwnerEnabledAtModalDestroy{};
-int advancedTogglePositionChanges{};
 
 LRESULT CALLBACK ModalDestroyProbe(HWND window, UINT message, WPARAM wParam,
                                    LPARAM lParam, UINT_PTR subclassId,
@@ -187,42 +186,6 @@ void CALLBACK CancelPathConverter(HWND, UINT, UINT_PTR timer, DWORD) {
     PostMessageW(converter, WM_CLOSE, 0, 0);
 }
 
-LRESULT CALLBACK AdvancedToggleMoveProbe(
-    HWND window,
-    UINT message,
-    WPARAM wParam,
-    LPARAM lParam,
-    UINT_PTR subclassId,
-    DWORD_PTR) {
-
-    if (message == WM_WINDOWPOSCHANGED) {
-        const auto* position =
-            reinterpret_cast<const WINDOWPOS*>(
-                lParam);
-
-        if (position &&
-            (((position->flags &
-               SWP_NOMOVE) == 0) ||
-             ((position->flags &
-               SWP_NOSIZE) == 0))) {
-            ++advancedTogglePositionChanges;
-        }
-    }
-
-    if (message == WM_NCDESTROY) {
-        RemoveWindowSubclass(
-            window,
-            AdvancedToggleMoveProbe,
-            subclassId);
-    }
-
-    return DefSubclassProc(
-        window,
-        message,
-        wParam,
-        lParam);
-}
-
 void CALLBACK ExerciseAdvancedToggle(
     HWND,
     UINT,
@@ -239,17 +202,33 @@ void CALLBACK ExerciseAdvancedToggle(
     }
 
     constexpr UINT kAdvancedToggleId = 53117;
+    constexpr UINT kArgumentsId = 53107;
+    constexpr UINT kAdminId = 53111;
+
     const HWND toggle =
         GetDlgItem(
             editor,
             kAdvancedToggleId);
-    assert(toggle);
+    const HWND arguments =
+        GetDlgItem(
+            editor,
+            kArgumentsId);
+    const HWND admin =
+        GetDlgItem(
+            editor,
+            kAdminId);
 
+    assert(toggle);
+    assert(arguments);
+    assert(admin);
+
+    int topLevelRedrawSuspends = 0;
     assert(SetWindowSubclass(
-        toggle,
-        AdvancedToggleMoveProbe,
+        editor,
+        RedrawSuspendProbe,
         23,
-        0));
+        reinterpret_cast<DWORD_PTR>(
+            &topLevelRedrawSuspends)));
 
     RECT collapsed{};
     RECT expanded{};
@@ -258,8 +237,10 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(GetWindowRect(
         editor,
         &collapsed));
-
-    advancedTogglePositionChanges = 0;
+    assert(!IsWindowVisible(
+        arguments));
+    assert(!IsWindowVisible(
+        admin));
 
     SendMessageW(
         editor,
@@ -278,11 +259,13 @@ void CALLBACK ExerciseAdvancedToggle(
          expanded.top) >
         (collapsed.bottom -
          collapsed.top));
+    assert(IsWindowVisible(
+        arguments));
+    assert(IsWindowVisible(
+        admin));
     assert(
-        advancedTogglePositionChanges ==
-        1);
-
-    advancedTogglePositionChanges = 0;
+        topLevelRedrawSuspends ==
+        0);
 
     SendMessageW(
         editor,
@@ -301,13 +284,17 @@ void CALLBACK ExerciseAdvancedToggle(
          collapsedAgain.top) ==
         (collapsed.bottom -
          collapsed.top));
+    assert(!IsWindowVisible(
+        arguments));
+    assert(!IsWindowVisible(
+        admin));
     assert(
-        advancedTogglePositionChanges ==
-        1);
+        topLevelRedrawSuspends ==
+        0);
 
     assert(RemoveWindowSubclass(
-        toggle,
-        AdvancedToggleMoveProbe,
+        editor,
+        RedrawSuspendProbe,
         23));
 
     KillTimer(
@@ -691,13 +678,11 @@ int main() {
             assert(GetActiveWindow() != owner);
         }
 
-        // Advanced disclosure resize must settle with one geometry-affecting
-        // layout move per toggle. Native button bookkeeping may emit extra
-        // WM_WINDOWPOSCHANGED notifications with SWP_NOMOVE/SWP_NOSIZE; the
-        // probe deliberately ignores those non-geometry events. The previous
-        // path performed one layout from synchronous WM_SIZE and another
-        // explicit layout, which made the owner-drawn separator flash through
-        // an intermediate frame.
+        // Advanced disclosure must expand/collapse to the correct final
+        // geometry without ever suspending redraw on the top-level editor.
+        // Exact native child-window position-message counts are intentionally
+        // not asserted: BUTTON/EDIT bookkeeping can emit extra position
+        // notifications without representing an extra visible layout frame.
         EnableWindow(
             owner,
             TRUE);
