@@ -692,13 +692,13 @@ int main() {
             owner,
             SW_HIDE);
         modalOwner = owner;
-        timer =
+        const auto advancedTimer =
             SetTimer(
                 nullptr,
                 0,
                 20,
                 ExerciseAdvancedToggle);
-        assert(timer);
+        assert(advancedTimer);
         assert(
             !ShortcutEditorDialog::ShowNew(
                 app,
@@ -707,7 +707,7 @@ int main() {
                 seed));
         KillTimer(
             nullptr,
-            timer);
+            advancedTimer);
         assert(
             IsWindowEnabled(
                 owner));
