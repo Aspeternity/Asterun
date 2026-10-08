@@ -497,6 +497,57 @@ int main() {
     }
 
     {
+        // The same executable path with different explicit arguments is a
+        // different launch action and must not be collapsed merely because
+        // the surface path matches.
+        const auto normalIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellItem,
+                LR"(C:\Apps\Browser.exe)");
+
+        const auto privateIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellItem,
+                LR"(C:\Apps\Browser.exe)",
+                L"--incognito");
+
+        Command user = Make(
+            L"user:browser-direct-private",
+            L"Browser Private",
+            L"private",
+            LR"(C:\Apps\Browser.exe)",
+            CommandSource::User,
+            true,
+            privateIdentity);
+        user.arguments =
+            L"--incognito";
+
+        Command provider = Make(
+            L"apppath:browser-direct",
+            L"Browser",
+            L"browser",
+            LR"(C:\Apps\Browser.exe)",
+            CommandSource::AppPaths,
+            true,
+            normalIdentity);
+
+        const auto merged =
+            MergeCommands(
+                {user},
+                {provider});
+
+        assert(merged.commands.size() == 2);
+        assert(HasId(
+            merged.commands,
+            L"user:browser-direct-private"));
+        assert(HasId(
+            merged.commands,
+            L"apppath:browser-direct"));
+    }
+
+    {
         // Matching display text alone is never sufficient across User and
         // Provider boundaries.
         const std::vector<Command> users{
