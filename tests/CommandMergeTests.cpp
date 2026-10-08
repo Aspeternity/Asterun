@@ -403,14 +403,14 @@ int main() {
             BuildCanonicalLaunchIdentity(
                 LaunchActivationKind::
                     ShellItem,
-                L"C:\Program Files\Google\Chrome\Application\chrome.exe");
+                LR"(C:\Program Files\Google\Chrome\Application\chrome.exe)");
 
         const std::vector<Command> users{
             Make(
                 L"user:chrome",
                 L"Google Chrome",
                 L"chrome",
-                L"C:\Users\Public\Desktop\Google Chrome.lnk",
+                LR"(C:\Users\Public\Desktop\Google Chrome.lnk)",
                 CommandSource::User,
                 true,
                 chromeIdentity),
@@ -421,7 +421,7 @@ int main() {
                 L"start:chrome",
                 L"Google Chrome",
                 L"googlechrome",
-                L"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Google Chrome.lnk",
+                LR"(C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Google Chrome.lnk)",
                 CommandSource::StartMenu,
                 true,
                 chromeIdentity),
@@ -451,13 +451,13 @@ int main() {
             BuildCanonicalLaunchIdentity(
                 LaunchActivationKind::
                     ShellItem,
-                L"C:\Apps\Browser.exe");
+                LR"(C:\Apps\Browser.exe)");
 
         const auto privateIdentity =
             BuildCanonicalLaunchIdentity(
                 LaunchActivationKind::
                     ShellItem,
-                L"C:\Apps\Browser.exe",
+                LR"(C:\Apps\Browser.exe)",
                 L"--incognito");
 
         const std::vector<Command> users{
@@ -465,7 +465,7 @@ int main() {
                 L"user:browser-private",
                 L"Browser Private",
                 L"private",
-                L"C:\Users\Public\Desktop\Browser.lnk",
+                LR"(C:\Users\Public\Desktop\Browser.lnk)",
                 CommandSource::User,
                 true,
                 privateIdentity),
@@ -476,7 +476,7 @@ int main() {
                 L"start:browser",
                 L"Browser",
                 L"browser",
-                L"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Browser.lnk",
+                LR"(C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Browser.lnk)",
                 CommandSource::StartMenu,
                 true,
                 normalIdentity),
@@ -504,7 +504,7 @@ int main() {
                 L"user:same-name",
                 L"Tool",
                 L"tool",
-                L"C:\UserApps\Tool.exe",
+                LR"(C:\UserApps\Tool.exe)",
                 CommandSource::User),
         };
 
@@ -513,7 +513,7 @@ int main() {
                 L"start:same-name",
                 L"Tool",
                 L"tool",
-                L"C:\ProviderApps\Tool.exe",
+                LR"(C:\ProviderApps\Tool.exe)",
                 CommandSource::StartMenu),
         };
 
