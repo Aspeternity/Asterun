@@ -4,7 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
+#include <string_view>
 
 namespace altrun {
 
@@ -54,6 +56,9 @@ struct LauncherResult {
         ResultKind::Application};
     std::wstring title;
     std::wstring subtitle;
+    // Presentation-only text for user-configured shortcut words. Search,
+    // ranking and execution continue to use Command keyword/aliases directly.
+    std::wstring shortcutHint;
     std::wstring target;
     std::wstring detail;
     int score{0};
@@ -64,6 +69,11 @@ struct LauncherResult {
     bool pinned{false};
     LauncherAction action;
 };
+
+[[nodiscard]] std::wstring
+FormatUserShortcutHint(
+    std::wstring_view primary,
+    std::span<const std::wstring> aliases);
 
 [[nodiscard]] bool SameLauncherTarget(
     const LauncherResult& left,

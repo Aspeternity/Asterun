@@ -449,6 +449,55 @@ struct LauncherResourceRuntimeFixture {
             << std::endl;
     }
 
+    static void VerifyShortcutHintPresentation() {
+        LauncherResult user;
+        user.kind =
+            ResultKind::UserCommand;
+        user.title = L"ts";
+        user.subtitle =
+            L"TeamSpeak 3 Client";
+        user.shortcutHint =
+            L"ts · teamspeak";
+
+        assert(
+            ModernPrimaryResultText(
+                user) ==
+            L"TeamSpeak 3 Client");
+        assert(
+            ModernSecondaryResultText(
+                user) ==
+            L"ts · teamspeak");
+        assert(
+            ClassicShortcutResultText(
+                user) ==
+            L"ts · teamspeak");
+
+        // Non-user results never expose provider/internal alias text even if
+        // presentation metadata is populated accidentally.
+        LauncherResult application;
+        application.kind =
+            ResultKind::Application;
+        application.title =
+            L"TeamSpeak 3 Client";
+        application.subtitle =
+            L"TeamSpeak";
+        application.shortcutHint =
+            L"internal · token";
+
+        assert(
+            ModernSecondaryResultText(
+                application) ==
+            L"TeamSpeak 3 Client");
+        assert(
+            ClassicShortcutResultText(
+                application) ==
+            L"TeamSpeak 3 Client");
+
+        std::cout
+            << "User shortcut hint presentation passed"
+            << std::endl;
+    }
+
     static void VerifyTopLevelForegroundHandoff(
         App& app,
         HINSTANCE instance) {
@@ -665,6 +714,7 @@ struct LauncherResourceRuntimeFixture {
         VerifyRevealInputPreference(
             app,
             instance);
+        VerifyShortcutHintPresentation();
         VerifyTopLevelForegroundHandoff(
             app,
             instance);
