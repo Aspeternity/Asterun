@@ -317,23 +317,23 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(admin);
 
     int topLevelRedrawSuspends = 0;
-    PaintMessageCounts advancedPaint{};
     assert(SetWindowSubclass(
         editor,
         RedrawSuspendProbe,
         23,
         reinterpret_cast<DWORD_PTR>(
             &topLevelRedrawSuspends)));
-    assert(SetWindowSubclass(
-        editor,
-        PaintMessageProbe,
-        24,
-        reinterpret_cast<DWORD_PTR>(
-            &advancedPaint)));
 
     RECT collapsed{};
     RECT expanded{};
     RECT collapsedAgain{};
+    RECT toggleBefore{};
+    RECT toggleExpanded{};
+    RECT toggleCollapsedAgain{};
+
+    assert(GetWindowRect(
+        toggle,
+        &toggleBefore));
 
     assert(GetWindowRect(
         editor,
@@ -364,6 +364,12 @@ void CALLBACK ExerciseAdvancedToggle(
         arguments));
     assert(IsWindowVisible(
         admin));
+    assert(GetWindowRect(
+        toggle,
+        &toggleExpanded));
+    assert(EqualRect(
+        &toggleBefore,
+        &toggleExpanded));
     assert(
         topLevelRedrawSuspends ==
         0);
@@ -393,9 +399,18 @@ void CALLBACK ExerciseAdvancedToggle(
         topLevelRedrawSuspends ==
         0);
 
-    // Rapid synchronous toggles must not expose a background-erase frame.
+    assert(GetWindowRect(
+        toggle,
+        &toggleCollapsedAgain));
+    assert(EqualRect(
+        &toggleBefore,
+        &toggleCollapsedAgain));
+
+    // Rapid synchronous toggles must leave the disclosure row at exactly the
+    // same screen geometry. A top-level resize is allowed to issue its own
+    // WM_ERASEBKGND on some Windows builds, so counting parent erase messages
+    // is not a portable proxy for whether the separator itself flickers.
     // End collapsed so the following modal fixtures keep the original size.
-    advancedPaint = {};
     for (int pass = 0;
          pass < 8;
          ++pass) {
@@ -412,12 +427,15 @@ void CALLBACK ExerciseAdvancedToggle(
         arguments));
     assert(!IsWindowVisible(
         admin));
-    assert(advancedPaint.erase == 0);
 
-    assert(RemoveWindowSubclass(
-        editor,
-        PaintMessageProbe,
-        24));
+    RECT toggleAfterRapid{};
+    assert(GetWindowRect(
+        toggle,
+        &toggleAfterRapid));
+    assert(EqualRect(
+        &toggleBefore,
+        &toggleAfterRapid));
+
     assert(RemoveWindowSubclass(
         editor,
         RedrawSuspendProbe,
