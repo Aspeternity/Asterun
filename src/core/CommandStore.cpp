@@ -622,12 +622,12 @@ void CommandStore::RebuildMergedCommands(
     // action can dedupe without rewriting commands.json or changing what the
     // editor shows to the user.
     std::vector<Command>
-        userCommands =
+        transientUserCommands =
             userCommandStore_
                 .Commands();
 
     for (auto& command :
-         userCommands) {
+         transientUserCommands) {
         command.canonicalIdentity =
             DerivedUserCanonicalIdentity(
                 command,
@@ -636,7 +636,7 @@ void CommandStore::RebuildMergedCommands(
 
     CommandMergeResult merged =
         MergeCommandViews(
-            userCommands,
+            transientUserCommands,
             providerViews);
 
     commands_ =
