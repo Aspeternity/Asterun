@@ -223,6 +223,7 @@ if(WIN32)
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
         src/platform/LaunchTargetInspector.cpp
+        src/platform/NotificationIdentity.cpp
         src/platform/SecureArchive.cpp
         src/platform/SecureElevation.cpp
         src/platform/ShellActions.cpp
