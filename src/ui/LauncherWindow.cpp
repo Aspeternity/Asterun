@@ -312,12 +312,40 @@ ModernSecondaryResultText(
         return result.subtitle;
     }
 
+    if (result.kind ==
+            ResultKind::UserCommand &&
+        !result.shortcutHint.empty()) {
+        const std::wstring primary =
+            result.subtitle.empty()
+                ? fallback
+                : result.subtitle;
+
+        return result.shortcutHint ==
+                primary
+            ? std::wstring{}
+            : result.shortcutHint;
+    }
+
     if (result.subtitle.empty() ||
         result.subtitle == fallback) {
         return {};
     }
 
     return fallback;
+}
+
+[[nodiscard]] std::wstring
+ClassicShortcutResultText(
+    const LauncherResult& result) {
+
+    if (result.kind ==
+            ResultKind::UserCommand &&
+        !result.shortcutHint.empty()) {
+        return result.shortcutHint;
+    }
+
+    return PrimaryResultText(
+        result);
 }
 
 constexpr std::array<
@@ -1750,7 +1778,9 @@ void LauncherWindow::RebuildVisibleResults(
            const LauncherResult& right) {
             return left.kind == right.kind &&
                 left.title == right.title &&
-                left.subtitle == right.subtitle;
+                left.subtitle == right.subtitle &&
+                left.shortcutHint ==
+                    right.shortcutHint;
         };
 
     const std::size_t oldCount =
@@ -4426,9 +4456,14 @@ LRESULT LauncherWindow::HandleMessage(
                 DT_VCENTER |
                 DT_NOPREFIX);
 
+        const std::wstring
+            classicShortcutText =
+                ClassicShortcutResultText(
+                    result);
+
         DrawTextW(
             item->hDC,
-            primary.c_str(),
+            classicShortcutText.c_str(),
             -1,
             &keywordRect,
             classicTextFlags);

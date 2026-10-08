@@ -5,6 +5,7 @@
 - Development baseline for the next 1.0.x maintenance release.
 - Add an opt-out preference that makes each new Launcher session start in direct English input without changing the system keyboard layout or other applications.
 - Advance settings schema to 12 for downgrade-safe persistence of the launcher input preference.
+- Show all configured words for user shortcuts in launcher results (for example, `ts · teamspeak`) while keeping the first keyword authoritative for existing search/ranking behavior.
 
 ## 1.0.3
 

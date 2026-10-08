@@ -840,6 +840,15 @@ std::vector<LauncherResult> App::Search(
                 ? command.title
                 : command.keyword;
         result.subtitle = command.title;
+
+        if (command.source ==
+            CommandSource::User) {
+            result.shortcutHint =
+                FormatUserShortcutHint(
+                    command.keyword,
+                    command.aliases);
+        }
+
         result.target = command.target;
         result.detail =
             CommandDetail(command);
