@@ -1,13 +1,14 @@
 # Asterun Roadmap
 
-Asterun 1.0.3 remains the current stable release. v1.0.4 is the active development line for small launcher-input and shortcut-discoverability improvements.
+Asterun v1.0.4 is the current stable release following owner acceptance. The next version line is not yet scoped.
 
-## v1.0.4 - Launcher input polish
+## v1.0.4 - Launcher input, shortcut UX, native UI and branding (completed)
 
-- Start each new Launcher session in direct English input by default, with an opt-out preference and no global keyboard-layout switch.
-- Keep manual switching back to Chinese available for the rest of the current Launcher session.
-- Follow with compact multi-keyword presentation after the input behavior passes real-machine validation.
-- Advance Settings schema to 12 for downgrade-safe persistence of the new preference.
+- Start each fresh Launcher session in direct English input by default with a setting to opt out, without switching the system keyboard layout.
+- Preserve manual in-session Chinese input; advance Settings schema to 12 with downgrade protection.
+- Show complete shortcut keywords and deduplicate matching user shortcuts / Provider results without changing search or ranking.
+- Fix Settings/ComboBox and Shortcut Editor repaint and caret issues.
+- Ship the approved Asterun/tray star, Windows notification attribution and separate Update/Uninstall icons with CI integrity checks.
 
 ## v1.0.3 - Uninstall Shell integration cleanup
 

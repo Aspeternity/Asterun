@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. The active v1.0.4 development contract is:
+Each document carries its own schema version. The active v1.0.4 stable contract is:
 
 ```text
 settings.json       schemaVersion 12

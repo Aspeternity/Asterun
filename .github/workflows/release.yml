@@ -54,6 +54,8 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Verify Asterun branding
         run: python3 scripts/verify_branding.py
+      - name: Verify Windows icon source assets
+        run: python3 scripts/verify_icon_resources.py
       - name: Verify tag matches VERSION
         run: python3 scripts/verify_tag_version.py "${{ steps.release_ref.outputs.tag }}"
       - name: Verify version metadata
@@ -105,6 +107,9 @@ jobs:
       - name: Build x64 compatibility target
         shell: pwsh
         run: cmake --build build-compat --config Release --target Asterun AsterunUpdater AsterunUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests archive_extractor_tests windows_command_line_tests --parallel
+      - name: Verify Windows 10 compatibility executable icons
+        shell: pwsh
+        run: python scripts/verify_icon_resources.py --executables build-compat/Release
       - name: Verify compatibility artifact
         shell: pwsh
         run: |
@@ -137,6 +142,9 @@ jobs:
       - name: Build
         shell: pwsh
         run: cmake --build build --config Release --parallel
+      - name: Verify embedded Windows executable icons
+        shell: pwsh
+        run: python scripts/verify_icon_resources.py --executables build/Release
       - name: Verify portable runtime
         shell: pwsh
         run: |
