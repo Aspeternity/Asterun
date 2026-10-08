@@ -140,16 +140,23 @@ bool IsDuplicateOf(
         return true;
     }
 
-    if (IsUser(existing.source) ||
-        IsUser(incoming.source)) {
-        return false;
-    }
-
+    // A canonical launch identity represents the resolved activation action,
+    // not merely the path of the visible shortcut. It is therefore strong
+    // enough to let an explicit User shortcut suppress a Provider entry that
+    // reaches the exact same application/action through another .lnk path.
     if (!incoming.canonicalIdentity.empty() &&
         !existing.canonicalIdentity.empty() &&
         incoming.canonicalIdentity ==
             existing.canonicalIdentity) {
         return true;
+    }
+
+    // Do not fall back to title/keyword heuristics across the User boundary.
+    // Different explicit user actions must remain independent unless target
+    // or canonical activation identity proves they are the same launch.
+    if (IsUser(existing.source) ||
+        IsUser(incoming.source)) {
+        return false;
     }
 
     const std::wstring incomingName =
