@@ -232,6 +232,7 @@ if(WIN32)
         src/platform/WinClipboard.cpp
         src/platform/WindowsContext.cpp
         src/platform/WinUtil.cpp
+        src/ui/LauncherImeTrace.cpp
         src/ui/LauncherWindow.cpp
         src/ui/LauncherWindowLayout.cpp
         src/ui/Feedback.cpp
