@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.5 (in development)
+
+- Send asynchronous, targeted `SHCNE_UPDATEITEM` notifications for Asterun.exe, Update.exe and Uninstall.exe only after a successful post-update startup health event.
+- Perform the refresh from the newly installed Asterun.exe: the in-place updater runs the previous version's Update.exe, so this also covers the first v1.0.4 -> v1.0.5 upgrade.
+- Preserve normal startup, update failure/rollback behavior, user data, versioned archive/update protocols and all persisted schemas (12 / 2 / 2 / 22).
+- Never delete the Shell icon cache, send a global association-change event or restart Explorer; on some Windows versions a user-driven cache rebuild may still be necessary.
+- Add Windows regression tests for health-event gating, exact notified paths, missing executable suppression and untouched user settings.
+- Pending full CI and owner real-machine acceptance; no release is authorized yet.
+
+
 ## 1.0.4
 
 - Publish the owner-accepted v1.0.4 launcher, shortcut, native-UI and branding refinements for Windows 10/11 x64 and ARM64.
