@@ -13,6 +13,8 @@
 - Add regression fixtures for the 7 Days to Die / Microsoft To Do / ToDesk / Tor Browser ranking, cached search indexes, repeated launches, short-query precision and genuine exact identifiers.
 - Compare explicit pinning before all other ranking keys, then relevance-match kind, then user-command preference within that kind. This prevents seeded defaults such as Notepad (np) from outranking real TeamSpeak name prefixes for `tea` while preserving exact user aliases, user-first blank searches, bounded usage learning and same-tier user preference.
 - Add failing-first Core fixtures for `tea`, `np`, `ts`, pinned overrides, high launch counts, prepared-index parity and mixed-source comparator transitivity.
+- Add a narrowly gated two-character English secondary-word match for automatically discovered, Normal-catalog, two-word PrimaryApplication titles (e.g. `Google Chrome` → `ch`, `Microsoft Edge` → `ed`, `Mozilla Firefox` → `fi`). Score this as BoundaryPrefix, after true whole-name prefixes and exact user aliases; do not change the global short-query policy, multiword tool/utility filtering, or CJK and alphanumeric-ID behavior.
+- Reproduce the `ch` exclusion in test-first Build #1000 and cover prepared-index parity, regular Provider sources, the restrictive catalog gate, system tools, previously fixed `ad/so/to` cases and `chr` three-character behavior.
 - Pending full CI and owner real-machine acceptance; no release is authorized yet.
 
 

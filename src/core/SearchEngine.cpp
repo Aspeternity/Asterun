@@ -25,6 +25,78 @@ namespace {
     return std::find(words.begin(), words.end(), word) != words.end();
 }
 
+// A narrowly gated exception to the 1-2 ASCII character precision rule.
+// Real two-word primary application names may be recalled from their second
+// word ("Google Chrome" -> "ch"), without admitting arbitrary later-word
+// fragments from tool bundles, commands, filesystem items or user shortcuts.
+// Do not relax the shared RelevancePolicy match gate for all other surfaces.
+[[nodiscard]] relevance::Match
+ShortPrimaryAppSecondaryWordPrefix(
+    const Command& command,
+    std::wstring_view normalizedQuery) noexcept {
+    if (normalizedQuery.size() != 2 ||
+        IsGenericShortCatalogWord(normalizedQuery) ||
+        command.type != CommandType::Application ||
+        command.surfaceClass != LaunchSurfaceClass::PrimaryApplication ||
+        command.catalogVisibility != CatalogVisibility::Normal ||
+        (command.source != CommandSource::StartMenu &&
+         command.source != CommandSource::PackagedApp &&
+         command.source != CommandSource::AppPaths)) {
+        return {};
+    }
+
+    // Only alphabetic ASCII prefixes. Opaque identifiers such as v2 and
+    // mixed CJK queries keep their existing exact/initials admission rules.
+    for (wchar_t ch : normalizedQuery) {
+        if (ch < L'a' || ch > L'z') {
+            return {};
+        }
+    }
+
+    const std::wstring_view title = command.title;
+    const auto firstEnd = title.find_first_of(L" \t");
+    if (firstEnd == std::wstring_view::npos ||
+        firstEnd < 3) {
+        return {};
+    }
+
+    const auto secondStart = title.find_first_not_of(L" \t", firstEnd);
+    if (secondStart == std::wstring_view::npos) {
+        return {};
+    }
+
+    const std::wstring_view first = title.substr(0, firstEnd);
+    const std::wstring_view second = title.substr(secondStart);
+    // Limit the exception to exactly two substantive English words, with a
+    // meaningful second word: "Microsoft Edge" works; "To Do" and longer
+    // component/utility titles cannot flood two-letter searches.
+    if (second.size() < 4) {
+        return {};
+    }
+
+    const auto isAsciiAlphaWord = [](std::wstring_view word) {
+        return std::all_of(word.begin(), word.end(), [](wchar_t ch) {
+            return (ch >= L'a' && ch <= L'z') ||
+                   (ch >= L'A' && ch <= L'Z');
+        });
+    };
+
+    if (!isAsciiAlphaWord(first) ||
+        !isAsciiAlphaWord(second) ||
+        std::towlower(second[0]) != normalizedQuery[0] ||
+        std::towlower(second[1]) != normalizedQuery[1]) {
+        return {};
+    }
+
+    return {
+        relevance::MatchKind::BoundaryPrefix,
+        relevance::MatchField::None,
+        760 - static_cast<int>(
+            std::min<std::size_t>(secondStart, 100)),
+        false
+    };
+}
+
 } // namespace
 
 SearchEngine::SearchEngine(
@@ -588,6 +660,13 @@ SearchEngine::CommandTextScore(
 
     consider(
         matchField(command.title, prepared ? &prepared->title : nullptr),
+        relevance::MatchField::Title);
+
+    // Only a full two-word primary-app title's second word can participate
+    // in this selective two-character recall. All normal match-kind tiers
+    // still apply: full name prefixes and explicit aliases rank higher.
+    consider(
+        ShortPrimaryAppSecondaryWordPrefix(command, normalizedQuery),
         relevance::MatchField::Title);
 
     if (allowTarget) {

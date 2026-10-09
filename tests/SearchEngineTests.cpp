@@ -441,9 +441,10 @@ int main(int argc, char** argv) {
             3));
     }
 
-    // Short ASCII precision: 1-2 characters may use exact, whole-field
-    // prefix and initials, but must not recall arbitrary later word
-    // boundaries. Three-character queries restore BoundaryPrefix behavior.
+    // Short ASCII precision: 1-2 characters use exact, whole-field prefix
+    // and initials by default, without arbitrary later-word boundaries.
+    // A narrowly gated two-word primary-application exception is tested below.
+    // Three-character queries retain full BoundaryPrefix behavior.
     {
         std::vector<Command>
             shortPrecision{
