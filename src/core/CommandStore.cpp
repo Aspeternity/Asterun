@@ -1,6 +1,9 @@
 #include "CommandStore.hpp"
 
 #include "CommandTemplate.hpp"
+#include "LaunchCatalog.hpp"
+#include "../platform/LaunchTargetInspector.hpp"
+#include "../platform/WinUtil.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -19,6 +22,73 @@ std::int64_t NowUnix() {
                     system_clock::now()
                     .time_since_epoch())
         .count();
+}
+
+[[nodiscard]] std::wstring
+DerivedUserCanonicalIdentity(
+    const Command& command,
+    const std::filesystem::path&
+        baseDirectory) {
+
+    if (command.source !=
+            CommandSource::User ||
+        command.type !=
+            CommandType::Application ||
+        command.runtimeInputMode !=
+            RuntimeInputMode::None ||
+        UsesFolderTemplate(
+            command)) {
+        return {};
+    }
+
+    const std::wstring target =
+        win::ResolvePortablePath(
+            command.target,
+            baseDirectory,
+            false);
+
+    if (target.empty()) {
+        return {};
+    }
+
+    const std::filesystem::path path(
+        target);
+
+    std::wstring extension =
+        win::Lower(
+            path.extension().wstring());
+
+    if (extension == L".lnk") {
+        // Suppression is intentionally conservative when the outer user
+        // command adds its own arguments. ShellExecute parameter composition
+        // for a .lnk is distinct from the shortcut's embedded arguments, so
+        // do not claim equivalence unless the shortcut itself fully describes
+        // the launch action.
+        if (!command.arguments.empty()) {
+            return {};
+        }
+
+        const auto shortcut =
+            win::InspectShellLink(
+                path);
+
+        if (!shortcut ||
+            shortcut->target.empty()) {
+            return {};
+        }
+
+        return BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(
+                shortcut->target),
+            shortcut->target,
+            shortcut->arguments);
+    }
+
+    return BuildCanonicalLaunchIdentity(
+        ActivationKindForCatalogTarget(
+            target),
+        target,
+        command.arguments);
 }
 
 std::optional<CommandSource>
@@ -546,10 +616,27 @@ void CommandStore::RebuildMergedCommands(
             &command);
     }
 
+    // User commands are persisted as the user's literal launch surface.
+    // Resolve canonical activation identity only for this transient catalog
+    // publication so different shortcut files pointing to the same launch
+    // action can dedupe without rewriting commands.json or changing what the
+    // editor shows to the user.
+    std::vector<Command>
+        transientUserCommands =
+            userCommandStore_
+                .Commands();
+
+    for (auto& command :
+         transientUserCommands) {
+        command.canonicalIdentity =
+            DerivedUserCanonicalIdentity(
+                command,
+                baseDirectory_);
+    }
+
     CommandMergeResult merged =
         MergeCommandViews(
-            userCommandStore_
-                .Commands(),
+            transientUserCommands,
             providerViews);
 
     commands_ =

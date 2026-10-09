@@ -193,8 +193,8 @@ int main() {
     {
         const auto file = data / "semantic-settings.json";
         const auto backup = data / "semantic-settings.json.bak";
-        const std::string good = R"({"schemaVersion":11,"general":{"soundEnabled":false}})";
-        WriteText(file, R"({"schemaVersion":11,"general":{"soundEnabled":"bad"}})");
+        const std::string good = R"({"schemaVersion":12,"general":{"soundEnabled":false}})";
+        WriteText(file, R"({"schemaVersion":12,"general":{"soundEnabled":"bad"}})");
         WriteText(backup, good);
         SettingsStore recovered(file);
         recovered.Load();
@@ -542,6 +542,9 @@ int main() {
     assert(featureSettings.Data().addToSendToMenu);
     assert(!featureSettings.Data().auxiliaryHotkeyEnabled);
     assert(featureSettings.Data().auxiliaryHotkeyKey == "pause");
+    assert(
+        featureSettings.Data()
+            .defaultEnglishInputOnReveal);
     assert(featureSettings.Data().pinyinSearch);
     assert(featureSettings.Data().numericQuickLaunch);
     assert(
@@ -597,13 +600,31 @@ int main() {
         data / "settings-explicit-opt-out.json";
     WriteText(
         explicitOptOutPath,
-        R"({"schemaVersion":11,"general":{"startWithWindows":false,"addToSendToMenu":false},"behavior":{"numericQuickLaunch":false}})");
+        R"({"schemaVersion":12,"general":{"startWithWindows":false,"addToSendToMenu":false},"behavior":{"numericQuickLaunch":false,"defaultEnglishInputOnReveal":false}})");
     SettingsStore explicitOptOut(
         explicitOptOutPath);
     explicitOptOut.Load();
     assert(!explicitOptOut.Data().startWithWindows);
     assert(!explicitOptOut.Data().addToSendToMenu);
     assert(!explicitOptOut.Data().numericQuickLaunch);
+    assert(
+        !explicitOptOut.Data()
+             .defaultEnglishInputOnReveal);
+
+    assert(
+        featureSettings
+            .SetDefaultEnglishInputOnReveal(
+                false));
+    assert(
+        !featureSettings.Data()
+             .defaultEnglishInputOnReveal);
+    assert(
+        featureSettings
+            .SetDefaultEnglishInputOnReveal(
+                true));
+    assert(
+        featureSettings.Data()
+            .defaultEnglishInputOnReveal);
 
     assert(featureSettings.SetStartWithWindows(true));
     assert(featureSettings.Data().startWithWindows);
@@ -749,6 +770,9 @@ int main() {
         providerSettingsReloaded.Data()
             .auxiliaryHotkeyKey ==
         "pause");
+    assert(
+        providerSettingsReloaded.Data()
+            .defaultEnglishInputOnReveal);
     assert(
         !providerSettingsReloaded.Data()
              .pinyinSearch);
@@ -1799,6 +1823,9 @@ int main() {
         featureSettings.Data()
             .auxiliaryHotkeyKey ==
         "pause");
+    assert(
+        featureSettings.Data()
+            .defaultEnglishInputOnReveal);
     assert(featureSettings.Data().pinyinSearch);
     assert(
         featureSettings.Data()

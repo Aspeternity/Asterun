@@ -33,6 +33,32 @@ LauncherResult MakeResult(
 } // namespace
 
 int main() {
+    {
+        const std::vector<std::wstring>
+            aliases{
+                L"teamspeak",
+                L"voice",
+            };
+
+        assert(
+            FormatUserShortcutHint(
+                L"ts",
+                aliases) ==
+            L"ts · teamspeak · voice");
+
+        const std::vector<std::wstring>
+            emptyAlias{
+                L"",
+                L"teamspeak",
+            };
+
+        assert(
+            FormatUserShortcutHint(
+                L"ts",
+                emptyAlias) ==
+            L"ts · teamspeak");
+    }
+
     const std::vector<LauncherResult>
         staticResults{
             MakeResult(

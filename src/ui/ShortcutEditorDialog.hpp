@@ -52,7 +52,8 @@ private:
     void CloseWindow();
     void ApplyLanguage();
     void UpdateWindowTitle();
-    void Layout();
+    void Layout(
+        BOOL repaint = TRUE);
     void DrawEditorChrome(
         HDC dc) const;
     void DrawAdvancedHeader(
@@ -147,6 +148,7 @@ private:
     bool closed_{false};
     bool advancedExpanded_{false};
     bool dynamicLayoutInProgress_{false};
+    bool keywordInitialCaretPending_{false};
     bool nameAuto_{true};
     bool suppressNameChange_{false};
     std::wstring commandId_;

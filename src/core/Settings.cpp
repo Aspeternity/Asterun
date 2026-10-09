@@ -719,6 +719,13 @@ bool SettingsStore::LoadJson() {
             const auto& behavior =
                 root["behavior"];
 
+            settings_
+                .defaultEnglishInputOnReveal =
+                    behavior.value(
+                        "defaultEnglishInputOnReveal",
+                        settings_
+                            .defaultEnglishInputOnReveal);
+
             settings_.pinyinSearch =
                 behavior.value(
                     "pinyinSearch",
@@ -1021,6 +1028,9 @@ bool SettingsStore::Save() const {
                  hotkeyBindingsJson)}
         }},
         {"behavior", {
+            {"defaultEnglishInputOnReveal",
+             settings_
+                 .defaultEnglishInputOnReveal},
             {"pinyinSearch",
              settings_.pinyinSearch},
             {"numericQuickLaunch",
@@ -1329,6 +1339,30 @@ bool SettingsStore::ResetHotkeyBindings() {
 
     SyncLegacyHotkeyMirrors(
         settings_);
+
+    if (!Save()) {
+        settings_ = previous;
+        return false;
+    }
+
+    return true;
+}
+
+bool SettingsStore::
+SetDefaultEnglishInputOnReveal(
+    bool enabled) {
+
+    if (readOnlyDueToNewerSchema_ ||
+        preserveInvalidInput_) {
+        return false;
+    }
+
+    const Settings previous =
+        settings_;
+
+    settings_
+        .defaultEnglishInputOnReveal =
+            enabled;
 
     if (!Save()) {
         settings_ = previous;

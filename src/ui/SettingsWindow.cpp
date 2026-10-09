@@ -742,6 +742,10 @@ void SettingsWindow::CreateGeneralPage() {
     addToSendToMenu_ = CreateCheckboxRow(L"", kIdAddToSendToMenu);
 
     searchBehaviorTitle_ = CreateStatic(L"");
+    defaultEnglishInputOnReveal_ =
+        CreateCheckboxRow(
+            L"",
+            kIdDefaultEnglishInputOnReveal);
     pinyinSearch_ = CreateCheckboxRow(L"", kIdPinyinSearch);
     numericQuickLaunch_ = CreateCheckboxRow(L"", kIdNumericQuickLaunch);
     executeSingleResult_ = CreateCheckboxRow(L"", kIdExecuteSingleResult);
@@ -789,8 +793,8 @@ void SettingsWindow::CreateGeneralPage() {
         generalBehaviorTitle_, startWithWindows_,
         startupBehaviorLabel_, startupBehavior_,
         showTrayIcon_, soundEnabled_, addToSendToMenu_,
-        searchBehaviorTitle_, pinyinSearch_,
-        numericQuickLaunch_, executeSingleResult_,
+        searchBehaviorTitle_, defaultEnglishInputOnReveal_,
+        pinyinSearch_, numericQuickLaunch_, executeSingleResult_,
         placementSectionTitle_,
         popupMonitorLabel_, popupMonitorDescription_, popupMonitor_,
         launcherPlacementLabel_, launcherPlacementDescription_, launcherPlacement_,
@@ -1178,6 +1182,7 @@ void SettingsWindow::ApplyFonts() {
         showTrayIcon_,
         soundEnabled_,
         addToSendToMenu_,
+        defaultEnglishInputOnReveal_,
         pinyinSearch_,
         numericQuickLaunch_,
         executeSingleResult_,
@@ -1372,6 +1377,10 @@ void SettingsWindow::ApplyLanguage() {
     SetWindowTextW(addToSendToMenu_, T(L"添加到“发送到”菜单", L"Add to “Send to” menu"));
 
     SetWindowTextW(searchBehaviorTitle_, T(L"搜索与执行", L"Search & execution"));
+    SetWindowTextW(
+        defaultEnglishInputOnReveal_,
+        T(L"唤醒时默认英文输入",
+          L"Default to English input when launcher opens"));
     SetWindowTextW(pinyinSearch_, T(L"启用拼音搜索", L"Enable Pinyin search"));
     SetWindowTextW(numericQuickLaunch_, T(L"数字键快速执行结果", L"Quick launch with number keys"));
     SetWindowTextW(executeSingleResult_,
@@ -1824,9 +1833,9 @@ void SettingsWindow::RefreshFromSettings() {
     SyncUpdateStatusTimer();
 
     for (HWND control :
-         std::array<HWND, 15>{
+         std::array<HWND, 16>{
              startWithWindows_, showTrayIcon_, soundEnabled_, addToSendToMenu_,
-             pinyinSearch_, numericQuickLaunch_,
+             defaultEnglishInputOnReveal_, pinyinSearch_, numericQuickLaunch_,
              executeSingleResult_, providerStartMenu_, providerPackaged_,
              providerAppPaths_, providerPath_, providerEverything_,
              managedEverythingTrayIcon_,
@@ -3404,7 +3413,11 @@ void SettingsWindow::ApplyClassicBehaviorControl(UINT id) {
     default: return;
     }
 
-    if (!app_.SetClassicBehavior(numericQuickLaunch, executeSingleResult, pinyinSearch)) {
+    if (!app_.SetClassicBehavior(
+            numericQuickLaunch,
+            executeSingleResult,
+            pinyinSearch,
+            false)) {
         altrun::ui::ShowMessage(hwnd_,
             T(L"无法保存搜索与执行设置。", L"Unable to save search and execution settings."),
             L"Asterun", MB_OK | MB_ICONERROR);
@@ -3599,10 +3612,37 @@ void SettingsWindow::ToggleGeneralSetting(UINT id) {
     const auto settings = app_.SettingsData();
     bool success = true;
     switch (id) {
-    case kIdStartWithWindows: success = app_.SetStartWithWindows(!settings.startWithWindows); break;
-    case kIdSoundEnabled: success = app_.SetSoundEnabled(!settings.soundEnabled); break;
-    case kIdShowTrayIcon: success = app_.SetShowTrayIcon(!settings.showTrayIcon); break;
-    case kIdAddToSendToMenu: success = app_.SetAddToSendToMenu(!settings.addToSendToMenu); break;
+    case kIdStartWithWindows:
+        success =
+            app_.SetStartWithWindows(
+                !settings.startWithWindows,
+                false);
+        break;
+    case kIdSoundEnabled:
+        success =
+            app_.SetSoundEnabled(
+                !settings.soundEnabled,
+                false);
+        break;
+    case kIdShowTrayIcon:
+        success =
+            app_.SetShowTrayIcon(
+                !settings.showTrayIcon,
+                false);
+        break;
+    case kIdAddToSendToMenu:
+        success =
+            app_.SetAddToSendToMenu(
+                !settings.addToSendToMenu,
+                false);
+        break;
+    case kIdDefaultEnglishInputOnReveal:
+        success =
+            app_.SetDefaultEnglishInputOnReveal(
+                !settings
+                     .defaultEnglishInputOnReveal,
+                false);
+        break;
     default: return;
     }
     if (!success) {
@@ -3662,14 +3702,8 @@ void SettingsWindow::ToggleProviderSetting(
         providerId] =
         !ToggleChecked(id);
 
-    InvalidateRect(
-        reinterpret_cast<HWND>(
-            GetDlgItem(
-                hwnd_,
-                static_cast<int>(id))),
-        nullptr,
-        TRUE);
-
+    // WM_COMMAND commits the pending state and repaints only the clicked
+    // owner-draw row. Do not schedule a second paint here.
     KillTimer(
         hwnd_,
         kProviderCommitTimerId);
@@ -3993,6 +4027,9 @@ bool SettingsWindow::ToggleChecked(
     case kIdUpdatePrerelease:
         return settings.updateChannel ==
             UpdateChannel::Development;
+    case kIdDefaultEnglishInputOnReveal:
+        return settings
+            .defaultEnglishInputOnReveal;
     case kIdPinyinSearch:
         return settings.pinyinSearch;
     case kIdNumericQuickLaunch:
@@ -5652,6 +5689,11 @@ void SettingsWindow::DrawGeneralToggle(
     case kIdSoundEnabled: title = T(L"提示音", L"Sound effects"); break;
     case kIdShowTrayIcon: title = T(L"显示系统托盘图标", L"Show system tray icon"); break;
     case kIdAddToSendToMenu: title = T(L"添加到“发送到”菜单", L"Add to “Send to” menu"); break;
+    case kIdDefaultEnglishInputOnReveal:
+        title =
+            T(L"唤醒时默认英文输入",
+              L"Default to English input when launcher opens");
+        break;
     case kIdPinyinSearch:
         title =
             T(L"启用拼音搜索",
@@ -5814,29 +5856,6 @@ void SettingsWindow::DrawGeneralToggle(
             separator);
     }
 
-    if (item.itemState &
-        ODS_FOCUS) {
-        RECT focusBar{
-            rect.left +
-                Scale(5),
-            rect.top +
-                Scale(12),
-            rect.left +
-                Scale(7),
-            rect.bottom -
-                Scale(12),
-        };
-
-        HBRUSH focusBrush =
-            CreateSolidBrush(
-                kAccent);
-        FillRect(
-            item.hDC,
-            &focusBar,
-            focusBrush);
-        DeleteObject(
-            focusBrush);
-    }
 }
 
 void SettingsWindow::PositionForShow() {
@@ -6859,12 +6878,13 @@ LRESULT SettingsWindow::HandleMessage(
                     return;
                 }
 
-                InvalidateRect(
+                RedrawWindow(
                     control,
                     nullptr,
-                    TRUE);
-                UpdateWindow(
-                    control);
+                    nullptr,
+                    RDW_INVALIDATE |
+                        RDW_NOERASE |
+                        RDW_UPDATENOW);
             };
 
         // BS_OWNERDRAW buttons report the second press of a rapid
@@ -6962,6 +6982,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdSoundEnabled:
         case kIdShowTrayIcon:
         case kIdAddToSendToMenu:
+        case kIdDefaultEnglishInputOnReveal:
             if (toggleActivated) {
                 ToggleGeneralSetting(id);
                 redrawClickedToggle();
@@ -7207,6 +7228,8 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdSoundEnabled ||
             item->CtlID == kIdShowTrayIcon ||
             item->CtlID == kIdAddToSendToMenu ||
+            item->CtlID ==
+                kIdDefaultEnglishInputOnReveal ||
             item->CtlID == kIdPinyinSearch ||
             item->CtlID == kIdNumericQuickLaunch ||
             item->CtlID == kIdExecuteSingleResult ||

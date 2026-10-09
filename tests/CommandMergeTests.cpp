@@ -395,6 +395,188 @@ int main() {
     }
 
     {
+        // A user-created Desktop shortcut and a Start Menu Provider shortcut
+        // may be different .lnk files but resolve to the same launch action.
+        // The explicit User shortcut is authoritative when canonical identity
+        // proves equivalence.
+        const auto chromeIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellItem,
+                LR"(C:\Program Files\Google\Chrome\Application\chrome.exe)");
+
+        const std::vector<Command> users{
+            Make(
+                L"user:chrome",
+                L"Google Chrome",
+                L"chrome",
+                LR"(C:\Users\Public\Desktop\Google Chrome.lnk)",
+                CommandSource::User,
+                true,
+                chromeIdentity),
+        };
+
+        const std::vector<Command> providers{
+            Make(
+                L"start:chrome",
+                L"Google Chrome",
+                L"googlechrome",
+                LR"(C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Google Chrome.lnk)",
+                CommandSource::StartMenu,
+                true,
+                chromeIdentity),
+        };
+
+        const auto merged =
+            MergeCommands(
+                users,
+                providers);
+
+        assert(merged.commands.size() == 1);
+        assert(HasId(
+            merged.commands,
+            L"user:chrome"));
+        assert(
+            merged.stats.acceptedUser == 1);
+        assert(
+            merged.stats.suppressedStartMenu ==
+            1);
+    }
+
+    {
+        // Same executable with a genuinely different action must remain two
+        // results. Canonical identity includes arguments, preventing an
+        // incognito/user action from suppressing the normal Provider entry.
+        const auto normalIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellItem,
+                LR"(C:\Apps\Browser.exe)");
+
+        const auto privateIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellItem,
+                LR"(C:\Apps\Browser.exe)",
+                L"--incognito");
+
+        const std::vector<Command> users{
+            Make(
+                L"user:browser-private",
+                L"Browser Private",
+                L"private",
+                LR"(C:\Users\Public\Desktop\Browser.lnk)",
+                CommandSource::User,
+                true,
+                privateIdentity),
+        };
+
+        const std::vector<Command> providers{
+            Make(
+                L"start:browser",
+                L"Browser",
+                L"browser",
+                LR"(C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Browser.lnk)",
+                CommandSource::StartMenu,
+                true,
+                normalIdentity),
+        };
+
+        const auto merged =
+            MergeCommands(
+                users,
+                providers);
+
+        assert(merged.commands.size() == 2);
+        assert(HasId(
+            merged.commands,
+            L"user:browser-private"));
+        assert(HasId(
+            merged.commands,
+            L"start:browser"));
+    }
+
+    {
+        // The same executable path with different explicit arguments is a
+        // different launch action and must not be collapsed merely because
+        // the surface path matches.
+        const auto normalIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellItem,
+                LR"(C:\Apps\Browser.exe)");
+
+        const auto privateIdentity =
+            BuildCanonicalLaunchIdentity(
+                LaunchActivationKind::
+                    ShellItem,
+                LR"(C:\Apps\Browser.exe)",
+                L"--incognito");
+
+        Command user = Make(
+            L"user:browser-direct-private",
+            L"Browser Private",
+            L"private",
+            LR"(C:\Apps\Browser.exe)",
+            CommandSource::User,
+            true,
+            privateIdentity);
+        user.arguments =
+            L"--incognito";
+
+        Command provider = Make(
+            L"apppath:browser-direct",
+            L"Browser",
+            L"browser",
+            LR"(C:\Apps\Browser.exe)",
+            CommandSource::AppPaths,
+            true,
+            normalIdentity);
+
+        const auto merged =
+            MergeCommands(
+                {user},
+                {provider});
+
+        assert(merged.commands.size() == 2);
+        assert(HasId(
+            merged.commands,
+            L"user:browser-direct-private"));
+        assert(HasId(
+            merged.commands,
+            L"apppath:browser-direct"));
+    }
+
+    {
+        // Matching display text alone is never sufficient across User and
+        // Provider boundaries.
+        const std::vector<Command> users{
+            Make(
+                L"user:same-name",
+                L"Tool",
+                L"tool",
+                LR"(C:\UserApps\Tool.exe)",
+                CommandSource::User),
+        };
+
+        const std::vector<Command> providers{
+            Make(
+                L"start:same-name",
+                L"Tool",
+                L"tool",
+                LR"(C:\ProviderApps\Tool.exe)",
+                CommandSource::StartMenu),
+        };
+
+        const auto merged =
+            MergeCommands(
+                users,
+                providers);
+
+        assert(merged.commands.size() == 2);
+    }
+
+    {
         // Preserve the old user-promotion invariant with a generic fixture.
         const auto providerIdentity =
             BuildCanonicalLaunchIdentity(

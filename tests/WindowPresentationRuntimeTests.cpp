@@ -137,12 +137,45 @@ LRESULT CALLBACK RedrawSuspendProbe(HWND window, UINT message,
         lParam);
 }
 
+struct PaintMessageCounts {
+    int paint{};
+    int erase{};
+};
+
+LRESULT CALLBACK PaintMessageProbe(
+    HWND window,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam,
+    UINT_PTR,
+    DWORD_PTR data) {
+
+    auto& counts =
+        *reinterpret_cast<
+            PaintMessageCounts*>(
+                data);
+
+    if (message == WM_PAINT) {
+        ++counts.paint;
+    } else if (
+        message == WM_ERASEBKGND) {
+        ++counts.erase;
+    }
+
+    return DefSubclassProc(
+        window,
+        message,
+        wParam,
+        lParam);
+}
+
 HWND modalOwner{};
 bool observedEditor{};
 bool observedPathConverter{};
 bool observedModalDestroy{};
 bool ownerEnabledAtModalDestroy{};
 bool expectedOwnerEnabledAtModalDestroy{};
+bool observedKeywordCaretAtEnd{};
 
 LRESULT CALLBACK ModalDestroyProbe(HWND window, UINT message, WPARAM wParam,
                                    LPARAM lParam, UINT_PTR subclassId,
@@ -184,6 +217,67 @@ void CALLBACK CancelPathConverter(HWND, UINT, UINT_PTR timer, DWORD) {
     ArmModalDestroyProbe(converter);
     KillTimer(nullptr, timer);
     PostMessageW(converter, WM_CLOSE, 0, 0);
+}
+
+void CALLBACK InspectKeywordCaretAndCancel(
+    HWND,
+    UINT,
+    UINT_PTR timer,
+    DWORD) {
+
+    const HWND editor =
+        FindWindowW(
+            L"Asterun.ShortcutEditor",
+            nullptr);
+
+    if (!editor) {
+        return;
+    }
+
+    constexpr UINT kKeywordId = 53102;
+    const HWND keyword =
+        GetDlgItem(
+            editor,
+            kKeywordId);
+    assert(keyword);
+
+    const int length =
+        GetWindowTextLengthW(
+            keyword);
+    assert(length > 0);
+
+    // The product contract is first-focus placement. Force that focus
+    // synchronously in the headless runtime fixture instead of depending on
+    // whether CI grants this modal the process foreground window.
+    SetFocus(
+        keyword);
+
+    DWORD selectionStart = 0;
+    DWORD selectionEnd = 0;
+    SendMessageW(
+        keyword,
+        EM_GETSEL,
+        reinterpret_cast<WPARAM>(
+            &selectionStart),
+        reinterpret_cast<LPARAM>(
+            &selectionEnd));
+
+    observedKeywordCaretAtEnd =
+        selectionStart ==
+            static_cast<DWORD>(
+                length) &&
+        selectionEnd ==
+            static_cast<DWORD>(
+                length);
+
+    KillTimer(
+        nullptr,
+        timer);
+    PostMessageW(
+        editor,
+        WM_CLOSE,
+        0,
+        0);
 }
 
 void CALLBACK ExerciseAdvancedToggle(
@@ -233,6 +327,13 @@ void CALLBACK ExerciseAdvancedToggle(
     RECT collapsed{};
     RECT expanded{};
     RECT collapsedAgain{};
+    RECT toggleBefore{};
+    RECT toggleExpanded{};
+    RECT toggleCollapsedAgain{};
+
+    assert(GetWindowRect(
+        toggle,
+        &toggleBefore));
 
     assert(GetWindowRect(
         editor,
@@ -263,6 +364,12 @@ void CALLBACK ExerciseAdvancedToggle(
         arguments));
     assert(IsWindowVisible(
         admin));
+    assert(GetWindowRect(
+        toggle,
+        &toggleExpanded));
+    assert(EqualRect(
+        &toggleBefore,
+        &toggleExpanded));
     assert(
         topLevelRedrawSuspends ==
         0);
@@ -291,6 +398,43 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(
         topLevelRedrawSuspends ==
         0);
+
+    assert(GetWindowRect(
+        toggle,
+        &toggleCollapsedAgain));
+    assert(EqualRect(
+        &toggleBefore,
+        &toggleCollapsedAgain));
+
+    // Rapid synchronous toggles must leave the disclosure row at exactly the
+    // same screen geometry. A top-level resize is allowed to issue its own
+    // WM_ERASEBKGND on some Windows builds, so counting parent erase messages
+    // is not a portable proxy for whether the separator itself flickers.
+    // End collapsed so the following modal fixtures keep the original size.
+    for (int pass = 0;
+         pass < 8;
+         ++pass) {
+        SendMessageW(
+            editor,
+            WM_COMMAND,
+            MAKEWPARAM(
+                kAdvancedToggleId,
+                BN_CLICKED),
+            reinterpret_cast<LPARAM>(
+                toggle));
+    }
+    assert(!IsWindowVisible(
+        arguments));
+    assert(!IsWindowVisible(
+        admin));
+
+    RECT toggleAfterRapid{};
+    assert(GetWindowRect(
+        toggle,
+        &toggleAfterRapid));
+    assert(EqualRect(
+        &toggleBefore,
+        &toggleAfterRapid));
 
     assert(RemoveWindowSubclass(
         editor,
@@ -633,6 +777,85 @@ int main() {
                     SWP_NOZORDER |
                     SWP_NOACTIVATE);
 
+            // Toggling one General setting must remain row-local. The old
+            // success path called RefreshFromSettings(), invalidating every
+            // switch row and making unrelated controls flash on rapid clicks.
+            SendMessageW(
+                window,
+                WM_COMMAND,
+                MAKEWPARAM(
+                    51001,
+                    BN_CLICKED),
+                0);
+
+            const HWND defaultEnglish =
+                GetDlgItem(
+                    window,
+                    51133);
+            const HWND pinyin =
+                GetDlgItem(
+                    window,
+                    51134);
+            assert(defaultEnglish);
+            assert(pinyin);
+
+            RedrawWindow(
+                pinyin,
+                nullptr,
+                nullptr,
+                RDW_INVALIDATE |
+                    RDW_ERASE |
+                    RDW_UPDATENOW);
+
+            PaintMessageCounts siblingPaint{};
+            assert(SetWindowSubclass(
+                pinyin,
+                PaintMessageProbe,
+                5,
+                reinterpret_cast<DWORD_PTR>(
+                    &siblingPaint)));
+
+            const bool originalEnglishPreference =
+                app.SettingsData()
+                    .defaultEnglishInputOnReveal;
+
+            SendMessageW(
+                window,
+                WM_COMMAND,
+                MAKEWPARAM(
+                    51133,
+                    BN_CLICKED),
+                reinterpret_cast<LPARAM>(
+                    defaultEnglish));
+
+            assert(
+                app.SettingsData()
+                    .defaultEnglishInputOnReveal !=
+                originalEnglishPreference);
+            assert(siblingPaint.paint == 0);
+            assert(siblingPaint.erase == 0);
+
+            SendMessageW(
+                window,
+                WM_COMMAND,
+                MAKEWPARAM(
+                    51133,
+                    BN_CLICKED),
+                reinterpret_cast<LPARAM>(
+                    defaultEnglish));
+
+            assert(
+                app.SettingsData()
+                    .defaultEnglishInputOnReveal ==
+                originalEnglishPreference);
+            assert(siblingPaint.paint == 0);
+            assert(siblingPaint.erase == 0);
+
+            assert(RemoveWindowSubclass(
+                pinyin,
+                PaintMessageProbe,
+                5));
+
             // Repeated General -> Sources -> Appearance -> Sources must keep
             // overlay scrolling frame-neutral on the first visit, including
             // high DPI.
@@ -677,6 +900,46 @@ int main() {
             assert(!IsWindowVisible(owner));
             assert(GetActiveWindow() != owner);
         }
+
+        // Editing an existing shortcut should place the insertion caret at
+        // the end of the keyword string instead of position zero.
+        Command caretProbe;
+        caretProbe.keyword = L"caretprobe";
+        caretProbe.title = L"Caret probe";
+        caretProbe.target = L"notepad.exe";
+        caretProbe.type = CommandType::Application;
+        caretProbe.enabled = true;
+
+        std::wstring caretProbeId;
+        assert(app.CreateUserCommand(
+            caretProbe,
+            &caretProbeId));
+        assert(!caretProbeId.empty());
+
+        observedKeywordCaretAtEnd = false;
+        modalOwner = owner;
+        EnableWindow(
+            owner,
+            TRUE);
+        const auto caretTimer =
+            SetTimer(
+                nullptr,
+                0,
+                20,
+                InspectKeywordCaretAndCancel);
+        assert(caretTimer);
+        assert(
+            !ShortcutEditorDialog::Show(
+                app,
+                instance,
+                owner,
+                caretProbeId));
+        KillTimer(
+            nullptr,
+            caretTimer);
+        assert(observedKeywordCaretAtEnd);
+        assert(app.DeleteUserCommand(
+            caretProbeId));
 
         // Advanced disclosure must expand/collapse to the correct final
         // geometry without ever suspending redraw on the top-level editor.

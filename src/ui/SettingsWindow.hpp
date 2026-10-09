@@ -89,6 +89,8 @@ private:
     static constexpr UINT
         kIdExecuteSingleResult = 51132;
     static constexpr UINT
+        kIdDefaultEnglishInputOnReveal = 51133;
+    static constexpr UINT
         kIdPinyinSearch = 51134;
 
     static constexpr UINT
@@ -368,6 +370,7 @@ private:
     HWND soundEnabled_{};
     HWND addToSendToMenu_{};
     HWND searchBehaviorTitle_{};
+    HWND defaultEnglishInputOnReveal_{};
     HWND pinyinSearch_{};
     HWND numericQuickLaunch_{};
     HWND executeSingleResult_{};

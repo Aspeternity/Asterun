@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.4
+
+- Publish the owner-accepted v1.0.4 launcher, shortcut, native-UI and branding refinements for Windows 10/11 x64 and ARM64.
+- Default each newly revealed Launcher session to English input, with an opt-out preference; preserve a user's in-session switch back to Chinese without changing the global keyboard layout or other applications.
+- Advance Settings to schema 12 for downgrade-safe persistence of `behavior.defaultEnglishInputOnReveal`; Commands / Usage / Provider Cache remain 2 / 2 / 22.
+- Display complete user-shortcut keyword groups (such as `ts · teamspeak`) without changing search, ranking, smart numeric launch or execution semantics.
+- Deduplicate user-created shortcuts against matching automatic Provider results.
+- Eliminate Settings toggle and native ComboBox repaint flicker and arrow artifacts; remove the unwanted normal-setting focus strip while preserving drop-down state indicators.
+- Remove Shortcut Editor advanced-options separator flicker and put the caret at the end of an existing keyword.
+- Replace application/tray artwork with the approved blue-purple "跃星" icon, repair the 128px asset and supply a clean 256px version while preserving the original small glyphs.
+- Register Windows notification attribution so the top row displays the Asterun icon and name while the original blue information glyph and message remain intact.
+- Use conventional independent icons for `Update.exe` and `Uninstall.exe`.
+- Add PNG/ICO integrity and embedded EXE icon verification to development and release CI, retaining the existing portable ZIP/update/uninstall contracts.
+- Publish Windows fixed FileVersion/ProductVersion `1.0.4.30000` after completed CI and Windows 11 real-machine acceptance.
+
 ## 1.0.3
 
 - Clean Asterun's owned `SendTo\\Asterun.lnk` registration during `Uninstall.exe` after verifying that the Shell Link resolves to the current portable `Asterun.exe` and uses the dedicated `--add-shortcut` action.

@@ -20,6 +20,7 @@
 #include <windowsx.h>
 #include <commctrl.h>
 #include <dwmapi.h>
+#include <imm.h>
 #include <shellapi.h>
 
 #include <algorithm>
@@ -38,6 +39,92 @@ namespace {
 constexpr const wchar_t* kWindowClass =
     instance_ipc::kLauncherWindowClass;
 constexpr wchar_t kWindowTitle[] = L"Asterun";
+
+[[nodiscard]] bool BeginEnglishInputOverride(
+    HWND edit,
+    bool& originalOpen) noexcept {
+
+    originalOpen = false;
+
+    if (!edit) {
+        return false;
+    }
+
+    HIMC inputContext =
+        ImmGetContext(
+            edit);
+
+    if (!inputContext) {
+        return false;
+    }
+
+    originalOpen =
+        ImmGetOpenStatus(
+            inputContext) != FALSE;
+
+    // If this EDIT already starts in direct input mode, there is nothing for
+    // Asterun to override and therefore nothing to restore when it hides.
+    if (!originalOpen) {
+        ImmReleaseContext(
+            edit,
+            inputContext);
+        return false;
+    }
+
+    // Keep the user's current keyboard layout/input method selected. Only the
+    // launcher's EDIT IME context is closed for this launcher session.
+    ImmNotifyIME(
+        inputContext,
+        NI_COMPOSITIONSTR,
+        CPS_CANCEL,
+        0);
+
+    const bool changed =
+        ImmSetOpenStatus(
+            inputContext,
+            FALSE) != FALSE;
+
+    ImmReleaseContext(
+        edit,
+        inputContext);
+
+    return changed;
+}
+
+void RestoreEnglishInputOverride(
+    HWND edit,
+    bool originalOpen) noexcept {
+
+    if (!edit ||
+        !originalOpen) {
+        return;
+    }
+
+    HIMC inputContext =
+        ImmGetContext(
+            edit);
+
+    if (!inputContext) {
+        return;
+    }
+
+    const bool currentOpen =
+        ImmGetOpenStatus(
+            inputContext) != FALSE;
+
+    // Restore only when the EDIT is still in the exact direct-input state
+    // Asterun imposed. If the user manually switched back to Chinese during
+    // the session, currentOpen is already true and their choice wins.
+    if (!currentOpen) {
+        ImmSetOpenStatus(
+            inputContext,
+            TRUE);
+    }
+
+    ImmReleaseContext(
+        edit,
+        inputContext);
+}
 
 void InitializeTrayIconIdentity(
     NOTIFYICONDATAW& data,
@@ -225,12 +312,40 @@ ModernSecondaryResultText(
         return result.subtitle;
     }
 
+    if (result.kind ==
+            ResultKind::UserCommand &&
+        !result.shortcutHint.empty()) {
+        const std::wstring primary =
+            result.subtitle.empty()
+                ? fallback
+                : result.subtitle;
+
+        return result.shortcutHint ==
+                primary
+            ? std::wstring{}
+            : result.shortcutHint;
+    }
+
     if (result.subtitle.empty() ||
         result.subtitle == fallback) {
         return {};
     }
 
     return fallback;
+}
+
+[[nodiscard]] std::wstring
+ClassicShortcutResultText(
+    const LauncherResult& result) {
+
+    if (result.kind ==
+            ResultKind::UserCommand &&
+        !result.shortcutHint.empty()) {
+        return result.shortcutHint;
+    }
+
+    return PrimaryResultText(
+        result);
 }
 
 constexpr std::array<
@@ -1487,10 +1602,48 @@ void LauncherWindow::Show() {
     SetForegroundWindow(hwnd_);
     SetFocus(edit_);
     SendMessageW(edit_, EM_SETSEL, 0, -1);
+
+    PrepareInputForReveal(
+        wasVisible);
+
     // EN_CHANGE normally already refreshed the empty query before reveal.
     // Retain the explicit refresh only when resetting EDIT did not do so.
     if (!refreshedByReset) RefreshResults();
     if (!wasVisible && IsWindowVisible(hwnd_)) ui::PlayFeedback(FeedbackCue::Reveal);
+}
+
+void LauncherWindow::PrepareInputForReveal(
+    bool wasVisible) noexcept {
+
+    if (wasVisible ||
+        imeRevealOverrideActive_ ||
+        !app_.SettingsData()
+             .defaultEnglishInputOnReveal) {
+        return;
+    }
+
+    bool originalOpen = false;
+
+    if (BeginEnglishInputOverride(
+            edit_,
+            originalOpen)) {
+        imeRevealOverrideActive_ = true;
+        imeRevealOriginalOpen_ =
+            originalOpen;
+    }
+}
+
+void LauncherWindow::RestoreInputOverride() noexcept {
+    if (!imeRevealOverrideActive_) {
+        return;
+    }
+
+    RestoreEnglishInputOverride(
+        edit_,
+        imeRevealOriginalOpen_);
+
+    imeRevealOverrideActive_ = false;
+    imeRevealOriginalOpen_ = false;
 }
 
 void LauncherWindow::Hide() {
@@ -1500,6 +1653,8 @@ void LauncherWindow::Hide() {
     immediateExecutionPending_ = false;
     dynamicQueryPending_ = false;
     ++searchGeneration_;
+
+    RestoreInputOverride();
 
     if (hwnd_) {
         ShowWindow(hwnd_, SW_HIDE);
@@ -1623,7 +1778,9 @@ void LauncherWindow::RebuildVisibleResults(
            const LauncherResult& right) {
             return left.kind == right.kind &&
                 left.title == right.title &&
-                left.subtitle == right.subtitle;
+                left.subtitle == right.subtitle &&
+                left.shortcutHint ==
+                    right.shortcutHint;
         };
 
     const std::size_t oldCount =
@@ -4299,9 +4456,14 @@ LRESULT LauncherWindow::HandleMessage(
                 DT_VCENTER |
                 DT_NOPREFIX);
 
+        const std::wstring
+            classicShortcutText =
+                ClassicShortcutResultText(
+                    result);
+
         DrawTextW(
             item->hDC,
-            primary.c_str(),
+            classicShortcutText.c_str(),
             -1,
             &keywordRect,
             classicTextFlags);

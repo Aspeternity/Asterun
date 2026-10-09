@@ -132,24 +132,52 @@ bool IsDuplicateOf(
     const std::wstring incomingTarget =
         NormalizeTarget(
             incoming.target);
+    const std::wstring existingTarget =
+        NormalizeTarget(
+            existing.target);
+    const bool userBoundary =
+        IsUser(existing.source) ||
+        IsUser(incoming.source);
+
+    const bool hasCanonicalPair =
+        !incoming.canonicalIdentity.empty() &&
+        !existing.canonicalIdentity.empty();
+
+    // Canonical identity describes the resolved activation action including
+    // arguments. Across the User boundary it is authoritative in both
+    // directions: equality proves duplication, while two different strong
+    // identities prove that an otherwise identical path represents a
+    // different explicit launch action.
+    if (hasCanonicalPair) {
+        if (incoming.canonicalIdentity ==
+            existing.canonicalIdentity) {
+            return true;
+        }
+
+        if (userBoundary) {
+            return false;
+        }
+    }
 
     if (!incomingTarget.empty() &&
         incomingTarget ==
-            NormalizeTarget(
-                existing.target)) {
-        return true;
+            existingTarget) {
+        if (!userBoundary) {
+            return true;
+        }
+
+        // Preserve exact-target User promotion for legacy/unresolved entries,
+        // but do not collapse an explicit User action that adds different
+        // outer arguments to the same executable/shortcut surface.
+        return Trim(incoming.arguments) ==
+            Trim(existing.arguments);
     }
 
-    if (IsUser(existing.source) ||
-        IsUser(incoming.source)) {
+    // Do not fall back to title/keyword heuristics across the User boundary.
+    // Different explicit user actions must remain independent unless target
+    // or canonical activation identity proves they are the same launch.
+    if (userBoundary) {
         return false;
-    }
-
-    if (!incoming.canonicalIdentity.empty() &&
-        !existing.canonicalIdentity.empty() &&
-        incoming.canonicalIdentity ==
-            existing.canonicalIdentity) {
-        return true;
     }
 
     const std::wstring incomingName =

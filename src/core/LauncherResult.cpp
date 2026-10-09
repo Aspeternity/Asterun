@@ -27,6 +27,29 @@ namespace {
 
 } // namespace
 
+std::wstring FormatUserShortcutHint(
+    std::wstring_view primary,
+    std::span<const std::wstring> aliases) {
+
+    std::wstring hint(
+        primary);
+
+    for (const auto& alias :
+         aliases) {
+        if (alias.empty()) {
+            continue;
+        }
+
+        if (!hint.empty()) {
+            hint += L" · ";
+        }
+
+        hint += alias;
+    }
+
+    return hint;
+}
+
 bool SameLauncherTarget(
     const LauncherResult& left,
     const LauncherResult& right) {

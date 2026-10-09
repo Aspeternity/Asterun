@@ -64,6 +64,7 @@ struct Settings {
     HotkeyBindingMap hotkeyBindings{
         DefaultHotkeyBindings()};
 
+    bool defaultEnglishInputOnReveal{true};
     bool pinyinSearch{true};
     bool numericQuickLaunch{true};
     bool executeSingleResultImmediately{false};
@@ -110,6 +111,8 @@ public:
         std::string actionId,
         HotkeyBinding binding);
     bool ResetHotkeyBindings();
+    bool SetDefaultEnglishInputOnReveal(
+        bool enabled);
     bool SetClassicBehavior(
         bool numericQuickLaunch,
         bool executeSingleResultImmediately,

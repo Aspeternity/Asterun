@@ -239,6 +239,9 @@ int wmain() {
     const auto appLink =
         root /
         "Application.lnk";
+    const auto secondAppLink =
+        root /
+        "Application Copy.lnk";
     const auto docLink =
         root /
         "What's New.lnk";
@@ -247,17 +250,24 @@ int wmain() {
         appLink,
         executable);
     CreateShortcut(
+        secondAppLink,
+        executable);
+    CreateShortcut(
         docLink,
         doc);
 
     const auto app =
         win::InspectShellLink(
             appLink);
+    const auto secondApp =
+        win::InspectShellLink(
+            secondAppLink);
     const auto help =
         win::InspectShellLink(
             docLink);
 
     assert(app.has_value());
+    assert(secondApp.has_value());
     assert(help.has_value());
 
     // Ordinary Shell links must stay on the normal IShellLink path. The MSI
@@ -270,6 +280,28 @@ int wmain() {
         std::filesystem::path(
             app->target) ==
         executable);
+    assert(
+        std::filesystem::path(
+            secondApp->target) ==
+        executable);
+
+    const auto appIdentity =
+        BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(
+                app->target),
+            app->target,
+            app->arguments);
+    const auto secondAppIdentity =
+        BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(
+                secondApp->target),
+            secondApp->target,
+            secondApp->arguments);
+
+    assert(!appIdentity.empty());
+    assert(
+        appIdentity ==
+        secondAppIdentity);
 
     assert(
         app->targetKind ==

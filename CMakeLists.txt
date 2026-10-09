@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(Asterun VERSION 1.0.3 LANGUAGES C CXX)
+project(Asterun VERSION 1.0.4 LANGUAGES C CXX)
 
 file(
     STRINGS
@@ -223,6 +223,7 @@ if(WIN32)
         src/platform/EverythingIpcClient.cpp
         src/platform/Hotkey.cpp
         src/platform/LaunchTargetInspector.cpp
+        src/platform/NotificationIdentity.cpp
         src/platform/SecureArchive.cpp
         src/platform/SecureElevation.cpp
         src/platform/ShellActions.cpp
@@ -289,6 +290,7 @@ if(WIN32)
         advapi32
         user32
         gdi32
+        imm32
         msimg32
         dwmapi
         uxtheme

@@ -645,6 +645,12 @@ bool ShortcutEditorDialog::RunModal() {
         EnableWindow(owner_, FALSE);
     }
 
+    // Place the caret at the end on the keyword EDIT's actual first focus,
+    // not merely after window creation. Activation timing differs between
+    // interactive desktops and CI, and native EDIT focus handling can reset a
+    // selection that was applied before EN_SETFOCUS.
+    keywordInitialCaretPending_ = true;
+
     window_presentation::
         RevealFullyPainted(
             hwnd_);
@@ -1191,10 +1197,46 @@ UpdateWindowTitle() {
 }
 
 
-void ShortcutEditorDialog::Layout() {
+void ShortcutEditorDialog::Layout(
+    BOOL repaint) {
+
     if (!hwnd_) {
         return;
     }
+
+    const auto moveControl =
+        [&](HWND control,
+            int x,
+            int y,
+            int width,
+            int height) {
+            if (!control) {
+                return;
+            }
+
+            if (repaint) {
+                MoveWindow(
+                    control,
+                    x,
+                    y,
+                    width,
+                    height,
+                    TRUE);
+                return;
+            }
+
+            SetWindowPos(
+                control,
+                nullptr,
+                x,
+                y,
+                width,
+                height,
+                SWP_NOZORDER |
+                    SWP_NOACTIVATE |
+                    SWP_NOREDRAW |
+                    SWP_NOCOPYBITS);
+        };
 
     RECT client{};
     GetClientRect(hwnd_, &client);
@@ -1285,58 +1327,52 @@ void ShortcutEditorDialog::Layout() {
         nameWidth -
         columnGap;
 
-    MoveWindow(
+    moveControl(
         nameLabel_,
         margin,
         y,
         nameWidth,
-        labelHeight,
-        TRUE);
-    MoveWindow(
+        labelHeight);
+    moveControl(
         keywordLabel_,
         keywordLeft,
         y,
         keywordWidth,
-        labelHeight,
-        TRUE);
+        labelHeight);
     y += Scale(20);
 
     const int identityEditTop =
         editTop(y);
 
-    MoveWindow(
+    moveControl(
         name_,
         margin,
         identityEditTop,
         nameWidth,
-        editHeight,
-        TRUE);
-    MoveWindow(
+        editHeight);
+    moveControl(
         keyword_,
         keywordLeft,
         identityEditTop,
         keywordWidth,
-        editHeight,
-        TRUE);
+        editHeight);
     y += controlRowHeight +
         Scale(2);
 
-    MoveWindow(
+    moveControl(
         keywordHint_,
         keywordLeft,
         y,
         keywordWidth,
-        hintHeight,
-        TRUE);
+        hintHeight);
     y += Scale(24);
 
-    MoveWindow(
+    moveControl(
         targetLabel_,
         margin,
         y,
         contentWidth,
-        labelHeight,
-        TRUE);
+        labelHeight);
     y += Scale(20);
 
     const int targetWidth =
@@ -1347,23 +1383,21 @@ void ShortcutEditorDialog::Layout() {
     const int targetEditTop =
         editTop(y);
 
-    MoveWindow(
+    moveControl(
         target_,
         margin,
         targetEditTop,
         targetWidth,
-        editHeight,
-        TRUE);
-    MoveWindow(
+        editHeight);
+    moveControl(
         browseFile_,
         margin +
             targetWidth +
             gap,
         targetEditTop,
         fileButtonWidth,
-        editHeight,
-        TRUE);
-    MoveWindow(
+        editHeight);
+    moveControl(
         browseFolder_,
         margin +
             targetWidth +
@@ -1372,8 +1406,7 @@ void ShortcutEditorDialog::Layout() {
             gap,
         targetEditTop,
         folderButtonWidth,
-        editHeight,
-        TRUE);
+        editHeight);
     y += controlRowHeight +
         Scale(8);
 
@@ -1410,34 +1443,33 @@ void ShortcutEditorDialog::Layout() {
     // Target type and Runtime input deliberately share one value-column width,
     // while the shared Next ComboBox owns text/chrome measurement.
 
-    MoveWindow(
+    moveControl(
         typeLabel_,
         margin,
         rowTextTop(y),
         formLabelWidth,
-        labelHeight,
-        TRUE);
+        labelHeight);
     ui::MoveNextComboBox(
         type_,
         formFieldLeft,
         y,
         typeWidth,
-        dpi_);
+        dpi_,
+        repaint);
 
     const int typeHintLeft =
         formFieldLeft +
         typeWidth +
         gap;
 
-    MoveWindow(
+    moveControl(
         typeHint_,
         typeHintLeft,
         rowTextTop(y),
         client.right -
             margin -
             typeHintLeft,
-        labelHeight,
-        TRUE);
+        labelHeight);
     y += controlRowHeight +
         Scale(6);
 
@@ -1447,64 +1479,60 @@ void ShortcutEditorDialog::Layout() {
     const int runtimeWidth =
         typeWidth;
 
-    MoveWindow(
+    moveControl(
         runtimeInputLabel_,
         margin,
         rowTextTop(y),
         formLabelWidth,
-        labelHeight,
-        TRUE);
+        labelHeight);
     ui::MoveNextComboBox(
         runtimeInput_,
         formFieldLeft,
         y,
         runtimeWidth,
-        dpi_);
+        dpi_,
+        repaint);
 
     const int runtimeHintLeft =
         formFieldLeft +
         runtimeWidth +
         gap;
 
-    MoveWindow(
+    moveControl(
         runtimeInputHint_,
         runtimeHintLeft,
         rowTextTop(y),
         client.right -
             margin -
             runtimeHintLeft,
-        labelHeight,
-        TRUE);
+        labelHeight);
     y += controlRowHeight +
         Scale(6);
 
     if (SelectedRuntimeInputMode() !=
         RuntimeInputMode::None) {
-        MoveWindow(
+        moveControl(
             testInputLabel_,
             margin,
             rowTextTop(y),
             formLabelWidth,
-            labelHeight,
-            TRUE);
-        MoveWindow(
+            labelHeight);
+        moveControl(
             testInput_,
             formFieldLeft,
             editTop(y),
             formFieldWidth,
-            editHeight,
-            TRUE);
+            editHeight);
         y += Scale(
             kRuntimeTestExtraHeightLogical);
     }
 
-    MoveWindow(
+    moveControl(
         advancedToggle_,
         margin,
         y,
         contentWidth,
-        controlRowHeight,
-        TRUE);
+        controlRowHeight);
     y += controlRowHeight +
         Scale(6);
 
@@ -1525,20 +1553,18 @@ void ShortcutEditorDialog::Layout() {
             margin -
             advancedRightInset;
 
-        MoveWindow(
+        moveControl(
             argumentsLabel_,
             margin,
             rowTextTop(y),
             formLabelWidth,
-            labelHeight,
-            TRUE);
-        MoveWindow(
+            labelHeight);
+        moveControl(
             arguments_,
             formFieldLeft,
             editTop(y),
             advancedFieldWidth,
-            editHeight,
-            TRUE);
+            editHeight);
         y += advancedRowAdvance;
 
         const int workdirButtonWidth =
@@ -1548,28 +1574,25 @@ void ShortcutEditorDialog::Layout() {
             workdirButtonWidth -
             gap;
 
-        MoveWindow(
+        moveControl(
             workdirLabel_,
             margin,
             rowTextTop(y),
             formLabelWidth,
-            labelHeight,
-            TRUE);
-        MoveWindow(
+            labelHeight);
+        moveControl(
             workdir_,
             formFieldLeft,
             editTop(y),
             workdirEditWidth,
-            editHeight,
-            TRUE);
-        MoveWindow(
+            editHeight);
+        moveControl(
             browseWorkdir_,
             advancedFieldRight -
                 workdirButtonWidth,
             editTop(y),
             workdirButtonWidth,
-            editHeight,
-            TRUE);
+            editHeight);
         y += advancedRowAdvance;
 
         y += Scale(
@@ -1636,13 +1659,12 @@ void ShortcutEditorDialog::Layout() {
             }
         }
 
-        MoveWindow(
+        moveControl(
             admin_,
             formFieldLeft,
             y,
             adminWidth,
-            Scale(26),
-            TRUE);
+            Scale(26));
     }
 
     const int buttonWidth =
@@ -1658,23 +1680,21 @@ void ShortcutEditorDialog::Layout() {
         buttonY -
         Scale(kFooterSeparatorGapLogical);
 
-    MoveWindow(
+    moveControl(
         test_,
         margin,
         buttonY,
         buttonWidth,
-        buttonHeight,
-        TRUE);
-    MoveWindow(
+        buttonHeight);
+    moveControl(
         cancel_,
         client.right -
             margin -
             buttonWidth,
         buttonY,
         buttonWidth,
-        buttonHeight,
-        TRUE);
-    MoveWindow(
+        buttonHeight);
+    moveControl(
         save_,
         client.right -
             margin -
@@ -1682,13 +1702,14 @@ void ShortcutEditorDialog::Layout() {
             gap,
         buttonY,
         buttonWidth,
-        buttonHeight,
-        TRUE);
+        buttonHeight);
 
-    InvalidateRect(
-        hwnd_,
-        nullptr,
-        FALSE);
+    if (repaint) {
+        InvalidateRect(
+            hwnd_,
+            nullptr,
+            FALSE);
+    }
 }
 
 void ShortcutEditorDialog::DrawEditorChrome(
@@ -1790,18 +1811,17 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
     const auto& palette =
         ui::kApplicationPalette;
 
-    const bool pressed =
-        (draw.itemState &
-         ODS_SELECTED) != 0;
     const bool disabled =
         (draw.itemState &
          ODS_DISABLED) != 0;
 
+    // Keep the disclosure row background invariant while pressed. The arrow
+    // and label already provide button feedback; repainting the full separator
+    // strip with a different pressed color is visible as a flash when users
+    // expand/collapse rapidly.
     HBRUSH background =
         CreateSolidBrush(
-            pressed
-                ? palette.controlBackground
-                : palette.windowBackground);
+            palette.windowBackground);
     FillRect(
         draw.hDC,
         &rect,
@@ -2187,18 +2207,20 @@ void ShortcutEditorDialog::RefreshDynamicLayout() {
     ResizeForContent();
     dynamicLayoutInProgress_ = false;
 
-    Layout();
+    // Keep every child position change paint-free while the dynamic form is
+    // settling. This includes the shared ComboBox wrapper, whose quiet path
+    // avoids native LISTBOX bookkeeping and pending invalidations.
+    Layout(FALSE);
 
-    // Runtime-input and Advanced toggles can move most child controls at
-    // once. Commit one final frame only after every control is in its final
-    // position so the disclosure separator never paints an intermediate
-    // geometry.
+    // The parent WM_PAINT fully fills the editor background, so an erase pass
+    // is unnecessary and creates a visible white/pressed/white transition in
+    // the Advanced separator during rapid toggles. Commit one final frame.
     RedrawWindow(
         hwnd_,
         nullptr,
         nullptr,
         RDW_INVALIDATE |
-            RDW_ERASE |
+            RDW_NOERASE |
             RDW_ALLCHILDREN |
             RDW_UPDATENOW);
 }
@@ -3482,7 +3504,30 @@ LRESULT ShortcutEditorDialog::HandleMessage(
 
         switch (id) {
         case kIdKeyword:
-            if (HIWORD(wParam) ==
+            if (notify ==
+                    EN_SETFOCUS &&
+                keywordInitialCaretPending_) {
+                keywordInitialCaretPending_ =
+                    false;
+
+                const int length =
+                    GetWindowTextLengthW(
+                        keyword_);
+
+                SendMessageW(
+                    keyword_,
+                    EM_SETSEL,
+                    static_cast<WPARAM>(
+                        length),
+                    static_cast<LPARAM>(
+                        length));
+                SendMessageW(
+                    keyword_,
+                    EM_SCROLLCARET,
+                    0,
+                    0);
+            } else if (
+                notify ==
                 EN_KILLFOCUS) {
                 MaybeAutoFillName();
             }
