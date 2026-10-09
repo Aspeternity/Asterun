@@ -594,6 +594,80 @@ int main(int argc, char** argv) {
                 5));
     }
 
+    // Automatic default Notepad (np) is a UserCommand even though the
+    // owner never configured it. It must not outrank actual TeamSpeak
+    // name-prefix Provider results for a weak three-letter "tea" query.
+    {
+        std::vector<Command> source{
+            MakeCommand(L"default-np", L"np", L"Notepad", L"notepad.exe", 0),
+            MakeCommand(L"provider-team", L"teamspeak", L"TeamSpeak",
+                        L"TeamSpeak.exe", 1),
+            MakeCommand(L"provider-team3", L"teamspeak3client",
+                        L"TeamSpeak 3 Client", L"TeamSpeak3.exe", 2),
+            MakeCommand(L"provider-teams", L"microsoftteams",
+                        L"Microsoft Teams", L"ms-teams.exe", 3),
+        };
+        source[0].basePriority = 120; // actual seeded default
+        source[0].pinned = false;      // seeded defaults are not pinned
+        for (std::size_t i = 1; i < source.size(); ++i) {
+            source[i].source = CommandSource::StartMenu;
+            source[i].surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            source[i].basePriority = 0;
+        }
+
+        UsageMap history;
+        const auto verifyTea = [&](const UsageMap& h) {
+            const auto result = engine.Search(
+                source, h, L"tea", 20, false, false);
+            assert(ContainsCommand(result, 0));
+            assert(ContainsCommand(result, 1));
+            assert(ContainsCommand(result, 2));
+            assert(result.front().commandIndex == 1); // TeamSpeak
+            assert(result[1].commandIndex == 2);      // TeamSpeak 3
+            const auto np = std::find_if(result.begin(), result.end(),
+                [](const SearchResult& r) { return r.commandIndex == 0; });
+            assert(np != result.end());
+            assert(result[0].relevanceMatch.kind ==
+                   relevance::MatchKind::Prefix);
+            assert(np->relevanceMatch.kind ==
+                   relevance::MatchKind::TightFuzzy);
+            const auto prepared = SearchEngine::PrepareIndex(source);
+            const auto cached = engine.Search(
+                source, h, L"tea", 20, false, false, &prepared);
+            assert(cached.size() == result.size());
+            for (std::size_t i = 0; i < result.size(); ++i)
+                assert(cached[i].commandIndex == result[i].commandIndex);
+        };
+        verifyTea(history);
+        history[L"default-np"] = UsageStat{
+            100000, 1, {{L"tea", 100000}}
+        };
+        verifyTea(history);
+
+        // Real exact user keyword/alias priority is preserved.
+        const auto np = engine.Search(source, history, L"np", 20, false, false);
+        assert(!np.empty());
+        assert(np.front().commandIndex == 0);
+        assert(np.front().relevanceMatch.kind == relevance::MatchKind::Exact);
+
+        Command ts = MakeCommand(
+            L"user-ts", L"ts", L"Voice Chat", L"teamspeak.exe", 4);
+        ts.aliases = {L"teamspeak"};
+        source.push_back(ts);
+        const auto shortcut = engine.Search(
+            source, history, L"ts", 20, false, false);
+        assert(!shortcut.empty());
+        assert(shortcut.front().commandIndex == 4);
+        assert(shortcut.front().relevanceMatch.kind ==
+               relevance::MatchKind::Exact);
+
+        source[0].pinned = true;
+        const auto pinnedTea = engine.Search(
+            source, history, L"tea", 20, false, false);
+        assert(!pinnedTea.empty());
+        assert(pinnedTea.front().commandIndex == 0);
+    }
+
     // Real-world Provider regression: isolated, non-identifying short English
     // words in automatically discovered titles must not impersonate exact
     // application keywords. A name starting with "to" expresses stronger
