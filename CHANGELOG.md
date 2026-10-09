@@ -11,6 +11,8 @@
 - Cover close (X), Cancel and Save on both Classic and Modern Compact in the actual context-menu action path, including immediate typing, Up/Tab navigation and Esc hide, without changing Shortcut Manager's modal focus policy.
 - Prevent common short filler words (for example `to`, `of`, `in`) automatically extracted from Provider titles from masquerading as exact shortcut matches and outranking real name prefixes such as ToDesk and Tor Browser. Retain lower-priority token recall and keep true exact keywords, user aliases, opaque identifiers (`Z5`, `v2`), restrictive catalog admission and learned usage ranking unchanged.
 - Add regression fixtures for the 7 Days to Die / Microsoft To Do / ToDesk / Tor Browser ranking, cached search indexes, repeated launches, short-query precision and genuine exact identifiers.
+- Compare explicit pinning before all other ranking keys, then relevance-match kind, then user-command preference within that kind. This prevents seeded defaults such as Notepad (np) from outranking real TeamSpeak name prefixes for `tea` while preserving exact user aliases, user-first blank searches, bounded usage learning and same-tier user preference.
+- Add failing-first Core fixtures for `tea`, `np`, `ts`, pinned overrides, high launch counts, prepared-index parity and mixed-source comparator transitivity.
 - Pending full CI and owner real-machine acceptance; no release is authorized yet.
 
 

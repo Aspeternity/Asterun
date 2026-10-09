@@ -7,6 +7,7 @@ Asterun v1.0.4 is the current stable release following owner acceptance. v1.0.5 
 - On a successful upgrade handshake, the newly launched Asterun.exe notifies the Shell of changes to only the three installed EXE files.
 - Restore keyboard focus to the already-active Launcher search EDIT after the context-menu Shortcut Editor closes; do not globally foreground/re-show the Launcher or change the Shortcut Manager's modal behavior.
 - Keep generic short words automatically derived from Provider titles searchable, but below genuine application name prefixes; protect real exact user aliases and short alphanumeric identities.
+- Rank non-pinned default/user shortcuts by actual match class before applying same-class user preference, so `tea` favors TeamSpeak over fuzzy Notepad while `np`, `ts` and manual pinning retain intent.
 - Do not alter the install transaction, rollback, existing icon artwork, user data, or global Explorer icon cache.
 - Run full Windows CI and real-machine in-place-upgrade acceptance before requesting merge/release authorization.
 
