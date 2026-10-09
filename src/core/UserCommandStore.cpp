@@ -144,25 +144,6 @@ RuntimeInputMode ParseRuntimeInputMode(
     return RuntimeInputMode::None;
 }
 
-Command MakeDefault(
-    std::wstring keyword,
-    std::wstring title,
-    std::wstring target,
-    int sortOrder) {
-
-    Command command;
-    command.id = GenerateUuidV4();
-    command.keyword = std::move(keyword);
-    command.title = std::move(title);
-    command.target = std::move(target);
-    command.type = CommandType::Application;
-    command.enabled = true;
-    command.sortOrder = sortOrder;
-    command.source = CommandSource::User;
-    command.basePriority = 120;
-    return command;
-}
-
 std::wstring SanitizeTsv(std::wstring value) {
     for (wchar_t& c : value) {
         if (c == L'\t' || c == L'\r' || c == L'\n') {
@@ -244,12 +225,10 @@ void UserCommandStore::Load() {
         return;
     }
 
+    // A new installation starts with an empty user shortcut list.
+    // Existing commands.json and optional legacy import remain authoritative.
     if (!legacyTsvPath_.empty() && std::filesystem::exists(legacyTsvPath_)) {
-        if (!MigrateLegacyTsv()) {
-            CreateDefaults();
-        }
-    } else {
-        CreateDefaults();
+        (void)MigrateLegacyTsv();
     }
 
     RebuildLegacyIdMap();
@@ -432,15 +411,6 @@ bool UserCommandStore::MigrateLegacyTsv() {
     }
 
     return !commands_.empty();
-}
-
-void UserCommandStore::CreateDefaults() {
-    commands_.clear();
-    commands_.push_back(MakeDefault(L"np", L"Notepad", L"notepad.exe", 0));
-    commands_.push_back(MakeDefault(L"calc", L"Calculator", L"calc.exe", 1));
-    commands_.push_back(MakeDefault(L"cmd", L"Command Prompt", L"cmd.exe", 2));
-    commands_.push_back(MakeDefault(L"explorer", L"File Explorer", L"explorer.exe", 3));
-    commands_.push_back(MakeDefault(L"pwsh", L"PowerShell", L"powershell.exe", 4));
 }
 
 void UserCommandStore::RebuildLegacyIdMap() {

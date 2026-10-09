@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.0.5 (in development)
+
+- Send asynchronous, targeted `SHCNE_UPDATEITEM` notifications for Asterun.exe, Update.exe and Uninstall.exe only after a successful post-update startup health event.
+- Perform the refresh from the newly installed Asterun.exe: the in-place updater runs the previous version's Update.exe, so this also covers the first v1.0.4 -> v1.0.5 upgrade.
+- Preserve normal startup, update failure/rollback behavior, user data, versioned archive/update protocols and all persisted schemas (12 / 2 / 2 / 22).
+- Never delete the Shell icon cache, send a global association-change event or restart Explorer; on some Windows versions a user-driven cache rebuild may still be necessary.
+- Add Windows regression tests for health-event gating, exact notified paths, missing executable suppression and untouched user settings.
+- Restore the Launcher's native search EDIT keyboard focus after the right-click "Edit shortcut" / "Add to shortcuts" modal closes, only when its owner is still visible and active; preserve the current query, native EDIT caret/selection, IME session and foreground handoff behavior.
+- Cover close (X), Cancel and Save on both Classic and Modern Compact in the actual context-menu action path, including immediate typing, Up/Tab navigation and Esc hide, without changing Shortcut Manager's modal focus policy.
+- Prevent common short filler words (for example `to`, `of`, `in`) automatically extracted from Provider titles from masquerading as exact shortcut matches and outranking real name prefixes such as ToDesk and Tor Browser. Retain lower-priority token recall and keep true exact keywords, user aliases, opaque identifiers (`Z5`, `v2`), restrictive catalog admission and learned usage ranking unchanged.
+- Add regression fixtures for the 7 Days to Die / Microsoft To Do / ToDesk / Tor Browser ranking, cached search indexes, repeated launches, short-query precision and genuine exact identifiers.
+- Compare explicit pinning before all other ranking keys, then relevance-match kind, then user-command preference within that kind. This prevents unpinned user shortcuts such as a manually added Notepad (np) from outranking real TeamSpeak name prefixes for `tea` while preserving exact user aliases, user-first blank searches, bounded usage learning and same-tier user preference.
+- Add failing-first Core fixtures for `tea`, `np`, `ts`, pinned overrides, high launch counts, prepared-index parity and mixed-source comparator transitivity.
+- Add a narrowly gated two-character English secondary-word match for automatically discovered, Normal-catalog, two-word PrimaryApplication titles (e.g. `Google Chrome` → `ch`, `Microsoft Edge` → `ed`, `Mozilla Firefox` → `fi`). Score this as BoundaryPrefix, after true whole-name prefixes and exact user aliases; do not change the global short-query policy, multiword tool/utility filtering, or CJK and alphanumeric-ID behavior.
+- Reproduce the `ch` exclusion in test-first Build #1000 and cover prepared-index parity, regular Provider sources, the restrictive catalog gate, system tools, previously fixed `ad/so/to` cases and `chr` three-character behavior.
+- Remove automatic creation of the five formerly bundled user shortcuts (`np`, `calc`, `cmd`, `explorer`, `pwsh`). Fresh installs start with an empty editable shortcut list; Windows application Providers still discover applications including Calculator and Notepad. Existing saved user shortcuts remain untouched.
+- Fix the first Alt+Space reveal selecting Chinese composition despite "default English input" being enabled. Manage IME native/alphanumeric conversion independently of IME open status, restore relevant state on hide/destroy, and respect manual mode changes. Remove both the ineffective first-reveal retry and the temporary IME diagnostics entirely; retain only permanent functional regression coverage.
+- Final Build #1005: Core, Windows x64/ARM64, Windows 10 API baseline and desktop runtime smoke all green. Owner confirmed Windows 11 x64 real-machine acceptance for icon refresh, upgrade/rollback safety, input mode, user shortcuts and search regressions. Native ARM64 hardware acceptance is not claimed.
+- Stable v1.0.5 remains unreleased until separately authorized merge and publication.
+
+
 ## 1.0.4
 
 - Publish the owner-accepted v1.0.4 launcher, shortcut, native-UI and branding refinements for Windows 10/11 x64 and ARM64.

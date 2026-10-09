@@ -16,12 +16,66 @@ unsigned loads{}, failLoad{};
 bool failInfo{}, failDc{};
 unsigned imeContextGets{};
 unsigned imeOpenStatusReads{};
-unsigned imeCompositionCancels{};
 unsigned imeSetOpenRequests{};
+unsigned imeConversionReads{};
+unsigned imeConversionWrites{};
 unsigned imeContextReleases{};
 BOOL imeCurrentOpenStatus{TRUE};
+DWORD imeCurrentConversion{IME_CMODE_NATIVE};
+DWORD imeCurrentSentence{8};
+bool imeConversionAvailable{true};
+bool imeConversionWritable{true};
 std::unordered_set<HGDIOBJ> ownedBitmaps;
 std::unordered_set<HDC> ownedDcs;
+
+// Test-only context-menu selection to exercise the actual launcher -> editor
+// command path without blocking Windows CI on a native popup menu selection.
+UINT contextMenuChoice{};
+bool emulateActiveContextMenuOwner{};
+BOOL WINAPI ProbeTrackPopupMenuEx(
+    HMENU menu, UINT flags, int x, int y, HWND owner, LPTPMPARAMS params) {
+    if (contextMenuChoice != 0) {
+        const UINT selected = contextMenuChoice;
+        contextMenuChoice = 0;
+        assert(GetMenuState(menu, selected, MF_BYCOMMAND) != 0xFFFFFFFFu);
+        return static_cast<BOOL>(selected);
+    }
+    return TrackPopupMenuEx(menu, flags, x, y, owner, params);
+}
+BOOL WINAPI ProbeSetForegroundWindow(HWND window) {
+    if (emulateActiveContextMenuOwner) {
+        SetActiveWindow(window);
+        return GetActiveWindow() == window;
+    }
+    return SetForegroundWindow(window);
+}
+enum class EditorCloseForProbe { WindowClose, CancelButton, SaveButton };
+EditorCloseForProbe editorCloseForProbe{EditorCloseForProbe::WindowClose};
+bool editorCloseObserved{};
+void CALLBACK CloseEditorForFocusProbe(
+    HWND, UINT, UINT_PTR timer, DWORD) {
+    const HWND editor = FindWindowW(L"Asterun.ShortcutEditor", nullptr);
+    if (!editor) return;
+
+    editorCloseObserved = true;
+    KillTimer(nullptr, timer);
+    switch (editorCloseForProbe) {
+    case EditorCloseForProbe::WindowClose:
+        assert(PostMessageW(editor, WM_CLOSE, 0, 0));
+        return;
+    case EditorCloseForProbe::CancelButton:
+    case EditorCloseForProbe::SaveButton: {
+        const UINT id = editorCloseForProbe == EditorCloseForProbe::SaveButton
+                            ? 53114 : 53115;
+        const HWND button = GetDlgItem(editor, id);
+        assert(button);
+        assert(PostMessageW(editor, WM_COMMAND,
+            MAKEWPARAM(id, BN_CLICKED),
+            reinterpret_cast<LPARAM>(button)));
+        return;
+    }
+    }
+}
 HANDLE WINAPI TestLoadImage(HINSTANCE instance, LPCWSTR name, UINT type, int x, int y, UINT flags) {
     if (type == IMAGE_BITMAP && ++loads == failLoad) return nullptr;
     HANDLE image = LoadImageW(instance, name, type, x, y, flags);
@@ -58,12 +112,22 @@ BOOL WINAPI TestImmGetOpenStatus(HIMC context) {
     ++imeOpenStatusReads;
     return imeCurrentOpenStatus;
 }
-BOOL WINAPI TestImmNotifyIME(HIMC context, DWORD action, DWORD index, DWORD value) {
+BOOL WINAPI TestImmGetConversionStatus(
+    HIMC context, DWORD* conversion, DWORD* sentence) {
     assert(context);
-    assert(action == NI_COMPOSITIONSTR);
-    assert(index == CPS_CANCEL);
-    assert(value == 0);
-    ++imeCompositionCancels;
+    ++imeConversionReads;
+    if (!imeConversionAvailable) return FALSE;
+    *conversion = imeCurrentConversion;
+    *sentence = imeCurrentSentence;
+    return TRUE;
+}
+BOOL WINAPI TestImmSetConversionStatus(
+    HIMC context, DWORD conversion, DWORD sentence) {
+    assert(context);
+    ++imeConversionWrites;
+    if (!imeConversionWritable) return FALSE;
+    imeCurrentConversion = conversion;
+    imeCurrentSentence = sentence;
     return TRUE;
 }
 BOOL WINAPI TestImmSetOpenStatus(HIMC context, BOOL open) {
@@ -78,19 +142,28 @@ BOOL WINAPI TestImmReleaseContext(HWND window, HIMC context) {
     ++imeContextReleases;
     return TRUE;
 }
-void ResetImeProbe(BOOL openStatus = TRUE) {
+void ResetImeProbe(BOOL openStatus = TRUE,
+                   DWORD conversion = IME_CMODE_NATIVE,
+                   bool conversionAvailable = true,
+                   bool conversionWritable = true) {
     imeContextGets = 0;
     imeOpenStatusReads = 0;
-    imeCompositionCancels = 0;
     imeSetOpenRequests = 0;
+    imeConversionReads = 0;
+    imeConversionWrites = 0;
     imeContextReleases = 0;
     imeCurrentOpenStatus = openStatus;
+    imeCurrentConversion = conversion;
+    imeCurrentSentence = 8;
+    imeConversionAvailable = conversionAvailable;
+    imeConversionWritable = conversionWritable;
 }
 void ClearImeProbeCounts() {
     imeContextGets = 0;
     imeOpenStatusReads = 0;
-    imeCompositionCancels = 0;
     imeSetOpenRequests = 0;
+    imeConversionReads = 0;
+    imeConversionWrites = 0;
     imeContextReleases = 0;
 }
 }
@@ -100,16 +173,22 @@ void ClearImeProbeCounts() {
 #define GetObjectW TestGetObject
 #define CreateCompatibleDC TestCreateDc
 #define ImmGetContext TestImmGetContext
+#define TrackPopupMenuEx ProbeTrackPopupMenuEx
+#define SetForegroundWindow ProbeSetForegroundWindow
 #define ImmGetOpenStatus TestImmGetOpenStatus
-#define ImmNotifyIME TestImmNotifyIME
+#define ImmGetConversionStatus TestImmGetConversionStatus
+#define ImmSetConversionStatus TestImmSetConversionStatus
 #define ImmSetOpenStatus TestImmSetOpenStatus
 #define ImmReleaseContext TestImmReleaseContext
 #include "../src/ui/LauncherWindow.cpp"
 #undef ImmReleaseContext
 #undef ImmSetOpenStatus
-#undef ImmNotifyIME
+#undef ImmSetConversionStatus
+#undef ImmGetConversionStatus
 #undef ImmGetOpenStatus
 #undef ImmGetContext
+#undef TrackPopupMenuEx
+#undef SetForegroundWindow
 #undef DeleteDC
 #undef DeleteObject
 #undef CreateCompatibleDC
@@ -334,119 +413,129 @@ struct LauncherResourceRuntimeFixture {
     static void VerifyRevealInputPreference(
         App& app,
         HINSTANCE instance) {
+        auto& settings = const_cast<Settings&>(app.SettingsData());
+        const bool previous = settings.defaultEnglishInputOnReveal;
 
-        auto& settings =
-            const_cast<Settings&>(
-                app.SettingsData());
-        const bool previous =
-            settings
-                .defaultEnglishInputOnReveal;
-
-        LauncherWindow window(
-            app,
-            instance);
+        LauncherWindow window(app, instance);
         assert(window.Create());
 
-        settings.defaultEnglishInputOnReveal =
-            true;
-        ResetImeProbe(TRUE);
+        // Simulate a live EDIT with focus; the CI runner need not own the
+        // interactive desktop's foreground window.
+        settings.defaultEnglishInputOnReveal = false;
+        ShowWindow(window.hwnd_, SW_SHOWNOACTIVATE);
+        SetActiveWindow(window.hwnd_);
+        SetFocus(window.edit_);
+        assert(window.IsVisible());
+        assert(GetFocus() == window.edit_);
+        settings.defaultEnglishInputOnReveal = true;
 
-        window.PrepareInputForReveal(
-            false);
-
-        assert(imeContextGets == 1);
-        assert(imeOpenStatusReads == 1);
-        assert(imeCompositionCancels == 1);
-        assert(imeSetOpenRequests == 1);
+        // Actual first-reveal failure: IME initially closed while its
+        // conversion state still points to native Chinese.
+        ResetImeProbe(FALSE, IME_CMODE_NATIVE);
+        window.BeginEnglishInputSession();
+        assert(window.imeSession_.started);
+        assert(window.imeSession_.changedConversion);
+        assert(!window.imeSession_.changedOpen);
+        assert(imeCurrentConversion == IME_CMODE_ALPHANUMERIC);
         assert(imeCurrentOpenStatus == FALSE);
-        assert(imeContextReleases == 1);
-        assert(window.imeRevealOverrideActive_);
-        assert(window.imeRevealOriginalOpen_);
+        assert(imeConversionWrites == 1 && imeSetOpenRequests == 0);
+        window.BeginEnglishInputSession();
+        assert(imeConversionWrites == 1);  // no repeat on same reveal
+        window.RestoreEnglishInputSession();
+        assert(imeCurrentConversion == IME_CMODE_NATIVE);
+        assert(imeCurrentOpenStatus == FALSE);
+        assert(imeConversionWrites == 2);
+        assert(!window.imeSession_.started);
 
-        // Hiding a session restores the IME state Asterun temporarily closed.
+        // IME open + multiple native/full-width/symbol flags: the launcher
+        // must request Latin mode and restore only the flags it owns.
+        const DWORD nativeModes =
+            IME_CMODE_NATIVE | IME_CMODE_FULLSHAPE | IME_CMODE_SYMBOL;
+        ResetImeProbe(TRUE, nativeModes);
+        window.BeginEnglishInputSession();
+        assert(imeCurrentConversion == IME_CMODE_ALPHANUMERIC);
+        assert(imeCurrentOpenStatus == TRUE);
+        window.RestoreEnglishInputSession();
+        assert(imeCurrentConversion == nativeModes);
+        assert(imeSetOpenRequests == 0);
+
+        // A manual switch to Chinese wins and must never be overwritten by
+        // Hide, even if the user switches to English again before closing.
+        ResetImeProbe(TRUE, IME_CMODE_NATIVE);
+        window.BeginEnglishInputSession();
+        imeCurrentConversion = IME_CMODE_NATIVE;
+        SendMessageW(window.edit_, WM_IME_NOTIFY, IMN_SETCONVERSIONMODE, 0);
+        assert(window.imeSession_.userChangedMode);
+        imeCurrentConversion = IME_CMODE_ALPHANUMERIC;
+        SendMessageW(window.edit_, WM_IME_NOTIFY, IMN_SETCONVERSIONMODE, 0);
         ClearImeProbeCounts();
+        window.RestoreEnglishInputSession();
+        assert(imeConversionWrites == 0);
+        assert(imeCurrentConversion == IME_CMODE_ALPHANUMERIC);
 
+        // Already English, no IME and disabled settings do not fabricate
+        // any mutation or restore work.
+        ResetImeProbe(TRUE, IME_CMODE_ALPHANUMERIC);
+        window.BeginEnglishInputSession();
+        assert(window.imeSession_.started);
+        assert(!window.imeSession_.changedConversion);
+        assert(imeConversionWrites == 0 && imeSetOpenRequests == 0);
+        window.RestoreEnglishInputSession();
+        assert(imeConversionWrites == 0 && imeSetOpenRequests == 0);
+
+        // Unsupported conversion status preserves the old limited fallback
+        // of closing an open IME and restoring it at Hide.
+        ResetImeProbe(TRUE, IME_CMODE_NATIVE, false);
+        window.BeginEnglishInputSession();
+        assert(window.imeSession_.changedOpen);
+        assert(imeCurrentOpenStatus == FALSE);
+        assert(imeSetOpenRequests == 1);
+        window.RestoreEnglishInputSession();
+        assert(imeCurrentOpenStatus == TRUE);
+        assert(imeSetOpenRequests == 2);
+
+        // A failed mode change with an already-closed IME must not invent a
+        // successful session or force a global keyboard-layout switch.
+        ResetImeProbe(FALSE, IME_CMODE_NATIVE, true, false);
+        window.BeginEnglishInputSession();
+        assert(!window.imeSession_.changedConversion);
+        assert(!window.imeSession_.changedOpen);
+        assert(imeConversionWrites == 1 && imeSetOpenRequests == 0);
+        window.RestoreEnglishInputSession();
+        assert(imeConversionWrites == 1);
+
+        // The checkbox must be a strict opt-out.
+        settings.defaultEnglishInputOnReveal = false;
+        ResetImeProbe(TRUE, IME_CMODE_NATIVE);
+        window.BeginEnglishInputSession();
+        assert(imeContextGets == 0);
+        assert(imeConversionWrites == 0);
+        settings.defaultEnglishInputOnReveal = true;
+
+        // Entering focus through the native EDIT procedure starts the same
+        // session, including on the first activation.
+        ResetImeProbe(FALSE, IME_CMODE_NATIVE);
+        SendMessageW(window.edit_, WM_SETFOCUS, 0, 0);
+        assert(window.imeSession_.changedConversion);
+        assert(imeCurrentConversion == IME_CMODE_ALPHANUMERIC);
+
+        // Direct close/destroy is a second guaranteed restoration boundary.
         window.Hide();
-
-        assert(imeContextGets == 1);
-        assert(imeOpenStatusReads == 1);
-        assert(imeCompositionCancels == 0);
-        assert(imeSetOpenRequests == 1);
-        assert(imeCurrentOpenStatus == TRUE);
-        assert(imeContextReleases == 1);
-        assert(!window.imeRevealOverrideActive_);
-
-        // A user's manual switch back to Chinese wins. Restore observes that
-        // the IME is already open and must not write over that state.
-        ResetImeProbe(TRUE);
-        window.PrepareInputForReveal(
-            false);
-        assert(imeCurrentOpenStatus == FALSE);
-        imeCurrentOpenStatus = TRUE;
-        ClearImeProbeCounts();
-
-        window.RestoreInputOverride();
-
-        assert(imeContextGets == 1);
-        assert(imeOpenStatusReads == 1);
-        assert(imeSetOpenRequests == 0);
-        assert(imeCurrentOpenStatus == TRUE);
-        assert(imeContextReleases == 1);
-
-        // Re-entering Show in the same visible session must not impose a new
-        // override after the user changes input mode.
-        ResetImeProbe(TRUE);
-
-        window.PrepareInputForReveal(
-            true);
-
-        assert(imeContextGets == 0);
-        assert(imeOpenStatusReads == 0);
-        assert(imeCompositionCancels == 0);
-        assert(imeSetOpenRequests == 0);
-        assert(imeContextReleases == 0);
-
-        // If the EDIT already starts in direct input mode, do not manufacture
-        // an override session or a later restore.
-        ResetImeProbe(FALSE);
-
-        window.PrepareInputForReveal(
-            false);
-
-        assert(imeContextGets == 1);
-        assert(imeOpenStatusReads == 1);
-        assert(imeCompositionCancels == 0);
-        assert(imeSetOpenRequests == 0);
-        assert(imeContextReleases == 1);
-        assert(!window.imeRevealOverrideActive_);
-
-        ClearImeProbeCounts();
-        window.RestoreInputOverride();
-        assert(imeContextGets == 0);
-        assert(imeSetOpenRequests == 0);
-
-        // The opt-out restores historical behavior for every fresh session.
-        settings.defaultEnglishInputOnReveal =
-            false;
-        ResetImeProbe(TRUE);
-
-        window.PrepareInputForReveal(
-            false);
-
-        assert(imeContextGets == 0);
-        assert(imeOpenStatusReads == 0);
-        assert(imeCompositionCancels == 0);
-        assert(imeSetOpenRequests == 0);
-        assert(imeContextReleases == 0);
-        assert(imeCurrentOpenStatus == TRUE);
-
-        settings.defaultEnglishInputOnReveal =
-            previous;
+        assert(imeCurrentConversion == IME_CMODE_NATIVE);
+        ResetImeProbe(FALSE, IME_CMODE_NATIVE);
+        ShowWindow(window.hwnd_, SW_SHOWNOACTIVATE);
+        SetActiveWindow(window.hwnd_);
+        SetFocus(window.edit_);
+        window.BeginEnglishInputSession();
+        assert(window.imeSession_.changedConversion);
         Destroy(window);
+        assert(imeCurrentConversion == IME_CMODE_NATIVE);
+        assert(!window.imeSession_.started);
 
+        settings.defaultEnglishInputOnReveal = previous;
         std::cout
-            << "Launcher reveal English-input session restore passed"
-            << std::endl;
+            << "First-focus IME conversion/restore/manual-switch/failure "
+               "regression passed" << std::endl;
     }
 
     static void VerifyShortcutHintPresentation() {
@@ -495,6 +584,139 @@ struct LauncherResourceRuntimeFixture {
 
         std::cout
             << "User shortcut hint presentation passed"
+            << std::endl;
+    }
+
+    static void VerifyShortcutEditorContextFocus(
+        App& app,
+        HINSTANCE instance) {
+        auto& settings = const_cast<Settings&>(app.SettingsData());
+        const auto previousStyle = settings.uiStyle;
+        const bool previousSound = settings.soundEnabled;
+        settings.soundEnabled = false;
+
+        Command command;
+        command.keyword = L"modal-focus-fixture-" +
+            std::to_wstring(GetCurrentProcessId());
+        command.title = L"Modal focus fixture";
+        command.target = L"notepad.exe";
+        command.type = CommandType::Application;
+        command.enabled = true;
+        std::wstring id;
+        assert(app.CreateUserCommand(command, &id));
+        assert(!id.empty());
+
+        for (const auto style : {UiStyle::ModernCompact, UiStyle::Classic}) {
+            settings.uiStyle = style;
+            for (const auto closeAction : {
+                 EditorCloseForProbe::WindowClose,
+                 EditorCloseForProbe::CancelButton,
+                 EditorCloseForProbe::SaveButton}) {
+                LauncherWindow window(app, instance);
+                assert(window.Create());
+
+                // Headless runners cannot reliably grant foreground rights;
+                // model an active, visible launcher in the same GUI thread.
+                ShowWindow(window.hwnd_, SW_SHOWNOACTIVATE);
+                assert(window.IsVisible());
+                SetActiveWindow(window.hwnd_);
+                assert(GetActiveWindow() == window.hwnd_);
+                SetFocus(window.edit_);
+                assert(GetFocus() == window.edit_);
+
+                SetWindowTextW(window.edit_, L"focusquery");
+                const DWORD textLength =
+                    static_cast<DWORD>(GetWindowTextLengthW(window.edit_));
+                SendMessageW(
+                    window.edit_,
+                    EM_SETSEL,
+                    static_cast<WPARAM>(textLength),
+                    static_cast<LPARAM>(textLength));
+                DWORD selectionStart = 0;
+                DWORD selectionEnd = 0;
+                SendMessageW(window.edit_, EM_GETSEL,
+                    reinterpret_cast<WPARAM>(&selectionStart),
+                    reinterpret_cast<LPARAM>(&selectionEnd));
+                assert(selectionStart == textLength);
+                assert(selectionEnd == textLength);
+                const auto unchangedQuery = window.CurrentQuery();
+                const auto generationBefore = window.searchGeneration_;
+
+                // An existing user shortcut drives the real context-menu
+                // edit action, while a fake selection replaces only the OS
+                // menu UI (not the production action dispatch).
+                LauncherResult user;
+                user.kind = ResultKind::UserCommand;
+                user.id = id;
+                user.title = command.title;
+                user.target = command.target;
+                window.results_ = {user};
+                SendMessageW(window.list_, LB_RESETCONTENT, 0, 0);
+                assert(SendMessageW(window.list_, LB_ADDSTRING, 0,
+                    reinterpret_cast<LPARAM>(L"Modal focus fixture")) != LB_ERR);
+                SendMessageW(window.list_, LB_SETCURSEL, 0, 0);
+
+                editorCloseForProbe = closeAction;
+                editorCloseObserved = false;
+                contextMenuChoice = 41004; // kResultContextEditShortcut
+                emulateActiveContextMenuOwner = true;
+                const UINT_PTR timer = SetTimer(
+                    nullptr, 0, 20, CloseEditorForFocusProbe);
+                assert(timer);
+
+                window.ShowResultContextMenu(POINT{-1, -1});
+
+                KillTimer(nullptr, timer);
+                emulateActiveContextMenuOwner = false;
+                assert(editorCloseObserved);
+                assert(contextMenuChoice == 0);
+                assert(window.IsVisible());
+                assert(GetActiveWindow() == window.hwnd_);
+                assert(GetFocus() == window.edit_);
+                assert(window.CurrentQuery() == unchangedQuery);
+                selectionStart = selectionEnd = 0;
+                SendMessageW(window.edit_, EM_GETSEL,
+                    reinterpret_cast<WPARAM>(&selectionStart),
+                    reinterpret_cast<LPARAM>(&selectionEnd));
+                assert(selectionStart == textLength);
+                assert(selectionEnd == textLength);
+                if (closeAction != EditorCloseForProbe::SaveButton) {
+                    assert(window.searchGeneration_ == generationBefore);
+                }
+
+                // The first keystroke without clicking must edit the query;
+                // Up/Tab still navigate and Esc must hide the launcher.
+                SendMessageW(window.edit_, WM_CHAR, L'x', 1);
+                assert(window.CurrentQuery() == L"focusqueryx");
+
+                LauncherResult second;
+                second.id = L"other";
+                second.kind = ResultKind::Application;
+                second.title = L"Other";
+                window.staticResults_ = {user, second};
+                window.dynamicResults_.clear();
+                window.RebuildVisibleResults(false, false, false);
+                assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
+                SendMessageW(window.edit_, WM_KEYDOWN, VK_DOWN, 1);
+                assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 1);
+                SendMessageW(window.edit_, WM_KEYDOWN, VK_TAB, 1);
+                assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
+                SendMessageW(window.edit_, WM_KEYDOWN, VK_ESCAPE, 1);
+                assert(!window.IsVisible());
+                window.RestoreSearchFocusAfterShortcutEditor(
+                    textLength, textLength);
+                assert(!window.IsVisible()); // never re-open a hidden owner
+
+                Destroy(window);
+            }
+        }
+
+        assert(app.DeleteUserCommand(id));
+        settings.uiStyle = previousStyle;
+        settings.soundEnabled = previousSound;
+        std::cout
+            << "Shortcut Editor context close/save/cancel focus and "
+               "Esc/typing/Tab/navigation in Modern and Classic passed"
             << std::endl;
     }
 
@@ -715,6 +937,9 @@ struct LauncherResourceRuntimeFixture {
             app,
             instance);
         VerifyShortcutHintPresentation();
+        VerifyShortcutEditorContextFocus(
+            app,
+            instance);
         VerifyTopLevelForegroundHandoff(
             app,
             instance);
