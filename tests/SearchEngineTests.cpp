@@ -594,6 +594,114 @@ int main(int argc, char** argv) {
                 5));
     }
 
+    // Controlled two-character secondary-word recall for normal primary
+    // applications: Google Chrome is searchable as "ch", although its
+    // Provider keyword is "googlechrome". Arbitrary later word boundaries
+    // and 1-2 character filesystem noise must stay suppressed.
+    {
+        std::vector<Command> secondaryWord{
+            MakeCommand(L"short-ch-chatgpt", L"chatgpt", L"ChatGPT",
+                        L"ChatGPT.app", 0),
+            MakeCommand(L"short-ch-charmap", L"charactermap",
+                        L"Character Map", L"charmap.lnk", 1),
+            MakeCommand(L"short-ch-chrome", L"googlechrome",
+                        L"Google Chrome", L"chrome.lnk", 2),
+            MakeCommand(L"short-ch-canary", L"googlechromecanary",
+                        L"Google Chrome Canary", L"canary.lnk", 3),
+            MakeCommand(L"short-ch-utility", L"windowschrome",
+                        L"Windows Chrome", L"chrome-helper.lnk", 4),
+            MakeCommand(L"short-ch-fake", L"thirdpartychrome",
+                        L"Thirdparty Chrome", L"other.exe", 5),
+            MakeCommand(L"short-ch-firefox", L"mozillafirefox",
+                        L"Mozilla Firefox", L"firefox.lnk", 6),
+            MakeCommand(L"short-ch-edge", L"microsoftedge",
+                        L"Microsoft Edge", L"msedge.lnk", 7),
+            MakeCommand(L"short-ch-photoshop", L"adobephotoshop",
+                        L"Adobe Photoshop", L"photoshop.lnk", 8),
+            MakeCommand(L"short-ch-teams", L"microsoftteams",
+                        L"Microsoft Teams", L"teams.lnk", 9),
+            MakeCommand(L"short-ch-administration", L"xboxappadminserver",
+                        L"Xbox App Admin Server", L"admin.lnk", 10),
+            MakeCommand(L"short-ch-sources", L"odbcdatasources",
+                        L"ODBC Data Sources", L"odbc.lnk", 11),
+            MakeCommand(L"short-ch-user", L"mybrowser",
+                        L"Google Chrome", L"mybrowser.exe", 12),
+            MakeCommand(L"short-ch-restricted", L"internalchrome",
+                        L"Vendor Chrome", L"chrome-internal.lnk", 13),
+        };
+        for (auto& cmd : secondaryWord) {
+            cmd.source = CommandSource::StartMenu;
+            cmd.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            cmd.catalogVisibility = CatalogVisibility::Normal;
+            cmd.basePriority = 0;
+        }
+        secondaryWord[0].source = CommandSource::PackagedApp;
+        secondaryWord[1].surfaceClass = LaunchSurfaceClass::SystemUtility;
+        secondaryWord[4].surfaceClass = LaunchSurfaceClass::SystemUtility;
+        secondaryWord[5].source = CommandSource::AppPaths;
+        secondaryWord[12].source = CommandSource::User;
+        secondaryWord[12].surfaceClass = LaunchSurfaceClass::UserCommand;
+        secondaryWord[13].catalogVisibility =
+            CatalogVisibility::StrongMatchOnly;
+
+        const auto checkShort = [&](std::wstring_view query) {
+            const auto raw = engine.Search(
+                secondaryWord, usage, query, 30, false, false);
+            const auto prepared = SearchEngine::PrepareIndex(secondaryWord);
+            const auto cached = engine.Search(
+                secondaryWord, usage, query, 30, false, false, &prepared);
+            assert(raw.size() == cached.size());
+            for (std::size_t i = 0; i < raw.size(); ++i) {
+                assert(raw[i].commandIndex == cached[i].commandIndex);
+                assert(raw[i].relevanceMatch.kind ==
+                       cached[i].relevanceMatch.kind);
+            }
+            return raw;
+        };
+
+        const auto ch = checkShort(L"ch");
+        assert(ContainsCommand(ch, 0)); // ChatGPT name prefix
+        assert(ContainsCommand(ch, 1)); // Character Map name prefix
+        assert(ContainsCommand(ch, 2)); // Google Chrome secondary word
+        assert(ContainsCommand(ch, 5)); // AppPaths primary app
+        assert(!ContainsCommand(ch, 3)); // three-word suffix is gated
+        assert(!ContainsCommand(ch, 4)); // system helper still excluded
+        assert(!ContainsCommand(ch, 12)); // no implicit user alias
+        assert(!ContainsCommand(ch, 13)); // restricted catalog unchanged
+        const auto chrome = std::find_if(ch.begin(), ch.end(),
+            [](const SearchResult& r) { return r.commandIndex == 2; });
+        assert(chrome != ch.end());
+        assert(chrome->relevanceMatch.kind ==
+               relevance::MatchKind::BoundaryPrefix);
+        assert(chrome->relevanceMatch.field == relevance::MatchField::Title);
+        assert(ch.front().commandIndex == 0);
+        assert(ch[1].commandIndex == 1);
+        assert(chrome > ch.begin() + 1);
+
+        // Three characters already recover ordinary later-word boundaries.
+        assert(ContainsCommand(checkShort(L"chr"), 2));
+        assert(ContainsCommand(checkShort(L"chr"), 3));
+        assert(!ContainsCommand(checkShort(L"c"), 2));
+
+        assert(ContainsCommand(checkShort(L"fi"), 6));
+        assert(ContainsCommand(checkShort(L"ed"), 7)); // Edge is 4 letters
+        assert(ContainsCommand(checkShort(L"ph"), 8));
+        assert(ContainsCommand(checkShort(L"te"), 9));
+
+        // Existing 2-character noise and earlier to/ad/so protections.
+        assert(!ContainsCommand(checkShort(L"ad"), 10));
+        assert(!ContainsCommand(checkShort(L"so"), 11));
+        assert(!ContainsCommand(checkShort(L"to"), 10));
+
+        // Exact user aliases still win, independent of Provider recall.
+        secondaryWord[12].aliases = {L"ch"};
+        const auto userCh = checkShort(L"ch");
+        assert(!userCh.empty());
+        assert(userCh.front().commandIndex == 12);
+        assert(userCh.front().relevanceMatch.kind ==
+               relevance::MatchKind::Exact);
+    }
+
     // Automatic default Notepad (np) is a UserCommand even though the
     // owner never configured it. It must not outrank actual TeamSpeak
     // name-prefix Provider results for a weak three-letter "tea" query.
