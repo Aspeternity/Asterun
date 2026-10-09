@@ -54,6 +54,7 @@ private:
     friend struct LauncherResourceRuntimeFixture;
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kShortcutIpcMessage = WM_APP + 19;
+    static constexpr UINT kFirstRevealImeCheckMessage = WM_APP + 0x179;
     static constexpr UINT_PTR
         kNumericIntentTimerId = 0xA176;
     static constexpr UINT kMenuShow = 40001;
@@ -132,6 +133,7 @@ private:
     void PrepareTopLevelForegroundHandoff();
     void PrepareInputForReveal(
         bool wasVisible) noexcept;
+    void VerifyFirstRevealEnglishInput() noexcept;
     void RestoreInputOverride() noexcept;
     void ShowResultContextMenu(
         POINT point);
