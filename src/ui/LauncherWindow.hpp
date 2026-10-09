@@ -2,11 +2,11 @@
 
 #include "../core/LauncherResult.hpp"
 #include "../core/ClassicBehavior.hpp"
-#include "LauncherImeTrace.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 
 #include <windows.h>
+#include <imm.h>
 
 #include <array>
 #include <cstddef>
@@ -55,7 +55,6 @@ private:
     friend struct LauncherResourceRuntimeFixture;
     static constexpr UINT kTrayMessage = WM_APP + 17;
     static constexpr UINT kShortcutIpcMessage = WM_APP + 19;
-    static constexpr UINT kFirstRevealImeCheckMessage = WM_APP + 0x179;
     static constexpr UINT_PTR
         kNumericIntentTimerId = 0xA176;
     static constexpr UINT kMenuShow = 40001;
@@ -132,12 +131,9 @@ private:
         std::wstring_view path);
     void ShowTrayMenu(POINT point);
     void PrepareTopLevelForegroundHandoff();
-    void TraceIme(const char* event, UINT message = 0,
-                  WPARAM info = 0) noexcept;
-    void PrepareInputForReveal(
-        bool wasVisible) noexcept;
-    void VerifyFirstRevealEnglishInput() noexcept;
-    void RestoreInputOverride() noexcept;
+    void BeginEnglishInputSession() noexcept;
+    void NoteImeConversionChange() noexcept;
+    void RestoreEnglishInputSession() noexcept;
     void ShowResultContextMenu(
         POINT point);
     void RestoreSearchFocusAfterShortcutEditor(
@@ -191,10 +187,18 @@ private:
     UINT taskbarCreatedMessage_{0};
     bool firstRevealPending_{true};
     bool imeComposing_{false};
-    bool imeFirstInputObserved_{false};
-    LauncherImeTrace imeTrace_;
-    bool imeRevealOverrideActive_{false};
-    bool imeRevealOriginalOpen_{false};
+    struct ImeSession {
+        bool started{false};
+        bool changedConversion{false};
+        bool changedOpen{false};
+        bool userChangedMode{false};
+        bool originalOpen{false};
+        HIMC context{};
+        HKL layout{};
+        DWORD originalMode{};
+        DWORD imposedMode{};
+    };
+    ImeSession imeSession_{};
     bool contextActionModalActive_{false};
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};
