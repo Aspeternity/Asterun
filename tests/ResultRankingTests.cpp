@@ -256,6 +256,95 @@ int main() {
         app,
         auxiliary));
 
+    // An automatically seeded user shortcut must not bypass search intent:
+    // for "tea" the Notepad(n/p) tight fuzzy match is weaker than a
+    // Provider's genuine "teamspeak" prefix. Explicit pinning is separate.
+    {
+        LauncherResult userNotepad = user;
+        userNotepad.id = L"np";
+        userNotepad.title = L"Notepad";
+        userNotepad.target = L"notepad.exe";
+        userNotepad.relevanceMatch = {
+            relevance::MatchKind::TightFuzzy,
+            relevance::MatchField::Title, 454, false
+        };
+
+        LauncherResult providerTeamspeak = app;
+        providerTeamspeak.id = L"teamspeak";
+        providerTeamspeak.title = L"TeamSpeak";
+        providerTeamspeak.target = L"TeamSpeak.exe";
+        providerTeamspeak.relevanceMatch = {
+            relevance::MatchKind::Prefix,
+            relevance::MatchField::Keyword, 875, false
+        };
+        // Stronger match wins even against an unpinned user shortcut that
+        // has amassed a huge history for that query.
+        userNotepad.usageScore = 100000;
+        assert(BetterLauncherResult(providerTeamspeak, userNotepad));
+        assert(!BetterLauncherResult(userNotepad, providerTeamspeak));
+
+        // An intentionally pinned shortcut retains its explicit override.
+        userNotepad.pinned = true;
+        assert(BetterLauncherResult(userNotepad, providerTeamspeak));
+        userNotepad.pinned = false;
+
+        // A true, user-authored exact alias still wins against prefix and
+        // fuzzy Provider matches. Conversely, an exact Provider title is
+        // stronger than a merely prefix-matched user shortcut.
+        LauncherResult exactShortcut = userNotepad;
+        exactShortcut.relevanceMatch = {
+            relevance::MatchKind::Exact,
+            relevance::MatchField::Alias, 1000, false
+        };
+        assert(BetterLauncherResult(exactShortcut, providerTeamspeak));
+        LauncherResult exactProvider = providerTeamspeak;
+        exactProvider.relevanceMatch.kind = relevance::MatchKind::Exact;
+        assert(BetterLauncherResult(exactProvider, user));
+        assert(BetterLauncherResult(exactProvider, userNotepad));
+
+        // For equal matching classes, retain the user's shortcut preference
+        // independently of Provider usage or text-score differences.
+        LauncherResult userPrefix = user;
+        userPrefix.relevanceMatch = {
+            relevance::MatchKind::Prefix,
+            relevance::MatchField::Keyword, 820, false
+        };
+        providerTeamspeak.usageScore = 100000;
+        assert(BetterLauncherResult(userPrefix, providerTeamspeak));
+        assert(!BetterLauncherResult(providerTeamspeak, userPrefix));
+
+        // The shared comparator must remain transitive across pinned,
+        // user/Provider, different match kinds and usage levels.
+        std::vector<LauncherResult> mixed;
+        for (bool isUser : {false, true}) {
+            for (bool isPinned : {false, true}) {
+                for (auto kind : {relevance::MatchKind::Exact,
+                                  relevance::MatchKind::Prefix,
+                                  relevance::MatchKind::TightFuzzy}) {
+                    for (int use : {0, 32}) {
+                        LauncherResult candidate = isUser ? user : app;
+                        candidate.pinned = isPinned;
+                        candidate.relevanceMatch = {
+                            kind, relevance::MatchField::Title, 700, false
+                        };
+                        candidate.usageScore = use;
+                        mixed.push_back(candidate);
+                    }
+                }
+            }
+        }
+        for (const auto& a : mixed) {
+            assert(!BetterLauncherResult(a, a));
+            for (const auto& b : mixed) {
+                if (!BetterLauncherResult(a, b)) continue;
+                assert(!BetterLauncherResult(b, a));
+                for (const auto& c : mixed)
+                    if (BetterLauncherResult(b, c))
+                        assert(BetterLauncherResult(a, c));
+            }
+        }
+    }
+
     LauncherResult shorter = app;
     shorter.relevanceMatch.score = 876;
     LauncherResult familiar = app;
