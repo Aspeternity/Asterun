@@ -594,6 +594,120 @@ int main(int argc, char** argv) {
                 5));
     }
 
+    // Real-world Provider regression: isolated, non-identifying short English
+    // words in automatically discovered titles must not impersonate exact
+    // application keywords. A name starting with "to" expresses stronger
+    // intent than the middle words in "7 Days to Die" / "Microsoft To Do".
+    {
+        std::vector<Command> apps{
+            MakeCommand(L"7dtd", L"7daystodie", L"7 Days to Die",
+                        L"steam://rungameid/251570", 0),
+            MakeCommand(L"todo", L"microsofttodo", L"Microsoft To Do",
+                        L"Microsoft.Todos_8wekyb3d8bbwe!App", 1),
+            MakeCommand(L"todesk", L"todesk", L"ToDesk",
+                        L"ToDesk.lnk", 2),
+            MakeCommand(L"tor", L"torbrowser", L"Tor Browser",
+                        L"Tor Browser.lnk", 3),
+            MakeCommand(L"office", L"office", L"Office",
+                        L"Office.lnk", 4),
+            MakeCommand(L"work", L"workofart", L"Work of Art",
+                        L"Work of Art.lnk", 5),
+            MakeCommand(L"inside", L"insomnia", L"Insomnia",
+                        L"Insomnia.lnk", 6),
+            MakeCommand(L"panel", L"signinandout", L"Sign In and Out",
+                        L"Sign In and Out.lnk", 7),
+            MakeCommand(L"short-id", L"acmez5", L"Acme Z5",
+                        L"Acme Z5.lnk", 8),
+        };
+        for (auto& app : apps) {
+            app.source = CommandSource::StartMenu;
+            app.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            app.catalogVisibility = CatalogVisibility::Normal;
+            app.basePriority = 0;
+        }
+        apps[1].source = CommandSource::PackagedApp;
+        // These are the cached role-based title residuals produced by
+        // automatic discovery (not explicit user-defined aliases).
+        apps[0].distinctiveTokens = {L"7", L"days", L"to", L"die"};
+        apps[1].distinctiveTokens = {L"microsoft", L"to", L"do"};
+        apps[5].distinctiveTokens = {L"of"};
+        apps[7].distinctiveTokens = {L"in"};
+        apps[8].distinctiveTokens = {L"z5"};
+
+        UsageMap habits;
+        const auto checkPrefixRanking = [&](const UsageMap& history) {
+            const auto result = engine.Search(
+                apps, history, L"to", 20, false, false);
+            assert(ContainsCommand(result, 0));
+            assert(ContainsCommand(result, 1));
+            assert(ContainsCommand(result, 2));
+            assert(ContainsCommand(result, 3));
+            assert(result.size() >= 4);
+            assert(result[0].commandIndex == 2); // ToDesk
+            assert(result[1].commandIndex == 3); // Tor Browser
+            assert(result[0].relevanceMatch.kind == relevance::MatchKind::Prefix);
+            assert(result[1].relevanceMatch.kind == relevance::MatchKind::Prefix);
+
+            const auto prepared = SearchEngine::PrepareIndex(apps);
+            const auto cached = engine.Search(
+                apps, history, L"to", 20, false, false, &prepared);
+            assert(cached.size() == result.size());
+            for (std::size_t i = 0; i < result.size(); ++i)
+                assert(cached[i].commandIndex == result[i].commandIndex);
+        };
+
+        checkPrefixRanking(habits);
+        // Repeated launches may reorder comparable matches but cannot make
+        // a generic middle-word match more exact than a real name prefix.
+        habits[L"7dtd"] = UsageStat{10000, 1, {{L"to", 10000}}};
+        habits[L"todo"] = UsageStat{10000, 1, {{L"to", 10000}}};
+        checkPrefixRanking(habits);
+
+        const auto shortInitial = engine.Search(
+            apps, habits, L"t", 20, false, false);
+        assert(shortInitial.size() >= 2);
+        assert(shortInitial[0].commandIndex == 2);
+        assert(shortInitial[1].commandIndex == 3);
+
+        const auto longer = engine.Search(
+            apps, habits, L"tod", 20, false, false);
+        assert(!longer.empty());
+        assert(longer.front().commandIndex == 2);
+
+        const auto of = engine.Search(
+            apps, habits, L"of", 20, false, false);
+        assert(!of.empty());
+        assert(of.front().commandIndex == 4); // Office, not Work of Art
+
+        const auto in = engine.Search(
+            apps, habits, L"in", 20, false, false);
+        assert(!in.empty());
+        assert(in.front().commandIndex == 6); // Insomnia, not Sign In and Out
+
+        // Opaque alphanumeric product identifiers still retain their
+        // distinctive exact-match behavior.
+        const auto z5 = engine.Search(
+            apps, habits, L"z5", 20, false, false);
+        assert(ContainsCommand(z5, 8));
+        const auto foundZ5 = std::find_if(
+            z5.begin(), z5.end(),
+            [](const SearchResult& entry) { return entry.commandIndex == 8; });
+        assert(foundZ5 != z5.end());
+        assert(foundZ5->relevanceMatch.kind == relevance::MatchKind::Exact);
+
+        // Explicit user-defined short aliases have not become Provider words.
+        Command user = MakeCommand(
+            L"explicit-to", L"application", L"Custom Application",
+            L"custom.exe", 9);
+        user.aliases = {L"to"};
+        apps.push_back(user);
+        const auto explicitTo = engine.Search(
+            apps, habits, L"to", 20, false, false);
+        assert(!explicitTo.empty());
+        assert(explicitTo.front().commandIndex == 9);
+        assert(explicitTo.front().relevanceMatch.kind == relevance::MatchKind::Exact);
+    }
+
     // Catalog visibility is a query-admission policy, not another
     // product-specific ranking score. Shared family-name searches keep
     // normal apps while StrongMatchOnly entries require distinctive intent.
