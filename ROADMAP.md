@@ -2,12 +2,13 @@
 
 Asterun v1.0.4 is the current stable release following owner acceptance. v1.0.5 is the active, unreleased maintenance branch.
 
-## v1.0.5 - Icon refresh, modal focus and short-word Provider ranking (in development)
+## v1.0.5 - Icon refresh, modal focus and short-query search polish (in development)
 
 - On a successful upgrade handshake, the newly launched Asterun.exe notifies the Shell of changes to only the three installed EXE files.
 - Restore keyboard focus to the already-active Launcher search EDIT after the context-menu Shortcut Editor closes; do not globally foreground/re-show the Launcher or change the Shortcut Manager's modal behavior.
 - Keep generic short words automatically derived from Provider titles searchable, but below genuine application name prefixes; protect real exact user aliases and short alphanumeric identities.
 - Rank non-pinned default/user shortcuts by actual match class before applying same-class user preference, so `tea` favors TeamSpeak over fuzzy Notepad while `np`, `ts` and manual pinning retain intent.
+- Admit two-letter English prefixes of the second word only for ordinary two-word primary app titles such as Google Chrome, behind exact and full-name prefix matches. Keep existing short-query noise protections for tools, longer component names and generic filler words.
 - Do not alter the install transaction, rollback, existing icon artwork, user data, or global Explorer icon cache.
 - Run full Windows CI and real-machine in-place-upgrade acceptance before requesting merge/release authorization.
 
