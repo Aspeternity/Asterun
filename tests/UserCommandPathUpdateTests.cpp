@@ -56,12 +56,29 @@ int main() {
     UserCommandStore store(jsonPath);
     store.Load();
 
-    assert(store.Commands().size() >= 2);
+    // Fresh installations have no seeded user shortcuts, and an empty
+    // commands.json remains empty across restart.
+    assert(store.Commands().empty());
+    assert(std::filesystem::exists(jsonPath));
 
-    const std::wstring firstId =
-        store.Commands()[0].id;
-    const std::wstring secondId =
-        store.Commands()[1].id;
+    UserCommandStore emptyReloaded(jsonPath);
+    emptyReloaded.Load();
+    assert(emptyReloaded.Commands().empty());
+
+    Command firstCommand;
+    firstCommand.keyword = L"path-fixture-one";
+    firstCommand.title = L"Path fixture one";
+    firstCommand.target = L"notepad.exe";
+    std::wstring firstId;
+    assert(store.Create(firstCommand, &firstId));
+
+    Command secondCommand;
+    secondCommand.keyword = L"path-fixture-two";
+    secondCommand.title = L"Path fixture two";
+    secondCommand.target = L"calc.exe";
+    std::wstring secondId;
+    assert(store.Create(secondCommand, &secondId));
+    assert(store.Commands().size() == 2);
 
     std::vector<UserCommandPathUpdate>
         updates;
@@ -123,6 +140,13 @@ int main() {
     assert(
         firstAfter->target ==
         LR"(..\Tools\Notepad\notepad.exe)");
+
+    // Deleting the final shortcut must not cause defaults to reappear.
+    assert(store.Remove(firstId));
+    assert(store.Remove(secondId));
+    UserCommandStore clearedReloaded(jsonPath);
+    clearedReloaded.Load();
+    assert(clearedReloaded.Commands().empty());
 
     std::filesystem::remove_all(root);
 

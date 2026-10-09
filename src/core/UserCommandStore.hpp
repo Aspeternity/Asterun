@@ -65,7 +65,6 @@ public:
 private:
     bool LoadJson();
     bool MigrateLegacyTsv();
-    void CreateDefaults();
     void RebuildLegacyIdMap();
 
     std::filesystem::path jsonPath_;
