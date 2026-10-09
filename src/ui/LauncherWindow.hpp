@@ -2,6 +2,7 @@
 
 #include "../core/LauncherResult.hpp"
 #include "../core/ClassicBehavior.hpp"
+#include "LauncherImeTrace.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 
@@ -131,6 +132,8 @@ private:
         std::wstring_view path);
     void ShowTrayMenu(POINT point);
     void PrepareTopLevelForegroundHandoff();
+    void TraceIme(const char* event, UINT message = 0,
+                  WPARAM info = 0) noexcept;
     void PrepareInputForReveal(
         bool wasVisible) noexcept;
     void VerifyFirstRevealEnglishInput() noexcept;
@@ -188,6 +191,8 @@ private:
     UINT taskbarCreatedMessage_{0};
     bool firstRevealPending_{true};
     bool imeComposing_{false};
+    bool imeFirstInputObserved_{false};
+    LauncherImeTrace imeTrace_;
     bool imeRevealOverrideActive_{false};
     bool imeRevealOriginalOpen_{false};
     bool contextActionModalActive_{false};

@@ -498,6 +498,7 @@ LauncherWindow::LauncherWindow(App& app, HINSTANCE instance)
     : app_(app), instance_(instance) {}
 
 LauncherWindow::~LauncherWindow() {
+    imeTrace_.Flush();
     RemoveTrayIcon();
 
     if (normalFont_) DeleteObject(normalFont_);
@@ -592,6 +593,8 @@ bool LauncherWindow::EnsureClassicResources() {
 }
 
 bool LauncherWindow::Create() {
+    imeTrace_.EnableIfRequested();
+    TraceIme("create.begin");
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&controls);
 
@@ -661,6 +664,7 @@ bool LauncherWindow::Create() {
         this);
 
     if (!hwnd_) return false;
+    TraceIme("create.window");
 
     window_presentation::Configure(
         hwnd_);
@@ -673,6 +677,7 @@ bool LauncherWindow::Create() {
         ui::ModernCompactLauncherMetricsForDpi(
             dpi_);
     CreateChildren();
+    TraceIme("create.children");
     ApplyAppearance();
     ApplyLanguage();
     AddTrayIcon();
@@ -680,6 +685,7 @@ bool LauncherWindow::Create() {
     RefreshResults();
     Reposition();
     firstRevealPending_ = true;
+    TraceIme("create.ready");
     return true;
 }
 
@@ -1556,6 +1562,8 @@ void LauncherWindow::Toggle() {
 
 void LauncherWindow::Show() {
     if (!hwnd_) return;
+    imeTrace_.BeginReveal();
+    TraceIme("show.enter");
 
     if (!app_.CanRevealLauncher()) {
         app_.DeferLauncherReveal();
@@ -1566,6 +1574,7 @@ void LauncherWindow::Show() {
     const bool firstReveal = firstRevealPending_;
     CancelPendingNumericIntent();
     lastTextInputTick_ = 0;
+    imeFirstInputObserved_ = false;
     consumedNumericVirtualKey_ = 0;
     consumedNumericChar_ = 0;
 
@@ -1600,12 +1609,17 @@ void LauncherWindow::Show() {
             SW_SHOWNORMAL);
     }
 
+    TraceIme(firstReveal ? "show.first.visible" : "show.next.visible");
     SetForegroundWindow(hwnd_);
+    TraceIme("show.foreground");
     SetFocus(edit_);
+    TraceIme("show.focus");
     SendMessageW(edit_, EM_SETSEL, 0, -1);
 
+    TraceIme("show.before-ime");
     PrepareInputForReveal(
         wasVisible);
+    TraceIme("show.after-ime");
 
     // The first activation can attach/restore the native EDIT's IME context
     // after the initial focus call. Check it once after activation messages
@@ -1613,12 +1627,20 @@ void LauncherWindow::Show() {
     if (firstReveal && !wasVisible &&
         app_.SettingsData().defaultEnglishInputOnReveal) {
         PostMessageW(hwnd_, kFirstRevealImeCheckMessage, 0, 0);
+        TraceIme("show.verify-posted");
     }
 
     // EN_CHANGE normally already refreshed the empty query before reveal.
     // Retain the explicit refresh only when resetting EDIT did not do so.
     if (!refreshedByReset) RefreshResults();
     if (!wasVisible && IsWindowVisible(hwnd_)) ui::PlayFeedback(FeedbackCue::Reveal);
+}
+
+void LauncherWindow::TraceIme(
+    const char* event, UINT message, WPARAM info) noexcept {
+    imeTrace_.Record(event, hwnd_, edit_,
+        imeRevealOverrideActive_, imeRevealOriginalOpen_,
+        imeComposing_, message, info);
 }
 
 void LauncherWindow::PrepareInputForReveal(
@@ -1643,6 +1665,7 @@ void LauncherWindow::PrepareInputForReveal(
 }
 
 void LauncherWindow::VerifyFirstRevealEnglishInput() noexcept {
+    TraceIme("verify.enter");
     // Only the first reveal receives this one-shot verification. Do not
     // override a user-initiated IME change after typing or after hiding.
     if (!hwnd_ || !edit_ || !IsWindowVisible(hwnd_) ||
@@ -1650,6 +1673,7 @@ void LauncherWindow::VerifyFirstRevealEnglishInput() noexcept {
         !app_.SettingsData().defaultEnglishInputOnReveal ||
         lastTextInputTick_ != 0 || !CurrentQuery().empty() ||
         imeComposing_) {
+        TraceIme("verify.skipped");
         return;
     }
 
@@ -1662,6 +1686,7 @@ void LauncherWindow::VerifyFirstRevealEnglishInput() noexcept {
         // When an already-closed IME was reopened during the first
         // activation, preserve the originally captured restore intent.
     }
+    TraceIme("verify.after-ime");
 }
 
 void LauncherWindow::RestoreInputOverride() noexcept {
@@ -1678,6 +1703,7 @@ void LauncherWindow::RestoreInputOverride() noexcept {
 }
 
 void LauncherWindow::Hide() {
+    TraceIme("hide.enter");
     app_.ClearActivationContext();
 
     CancelPendingNumericIntent();
@@ -1685,11 +1711,15 @@ void LauncherWindow::Hide() {
     dynamicQueryPending_ = false;
     ++searchGeneration_;
 
+    TraceIme("hide.before-restore");
     RestoreInputOverride();
+    TraceIme("hide.after-restore");
 
     if (hwnd_) {
         ShowWindow(hwnd_, SW_HIDE);
     }
+    TraceIme("hide.hidden");
+    imeTrace_.Flush();
 }
 
 std::wstring LauncherWindow::CurrentQuery() const {
@@ -3434,6 +3464,35 @@ LRESULT LauncherWindow::HandleEditMessage(
         imeComposing_ = false;
     }
 
+    if (imeTrace_.Enabled()) {
+        switch (message) {
+        case WM_SETFOCUS:
+        case WM_KILLFOCUS:
+        case WM_IME_SETCONTEXT:
+        case WM_INPUTLANGCHANGE:
+        case WM_INPUTLANGCHANGEREQUEST:
+        case WM_IME_STARTCOMPOSITION:
+        case WM_IME_ENDCOMPOSITION:
+            TraceIme("edit.message", message,
+                     message == WM_IME_SETCONTEXT ? wParam : 0);
+            break;
+        case WM_IME_NOTIFY:
+            if (wParam == IMN_SETOPENSTATUS ||
+                wParam == IMN_SETCONVERSIONMODE) {
+                TraceIme("edit.ime-notify", message, wParam);
+            }
+            break;
+        default:
+            break;
+        }
+        if (!imeFirstInputObserved_ && message == WM_KEYDOWN &&
+            wParam != VK_SHIFT && wParam != VK_CONTROL &&
+            wParam != VK_MENU) {
+            imeFirstInputObserved_ = true;
+            TraceIme("edit.first-key");
+        }
+    }
+
     if (message == WM_KILLFOCUS) CancelPendingNumericIntent();
     if (message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN ||
         message == WM_CUT || message == WM_CLEAR)
@@ -3741,6 +3800,22 @@ LRESULT LauncherWindow::HandleEditMessage(
 
 LRESULT LauncherWindow::HandleMessage(
     UINT message, WPARAM wParam, LPARAM lParam) {
+
+    if (imeTrace_.Enabled()) {
+        switch (message) {
+        case WM_ACTIVATE:
+        case WM_ACTIVATEAPP:
+        case WM_SHOWWINDOW:
+        case WM_IME_SETCONTEXT:
+        case WM_INPUTLANGCHANGE:
+        case WM_INPUTLANGCHANGEREQUEST:
+            TraceIme("window.message", message,
+                     message == WM_ACTIVATE ? LOWORD(wParam) : 0);
+            break;
+        default:
+            break;
+        }
+    }
 
     if (taskbarCreatedMessage_ != 0 &&
         message == taskbarCreatedMessage_) {
@@ -4711,6 +4786,8 @@ LRESULT LauncherWindow::HandleMessage(
     }
 
     case WM_DESTROY:
+        TraceIme("window.destroy");
+        imeTrace_.Flush();
         CancelPendingNumericIntent();
         RemoveTrayIcon();
         hwnd_ = nullptr;

@@ -8,6 +8,9 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <fstream>
+#include <iterator>
+#include <filesystem>
 #include <vector>
 #include <unordered_set>
 
@@ -384,6 +387,49 @@ struct LauncherResourceRuntimeFixture {
         settings.providerEnabled["everything.filesystem"] = false;
         app.everythingProvider_.reset(); // join callbacks before App test state expires
     }
+    static void VerifyImeTraceOptIn() {
+        constexpr wchar_t key[] = L"ASTERUN_IME_TRACE";
+        wchar_t previous[256]{};
+        const DWORD length = GetEnvironmentVariableW(key, previous, 256);
+        assert(length < 256);
+
+        assert(SetEnvironmentVariableW(key, nullptr));
+        LauncherImeTrace disabled;
+        disabled.EnableIfRequested();
+        assert(!disabled.Enabled());
+        disabled.Record("disabled", nullptr, nullptr, false, false, false);
+        disabled.Flush();
+        assert(disabled.LogPath().empty());
+
+        assert(SetEnvironmentVariableW(key, L"1"));
+        LauncherImeTrace enabled;
+        enabled.EnableIfRequested();
+        assert(enabled.Enabled());
+        enabled.BeginReveal();
+        enabled.Record("first-reveal-probe", nullptr, nullptr,
+                       false, false, false);
+        enabled.Flush();
+        assert(std::filesystem::exists(enabled.LogPath()));
+
+        std::ifstream log(enabled.LogPath(), std::ios::binary);
+        assert(log.good());
+        const std::string text{
+            std::istreambuf_iterator<char>(log),
+            std::istreambuf_iterator<char>()};
+        assert(text.find("first-reveal-probe") != std::string::npos);
+        assert(text.find("reveal=1") != std::string::npos);
+        log.close();
+        assert(std::filesystem::remove(enabled.LogPath()));
+
+        if (length != 0) {
+            assert(SetEnvironmentVariableW(key, previous));
+        } else {
+            assert(SetEnvironmentVariableW(key, nullptr));
+        }
+        std::cout << "IME trace explicit opt-in and deferred flush passed"
+                  << std::endl;
+    }
+
     static void VerifyRevealInputPreference(
         App& app,
         HINSTANCE instance) {
@@ -897,6 +943,7 @@ struct LauncherResourceRuntimeFixture {
             }
         }
         VerifyTypography(app, instance);
+        VerifyImeTraceOptIn();
         VerifyRevealInputPreference(
             app,
             instance);
