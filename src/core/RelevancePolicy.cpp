@@ -759,21 +759,12 @@ int CompareRankContext(
     const RankContext& left,
     const RankContext& right) noexcept {
 
-    const int leftExplicit =
-        left.pinned
-            ? 2
-            : (left.explicitUser ? 1 : 0);
-
-    const int rightExplicit =
-        right.pinned
-            ? 2
-            : (right.explicitUser ? 1 : 0);
-
-    if (leftExplicit != rightExplicit) {
-        return leftExplicit >
-                rightExplicit
-            ? 1
-            : -1;
+    // Explicit pinning is a deliberate user override, including on the
+    // empty-query launcher. Merely originating from user.commands is not:
+    // defaults such as Notepad (np) must not outrank a TeamSpeak name prefix
+    // when the typed query only loosely matches "Notepad".
+    if (left.pinned != right.pinned) {
+        return left.pinned ? 1 : -1;
     }
 
     const int leftMatch =
@@ -787,6 +778,14 @@ int CompareRankContext(
         return leftMatch > rightMatch
             ? 1
             : -1;
+    }
+
+    // For equal match kinds, keep the traditional preference for genuine
+    // user shortcuts and their explicit exact aliases. This also retains
+    // user-first empty-query ordering; only mismatched relevance tiers now
+    // let a better Provider result precede an unpinned user shortcut.
+    if (left.explicitUser != right.explicitUser) {
+        return left.explicitUser ? 1 : -1;
     }
 
     const int leftSurface =
