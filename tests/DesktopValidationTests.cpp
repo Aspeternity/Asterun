@@ -195,7 +195,7 @@ int main() {
             scale(
                 settings_layout::
                     kToggleRowLogical) *
-                3);
+                4);
 
         assert(
             layout.search.top >

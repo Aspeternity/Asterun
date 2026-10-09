@@ -149,13 +149,21 @@ public:
 
     void SetUiStyle(UiStyle style);
     void SetLanguage(Language language);
-    bool SetStartWithWindows(bool enabled);
+    bool SetStartWithWindows(
+        bool enabled,
+        bool refreshSettingsWindow = true);
     bool SetStartupBehavior(
         StartupBehavior behavior);
-    bool SetShowTrayIcon(bool enabled);
-    bool SetSoundEnabled(bool enabled);
+    bool SetShowTrayIcon(
+        bool enabled,
+        bool refreshSettingsWindow = true);
+    bool SetSoundEnabled(
+        bool enabled,
+        bool refreshSettingsWindow = true);
     bool ConfirmDeleteUserCommand(HWND owner, std::wstring id);
-    bool SetAddToSendToMenu(bool enabled);
+    bool SetAddToSendToMenu(
+        bool enabled,
+        bool refreshSettingsWindow = true);
     bool SetPopupMonitor(
         std::string popupMonitor);
     bool SetHotkeySettings(
@@ -175,10 +183,14 @@ public:
     [[nodiscard]] DWORD
     HotkeyActionLastError(
         std::string_view actionId) const noexcept;
+    bool SetDefaultEnglishInputOnReveal(
+        bool enabled,
+        bool refreshSettingsWindow = true);
     bool SetClassicBehavior(
         bool numericQuickLaunch,
         bool executeSingleResultImmediately,
-        bool pinyinSearch);
+        bool pinyinSearch,
+        bool refreshSettingsWindow = true);
     bool SetProviderEnabled(
         std::string id,
         bool enabled,

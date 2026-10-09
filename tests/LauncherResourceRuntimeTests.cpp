@@ -3,6 +3,7 @@
 #include "ui/LauncherWindow.hpp"
 #include "NumericIntentRuntimeFixture.hpp"
 #include <windows.h>
+#include <imm.h>
 #include <psapi.h>
 #include <cassert>
 #include <cstring>
@@ -13,6 +14,12 @@
 namespace {
 unsigned loads{}, failLoad{};
 bool failInfo{}, failDc{};
+unsigned imeContextGets{};
+unsigned imeOpenStatusReads{};
+unsigned imeCompositionCancels{};
+unsigned imeSetOpenRequests{};
+unsigned imeContextReleases{};
+BOOL imeCurrentOpenStatus{TRUE};
 std::unordered_set<HGDIOBJ> ownedBitmaps;
 std::unordered_set<HDC> ownedDcs;
 HANDLE WINAPI TestLoadImage(HINSTANCE instance, LPCWSTR name, UINT type, int x, int y, UINT flags) {
@@ -40,13 +47,69 @@ BOOL WINAPI TestDeleteDc(HDC dc) {
     if (ownedDcs.contains(dc)) { assert(result); ownedDcs.erase(dc); }
     return result;
 }
+HIMC WINAPI TestImmGetContext(HWND window) {
+    assert(window);
+    ++imeContextGets;
+    return reinterpret_cast<HIMC>(
+        static_cast<ULONG_PTR>(1));
+}
+BOOL WINAPI TestImmGetOpenStatus(HIMC context) {
+    assert(context);
+    ++imeOpenStatusReads;
+    return imeCurrentOpenStatus;
+}
+BOOL WINAPI TestImmNotifyIME(HIMC context, DWORD action, DWORD index, DWORD value) {
+    assert(context);
+    assert(action == NI_COMPOSITIONSTR);
+    assert(index == CPS_CANCEL);
+    assert(value == 0);
+    ++imeCompositionCancels;
+    return TRUE;
+}
+BOOL WINAPI TestImmSetOpenStatus(HIMC context, BOOL open) {
+    assert(context);
+    ++imeSetOpenRequests;
+    imeCurrentOpenStatus = open;
+    return TRUE;
+}
+BOOL WINAPI TestImmReleaseContext(HWND window, HIMC context) {
+    assert(window);
+    assert(context);
+    ++imeContextReleases;
+    return TRUE;
+}
+void ResetImeProbe(BOOL openStatus = TRUE) {
+    imeContextGets = 0;
+    imeOpenStatusReads = 0;
+    imeCompositionCancels = 0;
+    imeSetOpenRequests = 0;
+    imeContextReleases = 0;
+    imeCurrentOpenStatus = openStatus;
+}
+void ClearImeProbeCounts() {
+    imeContextGets = 0;
+    imeOpenStatusReads = 0;
+    imeCompositionCancels = 0;
+    imeSetOpenRequests = 0;
+    imeContextReleases = 0;
+}
 }
 #define DeleteObject TestDeleteObject
 #define DeleteDC TestDeleteDc
 #define LoadImageW TestLoadImage
 #define GetObjectW TestGetObject
 #define CreateCompatibleDC TestCreateDc
+#define ImmGetContext TestImmGetContext
+#define ImmGetOpenStatus TestImmGetOpenStatus
+#define ImmNotifyIME TestImmNotifyIME
+#define ImmSetOpenStatus TestImmSetOpenStatus
+#define ImmReleaseContext TestImmReleaseContext
 #include "../src/ui/LauncherWindow.cpp"
+#undef ImmReleaseContext
+#undef ImmSetOpenStatus
+#undef ImmNotifyIME
+#undef ImmGetOpenStatus
+#undef ImmGetContext
 #undef DeleteDC
 #undef DeleteObject
 #undef CreateCompatibleDC
@@ -268,6 +331,173 @@ struct LauncherResourceRuntimeFixture {
         settings.providerEnabled["everything.filesystem"] = false;
         app.everythingProvider_.reset(); // join callbacks before App test state expires
     }
+    static void VerifyRevealInputPreference(
+        App& app,
+        HINSTANCE instance) {
+
+        auto& settings =
+            const_cast<Settings&>(
+                app.SettingsData());
+        const bool previous =
+            settings
+                .defaultEnglishInputOnReveal;
+
+        LauncherWindow window(
+            app,
+            instance);
+        assert(window.Create());
+
+        settings.defaultEnglishInputOnReveal =
+            true;
+        ResetImeProbe(TRUE);
+
+        window.PrepareInputForReveal(
+            false);
+
+        assert(imeContextGets == 1);
+        assert(imeOpenStatusReads == 1);
+        assert(imeCompositionCancels == 1);
+        assert(imeSetOpenRequests == 1);
+        assert(imeCurrentOpenStatus == FALSE);
+        assert(imeContextReleases == 1);
+        assert(window.imeRevealOverrideActive_);
+        assert(window.imeRevealOriginalOpen_);
+
+        // Hiding a session restores the IME state Asterun temporarily closed.
+        ClearImeProbeCounts();
+
+        window.Hide();
+
+        assert(imeContextGets == 1);
+        assert(imeOpenStatusReads == 1);
+        assert(imeCompositionCancels == 0);
+        assert(imeSetOpenRequests == 1);
+        assert(imeCurrentOpenStatus == TRUE);
+        assert(imeContextReleases == 1);
+        assert(!window.imeRevealOverrideActive_);
+
+        // A user's manual switch back to Chinese wins. Restore observes that
+        // the IME is already open and must not write over that state.
+        ResetImeProbe(TRUE);
+        window.PrepareInputForReveal(
+            false);
+        assert(imeCurrentOpenStatus == FALSE);
+        imeCurrentOpenStatus = TRUE;
+        ClearImeProbeCounts();
+
+        window.RestoreInputOverride();
+
+        assert(imeContextGets == 1);
+        assert(imeOpenStatusReads == 1);
+        assert(imeSetOpenRequests == 0);
+        assert(imeCurrentOpenStatus == TRUE);
+        assert(imeContextReleases == 1);
+
+        // Re-entering Show in the same visible session must not impose a new
+        // override after the user changes input mode.
+        ResetImeProbe(TRUE);
+
+        window.PrepareInputForReveal(
+            true);
+
+        assert(imeContextGets == 0);
+        assert(imeOpenStatusReads == 0);
+        assert(imeCompositionCancels == 0);
+        assert(imeSetOpenRequests == 0);
+        assert(imeContextReleases == 0);
+
+        // If the EDIT already starts in direct input mode, do not manufacture
+        // an override session or a later restore.
+        ResetImeProbe(FALSE);
+
+        window.PrepareInputForReveal(
+            false);
+
+        assert(imeContextGets == 1);
+        assert(imeOpenStatusReads == 1);
+        assert(imeCompositionCancels == 0);
+        assert(imeSetOpenRequests == 0);
+        assert(imeContextReleases == 1);
+        assert(!window.imeRevealOverrideActive_);
+
+        ClearImeProbeCounts();
+        window.RestoreInputOverride();
+        assert(imeContextGets == 0);
+        assert(imeSetOpenRequests == 0);
+
+        // The opt-out restores historical behavior for every fresh session.
+        settings.defaultEnglishInputOnReveal =
+            false;
+        ResetImeProbe(TRUE);
+
+        window.PrepareInputForReveal(
+            false);
+
+        assert(imeContextGets == 0);
+        assert(imeOpenStatusReads == 0);
+        assert(imeCompositionCancels == 0);
+        assert(imeSetOpenRequests == 0);
+        assert(imeContextReleases == 0);
+        assert(imeCurrentOpenStatus == TRUE);
+
+        settings.defaultEnglishInputOnReveal =
+            previous;
+        Destroy(window);
+
+        std::cout
+            << "Launcher reveal English-input session restore passed"
+            << std::endl;
+    }
+
+    static void VerifyShortcutHintPresentation() {
+        LauncherResult user;
+        user.kind =
+            ResultKind::UserCommand;
+        user.title = L"ts";
+        user.subtitle =
+            L"TeamSpeak 3 Client";
+        user.shortcutHint =
+            L"ts · teamspeak";
+
+        assert(
+            ModernPrimaryResultText(
+                user) ==
+            L"TeamSpeak 3 Client");
+        assert(
+            ModernSecondaryResultText(
+                user) ==
+            L"ts · teamspeak");
+        assert(
+            ClassicShortcutResultText(
+                user) ==
+            L"ts · teamspeak");
+
+        // Non-user results never expose provider/internal alias text even if
+        // presentation metadata is populated accidentally.
+        LauncherResult application;
+        application.kind =
+            ResultKind::Application;
+        application.title =
+            L"TeamSpeak 3 Client";
+        application.subtitle =
+            L"TeamSpeak";
+        application.shortcutHint =
+            L"internal · token";
+
+        assert(
+            ModernSecondaryResultText(
+                application) ==
+            L"TeamSpeak 3 Client");
+        assert(
+            ClassicShortcutResultText(
+                application) ==
+            L"TeamSpeak 3 Client");
+
+        std::cout
+            << "User shortcut hint presentation passed"
+            << std::endl;
+    }
+
     static void VerifyTopLevelForegroundHandoff(
         App& app,
         HINSTANCE instance) {
@@ -481,6 +711,10 @@ struct LauncherResourceRuntimeFixture {
             }
         }
         VerifyTypography(app, instance);
+        VerifyRevealInputPreference(
+            app,
+            instance);
+        VerifyShortcutHintPresentation();
         VerifyTopLevelForegroundHandoff(
             app,
             instance);

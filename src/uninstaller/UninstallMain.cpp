@@ -530,6 +530,74 @@ ParsePerformArguments(
           hasLeaseAcquired));
 }
 
+void RemoveNotificationIdentity(
+    const std::filesystem::path& install) {
+    constexpr wchar_t keyPath[] =
+        L"Software\\Classes\\AppUserModelId\\Asterun";
+    constexpr wchar_t valueName[] =
+        L"IconUri";
+
+    HKEY key = nullptr;
+
+    if (RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            keyPath,
+            0,
+            KEY_QUERY_VALUE,
+            &key) != ERROR_SUCCESS) {
+        return;
+    }
+
+    DWORD type = 0;
+    DWORD bytes = 0;
+    bool owned = false;
+
+    if (RegQueryValueExW(
+            key,
+            valueName,
+            nullptr,
+            &type,
+            nullptr,
+            &bytes) == ERROR_SUCCESS &&
+        bytes > sizeof(wchar_t) &&
+        (type == REG_SZ ||
+         type == REG_EXPAND_SZ)) {
+        std::vector<wchar_t> buffer(
+            bytes / sizeof(wchar_t) + 1,
+            L'\0');
+
+        if (RegQueryValueExW(
+                key,
+                valueName,
+                nullptr,
+                &type,
+                reinterpret_cast<BYTE*>(
+                    buffer.data()),
+                &bytes) == ERROR_SUCCESS) {
+            const std::filesystem::path expected =
+                install /
+                L"data" /
+                L"assets" /
+                L"asterun-notification.ico";
+
+            owned =
+                LowerPath(
+                    std::filesystem::path(
+                        buffer.data())) ==
+                LowerPath(expected);
+        }
+    }
+
+    RegCloseKey(key);
+
+    if (owned) {
+        (void)
+            RegDeleteTreeW(
+                HKEY_CURRENT_USER,
+                keyPath);
+    }
+}
+
 void RemoveStartupRegistration(
     const std::filesystem::path& install) {
     constexpr wchar_t keyPath[] =
@@ -2635,6 +2703,8 @@ BeginUninstall() {
     worker.Reset();
 
     RemoveStartupRegistration(
+        install);
+    RemoveNotificationIdentity(
         install);
     RemoveSendToRegistration(
         install);

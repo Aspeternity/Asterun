@@ -127,8 +127,12 @@ try {
         Get-Content $settingsPath -Raw |
         ConvertFrom-Json
 
-    if ($migratedSettings.schemaVersion -ne 11) {
-        throw "Packaged runtime did not migrate schema-2 settings to schema 11."
+    if ($migratedSettings.schemaVersion -ne 12) {
+        throw "Packaged runtime did not migrate schema-2 settings to schema 12."
+    }
+
+    if ($migratedSettings.behavior.defaultEnglishInputOnReveal -ne $true) {
+        throw "Settings migration must enable default-English launcher input."
     }
 
     if ($migratedSettings.general.soundEnabled -ne $true) {

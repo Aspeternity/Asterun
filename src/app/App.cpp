@@ -840,6 +840,15 @@ std::vector<LauncherResult> App::Search(
                 ? command.title
                 : command.keyword;
         result.subtitle = command.title;
+
+        if (command.source ==
+            CommandSource::User) {
+            result.shortcutHint =
+                FormatUserShortcutHint(
+                    command.keyword,
+                    command.aliases);
+        }
+
         result.target = command.target;
         result.detail =
             CommandDetail(command);
@@ -3009,7 +3018,9 @@ void App::SetLanguage(Language language) {
     }
 }
 
-bool App::SetStartWithWindows(bool enabled) {
+bool App::SetStartWithWindows(
+    bool enabled,
+    bool refreshSettingsWindow) {
     const bool previous =
         settingsStore_.Data().startWithWindows;
 
@@ -3029,7 +3040,8 @@ bool App::SetStartWithWindows(bool enabled) {
         return false;
     }
 
-    if (settingsWindow_) {
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
         settingsWindow_->RefreshFromSettings();
     }
 
@@ -3395,15 +3407,21 @@ bool App::SetStartupBehavior(
     return true;
 }
 
-bool App::SetSoundEnabled(bool enabled) {
+bool App::SetSoundEnabled(
+    bool enabled,
+    bool refreshSettingsWindow) {
     if (!settingsStore_.SetSoundEnabled(enabled)) return false;
     ui::SetFeedbackEnabled(enabled);
-    if (settingsWindow_) settingsWindow_->RefreshFromSettings();
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
+        settingsWindow_->RefreshFromSettings();
+    }
     return true;
 }
 
 bool App::SetShowTrayIcon(
-    bool enabled) {
+    bool enabled,
+    bool refreshSettingsWindow) {
 
     if (!settingsStore_
              .SetShowTrayIcon(
@@ -3415,7 +3433,8 @@ bool App::SetShowTrayIcon(
         window_->ApplyGeneralSettings();
     }
 
-    if (settingsWindow_) {
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
         settingsWindow_->
             RefreshFromSettings();
     }
@@ -3424,7 +3443,8 @@ bool App::SetShowTrayIcon(
 }
 
 bool App::SetAddToSendToMenu(
-    bool enabled) {
+    bool enabled,
+    bool refreshSettingsWindow) {
 
     const bool previous =
         settingsStore_.Data()
@@ -3450,7 +3470,8 @@ bool App::SetAddToSendToMenu(
         return false;
     }
 
-    if (settingsWindow_) {
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
         settingsWindow_->
             RefreshFromSettings();
     }
@@ -3778,10 +3799,31 @@ DWORD App::HotkeyActionLastError(
     return ERROR_SUCCESS;
 }
 
+bool App::
+SetDefaultEnglishInputOnReveal(
+    bool enabled,
+    bool refreshSettingsWindow) {
+
+    if (!settingsStore_
+             .SetDefaultEnglishInputOnReveal(
+                 enabled)) {
+        return false;
+    }
+
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
+        settingsWindow_->
+            RefreshFromSettings();
+    }
+
+    return true;
+}
+
 bool App::SetClassicBehavior(
     bool numericQuickLaunch,
     bool executeSingleResultImmediately,
-    bool pinyinSearch) {
+    bool pinyinSearch,
+    bool refreshSettingsWindow) {
 
     const bool wasPinyinEnabled =
         settingsStore_.Data()
@@ -3805,7 +3847,8 @@ bool App::SetClassicBehavior(
         window_->RefreshResults();
     }
 
-    if (settingsWindow_) {
+    if (refreshSettingsWindow &&
+        settingsWindow_) {
         settingsWindow_->
             RefreshFromSettings();
     }

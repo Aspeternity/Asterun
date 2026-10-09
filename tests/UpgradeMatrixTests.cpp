@@ -177,6 +177,11 @@ void AssertCommonFields(
         root.at("behavior");
 
     assert(
+        settings.defaultEnglishInputOnReveal ==
+        behavior.value(
+            "defaultEnglishInputOnReveal",
+            true));
+    assert(
         settings.pinyinSearch ==
         behavior.value(
             "pinyinSearch",
@@ -336,6 +341,10 @@ void AssertSchema3Migration(
         migrated.at("schemaVersion")
             .get<int>() ==
         config::kSettingsSchemaVersion);
+    assert(
+        migrated.at("behavior")
+            .at("defaultEnglishInputOnReveal")
+            .get<bool>());
     assert(
         migrated.at("behavior")
             .at("pinyinSearch")

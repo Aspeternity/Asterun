@@ -77,7 +77,7 @@ namespace {
 void WriteSettings(bool everything = false) {
     std::filesystem::create_directories(fixtureRoot / "data");
     std::ofstream file(fixtureRoot / "data/settings.json");
-    file << R"({"schemaVersion":11,"general":{"startWithWindows":false,
+    file << R"({"schemaVersion":12,"general":{"startWithWindows":false,
         "showTrayIcon":false,"startupBehavior":"silent","soundEnabled":false,
         "addToSendToMenu":false},"update":{"autoCheck":false},"providers":{
         "windows.startmenu":false,"windows.packaged":false,"windows.apppaths":false,
