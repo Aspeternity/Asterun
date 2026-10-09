@@ -441,9 +441,10 @@ int main(int argc, char** argv) {
             3));
     }
 
-    // Short ASCII precision: 1-2 characters may use exact, whole-field
-    // prefix and initials, but must not recall arbitrary later word
-    // boundaries. Three-character queries restore BoundaryPrefix behavior.
+    // Short ASCII precision: 1-2 characters use exact, whole-field prefix
+    // and initials by default, without arbitrary later-word boundaries.
+    // A narrowly gated two-word primary-application exception is tested below.
+    // Three-character queries retain full BoundaryPrefix behavior.
     {
         std::vector<Command>
             shortPrecision{
@@ -592,6 +593,302 @@ int main(int argc, char** argv) {
             ContainsCommand(
                 sourcesBoundary,
                 5));
+    }
+
+    // Controlled two-character secondary-word recall for normal primary
+    // applications: Google Chrome is searchable as "ch", although its
+    // Provider keyword is "googlechrome". Arbitrary later word boundaries
+    // and 1-2 character filesystem noise must stay suppressed.
+    {
+        std::vector<Command> secondaryWord{
+            MakeCommand(L"short-ch-chatgpt", L"chatgpt", L"ChatGPT",
+                        L"ChatGPT.app", 0),
+            MakeCommand(L"short-ch-charmap", L"charactermap",
+                        L"Character Map", L"charmap.lnk", 1),
+            MakeCommand(L"short-ch-chrome", L"googlechrome",
+                        L"Google Chrome", L"chrome.lnk", 2),
+            MakeCommand(L"short-ch-canary", L"googlechromecanary",
+                        L"Google Chrome Canary", L"canary.lnk", 3),
+            MakeCommand(L"short-ch-utility", L"windowschrome",
+                        L"Windows Chrome", L"chrome-helper.lnk", 4),
+            MakeCommand(L"short-ch-fake", L"thirdpartychrome",
+                        L"Thirdparty Chrome", L"other.exe", 5),
+            MakeCommand(L"short-ch-firefox", L"mozillafirefox",
+                        L"Mozilla Firefox", L"firefox.lnk", 6),
+            MakeCommand(L"short-ch-edge", L"microsoftedge",
+                        L"Microsoft Edge", L"msedge.lnk", 7),
+            MakeCommand(L"short-ch-photoshop", L"adobephotoshop",
+                        L"Adobe Photoshop", L"photoshop.lnk", 8),
+            MakeCommand(L"short-ch-teams", L"microsoftteams",
+                        L"Microsoft Teams", L"teams.lnk", 9),
+            MakeCommand(L"short-ch-administration", L"xboxappadminserver",
+                        L"Xbox App Admin Server", L"admin.lnk", 10),
+            MakeCommand(L"short-ch-sources", L"odbcdatasources",
+                        L"ODBC Data Sources", L"odbc.lnk", 11),
+            MakeCommand(L"short-ch-user", L"mybrowser",
+                        L"Google Chrome", L"mybrowser.exe", 12),
+            MakeCommand(L"short-ch-restricted", L"internalchrome",
+                        L"Vendor Chrome", L"chrome-internal.lnk", 13),
+        };
+        for (auto& cmd : secondaryWord) {
+            cmd.source = CommandSource::StartMenu;
+            cmd.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            cmd.catalogVisibility = CatalogVisibility::Normal;
+            cmd.basePriority = 0;
+        }
+        secondaryWord[0].source = CommandSource::PackagedApp;
+        secondaryWord[1].surfaceClass = LaunchSurfaceClass::SystemUtility;
+        secondaryWord[4].surfaceClass = LaunchSurfaceClass::SystemUtility;
+        secondaryWord[5].source = CommandSource::AppPaths;
+        secondaryWord[12].source = CommandSource::User;
+        secondaryWord[12].surfaceClass = LaunchSurfaceClass::UserCommand;
+        secondaryWord[13].catalogVisibility =
+            CatalogVisibility::StrongMatchOnly;
+
+        const auto checkShort = [&](std::wstring_view query) {
+            const auto raw = engine.Search(
+                secondaryWord, usage, query, 30, false, false);
+            const auto prepared = SearchEngine::PrepareIndex(secondaryWord);
+            const auto cached = engine.Search(
+                secondaryWord, usage, query, 30, false, false, &prepared);
+            assert(raw.size() == cached.size());
+            for (std::size_t i = 0; i < raw.size(); ++i) {
+                assert(raw[i].commandIndex == cached[i].commandIndex);
+                assert(raw[i].relevanceMatch.kind ==
+                       cached[i].relevanceMatch.kind);
+            }
+            return raw;
+        };
+
+        const auto ch = checkShort(L"ch");
+        assert(ContainsCommand(ch, 0)); // ChatGPT name prefix
+        assert(ContainsCommand(ch, 1)); // Character Map name prefix
+        assert(ContainsCommand(ch, 2)); // Google Chrome secondary word
+        assert(ContainsCommand(ch, 5)); // AppPaths primary app
+        assert(!ContainsCommand(ch, 3)); // three-word suffix is gated
+        assert(!ContainsCommand(ch, 4)); // system helper still excluded
+        assert(!ContainsCommand(ch, 12)); // no implicit user alias
+        assert(!ContainsCommand(ch, 13)); // restricted catalog unchanged
+        const auto chrome = std::find_if(ch.begin(), ch.end(),
+            [](const SearchResult& r) { return r.commandIndex == 2; });
+        assert(chrome != ch.end());
+        assert(chrome->relevanceMatch.kind ==
+               relevance::MatchKind::BoundaryPrefix);
+        assert(chrome->relevanceMatch.field == relevance::MatchField::Title);
+        assert(ch.front().commandIndex == 0);
+        assert(ch[1].commandIndex == 1);
+        assert(chrome > ch.begin() + 1);
+
+        // Three characters already recover ordinary later-word boundaries.
+        assert(ContainsCommand(checkShort(L"chr"), 2));
+        assert(ContainsCommand(checkShort(L"chr"), 3));
+        assert(!ContainsCommand(checkShort(L"c"), 2));
+
+        assert(ContainsCommand(checkShort(L"fi"), 6));
+        assert(ContainsCommand(checkShort(L"ed"), 7)); // Edge is 4 letters
+        assert(ContainsCommand(checkShort(L"ph"), 8));
+        assert(ContainsCommand(checkShort(L"te"), 9));
+
+        // Existing 2-character noise and earlier to/ad/so protections.
+        assert(!ContainsCommand(checkShort(L"ad"), 10));
+        assert(!ContainsCommand(checkShort(L"so"), 11));
+        assert(!ContainsCommand(checkShort(L"to"), 10));
+
+        // Exact user aliases still win, independent of Provider recall.
+        secondaryWord[12].aliases = {L"ch"};
+        const auto userCh = checkShort(L"ch");
+        assert(!userCh.empty());
+        assert(userCh.front().commandIndex == 12);
+        assert(userCh.front().relevanceMatch.kind ==
+               relevance::MatchKind::Exact);
+    }
+
+    // Automatic default Notepad (np) is a UserCommand even though the
+    // owner never configured it. It must not outrank actual TeamSpeak
+    // name-prefix Provider results for a weak three-letter "tea" query.
+    {
+        std::vector<Command> source{
+            MakeCommand(L"default-np", L"np", L"Notepad", L"notepad.exe", 0),
+            MakeCommand(L"provider-team", L"teamspeak", L"TeamSpeak",
+                        L"TeamSpeak.exe", 1),
+            MakeCommand(L"provider-team3", L"teamspeak3client",
+                        L"TeamSpeak 3 Client", L"TeamSpeak3.exe", 2),
+            MakeCommand(L"provider-teams", L"microsoftteams",
+                        L"Microsoft Teams", L"ms-teams.exe", 3),
+        };
+        source[0].basePriority = 120; // actual seeded default
+        source[0].pinned = false;      // seeded defaults are not pinned
+        for (std::size_t i = 1; i < source.size(); ++i) {
+            source[i].source = CommandSource::StartMenu;
+            source[i].surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            source[i].basePriority = 0;
+        }
+
+        UsageMap history;
+        const auto verifyTea = [&](const UsageMap& h) {
+            const auto result = engine.Search(
+                source, h, L"tea", 20, false, false);
+            assert(ContainsCommand(result, 0));
+            assert(ContainsCommand(result, 1));
+            assert(ContainsCommand(result, 2));
+            assert(result.front().commandIndex == 1); // TeamSpeak
+            assert(result[1].commandIndex == 2);      // TeamSpeak 3
+            const auto np = std::find_if(result.begin(), result.end(),
+                [](const SearchResult& r) { return r.commandIndex == 0; });
+            assert(np != result.end());
+            assert(result[0].relevanceMatch.kind ==
+                   relevance::MatchKind::Prefix);
+            assert(np->relevanceMatch.kind ==
+                   relevance::MatchKind::TightFuzzy);
+            const auto prepared = SearchEngine::PrepareIndex(source);
+            const auto cached = engine.Search(
+                source, h, L"tea", 20, false, false, &prepared);
+            assert(cached.size() == result.size());
+            for (std::size_t i = 0; i < result.size(); ++i)
+                assert(cached[i].commandIndex == result[i].commandIndex);
+        };
+        verifyTea(history);
+        history[L"default-np"] = UsageStat{
+            100000, 1, {{L"tea", 100000}}
+        };
+        verifyTea(history);
+
+        // Real exact user keyword/alias priority is preserved.
+        const auto np = engine.Search(source, history, L"np", 20, false, false);
+        assert(!np.empty());
+        assert(np.front().commandIndex == 0);
+        assert(np.front().relevanceMatch.kind == relevance::MatchKind::Exact);
+
+        Command ts = MakeCommand(
+            L"user-ts", L"ts", L"Voice Chat", L"teamspeak.exe", 4);
+        ts.aliases = {L"teamspeak"};
+        source.push_back(ts);
+        const auto shortcut = engine.Search(
+            source, history, L"ts", 20, false, false);
+        assert(!shortcut.empty());
+        assert(shortcut.front().commandIndex == 4);
+        assert(shortcut.front().relevanceMatch.kind ==
+               relevance::MatchKind::Exact);
+
+        source[0].pinned = true;
+        const auto pinnedTea = engine.Search(
+            source, history, L"tea", 20, false, false);
+        assert(!pinnedTea.empty());
+        assert(pinnedTea.front().commandIndex == 0);
+    }
+
+    // Real-world Provider regression: isolated, non-identifying short English
+    // words in automatically discovered titles must not impersonate exact
+    // application keywords. A name starting with "to" expresses stronger
+    // intent than the middle words in "7 Days to Die" / "Microsoft To Do".
+    {
+        std::vector<Command> apps{
+            MakeCommand(L"7dtd", L"7daystodie", L"7 Days to Die",
+                        L"steam://rungameid/251570", 0),
+            MakeCommand(L"todo", L"microsofttodo", L"Microsoft To Do",
+                        L"Microsoft.Todos_8wekyb3d8bbwe!App", 1),
+            MakeCommand(L"todesk", L"todesk", L"ToDesk",
+                        L"ToDesk.lnk", 2),
+            MakeCommand(L"tor", L"torbrowser", L"Tor Browser",
+                        L"Tor Browser.lnk", 3),
+            MakeCommand(L"office", L"office", L"Office",
+                        L"Office.lnk", 4),
+            MakeCommand(L"work", L"workofart", L"Work of Art",
+                        L"Work of Art.lnk", 5),
+            MakeCommand(L"inside", L"insomnia", L"Insomnia",
+                        L"Insomnia.lnk", 6),
+            MakeCommand(L"panel", L"signinandout", L"Sign In and Out",
+                        L"Sign In and Out.lnk", 7),
+            MakeCommand(L"short-id", L"acmez5", L"Acme Z5",
+                        L"Acme Z5.lnk", 8),
+        };
+        for (auto& app : apps) {
+            app.source = CommandSource::StartMenu;
+            app.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            app.catalogVisibility = CatalogVisibility::Normal;
+            app.basePriority = 0;
+        }
+        apps[1].source = CommandSource::PackagedApp;
+        // These are the cached role-based title residuals produced by
+        // automatic discovery (not explicit user-defined aliases).
+        apps[0].distinctiveTokens = {L"7", L"days", L"to", L"die"};
+        apps[1].distinctiveTokens = {L"microsoft", L"to", L"do"};
+        apps[5].distinctiveTokens = {L"of"};
+        apps[7].distinctiveTokens = {L"in"};
+        apps[8].distinctiveTokens = {L"z5"};
+
+        UsageMap habits;
+        const auto checkPrefixRanking = [&](const UsageMap& history) {
+            const auto result = engine.Search(
+                apps, history, L"to", 20, false, false);
+            assert(ContainsCommand(result, 0));
+            assert(ContainsCommand(result, 1));
+            assert(ContainsCommand(result, 2));
+            assert(ContainsCommand(result, 3));
+            assert(result.size() >= 4);
+            assert(result[0].commandIndex == 2); // ToDesk
+            assert(result[1].commandIndex == 3); // Tor Browser
+            assert(result[0].relevanceMatch.kind == relevance::MatchKind::Prefix);
+            assert(result[1].relevanceMatch.kind == relevance::MatchKind::Prefix);
+
+            const auto prepared = SearchEngine::PrepareIndex(apps);
+            const auto cached = engine.Search(
+                apps, history, L"to", 20, false, false, &prepared);
+            assert(cached.size() == result.size());
+            for (std::size_t i = 0; i < result.size(); ++i)
+                assert(cached[i].commandIndex == result[i].commandIndex);
+        };
+
+        checkPrefixRanking(habits);
+        // Repeated launches may reorder comparable matches but cannot make
+        // a generic middle-word match more exact than a real name prefix.
+        habits[L"7dtd"] = UsageStat{10000, 1, {{L"to", 10000}}};
+        habits[L"todo"] = UsageStat{10000, 1, {{L"to", 10000}}};
+        checkPrefixRanking(habits);
+
+        const auto shortInitial = engine.Search(
+            apps, habits, L"t", 20, false, false);
+        assert(shortInitial.size() >= 2);
+        assert(shortInitial[0].commandIndex == 2);
+        assert(shortInitial[1].commandIndex == 3);
+
+        const auto longer = engine.Search(
+            apps, habits, L"tod", 20, false, false);
+        assert(!longer.empty());
+        assert(longer.front().commandIndex == 2);
+
+        const auto of = engine.Search(
+            apps, habits, L"of", 20, false, false);
+        assert(!of.empty());
+        assert(of.front().commandIndex == 4); // Office, not Work of Art
+
+        const auto in = engine.Search(
+            apps, habits, L"in", 20, false, false);
+        assert(!in.empty());
+        assert(in.front().commandIndex == 6); // Insomnia, not Sign In and Out
+
+        // Opaque alphanumeric product identifiers still retain their
+        // distinctive exact-match behavior.
+        const auto z5 = engine.Search(
+            apps, habits, L"z5", 20, false, false);
+        assert(ContainsCommand(z5, 8));
+        const auto foundZ5 = std::find_if(
+            z5.begin(), z5.end(),
+            [](const SearchResult& entry) { return entry.commandIndex == 8; });
+        assert(foundZ5 != z5.end());
+        assert(foundZ5->relevanceMatch.kind == relevance::MatchKind::Exact);
+
+        // Explicit user-defined short aliases have not become Provider words.
+        Command user = MakeCommand(
+            L"explicit-to", L"application", L"Custom Application",
+            L"custom.exe", 9);
+        user.aliases = {L"to"};
+        apps.push_back(user);
+        const auto explicitTo = engine.Search(
+            apps, habits, L"to", 20, false, false);
+        assert(!explicitTo.empty());
+        assert(explicitTo.front().commandIndex == 9);
+        assert(explicitTo.front().relevanceMatch.kind == relevance::MatchKind::Exact);
     }
 
     // Catalog visibility is a query-admission policy, not another

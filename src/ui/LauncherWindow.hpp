@@ -6,6 +6,7 @@
 #include "UiTheme.hpp"
 
 #include <windows.h>
+#include <imm.h>
 
 #include <array>
 #include <cstddef>
@@ -130,11 +131,14 @@ private:
         std::wstring_view path);
     void ShowTrayMenu(POINT point);
     void PrepareTopLevelForegroundHandoff();
-    void PrepareInputForReveal(
-        bool wasVisible) noexcept;
-    void RestoreInputOverride() noexcept;
+    void BeginEnglishInputSession() noexcept;
+    void NoteImeConversionChange() noexcept;
+    void RestoreEnglishInputSession() noexcept;
     void ShowResultContextMenu(
         POINT point);
+    void RestoreSearchFocusAfterShortcutEditor(
+        DWORD selectionStart,
+        DWORD selectionEnd) noexcept;
 
     [[nodiscard]] bool IsModern() const;
     [[nodiscard]] RECT ClassicCloseRect() const;
@@ -183,8 +187,18 @@ private:
     UINT taskbarCreatedMessage_{0};
     bool firstRevealPending_{true};
     bool imeComposing_{false};
-    bool imeRevealOverrideActive_{false};
-    bool imeRevealOriginalOpen_{false};
+    struct ImeSession {
+        bool started{false};
+        bool changedConversion{false};
+        bool changedOpen{false};
+        bool userChangedMode{false};
+        bool originalOpen{false};
+        HIMC context{};
+        HKL layout{};
+        DWORD originalMode{};
+        DWORD imposedMode{};
+    };
+    ImeSession imeSession_{};
     bool contextActionModalActive_{false};
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};

@@ -19,6 +19,7 @@
 #include "../platform/InstanceIpc.hpp"
 #include "../platform/WinClipboard.hpp"
 #include "../platform/WinUtil.hpp"
+#include "../platform/UpdateIconRefresh.hpp"
 #include "../ui/LauncherWindow.hpp"
 #include "../ui/SettingsWindow.hpp"
 #include "../ui/ShortcutManagerWindow.hpp"
@@ -2797,17 +2798,12 @@ void App::SignalStartupHealthEvent() {
         return;
     }
 
-    HANDLE event =
-        OpenEventW(
-            EVENT_MODIFY_STATE,
-            FALSE,
-            startupHealthEvent_
-                .c_str());
-
-    if (event) {
-        SetEvent(event);
-        CloseHandle(event);
-    }
+    // Update.exe executes from the PREVIOUS release. The newly installed
+    // launcher must notify the Shell after its health event is signaled,
+    // including for the first in-place upgrade from v1.0.4.
+    (void)win::SignalUpdateHealthAndRefreshIcons(
+        startupHealthEvent_,
+        baseDirectory_);
 
     startupHealthEvent_.clear();
 }
