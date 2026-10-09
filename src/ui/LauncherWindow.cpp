@@ -2750,6 +2750,16 @@ void LauncherWindow::ShowResultContextMenu(
         return;
     }
 
+    // Capture the native EDIT selection before any context-menu/modal focus
+    // changes; restoring only HWND focus can reset the insertion point.
+    DWORD inputSelectionStart = 0;
+    DWORD inputSelectionEnd = 0;
+    SendMessageW(
+        edit_,
+        EM_GETSEL,
+        reinterpret_cast<WPARAM>(&inputSelectionStart),
+        reinterpret_cast<LPARAM>(&inputSelectionEnd));
+
     const bool keyboardInvocation =
         point.x == -1 &&
         point.y == -1;
@@ -3081,7 +3091,9 @@ void LauncherWindow::ShowResultContextMenu(
         if (changed) {
             RefreshResults();
         }
-        RestoreSearchFocusAfterShortcutEditor();
+        RestoreSearchFocusAfterShortcutEditor(
+            inputSelectionStart,
+            inputSelectionEnd);
         return;
     }
 
@@ -3099,7 +3111,9 @@ void LauncherWindow::ShowResultContextMenu(
             if (changed) {
                 RefreshResults();
             }
-            RestoreSearchFocusAfterShortcutEditor();
+            RestoreSearchFocusAfterShortcutEditor(
+                inputSelectionStart,
+                inputSelectionEnd);
         }
         return;
 
@@ -3139,7 +3153,9 @@ void LauncherWindow::ShowResultContextMenu(
     }
 }
 
-void LauncherWindow::RestoreSearchFocusAfterShortcutEditor() noexcept {
+void LauncherWindow::RestoreSearchFocusAfterShortcutEditor(
+    DWORD selectionStart,
+    DWORD selectionEnd) noexcept {
     // RunModal() re-enables and activates the owner, but its nested loop can
     // leave keyboard focus on the top-level launcher instead of its EDIT.
     // Esc, typing and list navigation are handled by the EDIT subclass.
@@ -3157,6 +3173,15 @@ void LauncherWindow::RestoreSearchFocusAfterShortcutEditor() noexcept {
     if (GetFocus() != edit_) {
         (void)SetFocus(edit_);
     }
+
+    // Keep the existing query insertion point/selection. Focusing a native
+    // EDIT after the modal can otherwise move its caret or select its text.
+    // EM_SETSEL alone does not generate EN_CHANGE or restart a search session.
+    SendMessageW(
+        edit_,
+        EM_SETSEL,
+        static_cast<WPARAM>(selectionStart),
+        static_cast<LPARAM>(selectionEnd));
 }
 
 void LauncherWindow::PrepareTopLevelForegroundHandoff() {

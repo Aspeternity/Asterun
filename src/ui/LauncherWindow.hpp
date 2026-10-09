@@ -135,7 +135,9 @@ private:
     void RestoreInputOverride() noexcept;
     void ShowResultContextMenu(
         POINT point);
-    void RestoreSearchFocusAfterShortcutEditor() noexcept;
+    void RestoreSearchFocusAfterShortcutEditor(
+        DWORD selectionStart,
+        DWORD selectionEnd) noexcept;
 
     [[nodiscard]] bool IsModern() const;
     [[nodiscard]] RECT ClassicCloseRect() const;

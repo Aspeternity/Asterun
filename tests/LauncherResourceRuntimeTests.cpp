@@ -589,7 +589,20 @@ struct LauncherResourceRuntimeFixture {
                 assert(GetFocus() == window.edit_);
 
                 SetWindowTextW(window.edit_, L"focusquery");
-                SendMessageW(window.edit_, EM_SETSEL, -1, -1);
+                const DWORD textLength =
+                    static_cast<DWORD>(GetWindowTextLengthW(window.edit_));
+                SendMessageW(
+                    window.edit_,
+                    EM_SETSEL,
+                    static_cast<WPARAM>(textLength),
+                    static_cast<LPARAM>(textLength));
+                DWORD selectionStart = 0;
+                DWORD selectionEnd = 0;
+                SendMessageW(window.edit_, EM_GETSEL,
+                    reinterpret_cast<WPARAM>(&selectionStart),
+                    reinterpret_cast<LPARAM>(&selectionEnd));
+                assert(selectionStart == textLength);
+                assert(selectionEnd == textLength);
                 const auto unchangedQuery = window.CurrentQuery();
                 const auto generationBefore = window.searchGeneration_;
 
@@ -625,6 +638,12 @@ struct LauncherResourceRuntimeFixture {
                 assert(GetActiveWindow() == window.hwnd_);
                 assert(GetFocus() == window.edit_);
                 assert(window.CurrentQuery() == unchangedQuery);
+                selectionStart = selectionEnd = 0;
+                SendMessageW(window.edit_, EM_GETSEL,
+                    reinterpret_cast<WPARAM>(&selectionStart),
+                    reinterpret_cast<LPARAM>(&selectionEnd));
+                assert(selectionStart == textLength);
+                assert(selectionEnd == textLength);
                 if (closeAction != EditorCloseForProbe::SaveButton) {
                     assert(window.searchGeneration_ == generationBefore);
                 }
@@ -648,7 +667,8 @@ struct LauncherResourceRuntimeFixture {
                 assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
                 SendMessageW(window.edit_, WM_KEYDOWN, VK_ESCAPE, 1);
                 assert(!window.IsVisible());
-                window.RestoreSearchFocusAfterShortcutEditor();
+                window.RestoreSearchFocusAfterShortcutEditor(
+                    textLength, textLength);
                 assert(!window.IsVisible()); // never re-open a hidden owner
 
                 Destroy(window);
