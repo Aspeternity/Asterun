@@ -1,6 +1,7 @@
 #include "SearchEngine.hpp"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <chrono>
 #include <cmath>
@@ -9,6 +10,22 @@
 #include <utility>
 
 namespace altrun {
+namespace {
+
+// Provider-discovered titles can yield generic short words as distinctive
+// catalog tokens (e.g. "to" in "7 Days to Die"). These words are still
+// useful recall hints, but they are not user-defined shortcut keywords and
+// must not rank as a genuine exact application name.
+[[nodiscard]] bool IsGenericShortCatalogWord(
+    std::wstring_view word) noexcept {
+    constexpr std::array<std::wstring_view, 13> words{
+        L"to", L"of", L"in", L"on", L"at", L"by", L"as",
+        L"an", L"is", L"it", L"be", L"do", L"or",
+    };
+    return std::find(words.begin(), words.end(), word) != words.end();
+}
+
+} // namespace
 
 SearchEngine::SearchEngine(
     std::filesystem::path
@@ -1044,6 +1061,20 @@ SearchEngine::Search(
                         continue;
                     }
 
+                    if (exactDistinctive &&
+                        command.source != CommandSource::User &&
+                        command.catalogVisibility == CatalogVisibility::Normal &&
+                        IsGenericShortCatalogWord(normalizedQuery)) {
+                        // A low-information whole word inside a discovered
+                        // title is weaker than a real application prefix.
+                        // Keep it reachable below Prefix, without demoting
+                        // user aliases, exact titles, restrictive catalog
+                        // identities or opaque identifiers (Z5, v2).
+                        intentMatch.kind =
+                            relevance::MatchKind::BoundaryPrefix;
+                        intentMatch.score = 740;
+                    }
+
                     intentMatch.field =
                         relevance::MatchField::
                             Alias;
@@ -1122,6 +1153,17 @@ SearchEngine::Search(
                             if (!exactDistinctive &&
                                 !restrictiveIntent) {
                                 continue;
+                            }
+
+                            if (exactDistinctive &&
+                                command.source != CommandSource::User &&
+                                command.catalogVisibility == CatalogVisibility::Normal &&
+                                IsGenericShortCatalogWord(token)) {
+                                // Apply the same short-word classification
+                                // when scoring multi-token queries.
+                                intentMatch.kind =
+                                    relevance::MatchKind::BoundaryPrefix;
+                                intentMatch.score = 740;
                             }
 
                             intentMatch.field =
