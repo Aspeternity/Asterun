@@ -761,7 +761,7 @@ int CompareRankContext(
 
     // Explicit pinning is a deliberate user override, including on the
     // empty-query launcher. Merely originating from user.commands is not:
-    // defaults such as Notepad (np) must not outrank a TeamSpeak name prefix
+    // an unpinned Notepad (np) shortcut must not outrank a TeamSpeak prefix
     // when the typed query only loosely matches "Notepad".
     if (left.pinned != right.pinned) {
         return left.pinned ? 1 : -1;
