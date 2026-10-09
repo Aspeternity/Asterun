@@ -7,10 +7,12 @@ Asterun v1.0.4 is the current stable release following owner acceptance. v1.0.5 
 - On a successful upgrade handshake, the newly launched Asterun.exe notifies the Shell of changes to only the three installed EXE files.
 - Restore keyboard focus to the already-active Launcher search EDIT after the context-menu Shortcut Editor closes; do not globally foreground/re-show the Launcher or change the Shortcut Manager's modal behavior.
 - Keep generic short words automatically derived from Provider titles searchable, but below genuine application name prefixes; protect real exact user aliases and short alphanumeric identities.
-- Rank non-pinned default/user shortcuts by actual match class before applying same-class user preference, so `tea` favors TeamSpeak over fuzzy Notepad while `np`, `ts` and manual pinning retain intent.
+- Rank unpinned user shortcuts by actual match class before applying same-class user preference, so `tea` favors TeamSpeak over a fuzzy manually added Notepad shortcut while genuine exact user aliases and explicit pinning retain intent.
 - Admit two-letter English prefixes of the second word only for ordinary two-word primary app titles such as Google Chrome, behind exact and full-name prefix matches. Keep existing short-query noise protections for tools, longer component names and generic filler words.
+- Start fresh installations with no pre-created user shortcuts (`np`, `calc`, `cmd`, `explorer`, `pwsh`); keep normal system application discovery.
+- Fix Microsoft Pinyin's cold-first-reveal English input by managing native/alphanumeric conversion state without a repeated timer/message patch; remove all temporary IME tracing and restore state on hide.
 - Do not alter the install transaction, rollback, existing icon artwork, user data, or global Explorer icon cache.
-- Run full Windows CI and real-machine in-place-upgrade acceptance before requesting merge/release authorization.
+- Build #1005 and scoped Windows 11 x64 real-machine acceptance are complete. Waiting for the owner's separate merge and stable-release authorizations; native ARM64 hardware is not claimed.
 
 ## v1.0.4 - Launcher input, shortcut UX, native UI and branding (completed)
 

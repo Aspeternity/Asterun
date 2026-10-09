@@ -256,7 +256,7 @@ int main() {
         app,
         auxiliary));
 
-    // An automatically seeded user shortcut must not bypass search intent:
+    // An unpinned user shortcut must not bypass search intent:
     // for "tea" the Notepad(n/p) tight fuzzy match is weaker than a
     // Provider's genuine "teamspeak" prefix. Explicit pinning is separate.
     {
