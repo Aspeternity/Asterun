@@ -22,6 +22,55 @@ unsigned imeContextReleases{};
 BOOL imeCurrentOpenStatus{TRUE};
 std::unordered_set<HGDIOBJ> ownedBitmaps;
 std::unordered_set<HDC> ownedDcs;
+
+// Test-only context-menu selection to exercise the actual launcher -> editor
+// command path without blocking Windows CI on a native popup menu selection.
+UINT contextMenuChoice{};
+bool emulateActiveContextMenuOwner{};
+BOOL WINAPI ProbeTrackPopupMenuEx(
+    HMENU menu, UINT flags, int x, int y, HWND owner, LPTPMPARAMS params) {
+    if (contextMenuChoice != 0) {
+        const UINT selected = contextMenuChoice;
+        contextMenuChoice = 0;
+        assert(GetMenuState(menu, selected, MF_BYCOMMAND) != 0xFFFFFFFFu);
+        return static_cast<BOOL>(selected);
+    }
+    return TrackPopupMenuEx(menu, flags, x, y, owner, params);
+}
+BOOL WINAPI ProbeSetForegroundWindow(HWND window) {
+    if (emulateActiveContextMenuOwner) {
+        SetActiveWindow(window);
+        return GetActiveWindow() == window;
+    }
+    return SetForegroundWindow(window);
+}
+enum class EditorCloseForProbe { WindowClose, CancelButton, SaveButton };
+EditorCloseForProbe editorCloseForProbe{EditorCloseForProbe::WindowClose};
+bool editorCloseObserved{};
+void CALLBACK CloseEditorForFocusProbe(
+    HWND, UINT, UINT_PTR timer, DWORD) {
+    const HWND editor = FindWindowW(L"Asterun.ShortcutEditor", nullptr);
+    if (!editor) return;
+
+    editorCloseObserved = true;
+    KillTimer(nullptr, timer);
+    switch (editorCloseForProbe) {
+    case EditorCloseForProbe::WindowClose:
+        assert(PostMessageW(editor, WM_CLOSE, 0, 0));
+        return;
+    case EditorCloseForProbe::CancelButton:
+    case EditorCloseForProbe::SaveButton: {
+        const UINT id = editorCloseForProbe == EditorCloseForProbe::SaveButton
+                            ? 53114 : 53115;
+        const HWND button = GetDlgItem(editor, id);
+        assert(button);
+        assert(PostMessageW(editor, WM_COMMAND,
+            MAKEWPARAM(id, BN_CLICKED),
+            reinterpret_cast<LPARAM>(button)));
+        return;
+    }
+    }
+}
 HANDLE WINAPI TestLoadImage(HINSTANCE instance, LPCWSTR name, UINT type, int x, int y, UINT flags) {
     if (type == IMAGE_BITMAP && ++loads == failLoad) return nullptr;
     HANDLE image = LoadImageW(instance, name, type, x, y, flags);
@@ -100,6 +149,8 @@ void ClearImeProbeCounts() {
 #define GetObjectW TestGetObject
 #define CreateCompatibleDC TestCreateDc
 #define ImmGetContext TestImmGetContext
+#define TrackPopupMenuEx ProbeTrackPopupMenuEx
+#define SetForegroundWindow ProbeSetForegroundWindow
 #define ImmGetOpenStatus TestImmGetOpenStatus
 #define ImmNotifyIME TestImmNotifyIME
 #define ImmSetOpenStatus TestImmSetOpenStatus
@@ -110,6 +161,8 @@ void ClearImeProbeCounts() {
 #undef ImmNotifyIME
 #undef ImmGetOpenStatus
 #undef ImmGetContext
+#undef TrackPopupMenuEx
+#undef SetForegroundWindow
 #undef DeleteDC
 #undef DeleteObject
 #undef CreateCompatibleDC
@@ -498,6 +551,119 @@ struct LauncherResourceRuntimeFixture {
             << std::endl;
     }
 
+    static void VerifyShortcutEditorContextFocus(
+        App& app,
+        HINSTANCE instance) {
+        auto& settings = const_cast<Settings&>(app.SettingsData());
+        const auto previousStyle = settings.uiStyle;
+        const bool previousSound = settings.soundEnabled;
+        settings.soundEnabled = false;
+
+        Command command;
+        command.keyword = L"modal-focus-fixture-" +
+            std::to_wstring(GetCurrentProcessId());
+        command.title = L"Modal focus fixture";
+        command.target = L"notepad.exe";
+        command.type = CommandType::Application;
+        command.enabled = true;
+        std::wstring id;
+        assert(app.CreateUserCommand(command, &id));
+        assert(!id.empty());
+
+        for (const auto style : {UiStyle::ModernCompact, UiStyle::Classic}) {
+            settings.uiStyle = style;
+            for (const auto closeAction : {
+                 EditorCloseForProbe::WindowClose,
+                 EditorCloseForProbe::CancelButton,
+                 EditorCloseForProbe::SaveButton}) {
+                LauncherWindow window(app, instance);
+                assert(window.Create());
+
+                // Headless runners cannot reliably grant foreground rights;
+                // model an active, visible launcher in the same GUI thread.
+                ShowWindow(window.hwnd_, SW_SHOWNOACTIVATE);
+                assert(window.IsVisible());
+                SetActiveWindow(window.hwnd_);
+                assert(GetActiveWindow() == window.hwnd_);
+                SetFocus(window.edit_);
+                assert(GetFocus() == window.edit_);
+
+                SetWindowTextW(window.edit_, L"focusquery");
+                SendMessageW(window.edit_, EM_SETSEL, -1, -1);
+                const auto unchangedQuery = window.CurrentQuery();
+                const auto generationBefore = window.searchGeneration_;
+
+                // An existing user shortcut drives the real context-menu
+                // edit action, while a fake selection replaces only the OS
+                // menu UI (not the production action dispatch).
+                LauncherResult user;
+                user.kind = ResultKind::UserCommand;
+                user.id = id;
+                user.title = command.title;
+                user.target = command.target;
+                window.results_ = {user};
+                SendMessageW(window.list_, LB_RESETCONTENT, 0, 0);
+                assert(SendMessageW(window.list_, LB_ADDSTRING, 0,
+                    reinterpret_cast<LPARAM>(L"Modal focus fixture")) != LB_ERR);
+                SendMessageW(window.list_, LB_SETCURSEL, 0, 0);
+
+                editorCloseForProbe = closeAction;
+                editorCloseObserved = false;
+                contextMenuChoice = 41004; // kResultContextEditShortcut
+                emulateActiveContextMenuOwner = true;
+                const UINT_PTR timer = SetTimer(
+                    nullptr, 0, 20, CloseEditorForFocusProbe);
+                assert(timer);
+
+                window.ShowResultContextMenu(POINT{-1, -1});
+
+                KillTimer(nullptr, timer);
+                emulateActiveContextMenuOwner = false;
+                assert(editorCloseObserved);
+                assert(contextMenuChoice == 0);
+                assert(window.IsVisible());
+                assert(GetActiveWindow() == window.hwnd_);
+                assert(GetFocus() == window.edit_);
+                assert(window.CurrentQuery() == unchangedQuery);
+                if (closeAction != EditorCloseForProbe::SaveButton) {
+                    assert(window.searchGeneration_ == generationBefore);
+                }
+
+                // The first keystroke without clicking must edit the query;
+                // Up/Tab still navigate and Esc must hide the launcher.
+                SendMessageW(window.edit_, WM_CHAR, L'x', 1);
+                assert(window.CurrentQuery() == L"focusqueryx");
+
+                LauncherResult second;
+                second.id = L"other";
+                second.kind = ResultKind::Application;
+                second.title = L"Other";
+                window.staticResults_ = {user, second};
+                window.dynamicResults_.clear();
+                window.RebuildVisibleResults(false, false, false);
+                assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
+                SendMessageW(window.edit_, WM_KEYDOWN, VK_DOWN, 1);
+                assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 1);
+                SendMessageW(window.edit_, WM_KEYDOWN, VK_TAB, 1);
+                assert(SendMessageW(window.list_, LB_GETCURSEL, 0, 0) == 0);
+                SendMessageW(window.edit_, WM_KEYDOWN, VK_ESCAPE, 1);
+                assert(!window.IsVisible());
+                window.RestoreSearchFocusAfterShortcutEditor();
+                assert(!window.IsVisible()); // never re-open a hidden owner
+
+                Destroy(window);
+            }
+        }
+
+        assert(app.DeleteUserCommand(id));
+        settings.uiStyle = previousStyle;
+        settings.soundEnabled = previousSound;
+        std::cout
+            << "Shortcut Editor context close/save/cancel focus and "
+               "Esc/typing/Tab/navigation in Modern and Classic passed"
+            << std::endl;
+    }
+
     static void VerifyTopLevelForegroundHandoff(
         App& app,
         HINSTANCE instance) {
@@ -715,6 +881,9 @@ struct LauncherResourceRuntimeFixture {
             app,
             instance);
         VerifyShortcutHintPresentation();
+        VerifyShortcutEditorContextFocus(
+            app,
+            instance);
         VerifyTopLevelForegroundHandoff(
             app,
             instance);

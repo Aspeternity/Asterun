@@ -3081,6 +3081,7 @@ void LauncherWindow::ShowResultContextMenu(
         if (changed) {
             RefreshResults();
         }
+        RestoreSearchFocusAfterShortcutEditor();
         return;
     }
 
@@ -3098,6 +3099,7 @@ void LauncherWindow::ShowResultContextMenu(
             if (changed) {
                 RefreshResults();
             }
+            RestoreSearchFocusAfterShortcutEditor();
         }
         return;
 
@@ -3134,6 +3136,26 @@ void LauncherWindow::ShowResultContextMenu(
 
     default:
         return;
+    }
+}
+
+void LauncherWindow::RestoreSearchFocusAfterShortcutEditor() noexcept {
+    // RunModal() re-enables and activates the owner, but its nested loop can
+    // leave keyboard focus on the top-level launcher instead of its EDIT.
+    // Esc, typing and list navigation are handled by the EDIT subclass.
+    // Only restore focus within our already-active, visible launcher:
+    // never re-show or globally foreground the launcher after a dialog.
+    if (!hwnd_ || !edit_ ||
+        !IsWindowVisible(hwnd_) ||
+        IsIconic(hwnd_) ||
+        !IsWindowEnabled(hwnd_) ||
+        !IsWindow(edit_) ||
+        GetActiveWindow() != hwnd_) {
+        return;
+    }
+
+    if (GetFocus() != edit_) {
+        (void)SetFocus(edit_);
     }
 }
 

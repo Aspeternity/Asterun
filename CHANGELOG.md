@@ -7,6 +7,8 @@
 - Preserve normal startup, update failure/rollback behavior, user data, versioned archive/update protocols and all persisted schemas (12 / 2 / 2 / 22).
 - Never delete the Shell icon cache, send a global association-change event or restart Explorer; on some Windows versions a user-driven cache rebuild may still be necessary.
 - Add Windows regression tests for health-event gating, exact notified paths, missing executable suppression and untouched user settings.
+- Restore the Launcher's native search EDIT keyboard focus after the right-click "Edit shortcut" / "Add to shortcuts" modal closes, only when its owner is still visible and active; preserve the current query, result selection, IME session and foreground handoff behavior.
+- Cover close (X), Cancel and Save on both Classic and Modern Compact in the actual context-menu action path, including immediate typing, Up/Tab navigation and Esc hide, without changing Shortcut Manager's modal focus policy.
 - Pending full CI and owner real-machine acceptance; no release is authorized yet.
 
 
