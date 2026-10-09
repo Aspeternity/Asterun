@@ -1563,6 +1563,7 @@ void LauncherWindow::Show() {
     }
 
     const bool wasVisible = IsWindowVisible(hwnd_) != FALSE;
+    const bool firstReveal = firstRevealPending_;
     CancelPendingNumericIntent();
     lastTextInputTick_ = 0;
     consumedNumericVirtualKey_ = 0;
@@ -1606,6 +1607,14 @@ void LauncherWindow::Show() {
     PrepareInputForReveal(
         wasVisible);
 
+    // The first activation can attach/restore the native EDIT's IME context
+    // after the initial focus call. Check it once after activation messages
+    // settle, before ordinary queued keyboard input is handled.
+    if (firstReveal && !wasVisible &&
+        app_.SettingsData().defaultEnglishInputOnReveal) {
+        PostMessageW(hwnd_, kFirstRevealImeCheckMessage, 0, 0);
+    }
+
     // EN_CHANGE normally already refreshed the empty query before reveal.
     // Retain the explicit refresh only when resetting EDIT did not do so.
     if (!refreshedByReset) RefreshResults();
@@ -1630,6 +1639,28 @@ void LauncherWindow::PrepareInputForReveal(
         imeRevealOverrideActive_ = true;
         imeRevealOriginalOpen_ =
             originalOpen;
+    }
+}
+
+void LauncherWindow::VerifyFirstRevealEnglishInput() noexcept {
+    // Only the first reveal receives this one-shot verification. Do not
+    // override a user-initiated IME change after typing or after hiding.
+    if (!hwnd_ || !edit_ || !IsWindowVisible(hwnd_) ||
+        GetForegroundWindow() != hwnd_ || GetFocus() != edit_ ||
+        !app_.SettingsData().defaultEnglishInputOnReveal ||
+        lastTextInputTick_ != 0 || !CurrentQuery().empty() ||
+        imeComposing_) {
+        return;
+    }
+
+    bool originalOpen = false;
+    if (BeginEnglishInputOverride(edit_, originalOpen)) {
+        if (!imeRevealOverrideActive_) {
+            imeRevealOverrideActive_ = true;
+            imeRevealOriginalOpen_ = originalOpen;
+        }
+        // When an already-closed IME was reopened during the first
+        // activation, preserve the originally captured restore intent.
     }
 }
 
@@ -4628,6 +4659,10 @@ LRESULT LauncherWindow::HandleMessage(
             Hide();
         }
         break;
+
+    case kFirstRevealImeCheckMessage:
+        VerifyFirstRevealEnglishInput();
+        return 0;
 
     case kShortcutIpcMessage:
         ProcessPendingShortcutPaths();
