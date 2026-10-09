@@ -40,91 +40,10 @@ constexpr const wchar_t* kWindowClass =
     instance_ipc::kLauncherWindowClass;
 constexpr wchar_t kWindowTitle[] = L"Asterun";
 
-[[nodiscard]] bool BeginEnglishInputOverride(
-    HWND edit,
-    bool& originalOpen) noexcept {
-
-    originalOpen = false;
-
-    if (!edit) {
-        return false;
-    }
-
-    HIMC inputContext =
-        ImmGetContext(
-            edit);
-
-    if (!inputContext) {
-        return false;
-    }
-
-    originalOpen =
-        ImmGetOpenStatus(
-            inputContext) != FALSE;
-
-    // If this EDIT already starts in direct input mode, there is nothing for
-    // Asterun to override and therefore nothing to restore when it hides.
-    if (!originalOpen) {
-        ImmReleaseContext(
-            edit,
-            inputContext);
-        return false;
-    }
-
-    // Keep the user's current keyboard layout/input method selected. Only the
-    // launcher's EDIT IME context is closed for this launcher session.
-    ImmNotifyIME(
-        inputContext,
-        NI_COMPOSITIONSTR,
-        CPS_CANCEL,
-        0);
-
-    const bool changed =
-        ImmSetOpenStatus(
-            inputContext,
-            FALSE) != FALSE;
-
-    ImmReleaseContext(
-        edit,
-        inputContext);
-
-    return changed;
-}
-
-void RestoreEnglishInputOverride(
-    HWND edit,
-    bool originalOpen) noexcept {
-
-    if (!edit ||
-        !originalOpen) {
-        return;
-    }
-
-    HIMC inputContext =
-        ImmGetContext(
-            edit);
-
-    if (!inputContext) {
-        return;
-    }
-
-    const bool currentOpen =
-        ImmGetOpenStatus(
-            inputContext) != FALSE;
-
-    // Restore only when the EDIT is still in the exact direct-input state
-    // Asterun imposed. If the user manually switched back to Chinese during
-    // the session, currentOpen is already true and their choice wins.
-    if (!currentOpen) {
-        ImmSetOpenStatus(
-            inputContext,
-            TRUE);
-    }
-
-    ImmReleaseContext(
-        edit,
-        inputContext);
-}
+// Only modify the mode flags that determine native/full-width/symbol input.
+// Other IME features and sentence conversion settings remain untouched.
+constexpr DWORD kEnglishInputModeBits =
+    IME_CMODE_NATIVE | IME_CMODE_FULLSHAPE | IME_CMODE_SYMBOL;
 
 void InitializeTrayIconIdentity(
     NOTIFYICONDATAW& data,
@@ -498,7 +417,7 @@ LauncherWindow::LauncherWindow(App& app, HINSTANCE instance)
     : app_(app), instance_(instance) {}
 
 LauncherWindow::~LauncherWindow() {
-    imeTrace_.Flush();
+    RestoreEnglishInputSession();
     RemoveTrayIcon();
 
     if (normalFont_) DeleteObject(normalFont_);
@@ -593,8 +512,6 @@ bool LauncherWindow::EnsureClassicResources() {
 }
 
 bool LauncherWindow::Create() {
-    imeTrace_.EnableIfRequested();
-    TraceIme("create.begin");
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&controls);
 
@@ -664,7 +581,6 @@ bool LauncherWindow::Create() {
         this);
 
     if (!hwnd_) return false;
-    TraceIme("create.window");
 
     window_presentation::Configure(
         hwnd_);
@@ -677,7 +593,6 @@ bool LauncherWindow::Create() {
         ui::ModernCompactLauncherMetricsForDpi(
             dpi_);
     CreateChildren();
-    TraceIme("create.children");
     ApplyAppearance();
     ApplyLanguage();
     AddTrayIcon();
@@ -685,7 +600,6 @@ bool LauncherWindow::Create() {
     RefreshResults();
     Reposition();
     firstRevealPending_ = true;
-    TraceIme("create.ready");
     return true;
 }
 
@@ -1562,8 +1476,6 @@ void LauncherWindow::Toggle() {
 
 void LauncherWindow::Show() {
     if (!hwnd_) return;
-    imeTrace_.BeginReveal();
-    TraceIme("show.enter");
 
     if (!app_.CanRevealLauncher()) {
         app_.DeferLauncherReveal();
@@ -1571,10 +1483,8 @@ void LauncherWindow::Show() {
     }
 
     const bool wasVisible = IsWindowVisible(hwnd_) != FALSE;
-    const bool firstReveal = firstRevealPending_;
     CancelPendingNumericIntent();
     lastTextInputTick_ = 0;
-    imeFirstInputObserved_ = false;
     consumedNumericVirtualKey_ = 0;
     consumedNumericChar_ = 0;
 
@@ -1609,26 +1519,13 @@ void LauncherWindow::Show() {
             SW_SHOWNORMAL);
     }
 
-    TraceIme(firstReveal ? "show.first.visible" : "show.next.visible");
     SetForegroundWindow(hwnd_);
-    TraceIme("show.foreground");
     SetFocus(edit_);
-    TraceIme("show.focus");
     SendMessageW(edit_, EM_SETSEL, 0, -1);
 
-    TraceIme("show.before-ime");
-    PrepareInputForReveal(
-        wasVisible);
-    TraceIme("show.after-ime");
-
-    // The first activation can attach/restore the native EDIT's IME context
-    // after the initial focus call. Check it once after activation messages
-    // settle, before ordinary queued keyboard input is handled.
-    if (firstReveal && !wasVisible &&
-        app_.SettingsData().defaultEnglishInputOnReveal) {
-        PostMessageW(hwnd_, kFirstRevealImeCheckMessage, 0, 0);
-        TraceIme("show.verify-posted");
-    }
+    // WM_SETFOCUS normally starts the session after the EDIT's native
+    // activation. Cover the case where this control already had focus.
+    BeginEnglishInputSession();
 
     // EN_CHANGE normally already refreshed the empty query before reveal.
     // Retain the explicit refresh only when resetting EDIT did not do so.
@@ -1636,74 +1533,121 @@ void LauncherWindow::Show() {
     if (!wasVisible && IsWindowVisible(hwnd_)) ui::PlayFeedback(FeedbackCue::Reveal);
 }
 
-void LauncherWindow::TraceIme(
-    const char* event, UINT message, WPARAM info) noexcept {
-    imeTrace_.Record(event, hwnd_, edit_,
-        imeRevealOverrideActive_, imeRevealOriginalOpen_,
-        imeComposing_, message, info);
-}
-
-void LauncherWindow::PrepareInputForReveal(
-    bool wasVisible) noexcept {
-
-    if (wasVisible ||
-        imeRevealOverrideActive_ ||
-        !app_.SettingsData()
-             .defaultEnglishInputOnReveal) {
+void LauncherWindow::BeginEnglishInputSession() noexcept {
+    if (!hwnd_ || !edit_ || imeSession_.started ||
+        !IsWindowVisible(hwnd_) || GetFocus() != edit_ ||
+        !app_.SettingsData().defaultEnglishInputOnReveal) {
         return;
     }
 
-    bool originalOpen = false;
+    HIMC context = ImmGetContext(edit_);
+    if (!context) return;
 
-    if (BeginEnglishInputOverride(
-            edit_,
-            originalOpen)) {
-        imeRevealOverrideActive_ = true;
-        imeRevealOriginalOpen_ =
-            originalOpen;
-    }
-}
+    // Each successful reveal owns a single snapshot. An IME can be closed
+    // while still retaining IME_CMODE_NATIVE (observed with Microsoft Pinyin
+    // on the very first reveal). Open status alone does not imply English.
+    imeSession_.started = true;
+    imeSession_.context = context;
+    imeSession_.layout = GetKeyboardLayout(0);
+    imeSession_.originalOpen = ImmGetOpenStatus(context) != FALSE;
 
-void LauncherWindow::VerifyFirstRevealEnglishInput() noexcept {
-    TraceIme("verify.enter");
-    // Only the first reveal receives this one-shot verification. Do not
-    // override a user-initiated IME change after typing or after hiding.
-    if (!hwnd_ || !edit_ || !IsWindowVisible(hwnd_) ||
-        GetForegroundWindow() != hwnd_ || GetFocus() != edit_ ||
-        !app_.SettingsData().defaultEnglishInputOnReveal ||
-        lastTextInputTick_ != 0 || !CurrentQuery().empty() ||
-        imeComposing_) {
-        TraceIme("verify.skipped");
-        return;
-    }
+    DWORD conversion = 0;
+    DWORD sentence = 0;
+    const bool modeAvailable =
+        ImmGetConversionStatus(context, &conversion, &sentence) != FALSE;
 
-    bool originalOpen = false;
-    if (BeginEnglishInputOverride(edit_, originalOpen)) {
-        if (!imeRevealOverrideActive_) {
-            imeRevealOverrideActive_ = true;
-            imeRevealOriginalOpen_ = originalOpen;
+    if (modeAvailable) {
+        imeSession_.originalMode = conversion & kEnglishInputModeBits;
+        if (imeSession_.originalMode != 0) {
+            const DWORD englishMode = conversion & ~kEnglishInputModeBits;
+            // Keep the selected IME; request Latin/half-width input before
+            // the first key, even when ImmGetOpenStatus is already FALSE.
+            if (ImmSetConversionStatus(context, englishMode, sentence)) {
+                imeSession_.changedConversion = true;
+                imeSession_.imposedMode = englishMode & kEnglishInputModeBits;
+            }
         }
-        // When an already-closed IME was reopened during the first
-        // activation, preserve the originally captured restore intent.
     }
-    TraceIme("verify.after-ime");
+
+    // A few IMM-compatible IMEs do not expose writable conversion flags.
+    // Retain the prior open-status behavior only for those cases.
+    if (!imeSession_.changedConversion && imeSession_.originalOpen &&
+        (!modeAvailable || imeSession_.originalMode != 0)) {
+        if (ImmSetOpenStatus(context, FALSE)) {
+            imeSession_.changedOpen = true;
+        }
+    }
+
+    ImmReleaseContext(edit_, context);
 }
 
-void LauncherWindow::RestoreInputOverride() noexcept {
-    if (!imeRevealOverrideActive_) {
+void LauncherWindow::NoteImeConversionChange() noexcept {
+    if (!imeSession_.started || !imeSession_.changedConversion ||
+        imeSession_.userChangedMode) {
         return;
     }
 
-    RestoreEnglishInputOverride(
-        edit_,
-        imeRevealOriginalOpen_);
+    if (GetKeyboardLayout(0) != imeSession_.layout) {
+        imeSession_.userChangedMode = true;
+        return;
+    }
 
-    imeRevealOverrideActive_ = false;
-    imeRevealOriginalOpen_ = false;
+    HIMC context = ImmGetContext(edit_);
+    if (!context) return;
+    if (context == imeSession_.context) {
+        DWORD conversion = 0;
+        DWORD sentence = 0;
+        if (ImmGetConversionStatus(context, &conversion, &sentence) &&
+            (conversion & kEnglishInputModeBits) != imeSession_.imposedMode) {
+            // Never force English again after a user's IME mode change.
+            imeSession_.userChangedMode = true;
+        }
+    }
+    ImmReleaseContext(edit_, context);
+}
+
+void LauncherWindow::RestoreEnglishInputSession() noexcept {
+    if (!imeSession_.started) return;
+
+    const ImeSession session = imeSession_;
+    imeSession_ = {};
+
+    if ((!session.changedConversion && !session.changedOpen) ||
+        session.userChangedMode || !edit_ || !IsWindow(edit_) ||
+        GetKeyboardLayout(0) != session.layout) {
+        return;
+    }
+
+    HIMC context = ImmGetContext(edit_);
+    if (!context) return;
+    if (context != session.context) {
+        ImmReleaseContext(edit_, context);
+        return;
+    }
+
+    if (session.changedConversion) {
+        DWORD conversion = 0;
+        DWORD sentence = 0;
+        if (ImmGetConversionStatus(context, &conversion, &sentence) &&
+            (conversion & kEnglishInputModeBits) == session.imposedMode) {
+            // Preserve any unrelated flags that changed during the session.
+            const DWORD restored =
+                (conversion & ~kEnglishInputModeBits) | session.originalMode;
+            if (restored != conversion) {
+                ImmSetConversionStatus(context, restored, sentence);
+            }
+        }
+    }
+
+    if (session.changedOpen && session.originalOpen &&
+        !ImmGetOpenStatus(context)) {
+        ImmSetOpenStatus(context, TRUE);
+    }
+
+    ImmReleaseContext(edit_, context);
 }
 
 void LauncherWindow::Hide() {
-    TraceIme("hide.enter");
     app_.ClearActivationContext();
 
     CancelPendingNumericIntent();
@@ -1711,15 +1655,11 @@ void LauncherWindow::Hide() {
     dynamicQueryPending_ = false;
     ++searchGeneration_;
 
-    TraceIme("hide.before-restore");
-    RestoreInputOverride();
-    TraceIme("hide.after-restore");
+    RestoreEnglishInputSession();
 
     if (hwnd_) {
         ShowWindow(hwnd_, SW_HIDE);
     }
-    TraceIme("hide.hidden");
-    imeTrace_.Flush();
 }
 
 std::wstring LauncherWindow::CurrentQuery() const {
@@ -3464,33 +3404,19 @@ LRESULT LauncherWindow::HandleEditMessage(
         imeComposing_ = false;
     }
 
-    if (imeTrace_.Enabled()) {
-        switch (message) {
-        case WM_SETFOCUS:
-        case WM_KILLFOCUS:
-        case WM_IME_SETCONTEXT:
-        case WM_INPUTLANGCHANGE:
-        case WM_INPUTLANGCHANGEREQUEST:
-        case WM_IME_STARTCOMPOSITION:
-        case WM_IME_ENDCOMPOSITION:
-            TraceIme("edit.message", message,
-                     message == WM_IME_SETCONTEXT ? wParam : 0);
-            break;
-        case WM_IME_NOTIFY:
-            if (wParam == IMN_SETOPENSTATUS ||
-                wParam == IMN_SETCONVERSIONMODE) {
-                TraceIme("edit.ime-notify", message, wParam);
-            }
-            break;
-        default:
-            break;
-        }
-        if (!imeFirstInputObserved_ && message == WM_KEYDOWN &&
-            wParam != VK_SHIFT && wParam != VK_CONTROL &&
-            wParam != VK_MENU) {
-            imeFirstInputObserved_ = true;
-            TraceIme("edit.first-key");
-        }
+    if (message == WM_SETFOCUS) {
+        const LRESULT result =
+            CallWindowProcW(oldEditProc_, hwnd, message, wParam, lParam);
+        // The native EDIT / IME has completed its focus handling.
+        BeginEnglishInputSession();
+        return result;
+    }
+    if (message == WM_IME_NOTIFY &&
+        wParam == IMN_SETCONVERSIONMODE) {
+        NoteImeConversionChange();
+    } else if (message == WM_INPUTLANGCHANGE &&
+               imeSession_.started) {
+        imeSession_.userChangedMode = true;
     }
 
     if (message == WM_KILLFOCUS) CancelPendingNumericIntent();
@@ -3800,22 +3726,6 @@ LRESULT LauncherWindow::HandleEditMessage(
 
 LRESULT LauncherWindow::HandleMessage(
     UINT message, WPARAM wParam, LPARAM lParam) {
-
-    if (imeTrace_.Enabled()) {
-        switch (message) {
-        case WM_ACTIVATE:
-        case WM_ACTIVATEAPP:
-        case WM_SHOWWINDOW:
-        case WM_IME_SETCONTEXT:
-        case WM_INPUTLANGCHANGE:
-        case WM_INPUTLANGCHANGEREQUEST:
-            TraceIme("window.message", message,
-                     message == WM_ACTIVATE ? LOWORD(wParam) : 0);
-            break;
-        default:
-            break;
-        }
-    }
 
     if (taskbarCreatedMessage_ != 0 &&
         message == taskbarCreatedMessage_) {
@@ -4735,9 +4645,10 @@ LRESULT LauncherWindow::HandleMessage(
         }
         break;
 
-    case kFirstRevealImeCheckMessage:
-        VerifyFirstRevealEnglishInput();
-        return 0;
+    case WM_INPUTLANGCHANGE:
+        // Keep a manual keyboard/input-language choice made while visible.
+        if (imeSession_.started) imeSession_.userChangedMode = true;
+        break;
 
     case kShortcutIpcMessage:
         ProcessPendingShortcutPaths();
@@ -4786,8 +4697,7 @@ LRESULT LauncherWindow::HandleMessage(
     }
 
     case WM_DESTROY:
-        TraceIme("window.destroy");
-        imeTrace_.Flush();
+        RestoreEnglishInputSession();
         CancelPendingNumericIntent();
         RemoveTrayIcon();
         hwnd_ = nullptr;
