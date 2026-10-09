@@ -1,12 +1,14 @@
 #include "updater/UpdaterTransaction.hpp"
 #ifdef _WIN32
 #include "platform/SecureArchive.hpp"
+#include "platform/UpdateIconRefresh.hpp"
 #endif
 
 #include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -28,6 +30,11 @@ using altrun::updater::ValidateSource;
 namespace {
 
 #ifdef _WIN32
+void RecordUpdateIconNotification(const fs::path& path, void* context) {
+    auto& notified = *static_cast<std::vector<fs::path>*>(context);
+    notified.push_back(path);
+}
+
 std::wstring QuoteArgument(
     std::wstring_view value) {
     std::wstring result = L"\"";
@@ -204,6 +211,60 @@ int main() {
     ec.clear();
     fs::create_directories(root, ec);
     assert(!ec);
+
+#ifdef _WIN32
+    {
+        const auto installed = fs::absolute(root / "icon-refresh");
+        PopulateInstall(installed);
+        Write(installed / "data" / "settings.json", "user settings");
+
+        const auto eventName =
+            L"Local\\Aspeternity.Asterun.IconRefresh.Test." +
+            std::to_wstring(GetCurrentProcessId()) + L"." +
+            std::to_wstring(GetTickCount64());
+        const HANDLE event = CreateEventW(
+            nullptr, TRUE, FALSE, eventName.c_str());
+        assert(event != nullptr);
+        assert(GetLastError() != ERROR_ALREADY_EXISTS);
+
+        std::vector<fs::path> notified;
+
+        // Normal startup / missing health event: no notification at all.
+        assert(!altrun::win::SignalUpdateHealthAndRefreshIcons(
+            L"", installed, RecordUpdateIconNotification, &notified));
+        assert(!altrun::win::SignalUpdateHealthAndRefreshIcons(
+            eventName + L".missing", installed,
+            RecordUpdateIconNotification, &notified));
+        assert(notified.empty());
+        assert(WaitForSingleObject(event, 0) == WAIT_TIMEOUT);
+
+        // Healthy upgraded instance: exactly three changed executable paths.
+        assert(altrun::win::SignalUpdateHealthAndRefreshIcons(
+            eventName, installed, RecordUpdateIconNotification, &notified));
+        assert(WaitForSingleObject(event, 0) == WAIT_OBJECT_0);
+        assert((notified == std::vector<fs::path>{
+            installed / "Asterun.exe",
+            installed / "Update.exe",
+            installed / "Uninstall.exe",
+        }));
+        assert(Read(installed / "data" / "settings.json") ==
+               "user settings");
+
+        // Do not notify missing executables.
+        assert(ResetEvent(event));
+        notified.clear();
+        fs::remove(installed / "Update.exe", ec);
+        assert(!ec);
+        assert(altrun::win::SignalUpdateHealthAndRefreshIcons(
+            eventName, installed, RecordUpdateIconNotification, &notified));
+        assert(WaitForSingleObject(event, 0) == WAIT_OBJECT_0);
+        assert((notified == std::vector<fs::path>{
+            installed / "Asterun.exe",
+            installed / "Uninstall.exe",
+        }));
+        CloseHandle(event);
+    }
+#endif
 
     {
         const auto caseRoot =

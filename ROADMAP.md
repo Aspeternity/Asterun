@@ -1,6 +1,12 @@
 # Asterun Roadmap
 
-Asterun v1.0.4 is the current stable release following owner acceptance. The next version line is not yet scoped.
+Asterun v1.0.4 is the current stable release following owner acceptance. v1.0.5 is the active, unreleased maintenance branch.
+
+## v1.0.5 - Post-update icon cache refresh (in development)
+
+- On a successful upgrade handshake, the newly launched Asterun.exe notifies the Shell of changes to only the three installed EXE files.
+- Do not alter the install transaction, rollback, existing icon artwork, user data, or global Explorer icon cache.
+- Run full Windows CI and real-machine in-place-upgrade acceptance before requesting merge/release authorization.
 
 ## v1.0.4 - Launcher input, shortcut UX, native UI and branding (completed)
 
