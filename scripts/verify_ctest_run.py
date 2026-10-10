@@ -174,7 +174,18 @@ def main() -> int:
                 handle.write("| " + " | ".join(row) + " |\n")
             handle.write("\n")
 
-    print(f"{args.title}: {len(rows)} tests, {mode}; labels: {summary}")
+    results: dict[str, int] = {}
+    for _, _, result, _ in rows:
+        results[result] = results.get(result, 0) + 1
+    result_summary = ", ".join(f"{result}={count}" for result, count in sorted(results.items()))
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        # The full list as a notice annotation: readable on the pull request
+        # and through the checks API, independent of artifact downloads.
+        listing = "%0A".join(f"{name} [{label}] {result}" for name, label, result, _ in rows)
+        print(f"::notice title={args.title}::{len(rows)} tests, {mode}; labels: {summary}; "
+              f"results: {result_summary}%0A{listing}")
+
+    print(f"{args.title}: {len(rows)} tests, {mode}; labels: {summary}; results: {result_summary}")
     for row in rows:
         print("  " + "\t".join(row))
     if errors:
