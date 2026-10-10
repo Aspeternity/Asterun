@@ -78,12 +78,28 @@ def load_junit(path: Path) -> dict[str, dict]:
             fail(f"test {name} appears more than once in {path}")
         problems = [child.tag for child in case
                     if child.tag in {"failure", "error", "skipped"}]
+        output = "\n".join((child.text or "") for child in case
+                           if child.tag in {"system-out", "failure", "error"})
         cases[name] = {
             "status": case.get("status", ""),
             "time": case.get("time", ""),
             "problems": problems,
+            "output": output,
         }
     return cases
+
+
+def annotate_failure(name: str, output: str) -> None:
+    """Report a failed test as a GitHub Actions error annotation.
+
+    Annotations are visible on the pull request and through the checks API,
+    so the failure reason is available without downloading logs.
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return
+    tail = output.strip()[-3000:] or "(no test output captured)"
+    escaped = tail.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::error title=CTest {name} failed::{escaped}")
 
 
 def main() -> int:
@@ -130,6 +146,7 @@ def main() -> int:
                 continue
             if case["status"] != "run" or case["problems"]:
                 errors.append(f"{test['name']}: status={case['status']} {case['problems']}")
+                annotate_failure(test["name"], case["output"])
             rows.append((test["name"], test["labels"][0],
                          "passed" if case["status"] == "run" and not case["problems"]
                          else case["status"] or "failed",
