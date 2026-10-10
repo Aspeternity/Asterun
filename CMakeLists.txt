@@ -448,11 +448,17 @@ include(CTest)
 function(altrun_enable_test_assertions target)
     # CI runs test binaries in Release configuration. Keep assert() active so
     # a green run cannot be produced merely because NDEBUG removed checks.
+    #
+    # Test sources are UTF-8 without BOM and contain non-ASCII wide/UTF-16
+    # literals. MSVC must read them as UTF-8 exactly like the product
+    # libraries (/utf-8 above); otherwise the literals are decoded with the
+    # build machine's ANSI code page and no longer match the product's data.
     if(MSVC)
-        target_compile_options(${target} PRIVATE /UNDEBUG)
+        target_compile_options(${target} PRIVATE /UNDEBUG /utf-8)
     else()
         target_compile_options(${target} PRIVATE -UNDEBUG)
     endif()
+    set_property(TARGET ${target} PROPERTY ALTRUN_TEST_TARGET TRUE)
 endfunction()
 
 if(BUILD_TESTING)
@@ -1652,6 +1658,13 @@ if(BUILD_TESTING)
             message(FATAL_ERROR
                 "Test '${altrun_test}' has no CTest label. Register portable "
                 "tests before the WIN32 block and Windows-only tests inside it.")
+        endif()
+        if(TARGET ${altrun_test})
+            get_target_property(altrun_test_configured ${altrun_test} ALTRUN_TEST_TARGET)
+            if(NOT altrun_test_configured)
+                message(FATAL_ERROR
+                    "Test target '${altrun_test}' must call altrun_enable_test_assertions().")
+            endif()
         endif()
     endforeach()
     list(LENGTH altrun_registered_tests altrun_registered_test_count)
