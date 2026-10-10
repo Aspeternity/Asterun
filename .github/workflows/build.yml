@@ -16,7 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  test-core:
+  repository-checks:
+    name: Repository checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,35 +41,10 @@ jobs:
             echo "Mismatched tag unexpectedly passed validation."
             exit 1
           fi
-      - name: Configure
-        run: cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
-      - name: Build tests
-        run: cmake --build build --parallel
-      - name: Test
-        run: >-
-          ctest --test-dir build
-          --label-regex "^(portable|windows)$"
-          --no-tests=error
-          --output-junit "$GITHUB_WORKSPACE/test-results/junit.xml"
-          --output-on-failure
-      - name: Verify executed test list
-        if: ${{ !cancelled() }}
-        run: |
-          mkdir -p test-results
-          ctest --test-dir build --show-only=json-v1 > test-results/inventory.json
-          python3 scripts/verify_ctest_run.py \
-            --inventory test-results/inventory.json \
-            --junit test-results/junit.xml \
-            --require-label portable \
-            --forbid-label windows \
-            --list-output test-results/execution-list.tsv \
-            --title "Linux core tests (executed)"
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: test-results-linux
-          path: test-results/
-          if-no-files-found: error
+
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
 
   build-windows:
     runs-on: windows-latest
@@ -132,156 +108,10 @@ jobs:
           name: Asterun-${{ matrix.arch }}
           path: Asterun-${{ matrix.arch }}.zip
 
-
-  windows-provider-smoke:
-    name: Windows x64 tests (MSVC)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure tests
-        shell: pwsh
-        run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
-      - name: Build product and all test targets
-        shell: pwsh
-        run: cmake --build build-smoke --config Release --parallel
-      - name: Run portable and Windows tests
-        shell: pwsh
-        run: >-
-          ctest --test-dir build-smoke -C Release
-          --label-regex "^(portable|windows)$"
-          --no-tests=error
-          --output-junit "${{ github.workspace }}/test-results/junit.xml"
-          --output-on-failure
-      - name: Verify executed test list
-        if: ${{ !cancelled() }}
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path test-results | Out-Null
-          ctest --test-dir build-smoke -C Release --show-only=json-v1 | Out-File -Encoding utf8NoBOM test-results/inventory.json
-          python scripts/verify_ctest_run.py `
-            --inventory test-results/inventory.json `
-            --junit test-results/junit.xml `
-            --require-label portable `
-            --require-label windows `
-            --list-output test-results/execution-list.tsv `
-            --title "Windows x64 tests (executed)"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: test-results-windows-x64
-          path: test-results/
-          if-no-files-found: error
-
-  windows-arm64-test-build:
-    name: Windows ARM64 test build (compile only, not run)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure ARM64 tests
-        shell: pwsh
-        run: cmake -S . -B build-arm64-tests -A ARM64 -DBUILD_TESTING=ON
-      - name: Build product and all test targets
-        shell: pwsh
-        run: cmake --build build-arm64-tests --config Release --parallel
-      - name: Verify every registered test was built (tests are NOT run)
-        if: ${{ !cancelled() }}
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path test-results | Out-Null
-          ctest --test-dir build-arm64-tests -C Release --show-only=json-v1 | Out-File -Encoding utf8NoBOM test-results/inventory.json
-          python scripts/verify_ctest_run.py `
-            --inventory test-results/inventory.json `
-            --build-only `
-            --require-label portable `
-            --require-label windows `
-            --list-output test-results/execution-list.tsv `
-            --title "Windows ARM64 tests (built on x64 host, NOT RUN)"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: test-results-windows-arm64-build-only
-          path: test-results/
-          if-no-files-found: error
-
-  windows-compat:
-    name: Windows 10 API baseline
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure x64 compatibility build
-        shell: pwsh
-        run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
-      - name: Build product and all test targets
-        shell: pwsh
-        run: cmake --build build-compat --config Release --parallel
-      - name: Verify Windows 10 compatibility executable icons
-        shell: pwsh
-        run: python scripts/verify_icon_resources.py --executables build-compat/Release
-      - name: Verify compatibility artifact
-        shell: pwsh
-        run: |
-          if (-not (Test-Path build-compat/Release/Asterun.exe)) {
-            throw "Windows compatibility build did not produce Asterun.exe."
-          }
-          if (-not (Test-Path build-compat/Release/Update.exe)) {
-            throw "Windows compatibility build did not produce Update.exe."
-          }
-          if (-not (Test-Path build-compat/Release/Uninstall.exe)) {
-            throw "Windows compatibility build did not produce Uninstall.exe."
-          }
-      - name: Run portable and Windows tests
-        shell: pwsh
-        run: >-
-          ctest --test-dir build-compat -C Release
-          --label-regex "^(portable|windows)$"
-          --no-tests=error
-          --output-junit "${{ github.workspace }}/test-results/junit.xml"
-          --output-on-failure
-      - name: Verify executed test list
-        if: ${{ !cancelled() }}
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path test-results | Out-Null
-          ctest --test-dir build-compat -C Release --show-only=json-v1 | Out-File -Encoding utf8NoBOM test-results/inventory.json
-          python scripts/verify_ctest_run.py `
-            --inventory test-results/inventory.json `
-            --junit test-results/junit.xml `
-            --require-label portable `
-            --require-label windows `
-            --list-output test-results/execution-list.tsv `
-            --title "Windows 10 API baseline x64 tests (executed)"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: test-results-windows-compat-x64
-          path: test-results/
-          if-no-files-found: error
-
-  test-inventory:
-    name: Cross-platform test inventory
-    needs: [test-core, windows-provider-smoke, windows-arm64-test-build, windows-compat]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: test-results-*
-          path: test-results
-      - name: Every Linux portable test is covered on Windows
-        run: |
-          python3 scripts/compare_test_lists.py \
-            --reference test-results/test-results-linux/execution-list.tsv \
-            --target test-results/test-results-windows-x64/execution-list.tsv passed \
-            --target test-results/test-results-windows-compat-x64/execution-list.tsv passed \
-            --target test-results/test-results-windows-arm64-build-only/execution-list.tsv "built, NOT RUN"
-
   development-release:
     name: Publish rolling development prerelease
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test-core, build-windows, windows-provider-smoke, windows-arm64-test-build, windows-compat, test-inventory]
+    needs: [repository-checks, tests, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
