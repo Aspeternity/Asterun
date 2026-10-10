@@ -89,6 +89,12 @@ def load_junit(path: Path) -> dict[str, dict]:
     return cases
 
 
+def escape_property(value: str) -> str:
+    """Escape a workflow-command property value (e.g. an annotation title)."""
+    return (value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+            .replace(":", "%3A").replace(",", "%2C"))
+
+
 def annotate_failure(name: str, output: str) -> None:
     """Report a failed test as a GitHub Actions error annotation.
 
@@ -99,7 +105,7 @@ def annotate_failure(name: str, output: str) -> None:
         return
     tail = output.strip()[-3000:] or "(no test output captured)"
     escaped = tail.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-    print(f"::error title=CTest {name} failed::{escaped}")
+    print(f"::error title={escape_property(f'CTest {name} failed')}::{escaped}")
 
 
 def main() -> int:
@@ -182,7 +188,7 @@ def main() -> int:
         # The full list as a notice annotation: readable on the pull request
         # and through the checks API, independent of artifact downloads.
         listing = "%0A".join(f"{name} [{label}] {result}" for name, label, result, _ in rows)
-        print(f"::notice title={args.title}::{len(rows)} tests, {mode}; labels: {summary}; "
+        print(f"::notice title={escape_property(args.title)}::{len(rows)} tests, {mode}; labels: {summary}; "
               f"results: {result_summary}%0A{listing}")
 
     print(f"{args.title}: {len(rows)} tests, {mode}; labels: {summary}; results: {result_summary}")
