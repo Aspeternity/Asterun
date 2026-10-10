@@ -129,6 +129,14 @@ require(
     ".github/workflows/build.yml",
     '.prerelease == ($version | contains("-"))',
 )
+# Both publication paths must pass the same shared test gate: the rolling
+# development prerelease (build.yml) and versioned releases (release.yml).
+require(".github/workflows/build.yml", "uses: ./.github/workflows/tests.yml",
+        "needs: [repository-checks, tests, build-windows]")
+require(".github/workflows/release.yml", "uses: ./.github/workflows/tests.yml",
+        "needs: [preflight, tests, build]")
+require(".github/workflows/tests.yml", "workflow_call:", "--no-tests=error",
+        "verify_ctest_run.py", "compare_test_lists.py", "--build-only")
 require("scripts/publish_versioned_release.sh", "Versioned tag $TAG is immutable",
         "--draft", "SHA256SUMS.txt", "update-manifest.json")
 forbidden = ("--force", "--cleanup-tag")
