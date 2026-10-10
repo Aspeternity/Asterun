@@ -644,6 +644,12 @@ if(BUILD_TESTING)
         COMMAND launch_role_tests
     )
 
+    add_executable(launch_role_locale_tests tests/LaunchRoleLocaleTests.cpp)
+    target_link_libraries(launch_role_locale_tests PRIVATE altrun_core)
+    target_include_directories(launch_role_locale_tests PRIVATE src)
+    altrun_enable_test_assertions(launch_role_locale_tests)
+    add_test(NAME launch_role_locale_tests COMMAND launch_role_locale_tests)
+
     add_executable(
         provider_index_policy_tests
         tests/ProviderIndexPolicyTests.cpp

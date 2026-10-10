@@ -2132,12 +2132,19 @@ IsOpaqueAuxiliaryIdentity(
         return false;
     }
 
+    // An opaque identity is a short ASCII code such as "X9" or "QX". Use an
+    // explicit ASCII test: std::iswalnum depends on the C runtime and the
+    // current locale (the MSVC CRT reports CJK ideographs as alphanumeric,
+    // glibc's "C" locale does not), which made meaningful non-ASCII names
+    // such as "性能测试" opaque on Windows only.
     return std::all_of(
         token.begin(),
         token.end(),
         [](wchar_t ch) {
             return
-                std::iswalnum(ch) != 0;
+                (ch >= L'0' && ch <= L'9') ||
+                (ch >= L'a' && ch <= L'z') ||
+                (ch >= L'A' && ch <= L'Z');
         });
 }
 
