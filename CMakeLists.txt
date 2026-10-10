@@ -1038,6 +1038,14 @@ if(BUILD_TESTING)
         COMMAND hotkey_registry_tests
     )
 
+    # CTest labels drive CI test selection. Every test registered up to this
+    # point is built on every platform and is labelled "portable"; tests that
+    # only exist on Windows are labelled "windows" after the block below.
+    # Configuration fails if any registered test ends up without a label, so a
+    # new test cannot silently fall outside the CI selection.
+    get_property(altrun_portable_tests DIRECTORY PROPERTY TESTS)
+    set_tests_properties(${altrun_portable_tests} PROPERTIES LABELS portable)
+
     if(WIN32)
         # Exercise the same compiled application implementation as the product.
         get_target_property(window_runtime_libraries Asterun LINK_LIBRARIES)
@@ -1631,5 +1639,24 @@ if(BUILD_TESTING)
             NAME everything_ipc_runtime_tests
             COMMAND everything_ipc_runtime_tests
         )
+
+        get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
+        list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
+        set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
     endif()
+
+    get_property(altrun_registered_tests DIRECTORY PROPERTY TESTS)
+    foreach(altrun_test IN LISTS altrun_registered_tests)
+        get_test_property(${altrun_test} LABELS altrun_test_labels)
+        if(NOT altrun_test_labels)
+            message(FATAL_ERROR
+                "Test '${altrun_test}' has no CTest label. Register portable "
+                "tests before the WIN32 block and Windows-only tests inside it.")
+        endif()
+    endforeach()
+    list(LENGTH altrun_registered_tests altrun_registered_test_count)
+    list(LENGTH altrun_portable_tests altrun_portable_test_count)
+    message(STATUS
+        "Asterun tests: ${altrun_registered_test_count} registered, "
+        "${altrun_portable_test_count} labelled portable")
 endif()
