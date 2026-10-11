@@ -25,6 +25,14 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Link the MSVC C/C++ runtime statically into every target (product,
+# dependency libraries and tests) so Asterun starts without the Visual C++
+# Redistributable and the executables import no CRT DLLs. Set before any
+# target is created so every target inherits it; mixing /MD and /MT objects
+# would fail to link (LNK2038). CMP0091 is NEW because of the 3.24 minimum.
+set(ALTRUN_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "${ALTRUN_MSVC_RUNTIME_LIBRARY}")
+
 include(FetchContent)
 
 set(JSON_BuildTests OFF CACHE INTERNAL "")
@@ -1679,3 +1687,33 @@ if(BUILD_TESTING)
         "Asterun tests: ${altrun_registered_test_count} registered, "
         "${altrun_portable_test_count} labelled portable")
 endif()
+
+# Every compiled target must use the static MSVC runtime chosen above; a
+# per-target override would reintroduce CRT DLL imports or LNK2038 mismatches.
+function(altrun_collect_targets directory out)
+    get_property(targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
+    get_property(subdirectories DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+    foreach(subdirectory IN LISTS subdirectories)
+        altrun_collect_targets("${subdirectory}" nested)
+        list(APPEND targets ${nested})
+    endforeach()
+    set(${out} ${targets} PARENT_SCOPE)
+endfunction()
+
+altrun_collect_targets("${CMAKE_CURRENT_SOURCE_DIR}" altrun_all_targets)
+set(altrun_compiled_target_count 0)
+foreach(altrun_target IN LISTS altrun_all_targets)
+    get_target_property(altrun_target_type ${altrun_target} TYPE)
+    if(altrun_target_type MATCHES "^(EXECUTABLE|STATIC_LIBRARY|SHARED_LIBRARY|MODULE_LIBRARY|OBJECT_LIBRARY)$")
+        get_target_property(altrun_target_runtime ${altrun_target} MSVC_RUNTIME_LIBRARY)
+        if(NOT altrun_target_runtime STREQUAL ALTRUN_MSVC_RUNTIME_LIBRARY)
+            message(FATAL_ERROR
+                "Target '${altrun_target}' uses MSVC runtime '${altrun_target_runtime}', "
+                "expected '${ALTRUN_MSVC_RUNTIME_LIBRARY}'.")
+        endif()
+        math(EXPR altrun_compiled_target_count "${altrun_compiled_target_count} + 1")
+    endif()
+endforeach()
+message(STATUS
+    "Asterun MSVC runtime: ${altrun_compiled_target_count} compiled targets use "
+    "${ALTRUN_MSVC_RUNTIME_LIBRARY}")
