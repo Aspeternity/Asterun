@@ -324,6 +324,8 @@ if(WIN32)
     if(MSVC)
         target_compile_options(Asterun PRIVATE /W4 /permissive- /utf-8 /EHsc)
         target_link_options(Asterun PRIVATE /SUBSYSTEM:WINDOWS)
+        # Resolve static imports from System32 only (Windows 10 1607+).
+        target_link_options(Asterun PRIVATE /DEPENDENTLOADFLAG:0x800)
     endif()
 
     set_target_properties(Asterun PROPERTIES
@@ -378,6 +380,8 @@ if(WIN32)
             AsterunUpdater
             PRIVATE
                 /SUBSYSTEM:WINDOWS
+                # Resolve static imports from System32 only (Windows 10 1607+).
+                /DEPENDENTLOADFLAG:0x800
         )
     endif()
 
@@ -440,6 +444,8 @@ if(WIN32)
             AsterunUninstaller
             PRIVATE
                 /SUBSYSTEM:WINDOWS
+                # Resolve static imports from System32 only (Windows 10 1607+).
+                /DEPENDENTLOADFLAG:0x800
         )
     endif()
 
