@@ -94,6 +94,12 @@ jobs:
           Copy-Item README.md dist/README.md
           Compress-Archive -Path dist/* -DestinationPath Asterun-${{ matrix.arch }}.zip
 
+      - name: Verify PE import and load-flag contract
+        shell: pwsh
+        run: |
+          python scripts/verify_pe_contract.py --directory dist --arch ${{ matrix.arch }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Verify package contract
         shell: pwsh
         run: '& ./scripts/verify_package.ps1 -Archive "Asterun-${{ matrix.arch }}.zip"'
