@@ -1666,6 +1666,18 @@ if(BUILD_TESTING)
             COMMAND everything_ipc_runtime_tests
         )
 
+        add_executable(dll_search_hardening_tests tests/DllSearchHardeningTests.cpp)
+        target_include_directories(dll_search_hardening_tests PRIVATE src)
+        target_compile_definitions(dll_search_hardening_tests PRIVATE
+            UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
+            _WIN32_WINNT=0x0A00 WINVER=0x0A00)
+        if(MSVC)
+            target_compile_options(dll_search_hardening_tests PRIVATE /W4 /permissive- /EHsc)
+        endif()
+        altrun_enable_test_assertions(dll_search_hardening_tests)
+        add_test(NAME dll_search_hardening_tests COMMAND dll_search_hardening_tests)
+        set_tests_properties(dll_search_hardening_tests PROPERTIES RUN_SERIAL TRUE)
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
