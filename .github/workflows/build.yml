@@ -16,7 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  test-core:
+  repository-checks:
+    name: Repository checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,12 +41,10 @@ jobs:
             echo "Mismatched tag unexpectedly passed validation."
             exit 1
           fi
-      - name: Configure
-        run: cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
-      - name: Build tests
-        run: cmake --build build --parallel
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
+
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
 
   build-windows:
     runs-on: windows-latest
@@ -109,56 +108,10 @@ jobs:
           name: Asterun-${{ matrix.arch }}
           path: Asterun-${{ matrix.arch }}.zip
 
-
-  windows-provider-smoke:
-    name: Windows desktop/runtime smoke
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure provider smoke tests
-        shell: pwsh
-        run: cmake -S . -B build-smoke -A x64 -DBUILD_TESTING=ON
-      - name: Build Windows smoke tests
-        shell: pwsh
-        run: cmake --build build-smoke --config Release --target AsterunUpdater AsterunUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_http_transport_tests everything_http_runtime_tests update_http_transport_tests update_http_runtime_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests ui_combobox_runtime_tests app_lifecycle_runtime_tests launcher_resource_runtime_tests ui_listview_failure_tests archive_extractor_tests windows_command_line_tests --parallel
-      - name: Run Windows smoke tests
-        shell: pwsh
-        run: ctest --test-dir build-smoke -C Release -R "^(windows_provider_smoke_tests|launch_target_inspector_tests|path_portability_tests|user_command_path_update_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_lifecycle_tests|everything_http_transport_tests|everything_http_runtime_tests|update_http_transport_tests|update_http_runtime_tests|everything_ipc_runtime_tests|update_policy_tests|update_runtime_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|upgrade_matrix_tests|clipboard_runtime_tests|windows_context_runtime_tests|feedback_runtime_tests|uninstall_runtime_tests|window_presentation_runtime_tests|ui_combobox_runtime_tests|app_lifecycle_runtime_tests|launcher_resource_runtime_tests|ui_listview_failure_tests|archive_extractor_tests|windows_command_line_tests)$" --output-on-failure
-
-  windows-compat:
-    name: Windows 10 API baseline
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure x64 compatibility build
-        shell: pwsh
-        run: cmake -S . -B build-compat -A x64 -DBUILD_TESTING=ON
-      - name: Build x64 compatibility target
-        shell: pwsh
-        run: cmake --build build-compat --config Release --target Asterun AsterunUpdater AsterunUninstaller windows_provider_smoke_tests launch_target_inspector_tests path_portability_tests user_command_path_update_tests hotkey_registry_tests hotkey_tests hotkey_runtime_tests desktop_validation_tests everything_lifecycle_tests everything_http_transport_tests everything_http_runtime_tests update_http_transport_tests update_http_runtime_tests everything_ipc_runtime_tests update_policy_tests update_runtime_tests web_action_tests clipboard_action_tests command_template_tests launcher_action_policy_tests explorer_context_selection_tests upgrade_matrix_tests clipboard_runtime_tests windows_context_runtime_tests feedback_runtime_tests uninstall_runtime_tests window_presentation_runtime_tests ui_combobox_runtime_tests app_lifecycle_runtime_tests launcher_resource_runtime_tests ui_listview_failure_tests archive_extractor_tests windows_command_line_tests --parallel
-      - name: Verify Windows 10 compatibility executable icons
-        shell: pwsh
-        run: python scripts/verify_icon_resources.py --executables build-compat/Release
-      - name: Verify compatibility artifact
-        shell: pwsh
-        run: |
-          if (-not (Test-Path build-compat/Release/Asterun.exe)) {
-            throw "Windows compatibility build did not produce Asterun.exe."
-          }
-          if (-not (Test-Path build-compat/Release/Update.exe)) {
-            throw "Windows compatibility build did not produce Update.exe."
-          }
-          if (-not (Test-Path build-compat/Release/Uninstall.exe)) {
-            throw "Windows compatibility build did not produce Uninstall.exe."
-          }
-      - name: Run Windows compatibility smoke
-        shell: pwsh
-        run: ctest --test-dir build-compat -C Release -R "^(windows_provider_smoke_tests|launch_target_inspector_tests|path_portability_tests|user_command_path_update_tests|hotkey_registry_tests|hotkey_tests|hotkey_runtime_tests|desktop_validation_tests|everything_lifecycle_tests|everything_http_transport_tests|everything_http_runtime_tests|update_http_transport_tests|update_http_runtime_tests|everything_ipc_runtime_tests|update_policy_tests|update_runtime_tests|web_action_tests|clipboard_action_tests|command_template_tests|launcher_action_policy_tests|explorer_context_selection_tests|upgrade_matrix_tests|clipboard_runtime_tests|windows_context_runtime_tests|feedback_runtime_tests|uninstall_runtime_tests|window_presentation_runtime_tests|ui_combobox_runtime_tests|app_lifecycle_runtime_tests|launcher_resource_runtime_tests|ui_listview_failure_tests|archive_extractor_tests|windows_command_line_tests)$" --output-on-failure
-
   development-release:
     name: Publish rolling development prerelease
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test-core, build-windows, windows-provider-smoke, windows-compat]
+    needs: [repository-checks, tests, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write

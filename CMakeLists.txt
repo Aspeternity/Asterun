@@ -448,11 +448,17 @@ include(CTest)
 function(altrun_enable_test_assertions target)
     # CI runs test binaries in Release configuration. Keep assert() active so
     # a green run cannot be produced merely because NDEBUG removed checks.
+    #
+    # Test sources are UTF-8 without BOM and contain non-ASCII wide/UTF-16
+    # literals. MSVC must read them as UTF-8 exactly like the product
+    # libraries (/utf-8 above); otherwise the literals are decoded with the
+    # build machine's ANSI code page and no longer match the product's data.
     if(MSVC)
-        target_compile_options(${target} PRIVATE /UNDEBUG)
+        target_compile_options(${target} PRIVATE /UNDEBUG /utf-8)
     else()
         target_compile_options(${target} PRIVATE -UNDEBUG)
     endif()
+    set_property(TARGET ${target} PROPERTY ALTRUN_TEST_TARGET TRUE)
 endfunction()
 
 if(BUILD_TESTING)
@@ -637,6 +643,12 @@ if(BUILD_TESTING)
         NAME launch_role_tests
         COMMAND launch_role_tests
     )
+
+    add_executable(launch_role_locale_tests tests/LaunchRoleLocaleTests.cpp)
+    target_link_libraries(launch_role_locale_tests PRIVATE altrun_core)
+    target_include_directories(launch_role_locale_tests PRIVATE src)
+    altrun_enable_test_assertions(launch_role_locale_tests)
+    add_test(NAME launch_role_locale_tests COMMAND launch_role_locale_tests)
 
     add_executable(
         provider_index_policy_tests
@@ -1037,6 +1049,14 @@ if(BUILD_TESTING)
         NAME hotkey_registry_tests
         COMMAND hotkey_registry_tests
     )
+
+    # CTest labels drive CI test selection. Every test registered up to this
+    # point is built on every platform and is labelled "portable"; tests that
+    # only exist on Windows are labelled "windows" after the block below.
+    # Configuration fails if any registered test ends up without a label, so a
+    # new test cannot silently fall outside the CI selection.
+    get_property(altrun_portable_tests DIRECTORY PROPERTY TESTS)
+    set_tests_properties(${altrun_portable_tests} PROPERTIES LABELS portable)
 
     if(WIN32)
         # Exercise the same compiled application implementation as the product.
@@ -1631,5 +1651,31 @@ if(BUILD_TESTING)
             NAME everything_ipc_runtime_tests
             COMMAND everything_ipc_runtime_tests
         )
+
+        get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
+        list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
+        set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
     endif()
+
+    get_property(altrun_registered_tests DIRECTORY PROPERTY TESTS)
+    foreach(altrun_test IN LISTS altrun_registered_tests)
+        get_test_property(${altrun_test} LABELS altrun_test_labels)
+        if(NOT altrun_test_labels)
+            message(FATAL_ERROR
+                "Test '${altrun_test}' has no CTest label. Register portable "
+                "tests before the WIN32 block and Windows-only tests inside it.")
+        endif()
+        if(TARGET ${altrun_test})
+            get_target_property(altrun_test_configured ${altrun_test} ALTRUN_TEST_TARGET)
+            if(NOT altrun_test_configured)
+                message(FATAL_ERROR
+                    "Test target '${altrun_test}' must call altrun_enable_test_assertions().")
+            endif()
+        endif()
+    endforeach()
+    list(LENGTH altrun_registered_tests altrun_registered_test_count)
+    list(LENGTH altrun_portable_tests altrun_portable_test_count)
+    message(STATUS
+        "Asterun tests: ${altrun_registered_test_count} registered, "
+        "${altrun_portable_test_count} labelled portable")
 endif()
