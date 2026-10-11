@@ -32,6 +32,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # would fail to link (LNK2038). CMP0091 is NEW because of the 3.24 minimum.
 set(ALTRUN_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_MSVC_RUNTIME_LIBRARY "${ALTRUN_MSVC_RUNTIME_LIBRARY}")
+# A subproject declaring cmake_minimum_required < 3.15 would get CMP0091 OLD
+# and ignore the property checked below; default it to NEW for such projects.
+set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
 
 include(FetchContent)
 
