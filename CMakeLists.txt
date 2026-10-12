@@ -1681,6 +1681,24 @@ if(BUILD_TESTING)
         add_test(NAME dll_search_hardening_tests COMMAND dll_search_hardening_tests)
         set_tests_properties(dll_search_hardening_tests PROPERTIES RUN_SERIAL TRUE)
 
+        # Update.exe execution chain on throw-away directories (local archive
+        # check, file replacement, new-process start and health signal). The
+        # protected-install case needs elevation and reports 77 (skipped)
+        # otherwise; CI rejects skipped tests, so it always runs there.
+        foreach(altrun_updater_mode Portable Protected)
+            string(TOLOWER "${altrun_updater_mode}" altrun_updater_mode_lower)
+            set(altrun_updater_test "updater_${altrun_updater_mode_lower}_integration_tests")
+            add_test(
+                NAME ${altrun_updater_test}
+                COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                    -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UpdaterIntegrationTests.ps1"
+                    -AppDir "$<TARGET_FILE_DIR:Asterun>"
+                    -Mode ${altrun_updater_mode}
+            )
+            set_tests_properties(${altrun_updater_test} PROPERTIES
+                TIMEOUT 900 RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
+        endforeach()
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
