@@ -270,7 +270,19 @@ CreateProtectedWorkRoot(
     return false;
 }
 
-[[nodiscard]] bool
+enum class ParentState {
+    Exited,
+    StillRunning,
+    Unknown,
+};
+
+struct ParentWait {
+    ParentState state{ParentState::Unknown};
+    // Win32 error captured when the wait failed, or WAIT_TIMEOUT.
+    DWORD error{0};
+};
+
+[[nodiscard]] ParentWait
 WaitForParent(DWORD pid) {
     HANDLE process =
         OpenProcess(
@@ -279,18 +291,30 @@ WaitForParent(DWORD pid) {
             pid);
 
     if (!process) {
-        return GetLastError() ==
-                   ERROR_INVALID_PARAMETER;
+        const DWORD error = GetLastError();
+        // ERROR_INVALID_PARAMETER: no process with this id, i.e. it exited.
+        if (error == ERROR_INVALID_PARAMETER) {
+            return {ParentState::Exited, 0};
+        }
+        return {ParentState::Unknown, error};
     }
 
     const DWORD wait =
         WaitForSingleObject(
             process,
             60000);
+    const DWORD waitError =
+        wait == WAIT_FAILED ? GetLastError() : 0;
 
     CloseHandle(process);
-    return wait ==
-        WAIT_OBJECT_0;
+
+    if (wait == WAIT_OBJECT_0) {
+        return {ParentState::Exited, 0};
+    }
+    if (wait == WAIT_TIMEOUT) {
+        return {ParentState::StillRunning, WAIT_TIMEOUT};
+    }
+    return {ParentState::Unknown, waitError};
 }
 
 [[nodiscard]] bool
@@ -576,14 +600,340 @@ CreateHealthEvent(
             TRUE,
             FALSE,
             std::wstring(name).c_str());
+    // Keep CreateEventW's error for the caller across LocalFree.
+    const DWORD createError = GetLastError();
 
     LocalFree(acl);
+    if (!event) {
+        SetLastError(createError);
+    }
     return event;
 }
 
 void CleanupSelfLater() {
     altrun::win::
         ScheduleTemporaryWorkerSelfCleanup();
+}
+
+[[nodiscard]] bool
+ChineseUi() {
+    return PRIMARYLANGID(
+               GetUserDefaultUILanguage()) ==
+        LANG_CHINESE;
+}
+
+void ShowFailureMessage(
+    const std::wstring& text) {
+    MessageBoxW(
+        nullptr,
+        text.c_str(),
+        L"Asterun",
+        MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+}
+
+// The step that failed, shown to the user. Kept in one place so the text of
+// every failure prompt names the same steps.
+enum class FailedStep {
+    VerifyPackage,
+    ObtainElevation,
+    PrepareProtectedFolder,
+    ExtractPackage,
+    CheckContents,
+    ReplaceFiles,
+    PrepareHealthCheck,
+    StartNewVersion,
+    WaitNewVersion,
+};
+
+[[nodiscard]] const wchar_t*
+StepName(
+    FailedStep step,
+    bool chinese) {
+    switch (step) {
+    case FailedStep::VerifyPackage:
+        return chinese ? L"校验更新包" : L"Verify update package";
+    case FailedStep::ObtainElevation:
+        return chinese ? L"获取管理员权限" : L"Obtain administrator rights";
+    case FailedStep::PrepareProtectedFolder:
+        return chinese ? L"准备受保护目录" : L"Prepare protected folder";
+    case FailedStep::ExtractPackage:
+        return chinese ? L"解压更新包" : L"Extract update package";
+    case FailedStep::CheckContents:
+        return chinese ? L"检查更新内容" : L"Check update contents";
+    case FailedStep::ReplaceFiles:
+        return chinese ? L"替换程序文件" : L"Replace program files";
+    case FailedStep::PrepareHealthCheck:
+        return chinese ? L"准备启动检查" : L"Prepare startup check";
+    case FailedStep::StartNewVersion:
+        return chinese ? L"启动新版本" : L"Start new version";
+    case FailedStep::WaitNewVersion:
+        return chinese ? L"等待新版本就绪" : L"Wait for new version";
+    }
+    return L"";
+}
+
+// What became of the one attempt to start the previous version again. A
+// process that is still running after the observation window has only been
+// seen to start and stay up briefly; that is not a confirmed recovery.
+enum class RestartState {
+    CreateFailed,
+    ExitedDuringObservation,
+    RunningAfterObservation,
+    QueryFailed,
+};
+
+struct RestartObservation {
+    RestartState state{RestartState::CreateFailed};
+    DWORD error{0};
+    DWORD exitCode{0};
+};
+
+constexpr DWORD kRestartObservationMilliseconds = 5000;
+
+[[nodiscard]] RestartObservation
+RestartPreviousVersion(
+    const std::filesystem::path& mainExe) {
+    PROCESS_INFORMATION process{};
+
+    if (!LaunchMain(
+            mainExe,
+            L"",
+            process)) {
+        return {RestartState::CreateFailed, GetLastError(), 0};
+    }
+
+    CloseHandle(process.hThread);
+
+    RestartObservation result{RestartState::RunningAfterObservation, 0, 0};
+    const DWORD wait =
+        WaitForSingleObject(
+            process.hProcess,
+            kRestartObservationMilliseconds);
+
+    if (wait == WAIT_OBJECT_0) {
+        DWORD exitCode = 0;
+        if (GetExitCodeProcess(process.hProcess, &exitCode)) {
+            result = {RestartState::ExitedDuringObservation, 0, exitCode};
+        } else {
+            result = {RestartState::QueryFailed, GetLastError(), 0};
+        }
+    } else if (wait != WAIT_TIMEOUT) {
+        result = {RestartState::QueryFailed, GetLastError(), 0};
+    }
+
+    CloseHandle(process.hProcess);
+    return result;
+}
+
+[[nodiscard]] std::wstring
+RestartText(
+    const RestartObservation& restart,
+    const std::filesystem::path& mainExe,
+    bool chinese) {
+    if (restart.state == RestartState::RunningAfterObservation) {
+        return chinese ? L"已重新启动 Asterun。" : L"Asterun was restarted.";
+    }
+
+    std::wstring detail;
+    switch (restart.state) {
+    case RestartState::CreateFailed:
+        detail = (chinese ? L"无法启动，错误代码 " : L"it could not be started, error code ") +
+            std::to_wstring(restart.error);
+        break;
+    case RestartState::ExitedDuringObservation:
+        detail = (chinese ? L"启动后很快退出，退出码 " : L"it exited shortly after starting, exit code ") +
+            std::to_wstring(restart.exitCode);
+        break;
+    case RestartState::QueryFailed:
+        detail = (chinese ? L"无法查询其运行状态，错误代码 " : L"its state could not be queried, error code ") +
+            std::to_wstring(restart.error);
+        break;
+    case RestartState::RunningAfterObservation:
+        break;
+    }
+
+    if (chinese) {
+        return L"未能确认 Asterun 已恢复运行（" + detail + L"）。请手动启动：" + mainExe.wstring();
+    }
+    return L"Asterun could not be confirmed as running again (" + detail +
+        L"). Start it manually: " + mainExe.wstring();
+}
+
+[[nodiscard]] bool
+WriteRecoveryErrors(
+    const std::filesystem::path& backup,
+    const altrun::updater::RollbackResult& recovery) {
+    std::ofstream output(
+        backup / L"recovery-errors.txt",
+        std::ios::binary | std::ios::app);
+
+    if (!output) {
+        return false;
+    }
+
+    for (const auto& failure : recovery.failures) {
+        output << failure.relative.generic_string() << ": "
+               << failure.error.message() << '\n';
+    }
+
+    output.flush();
+    return static_cast<bool>(output);
+}
+
+[[nodiscard]] bool
+DirectoryExists(
+    const std::filesystem::path& path) {
+    std::error_code ec;
+    return !path.empty() &&
+        std::filesystem::is_directory(path, ec) &&
+        !ec;
+}
+
+// Everything the failure handling needs. protectedWorkRoot is non-empty only
+// once this run has created it.
+struct FailureContext {
+    const Arguments& args;
+    const altrun::updater::TransactionPaths& transaction;
+    const altrun::updater::TransactionJournal& journal;
+    const std::filesystem::path& protectedWorkRoot;
+    altrun::win::LockedVerifiedFile& archiveLock;
+    bool replacementStarted{false};
+};
+
+struct Failure {
+    FailedStep step{FailedStep::VerifyPackage};
+    // Win32 error saved where the failure happened; 0 when the failing check
+    // has no Win32 error (it is then not shown).
+    DWORD error{0};
+    int exitCode{2};
+    // Exit code when the previous program files are not restored (rollback
+    // incomplete, or the new version could not be stopped). Unchanged from
+    // the previous per-branch code: 3/4 keep 3/4, 5/6 use 7.
+    int exitCodeIfNotRestored{2};
+    bool newVersionStillRunning{false};
+};
+
+// The single place that ends a failed update after the parent has exited:
+// restore what was replaced, start the previous version at most once, keep
+// every recovery file once replacement has started, show one message, and
+// return the existing exit code.
+[[nodiscard]] int
+FinishFailedUpdate(
+    FailureContext& context,
+    const Failure& failure) {
+    context.archiveLock.Reset();
+
+    enum class Outcome {
+        NotReplaced,
+        RolledBack,
+        RollbackIncomplete,
+        NewVersionNotStopped,
+    };
+
+    Outcome outcome = Outcome::NotReplaced;
+    bool recoveryErrorsWritten = false;
+
+    if (failure.newVersionStillRunning) {
+        outcome = Outcome::NewVersionNotStopped;
+    } else if (context.replacementStarted) {
+        const auto recovery =
+            altrun::updater::Rollback(
+                context.transaction,
+                context.journal);
+
+        if (recovery.Complete()) {
+            outcome = Outcome::RolledBack;
+        } else {
+            outcome = Outcome::RollbackIncomplete;
+            recoveryErrorsWritten =
+                WriteRecoveryErrors(
+                    context.transaction.backup,
+                    recovery);
+        }
+    } else if (!context.protectedWorkRoot.empty() &&
+               !DirectoryExists(context.protectedWorkRoot / L"backup")) {
+        // Nothing was replaced and the protected work root this run created
+        // holds no backup: it is not recovery material.
+        std::error_code ignored;
+        std::filesystem::remove_all(
+            context.protectedWorkRoot,
+            ignored);
+    }
+
+    const bool chinese = ChineseUi();
+    const auto mainExe =
+        context.args.install /
+        L"Asterun.exe";
+
+    std::wstring text;
+    switch (outcome) {
+    case Outcome::NotReplaced:
+        text = chinese
+            ? L"更新未完成，未替换已安装的程序文件。"
+            : L"The update did not complete. No installed program files were replaced.";
+        break;
+    case Outcome::RolledBack:
+        text = chinese
+            ? L"更新失败，已恢复更新前的程序文件。"
+            : L"The update failed. The previous program files were restored.";
+        break;
+    case Outcome::RollbackIncomplete:
+        text = chinese
+            ? L"更新失败，且未能完全恢复更新前的程序文件。未自动启动 Asterun。"
+            : L"The update failed and the previous program files could not be fully restored. "
+              L"Asterun was not started.";
+        break;
+    case Outcome::NewVersionNotStopped:
+        text = chinese
+            ? L"更新后的程序仍在运行且无法停止，未执行恢复，也未自动启动旧版本。"
+            : L"The updated application is still running and could not be stopped. "
+              L"No restore was attempted and the previous version was not started.";
+        break;
+    }
+
+    if (outcome == Outcome::NotReplaced ||
+        outcome == Outcome::RolledBack) {
+        const auto restart =
+            RestartPreviousVersion(mainExe);
+        text += L"\n\n";
+        text += RestartText(restart, mainExe, chinese);
+    }
+
+    if (outcome != Outcome::NotReplaced &&
+        DirectoryExists(context.transaction.backup)) {
+        text += L"\n\n";
+        text += chinese ? L"恢复文件保留在：" : L"Recovery files were kept at: ";
+        text += context.transaction.backup.wstring();
+        if (recoveryErrorsWritten) {
+            text += chinese
+                ? L"\n失败详情见其中的 recovery-errors.txt。"
+                : L"\nSee recovery-errors.txt there for details.";
+        } else if (outcome == Outcome::RollbackIncomplete) {
+            text += chinese
+                ? L"\n未能写入失败详情文件。"
+                : L"\nThe failure details could not be written.";
+        }
+        if (outcome == Outcome::RollbackIncomplete ||
+            outcome == Outcome::NewVersionNotStopped) {
+            text += chinese ? L"\n请不要删除该目录。" : L"\nDo not delete this folder.";
+        }
+    }
+
+    text += L"\n\n";
+    text += chinese ? L"失败阶段：" : L"Failed step: ";
+    text += StepName(failure.step, chinese);
+    if (failure.error != 0) {
+        text += chinese ? L"\n错误代码：" : L"\nError code: ";
+        text += std::to_wstring(failure.error);
+    }
+
+    ShowFailureMessage(text);
+
+    if (outcome == Outcome::RollbackIncomplete ||
+        outcome == Outcome::NewVersionNotStopped) {
+        return failure.exitCodeIfNotRestored;
+    }
+    return failure.exitCode;
 }
 
 } // namespace
@@ -599,9 +949,14 @@ int WINAPI wWinMain(
             altrun::win::RestrictDefaultDllSearchToSystem32();
         searchError != ERROR_SUCCESS) {
         const auto message =
-            L"The update was not started because Windows could not restrict "
-            L"the DLL search path for the updater. No files were changed.\n\n"
-            L"Error code: " +
+            (ChineseUi()
+                 ? std::wstring(
+                       L"更新未开始：Windows 无法限制更新程序的 DLL 搜索路径，未修改任何文件。\n\n"
+                       L"错误代码：")
+                 : std::wstring(
+                       L"The update was not started because Windows could not restrict "
+                       L"the DLL search path for the updater. No files were changed.\n\n"
+                       L"Error code: ")) +
             std::to_wstring(searchError);
         MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
         SetLastError(searchError);
@@ -618,21 +973,79 @@ int WINAPI wWinMain(
     const Arguments& args =
         *parsed;
 
-    if (!WaitForParent(
-            args.parentPid)) {
+    const auto parent =
+        WaitForParent(
+            args.parentPid);
+
+    if (parent.state != ParentState::Exited) {
+        // The previous version may still be running: change nothing and start
+        // nothing, only tell the user.
+        const bool chinese = ChineseUi();
+        std::wstring text =
+            chinese
+                ? L"更新未开始：Asterun 尚未退出，或无法确认其状态。未修改任何文件。\n请关闭 Asterun 后重新更新。"
+                : L"The update did not start because Asterun has not exited, or its state could not be "
+                  L"determined. No files were changed.\nClose Asterun and try the update again.";
+        if (parent.error != 0) {
+            text += chinese ? L"\n\n错误代码：" : L"\n\nError code: ";
+            text += std::to_wstring(parent.error);
+        }
+        ShowFailureMessage(text);
         return 2;
     }
+
+    altrun::win::
+        LockedVerifiedFile archiveLock;
+    std::filesystem::path
+        protectedWorkRoot;
+    altrun::updater::
+        TransactionPaths transaction{
+            .source =
+                args.source,
+            .install =
+                args.install,
+            .backup =
+                args.backup,
+            .version =
+                args.version,
+        };
+    altrun::updater::
+        TransactionJournal journal;
+    std::error_code cleanupError;
+
+    FailureContext context{
+        args,
+        transaction,
+        journal,
+        protectedWorkRoot,
+        archiveLock,
+    };
+
+    const auto fail =
+        [&](FailedStep step,
+            DWORD error,
+            int exitCode,
+            int exitCodeIfNotRestored,
+            bool newVersionStillRunning = false) {
+            return FinishFailedUpdate(
+                context,
+                Failure{
+                    step,
+                    error,
+                    exitCode,
+                    exitCodeIfNotRestored,
+                    newVersionStillRunning,
+                });
+        };
 
     std::string expectedSha256;
 
     if (!AsciiSha256(
             args.sha256,
             expectedSha256)) {
-        return 2;
+        return fail(FailedStep::VerifyPackage, 0, 2, 2);
     }
 
-    altrun::win::
-        LockedVerifiedFile archiveLock;
     std::uint32_t archiveError = 0;
 
     if (!altrun::win::
@@ -641,60 +1054,40 @@ int WINAPI wWinMain(
                  expectedSha256,
                  archiveLock,
                  archiveError)) {
-        SetLastError(
-            archiveError != 0
-                ? archiveError
-                : ERROR_CRC);
-        return 2;
+        return fail(
+            FailedStep::VerifyPackage,
+            archiveError != 0 ? archiveError : ERROR_CRC,
+            2,
+            2);
     }
-
-    std::filesystem::path
-        protectedWorkRoot;
-    std::filesystem::path
-        transactionSource =
-            args.source;
-    std::filesystem::path
-        transactionBackup =
-            args.backup;
-    std::error_code cleanupError;
-
-    bool preserveRecovery = false;
-    const auto cleanupWork =
-        [&]() {
-            archiveLock.Reset();
-
-            if (!preserveRecovery && !protectedWorkRoot
-                     .empty()) {
-                std::filesystem::
-                    remove_all(
-                        protectedWorkRoot,
-                        cleanupError);
-                cleanupError.clear();
-            }
-        };
 
     if (args.secureReextract) {
         if (!IsElevated()) {
-            return 2;
+            return fail(FailedStep::ObtainElevation, 0, 2, 2);
         }
 
         std::uint32_t workError = 0;
+        std::filesystem::path createdRoot;
 
         if (!CreateProtectedWorkRoot(
                 args.install,
-                protectedWorkRoot,
+                createdRoot,
                 workError)) {
-            SetLastError(
-                workError != 0
-                    ? workError
-                    : ERROR_ACCESS_DENIED);
-            return 2;
+            // createdRoot may name a directory this run did not create;
+            // protectedWorkRoot stays empty so nothing there is removed.
+            return fail(
+                FailedStep::PrepareProtectedFolder,
+                workError != 0 ? workError : ERROR_ACCESS_DENIED,
+                2,
+                2);
         }
 
-        transactionSource =
+        protectedWorkRoot =
+            createdRoot;
+        transaction.source =
             protectedWorkRoot /
             L"stage";
-        transactionBackup =
+        transaction.backup =
             protectedWorkRoot /
             L"backup";
 
@@ -704,14 +1097,13 @@ int WINAPI wWinMain(
         if (!altrun::win::
                  ExtractZipVerifiedSecure(
                      args.archive,
-                     transactionSource,
+                     transaction.source,
                      extractionError)) {
-            SetLastError(
-                extractionError != 0
-                    ? extractionError
-                    : ERROR_INVALID_DATA);
-            cleanupWork();
-            return 2;
+            return fail(
+                FailedStep::ExtractPackage,
+                extractionError != 0 ? extractionError : ERROR_INVALID_DATA,
+                2,
+                2);
         }
 
         // The source tree now lives under the protected install root.
@@ -729,52 +1121,21 @@ int WINAPI wWinMain(
         archiveLock.Reset();
     }
 
-    altrun::updater::
-        TransactionPaths transaction{
-            .source =
-                transactionSource,
-            .install =
-                args.install,
-            .backup =
-                transactionBackup,
-            .version =
-                args.version,
-        };
-
     if (!altrun::updater::
              ValidateSource(
                  transaction)) {
-        cleanupWork();
-        return 2;
+        return fail(FailedStep::CheckContents, 0, 2, 2);
     }
 
-    altrun::updater::
-        TransactionJournal journal;
-
-    const auto restore = [&]() {
-        const auto recovery = altrun::updater::Rollback(transaction, journal);
-        if (!recovery.Complete()) {
-            preserveRecovery = true;
-            const auto log = transaction.backup / L"recovery-errors.txt";
-            std::ofstream output(log, std::ios::binary | std::ios::app);
-            for (const auto& failure : recovery.failures) {
-                output << failure.relative.generic_string() << ": "
-                       << failure.error.message() << '\n';
-            }
-            const auto message = L"The update could not be fully restored. Recovery files were kept at:\n" +
-                transaction.backup.wstring();
-            MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
-        }
-        return recovery.Complete();
-    };
+    // From here on every failure keeps the backup and the recovery work
+    // directory, whatever the rollback result.
+    context.replacementStarted = true;
 
     if (!altrun::updater::
              ApplyPackage(
                  transaction,
                  journal)) {
-        restore();
-        cleanupWork();
-        return 3;
+        return fail(FailedStep::ReplaceFiles, 0, 3, 3);
     }
 
     // The applied file set and protected backup journal are sufficient for
@@ -782,7 +1143,7 @@ int WINAPI wWinMain(
     // remain live.
     if (args.secureReextract) {
         std::filesystem::remove_all(
-            transactionSource,
+            transaction.source,
             cleanupError);
         cleanupError.clear();
     }
@@ -792,9 +1153,8 @@ int WINAPI wWinMain(
             args.healthEvent);
 
     if (!healthEvent) {
-        restore();
-        cleanupWork();
-        return 4;
+        const DWORD error = GetLastError();
+        return fail(FailedStep::PrepareHealthCheck, error, 4, 4);
     }
 
     const auto mainExe =
@@ -812,21 +1172,9 @@ int WINAPI wWinMain(
             mainExe,
             mainArguments,
             child)) {
+        const DWORD error = GetLastError();
         CloseHandle(healthEvent);
-        const bool restoredCompletely = restore();
-        cleanupWork();
-        if (!restoredCompletely) return 7;
-
-        PROCESS_INFORMATION restored{};
-        if (LaunchMain(
-                mainExe,
-                L"",
-                restored)) {
-            CloseHandle(restored.hThread);
-            CloseHandle(restored.hProcess);
-        }
-
-        return 5;
+        return fail(FailedStep::StartNewVersion, error, 5, 7);
     }
 
     CloseHandle(child.hThread);
@@ -835,6 +1183,10 @@ int WINAPI wWinMain(
         WaitForSingleObject(
             healthEvent,
             30000);
+    const DWORD waitError =
+        wait == WAIT_FAILED
+            ? GetLastError()
+            : (wait == WAIT_TIMEOUT ? static_cast<DWORD>(WAIT_TIMEOUT) : 0);
 
     CloseHandle(healthEvent);
 
@@ -843,36 +1195,25 @@ int WINAPI wWinMain(
             child.hProcess,
             ERROR_GEN_FAILURE);
         const DWORD stopped = WaitForSingleObject(child.hProcess, 5000);
-        if (stopped != WAIT_OBJECT_0) {
-            CloseHandle(child.hProcess);
-            preserveRecovery = true;
-            const auto message = L"The updated application is still running. Recovery files were kept at:\n" +
-                transaction.backup.wstring();
-            MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
-            cleanupWork();
-            return 7;
-        }
         CloseHandle(child.hProcess);
-
-        const bool restoredCompletely = restore();
-        cleanupWork();
-        if (!restoredCompletely) return 7;
-
-        PROCESS_INFORMATION restored{};
-        if (LaunchMain(
-                mainExe,
-                L"",
-                restored)) {
-            CloseHandle(restored.hThread);
-            CloseHandle(restored.hProcess);
-        }
-
-        return 6;
+        return fail(
+            FailedStep::WaitNewVersion,
+            waitError,
+            6,
+            7,
+            stopped != WAIT_OBJECT_0);
     }
 
     CloseHandle(child.hProcess);
 
-    cleanupWork();
+    archiveLock.Reset();
+
+    if (!protectedWorkRoot.empty()) {
+        std::filesystem::remove_all(
+            protectedWorkRoot,
+            cleanupError);
+        cleanupError.clear();
+    }
 
     std::filesystem::remove_all(
         args.backup,
