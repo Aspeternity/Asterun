@@ -34,7 +34,13 @@ $steps = @(
     @{ Name = 'candidate-update-chain'; Build = 'candidate'; Scenario = 'update-chain'; Expected = 0 },
     @{ Name = 'candidate-service-command'; Build = 'candidate'; Scenario = 'service-command'; Expected = 0 },
     @{ Name = 'candidate-uninstall-launcher'; Build = 'candidate'; Scenario = 'uninstall-launcher'; Expected = 0 },
-    @{ Name = 'candidate-uninstall-worker'; Build = 'candidate'; Scenario = 'uninstall-worker'; Expected = 0 }
+    @{ Name = 'candidate-uninstall-worker'; Build = 'candidate'; Scenario = 'uninstall-worker'; Expected = 0 },
+    # Investigations (recorded, not part of the pass/fail result): plant the
+    # names the hardened processes were seen looking up in their own
+    # directory, to show whether such a lookup can turn into a load.
+    @{ Name = 'investigate-uninstall-launcher-ncrypt'; Build = 'candidate'; Scenario = 'uninstall-launcher'; Extra = 'ncrypt.dll,ntasn1.dll'; Tag = 'ncrypt'; Expected = 'record' },
+    @{ Name = 'investigate-uninstall-worker-ncrypt'; Build = 'candidate'; Scenario = 'uninstall-worker'; Extra = 'ncrypt.dll,ntasn1.dll'; Tag = 'ncrypt'; Expected = 'record' },
+    @{ Name = 'investigate-main-ncrypt'; Build = 'candidate'; Scenario = 'main'; Extra = 'ncrypt.dll,ntasn1.dll'; Tag = 'ncrypt'; Expected = 'record' }
 )
 $names = @{ 0 = 'PASS / CONTROL-VALID'; 1 = 'ERROR'; 10 = 'REVIEW'; 11 = 'UNVERIFIED'; 20 = 'FAIL'; 30 = 'INVALID'; 31 = 'CONTROL-INVALID' }
 $summary = New-Object System.Collections.Generic.List[string]
@@ -47,14 +53,21 @@ foreach ($step in $steps) {
         & $powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $kit 'probe-dll\Test-Probe.ps1') `
             -Dll (Join-Path $Work 'probe\asterun_dll_probe.dll') *> $output
     } else {
+        $extra = @()
+        if ($step.ContainsKey('Extra')) { $extra = @('-ExtraPlant', $step.Extra, '-Tag', $step.Tag) }
         & $powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Invoke-Scenario.ps1') `
-            -Work $Work -Logs $Logs -Scenario $step.Scenario -Build $step.Build *> $output
+            -Work $Work -Logs $Logs -Scenario $step.Scenario -Build $step.Build @extra *> $output
     }
     $code = $LASTEXITCODE
     $result = if ($names.ContainsKey($code)) { $names[$code] } else { "exit $code" }
-    $ok = $code -eq $step.Expected
-    if (-not $ok) { $deviations++ }
-    $line = '{0,-30} {1,-22} {2}' -f $step.Name, $result, $(if ($ok) { 'as expected' } else { 'DEVIATION' })
+    if ($step.Expected -is [string]) {  # 'record': investigation only
+        $state = 'recorded (investigation)'
+    } else {
+        $ok = $code -eq $step.Expected
+        if (-not $ok) { $deviations++ }
+        $state = if ($ok) { 'as expected' } else { 'DEVIATION' }
+    }
+    $line = '{0,-40} {1,-22} {2}' -f $step.Name, $result, $state
     $summary.Add($line)
     Write-Output $line
 }
