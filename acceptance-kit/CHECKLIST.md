@@ -29,7 +29,7 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 | 编号 | 操作 | 预期 |
 |---|---|---|
 | E-1 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Check-Environment.ps1 -Log C:\Acceptance\logs\E-1-environment.txt` | 输出 `vc-runtime=ABSENT ... CLEAN`。结果为 NOT clean 时，第 2 阶段不能在此环境中判定 |
-| E-2 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Initialize-Workspace.ps1 -BaselineZip C:\Acceptance\packages\Asterun-x64-v1.0.5.zip -CandidateZip C:\Acceptance\packages\Asterun-x64-candidate.zip -Tools C:\Acceptance\tools -Kit C:\Acceptance\kit -Logs C:\Acceptance\logs -CandidateSha256 <README 中的被测包 SHA-256>` | 最后两行为 `RESULT: PASS` 和 `WORKSPACE=C:\AsterunWork\run-...`。记下这个路径，下文写作 `$run`（在 PowerShell 中执行 `$run = 'C:\AsterunWork\run-...'`）。对照包哈希与正式发布一致、Procmon 签名为 Valid、两个包各有 3 个 EXE |
+| E-2 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Initialize-Workspace.ps1 -BaselineZip C:\Acceptance\packages\Asterun-x64-v1.0.5.zip -CandidateZip C:\Acceptance\packages\Asterun-x64-candidate.zip -Tools C:\Acceptance\tools -Kit C:\Acceptance\kit -Logs C:\Acceptance\logs` | 最后两行为 `RESULT: PASS` 和 `WORKSPACE=C:\AsterunWork\run-...`。`candidate input=... sha256=` 与 README 中 artifact 摘要相同。记下这个路径，下文写作 `$run`（在 PowerShell 中执行 `$run = 'C:\AsterunWork\run-...'`）。对照包哈希与正式发布一致、Procmon 签名为 Valid、两个包各有 3 个 EXE |
 | E-3 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\tests\Test-Analyzer.ps1 -Out C:\Acceptance\logs\E-3-analyzer-selftest` | `RESULT: all 21 cases as expected` |
 
 ## 第 2 阶段：无运行库环境下的启动（需要 E-1 为 CLEAN）
@@ -64,7 +64,7 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 | candidate-uninstall-worker | 批次 A Uninstall.exe `--perform`，从 `%TEMP%\Asterun-Elevated.*` 运行 | 同上 |
 | investigate-uninstall-launcher-ncrypt | 调查项（不计入结果）：在 Uninstall.exe 目录另植入 ncrypt.dll、ntasn1.dll | 记录。当前候选版本为 FAIL：植入的 ncrypt.dll 被加载（F-1） |
 | investigate-uninstall-worker-ncrypt | 调查项：同上，提权执行进程 | 记录。当前为 FAIL，执行进程因加载探针而异常退出（F-1） |
-| investigate-main-ncrypt | 调查项：在 Asterun.exe 目录另植入 ncrypt.dll、ntasn1.dll | 记录。当前为 FAIL：主程序正常模式在运行时通过 crypt32 的延迟导入加载了植入的 ncrypt.dll（主程序按设计不限制运行时搜索，见 F-1 第 4 点） |
+| investigate-main-ncrypt | 调查项：在 Asterun.exe 目录另植入 ncrypt.dll、ntasn1.dll | 记录。当前为 FAIL：主程序正常模式在运行时加载了植入的 ncrypt.dll（主程序按设计不限制运行时搜索，见 F-1 第 4 点） |
 
 判定规则见 PROCMON.md 第 4 节。简要地说：被测项只有在“植入的同名 DLL 被目标进程从 System32 加载（看 Load Image 路径）+ 同名对照为 CONTROL-VALID + 功能检查通过”时才是 PASS；没有有效对照则为 UNVERIFIED，不会因为没有探针日志就判通过。
 
