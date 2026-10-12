@@ -89,7 +89,11 @@ $id = [guid]::NewGuid().ToString('N')
 $root = Join-Path $env:TEMP "asterun-plant-it-$id"
 if (Test-Path -LiteralPath $root) { throw "refusing to reuse existing directory $root" }
 New-Item -ItemType Directory -Path $root | Out-Null
-$version = (Get-Content -LiteralPath (Join-Path $AppDir 'VERSION') -Raw).Trim()
+# VERSION only needs to exist in the fake install root for ValidateInstallRoot;
+# its content is irrelevant here. The build output dir has no VERSION, so take
+# the string from the repository (as the updater test does), defaulting if absent.
+$repoVersion = Join-Path $PSScriptRoot '..\VERSION'
+$version = if (Test-Path -LiteralPath $repoVersion) { (Get-Content -LiteralPath $repoVersion -Raw).Trim() } else { '' }
 if (-not $version) { $version = '0.0.0' }
 
 function Get-ExitedParentPid {
