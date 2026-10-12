@@ -33,7 +33,12 @@ param(
     [ValidateSet('main', 'update-noargs', 'update-chain', 'service-command', 'uninstall-launcher', 'uninstall-worker')]
     [string]$Scenario,
     [Parameter(Mandatory = $true)][ValidateSet('baseline', 'candidate')][string]$Build,
-    [int]$WaitSeconds = 10
+    [int]$WaitSeconds = 10,
+    # Additional names to plant next to the target (investigation of DLL names
+    # the target was seen looking up in its own directory, e.g. ncrypt.dll).
+    [string[]]$ExtraPlant = @(),
+    # Label suffix so an investigation run does not look like the standard one.
+    [string]$Tag = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,6 +57,7 @@ if ($Build -eq 'baseline' -and $Scenario -notin 'main', 'update-noargs', 'uninst
 }
 
 $Work = (Resolve-Path -LiteralPath $Work).Path
+$ExtraPlant = @($ExtraPlant | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim() })
 $runName = Split-Path -Leaf $Work
 $logDir = Join-Path $Logs $runName
 if (-not (Test-Path -LiteralPath $logDir)) { throw "log folder of this run not found: $logDir (run Initialize-Workspace.ps1 first)" }
@@ -60,7 +66,7 @@ $probe = Join-Path $Work 'probe\asterun_dll_probe.dll'
 $procmon = @(Get-ChildItem -LiteralPath (Join-Path $Work 'tools') -Filter 'Procmon64*.exe')[0].FullName
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $role = if ($Build -eq 'baseline') { 'control' } else { 'candidate' }
-$label = "$role-$Scenario-$stamp"
+$label = "$role-$Scenario$(if ($Tag) { "-$Tag" })-$stamp"
 $scenarioDir = Join-Path $Work "scenarios\$label"
 if (Test-Path -LiteralPath $scenarioDir) { throw "refusing to reuse $scenarioDir" }
 New-Item -ItemType Directory -Path $scenarioDir | Out-Null
@@ -131,9 +137,9 @@ $cleanupRoots = @($scenarioDir)
 $planted = @()
 $workerDir = $null
 switch ($Scenario) {
-    { $_ -in 'main', 'service-command' } { Copy-Package $app; Plant $app 'version.dll' }
-    'update-noargs'      { Copy-Package $app; Plant $app 'bcrypt.dll' }
-    'uninstall-launcher' { Copy-Package $app; Plant $app 'rstrtmgr.dll' }
+    { $_ -in 'main', 'service-command' } { Copy-Package $app; Plant $app 'version.dll'; foreach ($n in $ExtraPlant) { Plant $app $n } }
+    'update-noargs'      { Copy-Package $app; Plant $app 'bcrypt.dll'; foreach ($n in $ExtraPlant) { Plant $app $n } }
+    'uninstall-launcher' { Copy-Package $app; Plant $app 'rstrtmgr.dll'; foreach ($n in $ExtraPlant) { Plant $app $n } }
     'uninstall-worker' {
         Copy-Package $app
         New-Item -ItemType Directory -Path (Join-Path $app 'data') -Force | Out-Null
@@ -143,6 +149,7 @@ switch ($Scenario) {
         New-Item -ItemType Directory -Path $workerDir | Out-Null
         Copy-Item -LiteralPath (Join-Path $package 'Uninstall.exe') -Destination $workerDir
         Plant $workerDir 'rstrtmgr.dll'
+        foreach ($n in $ExtraPlant) { Plant $workerDir $n }
         $cleanupRoots += $workerDir
     }
     # The test creates its own directories; it prints where it planted the probe.
@@ -239,6 +246,7 @@ $arguments = @{
 $code = $LASTEXITCODE
 [System.IO.File]::AppendAllText($report, "`r`n--- run transcript ---`r`n" + ($transcript -join "`r`n") + "`r`n")
 Get-Content -LiteralPath $report | ForEach-Object { Write-Output $_ }
+Write-Output "REPORT=$report"
 
 # Remove what this scenario created outside the logs folder; the scenario
 # directory itself stays in the workspace for inspection.

@@ -137,22 +137,53 @@ jobs:
           "code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
           exit 0
 
-      - name: 6 Scenario reports (condensed)
+      - name: 6a Scenario reports (condensed)
         if: always()
         shell: pwsh
         run: |
           $dir = "$env:HOST\logs\ci-run"
-          foreach ($console in Get-ChildItem $dir -Filter '*.console.txt' | Sort-Object Name) {
+          foreach ($console in Get-ChildItem $dir -Filter '*.console.txt' | Where-Object { $_.Name -notlike 'investigate-*' } | Sort-Object Name) {
             $name = $console.Name -replace '\.console\.txt$', ''
-            $report = @(Get-ChildItem $dir -Filter '*-report.txt' | Where-Object { $_.Name -like ($name + '-2*') })
+            $match = Select-String -LiteralPath $console.FullName -Pattern '^REPORT=(.+)$' | Select-Object -Last 1
+            $report = @(if ($match -and (Test-Path -LiteralPath $match.Matches[0].Groups[1].Value)) { Get-Item -LiteralPath $match.Matches[0].Groups[1].Value })
             if ($report.Count -eq 1) {
               $keep = Get-Content $report[0].FullName | Where-Object {
                 $_ -match '^(scenario|appDir|rows|processes|  \w+\.exe pid|planted names|probe log|  probe:|TARGET|  pid=|    LOADED|      |    plant|    no plant|    verified|    pid verdict|  verdict|    INFO|    INVALID|CONTROL-VALID|RESULT|functional|\(|  \|)' }
-              & .github/kit-validation/Write-Notice.ps1 -Title $report[0].BaseName -Lines ($keep | Select-Object -First 150)
+              & .github/kit-validation/Write-Notice.ps1 -Title $report[0].BaseName -Lines ($keep | Where-Object { $_ -notmatch '^      \(file-op\)' } | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } } | Select-Object -First 70)
             } else {
-              & .github/kit-validation/Write-Notice.ps1 -Title "$name (no report; console output)" -File $console.FullName
+              & .github/kit-validation/Write-Notice.ps1 -Title "$name (no report; console output)" -Lines (Get-Content $console.FullName | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } } | Select-Object -Last 60)
             }
           }
+
+      - name: 6b Investigation reports (condensed)
+        if: always()
+        shell: pwsh
+        run: |
+          $dir = "$env:HOST\logs\ci-run"
+          foreach ($console in Get-ChildItem $dir -Filter '*.console.txt' | Where-Object { $_.Name -like 'investigate-*' } | Sort-Object Name) {
+            $name = $console.Name -replace '\.console\.txt$', ''
+            $match = Select-String -LiteralPath $console.FullName -Pattern '^REPORT=(.+)$' | Select-Object -Last 1
+            $report = @(if ($match -and (Test-Path -LiteralPath $match.Matches[0].Groups[1].Value)) { Get-Item -LiteralPath $match.Matches[0].Groups[1].Value })
+            if ($report.Count -eq 1) {
+              $keep = Get-Content $report[0].FullName | Where-Object {
+                $_ -match '^(scenario|appDir|rows|processes|  \w+\.exe pid|planted names|probe log|  probe:|TARGET|  pid=|    LOADED|      |    plant|    no plant|    verified|    pid verdict|  verdict|    INFO|    INVALID|CONTROL-VALID|RESULT|functional|\(|  \|)' }
+              & .github/kit-validation/Write-Notice.ps1 -Title $report[0].BaseName -Lines ($keep | Where-Object { $_ -notmatch '^      \(file-op\)' } | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } } | Select-Object -First 70)
+            } else {
+              & .github/kit-validation/Write-Notice.ps1 -Title "$name (no report; console output)" -Lines (Get-Content $console.FullName | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } } | Select-Object -Last 60)
+            }
+          }
+
+      - name: 6c Investigation - which loaded system DLLs import ncrypt.dll / ntasn1.dll
+        if: always()
+        shell: pwsh
+        run: |
+          $out = @()
+          foreach ($pair in @(@('candidate-uninstall-launcher-2*.csv', 'Uninstall.exe'), @('candidate-uninstall-worker-2*.csv', 'Uninstall.exe'), @('candidate-main-2*.csv', 'Asterun.exe'))) {
+            $csv = @(Get-ChildItem "$env:HOST\logs\ci-run" -Filter $pair[0])[0].FullName
+            $out += "== $($pair[0]) / $($pair[1])"
+            $out += @(python .github/kit-validation/who_imports.py $csv $pair[1] 'ncrypt.dll,ntasn1.dll,rstrtmgr.dll,bcrypt.dll' 2>&1 | ForEach-Object { "$_" })
+          }
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Import chain of ncrypt.dll / ntasn1.dll' -Lines $out
 
       - name: 7 Negative check on real captures (wrong scenario must be INVALID)
         if: always()
