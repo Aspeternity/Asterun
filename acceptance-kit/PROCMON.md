@@ -59,8 +59,8 @@
 |---|---|---|
 | LOADED | `Load Image` | DLL 已被映射进进程 |
 | OPEN-EXECUTE | `CreateFile` 成功且 Desired Access 含 Execute | 为映射而打开（加载过程中） |
-| SEARCH | 结果为 `NAME NOT FOUND` 或 `PATH NOT FOUND` | 查找了一个不存在的文件，没有加载 |
-| FILE-OP | 其他访问（读取、查询属性、复制、删除等） | 主动的文件操作，例如更新器复制、卸载器删除文件，只记录，本身不算失败 |
+| SEARCH | 结果为 `NAME NOT FOUND` 或 `PATH NOT FOUND`，且 Desired Access 含 Execute | 加载器在该目录查找映像（加载器以执行权限打开候选文件，与成功映射时相同），文件不存在，没有加载 |
+| FILE-OP | 其他访问，包括不带 Execute 的 `NAME NOT FOUND`（读取、查询属性、存在性检查、复制、删除等） | 程序主动的文件操作，例如更新器检查目标文件、复制，卸载器删除文件；只记录，本身不算失败 |
 
 位置分为：WATCHED（被测目录、%TEMP%、目标 EXE 所在目录，含长路径和 8.3 短路径两种写法）、SYSTEM（%WINDIR%）、OTHER。
 
@@ -84,7 +84,7 @@
 
 总体结果取最严重的一项：INVALID > FAIL > REVIEW > UNVERIFIED > PASS。退出码：PASS 0、REVIEW 10、UNVERIFIED 11、FAIL 20、INVALID 30；对照 CONTROL-VALID 0、CONTROL-INVALID 31。
 
-规则本身由 `tests\Test-Analyzer.ps1` 用合成的采集数据自测（19 个用例，覆盖上面每一种结果）。
+规则本身由 `tests\Test-Analyzer.ps1` 用合成的采集数据自测（20 个用例，覆盖上面每一种结果）。报告中列出的每条事件都附带 Desired Access，便于核对分类。
 
 ## 5. 这套方法证明什么、不证明什么
 

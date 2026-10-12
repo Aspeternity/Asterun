@@ -24,9 +24,12 @@
 #   LOADED        Load Image                          - the DLL was mapped from that path
 #   OPEN-EXECUTE  CreateFile SUCCESS with Execute in the desired access
 #                                                     - opened for image mapping
-#   SEARCH        result NAME NOT FOUND / PATH NOT FOUND
+#   SEARCH        result NAME NOT FOUND / PATH NOT FOUND with Execute in the
+#                 desired access - the loader probing for an image (it opens
+#                 candidates for execute, the same access a successful map uses)
 #                                                     - a lookup of a file that is not there
-#   FILE-OP       anything else (reads, attribute queries, copies, deletes)
+#   FILE-OP       anything else, including NAME NOT FOUND without Execute access
+#                 (existence checks, reads, copies, deletes by the program)
 #                                                     - reported; never a failure by itself
 #   Locations: WATCHED (-AppDir, -TempDir and the image directory of the
 #   target, long and 8.3 forms), SYSTEM (%WINDIR%), OTHER.
@@ -257,9 +260,11 @@ foreach ($target in $targets) {
             $path = $event.Path
             if (-not $path -or -not $path.ToLowerInvariant().EndsWith('.dll')) { continue }
             $location = if (Test-Under $path $watched) { 'WATCHED' } elseif ($path.ToLowerInvariant().StartsWith($windows)) { 'SYSTEM' } else { 'OTHER' }
-            $item = [pscustomobject]@{ Op = $event.Operation; Result = $event.Result; Path = $path; Leaf = (Split-Path -Leaf $path).ToLowerInvariant(); Location = $location }
+            $access = [regex]::Match([string]$event.Detail, 'Desired Access: (.*?)(, Disposition:|, Options:|$)').Groups[1].Value
+            $execute = $access -match 'Execute'
+            $item = [pscustomobject]@{ Op = $event.Operation; Result = $event.Result; Path = $path; Leaf = (Split-Path -Leaf $path).ToLowerInvariant(); Location = $location; Access = $access }
             if ($event.Operation -eq 'Load Image') { $loaded += $item }
-            elseif ($event.Result -eq 'NAME NOT FOUND' -or $event.Result -eq 'PATH NOT FOUND') { $search += $item }
+            elseif (($event.Result -eq 'NAME NOT FOUND' -or $event.Result -eq 'PATH NOT FOUND') -and $execute) { $search += $item }
             elseif ($event.Operation -eq 'CreateFile' -and $event.Result -eq 'SUCCESS' -and $event.Detail -match 'Desired Access:((?!Disposition:).)*Execute') { $openExecute += $item }
             else { $fileOps += $item }
         }
@@ -269,9 +274,9 @@ foreach ($target in $targets) {
         $watchedFileOps = @($fileOps | Where-Object { $_.Location -eq 'WATCHED' })
         Emit "  pid=$($entry.Pid) image=$($entry.Image)"
         Emit "    LOADED watched=$($watchedLoaded.Count) system=$(@($loaded | Where-Object { $_.Location -eq 'SYSTEM' }).Count) other=$(@($loaded | Where-Object { $_.Location -eq 'OTHER' }).Count); OPEN-EXECUTE watched=$($watchedOpen.Count); SEARCH watched=$($watchedSearch.Count); FILE-OP watched=$($watchedFileOps.Count)"
-        foreach ($item in @($watchedLoaded + $watchedOpen)) { Emit "      $($item.Op) $($item.Result) $($item.Path)" }
-        foreach ($item in $watchedSearch) { Emit "      (search) $($item.Op) $($item.Result) $($item.Path)" }
-        foreach ($item in $watchedFileOps) { Emit "      (file-op) $($item.Op) $($item.Result) $($item.Path)" }
+        foreach ($item in @($watchedLoaded + $watchedOpen)) { Emit "      $($item.Op) $($item.Result) $($item.Path) [$($item.Access)]" }
+        foreach ($item in $watchedSearch) { Emit "      (search) $($item.Op) $($item.Result) $($item.Path) [$($item.Access)]" }
+        foreach ($item in $watchedFileOps) { Emit "      (file-op) $($item.Op) $($item.Result) $($item.Path) [$($item.Access)]" }
         foreach ($item in @($loaded | Where-Object { $_.Location -eq 'OTHER' })) { Emit "      (info) LOADED from another location: $($item.Path)" }
 
         # Probe lines of this PID must match a LOADED event, or the capture missed it.
