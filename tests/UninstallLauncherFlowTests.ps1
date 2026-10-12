@@ -258,7 +258,13 @@ $worker = $null
 $workerInfo = $null
 
 try {
-    New-Item -ItemType Directory -Path $root, $install, $launcherTemp | Out-Null
+    New-Item -ItemType Directory -Path $root | Out-Null
+    # %TEMP% may be a short (8.3) path; use the long form everywhere so paths
+    # reported by the file system, the processes and this test compare equal.
+    $root = @(Get-ChildItem -LiteralPath (Split-Path -Parent $root) -Directory -Filter (Split-Path -Leaf $root))[0].FullName
+    $install = Join-Path $root 'install'
+    $launcherTemp = Join-Path $root 'tmp'
+    New-Item -ItemType Directory -Path $install, $launcherTemp | Out-Null
 
     # Test installation laid out like the portable package.
     foreach ($name in 'Asterun.exe', 'Update.exe', 'Uninstall.exe') { Copy-Item -LiteralPath (Join-Path $AppDir $name) -Destination $install }
@@ -284,6 +290,7 @@ try {
     Set-Content -LiteralPath (Join-Path $data 'backups\settings.backup.json') -Value "{`"backup`":`"$id`"}"
     [System.IO.File]::WriteAllText((Join-Path $data (U 0x4E2D,0x6587,0x7B14,0x8BB0,0x002E,0x0074,0x0078,0x0074)), "user note $id", (New-Object System.Text.UTF8Encoding($false)))
 
+    $installedUninstallHash = Get-Sha256 (Join-Path $install 'Uninstall.exe')
     $programEntries = @(Get-ChildItem -LiteralPath $install -Force | Where-Object { $_.Name -ne 'data' } | ForEach-Object { $_.Name })
     $dataBefore = Get-TreeSnapshot $data
     Info "test installation $install; program entries: $($programEntries -join ', '); data entries: $($dataBefore.Keys.Count)"
@@ -335,7 +342,7 @@ try {
     Check ($workerDir.Substring(0, $workerDir.LastIndexOf('\')).TrimEnd('\') -ieq $launcherTemp.TrimEnd('\')) 'that directory is directly under the launcher TEMP (created by the launcher, not by the test)'
     $createdDirs = @(Get-ChildItem -LiteralPath $launcherTemp -Force)
     Check ($createdDirs.Count -eq 1 -and (Get-Item -LiteralPath $workerDir).CreationTime -ge $pressed.AddSeconds(-2)) "exactly one new directory appeared under the launcher TEMP after the button was pressed ($($createdDirs.Count))"
-    Check ((Get-Sha256 $workerImage) -eq (Get-Sha256 (Join-Path $install 'Uninstall.exe'))) 'worker image is a byte-identical copy of the installed Uninstall.exe'
+    Check ((Get-Sha256 $workerImage) -eq $installedUninstallHash) 'worker image is a byte-identical copy of the installed Uninstall.exe (hash taken before the launcher ran)'
     Check ($workerCmd -match '(^|\s)--perform(\s|$)') 'worker command line has --perform'
     Check ($workerCmd -match "--parent-pid $($launcher.Id)(\s|$)") 'worker command line names the launcher as --parent-pid'
     Check ($workerCmd.Contains("--install `"$install`"")) 'worker command line names the test installation as --install'
