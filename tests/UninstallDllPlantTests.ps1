@@ -191,12 +191,12 @@ try {
             if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
         }
 
-        $plantPaths = Paths $seen $plantLeaf
+        $plantPaths = @(Paths $seen $plantLeaf)
         $fromWorker = @($plantPaths | Where-Object { Under $_ $workerPrefix })
         Check ($fromWorker.Count -eq 0) "$PlantName was NOT loaded from the worker directory (found: $($fromWorker -join '; '))"
 
         if ($ForceRestartManager) {
-            $rmPaths = Paths $seen 'rstrtmgr.dll'
+            $rmPaths = @(Paths $seen 'rstrtmgr.dll')
             $rmFromSystem = @($rmPaths | Where-Object { Under $_ $system32Prefix })
             Check ($rmFromSystem.Count -gt 0) "rstrtmgr.dll loaded from System32 (the Restart Manager path actually ran): $($rmPaths -join '; ')"
             $rmFromWorker = @($rmPaths | Where-Object { Under $_ $workerPrefix })
@@ -233,7 +233,7 @@ try {
             if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
         }
 
-        $plantPaths = Paths $seen $plantLeaf
+        $plantPaths = @(Paths $seen $plantLeaf)
         $fromLauncher = @($plantPaths | Where-Object { Under $_ $launcherPrefix })
         Check ($fromLauncher.Count -eq 0) "$PlantName was NOT loaded from the launcher directory (found: $($fromLauncher -join '; '))"
         # Proof the launcher reached the init point the static chain used: it
