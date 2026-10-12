@@ -204,6 +204,37 @@ jobs:
           & .github/kit-validation/Write-Notice.ps1 -Title 'Negative checks on real captures' -Lines $out
           exit $fail
 
+      - name: 7b Product F-1 regression must fail on v1.0.5 and pass on the fixed build
+        if: always()
+        shell: pwsh
+        run: |
+          # The product CTest (tests/UninstallDllPlantTests.ps1, the formal
+          # regression merged with the fix) is run here against BOTH builds to
+          # prove it actually catches the bug: it must exit 1 (FAIL) on the
+          # vulnerable v1.0.5 worker (planted ncrypt.dll loads from the app
+          # directory) and exit 0 (PASS) on the fixed candidate (planted
+          # ncrypt.dll stays in System32; rstrtmgr.dll loads from System32).
+          $test = 'tests\UninstallDllPlantTests.ps1'
+          $ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
+          $cases = @(
+            @{ Label = 'v1.0.5 baseline worker (expect FAIL=1)'; AppDir = 'C:\AsterunWork\ci-run\baseline';  Expect = 1 },
+            @{ Label = 'fixed candidate worker (expect PASS=0)'; AppDir = 'C:\AsterunWork\ci-run\candidate'; Expect = 0 }
+          )
+          $out = @(); $bad = 0
+          foreach ($c in $cases) {
+            $log = "$env:HOST\logs\ci-run\product-regression-$($c.Expect).txt"
+            & $ps -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $test `
+              -AppDir $c.AppDir -Mode Worker -PlantName ncrypt.dll -ForceRestartManager *> $log
+            $code = $LASTEXITCODE
+            $ok = $code -eq $c.Expect
+            if (-not $ok) { $bad++ }
+            $tail = (Get-Content $log -ErrorAction SilentlyContinue | Select-Object -Last 8) -join "`n"
+            $out += ('{0} {1}: exit {2} (expected {3})' -f $(if ($ok) { 'ok  ' } else { 'DIFF' }), $c.Label, $code, $c.Expect)
+            $out += $tail
+          }
+          & .github/kit-validation/Write-Notice.ps1 -Title "Product F-1 regression before/after ($bad differences)" -Lines $out
+          exit $bad
+
       - name: 8 Result
         if: always()
         shell: pwsh
