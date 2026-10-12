@@ -1,16 +1,35 @@
 <!--
   Windows Sandbox configuration for the Asterun batch A acceptance.
-  1. On the host create C:\AsterunAcceptance with the sub-folders packages, tools, kit, logs
-     (see CHECKLIST.md, phase 0) and copy the kit, the packages and Procmon64.exe into them.
-  2. Double-click this file. Inside the sandbox the folder appears as C:\Acceptance.
-  Everything written inside the sandbox except C:\Acceptance is discarded when it closes.
+  On the host, C:\AsterunAcceptance must contain the folders packages, kit, tools
+  and logs (CHECKLIST.md, phase 0).
+
+  Inside the sandbox:
+    C:\Acceptance\packages, C:\Acceptance\kit, C:\Acceptance\tools  read-only
+    C:\Acceptance\logs                                               read-write (the only folder written back to the host)
+    C:\AsterunWork                                                   created by Initialize-Workspace.ps1 inside the sandbox;
+                                                                     discarded with everything else when the sandbox closes
   Networking stays enabled because the managed Everything setup downloads Everything.
 -->
 <Configuration>
   <MappedFolders>
     <MappedFolder>
-      <HostFolder>C:\AsterunAcceptance</HostFolder>
-      <SandboxFolder>C:\Acceptance</SandboxFolder>
+      <HostFolder>C:\AsterunAcceptance\packages</HostFolder>
+      <SandboxFolder>C:\Acceptance\packages</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\AsterunAcceptance\kit</HostFolder>
+      <SandboxFolder>C:\Acceptance\kit</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\AsterunAcceptance\tools</HostFolder>
+      <SandboxFolder>C:\Acceptance\tools</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\AsterunAcceptance\logs</HostFolder>
+      <SandboxFolder>C:\Acceptance\logs</SandboxFolder>
       <ReadOnly>false</ReadOnly>
     </MappedFolder>
   </MappedFolders>
