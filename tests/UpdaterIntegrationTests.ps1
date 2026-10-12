@@ -131,7 +131,10 @@ function Invoke-Updater([hashtable]$case) {
     New-Item -ItemType Directory -Path $worker | Out-Null
     $updater = Join-Path $worker 'Update.exe'
     Copy-Item -LiteralPath (Join-Path $AppDir 'Update.exe') -Destination $updater
-    if ($case.ContainsKey('Plant')) { Copy-Item -LiteralPath $PlantDll -Destination (Join-Path $worker 'bcrypt.dll') }
+    if ($case.ContainsKey('Plant')) {
+        Copy-Item -LiteralPath $PlantDll -Destination (Join-Path $worker 'bcrypt.dll')
+        Write-Host "  planted: $(Join-Path $worker 'bcrypt.dll')"
+    }
 
     $arguments = @(
         '--apply',
@@ -173,6 +176,7 @@ function New-Case([string]$name, [string]$installBase, [bool]$plant = $false) {
     if ($plant) {
         $case.Plant = $true
         Copy-Item -LiteralPath $PlantDll -Destination (Join-Path $case.Source 'version.dll')
+        Write-Host "  planted: $(Join-Path $case.Install 'version.dll') (arrives with the package)"
     }
     if ($case.Install.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
         Copy-Product $case.Install $case.OldReadme 'old-only.txt'
@@ -185,6 +189,35 @@ function New-Case([string]$name, [string]$installBase, [bool]$plant = $false) {
     [System.IO.Compression.ZipFile]::CreateFromDirectory($case.Source, $case.Archive)
     $case.Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $case.Archive).Hash.ToLowerInvariant()
     return $case
+}
+
+# Facts the updater checks before it changes anything, printed when a case
+# fails so a CI log shows which precondition did not hold.
+function Write-Preconditions([hashtable]$case) {
+    if (-not ('AsterunUpdaterIt.Token' -as [type])) {
+        Add-Type -Namespace AsterunUpdaterIt -Name Token -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)]
+public static extern bool GetTokenInformation(System.IntPtr token, int infoClass, out int info, int length, out int returned);
+'@
+    }
+    $elevated = 0; $type = 0; $returned = 0
+    $token = [Security.Principal.WindowsIdentity]::GetCurrent().Token
+    [void][AsterunUpdaterIt.Token]::GetTokenInformation($token, 20, [ref]$elevated, 4, [ref]$returned)  # TokenElevation
+    [void][AsterunUpdaterIt.Token]::GetTokenInformation($token, 18, [ref]$type, 4, [ref]$returned)      # TokenElevationType
+    Write-Output "  diag: test process TokenIsElevated=$elevated TokenElevationType=$type"
+    foreach ($path in $case.Archive, $case.Install, $case.Source) {
+        $current = $path
+        while ($current) {
+            $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
+            if ($item) {
+                $reparse = [bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint)
+                if ($reparse -or $current -eq $path) { Write-Output "  diag: $current attributes=$($item.Attributes) reparse=$reparse" }
+            } else { Write-Output "  diag: $current missing" }
+            $parent = Split-Path -Parent $current
+            if ($parent -eq $current) { break }
+            $current = $parent
+        }
+    }
 }
 
 function Assert-Unchanged([hashtable]$case, [int]$exitCode, [int]$expected) {
@@ -201,6 +234,7 @@ function Assert-Unchanged([hashtable]$case, [int]$exitCode, [int]$expected) {
 
 function Assert-Updated([hashtable]$case, [int]$exitCode) {
     Check ($exitCode -eq 0) "$($case.Name): exit code $exitCode (expected 0: files replaced, health signal received)"
+    if ($exitCode -ne 0) { Write-Preconditions $case }
     $readme = Get-Content -LiteralPath (Join-Path $case.Install 'README.md') -Raw
     Check ($readme -eq $case.NewReadme) "$($case.Name): install README.md replaced by the package version"
     Check (Test-Path -LiteralPath (Join-Path $case.Install 'new-only.txt')) "$($case.Name): new package file copied"
