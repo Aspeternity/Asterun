@@ -7,6 +7,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -522,6 +523,52 @@ int main() {
     }
 
 #ifdef _WIN32
+    {
+        // Batch C scenario 6 precondition: a readable file that cannot be
+        // overwritten can be backed up, but both apply and rollback fail.
+        // This exercises the actual transaction functions, not UpdaterMain's
+        // notification/restart/finalization path.
+        const auto paths = Paths(root / "read-shared-rollback-failure");
+        PopulateSource(paths.source);
+        PopulateInstall(paths.install);
+        Write(paths.source / "README.md", "new-readme");
+        Write(paths.install / "README.md", "old-readme");
+        Write(paths.install / "data" / "user.json", "personal-data");
+        const HANDLE lock = CreateFileW(
+            (paths.install / "README.md").c_str(), GENERIC_READ,
+            FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+            nullptr);
+        assert(lock != INVALID_HANDLE_VALUE);
+
+        TransactionJournal journal;
+        assert(!ApplyPackage(paths, journal));
+        assert(journal.files.size() == 2);
+        assert(journal.files[0].relative == fs::path("Asterun.exe"));
+        assert(journal.files[1].relative == fs::path("README.md"));
+        assert(Read(paths.install / "Asterun.exe") == "new-app");
+        assert(Read(paths.backup / "Asterun.exe") == "old-app");
+        assert(Read(paths.backup / "README.md") == "old-readme");
+
+        const auto result = Rollback(paths, journal);
+        assert(!result.Complete());
+        assert(result.failures.size() == 1);
+        assert(result.failures[0].relative == fs::path("README.md"));
+        assert(result.failures[0].error.value() == ERROR_SHARING_VIOLATION);
+        assert(Read(paths.install / "Asterun.exe") == "old-app");
+        assert(Read(paths.install / "README.md") == "old-readme");
+        assert(Read(paths.backup / "Asterun.exe") == "old-app");
+        assert(Read(paths.backup / "README.md") == "old-readme");
+        assert(Read(paths.install / "data" / "user.json") == "personal-data");
+
+        CloseHandle(lock);
+        assert(Rollback(paths, journal).Complete());
+        assert(Read(paths.install / "README.md") == "old-readme");
+        std::cout << "batch C scenario 6 transaction precondition: PASS; "
+                     "apply and rollback hit sharing violation; backup content "
+                     "and user data preserved; unlock permits restore. "
+                     "UpdaterMain finalization NOT exercised.\n";
+    }
+
     {
         const auto archive =
             root / "verified-archive.bin";

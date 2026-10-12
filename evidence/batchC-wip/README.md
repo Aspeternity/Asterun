@@ -39,3 +39,11 @@ records 必须由测试预先创建，不能是重解析点。受保护用例需
 ## 后续验收边界
 
 最终需要候选提交的完整 CI、场景结果、备份内容及用户数据核对和旧版对比。Windows 实机失败更新继续延期。所有未验证项逐项公开，合并和 dev-latest 发布须另获批准。
+
+## 接手后的独立验证增量
+
+新增 updater_fake_main_tests：直接运行测试辅助程序，检查不同独立根目录下的同名用例不会共享记录，零码/非零码退出和持续存活符合预期。它不启动 Update.exe、不处理任何提示框，不验证 RestartPreviousVersion 的判定。
+
+update_runtime_tests 新增 Windows 专属事务用例：共享读占用 README.md，要求 ApplyPackage 已替换 Asterun.exe、备份 README.md 后在覆盖处失败；Rollback 必须报告该文件共享冲突、恢复其他文件，备份内容和用户数据不变；释放锁后回滚完成。这仅验证场景 6 的触发条件及事务层结果，不覆盖 FinishFailedUpdate、提示、重启抑制或恢复材料收尾策略。场景 6 端到端缺口保持。
+
+本地用 g++ 直接编译运行 update_runtime_tests 的 Linux 路径通过；Windows 增量结果以对应提交的 CI 为准。没有删除或跳过尚未迁移的旧负向用例。

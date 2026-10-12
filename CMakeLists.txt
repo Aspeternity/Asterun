@@ -1780,6 +1780,12 @@ if(BUILD_TESTING)
             target_compile_options(updater_test_fake_main PRIVATE /W4 /permissive- /utf-8 /EHsc)
         endif()
 
+        add_test(NAME updater_fake_main_tests
+            COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UpdaterFakeMainTests.ps1"
+                -Helper "$<TARGET_FILE:updater_test_fake_main>")
+        set_tests_properties(updater_fake_main_tests PROPERTIES TIMEOUT 60)
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
