@@ -32,8 +32,13 @@
 #                 directories (existence checks of files the program itself
 #                 manages, e.g. the updater checking the install directory),
 #                 reads, copies, deletes      - reported; never a failure by itself
-#   Locations: WATCHED (-AppDir, -TempDir and the image directory of the
-#   target, long and 8.3 forms), SYSTEM (%WINDIR%), OTHER.
+#   Locations (strict):
+#     WATCHED        -AppDir, -TempDir and the image directory of the target
+#                    (long and 8.3 forms)
+#     SYSTEM32       %WINDIR%\System32 itself (and below)
+#     WINDOWS-OTHER  elsewhere under %WINDIR% (SysWOW64, WinSxS, ...) - NOT System32
+#     OTHER          anywhere else
+#   Every claim of "from System32" in this script means SYSTEM32 only.
 #
 # 3. Planted DLLs (-PlantedPath): full paths of copies of the probe DLL, each
 #   named after a static import of the process that runs from the same
@@ -44,7 +49,7 @@
 #                   load: CONTROL-INVALID (the capture or the plant did not work).
 #   -Role candidate (build under test), per relevant plant:
 #                   LOADED from a watched directory              -> FAIL
-#                   LOADED the same name from SYSTEM and the name is
+#                   LOADED the same name from SYSTEM32 and the name is
 #                   CONTROL-VALID in a -ControlReport             -> verified
 #                   otherwise                                     -> not verified
 #   A target (all its matched PIDs together) is PASS only when at least one
@@ -64,9 +69,27 @@
 #   probe line from a target PID with no matching LOADED event makes the
 #   capture INVALID (the capture missed a load).
 #
+# 5. -ReportDll a,b: for every matched target PID, one line per name:
+#      DLL-LOAD pid=<pid> name=<dll> class=<SYSTEM32|WINDOWS-OTHER|WATCHED|OTHER> path=<full Load Image path>
+#   or DLL-LOAD pid=<pid> name=<dll> class=NOT-OBSERVED (no Load Image of that
+#   name in the PID), or, when the target itself is missing,
+#      DLL-LOAD name=<dll> class=CAPTURE-INVALID.
+#   Each matched PID also gets TARGET-IMAGE-DIR pid=<pid> dir=<directory of its image>.
+#
+# 6. -RequireSystemLoad a,b: a matched target must have LOADED each name.
+#   From SYSTEM32 -> satisfied; loaded only from elsewhere (not watched) ->
+#   REVIEW (the path ran, but not from System32); never loaded -> INVALID (the
+#   path the scenario was meant to cover did not run).
+#
+# 7. -Role observation (real, un-planted capture such as the on-machine UAC
+#   run): no plant, no control, no PASS. The result is OBSERVED (exit 12) with
+#   the -ReportDll lines as the observation; FAIL (20) if a target LOADED or
+#   opened for execute any DLL from a watched directory; INVALID (30) if the
+#   target is missing. -RequireSystemLoad applies as in 6.
+#
 # Overall: INVALID > FAIL > REVIEW > UNVERIFIED > PASS
 #          (control: CONTROL-VALID 0, CONTROL-INVALID 31, INVALID 30).
-# Exit codes: PASS 0, REVIEW 10, UNVERIFIED 11, FAIL 20, INVALID 30, CONTROL-INVALID 31.
+# Exit codes: PASS 0, REVIEW 10, UNVERIFIED 11, OBSERVED 12, FAIL 20, INVALID 30, CONTROL-INVALID 31.
 param(
     [Parameter(Mandatory = $true)][string]$Csv,
     [Parameter(Mandatory = $true)]
@@ -74,7 +97,7 @@ param(
     [string]$Scenario,
     [Parameter(Mandatory = $true)][string]$AppDir,
     [string]$TempDir = $env:TEMP,
-    [ValidateSet('candidate', 'control')][string]$Role = 'candidate',
+    [ValidateSet('candidate', 'control', 'observation')][string]$Role = 'candidate',
     [string[]]$PlantedPath = @(),
     [string[]]$ControlReport = @(),
     [ValidateSet('PASS', 'FAIL', 'NOTRUN')][string]$FunctionalResult = 'NOTRUN',
@@ -87,6 +110,8 @@ param(
     # name was never loaded from System32 the result is INVALID (the path the
     # scenario was meant to cover did not execute), never PASS.
     [string[]]$RequireSystemLoad = @(),
+    # Leaf DLL names whose Load Image paths are reported per matched PID (rule 5).
+    [string[]]$ReportDll = @(),
     [Parameter(Mandatory = $true)][string]$Out
 )
 
@@ -106,6 +131,7 @@ if (-not (Test-Path -LiteralPath $Csv)) { throw "CSV not found: $Csv" }
 $PlantedPath = @($PlantedPath | ForEach-Object { $_ -split ';' } | Where-Object { $_ } | ForEach-Object { $_.Trim() })
 $RequireSystemLoad = @($RequireSystemLoad | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLowerInvariant() })
 $ControlReport = @($ControlReport | ForEach-Object { $_ -split ';' } | Where-Object { $_ })
+$ReportDll = @($ReportDll | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLowerInvariant() })
 Emit "scenario=$Scenario role=$Role csv=$Csv"
 Emit "appDir=$AppDir tempDir=$TempDir planted=$($PlantedPath -join ';') functional=$FunctionalResult $FunctionalDetail"
 
@@ -160,6 +186,14 @@ function Test-Under([string]$path, [string[]]$roots) {
 $appForms = @(Get-Forms $AppDir)
 $tempForms = @(Get-Forms $TempDir)
 $windows = ($env:WINDIR.TrimEnd('\') + '\').ToLowerInvariant()
+$system32 = ($env:WINDIR.TrimEnd('\') + '\System32\').ToLowerInvariant()
+function Get-Location([string]$path, [string[]]$watched) {
+    if (Test-Under $path $watched) { return 'WATCHED' }
+    $lower = $path.ToLowerInvariant()
+    if ($lower.StartsWith($system32)) { return 'SYSTEM32' }
+    if ($lower.StartsWith($windows)) { return 'WINDOWS-OTHER' }
+    return 'OTHER'
+}
 Emit "watched=$((@($appForms + $tempForms) | Select-Object -Unique) -join ';') (+ each target's image directory)"
 
 # Every PID of the three executables: command line and image path.
@@ -241,7 +275,7 @@ $rank = @{ 'PASS' = 0; 'UNVERIFIED' = 1; 'REVIEW' = 2; 'FAIL' = 3; 'INVALID' = 4
 $overall = 'PASS'
 function Raise([string]$verdict) { if ($rank[$verdict] -gt $rank[$script:overall]) { $script:overall = $verdict } }
 $controlLoads = @{}
-$systemLoadedLeaves = New-Object System.Collections.Generic.HashSet[string]
+$allLoads = New-Object System.Collections.Generic.List[object]
 
 foreach ($target in $targets) {
     $candidates = @($processes.Values | Where-Object { $_.Name -eq $target.Name })
@@ -256,6 +290,7 @@ foreach ($target in $targets) {
         if ($incomplete.Count -gt 0) {
             Emit "  $($incomplete.Count) $($target.Name) process(es) lack the Process Start or exe Load Image event: start the capture before the scenario"
         }
+        foreach ($name in $ReportDll) { Emit "DLL-LOAD name=$name class=CAPTURE-INVALID" }
         Emit '  verdict: INVALID (required target process not captured)'
         Raise 'INVALID'
         continue
@@ -268,12 +303,15 @@ foreach ($target in $targets) {
         foreach ($event in $entry.Events) {
             $path = $event.Path
             if (-not $path -or -not $path.ToLowerInvariant().EndsWith('.dll')) { continue }
-            $location = if (Test-Under $path $watched) { 'WATCHED' } elseif ($path.ToLowerInvariant().StartsWith($windows)) { 'SYSTEM' } else { 'OTHER' }
+            $location = Get-Location $path $watched
             $access = [regex]::Match([string]$event.Detail, 'Desired Access: (.*?)(, Disposition:|, Options:|$)').Groups[1].Value
             $leafDir = (Split-Path -Parent $path).TrimEnd('\').ToLowerInvariant() + '\'
             $inImageDir = $imageDirForms -contains $leafDir
             $item = [pscustomobject]@{ Op = $event.Operation; Result = $event.Result; Path = $path; Leaf = (Split-Path -Leaf $path).ToLowerInvariant(); Location = $location; Access = $access }
-            if ($event.Operation -eq 'Load Image') { $loaded += $item; if ($location -eq 'SYSTEM') { [void]$systemLoadedLeaves.Add($item.Leaf) } }
+            if ($event.Operation -eq 'Load Image') {
+                $loaded += $item
+                $allLoads.Add($item)
+            }
             elseif (($event.Result -eq 'NAME NOT FOUND' -or $event.Result -eq 'PATH NOT FOUND') -and $inImageDir) { $search += $item }
             elseif ($event.Operation -eq 'CreateFile' -and $event.Result -eq 'SUCCESS' -and $event.Detail -match 'Desired Access:((?!Disposition:).)*Execute') { $openExecute += $item }
             else { $fileOps += $item }
@@ -283,11 +321,17 @@ foreach ($target in $targets) {
         $watchedSearch = @($search | Where-Object { $_.Location -eq 'WATCHED' })
         $watchedFileOps = @($fileOps | Where-Object { $_.Location -eq 'WATCHED' })
         Emit "  pid=$($entry.Pid) image=$($entry.Image)"
-        Emit "    LOADED watched=$($watchedLoaded.Count) system=$(@($loaded | Where-Object { $_.Location -eq 'SYSTEM' }).Count) other=$(@($loaded | Where-Object { $_.Location -eq 'OTHER' }).Count); OPEN-EXECUTE watched=$($watchedOpen.Count); SEARCH watched=$($watchedSearch.Count); FILE-OP watched=$($watchedFileOps.Count)"
+        Emit "TARGET-IMAGE-DIR pid=$($entry.Pid) dir=$($entry.Image.Substring(0, $entry.Image.LastIndexOf('\')))"
+        Emit "    LOADED watched=$($watchedLoaded.Count) system32=$(@($loaded | Where-Object { $_.Location -eq 'SYSTEM32' }).Count) windows-other=$(@($loaded | Where-Object { $_.Location -eq 'WINDOWS-OTHER' }).Count) other=$(@($loaded | Where-Object { $_.Location -eq 'OTHER' }).Count); OPEN-EXECUTE watched=$($watchedOpen.Count); SEARCH watched=$($watchedSearch.Count); FILE-OP watched=$($watchedFileOps.Count)"
         foreach ($item in @($watchedLoaded + $watchedOpen)) { Emit "      $($item.Op) $($item.Result) $($item.Path) [$($item.Access)]" }
         foreach ($item in $watchedSearch) { Emit "      (search) $($item.Op) $($item.Result) $($item.Path) [$($item.Access)]" }
         foreach ($item in $watchedFileOps) { Emit "      (file-op) $($item.Op) $($item.Result) $($item.Path) [$($item.Access)]" }
-        foreach ($item in @($loaded | Where-Object { $_.Location -eq 'OTHER' })) { Emit "      (info) LOADED from another location: $($item.Path)" }
+        foreach ($item in @($loaded | Where-Object { $_.Location -eq 'OTHER' -or $_.Location -eq 'WINDOWS-OTHER' })) { Emit "      (info) LOADED from $($item.Location): $($item.Path)" }
+        foreach ($name in $ReportDll) {
+            $hits = @($loaded | Where-Object { $_.Leaf -eq $name })
+            if ($hits.Count -eq 0) { Emit "DLL-LOAD pid=$($entry.Pid) name=$name class=NOT-OBSERVED" }
+            foreach ($hit in $hits) { Emit "DLL-LOAD pid=$($entry.Pid) name=$name class=$($hit.Location) path=$($hit.Path)" }
+        }
 
         # Probe lines of this PID must match a LOADED event, or the capture missed it.
         foreach ($line in $probeLines) {
@@ -312,15 +356,21 @@ foreach ($target in $targets) {
         foreach ($plant in $relevant) {
             $name = (Split-Path -Leaf $plant).ToLowerInvariant()
             $fromWatched = @($watchedLoaded | Where-Object { $_.Leaf -eq $name }).Count -gt 0
-            $fromSystem = @($loaded | Where-Object { $_.Leaf -eq $name -and $_.Location -eq 'SYSTEM' }).Count -gt 0
-            Emit "    plant $plant : loaded from WATCHED=$fromWatched SYSTEM=$fromSystem"
+            $fromSystem = @($loaded | Where-Object { $_.Leaf -eq $name -and $_.Location -eq 'SYSTEM32' }).Count -gt 0
+            $fromWinOther = @($loaded | Where-Object { $_.Leaf -eq $name -and $_.Location -eq 'WINDOWS-OTHER' }).Count -gt 0
+            Emit "    plant $plant : loaded from WATCHED=$fromWatched SYSTEM32=$fromSystem WINDOWS-OTHER=$fromWinOther"
             if ($Role -eq 'control') { if ($fromWatched) { $controlLoads[$name] = $entry.Pid }; continue }
             if ($fromWatched) { $plantFail = $true }
             elseif ($fromSystem -and $controlValid.ContainsKey($name)) { $verified += $name }
             elseif ($fromSystem) { Emit "    ($name resolved to System32 but has no CONTROL-VALID report)" }
+            elseif ($fromWinOther) { Emit "    ($name resolved under %WINDIR% but NOT System32 - not counted as verified)" }
         }
-        if ($relevant.Count -eq 0) { Emit '    no plant next to this image' }
+        if ($relevant.Count -eq 0 -and $Role -ne 'observation') { Emit '    no plant next to this image' }
         if ($Role -eq 'control') { continue }
+        if ($Role -eq 'observation') {
+            if ($watchedLoaded.Count -gt 0 -or $watchedOpen.Count -gt 0) { $roleVerdict = 'FAIL'; $roleReasons += "pid $($entry.Pid): DLL loaded/opened for execution from a watched directory" }
+            continue
+        }
 
         $verdict = 'PASS'
         if ($target.Hardened) {
@@ -339,6 +389,11 @@ foreach ($target in $targets) {
         if ($rank[$verdict] -gt $rank[$roleVerdict]) { $roleVerdict = $verdict }
     }
     if ($Role -eq 'control') { continue }
+    if ($Role -eq 'observation') {
+        Emit "  observation: $(if ($roleVerdict -eq 'FAIL') { 'FAIL (' + ($roleReasons -join '; ') + ')' } else { 'no DLL loaded from a watched directory' })"
+        if ($roleVerdict -eq 'FAIL') { Raise 'FAIL' }
+        continue
+    }
     if ($FunctionalResult -eq 'FAIL') { $roleVerdict = 'FAIL'; $roleReasons += 'functional check failed' }
     if ($rank[$roleVerdict] -lt $rank['UNVERIFIED']) {
         if ($roleVerified.Count -eq 0) { $roleVerdict = 'UNVERIFIED'; $roleReasons += 'no plant next to the target resolved to System32 with a valid control' }
@@ -364,13 +419,24 @@ if ($Role -eq 'control') {
 if ($RequireSystemLoad.Count -gt 0) {
     Emit ''
     foreach ($name in $RequireSystemLoad) {
-        $seen = $systemLoadedLeaves.Contains($name)
-        Emit "required System32 load of $name : $seen"
-        if (-not $seen) {
-            Emit "    INVALID: $name was never loaded from System32 by a target - the exercised path did not run"
+        $hits = @($allLoads | Where-Object { $_.Leaf -eq $name })
+        $fromSys32 = @($hits | Where-Object { $_.Location -eq 'SYSTEM32' })
+        if ($fromSys32.Count -gt 0) {
+            Emit "required load of $name : SYSTEM32 ($(@($fromSys32 | ForEach-Object { $_.Path }) -join '; '))"
+        } elseif ($hits.Count -gt 0) {
+            Emit "required load of $name : loaded but NOT from System32 ($(@($hits | ForEach-Object { $_.Location + ' ' + $_.Path }) -join '; '))"
+            Emit "    REVIEW: the path ran but $name did not come from System32"
+            Raise 'REVIEW'
+        } else {
+            Emit "required load of $name : NOT-OBSERVED"
+            Emit "    INVALID: $name was never loaded by a target - the exercised path did not run"
             Raise 'INVALID'
         }
     }
 }
 $codes = @{ 'PASS' = 0; 'REVIEW' = 10; 'UNVERIFIED' = 11; 'FAIL' = 20; 'INVALID' = 30 }
+if ($Role -eq 'observation') {
+    # An observation never claims PASS; with nothing worse it is OBSERVED.
+    if ($overall -eq 'PASS' -or $overall -eq 'UNVERIFIED') { Finish 'OBSERVED' 12 }
+}
 Finish $overall $codes[$overall]

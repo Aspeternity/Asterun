@@ -64,7 +64,7 @@
 | SEARCH | 在目标 EXE **自身所在目录**中结果为 `NAME NOT FOUND` 或 `PATH NOT FOUND` | 加载器按默认顺序首先在这里查找，文件不存在，没有加载 |
 | FILE-OP | 其他访问，包括在其他监视目录中的 `NAME NOT FOUND`（读取、查询属性、存在性检查、复制、删除等） | 程序主动的文件操作，例如更新器检查安装目录中的目标文件、复制，卸载器删除文件；只记录，本身不算失败 |
 
-位置分为：WATCHED（被测目录、%TEMP%、目标 EXE 所在目录，含长路径和 8.3 短路径两种写法）、SYSTEM（%WINDIR%）、OTHER。
+位置分为（严格区分）：WATCHED（被测目录、%TEMP%、目标 EXE 所在目录，含长路径和 8.3 短路径两种写法）、SYSTEM32（`%WINDIR%\System32` 及其下）、WINDOWS-OTHER（`%WINDIR%` 下但不是 System32，例如 SysWOW64、WinSxS）、OTHER。文中所有“来自 System32”都只指 SYSTEM32；WINDOWS-OTHER 不算。
 
 ## 4. 判定规则
 
@@ -76,7 +76,7 @@
 2. 主程序正常模式（Asterun.exe 主程序和更新后重启的新程序）：按设计不调用 SetDefaultDllDirectories，所以只有 C/C++ 运行库 DLL（vcruntime*、msvcp*、api-ms-win-crt-*、ucrtbase、concrt*）从 WATCHED 被 LOADED 或 OPEN-EXECUTE 才判 FAIL；其他活动作为 INFO 列出。
 3. 植入：目标从 WATCHED 加载了植入的探针 → FAIL。
 4. **只有同时满足下面三点才是 PASS**：
-   - 与目标 EXE 同目录的植入名称，被目标从 System32 加载（Load Image 路径为证）；
+   - 与目标 EXE 同目录的植入名称，被目标从 System32 加载（Load Image 路径为证；从 %WINDIR% 其他位置加载不算）；
    - 同一名称在本次运行的对照报告中为 CONTROL-VALID（有效对照）；
    - 功能检查通过。
 
@@ -84,11 +84,16 @@
 5. 同一目标有多个 PID 时（例如执行链中成功用例和两个负面用例各有一个 Update.exe），每个 PID 都按第 1–3 条检查；第 4 条只要求其中至少一个 PID 得到验证。
 6. 探针日志（`%PUBLIC%\AsterunDllProbe\probe-log.txt`）只作辅助证据：如果日志显示目标 PID 加载了某个探针，而采集中没有对应的 Load Image，说明采集漏记，判为 INVALID。对静态导入来说，没有日志不能证明没有加载：探针没有导出函数，旧版本绑定导入失败发生在 DllMain 之前，这时不会写日志。
 
-总体结果取最严重的一项：INVALID > FAIL > REVIEW > UNVERIFIED > PASS。退出码：PASS 0、REVIEW 10、UNVERIFIED 11、FAIL 20、INVALID 30；对照 CONTROL-VALID 0、CONTROL-INVALID 31。
+7. `-RequireSystemLoad`（强制 Restart Manager 的场景用）：目标必须加载该名称。来自 SYSTEM32 → 满足；只从 System32 以外加载 → REVIEW（路径执行了，但来源不是 System32）；完全没有加载 → INVALID（本应执行的路径没有执行）。
+8. `-ReportDll rstrtmgr.dll,ncrypt.dll`：对每个确认的目标 PID 逐项输出 `DLL-LOAD pid=… name=… class=<SYSTEM32|WINDOWS-OTHER|WATCHED|OTHER> path=<完整 Load Image 路径>`，没有加载则 `class=NOT-OBSERVED`；目标缺失时输出 `DLL-LOAD name=… class=CAPTURE-INVALID`。每个目标 PID 还输出 `TARGET-IMAGE-DIR pid=… dir=…`，供 `Get-WorkerDirEvidence.ps1` 精确取证。
+
+**观察（`-Role observation`，实机真实 UAC 采集用）**：没有植入、没有对照，因此**不给出 PASS**。结果为 OBSERVED（退出码 12），观察内容就是上面的 `DLL-LOAD` 行；目标从 WATCHED 加载或为执行打开任何 DLL → FAIL；采集中没有目标 → INVALID；可与 `-RequireSystemLoad` 合用（规则 7）。
+
+总体结果取最严重的一项：INVALID > FAIL > REVIEW > UNVERIFIED > PASS。退出码：PASS 0、REVIEW 10、UNVERIFIED 11、OBSERVED 12、FAIL 20、INVALID 30；对照 CONTROL-VALID 0、CONTROL-INVALID 31。
 
 说明：加载器在 EXE 目录查找时使用的访问权限不含 Execute（CI 实测：Uninstall.exe 查找 ncrypt.dll 的记录不带 Execute，而在植入后同一名称被实际加载），所以不能用访问权限区分“查找”和“检查”；本套件按位置区分，并用植入调查验证查找能否变成加载。
 
-规则本身由 `tests\Test-Analyzer.ps1` 用合成的采集数据自测（24 个用例，覆盖上面每一种结果）。报告中列出的每条事件都附带 Desired Access，便于核对分类。
+规则本身由 `tests\Test-Analyzer.ps1` 用合成的采集数据自测（31 个用例，覆盖上面每一种结果；涉及路径分类的用例还逐字核对报告中的 `DLL-LOAD`、`TARGET-IMAGE-DIR` 与结果行）。报告中列出的每条事件都附带 Desired Access，便于核对分类。
 
 ## 5. 这套方法证明什么、不证明什么
 
@@ -118,4 +123,4 @@ powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Analyze-Procm
   -FunctionalResult PASS -FunctionalDetail '界面显示启用/关闭成功' -Out "$logs\manual-service-report.txt"
 ```
 
-`-FunctionalResult` 按你观察到的结果填写 PASS 或 FAIL。卸载执行进程同理：`-Scenario uninstall-worker`，植入 `rstrtmgr.dll`。真实卸载的临时副本目录是随机生成的，无法预先植入，所以该次手动采集的结果会是 UNVERIFIED（只能证明没有从 WATCHED 加载），这是预期的；植入后的验证由自动场景 uninstall-worker 完成。
+`-FunctionalResult` 按你观察到的结果填写 PASS 或 FAIL。**卸载执行进程不要用这里的植入方式**：真实卸载的临时副本目录名含随机令牌，无法预先植入；请按 CHECKLIST 第 4b 阶段（U-4b–U-4e）用 `-Role observation` 报告观察结果，并用 `Get-WorkerDirEvidence.ps1` 对采集确认的确切目录取证。

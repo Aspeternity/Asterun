@@ -30,7 +30,7 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 |---|---|---|
 | E-1 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Check-Environment.ps1 -Log C:\Acceptance\logs\E-1-environment.txt` | 输出 `vc-runtime=ABSENT ... CLEAN`。结果为 NOT clean 时，第 2 阶段不能在此环境中判定 |
 | E-2 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Initialize-Workspace.ps1 -BaselineZip C:\Acceptance\packages\Asterun-x64-v1.0.5.zip -CandidateZip C:\Acceptance\packages\Asterun-x64-candidate.zip -Tools C:\Acceptance\tools -Kit C:\Acceptance\kit -Logs C:\Acceptance\logs` | 最后两行为 `RESULT: PASS` 和 `WORKSPACE=C:\AsterunWork\run-...`。`candidate input=... sha256=` 与 README 中 artifact 摘要相同。记下这个路径，下文写作 `$run`（在 PowerShell 中执行 `$run = 'C:\AsterunWork\run-...'`）。对照包哈希与正式发布一致、Procmon 签名为 Valid、两个包各有 3 个 EXE |
-| E-3 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\tests\Test-Analyzer.ps1 -Out C:\Acceptance\logs\E-3-analyzer-selftest` | `RESULT: all 24 cases as expected` |
+| E-3 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\tests\Test-Analyzer.ps1 -Out C:\Acceptance\logs\E-3-analyzer-selftest` | `RESULT: all 31 cases as expected` |
 
 ## 第 2 阶段：无运行库环境下的启动（需要 E-1 为 CLEAN）
 
@@ -103,22 +103,32 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 
 ### 取证前准备
 
-- 安装：把本套件的被测包解压安装到一套独立测试安装（例如经由正常安装流程安装到 `C:\Program Files\Asterun`，这是真实走提权卸载的场景），启动一次确认可用（U-4a）。
-- 预先把 `C:\Windows\System32\rstrtmgr.dll` 复制到桌面备用（U-4d 需要）。
-- 取 Process Monitor（`Procmon64.exe`）。
+- 只在一次性虚拟机里，对一套独立的测试安装操作。日志统一放到 `C:\Acceptance\logs\u4\`（先 `New-Item -ItemType Directory C:\Acceptance\logs\u4`）。
+- 把本套件被测包安装到 `C:\Program Files\Asterun`（真实走提权卸载的位置），启动一次确认可用（U-4a）。
+- 卸载一律直接运行 `C:\Program Files\Asterun\Uninstall.exe`，不从 Asterun 界面发起，避免多出一个 Asterun 进程。
+- Process Monitor 用工作区中的 `$run\tools\Procmon64.exe`（下文写作 `$pm`）。
+
+### 三项验证分开记录
+
+| 类别 | 编号 | 证明什么 | 不证明什么 |
+|---|---|---|---|
+| 正常卸载功能（真实 UAC） | U-4b | 真实拆分令牌提权下卸载完成：程序文件删除、`data\` 保留 | 不一定触发 Restart Manager，所以不证明 ncrypt.dll 的来源 |
+| 真实执行进程的 DLL 观察 | U-4c / U-4e | 由采集确认的执行进程实际从哪里加载了 rstrtmgr.dll、ncrypt.dll（逐项完整路径） | 无植入、无对照：只报告观察结果（OBSERVED），不是植入回归的 PASS |
+| 执行目录的所有者与可写性 | U-4d | 本次执行进程所在的**确切目录**的 Owner/Sddl/Access/icacls，以及未提权账户能否写入 | 不在该目录做植入（见“明确未覆盖”） |
 
 | 编号 | 操作 | 预期/记录 |
 |---|---|---|
-| U-4a | 用普通管理员账户（UAC 开启）正常安装 Asterun 到 `C:\Program Files\Asterun`，启动一次。 | 安装成功、可运行 |
-| U-4b（真实提权链 + 取证采集） | 先启动 Procmon：`Procmon64.exe /AcceptEula /Quiet /Minimized /BackingFile C:\logs\u4.pml`，`/WaitForIdle` 等就绪（**必须在点击卸载之前开始采集**，不设过滤器，采集全部进程）。然后在 Asterun 中执行卸载（**保留数据**），UAC 弹出时同意；完成后 `Procmon64.exe /Terminate`，再 `/OpenLog C:\logs\u4.pml /SaveAs C:\logs\u4.csv`。 | 卸载正常完成 |
-| U-4c（确认执行进程 + ncrypt 来源，无需植入） | 用套件分析器识别真正的执行进程并读取其 ncrypt.dll 的 Load Image 完整路径：`powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Analyze-Procmon.ps1 -Csv C:\logs\u4.csv -Scenario uninstall-worker -AppDir "C:\Program Files\Asterun" -Out C:\logs\u4-report.txt`。分析器按**映像在 `Asterun-Elevated.*` 下 + 命令行含 `--perform`** 确认目标 PID；人工在报告里核对该 PID 的 `rstrtmgr.dll`、`ncrypt.dll` 的 Load Image 路径。 | 若本次卸载触发了 Restart Manager（删除遇到占用才会），执行进程的 `rstrtmgr.dll`、`ncrypt.dll` 的 Load Image 路径应为 `C:\Windows\System32\...`；没有任何 DLL 从 `Asterun-Elevated.*` 或安装目录加载。**正常卸载未必触发 Restart Manager**，此时报告中这些名称可能根本不出现——记为“本次未触发 RM”，不要当作通过或失败（强制触发见 U-4e） |
-| U-4d（真实临时目录的所有者与可写性，事后，无需抢时间） | 卸载完成后、**重启之前**，该 `Asterun-Elevated.<随机>` 目录仍在 `%TEMP%`。用 PowerShell 记录：`$d = Get-ChildItem $env:TEMP -Directory -Filter 'Asterun-Elevated.*' \| Sort LastWriteTime \| Select -Last 1; $a = Get-Acl $d.FullName; $a.Owner; $a.Sddl; $a.Access \| Format-List; icacls $d.FullName`。再在**未提权**的 PowerShell 里实测可写性：`"test" \| Out-File (Join-Path $d.FullName 'u4-writetest.txt')` 并记录成功/失败、当前账户、`whoami /groups` 中的完整性级别。 | 记录 Owner、Sddl、Access、icacls 全文（所有者≠创建者，分别判断）。预期该目录可由创建它的普通用户写入；可写性结论必须注明**具体账户、是否提权**，并以**未提权进程**的写入结果为准，不得用管理员写入成功代替 |
-| U-4e（可选，强制触发 RM 下的真实提权链；尽力而为） | 若要在真实提权链下也观察到 RM 实际运行：卸载前先用另一个程序（如记事本）打开安装目录里的某个文件并保持占用，使删除受阻、迫使执行进程调用 Restart Manager；重复 U-4b/U-4c 的采集与分析。 | 执行进程的 `rstrtmgr.dll`、`ncrypt.dll` 的 Load Image 路径为 `System32`。这证明真实提权链下 RM 路径执行时也从 System32 解析 |
+| U-4a | 用普通管理员账户（UAC 开启）安装到 `C:\Program Files\Asterun`，启动一次后从托盘退出 Asterun。 | 安装成功、可运行 |
+| U-4b（正常卸载，真实提权，先采集） | 在**提权**的 PowerShell 中：`& $pm /AcceptEula /Quiet /Minimized /BackingFile C:\Acceptance\logs\u4\u4b.pml`，再 `& $pm /AcceptEula /WaitForIdle`。确认采集已开始后，在**未提权**的资源管理器中双击 `C:\Program Files\Asterun\Uninstall.exe`，选择保留数据，UAC 弹出时同意，等待完成提示。然后 `& $pm /AcceptEula /Terminate`，`Start-Process $pm -ArgumentList '/AcceptEula','/Quiet','/OpenLog','C:\Acceptance\logs\u4\u4b.pml','/SaveAs','C:\Acceptance\logs\u4\u4b.csv' -Wait`。 | 卸载完成提示；`C:\Program Files\Asterun` 中程序文件已删除、`data\` 保留。记为“正常卸载功能”的结果 |
+| U-4c（观察执行进程的 DLL 来源） | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Analyze-Procmon.ps1 -Csv C:\Acceptance\logs\u4\u4b.csv -Scenario uninstall-worker -Role observation -AppDir "C:\Program Files\Asterun" -TempDir $env:TEMP -ReportDll rstrtmgr.dll,ncrypt.dll -Out C:\Acceptance\logs\u4\u4c-report.txt` | 报告按“映像在 `Asterun-Elevated.*` 下 + 命令行含 `--perform`”确认执行进程 PID，并给出 `TARGET-IMAGE-DIR` 与每个名称的 `DLL-LOAD ... class=... path=...`。逐项记录：`SYSTEM32`（来自 `%WINDIR%\System32`）、`WINDOWS-OTHER`（%WINDIR% 下但不是 System32）、`WATCHED`（来自执行目录或安装目录，结果 FAIL）、`OTHER`、`NOT-OBSERVED`（本次没有加载——正常卸载未触发 Restart Manager 时属正常，**不是**通过也不是失败）、`CAPTURE-INVALID`（采集里没有执行进程，本次无效，需重做）。结果行为 `OBSERVED`（退出码 12），不要求 PASS |
+| U-4d（确切执行目录的所有者与可写性） | 卸载完成后、**重启之前**：① 任意 PowerShell：`powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Get-WorkerDirEvidence.ps1 -Report C:\Acceptance\logs\u4\u4c-report.txt -Out C:\Acceptance\logs\u4\u4d-acl.txt` ② **未提权**的 Windows PowerShell：同一命令加 `-WriteTest`，输出到 `C:\Acceptance\logs\u4\u4d-write.txt` | 脚本只使用报告中 `TARGET-IMAGE-DIR` 给出的确切目录，记录 Owner、Group、Sddl、Access 逐条、icacls，并注明“所有者不等于创建者”。写入测试记录账户、是否提权、完整性级别，写后删除测试文件；只有 ② 输出 `write test validity: VALID ... (not elevated ...)` 才算“普通用户可写”的结论，提权进程运行会标为 NOT VALID（退出码 13）。若输出 `DIRECTORY-GONE`（退出码 32，例如已重启），如实记录“无法取证”，**不要改测其他目录** |
+| U-4e（强制 Restart Manager，诊断用，与 U-4b 分开记录） | 先重新安装一次（U-4a）。① 在一个**未提权**的 PowerShell 窗口锁住 VERSION 并保持窗口打开：`powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Hold-FileLock.ps1 -Path "C:\Program Files\Asterun\VERSION"`（与 CI 回归相同：`FileShare.None` 独占句柄；启动器和执行进程只用 GetFileAttributes 检查 VERSION，不受影响，只有删除 VERSION 会失败）。② 按 U-4b 开始采集（文件名用 `u4e.pml`/`u4e.csv`）并运行卸载。③ 执行进程报告卸载错误后，点确定，停止并导出采集。④ **释放锁**：回到锁窗口按 Enter（关闭该窗口同样释放）。⑤ 分析：同 U-4c，但加 `-RequireSystemLoad rstrtmgr.dll`，输出 `u4e-report.txt`；可再按 U-4d 对该报告取证。⑥ 清理：锁释放后再运行一次 `C:\Program Files\Asterun\Uninstall.exe` 完成卸载（或直接丢弃虚拟机）。 | 这次卸载**预期不完整**（VERSION 被故意锁住），不计入正常卸载功能。报告中 `required load of rstrtmgr.dll : SYSTEM32 (...)` 证明 Restart Manager 路径实际执行，且 `DLL-LOAD ... ncrypt.dll class=SYSTEM32 path=C:\Windows\System32\ncrypt.dll`。若为 `NOT-OBSERVED`，结果为 INVALID（路径没执行，需检查锁是否生效后重做）；若 rstrtmgr/ncrypt 来自 System32 以外，结果为 REVIEW；来自执行目录则 FAIL |
 
 ### 明确未覆盖（如实记为未验证）
 
-- **在真实 `Asterun-Elevated.<随机>` 目录中植入 DLL、再看它是否被忽略**：该目录名含随机令牌、由启动器在提权前瞬间创建，想在执行进程加载 ncrypt 之前把副本放进去需要与令牌赛跑——本流程**不做**这种抢占。“植入副本被忽略”这一属性由 A-1 的强制 RM 产品回归在**测试自建目录**中证明（DLL 加载属性），不等于真实提权链下的植入已验证；此项标记为**未验证**。
-- 安装目录内植入**不能代替**临时执行目录植入：修复后启动器初始化阶段本就不加载 rstrtmgr/ncrypt，安装目录植入观察不到执行进程的加载行为。
+- **在真实 `Asterun-Elevated.<随机>` 目录中植入 DLL、再看是否被忽略**：目录名含随机令牌，由未提权启动器在提权前创建；要在执行进程加载前放入副本必须与令牌赛跑，本流程**不做**。“植入副本被忽略”这一属性只由 CI 中的强制 RM 产品回归在测试自建目录中证明（DLL 加载属性）；真实提权链下的植入记为**未验证**。
+- **安装目录植入不能代替临时执行目录植入**：执行进程不从安装目录运行，修复后启动器初始化也不加载 rstrtmgr/ncrypt，安装目录植入观察不到执行进程的行为。
+- U-4c 若为 `NOT-OBSERVED`，只说明本次正常卸载没有执行 Restart Manager 路径，不能写成该路径“已验证通过”；该路径的真实提权观察以 U-4e 为准。
 
 ## 第 5 阶段：需要人工判断的兼容性（UAC 项在虚拟机中再做一次）
 
@@ -163,10 +173,10 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 | U-2 | | | U-2-protected.txt | |
 | U-3 | | | 输出 | |
 | U-4a | | | 截图 | 独立测试安装 |
-| U-4b | | | u4.pml / u4.csv | 真实提权卸载，Procmon 在卸载前开始采集 |
-| U-4c | | | u4-report.txt | 执行进程 ncrypt.dll 的 Load Image 路径；注明本次是否触发 RM |
-| U-4d | | | Get-Acl（Owner/Sddl/Access）+ icacls + 未提权写入结果 | Asterun-Elevated.* 目录所有者与可写性（注明账户、是否提权） |
-| U-4e | | | u4e-report.txt | 可选：强制触发 RM 下的真实提权链 |
+| U-4b | | | u4b.pml / u4b.csv + 截图 | 正常卸载功能（真实提权）：程序文件删除、data 保留 |
+| U-4c | | | u4c-report.txt | 观察：执行进程 rstrtmgr/ncrypt 的类别与完整路径（OBSERVED / NOT-OBSERVED / CAPTURE-INVALID） |
+| U-4d | | | u4d-acl.txt + u4d-write.txt | 确切执行目录的 Owner/Sddl/Access/icacls；未提权写入（账户、完整性级别）；或 DIRECTORY-GONE |
+| U-4e | | | u4e-report.txt + 锁窗口输出 | 强制 RM 诊断：rstrtmgr/ncrypt 来源；卸载预期不完整，单独记录 |
 | 在线发现更新 | | 未验证（本批次不验证） | | |
 | M-5 | | | | |
 | M-6 | | | | |
