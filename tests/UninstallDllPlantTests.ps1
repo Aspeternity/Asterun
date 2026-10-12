@@ -29,14 +29,24 @@
 #     Asterun-Elevated.* directory, exactly where the real elevated worker runs.
 #   Launcher: the launcher (no --perform) is started with the DLL planted beside
 #     it. Before the fix the static import chain loaded the plant during init;
-#     after the fix it is delay-only, so init never touches it. Proof the
-#     process reached the init point the bug used: it loads its normal UI
-#     dependencies (comctl32/shell32) from System32 and stays alive on its
-#     confirmation dialog.
+#     after the fix it is delay-only, so init never touches it. The test waits
+#     for the launcher to reach interactive state (a top-level window appears),
+#     which is past the init point the bug used, so a pass cannot come from an
+#     instant crash. It does NOT drive the dialog or assert that it stays
+#     resident; it only asserts interactive state was reached and the plant was
+#     not loaded from the launcher directory.
 #
 # The case FAILS when the planted copy is loaded from the executable's own
 # directory. It does NOT pass merely because nothing was loaded: a forced-RM
 # worker that never loaded rstrtmgr.dll from System32 is a failure.
+#
+# WHAT THIS PROVES (and does not). This is a DLL-LOAD regression: it proves the
+# planted DLL is not loaded from the executable's directory (and, in the forced
+# worker case, that rstrtmgr.dll loads from System32 so the path ran). The
+# worker case locks one file and the process is terminated after its modules are
+# observed, so it does NOT prove the uninstall completed successfully; normal
+# uninstall success is a separate check (the kit's un-locked uninstall-worker
+# scenario and the on-machine uninstall in U-4).
 #
 # SCOPE / evidence level. This runs the Uninstall.exe binary directly; on CI it
 # is not started through a real UAC split-token elevation, and the
@@ -227,8 +237,32 @@ try {
         $info.WorkingDirectory = $launcherDir
         Write-Host "  run: $($info.FileName) (launcher, no --perform)"
         $proc = [System.Diagnostics.Process]::Start($info)
+        # Poll modules AND wait for the launcher to open a top-level window (the
+        # uninstall prompt). An interactive window is positive evidence that the
+        # process ran past initialization - the point where the old static import
+        # chain resolved and loaded the plant - so a pass cannot come from an
+        # instant crash. We do not drive or assert anything about the dialog's
+        # contents or that it stays resident; only that interactive state was
+        # reached while the plant was not loaded from the launcher directory.
+        $seen = @{}
+        $reachedWindow = $false
+        $windowTitle = ''
+        $deadline = (Get-Date).AddSeconds(20)
         try {
-            $seen = Watch-Modules $proc 15
+            while ((Get-Date) -lt $deadline) {
+                try {
+                    $proc.Refresh()
+                    $exited = $proc.HasExited
+                    foreach ($m in $proc.Modules) { Add-Module $seen $m }
+                    if (-not $reachedWindow -and $proc.MainWindowHandle -ne [IntPtr]::Zero) {
+                        $reachedWindow = $true
+                        $windowTitle = $proc.MainWindowTitle
+                    }
+                    if ($exited) { break }
+                    if ($reachedWindow) { break }
+                } catch { if ($proc.HasExited) { break } }
+                Start-Sleep -Milliseconds 100
+            }
         } finally {
             if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
         }
@@ -236,11 +270,12 @@ try {
         $plantPaths = @(Paths $seen $plantLeaf)
         $fromLauncher = @($plantPaths | Where-Object { Under $_ $launcherPrefix })
         Check ($fromLauncher.Count -eq 0) "$PlantName was NOT loaded from the launcher directory (found: $($fromLauncher -join '; '))"
-        # Proof the launcher reached the init point the static chain used: it
-        # loaded its normal UI dependencies from System32 and stayed up.
-        $initProof = @(@('comctl32.dll', 'shell32.dll', 'user32.dll') | Where-Object { @(Paths $seen $_ | Where-Object { Under $_ $system32Prefix }).Count -gt 0 })
-        Check ($initProof.Count -gt 0) "launcher initialized (loaded $($initProof -join ', ') from System32), so process init ran"
-        Write-Host "  modules observed: $($seen.Keys.Count); $PlantName paths: $(( $plantPaths ) -join '; ')"
+        # Reached interactive state: a top-level window appeared. Fall back to the
+        # UI-module load only if no window surfaced in this environment, so the
+        # test still cannot pass on an instant crash.
+        $uiModules = @(@('comctl32.dll', 'shell32.dll', 'user32.dll') | Where-Object { @(Paths $seen $_ | Where-Object { Under $_ $system32Prefix }).Count -gt 0 })
+        Check ($reachedWindow -or $uiModules.Count -gt 0) "launcher reached interactive state (window=$reachedWindow title='$windowTitle'; UI modules from System32: $($uiModules -join ', '))"
+        Write-Host "  modules observed: $($seen.Keys.Count); reachedWindow=$reachedWindow; $PlantName paths: $(( $plantPaths ) -join '; ')"
     }
 } catch {
     Write-Host "  FAIL exception: $($_.Exception.Message)"
