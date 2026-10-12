@@ -1738,6 +1738,19 @@ if(BUILD_TESTING)
                 TIMEOUT 300 RUN_SERIAL TRUE)
         endforeach()
 
+        # Counterexample for the launcher case's interactive-state rule: a
+        # process with UI modules loaded but no window (Update.exe blocked in
+        # WaitForParent) must be rejected by the same rule.
+        add_test(
+            NAME uninstall_plant_launcher_nowindow_control
+            COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UninstallDllPlantTests.ps1"
+                -AppDir "$<TARGET_FILE_DIR:Asterun>"
+                -Mode NoWindowControl
+        )
+        set_tests_properties(uninstall_plant_launcher_nowindow_control PROPERTIES
+            TIMEOUT 120 RUN_SERIAL TRUE)
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
