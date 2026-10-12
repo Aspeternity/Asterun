@@ -25,6 +25,17 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Link the MSVC C/C++ runtime statically into every target (product,
+# dependency libraries and tests) so Asterun starts without the Visual C++
+# Redistributable and the executables import no CRT DLLs. Set before any
+# target is created so every target inherits it; mixing /MD and /MT objects
+# would fail to link (LNK2038). CMP0091 is NEW because of the 3.24 minimum.
+set(ALTRUN_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "${ALTRUN_MSVC_RUNTIME_LIBRARY}")
+# A subproject declaring cmake_minimum_required < 3.15 would get CMP0091 OLD
+# and ignore the property checked below; default it to NEW for such projects.
+set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
+
 include(FetchContent)
 
 set(JSON_BuildTests OFF CACHE INTERNAL "")
@@ -316,6 +327,8 @@ if(WIN32)
     if(MSVC)
         target_compile_options(Asterun PRIVATE /W4 /permissive- /utf-8 /EHsc)
         target_link_options(Asterun PRIVATE /SUBSYSTEM:WINDOWS)
+        # Resolve static imports from System32 only (Windows 10 1607+).
+        target_link_options(Asterun PRIVATE /DEPENDENTLOADFLAG:0x800)
     endif()
 
     set_target_properties(Asterun PROPERTIES
@@ -370,6 +383,8 @@ if(WIN32)
             AsterunUpdater
             PRIVATE
                 /SUBSYSTEM:WINDOWS
+                # Resolve static imports from System32 only (Windows 10 1607+).
+                /DEPENDENTLOADFLAG:0x800
         )
     endif()
 
@@ -417,6 +432,7 @@ if(WIN32)
             comctl32
             winmm
             user32
+            delayimp
     )
 
     if(MSVC)
@@ -432,6 +448,13 @@ if(WIN32)
             AsterunUninstaller
             PRIVATE
                 /SUBSYSTEM:WINDOWS
+                # Resolve static imports from System32 only (Windows 10 1607+).
+                /DEPENDENTLOADFLAG:0x800
+                # Delay-load Restart Manager so it (and its own dependency
+                # chain, RstrtMgr.dll -> ncrypt.dll) is not resolved during
+                # process initialization, before SetDefaultDllDirectories can
+                # run. It loads at the first Rm* call, from System32 (F-1).
+                /DELAYLOAD:rstrtmgr.dll
         )
     endif()
 
@@ -1652,6 +1675,98 @@ if(BUILD_TESTING)
             COMMAND everything_ipc_runtime_tests
         )
 
+        add_executable(dll_search_hardening_tests tests/DllSearchHardeningTests.cpp)
+        target_include_directories(dll_search_hardening_tests PRIVATE src)
+        target_compile_definitions(dll_search_hardening_tests PRIVATE
+            UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
+            _WIN32_WINNT=0x0A00 WINVER=0x0A00)
+        if(MSVC)
+            target_compile_options(dll_search_hardening_tests PRIVATE /W4 /permissive- /EHsc)
+        endif()
+        altrun_enable_test_assertions(dll_search_hardening_tests)
+        add_test(NAME dll_search_hardening_tests COMMAND dll_search_hardening_tests)
+        set_tests_properties(dll_search_hardening_tests PROPERTIES RUN_SERIAL TRUE)
+
+        # Update.exe execution chain on throw-away directories (local archive
+        # check, file replacement, new-process start and health signal). The
+        # protected-install case needs elevation and reports 77 (skipped)
+        # otherwise; CI rejects skipped tests, so it always runs there.
+        foreach(altrun_updater_mode Portable Protected)
+            string(TOLOWER "${altrun_updater_mode}" altrun_updater_mode_lower)
+            set(altrun_updater_test "updater_${altrun_updater_mode_lower}_integration_tests")
+            add_test(
+                NAME ${altrun_updater_test}
+                COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                    -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UpdaterIntegrationTests.ps1"
+                    -AppDir "$<TARGET_FILE_DIR:Asterun>"
+                    -Mode ${altrun_updater_mode}
+            )
+            set_tests_properties(${altrun_updater_test} PROPERTIES
+                TIMEOUT 900 RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
+        endforeach()
+
+        # F-1 regression: a DLL planted in Uninstall.exe's own directory must
+        # not be loaded. rstrtmgr.dll is delay-loaded and forced from System32
+        # at the first Restart Manager call, so its dependency chain (ncrypt.dll
+        # -> ntasn1.dll) no longer resolves from the application directory. One
+        # planted name per case so one load cannot mask the next; the forced
+        # worker case locks the install VERSION so Restart Manager actually runs
+        # and is INCONCLUSIVE (fails) unless rstrtmgr.dll loads from System32.
+        foreach(altrun_plant_case
+                "worker_rm_ncrypt|Worker|ncrypt.dll|ON"
+                "worker_rm_rstrtmgr|Worker|rstrtmgr.dll|ON"
+                "launcher_ncrypt|Launcher|ncrypt.dll|OFF")
+            string(REPLACE "|" ";" altrun_plant_parts "${altrun_plant_case}")
+            list(GET altrun_plant_parts 0 altrun_plant_name)
+            list(GET altrun_plant_parts 1 altrun_plant_mode)
+            list(GET altrun_plant_parts 2 altrun_plant_dll)
+            list(GET altrun_plant_parts 3 altrun_plant_force)
+            set(altrun_plant_args
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UninstallDllPlantTests.ps1"
+                -AppDir "$<TARGET_FILE_DIR:Asterun>"
+                -Mode ${altrun_plant_mode}
+                -PlantName ${altrun_plant_dll})
+            if(altrun_plant_force STREQUAL "ON")
+                list(APPEND altrun_plant_args -ForceRestartManager)
+            endif()
+            add_test(
+                NAME uninstall_plant_${altrun_plant_name}
+                COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                    ${altrun_plant_args}
+            )
+            set_tests_properties(uninstall_plant_${altrun_plant_name} PROPERTIES
+                TIMEOUT 300 RUN_SERIAL TRUE)
+        endforeach()
+
+        # Counterexample for the launcher case's interactive-state rule: a
+        # process with UI modules loaded but no window (Update.exe blocked in
+        # WaitForParent) must be rejected by the same rule.
+        add_test(
+            NAME uninstall_plant_launcher_nowindow_control
+            COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UninstallDllPlantTests.ps1"
+                -AppDir "$<TARGET_FILE_DIR:Asterun>"
+                -Mode NoWindowControl
+        )
+        set_tests_properties(uninstall_plant_launcher_nowindow_control PROPERTIES
+            TIMEOUT 120 RUN_SERIAL TRUE)
+
+        # End-to-end uninstall from the launcher: a throw-away installation,
+        # the launcher's own "keep personal data" button pressed through UI
+        # Automation, the worker it starts (ShellExecuteEx runas from its
+        # secured temporary copy) identified and recorded, then program files
+        # removed and data byte-identical. Needs elevation (77 = skipped
+        # otherwise; CI rejects skipped tests). Proves the launcher -> worker
+        # flow, not a real split-token UAC prompt.
+        add_test(
+            NAME uninstall_launcher_flow
+            COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UninstallLauncherFlowTests.ps1"
+                -AppDir "$<TARGET_FILE_DIR:Asterun>"
+        )
+        set_tests_properties(uninstall_launcher_flow PROPERTIES
+            TIMEOUT 400 RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
@@ -1679,3 +1794,33 @@ if(BUILD_TESTING)
         "Asterun tests: ${altrun_registered_test_count} registered, "
         "${altrun_portable_test_count} labelled portable")
 endif()
+
+# Every compiled target must use the static MSVC runtime chosen above; a
+# per-target override would reintroduce CRT DLL imports or LNK2038 mismatches.
+function(altrun_collect_targets directory out)
+    get_property(targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
+    get_property(subdirectories DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+    foreach(subdirectory IN LISTS subdirectories)
+        altrun_collect_targets("${subdirectory}" nested)
+        list(APPEND targets ${nested})
+    endforeach()
+    set(${out} ${targets} PARENT_SCOPE)
+endfunction()
+
+altrun_collect_targets("${CMAKE_CURRENT_SOURCE_DIR}" altrun_all_targets)
+set(altrun_compiled_target_count 0)
+foreach(altrun_target IN LISTS altrun_all_targets)
+    get_target_property(altrun_target_type ${altrun_target} TYPE)
+    if(altrun_target_type MATCHES "^(EXECUTABLE|STATIC_LIBRARY|SHARED_LIBRARY|MODULE_LIBRARY|OBJECT_LIBRARY)$")
+        get_target_property(altrun_target_runtime ${altrun_target} MSVC_RUNTIME_LIBRARY)
+        if(NOT altrun_target_runtime STREQUAL ALTRUN_MSVC_RUNTIME_LIBRARY)
+            message(FATAL_ERROR
+                "Target '${altrun_target}' uses MSVC runtime '${altrun_target_runtime}', "
+                "expected '${ALTRUN_MSVC_RUNTIME_LIBRARY}'.")
+        endif()
+        math(EXPR altrun_compiled_target_count "${altrun_compiled_target_count} + 1")
+    endif()
+endforeach()
+message(STATUS
+    "Asterun MSVC runtime: ${altrun_compiled_target_count} compiled targets use "
+    "${ALTRUN_MSVC_RUNTIME_LIBRARY}")

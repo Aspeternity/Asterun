@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "platform/DllSearchHardening.hpp"
 #include "platform/WinUtil.hpp"
 #include "platform/NotificationIdentity.hpp"
 
@@ -151,6 +152,15 @@ int WINAPI wWinMain(
 
     if (arguments
             .repairManagedEverything) {
+        // Elevated service command: restrict later DLL loads to System32
+        // before doing any privileged work. The parent reports a non-zero
+        // exit code as the Win32 error of the failed operation.
+        if (const DWORD searchError =
+                altrun::win::RestrictDefaultDllSearchToSystem32();
+            searchError != ERROR_SUCCESS) {
+            return static_cast<int>(searchError);
+        }
+
         const auto result =
             altrun::win::
                 RepairManagedEverythingServicePath(
@@ -172,6 +182,12 @@ int WINAPI wWinMain(
 
     if (arguments
             .setManagedEverythingService) {
+        if (const DWORD searchError =
+                altrun::win::RestrictDefaultDllSearchToSystem32();
+            searchError != ERROR_SUCCESS) {
+            return static_cast<int>(searchError);
+        }
+
         const auto result =
             altrun::win::
                 ApplyManagedEverythingServiceEnabledPolicy(

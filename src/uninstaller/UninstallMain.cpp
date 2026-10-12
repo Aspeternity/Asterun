@@ -1,5 +1,6 @@
 #include "../platform/WindowsCommandLine.hpp"
 #include "../ui/Feedback.hpp"
+#include "../platform/DllSearchHardening.hpp"
 #include "../platform/SecureElevation.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -1895,9 +1896,29 @@ ServeShellReleaseBroker(
     return false;
 }
 
+// rstrtmgr.dll is delay-loaded (see CMakeLists /DELAYLOAD) so its own static
+// dependency chain (RstrtMgr.dll -> ncrypt.dll -> ntasn1.dll) is resolved only
+// at the first Restart Manager call, which happens here, long after
+// RestrictDefaultDllSearchToSystem32() ran at the top of wWinMain. Before the
+// delay-load thunk binds, force the module to load from System32 explicitly.
+// If it cannot be loaded from System32, this diagnostic lookup is skipped
+// (returns no owners); it never falls back to an application-directory search.
+[[nodiscard]] bool EnsureRestartManagerLoadedFromSystem32() {
+    static const HMODULE module =
+        LoadLibraryExW(
+            L"rstrtmgr.dll",
+            nullptr,
+            LOAD_LIBRARY_SEARCH_SYSTEM32);
+    return module != nullptr;
+}
+
 [[nodiscard]] std::wstring
 RestartManagerLockOwners(
     const std::filesystem::path& path) {
+    if (!EnsureRestartManagerLoadedFromSystem32()) {
+        return {};
+    }
+
     DWORD session = 0;
     WCHAR key[
         CCH_RM_SESSION_KEY + 1]{};
@@ -2754,6 +2775,27 @@ int WINAPI wWinMain(
     HINSTANCE,
     PWSTR,
     int) {
+    // Before any other work: later DLL loads in this (possibly elevated,
+    // temporary-copy) process must not search the application directory.
+    if (const DWORD searchError =
+            altrun::win::RestrictDefaultDllSearchToSystem32();
+        searchError != ERROR_SUCCESS) {
+        std::wstring message =
+            ChineseUi()
+                ? L"卸载未开始：Windows 无法限制卸载程序的 DLL 搜索路径，未修改任何文件。\n\n错误代码："
+                : L"Uninstall was not started because Windows could not restrict the DLL search path for the uninstaller. No files were changed.\n\nError code: ";
+        message += std::to_wstring(searchError);
+        altrun::ui::ShowMessage(
+            nullptr,
+            message.c_str(),
+            L"Asterun",
+            MB_OK |
+                MB_ICONERROR |
+                MB_SETFOREGROUND |
+                MB_TOPMOST);
+        return static_cast<int>(searchError);
+    }
+
     PerformArguments args;
 
     if (ParsePerformArguments(
