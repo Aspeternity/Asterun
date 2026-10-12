@@ -135,6 +135,10 @@ require(".github/workflows/build.yml", "uses: ./.github/workflows/tests.yml",
         "needs: [repository-checks, tests, build-windows]")
 require(".github/workflows/release.yml", "uses: ./.github/workflows/tests.yml",
         "needs: [preflight, tests, build]")
+# Both packaging jobs check the shipped executables' DLL imports and
+# DependentLoadFlags before anything is uploaded.
+for path in (".github/workflows/build.yml", ".github/workflows/release.yml"):
+    require(path, "scripts/verify_pe_contract.py --directory dist")
 require(".github/workflows/tests.yml", "workflow_call:", "--no-tests=error",
         "verify_ctest_run.py", "compare_test_lists.py", "--build-only")
 require("scripts/publish_versioned_release.sh", "Versioned tag $TAG is immutable",

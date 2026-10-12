@@ -9,6 +9,7 @@
 #include <shellapi.h>
 #include <aclapi.h>
 
+#include "../platform/DllSearchHardening.hpp"
 #include "../platform/SecureArchive.hpp"
 #include "../platform/SecureElevation.hpp"
 #include "UpdaterTransaction.hpp"
@@ -592,6 +593,21 @@ int WINAPI wWinMain(
     HINSTANCE,
     PWSTR,
     int) {
+    // Before any other work: later DLL loads in this (possibly elevated)
+    // process must not search the application or temporary directory.
+    if (const DWORD searchError =
+            altrun::win::RestrictDefaultDllSearchToSystem32();
+        searchError != ERROR_SUCCESS) {
+        const auto message =
+            L"The update was not started because Windows could not restrict "
+            L"the DLL search path for the updater. No files were changed.\n\n"
+            L"Error code: " +
+            std::to_wstring(searchError);
+        MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
+        SetLastError(searchError);
+        return 2;
+    }
+
     const auto parsed =
         ParseArguments();
 
