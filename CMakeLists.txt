@@ -1751,6 +1751,22 @@ if(BUILD_TESTING)
         set_tests_properties(uninstall_plant_launcher_nowindow_control PROPERTIES
             TIMEOUT 120 RUN_SERIAL TRUE)
 
+        # End-to-end uninstall from the launcher: a throw-away installation,
+        # the launcher's own "keep personal data" button pressed through UI
+        # Automation, the worker it starts (ShellExecuteEx runas from its
+        # secured temporary copy) identified and recorded, then program files
+        # removed and data byte-identical. Needs elevation (77 = skipped
+        # otherwise; CI rejects skipped tests). Proves the launcher -> worker
+        # flow, not a real split-token UAC prompt.
+        add_test(
+            NAME uninstall_launcher_flow
+            COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UninstallLauncherFlowTests.ps1"
+                -AppDir "$<TARGET_FILE_DIR:Asterun>"
+        )
+        set_tests_properties(uninstall_launcher_flow PROPERTIES
+            TIMEOUT 400 RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
