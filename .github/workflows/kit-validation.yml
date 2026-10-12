@@ -41,6 +41,19 @@ jobs:
           python scripts/verify_pe_contract.py --directory dist --arch x64
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
+      - name: 0 Uninstall launcher -> worker flow (product CTest script, full output)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          # Same script as the PR's uninstall_launcher_flow CTest, run against the
+          # Release build so its full output is visible as an annotation.
+          $ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
+          $log = "$env:RUNNER_TEMP\uninstall-launcher-flow.txt"
+          & $ps -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests\UninstallLauncherFlowTests.ps1 -AppDir build\Release *> $log
+          $code = $LASTEXITCODE
+          & .github/kit-validation/Write-Notice.ps1 -Title "Uninstall launcher flow (exit $code)" -File $log
+          exit $code
+
       - name: Lay out the host folders as the sandbox maps them
         shell: pwsh
         run: |
