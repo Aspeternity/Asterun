@@ -1,7 +1,12 @@
-# Expected Run-Acceptance results on the CI runner for the current candidate.
-# Two standard steps are REVIEW because of finding F-1 (README); the three
-# investigation steps are FAIL for the same reason. A change in any line is a
-# change in behaviour that must be explained.
+# Expected Run-Acceptance results on the CI runner for the fixed candidate
+# (F-1 fix: rstrtmgr.dll delay-loaded in Uninstall.exe). A change in any line is
+# a change in behaviour that must be explained.
+#
+# rstrtmgr.dll is now delay-loaded, so a clean launcher/worker never loads it:
+# the standard uninstall scenarios are UNVERIFIED (nothing resolves from
+# System32 to verify), not a failure. The decisive F-1 proof is the forced-RM
+# scenario, which actually runs Restart Manager and must load rstrtmgr.dll from
+# System32 while NOT loading the planted ncrypt.dll from the worker directory.
 probe-self-test PASS / CONTROL-VALID
 control-main PASS / CONTROL-VALID
 control-update-noargs PASS / CONTROL-VALID
@@ -10,8 +15,10 @@ candidate-main PASS / CONTROL-VALID
 candidate-update-noargs PASS / CONTROL-VALID
 candidate-update-chain PASS / CONTROL-VALID
 candidate-service-command PASS / CONTROL-VALID
-candidate-uninstall-launcher REVIEW
-candidate-uninstall-worker REVIEW
-investigate-uninstall-launcher-ncrypt FAIL
-investigate-uninstall-worker-ncrypt FAIL
-investigate-main-ncrypt FAIL
+candidate-uninstall-launcher UNVERIFIED
+candidate-uninstall-worker UNVERIFIED
+control-uninstall-launcher-ncrypt PASS / CONTROL-VALID
+control-uninstall-worker-ncrypt PASS / CONTROL-VALID
+candidate-uninstall-rm-worker-ncrypt PASS / CONTROL-VALID
+candidate-uninstall-launcher-ncrypt UNVERIFIED
+candidate-uninstall-worker-ncrypt UNVERIFIED

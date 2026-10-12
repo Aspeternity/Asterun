@@ -81,6 +81,12 @@ param(
     [string]$FunctionalDetail = '',
     [string]$ProbeLog = '',
     [int]$ProbeLogSkip = 0,
+    # Leaf DLL names that at least one matched target PID must have LOADED from
+    # System32. Proves the exercised code path actually ran: e.g. rstrtmgr.dll
+    # for an uninstall scenario built to invoke Restart Manager. If a required
+    # name was never loaded from System32 the result is INVALID (the path the
+    # scenario was meant to cover did not execute), never PASS.
+    [string[]]$RequireSystemLoad = @(),
     [Parameter(Mandatory = $true)][string]$Out
 )
 
@@ -98,6 +104,7 @@ function Finish([string]$verdict, [int]$code) {
 if (-not (Test-Path -LiteralPath $Csv)) { throw "CSV not found: $Csv" }
 # Lists may also arrive as one string (powershell -File): split on ';'.
 $PlantedPath = @($PlantedPath | ForEach-Object { $_ -split ';' } | Where-Object { $_ } | ForEach-Object { $_.Trim() })
+$RequireSystemLoad = @($RequireSystemLoad | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLowerInvariant() })
 $ControlReport = @($ControlReport | ForEach-Object { $_ -split ';' } | Where-Object { $_ })
 Emit "scenario=$Scenario role=$Role csv=$Csv"
 Emit "appDir=$AppDir tempDir=$TempDir planted=$($PlantedPath -join ';') functional=$FunctionalResult $FunctionalDetail"
@@ -234,6 +241,7 @@ $rank = @{ 'PASS' = 0; 'UNVERIFIED' = 1; 'REVIEW' = 2; 'FAIL' = 3; 'INVALID' = 4
 $overall = 'PASS'
 function Raise([string]$verdict) { if ($rank[$verdict] -gt $rank[$script:overall]) { $script:overall = $verdict } }
 $controlLoads = @{}
+$systemLoadedLeaves = New-Object System.Collections.Generic.HashSet[string]
 
 foreach ($target in $targets) {
     $candidates = @($processes.Values | Where-Object { $_.Name -eq $target.Name })
@@ -265,7 +273,7 @@ foreach ($target in $targets) {
             $leafDir = (Split-Path -Parent $path).TrimEnd('\').ToLowerInvariant() + '\'
             $inImageDir = $imageDirForms -contains $leafDir
             $item = [pscustomobject]@{ Op = $event.Operation; Result = $event.Result; Path = $path; Leaf = (Split-Path -Leaf $path).ToLowerInvariant(); Location = $location; Access = $access }
-            if ($event.Operation -eq 'Load Image') { $loaded += $item }
+            if ($event.Operation -eq 'Load Image') { $loaded += $item; if ($location -eq 'SYSTEM') { [void]$systemLoadedLeaves.Add($item.Leaf) } }
             elseif (($event.Result -eq 'NAME NOT FOUND' -or $event.Result -eq 'PATH NOT FOUND') -and $inImageDir) { $search += $item }
             elseif ($event.Operation -eq 'CreateFile' -and $event.Result -eq 'SUCCESS' -and $event.Detail -match 'Desired Access:((?!Disposition:).)*Execute') { $openExecute += $item }
             else { $fileOps += $item }
@@ -348,6 +356,21 @@ if ($Role -eq 'control') {
     }
     foreach ($name in $controlLoads.Keys) { Emit "CONTROL-VALID name=$name pid=$($controlLoads[$name])" }
     Finish 'CONTROL-VALID' 0
+}
+
+# The scenario must have exercised the path it was built for: each required DLL
+# had to be loaded from System32 by a matched target. A missing one means the
+# code path (e.g. Restart Manager) never ran, so a clean capture is not a pass.
+if ($RequireSystemLoad.Count -gt 0) {
+    Emit ''
+    foreach ($name in $RequireSystemLoad) {
+        $seen = $systemLoadedLeaves.Contains($name)
+        Emit "required System32 load of $name : $seen"
+        if (-not $seen) {
+            Emit "    INVALID: $name was never loaded from System32 by a target - the exercised path did not run"
+            Raise 'INVALID'
+        }
+    }
 }
 $codes = @{ 'PASS' = 0; 'REVIEW' = 10; 'UNVERIFIED' = 11; 'FAIL' = 20; 'INVALID' = 30 }
 Finish $overall $codes[$overall]

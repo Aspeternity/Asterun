@@ -17,6 +17,9 @@ $probe = Join-Path $fixtures 'probe.txt'
 $plantApp = 'C:\W\app\version.dll'
 $plantWorker = "$temp\Asterun-Elevated.kit-1\rstrtmgr.dll"
 $plantChain = "$temp\asterun-updater-it-1\Asterun-Elevated.updater-it-portable\bcrypt.dll;$temp\asterun-updater-it-1\portable-install\version.dll"
+$plantRmWorker = "$temp\Asterun-Elevated.kit-rm\ncrypt.dll"
+$ctlNcrypt = Join-Path $Out 'control-ncrypt.txt'
+Set-Content -LiteralPath $ctlNcrypt -Value 'CONTROL-VALID name=ncrypt.dll pid=1'
 
 # name, expected exit code, what the case shows, arguments
 $cases = @(
@@ -61,7 +64,18 @@ $cases = @(
     @('cand-main', 11, 'plant not next to the target image (wrong directory): UNVERIFIED',
       @('-Scenario', 'main', '-PlantedPath', 'C:\W\elsewhere\version.dll', '-ControlReport', $ctlMain, '-FunctionalResult', 'PASS')),
     @('chain-missing-asterun', 30, 'update chain without the restarted Asterun.exe: INVALID',
-      @('-Scenario', 'update-chain', '-PlantedPath', $plantChain, '-ControlReport', "$ctlMain;$ctlUpdate", '-FunctionalResult', 'PASS'))
+      @('-Scenario', 'update-chain', '-PlantedPath', $plantChain, '-ControlReport', "$ctlMain;$ctlUpdate", '-FunctionalResult', 'PASS')),
+    # F-1 regression (fixed build): Restart Manager ran (rstrtmgr.dll from
+    # System32), planted ncrypt.dll not loaded, ncrypt.dll from System32: PASS.
+    @('rm-worker-fixed', 0, 'F-1 fixed: RM ran from System32, planted ncrypt not loaded: PASS',
+      @('-Scenario', 'uninstall-worker', '-PlantedPath', $plantRmWorker, '-ControlReport', $ctlNcrypt, '-RequireSystemLoad', 'rstrtmgr.dll', '-FunctionalResult', 'PASS')),
+    # Vulnerable build: planted ncrypt.dll loaded from the worker directory: FAIL.
+    @('rm-worker-vuln', 20, 'F-1 vulnerable: planted ncrypt loaded from the worker directory: FAIL',
+      @('-Scenario', 'uninstall-worker', '-PlantedPath', $plantRmWorker, '-ControlReport', $ctlNcrypt, '-RequireSystemLoad', 'rstrtmgr.dll', '-FunctionalResult', 'PASS')),
+    # Restart Manager never ran (no rstrtmgr load): the path under test did not
+    # execute, so a clean capture is INVALID, not a pass.
+    @('rm-worker-norm', 30, 'required System32 load of rstrtmgr.dll missing (RM path did not run): INVALID',
+      @('-Scenario', 'uninstall-worker', '-PlantedPath', $plantRmWorker, '-ControlReport', $ctlNcrypt, '-RequireSystemLoad', 'rstrtmgr.dll', '-FunctionalResult', 'PASS'))
 )
 
 $results = New-Object System.Collections.Generic.List[string]
