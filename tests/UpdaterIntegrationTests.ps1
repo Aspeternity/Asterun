@@ -32,7 +32,9 @@
 param(
     [Parameter(Mandatory = $true)][string]$AppDir,
     [Parameter(Mandatory = $true)][ValidateSet('Portable', 'Protected')][string]$Mode,
-    [string]$PlantDll = ''
+    [string]$PlantDll = '',
+    # VERSION of the package under test; defaults to the repository VERSION.
+    [string]$VersionFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -75,8 +77,8 @@ $AppDir = (Resolve-Path -LiteralPath $AppDir).Path
 foreach ($name in 'Asterun.exe', 'Update.exe', 'Uninstall.exe') {
     if (-not (Test-Path -LiteralPath (Join-Path $AppDir $name))) { throw "$name not found in $AppDir" }
 }
-$repoVersionFile = Join-Path $PSScriptRoot '..\VERSION'
-$version = (Get-Content -LiteralPath $repoVersionFile -Raw).Trim()
+if (-not $VersionFile) { $VersionFile = Join-Path $PSScriptRoot '..\VERSION' }
+$version = (Get-Content -LiteralPath $VersionFile -Raw).Trim()
 if (-not $version) { throw 'VERSION is empty' }
 
 $id = [guid]::NewGuid().ToString('N')
@@ -143,7 +145,7 @@ function Invoke-Updater([hashtable]$case) {
         '--version', "`"$($case.Version)`"",
         '--health-event', "`"$($case.HealthEvent)`""
     )
-    Write-Output "  run: $updater $($arguments -join ' ')"
+    Write-Host "  run: $updater $($arguments -join ' ')"  # not Write-Output: this function returns the exit code
     $process = Start-Process -FilePath $updater -ArgumentList $arguments -PassThru
     $null = $process.Handle  # keep the handle so ExitCode is available after exit
     if (-not $process.WaitForExit(180000)) {
