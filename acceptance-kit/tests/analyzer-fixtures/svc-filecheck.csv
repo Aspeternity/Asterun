@@ -3,4 +3,4 @@
 "1","Asterun.exe","301","Process Start","","SUCCESS","Parent PID: 9, Command line: ""C:\W\app\Asterun.exe"" --set-managed-everything-service disabled, Current directory: C:\W\, Environment: x"
 "1","Asterun.exe","301","Load Image","C:\W\app\Asterun.exe","SUCCESS","Image Base: 0x1"
 "1","Asterun.exe","301","Load Image","C:\Windows\System32\version.dll","SUCCESS","Image Base: 0x2"
-"1","Asterun.exe","301","CreateFile","C:\W\app\x.dll","NAME NOT FOUND","Desired Access: Read Attributes, Synchronize, Disposition: Open, Options: Open Reparse Point"
+"1","Asterun.exe","301","CreateFile","C:\Users\u\AppData\Local\Temp\other\x.dll","NAME NOT FOUND","Desired Access: Read Attributes, Synchronize, Disposition: Open, Options: Open Reparse Point"

@@ -24,13 +24,14 @@
 #   LOADED        Load Image                          - the DLL was mapped from that path
 #   OPEN-EXECUTE  CreateFile SUCCESS with Execute in the desired access
 #                                                     - opened for image mapping
-#   SEARCH        result NAME NOT FOUND / PATH NOT FOUND with Execute in the
-#                 desired access - the loader probing for an image (it opens
-#                 candidates for execute, the same access a successful map uses)
+#   SEARCH        result NAME NOT FOUND / PATH NOT FOUND in the directory of the
+#                 target's own image (the first place the default search order
+#                 looks; the loader probes there without execute access)
 #                                                     - a lookup of a file that is not there
-#   FILE-OP       anything else, including NAME NOT FOUND without Execute access
-#                 (existence checks, reads, copies, deletes by the program)
-#                                                     - reported; never a failure by itself
+#   FILE-OP       anything else, including NAME NOT FOUND in other watched
+#                 directories (existence checks of files the program itself
+#                 manages, e.g. the updater checking the install directory),
+#                 reads, copies, deletes      - reported; never a failure by itself
 #   Locations: WATCHED (-AppDir, -TempDir and the image directory of the
 #   target, long and 8.3 forms), SYSTEM (%WINDIR%), OTHER.
 #
@@ -261,10 +262,11 @@ foreach ($target in $targets) {
             if (-not $path -or -not $path.ToLowerInvariant().EndsWith('.dll')) { continue }
             $location = if (Test-Under $path $watched) { 'WATCHED' } elseif ($path.ToLowerInvariant().StartsWith($windows)) { 'SYSTEM' } else { 'OTHER' }
             $access = [regex]::Match([string]$event.Detail, 'Desired Access: (.*?)(, Disposition:|, Options:|$)').Groups[1].Value
-            $execute = $access -match 'Execute'
+            $leafDir = (Split-Path -Parent $path).TrimEnd('\').ToLowerInvariant() + '\'
+            $inImageDir = $imageDirForms -contains $leafDir
             $item = [pscustomobject]@{ Op = $event.Operation; Result = $event.Result; Path = $path; Leaf = (Split-Path -Leaf $path).ToLowerInvariant(); Location = $location; Access = $access }
             if ($event.Operation -eq 'Load Image') { $loaded += $item }
-            elseif (($event.Result -eq 'NAME NOT FOUND' -or $event.Result -eq 'PATH NOT FOUND') -and $execute) { $search += $item }
+            elseif (($event.Result -eq 'NAME NOT FOUND' -or $event.Result -eq 'PATH NOT FOUND') -and $inImageDir) { $search += $item }
             elseif ($event.Operation -eq 'CreateFile' -and $event.Result -eq 'SUCCESS' -and $event.Detail -match 'Desired Access:((?!Disposition:).)*Execute') { $openExecute += $item }
             else { $fileOps += $item }
         }

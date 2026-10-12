@@ -30,7 +30,7 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 |---|---|---|
 | E-1 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Check-Environment.ps1 -Log C:\Acceptance\logs\E-1-environment.txt` | 输出 `vc-runtime=ABSENT ... CLEAN`。结果为 NOT clean 时，第 2 阶段不能在此环境中判定 |
 | E-2 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Initialize-Workspace.ps1 -BaselineZip C:\Acceptance\packages\Asterun-x64-v1.0.5.zip -CandidateZip C:\Acceptance\packages\Asterun-x64-candidate.zip -Tools C:\Acceptance\tools -Kit C:\Acceptance\kit -Logs C:\Acceptance\logs -CandidateSha256 <README 中的被测包 SHA-256>` | 最后两行为 `RESULT: PASS` 和 `WORKSPACE=C:\AsterunWork\run-...`。记下这个路径，下文写作 `$run`（在 PowerShell 中执行 `$run = 'C:\AsterunWork\run-...'`）。对照包哈希与正式发布一致、Procmon 签名为 Valid、两个包各有 3 个 EXE |
-| E-3 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\tests\Test-Analyzer.ps1 -Out C:\Acceptance\logs\E-3-analyzer-selftest` | `RESULT: all 20 cases as expected` |
+| E-3 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\tests\Test-Analyzer.ps1 -Out C:\Acceptance\logs\E-3-analyzer-selftest` | `RESULT: all 21 cases as expected` |
 
 ## 第 2 阶段：无运行库环境下的启动（需要 E-1 为 CLEAN）
 

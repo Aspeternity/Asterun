@@ -1,0 +1,17 @@
+# Expected Run-Acceptance results on the CI runner for the current candidate.
+# Two standard steps are REVIEW because of finding F-1 (README); the three
+# investigation steps are FAIL for the same reason. A change in any line is a
+# change in behaviour that must be explained.
+probe-self-test PASS / CONTROL-VALID
+control-main PASS / CONTROL-VALID
+control-update-noargs PASS / CONTROL-VALID
+control-uninstall-launcher PASS / CONTROL-VALID
+candidate-main PASS / CONTROL-VALID
+candidate-update-noargs PASS / CONTROL-VALID
+candidate-update-chain PASS / CONTROL-VALID
+candidate-service-command PASS / CONTROL-VALID
+candidate-uninstall-launcher REVIEW
+candidate-uninstall-worker REVIEW
+investigate-uninstall-launcher-ncrypt FAIL
+investigate-uninstall-worker-ncrypt FAIL
+investigate-main-ncrypt FAIL
