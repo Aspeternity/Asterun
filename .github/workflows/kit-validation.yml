@@ -71,7 +71,10 @@ jobs:
         shell: pwsh
         run: |
           foreach ($d in 'packages', 'kit', 'tools') {
-            icacls "$env:HOST\$d" /deny '*S-1-1-0:(OI)(CI)(W,D,DC,WD,AD)' | Out-Null
+            # Specific rights only: the generic W also contains SYNCHRONIZE, and denying
+            # that blocks ordinary reads.
+            icacls "$env:HOST\$d" /deny '*S-1-1-0:(OI)(CI)(WD,AD,WEA,WA,D,DC)' | Out-Null
+            if (-not (Get-Content "$env:HOST\kit\README.md" -TotalCount 1)) { throw 'read blocked' }
             try { Set-Content "$env:HOST\$d\write-test.txt" x -ErrorAction Stop; throw "$d is writable" } catch [System.UnauthorizedAccessException] { Write-Host "$d read-only: ok" }
           }
 
