@@ -29,12 +29,16 @@
 #     Asterun-Elevated.* directory, exactly where the real elevated worker runs.
 #   Launcher: the launcher (no --perform) is started with the DLL planted beside
 #     it. Before the fix the static import chain loaded the plant during init;
-#     after the fix it is delay-only, so init never touches it. The test waits
-#     for the launcher to reach interactive state (a top-level window appears),
-#     which is past the init point the bug used, so a pass cannot come from an
-#     instant crash. It does NOT drive the dialog or assert that it stays
-#     resident; it only asserts interactive state was reached and the plant was
-#     not loaded from the launcher directory.
+#     after the fix it is delay-only, so init never touches it. The case passes
+#     only if a top-level window (the uninstall prompt) is actually OBSERVED -
+#     loaded UI modules do not count - and the plant was not loaded from the
+#     launcher directory. It does NOT drive the dialog or assert that it stays
+#     resident.
+#   NoWindowControl: counterexample for that rule. Update.exe with a complete
+#     --apply command line and a live parent blocks in WaitForParent: it has
+#     user32/shell32 loaded from System32 but never opens a window. The same
+#     decision function must reject it, so "UI modules but no window" can never
+#     pass the launcher case.
 #
 # The case FAILS when the planted copy is loaded from the executable's own
 # directory. It does NOT pass merely because nothing was loaded: a forced-RM
@@ -59,8 +63,9 @@
 
 param(
     [Parameter(Mandatory = $true)][string]$AppDir,
-    [Parameter(Mandatory = $true)][ValidateSet('Worker', 'Launcher')][string]$Mode,
-    [Parameter(Mandatory = $true)][string]$PlantName,
+    [Parameter(Mandatory = $true)][ValidateSet('Worker', 'Launcher', 'NoWindowControl')][string]$Mode,
+    # Required for Worker and Launcher; not used by NoWindowControl.
+    [string]$PlantName = '',
     [switch]$ForceRestartManager
 )
 
@@ -79,14 +84,15 @@ if ($PSVersionTable.PSEdition -ne 'Core') {
 }
 
 if ($ForceRestartManager -and $Mode -ne 'Worker') { throw '-ForceRestartManager is only valid with -Mode Worker' }
+if ($Mode -ne 'NoWindowControl' -and -not $PlantName) { throw "-PlantName is required with -Mode $Mode" }
 
 $AppDir = (Resolve-Path -LiteralPath $AppDir).Path
 foreach ($name in 'Asterun.exe', 'Update.exe', 'Uninstall.exe') {
     if (-not (Test-Path -LiteralPath (Join-Path $AppDir $name))) { throw "$name not found in $AppDir" }
 }
 $system32 = Join-Path $env:WINDIR 'System32'
-$plantSource = Join-Path $system32 $PlantName
-if (-not (Test-Path -LiteralPath $plantSource)) { throw "cannot plant $PlantName : $plantSource does not exist" }
+$plantSource = if ($PlantName) { Join-Path $system32 $PlantName } else { '' }
+if ($PlantName -and -not (Test-Path -LiteralPath $plantSource)) { throw "cannot plant $PlantName : $plantSource does not exist" }
 $system32Prefix = ($system32.TrimEnd('\') + '\').ToLowerInvariant()
 
 $script:failures = New-Object System.Collections.Generic.List[string]
@@ -158,6 +164,42 @@ function Paths([hashtable]$seen, [string]$leaf) {
 }
 function Under([string]$path, [string]$dirPrefixLower) { $path.ToLowerInvariant().StartsWith($dirPrefixLower) }
 
+# Observe a process for up to $timeoutSeconds: accumulate its loaded modules and
+# record whether it ever had a top-level window (MainWindowHandle). With
+# $stopOnWindow the watch ends as soon as a window is seen; otherwise it runs
+# the full time so a window that never appears is positively observed as absent.
+function Watch-WindowAndModules([System.Diagnostics.Process]$proc, [int]$timeoutSeconds, [bool]$stopOnWindow) {
+    $result = @{ Seen = @{}; ReachedWindow = $false; Title = ''; AliveAtEnd = $false }
+    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $proc.Refresh()
+            $exited = $proc.HasExited
+            foreach ($m in $proc.Modules) { Add-Module $result.Seen $m }
+            if (-not $result.ReachedWindow -and $proc.MainWindowHandle -ne [IntPtr]::Zero) {
+                $result.ReachedWindow = $true
+                $result.Title = $proc.MainWindowTitle
+            }
+            if ($exited) { break }
+            if ($stopOnWindow -and $result.ReachedWindow) { break }
+        } catch { if ($proc.HasExited) { break } }
+        Start-Sleep -Milliseconds 100
+    }
+    try { $proc.Refresh(); $result.AliveAtEnd = -not $proc.HasExited } catch { $result.AliveAtEnd = $false }
+    return $result
+}
+
+# The single rule for "the launcher reached interactive state": a top-level
+# window was actually observed. Loaded UI modules (user32/shell32/comctl32) are
+# deliberately NOT accepted - a process can load them and never open a window.
+# The NoWindowControl mode feeds a windowless process with UI modules loaded
+# through this same function and requires it to be rejected.
+function Test-ReachedInteractiveState([bool]$reachedWindow) { return $reachedWindow }
+
+function Get-UiModulesFromSystem32([hashtable]$seen) {
+    return @(@('comctl32.dll', 'shell32.dll', 'user32.dll') | Where-Object { @(Paths $seen $_ | Where-Object { Under $_ $system32Prefix }).Count -gt 0 })
+}
+
 $exitCode = 1
 try {
     $plantLeaf = $PlantName.ToLowerInvariant()
@@ -219,6 +261,39 @@ try {
         }
         Write-Host "  modules observed: $($seen.Keys.Count); $PlantName paths: $(( $plantPaths ) -join '; ')"
     }
+    elseif ($Mode -eq 'NoWindowControl') {
+        # Counterexample for the launcher's interactive-state rule. Update.exe
+        # started with a complete, syntactically valid --apply command line and a
+        # LIVE parent blocks in WaitForParent (up to 60 s) before touching any
+        # file. It has user32.dll/shell32.dll loaded from System32 as static
+        # imports, but never opens a window. The rule must reject it.
+        $ctlDir = Join-Path $root "nowindow-$id"
+        New-Item -ItemType Directory -Path $ctlDir | Out-Null
+        Copy-Item -LiteralPath (Join-Path $AppDir 'Update.exe') -Destination $ctlDir
+        $parent = Start-Process -FilePath "$env:WINDIR\System32\PING.EXE" -ArgumentList '-n', '61', '127.0.0.1' -WindowStyle Hidden -PassThru
+        $proc = $null
+        try {
+            $info = New-Object System.Diagnostics.ProcessStartInfo
+            $info.FileName = Join-Path $ctlDir 'Update.exe'
+            $info.Arguments = "--apply --parent-pid $($parent.Id) --source `"$ctlDir\src`" --archive `"$ctlDir\pkg.zip`" --sha256 $('0' * 64) --secure-reextract 0 --install `"$ctlDir\install`" --backup `"$ctlDir\backup`" --version 0.0.0 --health-event Local\Aspeternity.Asterun.PlantControl.$id"
+            $info.UseShellExecute = $false
+            $info.WorkingDirectory = $ctlDir
+            Write-Host "  control: $($info.FileName) $($info.Arguments)"
+            $proc = [System.Diagnostics.Process]::Start($info)
+            $obs = Watch-WindowAndModules $proc 12 $false
+        } finally {
+            if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+            if (-not $parent.HasExited) { Stop-Process -Id $parent.Id -Force -ErrorAction SilentlyContinue }
+        }
+        $uiModules = @(Get-UiModulesFromSystem32 $obs.Seen)
+        Check (-not $obs.ReachedWindow) "control process opened no top-level window during 12 s of observation"
+        Check $obs.AliveAtEnd "control process was still running at the end of observation (blocked in WaitForParent, not crashed)"
+        Check ($uiModules.Count -gt 0) "control process loaded UI modules from System32 ($($uiModules -join ', ')), i.e. it would have satisfied the removed UI-module fallback"
+        $decision = Test-ReachedInteractiveState $obs.ReachedWindow
+        Check (-not $decision) "the launcher's interactive-state rule rejects this windowless process (rule result=$decision)"
+        Check (-not (Test-Path -LiteralPath "$ctlDir\install") -and -not (Test-Path -LiteralPath "$ctlDir\backup")) "control touched no install/backup paths"
+        Write-Host "  control modules observed: $($obs.Seen.Keys.Count); reachedWindow=$($obs.ReachedWindow); aliveAtEnd=$($obs.AliveAtEnd)"
+    }
     else {
         $launcherDir = Join-Path $root "launcher-$id"
         New-Item -ItemType Directory -Path $launcherDir | Out-Null
@@ -238,44 +313,23 @@ try {
         Write-Host "  run: $($info.FileName) (launcher, no --perform)"
         $proc = [System.Diagnostics.Process]::Start($info)
         # Poll modules AND wait for the launcher to open a top-level window (the
-        # uninstall prompt). An interactive window is positive evidence that the
-        # process ran past initialization - the point where the old static import
-        # chain resolved and loaded the plant - so a pass cannot come from an
-        # instant crash. We do not drive or assert anything about the dialog's
-        # contents or that it stays resident; only that interactive state was
-        # reached while the plant was not loaded from the launcher directory.
-        $seen = @{}
-        $reachedWindow = $false
-        $windowTitle = ''
-        $deadline = (Get-Date).AddSeconds(20)
+        # uninstall prompt). Only an observed window counts as reaching
+        # interactive state (Test-ReachedInteractiveState); loaded UI modules do
+        # not. We do not drive the dialog or assert anything about its contents
+        # or that it stays resident.
         try {
-            while ((Get-Date) -lt $deadline) {
-                try {
-                    $proc.Refresh()
-                    $exited = $proc.HasExited
-                    foreach ($m in $proc.Modules) { Add-Module $seen $m }
-                    if (-not $reachedWindow -and $proc.MainWindowHandle -ne [IntPtr]::Zero) {
-                        $reachedWindow = $true
-                        $windowTitle = $proc.MainWindowTitle
-                    }
-                    if ($exited) { break }
-                    if ($reachedWindow) { break }
-                } catch { if ($proc.HasExited) { break } }
-                Start-Sleep -Milliseconds 100
-            }
+            $obs = Watch-WindowAndModules $proc 20 $true
         } finally {
             if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
         }
+        $seen = $obs.Seen
 
         $plantPaths = @(Paths $seen $plantLeaf)
         $fromLauncher = @($plantPaths | Where-Object { Under $_ $launcherPrefix })
         Check ($fromLauncher.Count -eq 0) "$PlantName was NOT loaded from the launcher directory (found: $($fromLauncher -join '; '))"
-        # Reached interactive state: a top-level window appeared. Fall back to the
-        # UI-module load only if no window surfaced in this environment, so the
-        # test still cannot pass on an instant crash.
-        $uiModules = @(@('comctl32.dll', 'shell32.dll', 'user32.dll') | Where-Object { @(Paths $seen $_ | Where-Object { Under $_ $system32Prefix }).Count -gt 0 })
-        Check ($reachedWindow -or $uiModules.Count -gt 0) "launcher reached interactive state (window=$reachedWindow title='$windowTitle'; UI modules from System32: $($uiModules -join ', '))"
-        Write-Host "  modules observed: $($seen.Keys.Count); reachedWindow=$reachedWindow; $PlantName paths: $(( $plantPaths ) -join '; ')"
+        $uiModules = @(Get-UiModulesFromSystem32 $seen)
+        Check (Test-ReachedInteractiveState $obs.ReachedWindow) "launcher reached interactive state: a top-level window was observed (window=$($obs.ReachedWindow) title='$($obs.Title)'; UI modules, informational only: $($uiModules -join ', '))"
+        Write-Host "  modules observed: $($seen.Keys.Count); reachedWindow=$($obs.ReachedWindow); $PlantName paths: $(( $plantPaths ) -join '; ')"
     }
 } catch {
     Write-Host "  FAIL exception: $($_.Exception.Message)"
