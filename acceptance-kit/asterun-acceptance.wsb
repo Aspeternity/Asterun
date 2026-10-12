@@ -1,0 +1,20 @@
+<!--
+  Windows Sandbox configuration for the Asterun batch A acceptance.
+  1. On the host create C:\AsterunAcceptance with the sub-folders packages, tools, kit, logs
+     (see CHECKLIST.md, phase 0) and copy the kit, the packages and Procmon64.exe into them.
+  2. Double-click this file. Inside the sandbox the folder appears as C:\Acceptance.
+  Everything written inside the sandbox except C:\Acceptance is discarded when it closes.
+  Networking stays enabled because the managed Everything setup downloads Everything.
+-->
+<Configuration>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\AsterunAcceptance</HostFolder>
+      <SandboxFolder>C:\Acceptance</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <Networking>Enable</Networking>
+  <ClipboardRedirection>Enable</ClipboardRedirection>
+  <MemoryInMB>4096</MemoryInMB>
+</Configuration>

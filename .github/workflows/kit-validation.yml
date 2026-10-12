@@ -1,0 +1,183 @@
+name: Acceptance kit validation (batch A, not for merge)
+
+# Runs the external batch A acceptance kit (acceptance-kit/) on a Windows
+# runner against a package built from this commit, exactly as the checklist
+# runs it, and records the results as annotations. This branch and workflow
+# exist only to validate the kit; they are not part of the product and are
+# not to be merged. Nothing here changes the product package.
+
+on:
+  push:
+    branches: ['acceptance/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kit:
+    name: Kit on Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      HOST: C:\AsterunAcceptance
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build candidate package (same steps as build.yml)
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 -DBUILD_TESTING=OFF
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build build --config Release --parallel
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build/Release/Asterun.exe, build/Release/Update.exe, build/Release/Uninstall.exe dist/
+          Copy-Item -Recurse build/Release/dict dist/dict
+          Copy-Item -Recurse build/Release/third_party dist/third_party
+          Copy-Item VERSION dist/VERSION
+          Copy-Item README.md dist/README.md
+          Compress-Archive -Path dist/* -DestinationPath Asterun-x64.zip
+          python scripts/verify_pe_contract.py --directory dist --arch x64
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Lay out the host folders as the sandbox maps them
+        shell: pwsh
+        run: |
+          foreach ($d in 'packages', 'kit', 'tools', 'logs') { New-Item -ItemType Directory -Force -Path "$env:HOST\$d" | Out-Null }
+          Copy-Item Asterun-x64.zip "$env:HOST\packages\Asterun-x64-candidate.zip"
+          Invoke-WebRequest https://github.com/Aspeternity/Asterun/releases/download/v1.0.5/Asterun-x64.zip -OutFile "$env:HOST\packages\Asterun-x64-v1.0.5.zip"
+          Invoke-WebRequest https://download.sysinternals.com/files/ProcessMonitor.zip -OutFile "$env:HOST\tools\ProcessMonitor.zip"
+          Copy-Item -Recurse acceptance-kit\* "$env:HOST\kit"
+          $lines = foreach ($f in Get-ChildItem -Recurse -File "$env:HOST\packages", "$env:HOST\tools", "$env:HOST\kit") {
+            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower(), $f.FullName.Substring($env:HOST.Length + 1)
+          }
+          $lines | Set-Content "$env:HOST\logs\inputs.sha256"
+          $lines | Select-Object -First 40 | ForEach-Object { Write-Host $_ }
+          $c = (Get-FileHash -Algorithm SHA256 Asterun-x64.zip).Hash.ToLower()
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Kit inputs' -Lines (@("candidate Asterun-x64.zip sha256=$c", 'commit=${{ github.sha }}') + @($lines | Where-Object { $_ -match '^\w+  (packages|tools)' }))
+
+      - name: Build the probe with MSVC as well
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VSROOT=%%i
+          call "%VSROOT%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          mkdir %HOST%\probe-msvc
+          cd /d %HOST%\probe-msvc
+          cl /nologo /O1 /GS- /LD "%HOST%\kit\probe-dll\asterun_dll_probe.c" /link /NODEFAULTLIB /ENTRY:DllMain kernel32.lib /OUT:asterun_dll_probe.dll || exit /b 1
+          dumpbin /nologo /imports /exports asterun_dll_probe.dll
+
+      - name: Make packages, kit and tools read-only (as the sandbox maps them)
+        shell: pwsh
+        run: |
+          foreach ($d in 'packages', 'kit', 'tools') {
+            icacls "$env:HOST\$d" /deny '*S-1-1-0:(OI)(CI)(W,D,DC,WD,AD)' | Out-Null
+            try { Set-Content "$env:HOST\$d\write-test.txt" x -ErrorAction Stop; throw "$d is writable" } catch [System.UnauthorizedAccessException] { Write-Host "$d read-only: ok" }
+          }
+
+      - name: 1 Check-Environment (runner has the VC++ runtime, expect NOT clean)
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\scripts\Check-Environment.ps1" -Log "$env:HOST\logs\environment.txt"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $text = Get-Content -Raw "$env:HOST\logs\environment.txt"
+          $ok = $text -match 'NOT clean'
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Check-Environment (expected NOT clean)' -Lines (@($(if ($ok) { 'as expected' } else { 'DEVIATION' })) + @($text -split "`r?`n" | Select-Object -First 16))
+          if (-not $ok) { exit 1 }
+
+      - name: 2 Initialize-Workspace (new folder; second run with the same name must stop)
+        shell: pwsh
+        run: |
+          $args1 = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "$env:HOST\kit\scripts\Initialize-Workspace.ps1",
+            '-BaselineZip', "$env:HOST\packages\Asterun-x64-v1.0.5.zip", '-CandidateZip', "$env:HOST\packages\Asterun-x64-candidate.zip",
+            '-Tools', "$env:HOST\tools", '-Kit', "$env:HOST\kit", '-Logs', "$env:HOST\logs", '-RunName', 'ci-run')
+          powershell.exe @args1
+          $first = $LASTEXITCODE
+          $before = Get-ChildItem -Recurse -File C:\AsterunWork\ci-run | ForEach-Object { "$($_.FullName) $($_.Length) $($_.LastWriteTimeUtc.Ticks)" }
+          powershell.exe @args1 | Tee-Object -Variable second | Out-Host
+          $secondCode = $LASTEXITCODE
+          $after = Get-ChildItem -Recurse -File C:\AsterunWork\ci-run | ForEach-Object { "$($_.FullName) $($_.Length) $($_.LastWriteTimeUtc.Ticks)" }
+          $unchanged = -not (Compare-Object $before $after)
+          $ok = $first -eq 0 -and $secondCode -eq 2 -and $unchanged
+          $init = Get-Content "$env:HOST\logs\ci-run\initialize.txt"
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Initialize-Workspace' -Lines (@("$(if ($ok) { 'as expected' } else { 'DEVIATION' }): first run exit $first; repeated run with the same name exit $secondCode (expected 2); workspace unchanged=$unchanged", "repeated run said: $($second -join ' ')") + @($init))
+          if (-not $ok) { exit 1 }
+
+      - name: 3 Analyzer self-test on synthetic captures
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\tests\Test-Analyzer.ps1" -Out "$env:HOST\logs\analyzer-selftest"
+          $code = $LASTEXITCODE
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Analyzer self-test (Windows PowerShell 5.1)' -File "$env:HOST\logs\analyzer-selftest\summary.txt"
+          exit $code
+
+      - name: 4 Probe self-test (LLVM build from the kit and MSVC build)
+        shell: pwsh
+        run: |
+          $out = @()
+          $fail = 0
+          foreach ($dll in "$env:HOST\kit\probe-dll\out\x64\asterun_dll_probe.dll", "$env:HOST\probe-msvc\asterun_dll_probe.dll") {
+            $text = powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\probe-dll\Test-Probe.ps1" -Dll $dll 2>&1
+            if ($LASTEXITCODE) { $fail++ }
+            $out += "$dll exit=$LASTEXITCODE sha256=$((Get-FileHash -Algorithm SHA256 $dll).Hash.ToLower())"
+            $out += $text | ForEach-Object { "  $_" }
+          }
+          $log = "$env:PUBLIC\AsterunDllProbe\probe-log.txt"
+          $bytes = [System.IO.File]::ReadAllBytes($log)
+          $out += "probe log starts with UTF-16LE BOM: $($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE)"
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Probe self-test' -Lines $out
+          exit $fail
+
+      - name: 5 Run-Acceptance (controls on v1.0.5, then the candidate scenarios)
+        id: run
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\scripts\Run-Acceptance.ps1" -Work C:\AsterunWork\ci-run -Logs "$env:HOST\logs"
+          "code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Run-Acceptance summary' -File "$env:HOST\logs\ci-run\summary.txt"
+          exit 0
+
+      - name: 6 Scenario reports (condensed)
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($report in Get-ChildItem "$env:HOST\logs\ci-run" -Filter '*-report.txt' | Sort-Object Name) {
+            $keep = Get-Content $report.FullName | Where-Object {
+              $_ -match '^(scenario|appDir|rows|processes|  \w+\.exe pid|planted names|probe log|TARGET|  pid=|    LOADED|      |    planted|    verified|    verdict|    INFO|    INVALID|CONTROL-VALID|RESULT|functional)' }
+            & .github/kit-validation/Write-Notice.ps1 -Title $report.BaseName -Lines ($keep | Select-Object -First 80)
+          }
+
+      - name: 7 Negative check on real captures (wrong scenario must be INVALID)
+        if: always()
+        shell: pwsh
+        run: |
+          $csv = @(Get-ChildItem "$env:HOST\logs\ci-run" -Filter 'candidate-main-*.csv')[0].FullName
+          $out = @()
+          $fail = 0
+          foreach ($scenario in 'service-command', 'uninstall-worker', 'update-chain') {
+            $r = "$env:HOST\logs\ci-run\negative-$scenario.txt"
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\scripts\Analyze-Procmon.ps1" -Csv $csv -Scenario $scenario `
+              -AppDir (Get-ChildItem C:\AsterunWork\ci-run\scenarios -Directory -Filter 'candidate-main-*')[0].FullName -PlantedName version.dll -FunctionalResult PASS -Out $r | Out-Null
+            $code = $LASTEXITCODE
+            if ($code -ne 30) { $fail++ }
+            $out += "candidate-main capture analysed as $scenario -> exit $code (expected 30 INVALID): $((Get-Content $r | Select-Object -Last 1))"
+          }
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Negative checks on real captures' -Lines $out
+          exit $fail
+
+      - name: 8 Result
+        if: always()
+        shell: pwsh
+        run: |
+          if ('${{ steps.run.outputs.code }}' -ne '0') { Write-Host 'Run-Acceptance reported deviations'; exit 1 }
+
+      - name: Upload logs (reports and captures)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kit-validation-logs
+          path: |
+            C:\AsterunAcceptance\logs
+            !C:\AsterunAcceptance\logs\**\*.pml
+            !C:\AsterunAcceptance\logs\**\*.csv
+          retention-days: 14
