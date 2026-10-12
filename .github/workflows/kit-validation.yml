@@ -104,6 +104,7 @@ jobs:
           Write-Host "second run exit=$second unchanged=$unchanged"
           & .github/kit-validation/Write-Notice.ps1 -Title 'Initialize-Workspace repeat check' -Lines @("repeated run exit $second (expected 2); workspace and log folder unchanged=$unchanged")
           if ($second -ne 2 -or -not $unchanged) { exit 1 }
+          exit 0
 
       - name: 3 Analyzer self-test on synthetic captures
         if: always()
@@ -149,7 +150,7 @@ jobs:
             if ($report.Count -eq 1) {
               $keep = Get-Content $report[0].FullName | Where-Object {
                 $_ -match '^(scenario|appDir|rows|processes|  \w+\.exe pid|planted names|probe log|  probe:|TARGET|  pid=|    LOADED|      |    plant|    no plant|    verified|    pid verdict|  verdict|    INFO|    INVALID|CONTROL-VALID|RESULT|functional|\(|  \|)' }
-              & .github/kit-validation/Write-Notice.ps1 -Title $report[0].BaseName -Lines ($keep | Where-Object { $_ -notmatch '^      \(file-op\)' } | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } } | Select-Object -First 70)
+              & .github/kit-validation/Write-Notice.ps1 -Title $report[0].BaseName -Lines ($keep | Where-Object { $_ -notmatch '^      \(file-op\)' -or $_ -match 'NOT FOUND' } | ForEach-Object { if ($_.Length -gt 260) { $_.Substring(0, 260) + '...' } else { $_ } } | Select-Object -First 70)
             } else {
               & .github/kit-validation/Write-Notice.ps1 -Title "$name (no report; console output)" -Lines (Get-Content $console.FullName | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } } | Select-Object -Last 60)
             }
@@ -167,7 +168,7 @@ jobs:
             if ($report.Count -eq 1) {
               $keep = Get-Content $report[0].FullName | Where-Object {
                 $_ -match '^(scenario|appDir|rows|processes|  \w+\.exe pid|planted names|probe log|  probe:|TARGET|  pid=|    LOADED|      |    plant|    no plant|    verified|    pid verdict|  verdict|    INFO|    INVALID|CONTROL-VALID|RESULT|functional|\(|  \|)' }
-              & .github/kit-validation/Write-Notice.ps1 -Title $report[0].BaseName -Lines ($keep | Where-Object { $_ -notmatch '^      \(file-op\)' } | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } } | Select-Object -First 70)
+              & .github/kit-validation/Write-Notice.ps1 -Title $report[0].BaseName -Lines ($keep | Where-Object { $_ -notmatch '^      \(file-op\)' -or $_ -match 'NOT FOUND' } | ForEach-Object { if ($_.Length -gt 260) { $_.Substring(0, 260) + '...' } else { $_ } } | Select-Object -First 70)
             } else {
               & .github/kit-validation/Write-Notice.ps1 -Title "$name (no report; console output)" -Lines (Get-Content $console.FullName | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } } | Select-Object -Last 60)
             }
@@ -207,7 +208,22 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          if ('${{ steps.run.outputs.code }}' -ne '0') { Write-Host 'Run-Acceptance reported deviations'; exit 1 }
+          # The kit is validated when every step gives the result documented for
+          # the current candidate (expected-ci.txt), including the REVIEW/FAIL
+          # rows caused by finding F-1.
+          $expected = Get-Content .github/kit-validation/expected-ci.txt | Where-Object { $_ -and -not $_.StartsWith('#') }
+          $summary = Get-Content "$env:HOST\logs\ci-run\summary.txt"
+          $out = @(); $bad = 0
+          foreach ($line in $expected) {
+            $name, $want = $line -split ' ', 2
+            $row = @($summary | Where-Object { $_ -match ('^' + [regex]::Escape($name) + '\s') })
+            $got = if ($row.Count -eq 1) { ($row[0].Substring($name.Length).Trim() -split '\s{2,}')[0] } else { '<missing>' }
+            $ok = $got -eq $want
+            if (-not $ok) { $bad++ }
+            $out += ('{0} {1}: expected {2}, got {3}' -f $(if ($ok) { 'ok  ' } else { 'DIFF' }), $name, $want, $got)
+          }
+          & .github/kit-validation/Write-Notice.ps1 -Title "Kit result vs documented expectation ($bad differences)" -Lines $out
+          exit $bad
 
       - name: Upload logs (reports and captures)
         if: always()

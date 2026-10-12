@@ -42,6 +42,31 @@ CI 的局限：runner 装有 VC++ 运行库（Check-Environment 输出 NOT clean
 
 客户端在线发现更新的完整流程（读取更新清单、比较版本、下载、提示、拉起更新器）。它需要一个版本号更高的已发布版本，不在本次授权内。更新器本身的执行链已用本地包验证，两者不能互相代替。
 
+## 发现 F-1（套件验证中新发现，未修复，等待你的决定）
+
+**现象**：批次 A 的 Uninstall.exe 仍会从自身所在目录加载 `ncrypt.dll`。
+
+- 标准场景 candidate-uninstall-launcher 和 candidate-uninstall-worker 中，加载器以执行权限在 EXE 目录查找 `ncrypt.dll`、`NTASN1.dll`（NAME NOT FOUND），结果为 REVIEW。
+- 调查场景在同一目录另外植入探针 `ncrypt.dll` 后，目标进程的 Load Image 显示它从 EXE 目录被加载：启动器如此，从 `%TEMP%\Asterun-Elevated.*` 提权运行的卸载执行进程也如此（执行进程随后以 0xC000007B 退出，卸载未执行）。
+- 植入的 `rstrtmgr.dll` 本身则从 System32 加载（A2 对 EXE 的直接导入有效）。
+
+**根因**（证据：runner 上的加载顺序和 System32 中 PE 导入表）：
+
+1. 导入链为 Uninstall.exe → RstrtMgr.dll（静态导入，不在 KnownDLLs 中）→ ncrypt.dll（RstrtMgr 的静态导入）→ ntasn1.dll（ncrypt 的延迟导入）。ncrypt.dll 紧跟在 RstrtMgr.dll 之后被映射，发生在进程初始化阶段。
+2. `/DEPENDENTLOADFLAG:0x800` 只作用于 EXE 自身导入表中的 DLL。RstrtMgr.dll 自己的依赖仍按默认顺序解析，第一个位置就是 EXE 所在目录。
+3. 这一步发生在 wWinMain 之前，所以 A3 在 wWinMain 第一行调用的 SetDefaultDllDirectories 来不及生效。
+4. Update.exe 与 Asterun.exe 服务子命令在同样的采集中没有这类查找。主程序正常模式在运行时通过 crypt32.dll 的延迟导入加载了植入的 ncrypt.dll。主程序按设计不限制运行时搜索，便携目录本身对用户可写，这一点属于上一轮已说明的边界，只作记录。
+
+**影响**：卸载执行进程以管理员身份运行，所在目录 `%TEMP%\Asterun-Elevated.<随机>` 由未提权的启动器创建，继承用户可写的权限。以同一用户身份运行的程序如果在执行进程启动前往该目录写入 `ncrypt.dll`，这个 DLL 就会被载入提权进程，而 A2/A3 本来要关闭的正是这条路径。安装目录中的启动器本身没有新增风险，因为能写这个目录的人本来就能直接替换 Uninstall.exe。
+
+**最小修复建议（未实施，需要你批准）**：
+
+- 修复：Uninstall.exe 改为延迟加载 RstrtMgr.dll（`/DELAYLOAD:rstrtmgr.dll` 加上 delayimp.lib）。这样 RstrtMgr.dll 在 SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32) 之后才被加载，它的依赖也只在 System32 中查找。
+- 配套：A4 增加断言，要求 Uninstall.exe 中的 rstrtmgr.dll 必须是延迟导入。
+- 回归：把本套件的 ncrypt 植入场景改为正式预期 PASS。
+
+这是产品修改，不在本次授权内，所以没有做。本结论来自 Windows Server 2025（24H2，26100）runner；Windows 10/11 客户端上 RstrtMgr.dll 的导入可能不同，你在实机上运行 A-1 时会得到对应系统的结果。
+
 ## 套件内容
 
 | 文件 | 用途 |
@@ -54,14 +79,14 @@ CI 的局限：runner 装有 VC++ 运行库（Check-Environment 输出 NOT clean
 | `scripts/Invoke-Scenario.ps1` | 运行一个场景：复制、植入探针、采集、功能检查、导出、分析 |
 | `scripts/Run-Acceptance.ps1` | 按顺序运行探针自测和全部场景，生成 summary.txt |
 | `scripts/Analyze-Procmon.ps1` | 按场景识别目标进程并判定（规则见 PROCMON.md 第 4 节） |
-| `tests/Test-Analyzer.ps1`、`tests/analyzer-fixtures/` | 分析器规则自测（19 个用例） |
+| `tests/Test-Analyzer.ps1`、`tests/analyzer-fixtures/` | 分析器规则自测（21 个用例） |
 | `tests/UpdaterIntegrationTests.ps1` | 与仓库中 `tests/UpdaterIntegrationTests.ps1` 相同的副本（更新器执行链测试） |
 | `probe-dll/` | 探针源码、构建脚本、预构建 x64/ARM64 二进制、自检脚本 |
 
 ## 与上一版套件相比的变更
 
 1. **Procmon 覆盖检查**：不再只按进程名汇总。每个场景按 EXE 名称、映像路径（自身 Load Image）和命令行（Process Start）识别目标 PID；服务子命令、`Asterun-Elevated.*` 中的更新器和卸载执行进程分别作为独立目标，普通 Asterun 主进程不能替代它们。缺少目标、缺少 Process Start / Load Image 记录或缺少必要的 CSV 列时，结果为 INVALID。
-2. **DLL 判定标准**：区分 LOADED、OPEN-EXECUTE、SEARCH、FILE-OP，只有加载或为执行而打开才判失败，查找只判 REVIEW，主动文件操作只记录。PASS 必须同时具备“目标 PID 的 Load Image 显示植入名称来自 System32 + 同名有效对照（v1.0.5 从自身目录加载了植入文件）+ 功能检查通过”；探针日志只作辅助（只能把结果判为 INVALID，不能单独判通过）；没有有效对照的为 UNVERIFIED。
+2. **DLL 判定标准**：区分 LOADED、OPEN-EXECUTE、SEARCH（在 EXE 自身目录中查找未找到）、FILE-OP（包括在其他目录中的存在性检查，例如更新器检查安装目录），只有加载或为执行而打开才判失败，查找只判 REVIEW，主动文件操作只记录。PASS 必须同时具备“目标 PID 的 Load Image 显示植入名称来自 System32 + 同名有效对照（v1.0.5 从自身目录加载了植入文件）+ 功能检查通过”；探针日志只作辅助（只能把结果判为 INVALID，不能单独判通过）；没有有效对照的为 UNVERIFIED。
 3. **目录隔离**：packages、kit、tools 只读映射，logs 是唯一可写的映射目录；所有运行都在沙盒内部新建的 `C:\AsterunWork\run-<时间>` 中进行；`Initialize-Workspace.ps1` 替换了会递归删除已有目录的 `Prepare-Packages.ps1`，目录已存在就停止。旧的 `Summarize-Procmon.ps1` 由 `Analyze-Procmon.ps1` 替换。
 4. **更新器执行链**：撤回“必须修改 VERSION 并发布才能验证”的结论；新增 `tests/UpdaterIntegrationTests.ps1`（已进入 PR #64，CTest 在 Windows CI 中运行），并作为 candidate-update-chain 场景纳入取证。明确区分更新器执行链与在线发现更新。
 5. **先在 CI 验证**：新增不合并的验证分支和工作流，在 Windows runner 上实际运行了套件中的全部脚本。
