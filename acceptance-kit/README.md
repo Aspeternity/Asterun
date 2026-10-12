@@ -7,7 +7,7 @@
 | 项 | 值 |
 |---|---|
 | 被测构建（固定） | `05dfe71cde705ac9139bf2231c9b8ef5e7ac3a02`（含 F-1 修复）。实机验收使用这个提交的 CI 产物 |
-| 当前 PR #64 head | `babb7c6b6f83c1f859e20d4c51b38bf73f8232d4`，CI 运行 https://github.com/Aspeternity/Asterun/actions/runs/38269484587 （全绿；Windows x64 60/60、Win10 API baseline 60/60）。与 05dfe71 相比只改了测试：`tests/UninstallDllPlantTests.ps1` 与 CMakeLists.txt 中新增的一个 `add_test`（无窗口反例）；产品源码、编译/链接选项和打包步骤未变，所以被测构建保持 05dfe71 |
+| 当前 PR #64 head | `babb7c6b6f83c1f859e20d4c51b38bf73f8232d4`，CI 运行 https://github.com/Aspeternity/Asterun/actions/runs/38269484587 （全绿；Windows x64 60/60、Win10 API baseline 60/60）。提交顺序 05dfe71 → 8baa0f4（启动器回归断言交互状态）→ babb7c6（去掉“只有 UI 模块”兜底、加无窗口反例）。两次提交只改了测试：`tests/UninstallDllPlantTests.ps1` 与 CMakeLists.txt 中新增的一个 `add_test`；产品源码、编译/链接选项和打包步骤未变（`git diff --stat 05dfe71..babb7c6` 只列这两个文件），所以被测构建保持 05dfe71，05dfe71 不再称为“当前 head” |
 | 基线 | main `eefa61a7131e0d770d0e5455c97ba5466dfff450`；对照包用正式版 v1.0.5 |
 | 被测构建的 CI 运行 | https://github.com/Aspeternity/Asterun/actions/runs/38253897733 （05dfe71；全绿；当时 Windows x64 59/59、Win10 API baseline 59/59） |
 | 被测包（x64） | 上述运行页面底部 Artifacts 中的 `Asterun-x64`，artifact id **11749660352**。GitHub 记录的下载文件（外层 zip）摘要为 `sha256:b21cf7537760b2132066d85cf36e1606a374c4dc44dd6d5f097b946577b4966d`。外层 zip 里面是 `Asterun-x64.zip`，E-2 会自动解开并记录它的 SHA-256（在你的环境中计算，GitHub 不记录内层哈希） |
@@ -29,7 +29,7 @@
 | x64、ARM64 全部目标编译；PE 导入白名单、无 CRT DLL、DependentLoadFlags=0x800 | PR CI | 通过（x64、ARM64 两个 build-windows 作业，PE 契约 x64/ARM64 均通过） |
 | 自动化测试：Linux 33；Windows x64 两套（含 dll_search_hardening_tests、updater_portable/protected_integration_tests、uninstall_plant_* F-1 回归）；ARM64 只编译 | PR CI | 被测构建 05dfe71：Windows 两套各 59/59；当前 head babb7c6：各 60/60（新增无窗口反例）；Linux 33/33；ARM64 只编译，未运行 |
 | 更新器执行链（便携目录 + 受保护目录，见 CHECKLIST 第 4 阶段） | PR CI 的 CTest | 通过：两套 Windows 作业中 Portable 和 Protected 两个测试都通过 |
-| 本套件全部脚本：环境检查、新建工作区（重复运行必须停止且不改动任何文件）、分析器自测、探针自测（套件内 LLVM 版和 CI 中用 MSVC 现编的版本）、Process Monitor 场景（v1.0.5 对照、被测场景、F-1 的基线复现与强制 Restart Manager 回归、调查场景）、产品回归脚本的前后对比、用真实采集做的 INVALID 负向检查 | 套件验证运行 | 已实际运行，与文档记载预期 0 处差异：F-1 基线对照 CONTROL-VALID（复现），强制 RM 回归 PASS（修复有效），产品脚本在 v1.0.5 退出 1、修复版退出 0；主程序 ncrypt 运行时加载 FAIL（单独登记）。详见下文 F-1 |
+| 本套件全部脚本：环境检查、新建工作区（重复运行必须停止且不改动任何文件）、分析器自测、探针自测（套件内 LLVM 版和 CI 中用 MSVC 现编的版本）、Process Monitor 场景（v1.0.5 对照、被测场景、F-1 的基线复现与强制 Restart Manager 回归、调查场景）、产品回归脚本的前后对比、用真实采集做的 INVALID 负向检查；本轮新增：启动器“必须实际观察到窗口”规则及无窗口反例、`-Role observation -ReportDll` 在真实 runner 采集上的逐项 Load Image 路径输出、U-4d/U-4e 辅助脚本（确切目录取证、目录不存在、VERSION 独占锁及释放） | 套件验证运行 | 已实际运行，与文档记载预期 0 处差异：F-1 基线对照 CONTROL-VALID（复现），强制 RM 回归 PASS（修复有效），产品脚本在 v1.0.5 退出 1、修复版退出 0；主程序 ncrypt 运行时加载 FAIL（单独登记）。详见下文 F-1 |
 
 CI 的局限：runner 装有 VC++ 运行库（Check-Environment 输出 NOT clean），UAC 关闭，没有 Windows Sandbox，也没有 ARM64 运行环境。所以下面几项只能由你在实机上做。
 
