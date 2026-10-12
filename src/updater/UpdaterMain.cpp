@@ -776,17 +776,44 @@ WriteRecoveryErrors(
                << failure.error.message() << '\n';
     }
 
-    output.flush();
-    return static_cast<bool>(output);
+    output.close();
+    return !output.fail();
 }
 
-[[nodiscard]] bool
-DirectoryExists(
+// What is known about a path. Only Absent means "confirmed not there"; a
+// query that fails for any other reason is Unknown, never Absent.
+enum class PathState {
+    Absent,
+    PlainDirectory,
+    Other,
+    Unknown,
+};
+
+[[nodiscard]] PathState
+QueryPathState(
     const std::filesystem::path& path) {
-    std::error_code ec;
-    return !path.empty() &&
-        std::filesystem::is_directory(path, ec) &&
-        !ec;
+    if (path.empty()) {
+        return PathState::Unknown;
+    }
+
+    const DWORD attributes =
+        GetFileAttributesW(
+            path.c_str());
+
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        const DWORD error = GetLastError();
+        return error == ERROR_FILE_NOT_FOUND ||
+                error == ERROR_PATH_NOT_FOUND
+            ? PathState::Absent
+            : PathState::Unknown;
+    }
+
+    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0 &&
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) {
+        return PathState::PlainDirectory;
+    }
+
+    return PathState::Other;
 }
 
 // Everything the failure handling needs. protectedWorkRoot is non-empty only
@@ -851,9 +878,12 @@ FinishFailedUpdate(
                     recovery);
         }
     } else if (!context.protectedWorkRoot.empty() &&
-               !DirectoryExists(context.protectedWorkRoot / L"backup")) {
-        // Nothing was replaced and the protected work root this run created
-        // holds no backup: it is not recovery material.
+               QueryPathState(context.protectedWorkRoot / L"backup") ==
+                   PathState::Absent) {
+        // Replacement never started, this run created the protected work
+        // root, and its backup path is confirmed absent: it holds no
+        // recovery material. If the backup path exists, has an unexpected
+        // type or cannot be queried, the work root is kept.
         std::error_code ignored;
         std::filesystem::remove_all(
             context.protectedWorkRoot,
@@ -900,23 +930,28 @@ FinishFailedUpdate(
     }
 
     if (outcome != Outcome::NotReplaced &&
-        DirectoryExists(context.transaction.backup)) {
+        QueryPathState(context.transaction.backup) ==
+            PathState::PlainDirectory) {
         text += L"\n\n";
         text += chinese ? L"恢复文件保留在：" : L"Recovery files were kept at: ";
         text += context.transaction.backup.wstring();
-        if (recoveryErrorsWritten) {
-            text += chinese
-                ? L"\n失败详情见其中的 recovery-errors.txt。"
-                : L"\nSee recovery-errors.txt there for details.";
-        } else if (outcome == Outcome::RollbackIncomplete) {
-            text += chinese
-                ? L"\n未能写入失败详情文件。"
-                : L"\nThe failure details could not be written.";
-        }
         if (outcome == Outcome::RollbackIncomplete ||
             outcome == Outcome::NewVersionNotStopped) {
             text += chinese ? L"\n请不要删除该目录。" : L"\nDo not delete this folder.";
         }
+    }
+
+    if (outcome == Outcome::RollbackIncomplete) {
+        // Name recovery-errors.txt only when it was actually written.
+        text += L"\n";
+        text += recoveryErrorsWritten
+            ? (chinese
+                   ? L"失败详情已写入 " + (context.transaction.backup / L"recovery-errors.txt").wstring() + L"。"
+                   : L"Failure details were written to " +
+                       (context.transaction.backup / L"recovery-errors.txt").wstring() + L".")
+            : std::wstring(chinese
+                   ? L"未能写入失败详情文件。"
+                   : L"The failure details could not be written.");
     }
 
     text += L"\n\n";
