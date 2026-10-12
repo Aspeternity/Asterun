@@ -38,7 +38,23 @@ param(
     # the target was seen looking up in its own directory, e.g. ncrypt.dll).
     [string[]]$ExtraPlant = @(),
     # Label suffix so an investigation run does not look like the standard one.
-    [string]$Tag = ''
+    [string]$Tag = '',
+    # uninstall-worker only: hold an exclusive handle on <install>\VERSION for
+    # the whole run so the worker's file-removal retries are exhausted and it
+    # calls Restart Manager (RmStartSession/RmGetList) to report the lock owner.
+    # This is how the regression forces the Restart Manager code path to run;
+    # without it a clean uninstall never loads rstrtmgr.dll at all, so a planted
+    # DLL would prove nothing. The analyzer is then told rstrtmgr.dll MUST load
+    # from System32 (-RequireSystemLoad), so the scenario cannot pass just
+    # because that path did not execute. The removal of the one locked file is
+    # expected to fail; this scenario checks the DLL-load property, not that the
+    # uninstall completed (the un-locked uninstall-worker scenario covers that).
+    [switch]$ForceRestartManager,
+    # Plant only -ExtraPlant, not the scenario's default static-import name.
+    # Used for the ncrypt.dll regression: planting the default rstrtmgr.dll
+    # probe (no exports) would break the RstrtMgr import binding before
+    # ncrypt.dll is ever reached, so ncrypt must be planted on its own.
+    [switch]$NoDefaultPlant
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,8 +68,11 @@ if ($PSVersionTable.PSEdition -ne 'Core') {
 }
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'run this script elevated' }
-if ($Build -eq 'baseline' -and $Scenario -notin 'main', 'update-noargs', 'uninstall-launcher') {
-    throw "the baseline control exists for main, update-noargs and uninstall-launcher only"
+if ($Build -eq 'baseline' -and $Scenario -notin 'main', 'update-noargs', 'uninstall-launcher', 'uninstall-worker') {
+    throw "the baseline control exists for main, update-noargs, uninstall-launcher and uninstall-worker only"
+}
+if ($ForceRestartManager -and $Scenario -ne 'uninstall-worker') {
+    throw '-ForceRestartManager is only valid with -Scenario uninstall-worker'
 }
 
 $Work = (Resolve-Path -LiteralPath $Work).Path
@@ -137,9 +156,9 @@ $cleanupRoots = @($scenarioDir)
 $planted = @()
 $workerDir = $null
 switch ($Scenario) {
-    { $_ -in 'main', 'service-command' } { Copy-Package $app; Plant $app 'version.dll'; foreach ($n in $ExtraPlant) { Plant $app $n } }
-    'update-noargs'      { Copy-Package $app; Plant $app 'bcrypt.dll'; foreach ($n in $ExtraPlant) { Plant $app $n } }
-    'uninstall-launcher' { Copy-Package $app; Plant $app 'rstrtmgr.dll'; foreach ($n in $ExtraPlant) { Plant $app $n } }
+    { $_ -in 'main', 'service-command' } { Copy-Package $app; if (-not $NoDefaultPlant) { Plant $app 'version.dll' }; foreach ($n in $ExtraPlant) { Plant $app $n } }
+    'update-noargs'      { Copy-Package $app; if (-not $NoDefaultPlant) { Plant $app 'bcrypt.dll' }; foreach ($n in $ExtraPlant) { Plant $app $n } }
+    'uninstall-launcher' { Copy-Package $app; if (-not $NoDefaultPlant) { Plant $app 'rstrtmgr.dll' }; foreach ($n in $ExtraPlant) { Plant $app $n } }
     'uninstall-worker' {
         Copy-Package $app
         New-Item -ItemType Directory -Path (Join-Path $app 'data') -Force | Out-Null
@@ -148,7 +167,7 @@ switch ($Scenario) {
         if (Test-Path -LiteralPath $workerDir) { throw "refusing to reuse $workerDir" }
         New-Item -ItemType Directory -Path $workerDir | Out-Null
         Copy-Item -LiteralPath (Join-Path $package 'Uninstall.exe') -Destination $workerDir
-        Plant $workerDir 'rstrtmgr.dll'
+        if (-not $NoDefaultPlant) { Plant $workerDir 'rstrtmgr.dll' }
         foreach ($n in $ExtraPlant) { Plant $workerDir $n }
         $cleanupRoots += $workerDir
     }
@@ -168,6 +187,16 @@ Start-Sleep -Seconds 2
 
 $functional = 'FAIL'
 $functionalDetail = ''
+$requireSystemLoad = @()
+$lockHandle = $null
+if ($ForceRestartManager) {
+    # Hold VERSION open with no sharing: the worker will fail to delete it,
+    # exhaust its retries, and call Restart Manager to report the owner.
+    $lockPath = Join-Path $app 'VERSION'
+    $lockHandle = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+    Note "holding an exclusive handle on $lockPath to force the Restart Manager path"
+    $requireSystemLoad = @('rstrtmgr.dll')
+}
 try {
     switch ($Scenario) {
         'main' {
@@ -199,14 +228,27 @@ try {
         }
         'uninstall-worker' {
             $process = Start-Child (Join-Path $workerDir 'Uninstall.exe') "--perform --parent-pid $(Get-ExitedPid) --install `"$app`" --delete-data 0"
-            $deadline = (Get-Date).AddSeconds(120)
-            while ((Get-Date) -lt $deadline -and (Test-Path -LiteralPath (Join-Path $app 'Asterun.exe')) -and -not $process.HasExited) { Start-Sleep -Milliseconds 500 }
-            Start-Sleep -Seconds 3
-            $removed = -not (Test-Path -LiteralPath (Join-Path $app 'Asterun.exe')) -and -not (Test-Path -LiteralPath (Join-Path $app 'Update.exe'))
-            $kept = Test-Path -LiteralPath (Join-Path $app 'data\kit-marker.txt')
-            $state = if ($process.HasExited) { "exited with code $($process.ExitCode)" } else { 'still running (completion message)' }
-            $functionalDetail = "program files removed=$removed data kept=$kept worker $state"
-            if ($removed -and $kept -and (-not $process.HasExited -or $process.ExitCode -eq 0)) { $functional = 'PASS' }
+            if ($ForceRestartManager) {
+                # Let the worker run long enough to exhaust its delete retries on
+                # the locked VERSION and reach Restart Manager (~5 s of retries).
+                $deadline = (Get-Date).AddSeconds(120)
+                while ((Get-Date) -lt $deadline -and -not $process.HasExited) { Start-Sleep -Milliseconds 500 }
+                $state = if ($process.HasExited) { "exited with code $($process.ExitCode)" } else { 'still running' }
+                # The one locked file is expected to block that file's removal;
+                # this scenario's pass/fail is the DLL-load property plus the
+                # required System32 load of rstrtmgr.dll, not uninstall success.
+                $functional = 'PASS'
+                $functionalDetail = "Restart Manager forced via a locked VERSION; worker $state (removal of the locked file is expected to fail)"
+            } else {
+                $deadline = (Get-Date).AddSeconds(120)
+                while ((Get-Date) -lt $deadline -and (Test-Path -LiteralPath (Join-Path $app 'Asterun.exe')) -and -not $process.HasExited) { Start-Sleep -Milliseconds 500 }
+                Start-Sleep -Seconds 3
+                $removed = -not (Test-Path -LiteralPath (Join-Path $app 'Asterun.exe')) -and -not (Test-Path -LiteralPath (Join-Path $app 'Update.exe'))
+                $kept = Test-Path -LiteralPath (Join-Path $app 'data\kit-marker.txt')
+                $state = if ($process.HasExited) { "exited with code $($process.ExitCode)" } else { 'still running (completion message)' }
+                $functionalDetail = "program files removed=$removed data kept=$kept worker $state"
+                if ($removed -and $kept -and (-not $process.HasExited -or $process.ExitCode -eq 0)) { $functional = 'PASS' }
+            }
         }
         'update-chain' {
             $test = Join-Path $Work 'tests\UpdaterIntegrationTests.ps1'
@@ -223,6 +265,7 @@ try {
         }
     }
 } finally {
+    if ($lockHandle) { $lockHandle.Close(); Note 'released the VERSION lock' }
     Start-Sleep -Seconds 2
     Stop-Under $cleanupRoots
     Note 'procmon: terminate'
@@ -242,6 +285,7 @@ $arguments = @{
     PlantedPath = $planted; ControlReport = $controls; FunctionalResult = $functional
     FunctionalDetail = $functionalDetail; ProbeLog = $probeLog; ProbeLogSkip = $probeSkip; Out = $report
 }
+if ($requireSystemLoad.Count -gt 0) { $arguments.RequireSystemLoad = $requireSystemLoad }
 & (Join-Path $PSScriptRoot 'Analyze-Procmon.ps1') @arguments | Out-Null
 $code = $LASTEXITCODE
 [System.IO.File]::AppendAllText($report, "`r`n--- run transcript ---`r`n" + ($transcript -join "`r`n") + "`r`n")

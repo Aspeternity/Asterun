@@ -1,0 +1,6 @@
+﻿"Time of Day","Process Name","PID","Operation","Path","Result","Detail"
+"1","explorer.exe","1","ReadFile","C:\x","SUCCESS",""
+"1","Uninstall.exe","700","Process Start","","SUCCESS","Parent PID: 9, Command line: ""C:\Users\u\AppData\Local\Temp\Asterun-Elevated.kit-rm\Uninstall.exe"" --perform --parent-pid 5 --install """"C:\W\app"""" --delete-data 0, Current directory: C:\W\, Environment: x"
+"1","Uninstall.exe","700","Load Image","C:\Users\u\AppData\Local\Temp\Asterun-Elevated.kit-rm\Uninstall.exe","SUCCESS","Image Base: 0x1"
+"1","Uninstall.exe","700","Load Image","C:\Windows\System32\rstrtmgr.dll","SUCCESS","Image Base: 0x2"
+"1","Uninstall.exe","700","Load Image","C:\Users\u\AppData\Local\Temp\Asterun-Elevated.kit-rm\ncrypt.dll","SUCCESS","Image Base: 0x2"
