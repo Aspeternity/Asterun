@@ -1,0 +1,10 @@
+LIBRARY KERNEL32.dll
+EXPORTS
+GetEnvironmentVariableW
+CreateDirectoryW
+CreateFileW
+SetFilePointer
+WriteFile
+CloseHandle
+GetModuleFileNameW
+GetCurrentProcessId

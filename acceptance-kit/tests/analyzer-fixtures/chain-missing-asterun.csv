@@ -1,0 +1,5 @@
+﻿"Time of Day","Process Name","PID","Operation","Path","Result","Detail"
+"1","explorer.exe","1","ReadFile","C:\x","SUCCESS",""
+"1","Update.exe","500","Process Start","","SUCCESS","Parent PID: 9, Command line: ""C:\Users\u\AppData\Local\Temp\asterun-updater-it-1\Asterun-Elevated.updater-it-portable\Update.exe"" --apply --parent-pid 1, Current directory: C:\W\, Environment: x"
+"1","Update.exe","500","Load Image","C:\Users\u\AppData\Local\Temp\asterun-updater-it-1\Asterun-Elevated.updater-it-portable\Update.exe","SUCCESS","Image Base: 0x1"
+"1","Update.exe","500","Load Image","C:\Windows\System32\bcrypt.dll","SUCCESS","Image Base: 0x2"

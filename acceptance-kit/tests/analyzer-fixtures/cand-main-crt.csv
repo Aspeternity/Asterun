@@ -1,0 +1,6 @@
+﻿"Time of Day","Process Name","PID","Operation","Path","Result","Detail"
+"1","explorer.exe","1","ReadFile","C:\x","SUCCESS",""
+"1","Asterun.exe","200","Process Start","","SUCCESS","Parent PID: 9, Command line: ""C:\W\app\Asterun.exe"" , Current directory: C:\W\, Environment: x"
+"1","Asterun.exe","200","Load Image","C:\W\app\Asterun.exe","SUCCESS","Image Base: 0x1"
+"1","Asterun.exe","200","Load Image","C:\Windows\System32\version.dll","SUCCESS","Image Base: 0x2"
+"1","Asterun.exe","200","Load Image","C:\W\app\vcruntime140.dll","SUCCESS","Image Base: 0x2"
