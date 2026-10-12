@@ -48,7 +48,7 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 
 | 编号 | 操作 | 预期 |
 |---|---|---|
-| A-1 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Run-Acceptance.ps1 -Work $run -Logs C:\Acceptance\logs` | 每一行的预期见下表。当前候选版本在 CI 中有两行为 REVIEW（发现 F-1，见 README），末行因此为 `RESULT: 2 deviation(s)`；请如实记录你环境中的结果 |
+| A-1 | `powershell -ExecutionPolicy Bypass -File C:\Acceptance\kit\scripts\Run-Acceptance.ps1 -Work $run -Logs C:\Acceptance\logs` | 末行 `RESULT: all steps as expected`（F-1 已修复）。每一行的预期见下表；请如实记录你环境中的结果 |
 
 | 步骤 | 内容 | 预期 |
 |---|---|---|
@@ -56,15 +56,18 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 | control-main | v1.0.5 Asterun.exe，目录中植入 version.dll | CONTROL-VALID |
 | control-update-noargs | v1.0.5 Update.exe，目录中植入 bcrypt.dll | CONTROL-VALID |
 | control-uninstall-launcher | v1.0.5 Uninstall.exe，目录中植入 rstrtmgr.dll | CONTROL-VALID |
+| control-uninstall-launcher-ncrypt | v1.0.5 Uninstall.exe 启动器，植入 ncrypt.dll（F-1 复现） | CONTROL-VALID |
+| control-uninstall-worker-ncrypt | v1.0.5 卸载执行进程，植入 ncrypt.dll（F-1 复现） | CONTROL-VALID |
 | candidate-main | 批次 A Asterun.exe 主程序 | PASS |
 | candidate-update-noargs | 批次 A Update.exe 无参数 | PASS |
 | candidate-update-chain | 批次 A Update.exe 完整执行链（见第 4 阶段） | PASS |
 | candidate-service-command | 批次 A `Asterun.exe --set-managed-everything-service disabled` | PASS |
-| candidate-uninstall-launcher | 批次 A Uninstall.exe 启动器 | 验收标准为 PASS；当前候选版本为 REVIEW（加载器在 EXE 目录查找 ncrypt.dll、NTASN1.dll，见 F-1） |
-| candidate-uninstall-worker | 批次 A Uninstall.exe `--perform`，从 `%TEMP%\Asterun-Elevated.*` 运行 | 同上 |
-| investigate-uninstall-launcher-ncrypt | 调查项（不计入结果）：在 Uninstall.exe 目录另植入 ncrypt.dll、ntasn1.dll | 记录。当前候选版本为 FAIL：植入的 ncrypt.dll 被加载（F-1） |
-| investigate-uninstall-worker-ncrypt | 调查项：同上，提权执行进程 | 记录。当前为 FAIL，执行进程因加载探针而异常退出（F-1） |
-| investigate-main-ncrypt | 调查项：在 Asterun.exe 目录另植入 ncrypt.dll、ntasn1.dll | 记录。当前为 FAIL：主程序正常模式在运行时加载了植入的 ncrypt.dll（主程序按设计不限制运行时搜索，见 F-1 第 4 点） |
+| candidate-uninstall-launcher | 批次 A Uninstall.exe 启动器（rstrtmgr 延迟加载后不再加载它） | UNVERIFIED（干净启动器不触发 RM，没有可核对的 System32 加载；见 README） |
+| candidate-uninstall-worker | 批次 A Uninstall.exe `--perform`，从 `%TEMP%\Asterun-Elevated.*` 运行（无锁，正常完成） | UNVERIFIED（同上） |
+| candidate-uninstall-rm-worker-ncrypt | **决定性 F-1 回归**：锁住 VERSION 迫使执行进程调用 Restart Manager，植入 ncrypt.dll | PASS：rstrtmgr.dll 从 System32 加载（路径确实执行）、植入的 ncrypt.dll 未从执行目录加载 |
+| candidate-uninstall-launcher-ncrypt / candidate-uninstall-worker-ncrypt | 修复后启动器/干净执行进程植入 ncrypt.dll | UNVERIFIED（这些路径不加载它；若被加载则 FAIL） |
+| investigate-uninstall-worker-ntasn1 | 调查项：强制 RM 下植入 ntasn1.dll | 记录（可能根本不加载） |
+| investigate-main-ncrypt | 调查项：Asterun.exe 主程序植入 ncrypt.dll | 记录：FAIL——主程序正常模式在运行时加载了植入的 ncrypt.dll（单独登记，未修复；见 README） |
 
 判定规则见 PROCMON.md 第 4 节。简要地说：被测项只有在“植入的同名 DLL 被目标进程从 System32 加载（看 Load Image 路径）+ 同名对照为 CONTROL-VALID + 功能检查通过”时才是 PASS；没有有效对照则为 UNVERIFIED，不会因为没有探针日志就判通过。
 
@@ -87,6 +90,18 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 | U-3（UAC） | 在开启 UAC 的虚拟机中，用**未提权**的 PowerShell 运行同一命令 | 输出 `SKIPPED: the protected-install case needs an elevated test process`，退出码 77。再用提权的 PowerShell 运行一次，预期同 U-2 |
 
 这里验证的是“更新器执行链”：从本地压缩包校验到新程序启动并发出健康信号。**不包括“客户端在线发现更新的完整流程”**（读取更新清单、比较版本、下载资产、提示用户、准备临时副本并拉起更新器）。后者需要一个比已安装版本更高的已发布版本，本批次不验证，结果表中记为“未验证”。
+
+## 第 4b 阶段：F-1 真实提权链核对（CI 无法覆盖，必须实机，开启 UAC 的虚拟机）
+
+A-1 的强制 RM 回归与产品 CTest 都是在**已提权**的环境里、从**测试自建**的 `Asterun-Elevated.*` 目录直接运行 Uninstall.exe，只证明了二进制的 DLL 加载属性。真实的提权链——启动器以普通管理员（拆分令牌）身份触发 UAC、由启动器的 `CreateSecuredTemporaryExecutableCopy` 创建临时副本目录、以提权身份运行执行进程——CI 没有覆盖。本阶段在开启 UAC 的虚拟机里核对它。
+
+| 编号 | 操作 | 预期 |
+|---|---|---|
+| U-4a | 用普通管理员账户（拆分令牌、UAC 开启）正常安装 Asterun 到 `C:\Program Files` 下，启动一次。 | 安装成功 |
+| U-4b | 在 Asterun 中执行卸载（保留数据），当 UAC 弹出时同意。在 UAC 同意后、执行进程仍在运行时，到 `%TEMP%` 找到本次的 `Asterun-Elevated.<随机>` 目录，记录：①它的创建者/所有者（`icacls` 输出）；②普通用户对它是否可写。 | 卸载正常完成；记录该目录的 ACL。这是 F-1 影响面的关键事实：若普通用户可写，则植入窗口真实存在，延迟加载修复正是针对它 |
+| U-4c | 重做一次 U-4b，但在点击卸载**之前**，用另一个普通用户进程往该 `%TEMP%` 路径（如能预测或抢占）或安装目录放一个取自 `System32\ncrypt.dll` 的副本并改名为 `ncrypt.dll`；卸载完成后用 Process Monitor 或 `tasklist /m` 确认执行进程加载的 `ncrypt.dll` 来自 `System32` 而非植入位置。 | 执行进程从 `System32` 加载 `ncrypt.dll`，植入副本未被加载；卸载正常完成。若观察到从植入位置加载，则修复在真实提权链下无效，立即记录并上报 |
+
+说明：`Asterun-Elevated.*` 目录名含随机令牌，通常无法预先精确植入；U-4c 以“尽力而为”的抢占为主，核心产出是 U-4b 记录的该目录真实 ACL 与所有者。若无法在该目录植入，则在安装目录内植入并走启动器路径（启动器修复后也不再于初始化阶段加载）。
 
 ## 第 5 阶段：需要人工判断的兼容性（UAC 项在虚拟机中再做一次）
 
@@ -130,6 +145,9 @@ Windows 10 与 Windows 11 各执行一遍；只有一种系统时，在结果表
 | U-1 | | | candidate-update-chain 报告 | |
 | U-2 | | | U-2-protected.txt | |
 | U-3 | | | 输出 | |
+| U-4a | | | 截图 | 真实提权链 |
+| U-4b | | | icacls 输出 + 截图 | Asterun-Elevated.* 目录的所有者与可写性 |
+| U-4c | | | Procmon/CSV 或 tasklist /m | 真实提权下 ncrypt.dll 来源 |
 | 在线发现更新 | | 未验证（本批次不验证） | | |
 | M-5 | | | | |
 | M-6 | | | | |

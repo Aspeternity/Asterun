@@ -24,7 +24,7 @@
 | x64、ARM64 全部目标编译；PE 导入白名单、无 CRT DLL、DependentLoadFlags=0x800 | PR CI | 通过（x64、ARM64 两个 build-windows 作业，PE 契约 x64/ARM64 均通过） |
 | 自动化测试：Linux 33；Windows x64 两套各 56（含 dll_search_hardening_tests、updater_portable/protected_integration_tests）；ARM64 只编译 | PR CI | 通过：Linux 33/33；Windows x64（MSVC）56/56；Windows 10 API baseline 56/56；ARM64 56 个只编译，未运行 |
 | 更新器执行链（便携目录 + 受保护目录，见 CHECKLIST 第 4 阶段） | PR CI 的 CTest | 通过：两套 Windows 作业中 Portable 和 Protected 两个测试都通过 |
-| 本套件全部脚本：环境检查、新建工作区（重复运行必须停止且不改动任何文件）、分析器自测、探针自测（套件内 LLVM 版和 CI 中用 MSVC 现编的版本）、12 个 Process Monitor 场景（3 个 v1.0.5 对照、6 个被测场景、3 个调查场景）、用真实采集数据做的 INVALID 负向检查 | 套件验证运行 | 已实际运行，结果与文档记载的预期一致（0 处差异）：环境检查、工作区、分析器自测（21/21）、探针自测、负向检查均通过；3 个对照 CONTROL-VALID；6 个被测场景中 4 个 PASS、2 个卸载场景 REVIEW；3 个调查场景 FAIL。REVIEW 与 FAIL 的原因见下文发现 F-1 |
+| 本套件全部脚本：环境检查、新建工作区（重复运行必须停止且不改动任何文件）、分析器自测、探针自测（套件内 LLVM 版和 CI 中用 MSVC 现编的版本）、Process Monitor 场景（v1.0.5 对照、被测场景、F-1 的基线复现与强制 Restart Manager 回归、调查场景）、产品回归脚本的前后对比、用真实采集做的 INVALID 负向检查 | 套件验证运行 | 已实际运行，与文档记载预期 0 处差异：F-1 基线对照 CONTROL-VALID（复现），强制 RM 回归 PASS（修复有效），产品脚本在 v1.0.5 退出 1、修复版退出 0；主程序 ncrypt 运行时加载 FAIL（单独登记）。详见下文 F-1 |
 
 CI 的局限：runner 装有 VC++ 运行库（Check-Environment 输出 NOT clean），UAC 关闭，没有 Windows Sandbox，也没有 ARM64 运行环境。所以下面几项只能由你在实机上做。
 
@@ -42,30 +42,27 @@ CI 的局限：runner 装有 VC++ 运行库（Check-Environment 输出 NOT clean
 
 客户端在线发现更新的完整流程（读取更新清单、比较版本、下载、提示、拉起更新器）。它需要一个版本号更高的已发布版本，不在本次授权内。更新器本身的执行链已用本地包验证，两者不能互相代替。
 
-## 发现 F-1（套件验证中新发现，未修复，等待你的决定）
+## F-1（已修复并验证）
 
-**现象**：批次 A 的 Uninstall.exe 仍会从自身所在目录加载 `ncrypt.dll`。
+**原问题**：批次 A 的 Uninstall.exe 曾静态导入 RstrtMgr.dll（非 KnownDLL），RstrtMgr.dll 又静态导入 ncrypt.dll。这条链在进程初始化阶段解析，早于 wWinMain 的 SetDefaultDllDirectories，所以植入在 EXE 目录的 ncrypt.dll 会被加载进（提权的、用户可写的临时副本）执行进程。
 
-- 标准场景 candidate-uninstall-launcher 和 candidate-uninstall-worker 中，目标进程在 EXE 目录查找 `ncrypt.dll`、`NTASN1.dll`（CreateFile，Read Attributes，NAME NOT FOUND），结果为 REVIEW。
-- 调查场景在同一目录另外植入探针 `ncrypt.dll` 后，目标进程的 Load Image 显示它从 EXE 目录被加载：启动器如此，从 `%TEMP%\Asterun-Elevated.*` 提权运行的卸载执行进程也如此（执行进程随后以 0xC000007B 退出，卸载未执行）。
-- 植入的 `rstrtmgr.dll` 本身则从 System32 加载（A2 对 EXE 的直接导入有效）。
+**修复**（提交 57dea2a，已在 PR #64 中）：
 
-**根因**（证据：runner 上的加载顺序和 System32 中 PE 导入表）：
+1. Uninstall.exe 改为延迟加载 rstrtmgr.dll（`/DELAYLOAD:rstrtmgr.dll` + delayimp）。进程初始化不再解析它及其依赖链。
+2. 唯一的 Restart Manager 调用点 `RestartManagerLockOwners`（删除失败时报告锁定者的诊断路径）在首次调用前用 `LoadLibraryExW(L"rstrtmgr.dll", LOAD_LIBRARY_SEARCH_SYSTEM32)` 显式从 System32 加载；加载不到就跳过诊断、**绝不回退到应用目录搜索**。
+3. verify_pe_contract.py 断言 Uninstall.exe 不再静态导入 rstrtmgr.dll、且 rstrtmgr.dll 作为延迟导入存在；延迟导入也要过系统 DLL 白名单。
 
-1. 导入链为 Uninstall.exe → RstrtMgr.dll（静态导入，不在 KnownDLLs 中）→ ncrypt.dll（RstrtMgr 的静态导入）→ ntasn1.dll（ncrypt 的延迟导入）。ncrypt.dll 紧跟在 RstrtMgr.dll 之后被映射，发生在进程初始化阶段。
-2. `/DEPENDENTLOADFLAG:0x800` 只作用于 EXE 自身导入表中的 DLL。RstrtMgr.dll 自己的依赖仍按默认顺序解析，第一个位置就是 EXE 所在目录。
-3. 这一步发生在 wWinMain 之前，所以 A3 在 wWinMain 第一行调用的 SetDefaultDllDirectories 来不及生效。
-4. Update.exe 与 Asterun.exe 服务子命令在同样的采集中没有这类查找。主程序正常模式在运行时加载了植入的 ncrypt.dll：它在加载顺序中排在 schannel.dll 之后，而 schannel.dll 和 crypt32.dll 都延迟导入 ncrypt.dll，说明是运行时加载，不是静态依赖。主程序按设计不限制运行时搜索，便携目录本身对用户可写，这一点属于上一轮已说明的边界，只作记录。
+**验证**（真实 Windows runner，验证运行 38253897057）：
 
-**影响**：卸载执行进程以管理员身份运行，所在目录 `%TEMP%\Asterun-Elevated.<随机>` 由未提权的启动器创建，继承用户可写的权限。以同一用户身份运行的程序如果在执行进程启动前往该目录写入 `ncrypt.dll`，这个 DLL 就会被载入提权进程，而 A2/A3 本来要关闭的正是这条路径。安装目录中的启动器本身没有新增风险，因为能写这个目录的人本来就能直接替换 Uninstall.exe。
+- 基线对照 control-uninstall-launcher-ncrypt / control-uninstall-worker-ncrypt：v1.0.5 从 EXE 目录加载了植入的 ncrypt.dll（CONTROL-VALID，复现）。
+- 决定性回归 candidate-uninstall-rm-worker-ncrypt：锁住 VERSION 迫使执行进程真正调用 Restart Manager，rstrtmgr.dll 从 System32 加载（证明路径执行），植入的 ncrypt.dll **没有**从执行目录加载（从 System32 解析）→ PASS。
+- 修复后的标准 launcher/worker 场景不再加载 rstrtmgr.dll，因此判为 UNVERIFIED（诚实：那条会加载它的路径在这里没有执行，决定性证明在强制 RM 场景）。
+- 产品级正式回归 `tests/UninstallDllPlantTests.ps1`（随 PR 每次构建运行）在验证分支 step 7b 对两种构建各跑一遍：v1.0.5 退出码 1（失败=复现），修复版退出码 0（通过）。
 
-**最小修复建议（未实施，需要你批准）**：
+**证据层级（不夸大）**：以上都是直接运行 Uninstall.exe 二进制、在一个已提权的 runner 上、从测试自建的 `Asterun-Elevated.*` 目录运行；它验证的是二进制的 DLL 加载属性，**不**等于真实 UAC 拆分令牌提权链、真实临时目录的创建方式与 ACL 已验证——后者由实机清单的 U-4（见 CHECKLIST）核对。
 
-- 修复：Uninstall.exe 改为延迟加载 RstrtMgr.dll（`/DELAYLOAD:rstrtmgr.dll` 加上 delayimp.lib）。这样 RstrtMgr.dll 在 SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32) 之后才被加载，它的依赖也只在 System32 中查找。
-- 配套：A4 增加断言，要求 Uninstall.exe 中的 rstrtmgr.dll 必须是延迟导入。
-- 回归：把本套件的 ncrypt 植入场景改为正式预期 PASS。
+**仍未修复、单独登记**：主程序正常模式（Asterun.exe 启动器）在运行时经 crypt32/schannel 的延迟导入链从应用目录加载植入的 ncrypt.dll（investigate-main-ncrypt = FAIL，记录项）。主程序按设计不限制运行时 DLL 搜索（它在进程内加载第三方 Shell 扩展），便携目录本身对用户可写；本轮未授权修改主程序加载策略。
 
-这是产品修改，不在本次授权内，所以没有做。本结论来自 Windows Server 2025（24H2，26100）runner；Windows 10/11 客户端上 RstrtMgr.dll 的导入可能不同，你在实机上运行 A-1 时会得到对应系统的结果。
 
 ## 套件内容
 
