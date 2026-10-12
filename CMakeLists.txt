@@ -1767,6 +1767,19 @@ if(BUILD_TESTING)
         set_tests_properties(uninstall_launcher_flow PROPERTIES
             TIMEOUT 400 RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
 
+        # Test-only stand-in for Asterun.exe, used by the updater failure
+        # tests as the installed "previous version". Built only when
+        # BUILD_TESTING is on (the release packaging builds with it off) and
+        # never copied into a package.
+        add_executable(updater_test_fake_main WIN32 tests/UpdaterFakeMain.cpp)
+        target_compile_definitions(updater_test_fake_main PRIVATE
+            UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
+            _WIN32_WINNT=0x0A00 WINVER=0x0A00)
+        target_link_libraries(updater_test_fake_main PRIVATE advapi32)
+        if(MSVC)
+            target_compile_options(updater_test_fake_main PRIVATE /W4 /permissive- /utf-8 /EHsc)
+        endif()
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
