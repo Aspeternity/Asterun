@@ -51,7 +51,7 @@ if ($PSVersionTable.PSEdition -ne 'Core') {
         (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\Modules')
     ) -join ';'
 }
-Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 if ($PlantDll) {
     if ($Mode -ne 'Portable') { throw '-PlantDll is only supported with -Mode Portable' }
     $PlantDll = (Resolve-Path -LiteralPath $PlantDll).Path
