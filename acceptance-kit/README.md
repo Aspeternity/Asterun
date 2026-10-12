@@ -16,8 +16,8 @@
 
 ### 验证分支与运行（三者分别列明）
 
-- **最后一次实际运行的提交（脚本以此为准）**：`349ccaf3644b6f558ed2a84d5d1e2c3843b1f36d`，CI 运行 https://github.com/Aspeternity/Asterun/actions/runs/38253897057 （全绿）。该运行独立构建的候选包 `Asterun-x64.zip` SHA-256 为 `b46dcf30ce24176f497d9a5d06977e80acb910e0bff52214f0c61bff09ed61e5`（与 PR CI 的包不是同一次构建，哈希不要求相同）。
-- **验证分支当前 head**：在 `349ccaf` 之后只追加了**仅改文档**的提交（以 `[skip ci]` 提交，不触发 CI），脚本与 `349ccaf` 完全相同。所以“分支 head”与“最后实际运行的 SHA”可能不同；凡涉及实际运行结果，以 `349ccaf`/运行 38253897057 为准。证据包中保存的注释来自该运行。
+- **最后一次实际运行的提交（即本套件对应的运行）**：`177644d550e28b8ed935e4d5d84fcd96640079b8`，CI 运行 https://github.com/Aspeternity/Asterun/actions/runs/38266194127 （全绿）。该运行独立构建的候选包 `Asterun-x64.zip` SHA-256 为 `a6883e7bc1fe5b15cafaaebdf061a11c78f6099e39043063c132366862508820`（与 PR CI 的包不是同一次构建，哈希不要求相同）。本套件压缩包即打包自该提交的 `acceptance-kit/`。
+- **分支 head vs 实际运行 SHA（如实说明）**：本套件压缩包打包自分支 head，它是在 `177644d` 之上**仅追加文档指针**的提交（以 `[skip ci]` 提交，不触发 CI）；其脚本、expected-ci.txt、测试与 `177644d` 逐字节相同。因此“实际运行”一律以 `177644d`/运行 38266194127 为准（证据包中的注释即来自该运行），而分支 head 只比它多一条文档提交。打包所用的 head SHA 记录在随附证据包中。
 - 分支 `acceptance/batch-a-kit-validation` 只用于验证本套件，**不合并**。
 
 ## 分工
