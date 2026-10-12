@@ -432,6 +432,7 @@ if(WIN32)
             comctl32
             winmm
             user32
+            delayimp
     )
 
     if(MSVC)
@@ -449,6 +450,11 @@ if(WIN32)
                 /SUBSYSTEM:WINDOWS
                 # Resolve static imports from System32 only (Windows 10 1607+).
                 /DEPENDENTLOADFLAG:0x800
+                # Delay-load Restart Manager so it (and its own dependency
+                # chain, RstrtMgr.dll -> ncrypt.dll) is not resolved during
+                # process initialization, before SetDefaultDllDirectories can
+                # run. It loads at the first Rm* call, from System32 (F-1).
+                /DELAYLOAD:rstrtmgr.dll
         )
     endif()
 

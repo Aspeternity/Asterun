@@ -1896,9 +1896,29 @@ ServeShellReleaseBroker(
     return false;
 }
 
+// rstrtmgr.dll is delay-loaded (see CMakeLists /DELAYLOAD) so its own static
+// dependency chain (RstrtMgr.dll -> ncrypt.dll -> ntasn1.dll) is resolved only
+// at the first Restart Manager call, which happens here, long after
+// RestrictDefaultDllSearchToSystem32() ran at the top of wWinMain. Before the
+// delay-load thunk binds, force the module to load from System32 explicitly.
+// If it cannot be loaded from System32, this diagnostic lookup is skipped
+// (returns no owners); it never falls back to an application-directory search.
+[[nodiscard]] bool EnsureRestartManagerLoadedFromSystem32() {
+    static const HMODULE module =
+        LoadLibraryExW(
+            L"rstrtmgr.dll",
+            nullptr,
+            LOAD_LIBRARY_SEARCH_SYSTEM32);
+    return module != nullptr;
+}
+
 [[nodiscard]] std::wstring
 RestartManagerLockOwners(
     const std::filesystem::path& path) {
+    if (!EnsureRestartManagerLoadedFromSystem32()) {
+        return {};
+    }
+
     DWORD session = 0;
     WCHAR key[
         CCH_RM_SESSION_KEY + 1]{};

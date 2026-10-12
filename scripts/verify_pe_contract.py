@@ -58,6 +58,17 @@ ALLOWED_IMPORTS = {
     },
 }
 
+# DLLs that must appear only as a delay import, never a static import, with the
+# reason. rstrtmgr.dll statically pulls ncrypt.dll -> ntasn1.dll during process
+# initialization, before SetDefaultDllDirectories runs, so a copy planted in the
+# executable's own directory is loaded (finding F-1). Delay-loading it moves
+# that resolution to the first Rm* call, after the search path is restricted.
+# Being on the allow-list above does not satisfy this: the move to a delay
+# import must not let the DLL slip past the static-import contract.
+REQUIRED_DELAY_ONLY = {
+    "Uninstall.exe": {"rstrtmgr.dll"},
+}
+
 
 class PeError(Exception):
     pass
@@ -209,6 +220,17 @@ def check(path: Path, arch: str) -> tuple[list[str], dict]:
                 errors.append(f"{path.name}: {kind} {name} is a C/C++ runtime DLL (runtime must be static)")
             elif name.lower() not in allowed:
                 errors.append(f"{path.name}: {kind} {name} is not on the system DLL allow-list")
+    delay_only = REQUIRED_DELAY_ONLY.get(path.name, set())
+    static_lower = {name.lower() for name in imports}
+    delay_lower = {name.lower() for name in delay}
+    for name in sorted(delay_only):
+        if name in static_lower:
+            errors.append(
+                f"{path.name}: {name} is a static import; it must be delay-loaded "
+                f"so its dependency chain resolves after the DLL search path is restricted")
+        if name not in delay_lower:
+            errors.append(
+                f"{path.name}: {name} must be present as a delay import (delay-loaded), but was not found")
     if flags != LOAD_LIBRARY_SEARCH_SYSTEM32:
         errors.append(f"{path.name}: DependentLoadFlags 0x{flags:x}, expected 0x{LOAD_LIBRARY_SEARCH_SYSTEM32:x}")
     return errors, info
