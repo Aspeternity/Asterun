@@ -1,4 +1,4 @@
-# Asterun 批次 A 验收套件（对应 PR #64 head 05dfe71，含 F-1 修复）
+# Asterun 批次 A 验收套件（被测构建 05dfe71，含 F-1 修复）
 
 本套件只用于验收，不属于 Asterun 产品，不进入安装包，也不会合并进 main。它验证 PR #64（批次 A：静态运行库与 DLL 加载加固）中需要在真实 Windows 上运行的部分。
 
@@ -6,19 +6,19 @@
 
 | 项 | 值 |
 |---|---|
-| 被测提交 | `05dfe71cde705ac9139bf2231c9b8ef5e7ac3a02`（PR #64 当前 head，含 F-1 修复） |
+| 被测构建（固定） | `05dfe71cde705ac9139bf2231c9b8ef5e7ac3a02`（含 F-1 修复）。实机验收使用这个提交的 CI 产物 |
+| 当前 PR #64 head | `babb7c6b6f83c1f859e20d4c51b38bf73f8232d4`，CI 运行 https://github.com/Aspeternity/Asterun/actions/runs/38269484587 （全绿；Windows x64 60/60、Win10 API baseline 60/60）。与 05dfe71 相比只改了测试：`tests/UninstallDllPlantTests.ps1` 与 CMakeLists.txt 中新增的一个 `add_test`（无窗口反例）；产品源码、编译/链接选项和打包步骤未变，所以被测构建保持 05dfe71 |
 | 基线 | main `eefa61a7131e0d770d0e5455c97ba5466dfff450`；对照包用正式版 v1.0.5 |
-| PR CI 运行 | https://github.com/Aspeternity/Asterun/actions/runs/38253897733 （全绿；Windows x64 59/59、Win10 API baseline 59/59） |
+| 被测构建的 CI 运行 | https://github.com/Aspeternity/Asterun/actions/runs/38253897733 （05dfe71；全绿；当时 Windows x64 59/59、Win10 API baseline 59/59） |
 | 被测包（x64） | 上述运行页面底部 Artifacts 中的 `Asterun-x64`，artifact id **11749660352**。GitHub 记录的下载文件（外层 zip）摘要为 `sha256:b21cf7537760b2132066d85cf36e1606a374c4dc44dd6d5f097b946577b4966d`。外层 zip 里面是 `Asterun-x64.zip`，E-2 会自动解开并记录它的 SHA-256（在你的环境中计算，GitHub 不记录内层哈希） |
 | 被测包（ARM64） | 同一运行的 `Asterun-ARM64`，artifact id **11749975124**，外层摘要 `sha256:7946a4e23367d3fd577ccc9fc3332f6a77d79f78b60b08fe9ea8c00b84e66720` |
 | 对照包 | https://github.com/Aspeternity/Asterun/releases/download/v1.0.5/Asterun-x64.zip ，SHA-256 `2bf93316a54d84fa7721016d3b0bf48b6a6ddec92f58acde9c94d7401321bd23` |
 | 探针 DLL | `probe-dll/out/x64/asterun_dll_probe.dll`，SHA-256 `e01b82a8da56ea4721ccaeb84d3bc64a4ee98cd18d2c3cba129c09e63cf74e82`；ARM64 见 `probe-dll/SHA256SUMS.txt` |
 
-### 验证分支与运行（三者分别列明）
+### 验证分支与运行
 
-- **最后一次实际运行的提交（即本套件对应的运行）**：`177644d550e28b8ed935e4d5d84fcd96640079b8`，CI 运行 https://github.com/Aspeternity/Asterun/actions/runs/38266194127 （全绿）。该运行独立构建的候选包 `Asterun-x64.zip` SHA-256 为 `a6883e7bc1fe5b15cafaaebdf061a11c78f6099e39043063c132366862508820`（与 PR CI 的包不是同一次构建，哈希不要求相同）。本套件压缩包即打包自该提交的 `acceptance-kit/`。
-- **分支 head vs 实际运行 SHA（如实说明）**：本套件压缩包打包自分支 head，它是在 `177644d` 之上**仅追加文档指针**的提交（以 `[skip ci]` 提交，不触发 CI）；其脚本、expected-ci.txt、测试与 `177644d` 逐字节相同。因此“实际运行”一律以 `177644d`/运行 38266194127 为准（证据包中的注释即来自该运行），而分支 head 只比它多一条文档提交。打包所用的 head SHA 记录在随附证据包中。
-- 分支 `acceptance/batch-a-kit-validation` 只用于验证本套件，**不合并**。
+- 分支 `acceptance/batch-a-kit-validation` 只用于在 Windows runner 上验证本套件，**不合并**。
+- 一个文件无法写入“验证它自己的那次 CI 运行”的编号（运行在提交之后才产生），所以本 README 不再记录验证运行；**验证运行的提交、运行编号、打包所用的提交，统一记录在随附证据包 README 的同一张表里**，并逐项说明它们是否相同。这避免了以前出现过的“README 指向旧运行”的问题。
 
 ## 分工
 
@@ -27,7 +27,7 @@
 | 内容 | 位置 | 结果 |
 |---|---|---|
 | x64、ARM64 全部目标编译；PE 导入白名单、无 CRT DLL、DependentLoadFlags=0x800 | PR CI | 通过（x64、ARM64 两个 build-windows 作业，PE 契约 x64/ARM64 均通过） |
-| 自动化测试：Linux 33；Windows x64 两套各 59（含 dll_search_hardening_tests、updater_portable/protected_integration_tests、三个 uninstall_plant_* F-1 回归）；ARM64 只编译 | PR CI | 通过：Linux 33/33；Windows x64（MSVC）59/59；Windows 10 API baseline 59/59；ARM64 59 个只编译，未运行 |
+| 自动化测试：Linux 33；Windows x64 两套（含 dll_search_hardening_tests、updater_portable/protected_integration_tests、uninstall_plant_* F-1 回归）；ARM64 只编译 | PR CI | 被测构建 05dfe71：Windows 两套各 59/59；当前 head babb7c6：各 60/60（新增无窗口反例）；Linux 33/33；ARM64 只编译，未运行 |
 | 更新器执行链（便携目录 + 受保护目录，见 CHECKLIST 第 4 阶段） | PR CI 的 CTest | 通过：两套 Windows 作业中 Portable 和 Protected 两个测试都通过 |
 | 本套件全部脚本：环境检查、新建工作区（重复运行必须停止且不改动任何文件）、分析器自测、探针自测（套件内 LLVM 版和 CI 中用 MSVC 现编的版本）、Process Monitor 场景（v1.0.5 对照、被测场景、F-1 的基线复现与强制 Restart Manager 回归、调查场景）、产品回归脚本的前后对比、用真实采集做的 INVALID 负向检查 | 套件验证运行 | 已实际运行，与文档记载预期 0 处差异：F-1 基线对照 CONTROL-VALID（复现），强制 RM 回归 PASS（修复有效），产品脚本在 v1.0.5 退出 1、修复版退出 0；主程序 ncrypt 运行时加载 FAIL（单独登记）。详见下文 F-1 |
 
@@ -86,8 +86,10 @@ CI 的局限：runner 装有 VC++ 运行库（Check-Environment 输出 NOT clean
 | `scripts/Initialize-Workspace.ps1` | 在沙盒内新建工作区，复制并解压两个包，校验哈希和 Procmon 签名；目录已存在就停止 |
 | `scripts/Invoke-Scenario.ps1` | 运行一个场景：复制、植入探针、采集、功能检查、导出、分析 |
 | `scripts/Run-Acceptance.ps1` | 按顺序运行探针自测和全部场景，生成 summary.txt |
+| `scripts/Get-WorkerDirEvidence.ps1` | U-4d：只针对采集报告中 `TARGET-IMAGE-DIR` 给出的确切执行目录，记录 Owner/Group/Sddl/Access/icacls；`-WriteTest` 写入并删除测试文件，记录账户、提权状态与完整性级别；目录已不存在时如实报告，不改测其他目录 |
+| `scripts/Hold-FileLock.ps1` | U-4e：以 `FileShare.None` 独占锁住测试安装的 VERSION（与 CI 回归相同），按 Enter 释放 |
 | `scripts/Analyze-Procmon.ps1` | 按场景识别目标进程并判定（规则见 PROCMON.md 第 4 节） |
-| `tests/Test-Analyzer.ps1`、`tests/analyzer-fixtures/` | 分析器规则自测（24 个用例） |
+| `tests/Test-Analyzer.ps1`、`tests/analyzer-fixtures/` | 分析器规则自测（31 个用例，其中路径分类用例逐字核对报告行） |
 | `tests/UpdaterIntegrationTests.ps1` | 与仓库中 `tests/UpdaterIntegrationTests.ps1` 相同的副本（更新器执行链测试） |
 | `probe-dll/` | 探针源码、构建脚本、预构建 x64/ARM64 二进制、自检脚本 |
 

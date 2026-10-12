@@ -235,6 +235,78 @@ jobs:
           & .github/kit-validation/Write-Notice.ps1 -Title "Product F-1 regression before/after ($bad differences)" -Lines $out
           exit $bad
 
+      - name: 7d Launcher interactive-state rule and its no-window counterexample (full output)
+        if: always()
+        shell: pwsh
+        run: |
+          $ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
+          $out = @(); $bad = 0
+          foreach ($c in @(
+              @{ Label = 'launcher case on the fixed candidate (must pass: window observed, plant not loaded)'; Args = @('-Mode', 'Launcher', '-PlantName', 'ncrypt.dll'); Expect = 0 },
+              @{ Label = 'no-window control (must pass: no window, alive, UI modules loaded, rule rejects it)'; Args = @('-Mode', 'NoWindowControl'); Expect = 0 })) {
+            $log = Join-Path $env:TEMP ("launcher-rule-" + [guid]::NewGuid().ToString('N') + '.txt')
+            & $ps -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests\UninstallDllPlantTests.ps1 -AppDir C:\AsterunWork\ci-run\candidate @($c.Args) *> $log
+            $code = $LASTEXITCODE
+            if ($code -ne $c.Expect) { $bad++ }
+            $out += ('{0} {1}: exit {2}' -f $(if ($code -eq $c.Expect) { 'ok  ' } else { 'DIFF' }), $c.Label, $code)
+            $out += @(Get-Content $log | Where-Object { $_ -match 'ok   |FAIL |control|reachedWindow|regression' } | ForEach-Object { if ($_.Length -gt 240) { $_.Substring(0, 240) + '...' } else { $_ } })
+          }
+          & .github/kit-validation/Write-Notice.ps1 -Title "Launcher interactive-state rule ($bad differences)" -Lines $out
+          exit $bad
+
+      - name: 7c U-4 helpers - worker-directory evidence and VERSION lock
+        if: always()
+        shell: pwsh
+        run: |
+          $ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
+          $kit = "$env:HOST\kit\scripts"
+          $work = Join-Path $env:TEMP ("kit-u4-" + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $work | Out-Null
+          $dir = Join-Path $env:TEMP ("Asterun-Elevated.ci-evidence-" + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          $gone = Join-Path $env:TEMP ("Asterun-Elevated.ci-gone-" + [guid]::NewGuid().ToString('N'))
+          Set-Content "$work\one.txt" "TARGET-IMAGE-DIR pid=101 dir=$dir"
+          Set-Content "$work\gone.txt" "TARGET-IMAGE-DIR pid=102 dir=$gone"
+          Set-Content "$work\none.txt" "RESULT: INVALID"
+          Set-Content "$work\two.txt" @("TARGET-IMAGE-DIR pid=103 dir=$dir", "TARGET-IMAGE-DIR pid=104 dir=$gone")
+          $cases = @(
+            @{ Label = 'ACL record of the confirmed directory'; Args = @('-Report', "$work\one.txt"); Expect = 0; Must = @('Owner=', 'Sddl=', 'icacls:', 'RESULT: RECORDED') },
+            @{ Label = 'write test from an ELEVATED runner is flagged not valid'; Args = @('-Report', "$work\one.txt", '-WriteTest'); Expect = 13; Must = @('write test: SUCCEEDED', 'NOT VALID', 'write test file removed') },
+            @{ Label = 'confirmed directory gone: no other directory tested'; Args = @('-Report', "$work\gone.txt"); Expect = 32; Must = @('DIRECTORY-GONE') },
+            @{ Label = 'no confirmed worker in the report'; Args = @('-Report', "$work\none.txt"); Expect = 30; Must = @('NO-TARGET') },
+            @{ Label = 'two workers without -WorkerPid'; Args = @('-Report', "$work\two.txt"); Expect = 31; Must = @('AMBIGUOUS') },
+            @{ Label = 'two workers, -WorkerPid selects the existing one'; Args = @('-Report', "$work\two.txt", '-WorkerPid', '103'); Expect = 0; Must = @('RESULT: RECORDED') }
+          )
+          $out = @(); $bad = 0; $i = 0
+          foreach ($c in $cases) {
+            $i++; $o = "$work\evidence-$i.txt"
+            & $ps -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$kit\Get-WorkerDirEvidence.ps1" @($c.Args) -Out $o *> "$o.console"
+            $code = $LASTEXITCODE
+            $text = if (Test-Path $o) { Get-Content -Raw $o } else { '' }
+            $miss = @($c.Must | Where-Object { -not $text.Contains($_) })
+            $ok = ($code -eq $c.Expect) -and ($miss.Count -eq 0)
+            if (-not $ok) { $bad++ }
+            $out += ('{0} {1}: exit {2} (expected {3}){4}' -f $(if ($ok) { 'ok  ' } else { 'DIFF' }), $c.Label, $code, $c.Expect, $(if ($miss) { ' missing: ' + ($miss -join ' | ') } else { '' }))
+          }
+          $leftover = @(Get-ChildItem $dir -Filter 'u4-writetest-*' -ErrorAction SilentlyContinue)
+          if ($leftover.Count) { $bad++; $out += "DIFF write-test file left behind: $($leftover.Name -join ', ')" } else { $out += 'ok   write-test file cleaned up' }
+          # Hold-FileLock: GetFileAttributes still works, delete is blocked, delete works after release.
+          $install = Join-Path $work 'install'; New-Item -ItemType Directory -Path $install | Out-Null
+          $version = Join-Path $install 'VERSION'; Set-Content $version '1.0.0'
+          $holder = Start-Process -FilePath $ps -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "$kit\Hold-FileLock.ps1", '-Path', $version, '-HoldSeconds', '10' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 3
+          $attrOk = $true; try { [void][System.IO.File]::GetAttributes($version) } catch { $attrOk = $false }
+          $deleteBlocked = $false; try { [System.IO.File]::Delete($version) } catch { $deleteBlocked = $true }
+          $holder.WaitForExit(20000) | Out-Null
+          $deleteAfter = $true; try { [System.IO.File]::Delete($version) } catch { $deleteAfter = $false }
+          foreach ($r in @(@('attributes readable while locked (launcher/validation unaffected)', $attrOk), @('delete blocked while locked (forces Restart Manager)', $deleteBlocked), @('delete succeeds after release', $deleteAfter))) {
+            if (-not $r[1]) { $bad++ }
+            $out += ('{0} Hold-FileLock: {1}' -f $(if ($r[1]) { 'ok  ' } else { 'DIFF' }), $r[0])
+          }
+          Remove-Item -LiteralPath $dir, $work -Recurse -Force -ErrorAction SilentlyContinue
+          & .github/kit-validation/Write-Notice.ps1 -Title "U-4 helpers on Windows ($bad differences)" -Lines $out
+          exit $bad
+
       - name: 8 Result
         if: always()
         shell: pwsh
