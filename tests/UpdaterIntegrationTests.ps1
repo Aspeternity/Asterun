@@ -22,14 +22,38 @@
 #               failure, so CI always runs it.
 #
 # Exit codes: 0 pass, 1 fail, 77 skipped (Protected without elevation).
+#
+# -PlantDll (optional, used only by the external batch A acceptance kit): a
+# DLL copied, for the successful Portable case only, as bcrypt.dll next to the
+# Update.exe copy and as version.dll into the package, so that a Process
+# Monitor capture can show where both executables resolve those static
+# imports. CTest never passes it.
 
 param(
     [Parameter(Mandatory = $true)][string]$AppDir,
-    [Parameter(Mandatory = $true)][ValidateSet('Portable', 'Protected')][string]$Mode
+    [Parameter(Mandatory = $true)][ValidateSet('Portable', 'Protected')][string]$Mode,
+    [string]$PlantDll = ''
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
+
+# Started from PowerShell 7 (as the CI shell does), Windows PowerShell inherits
+# a PSModulePath that lists the PowerShell 7 module folders first, and then
+# cannot auto-load its own Microsoft.PowerShell.Utility (Get-FileHash) or
+# CimCmdlets. Use the Windows PowerShell module folders only.
+if ($PSVersionTable.PSEdition -ne 'Core') {
+    $env:PSModulePath = @(
+        (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'WindowsPowerShell\Modules'),
+        (Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules'),
+        (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\Modules')
+    ) -join ';'
+}
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+if ($PlantDll) {
+    if ($Mode -ne 'Portable') { throw '-PlantDll is only supported with -Mode Portable' }
+    $PlantDll = (Resolve-Path -LiteralPath $PlantDll).Path
+}
 
 $script:failures = New-Object System.Collections.Generic.List[string]
 function Check([bool]$condition, [string]$message) {
@@ -105,6 +129,7 @@ function Invoke-Updater([hashtable]$case) {
     New-Item -ItemType Directory -Path $worker | Out-Null
     $updater = Join-Path $worker 'Update.exe'
     Copy-Item -LiteralPath (Join-Path $AppDir 'Update.exe') -Destination $updater
+    if ($case.ContainsKey('Plant')) { Copy-Item -LiteralPath $PlantDll -Destination (Join-Path $worker 'bcrypt.dll') }
 
     $arguments = @(
         '--apply',
@@ -128,7 +153,7 @@ function Invoke-Updater([hashtable]$case) {
     return $process.ExitCode
 }
 
-function New-Case([string]$name, [string]$installBase) {
+function New-Case([string]$name, [string]$installBase, [bool]$plant = $false) {
     # Every case uses the same argument construction; the successful case
     # proves it is accepted, so an exit code 2 in a negative case comes from
     # the gate under test, not from a malformed command line.
@@ -143,13 +168,19 @@ function New-Case([string]$name, [string]$installBase) {
     $case.NewReadme = "updater-it new $id"
 
     Copy-Product $case.Source $case.NewReadme 'new-only.txt'
+    if ($plant) {
+        $case.Plant = $true
+        Copy-Item -LiteralPath $PlantDll -Destination (Join-Path $case.Source 'version.dll')
+    }
     if ($case.Install.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
         Copy-Product $case.Install $case.OldReadme 'old-only.txt'
     } else {
         New-OwnedDirectory $case.Install
         Copy-Product $case.Install $case.OldReadme 'old-only.txt'
     }
-    Compress-Archive -Path (Join-Path $case.Source '*') -DestinationPath $case.Archive
+    # ZipFile (.NET Framework 4.6.1+) writes '/' separators, as the release
+    # packaging does; Compress-Archive of Windows PowerShell 5.1 can write '\'.
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($case.Source, $case.Archive)
     $case.Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $case.Archive).Hash.ToLowerInvariant()
     return $case
 }
@@ -188,7 +219,7 @@ $exitCodeToReturn = 0
 try {
     Write-Output "Updater integration test, mode=$Mode, version=$version, appDir=$AppDir, root=$root"
     if ($Mode -eq 'Portable') {
-        $case = New-Case 'portable' $root
+        $case = New-Case 'portable' $root ([bool]$PlantDll)
         $code = Invoke-Updater $case
         Assert-Updated $case $code
         Stop-InstanceFrom $case.Install
