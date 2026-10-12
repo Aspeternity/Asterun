@@ -158,6 +158,28 @@ function Invoke-Updater([hashtable]$case) {
     return $process.ExitCode
 }
 
+# Build the package archive with explicit '/'-separated entry names, as the
+# release packaging (Compress-Archive in PowerShell 7) produces them. Windows
+# PowerShell 5.1 runs on .NET Framework with the legacy ZipFile behaviour, so
+# its Compress-Archive and ZipFile.CreateFromDirectory write '\' separators,
+# which the updater's archive validation rejects as unsafe member names.
+function New-PackageArchive([string]$source, [string]$archive) {
+    $zip = [System.IO.Compression.ZipFile]::Open($archive, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        # Same path normalisation as the enumerated children (8.3 vs long form).
+        $prefix = (Get-Item -LiteralPath $source).FullName.TrimEnd('\').Length + 1
+        foreach ($file in Get-ChildItem -LiteralPath $source -Recurse -File -Force) {
+            $name = $file.FullName.Substring($prefix).Replace('\', '/')
+            [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $name)
+        }
+    } finally { $zip.Dispose() }
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($archive)
+    try {
+        $bad = @($zip.Entries | Where-Object { $_.FullName.Contains('\') })
+        if ($bad.Count -gt 0) { throw "archive entry with '\': $($bad[0].FullName)" }
+    } finally { $zip.Dispose() }
+}
+
 function New-Case([string]$name, [string]$installBase, [bool]$plant = $false) {
     # Every case uses the same argument construction; the successful case
     # proves it is accepted, so an exit code 2 in a negative case comes from
@@ -184,9 +206,7 @@ function New-Case([string]$name, [string]$installBase, [bool]$plant = $false) {
         New-OwnedDirectory $case.Install
         Copy-Product $case.Install $case.OldReadme 'old-only.txt'
     }
-    # ZipFile (.NET Framework 4.6.1+) writes '/' separators, as the release
-    # packaging does; Compress-Archive of Windows PowerShell 5.1 can write '\'.
-    [System.IO.Compression.ZipFile]::CreateFromDirectory($case.Source, $case.Archive)
+    New-PackageArchive $case.Source $case.Archive
     $case.Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $case.Archive).Hash.ToLowerInvariant()
     return $case
 }

@@ -76,75 +76,79 @@ jobs:
           }
 
       - name: 1 Check-Environment (runner has the VC++ runtime, expect NOT clean)
+        if: always()
         shell: pwsh
         run: |
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\scripts\Check-Environment.ps1" -Log "$env:HOST\logs\environment.txt"
+          & .github/kit-validation/Invoke-Logged.ps1 -Title 'Check-Environment' -Log "$env:HOST\logs\step1-environment.console.txt" -Script "$env:HOST\kit\scripts\Check-Environment.ps1" -Arguments @('-Log', "$env:HOST\logs\environment.txt")
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $text = Get-Content -Raw "$env:HOST\logs\environment.txt"
-          $ok = $text -match 'NOT clean'
-          & .github/kit-validation/Write-Notice.ps1 -Title 'Check-Environment (expected NOT clean)' -Lines (@($(if ($ok) { 'as expected' } else { 'DEVIATION' })) + @($text -split "`r?`n" | Select-Object -First 16))
-          if (-not $ok) { exit 1 }
+          if (-not ((Get-Content -Raw "$env:HOST\logs\environment.txt") -match 'NOT clean')) { Write-Host 'DEVIATION: expected NOT clean on the runner'; exit 1 }
 
       - name: 2 Initialize-Workspace (new folder; second run with the same name must stop)
+        if: always()
         shell: pwsh
         run: |
-          $args1 = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "$env:HOST\kit\scripts\Initialize-Workspace.ps1",
-            '-BaselineZip', "$env:HOST\packages\Asterun-x64-v1.0.5.zip", '-CandidateZip', "$env:HOST\packages\Asterun-x64-candidate.zip",
+          $a = @('-BaselineZip', "$env:HOST\packages\Asterun-x64-v1.0.5.zip", '-CandidateZip', "$env:HOST\packages\Asterun-x64-candidate.zip",
             '-Tools', "$env:HOST\tools", '-Kit', "$env:HOST\kit", '-Logs', "$env:HOST\logs", '-RunName', 'ci-run')
-          powershell.exe @args1
+          & .github/kit-validation/Invoke-Logged.ps1 -Title 'Initialize-Workspace first run' -Log "$env:HOST\logs\step2a.console.txt" -Script "$env:HOST\kit\scripts\Initialize-Workspace.ps1" -Arguments $a
           $first = $LASTEXITCODE
-          $before = Get-ChildItem -Recurse -File C:\AsterunWork\ci-run | ForEach-Object { "$($_.FullName) $($_.Length) $($_.LastWriteTimeUtc.Ticks)" }
-          powershell.exe @args1 | Tee-Object -Variable second | Out-Host
-          $secondCode = $LASTEXITCODE
-          $after = Get-ChildItem -Recurse -File C:\AsterunWork\ci-run | ForEach-Object { "$($_.FullName) $($_.Length) $($_.LastWriteTimeUtc.Ticks)" }
+          if ($first) { exit 1 }
+          $snapshot = { Get-ChildItem -Recurse -File C:\AsterunWork\ci-run, "$env:HOST\logs\ci-run" | ForEach-Object { "$($_.FullName) $($_.Length) $($_.LastWriteTimeUtc.Ticks)" } }
+          $before = & $snapshot
+          & .github/kit-validation/Invoke-Logged.ps1 -Title 'Initialize-Workspace repeated with the same run name (expect exit 2)' -Log "$env:HOST\logs\step2b.console.txt" -Script "$env:HOST\kit\scripts\Initialize-Workspace.ps1" -Arguments $a
+          $second = $LASTEXITCODE
+          $after = & $snapshot
           $unchanged = -not (Compare-Object $before $after)
-          $ok = $first -eq 0 -and $secondCode -eq 2 -and $unchanged
-          $init = Get-Content "$env:HOST\logs\ci-run\initialize.txt"
-          & .github/kit-validation/Write-Notice.ps1 -Title 'Initialize-Workspace' -Lines (@("$(if ($ok) { 'as expected' } else { 'DEVIATION' }): first run exit $first; repeated run with the same name exit $secondCode (expected 2); workspace unchanged=$unchanged", "repeated run said: $($second -join ' ')") + @($init))
-          if (-not $ok) { exit 1 }
+          Write-Host "second run exit=$second unchanged=$unchanged"
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Initialize-Workspace repeat check' -Lines @("repeated run exit $second (expected 2); workspace and log folder unchanged=$unchanged")
+          if ($second -ne 2 -or -not $unchanged) { exit 1 }
 
       - name: 3 Analyzer self-test on synthetic captures
+        if: always()
         shell: pwsh
         run: |
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\tests\Test-Analyzer.ps1" -Out "$env:HOST\logs\analyzer-selftest"
-          $code = $LASTEXITCODE
-          & .github/kit-validation/Write-Notice.ps1 -Title 'Analyzer self-test (Windows PowerShell 5.1)' -File "$env:HOST\logs\analyzer-selftest\summary.txt"
-          exit $code
+          & .github/kit-validation/Invoke-Logged.ps1 -Title 'Analyzer self-test (Windows PowerShell 5.1)' -Log "$env:HOST\logs\step3.console.txt" -Script "$env:HOST\kit\tests\Test-Analyzer.ps1" -Arguments @('-Out', "$env:HOST\logs\analyzer-selftest")
+          exit $LASTEXITCODE
 
       - name: 4 Probe self-test (LLVM build from the kit and MSVC build)
+        if: always()
         shell: pwsh
         run: |
-          $out = @()
           $fail = 0
-          foreach ($dll in "$env:HOST\kit\probe-dll\out\x64\asterun_dll_probe.dll", "$env:HOST\probe-msvc\asterun_dll_probe.dll") {
-            $text = powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\probe-dll\Test-Probe.ps1" -Dll $dll 2>&1
+          foreach ($pair in @(@('llvm', "$env:HOST\kit\probe-dll\out\x64\asterun_dll_probe.dll"), @('msvc', "$env:HOST\probe-msvc\asterun_dll_probe.dll"))) {
+            $hash = (Get-FileHash -Algorithm SHA256 $pair[1]).Hash.ToLower()
+            & .github/kit-validation/Invoke-Logged.ps1 -Title "Probe self-test $($pair[0]) sha256=$hash" -Log "$env:HOST\logs\step4-$($pair[0]).console.txt" -Script "$env:HOST\kit\probe-dll\Test-Probe.ps1" -Arguments @('-Dll', $pair[1])
             if ($LASTEXITCODE) { $fail++ }
-            $out += "$dll exit=$LASTEXITCODE sha256=$((Get-FileHash -Algorithm SHA256 $dll).Hash.ToLower())"
-            $out += $text | ForEach-Object { "  $_" }
           }
-          $log = "$env:PUBLIC\AsterunDllProbe\probe-log.txt"
-          $bytes = [System.IO.File]::ReadAllBytes($log)
-          $out += "probe log starts with UTF-16LE BOM: $($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE)"
-          & .github/kit-validation/Write-Notice.ps1 -Title 'Probe self-test' -Lines $out
+          $bytes = [System.IO.File]::ReadAllBytes("$env:PUBLIC\AsterunDllProbe\probe-log.txt")
+          $bom = $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE
+          & .github/kit-validation/Write-Notice.ps1 -Title 'Probe log encoding' -Lines @("UTF-16LE BOM present: $bom")
+          if (-not $bom) { $fail++ }
           exit $fail
 
       - name: 5 Run-Acceptance (controls on v1.0.5, then the candidate scenarios)
+        if: always()
         id: run
         shell: pwsh
         run: |
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\scripts\Run-Acceptance.ps1" -Work C:\AsterunWork\ci-run -Logs "$env:HOST\logs"
+          & .github/kit-validation/Invoke-Logged.ps1 -Title 'Run-Acceptance' -Log "$env:HOST\logs\step5.console.txt" -Script "$env:HOST\kit\scripts\Run-Acceptance.ps1" -Arguments @('-Work', 'C:\AsterunWork\ci-run', '-Logs', "$env:HOST\logs")
           "code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
-          & .github/kit-validation/Write-Notice.ps1 -Title 'Run-Acceptance summary' -File "$env:HOST\logs\ci-run\summary.txt"
           exit 0
 
       - name: 6 Scenario reports (condensed)
         if: always()
         shell: pwsh
         run: |
-          foreach ($report in Get-ChildItem "$env:HOST\logs\ci-run" -Filter '*-report.txt' | Sort-Object Name) {
-            $keep = Get-Content $report.FullName | Where-Object {
-              $_ -match '^(scenario|appDir|rows|processes|  \w+\.exe pid|planted names|probe log|TARGET|  pid=|    LOADED|      |    planted|    verified|    verdict|    INFO|    INVALID|CONTROL-VALID|RESULT|functional)' }
-            & .github/kit-validation/Write-Notice.ps1 -Title $report.BaseName -Lines ($keep | Select-Object -First 80)
+          $dir = "$env:HOST\logs\ci-run"
+          foreach ($console in Get-ChildItem $dir -Filter '*.console.txt' | Sort-Object Name) {
+            $name = $console.Name -replace '\.console\.txt$', ''
+            $report = @(Get-ChildItem $dir -Filter '*-report.txt' | Where-Object { $_.Name -like ($name + '-2*') })
+            if ($report.Count -eq 1) {
+              $keep = Get-Content $report[0].FullName | Where-Object {
+                $_ -match '^(scenario|appDir|rows|processes|  \w+\.exe pid|planted names|probe log|  probe:|TARGET|  pid=|    LOADED|      |    plant|    no plant|    verified|    pid verdict|  verdict|    INFO|    INVALID|CONTROL-VALID|RESULT|functional|\(|  \|)' }
+              & .github/kit-validation/Write-Notice.ps1 -Title $report[0].BaseName -Lines ($keep | Select-Object -First 150)
+            } else {
+              & .github/kit-validation/Write-Notice.ps1 -Title "$name (no report; console output)" -File $console.FullName
+            }
           }
 
       - name: 7 Negative check on real captures (wrong scenario must be INVALID)
@@ -152,15 +156,15 @@ jobs:
         shell: pwsh
         run: |
           $csv = @(Get-ChildItem "$env:HOST\logs\ci-run" -Filter 'candidate-main-*.csv')[0].FullName
-          $out = @()
-          $fail = 0
+          $app = @(Get-ChildItem C:\AsterunWork\ci-run\scenarios -Directory -Filter 'candidate-main-*')[0].FullName
+          $out = @(); $fail = 0
           foreach ($scenario in 'service-command', 'uninstall-worker', 'update-chain') {
             $r = "$env:HOST\logs\ci-run\negative-$scenario.txt"
             powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:HOST\kit\scripts\Analyze-Procmon.ps1" -Csv $csv -Scenario $scenario `
-              -AppDir (Get-ChildItem C:\AsterunWork\ci-run\scenarios -Directory -Filter 'candidate-main-*')[0].FullName -PlantedName version.dll -FunctionalResult PASS -Out $r | Out-Null
+              -AppDir $app -PlantedPath "$app\version.dll" -FunctionalResult PASS -Out $r | Out-Null
             $code = $LASTEXITCODE
             if ($code -ne 30) { $fail++ }
-            $out += "candidate-main capture analysed as $scenario -> exit $code (expected 30 INVALID): $((Get-Content $r | Select-Object -Last 1))"
+            $out += "candidate-main capture analysed as $scenario -> exit $code (expected 30 INVALID): $((Get-Content $r -ErrorAction SilentlyContinue | Select-Object -Last 1))"
           }
           & .github/kit-validation/Write-Notice.ps1 -Title 'Negative checks on real captures' -Lines $out
           exit $fail
