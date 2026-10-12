@@ -6,9 +6,13 @@
 # %TEMP%. The LAUNCHER (Uninstall.exe without arguments) is started from that
 # installation, exactly as a user starts it; no --perform, no test-only product
 # entry point, no bypass. The test then presses the launcher's own
-# "Uninstall and keep personal data" button through UI Automation (InvokePattern
-# on the button element of the launcher's own dialog window; no screen
-# coordinates, no synthesized keystrokes, no window of any other process).
+# "Uninstall and keep personal data" button. The button is located with UI
+# Automation inside the launcher's own dialog window (process id, button id
+# CommandButton_1001 and its text must all match) and pressed with its
+# InvokePattern when it offers one, otherwise with the task dialog's documented
+# TDM_CLICK_BUTTON message for that button id, posted to that dialog window
+# only. No screen coordinates, no synthesized keystrokes, no window of any other
+# process. The worker's result dialog is confirmed the same way (IDOK).
 #
 # The launcher must then create its random Asterun-Elevated.* copy under ITS
 # temporary directory (the test gives it a private TEMP/TMP inside the test
@@ -25,9 +29,9 @@
 #   - the worker's completion dialog says the uninstall finished with user data
 #     kept; after its OK button is pressed the worker exits with code 0.
 #
-# Evidence level. On a CI runner the test process is elevated and UAC does not
-# prompt, so the launcher itself runs elevated and "runas" shows no consent
-# dialog. This proves the launcher -> worker uninstall flow (secured copy,
+# Evidence level. The test process must already be elevated (on the GitHub
+# runner: integrity High, token elevation type 1 = no split token), so the
+# launcher it starts runs elevated too and "runas" shows no consent dialog. This proves the launcher -> worker uninstall flow (secured copy,
 # ShellExecuteEx, worker validation and removal). It does NOT prove the real
 # split-token UAC path (a medium-integrity launcher and the consent prompt); that
 # remains unverified. The recorded token summaries show which case ran.
@@ -97,6 +101,11 @@ public static class Native {
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hwnd, StringBuilder text, int max);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassNameW(IntPtr hwnd, StringBuilder text, int max);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool PostMessageW(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    // TDM_CLICK_BUTTON (WM_USER + 102): click the button with this id in this task dialog.
+    public static bool ClickTaskDialogButton(IntPtr dialog, int buttonId) {
+        return PostMessageW(dialog, 0x0400 + 102, new IntPtr(buttonId), IntPtr.Zero);
+    }
     [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, int processId);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
     [DllImport("advapi32.dll", SetLastError = true)] static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
@@ -190,18 +199,27 @@ function Format-Element($element) {
 function Get-DialogText([IntPtr]$hwnd) {
     return ((Get-UiaElements $hwnd | ForEach-Object { $_.Current.Name }) -join "`n")
 }
-# Press one named button inside one window of one process, by UI Automation.
-function Invoke-Button([IntPtr]$hwnd, [int]$processId, [string[]]$names) {
+# Press one button inside one task dialog window of one process. The element
+# must match the process id, the task dialog button id (AutomationId
+# CommandButton_<id>) and one of the expected texts. Task dialog buttons are
+# exposed as CCPushButton panes; use InvokePattern when offered, else post
+# TDM_CLICK_BUTTON for that id to that dialog window.
+function Invoke-Button([IntPtr]$hwnd, [int]$processId, [int]$buttonId, [string[]]$names) {
+    $automationId = "CommandButton_$buttonId"
     $buttons = @(Get-UiaElements $hwnd | Where-Object {
-        $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
+        $_.Current.AutomationId -eq $automationId -and
         $names -contains $_.Current.Name -and $_.Current.ProcessId -eq $processId })
-    if ($buttons.Count -eq 0) { throw "button '$($names -join "' / '")' not found in window $hwnd of pid $processId" }
+    if ($buttons.Count -ne 1) { throw "expected exactly one button $automationId named '$($names -join "' / '")' in window $hwnd of pid $processId, found $($buttons.Count)" }
     $button = $buttons[0]
-    $description = "$(Format-Element $button) (matches: $($buttons.Count))"
-    $pattern = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-    try { $pattern.Invoke() }
-    catch [System.Windows.Automation.ElementNotAvailableException] { $description += ' [dialog closed during Invoke]' }
-    return $description
+    $description = Format-Element $button
+    $invoke = $null
+    if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) {
+        try { $invoke.Invoke() }
+        catch [System.Windows.Automation.ElementNotAvailableException] { $description += ' [dialog closed during Invoke]' }
+        return "$description via InvokePattern"
+    }
+    if (-not [AsterunFlowTest.Native]::ClickTaskDialogButton($hwnd, $buttonId)) { throw "TDM_CLICK_BUTTON $buttonId could not be posted to window $hwnd" }
+    return "$description via TDM_CLICK_BUTTON($buttonId) to that dialog window (no InvokePattern on this element)"
 }
 function Get-Sha256([string]$path) { return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
 function Get-TreeSnapshot([string]$dir) {
@@ -292,8 +310,8 @@ try {
     Info "launcher dialog hwnd=$($dialog.Hwnd) class=$($dialog.Class) title='$($dialog.Title)'"
     Check (@(Get-ChildItem -LiteralPath $launcherTemp -Force).Count -eq 0) 'no worker directory exists before the button is pressed'
     $pressed = Get-Date
-    $how = Invoke-Button $dialog.Hwnd $launcher.Id $keepDataButtons
-    Info "pressed via UI Automation InvokePattern: $how"
+    $how = Invoke-Button $dialog.Hwnd $launcher.Id 1001 $keepDataButtons
+    Info "pressed: $how"
 
     # 3. The worker the launcher started.
     $deadline = (Get-Date).AddSeconds(60)
@@ -341,8 +359,8 @@ try {
     $differences = @(Compare-Snapshot $dataBefore (Get-TreeSnapshot $data))
     Check ($differences.Count -eq 0) "data\ unchanged: $($dataBefore.Keys.Count) entries, SHA-256 identical ($($differences -join '; '))"
 
-    $how = Invoke-Button $done.Hwnd $worker.Id $okButtons
-    Info "pressed via UI Automation InvokePattern: $how"
+    $how = Invoke-Button $done.Hwnd $worker.Id 1 $okButtons
+    Info "pressed: $how"
     Check ($worker.WaitForExit(30000)) 'worker exited after its result dialog was confirmed'
     if ($worker.HasExited) { Check ($worker.ExitCode -eq 0) "worker exit code 0 (got $($worker.ExitCode))" }
     $differences = @(Compare-Snapshot $dataBefore (Get-TreeSnapshot $data))
