@@ -204,6 +204,40 @@ jobs:
           & .github/kit-validation/Write-Notice.ps1 -Title 'Negative checks on real captures' -Lines $out
           exit $fail
 
+      - name: 7e Observation role and per-DLL Load Image paths on real captures
+        if: always()
+        shell: pwsh
+        run: |
+          # U-4c/U-4e use -Role observation -ReportDll on a real capture. Here the
+          # same call runs on real runner captures: the forced-RM worker of the
+          # fixed build (rstrtmgr/ncrypt must be SYSTEM32), the normal worker
+          # (reported as observed, whatever it is), and the v1.0.5 worker with a
+          # planted ncrypt.dll (must be WATCHED -> FAIL).
+          $logs = "$env:HOST\logs\ci-run"
+          $out = @(); $bad = 0
+          foreach ($c in @(
+              @{ Filter = 'candidate-uninstall-worker-rm-ncrypt-*.csv'; Expect = 12; Require = 'rstrtmgr.dll'; Must = @('name=rstrtmgr.dll class=SYSTEM32 path=C:\Windows\', 'name=ncrypt.dll class=SYSTEM32 path=C:\Windows\') },
+              @{ Filter = 'candidate-uninstall-worker-2*.csv';          Expect = 12; Require = '';             Must = @('name=rstrtmgr.dll class=', 'name=ncrypt.dll class=') },
+              @{ Filter = 'control-uninstall-worker-ncrypt-*.csv';      Expect = 20; Require = '';             Must = @('name=ncrypt.dll class=WATCHED path=') })) {
+            $csv = @(Get-ChildItem $logs -Filter $c.Filter | Sort-Object Name)[0].FullName
+            $base = [IO.Path]::GetFileNameWithoutExtension($csv)
+            $r = "$logs\observation-$base.txt"
+            $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "$env:HOST\kit\scripts\Analyze-Procmon.ps1", '-Csv', $csv,
+                      '-Scenario', 'uninstall-worker', '-Role', 'observation', '-AppDir', "C:\AsterunWork\ci-run\scenarios\$base\app",
+                      '-ReportDll', 'rstrtmgr.dll,ncrypt.dll', '-Out', $r)
+            if ($c.Require) { $argv += @('-RequireSystemLoad', $c.Require) }
+            powershell.exe @argv | Out-Null
+            $code = $LASTEXITCODE
+            $report = @(Get-Content $r -ErrorAction SilentlyContinue)
+            $missing = @($c.Must | Where-Object { $m = $_; -not ($report | Where-Object { $_.Contains($m) }) })
+            $ok = ($code -eq $c.Expect) -and $missing.Count -eq 0
+            if (-not $ok) { $bad++ }
+            $out += ('{0} {1}: exit {2} (expected {3}){4}' -f $(if ($ok) { 'ok  ' } else { 'DIFF' }), $base, $code, $c.Expect, $(if ($missing) { ' missing: ' + ($missing -join ' | ') } else { '' }))
+            $out += @($report | Where-Object { $_ -match '^(DLL-LOAD|TARGET-IMAGE-DIR|RESULT|  observation)' } | ForEach-Object { "  $_" })
+          }
+          & .github/kit-validation/Write-Notice.ps1 -Title "Observation role on real captures ($bad differences)" -Lines $out
+          exit $bad
+
       - name: 7b Product F-1 regression must fail on v1.0.5 and pass on the fixed build
         if: always()
         shell: pwsh
