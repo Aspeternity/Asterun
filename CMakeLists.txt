@@ -1705,6 +1705,39 @@ if(BUILD_TESTING)
                 TIMEOUT 900 RUN_SERIAL TRUE SKIP_RETURN_CODE 77)
         endforeach()
 
+        # F-1 regression: a DLL planted in Uninstall.exe's own directory must
+        # not be loaded. rstrtmgr.dll is delay-loaded and forced from System32
+        # at the first Restart Manager call, so its dependency chain (ncrypt.dll
+        # -> ntasn1.dll) no longer resolves from the application directory. One
+        # planted name per case so one load cannot mask the next; the forced
+        # worker case locks the install VERSION so Restart Manager actually runs
+        # and is INCONCLUSIVE (fails) unless rstrtmgr.dll loads from System32.
+        foreach(altrun_plant_case
+                "worker_rm_ncrypt|Worker|ncrypt.dll|ON"
+                "worker_rm_rstrtmgr|Worker|rstrtmgr.dll|ON"
+                "launcher_ncrypt|Launcher|ncrypt.dll|OFF")
+            string(REPLACE "|" ";" altrun_plant_parts "${altrun_plant_case}")
+            list(GET altrun_plant_parts 0 altrun_plant_name)
+            list(GET altrun_plant_parts 1 altrun_plant_mode)
+            list(GET altrun_plant_parts 2 altrun_plant_dll)
+            list(GET altrun_plant_parts 3 altrun_plant_force)
+            set(altrun_plant_args
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/UninstallDllPlantTests.ps1"
+                -AppDir "$<TARGET_FILE_DIR:Asterun>"
+                -Mode ${altrun_plant_mode}
+                -PlantName ${altrun_plant_dll})
+            if(altrun_plant_force STREQUAL "ON")
+                list(APPEND altrun_plant_args -ForceRestartManager)
+            endif()
+            add_test(
+                NAME uninstall_plant_${altrun_plant_name}
+                COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                    ${altrun_plant_args}
+            )
+            set_tests_properties(uninstall_plant_${altrun_plant_name} PROPERTIES
+                TIMEOUT 300 RUN_SERIAL TRUE)
+        endforeach()
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)
