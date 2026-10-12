@@ -5,13 +5,15 @@
 ## 1. 每个场景的自动步骤（Invoke-Scenario.ps1）
 
 1. 把被测包或对照包复制到工作区内一个新的场景目录 `C:\AsterunWork\<run>\scenarios\<role>-<场景>-<时间>`。卸载执行进程（worker）场景另外在 `%TEMP%\Asterun-Elevated.kit-<时间>` 中放一份 Uninstall.exe，与真实卸载的临时副本位置一致。
-2. 植入探针：把探针 DLL 复制成目标进程的某个**静态导入**的名称，放在目标 EXE 所在的目录中，并记录完整路径。选用的名称都是 Windows 10/11 KnownDLLs 之外的系统 DLL，而且 v1.0.5 与批次 A 都会导入：
+2. 植入探针：把探针 DLL 复制成目标进程的某个**静态导入**的名称，放在目标 EXE 所在的目录中，并记录完整路径。选用的名称都是 v1.0.5 与批次 A 都会导入、且不在常见 KnownDLLs 列表中的系统 DLL。它在当前系统上能否用于植入，由同名对照（v1.0.5）在每次运行中实测：
 
    | 目标 | 植入名称 | 位置 |
    |---|---|---|
    | Asterun.exe（主程序、服务子命令、更新后重启的新程序） | version.dll | Asterun.exe 所在目录 |
    | Update.exe（无参数、`--apply` 执行进程） | bcrypt.dll | Update.exe 所在目录（执行链中为 `Asterun-Elevated.updater-it-*`） |
    | Uninstall.exe（启动器、`--perform` 执行进程） | rstrtmgr.dll | Uninstall.exe 所在目录 |
+
+   调查场景（`investigate-*`，结果只记录，不计入通过与否）在上表之外，再把探针复制成 `ncrypt.dll`、`ntasn1.dll` 放在同一目录。这两个名称是 CI 中观察到加固进程在 EXE 目录查找过的名称，用来检验这种查找能否变成加载（见 README 发现 F-1）。
 
 3. 启动 Process Monitor 采集：`Procmon64.exe /AcceptEula /Quiet /Minimized /BackingFile <pml>`，再用 `/WaitForIdle` 等它就绪。采集全部进程，不设过滤器，分析时再按进程筛选，这样不会因为过滤器写错而漏记。
 4. 运行场景，并做功能检查（结果写入报告的 `functional=` 行）：
@@ -92,7 +94,7 @@
 
 - 证明：在当前系统上，批次 A 的三个 EXE 的静态导入不会从 EXE 所在目录加载同名 DLL（A2，DependentLoadFlags=0x800），而 v1.0.5 会；加固进程在场景运行期间没有从被测目录或 %TEMP% 加载或映射任何 DLL（A3 的效果）。
 - 不证明：运行时 `LoadLibrary` 按名称加载的每一条路径都被覆盖。A3 的运行时行为由 CI 中的 `dll_search_hardening_tests`（进程内实际调用 LoadLibrary 验证）覆盖；这里只记录场景中实际发生的查找。
-- 不证明：系统 DLL 自身依赖链的解析方式（只记录，不断言）。
+- 不证明：系统 DLL 自身依赖链也被保护。DependentLoadFlags 只作用于 EXE 的直接导入；非 KnownDLL 的系统 DLL 自己的静态依赖仍会先在 EXE 目录查找。CI 已实测到一例（Uninstall.exe → RstrtMgr.dll → ncrypt.dll，植入的 ncrypt.dll 被加载），见 README 发现 F-1。套件的 investigate-* 场景专门检查这一点。
 - 主程序正常模式按设计不限制运行时 DLL 搜索路径（它需要加载第三方 Shell 扩展），这里只检查运行库和静态导入。
 
 ## 6. 可选：手动采集一个真实的 UAC 流程
