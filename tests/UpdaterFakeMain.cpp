@@ -5,20 +5,15 @@
 // Each start appends one line to a record file OUTSIDE the installation and
 // its data folder, so recording never changes what the test compares:
 //
-//   %TEMP%\asterun-updater-ft\<case>.launches.txt
+//   <unique-case-root>\records\launches.txt
 //     pid=<pid> integrity=S-1-16-<rid> elevationType=<1|2|3> cmdline=<UTF-8>
 //
-// <case> is the name of the directory that contains the installation folder
-// (the test gives every case its own uniquely named folder). The behaviour
-// after recording comes from %TEMP%\asterun-updater-ft\<case>.mode:
-//   stay   (default) keep running until the test ends the process
-//   exit0  exit immediately with code 0
-//   exit3  exit immediately with code 3
-//
-// %TEMP% is the starting user's temporary folder. Update.exe restarts the
-// previous version either with the shell's token (environment built from the
-// user profile) or by a normal CreateProcess (inherited environment); both
-// resolve to the same folder for the user who runs the test.
+// The executable must be copied to <unique-case-root>\install\Asterun.exe.
+// The harness creates the sibling records directory before launching it.
+// Its mode file selects stay (default), exit0 or exit3. Deriving this path
+// from the executable avoids shared TEMP names and environment differences
+// when the updater starts the process using the shell token.
+// The helper never creates a shared record directory.
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -72,15 +67,6 @@ namespace {
     return L"integrity=" + integrity + L" elevationType=" + elevation;
 }
 
-[[nodiscard]] std::filesystem::path RecordFolder() {
-    std::array<wchar_t, MAX_PATH + 1> buffer{};
-    const DWORD length = GetTempPathW(static_cast<DWORD>(buffer.size()), buffer.data());
-    if (length == 0 || length >= buffer.size()) {
-        return {};
-    }
-    return std::filesystem::path(std::wstring(buffer.data(), length)) / L"asterun-updater-ft";
-}
-
 [[nodiscard]] std::string ReadMode(const std::filesystem::path& path) {
     HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                               FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -107,17 +93,20 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         return 90;
     }
     const std::filesystem::path executable(std::wstring(module.data(), moduleLength));
-    const std::wstring caseName = executable.parent_path().parent_path().filename().wstring();
-    const auto folder = RecordFolder();
-    if (folder.empty() || caseName.empty()) {
+    const auto install = executable.parent_path();
+    const auto folder = install.parent_path() / L"records";
+    const DWORD attributes = GetFileAttributesW(folder.c_str());
+    if (install.filename() != L"install" ||
+        attributes == INVALID_FILE_ATTRIBUTES ||
+        (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0 ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
         return 91;
     }
-    CreateDirectoryW(folder.c_str(), nullptr);
 
     const std::wstring line = L"pid=" + std::to_wstring(GetCurrentProcessId()) + L" " + TokenSummary() +
         L" cmdline=" + GetCommandLineW() + L"\n";
     const std::string bytes = Utf8(line);
-    const auto record = folder / (caseName + L".launches.txt");
+    const auto record = folder / L"launches.txt";
     HANDLE file = CreateFileW(record.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                               OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE) {
@@ -130,7 +119,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         return 93;
     }
 
-    const std::string mode = ReadMode(folder / (caseName + L".mode"));
+    const std::string mode = ReadMode(folder / L"mode");
     if (mode == "exit0") {
         return 0;
     }
