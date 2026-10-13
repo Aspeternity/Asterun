@@ -10,6 +10,7 @@
 #include <commctrl.h>
 #include <objbase.h>
 #include <cassert>
+#include <array>
 #include <iostream>
 #include <string_view>
 
@@ -135,6 +136,17 @@ LRESULT CALLBACK RedrawSuspendProbe(HWND window, UINT message,
         message,
         wParam,
         lParam);
+}
+
+// Catch buttons briefly exposed during Settings page transitions. A final
+// hidden state is insufficient: it misses the one-frame reset-link flash.
+LRESULT CALLBACK HotkeyResetExposureProbe(
+    HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam,
+    UINT_PTR, DWORD_PTR data) {
+    if (message == WM_SHOWWINDOW && wParam != FALSE) {
+        ++*reinterpret_cast<int*>(data);
+    }
+    return DefSubclassProc(hwnd, message, wParam, lParam);
 }
 
 struct PaintMessageCounts {
@@ -583,6 +595,34 @@ int main() {
                 !IsIconic(window) &&
                 IsWindowVisible(window) &&
                 HasAboutHeading(window));
+
+            // A default hotkey's Reset button must never become visible even
+            // for a transient frame when opening the Hotkeys page.
+            SendMessageW(window, WM_COMMAND, MAKEWPARAM(51001, BN_CLICKED), 0);
+            std::array<HWND, 20> resetLinks{};
+            std::size_t resetCount = 0;
+            int prematureResetShows = 0;
+            for (UINT index = 0; index < resetLinks.size(); ++index) {
+                const HWND reset = GetDlgItem(window, 51760 + index);
+                if (!reset) continue;
+                assert(!IsWindowVisible(reset));
+                assert(SetWindowSubclass(reset, HotkeyResetExposureProbe,
+                    91, reinterpret_cast<DWORD_PTR>(&prematureResetShows)));
+                resetLinks[resetCount++] = reset;
+            }
+            assert(resetCount > 0);
+            for (int pass = 0; pass < 3; ++pass) {
+                SendMessageW(window, WM_COMMAND, MAKEWPARAM(51006, BN_CLICKED), 0);
+                for (std::size_t index = 0; index < resetCount; ++index) {
+                    assert(!IsWindowVisible(resetLinks[index]));
+                }
+                SendMessageW(window, WM_COMMAND, MAKEWPARAM(51001, BN_CLICKED), 0);
+            }
+            assert(prematureResetShows == 0);
+            for (std::size_t index = 0; index < resetCount; ++index) {
+                assert(RemoveWindowSubclass(resetLinks[index],
+                    HotkeyResetExposureProbe, 91));
+            }
 
             // Reproduce the real high-DPI/small-work-area path where General
             // genuinely needs scrolling. Settings now owns an in-client
