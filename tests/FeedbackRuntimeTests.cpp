@@ -34,11 +34,11 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
         else compactLogicalWidth = logicalWidth;
     }
     if (measuringChinese) {
-        // Native MessageBox buttons are ordinary BUTTON HWNDs. Drive the
-        // actual OK action, not TaskDialog's unrelated TDM_CLICK_BUTTON.
-        const HWND ok = GetDlgItem(window, IDOK);
-        assert(ok);
-        SendMessageW(ok, BM_CLICK, 0, 0);
+        // A polling timer can observe the dialog before its BUTTON children
+        // have been created. Queue the standard dialog IDOK command instead:
+        // its modal loop processes it after native initialization completes.
+        assert(PostMessageW(window, WM_COMMAND,
+            MAKEWPARAM(IDOK, BN_CLICKED), 0));
     } else {
         SendMessageW(window, TDM_CLICK_BUTTON, buttonToClick, 0);
     }
