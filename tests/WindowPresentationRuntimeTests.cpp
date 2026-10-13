@@ -143,8 +143,13 @@ LRESULT CALLBACK RedrawSuspendProbe(HWND window, UINT message,
 LRESULT CALLBACK HotkeyResetExposureProbe(
     HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam,
     UINT_PTR, DWORD_PTR data) {
-    if (message == WM_SHOWWINDOW && wParam != FALSE) {
-        ++*reinterpret_cast<int*>(data);
+    // SetWindowPos(SWP_SHOWWINDOW) does not necessarily dispatch
+    // WM_SHOWWINDOW. Observe the actual visibility transition request.
+    if (message == WM_WINDOWPOSCHANGING && lParam) {
+        const auto* pos = reinterpret_cast<const WINDOWPOS*>(lParam);
+        if ((pos->flags & SWP_SHOWWINDOW) != 0) {
+            ++*reinterpret_cast<int*>(data);
+        }
     }
     return DefSubclassProc(hwnd, message, wParam, lParam);
 }
