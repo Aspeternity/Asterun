@@ -441,27 +441,28 @@ bool ApplyPackage(
         return false;
     }
 
+    // Validate the complete package before creating any recovery files.
+    std::vector<SourceEntry>
+        entries;
+    if (!CollectSourceEntries(
+            paths,
+            entries)) {
+        return false;
+    }
+
     std::error_code ec;
-
-    std::filesystem::remove_all(
-        paths.backup,
-        ec);
-    ec.clear();
-
     std::filesystem::create_directories(
-        paths.backup,
+        paths.backup.parent_path(),
         ec);
-
     if (ec) {
         return false;
     }
 
-    std::vector<SourceEntry>
-        entries;
-
-    if (!CollectSourceEntries(
-            paths,
-            entries)) {
+    // An existing directory may contain the only copy of a failed update's
+    // recovery files. Never remove, merge into or overwrite it.
+    if (!std::filesystem::create_directory(
+            paths.backup,
+            ec) || ec) {
         return false;
     }
 

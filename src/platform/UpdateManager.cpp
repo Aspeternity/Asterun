@@ -1316,17 +1316,27 @@ bool LaunchPreparedUpdate(
         return false;
     }
 
+    const bool elevate =
+        !DirectoryWritable(
+            baseDirectory);
+
+    // Use a separate random name for every attempt. The health-event token
+    // must not also appear in a user-readable recovery directory name.
+    std::wstring backupToken;
+    if (!GenerateSecureToken(
+            backupToken,
+            nativeError)) {
+        return false;
+    }
+
     const auto backupDirectory =
         UpdateRoot(dataDirectory) /
         L"backup" /
         std::filesystem::path(
             std::wstring(
                 currentVersion.begin(),
-                currentVersion.end()));
-
-    const bool elevate =
-        !DirectoryWritable(
-            baseDirectory);
+                currentVersion.end()) +
+            L"-" + backupToken);
 
     std::wstring healthToken;
 
