@@ -177,9 +177,11 @@ function Invoke-Updater([hashtable]$case) {
                     $class = New-Object System.Text.StringBuilder 128
                     [void][AsterunUpdaterIt.DialogControl]::GetClassName($window, $class, $class.Capacity)
                     $lastWindow = "hwnd=$window class=$class"
-                    # WM_COMMAND / IDOK, only to a verified updater-owned HWND.
+                    # WM_CLOSE requests normal dialog dismissal; synthetic
+                    # WM_COMMAND/IDOK was posted but ignored by this window.
+                    # Only a verified Update.exe-owned HWND may be targeted.
                     if ([AsterunUpdaterIt.DialogControl]::PostMessage(
-                            $window, 0x0111, [IntPtr]1, [IntPtr]::Zero)) {
+                            $window, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)) {
                         $sent++
                         $case.DialogObserved = $true
                     }
