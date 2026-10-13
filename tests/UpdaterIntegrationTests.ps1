@@ -74,6 +74,11 @@ public static extern uint GetWindowThreadProcessId(System.IntPtr window, out uin
 public static extern bool PostMessage(System.IntPtr window, uint msg, System.IntPtr wParam, System.IntPtr lParam);
 '@
 
+# .NET UserInteractive uses UOI_FLAGS / WSF_VISIBLE on Windows, matching
+# Update.exe's native window-station check. The CI runner is noninteractive.
+$script:canShowDialogs = [Environment]::UserInteractive
+Write-Host "  updater integration: user-interactive=$script:canShowDialogs"
+
 function Test-Elevated {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -162,7 +167,7 @@ function Invoke-Updater([hashtable]$case) {
     Write-Host "  run: $updater $($arguments -join ' ')"  # not Write-Output: this function returns the exit code
     $process = Start-Process -FilePath $updater -ArgumentList $arguments -PassThru
     $null = $process.Handle  # keep the handle so ExitCode is available after exit
-    if ($case.ContainsKey('ExpectFailureDialog')) {
+    if ($case.ContainsKey('ExpectFailureDialog') -and $script:canShowDialogs) {
         $case.DialogObserved = $false
         $ticks = 0
         $ownedDialogs = 0
@@ -293,7 +298,11 @@ function Assert-Unchanged([hashtable]$case, [int]$exitCode, [int]$expected, [boo
         $_.ExecutablePath -and $_.ExecutablePath -ieq (Join-Path $case.Install 'Asterun.exe') })
     Check ($running.Count -eq [int]$expectRestart) "$($case.Name): previous Asterun launch expectation ($expectRestart)"
     if ($case.ContainsKey('ExpectFailureDialog')) {
-        Check $case.DialogObserved "$($case.Name): updater displayed a failure message"
+        if ($script:canShowDialogs) {
+            Check $case.DialogObserved "$($case.Name): interactive updater failure message"
+        } else {
+            Write-Host "  noninteractive runner: failure dialog suppressed"
+        }
     }
 }
 
@@ -392,7 +401,9 @@ try {
         $case.Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $case.Archive).Hash.ToLowerInvariant()
         $code = Invoke-Updater $case
         Check ($code -eq 7) 'restartfailed: correctly reports failed old-version relaunch'
-        Check $case.DialogObserved 'restartfailed: failure message displayed'
+        if ($script:canShowDialogs) {
+            Check $case.DialogObserved 'restartfailed: failure message displayed'
+        }
         Check ((Get-Content -LiteralPath (Join-Path $case.Install 'Asterun.exe') -Raw) -eq 'invalid-old-app') 'restartfailed: rollback restored original bytes'
         $protected = @(Get-ChildItem -LiteralPath $case.Install -Force -Directory -Filter '.asterun-update-work.*')
         Check ($protected.Count -eq 1) 'restartfailed: protected recovery root retained'
