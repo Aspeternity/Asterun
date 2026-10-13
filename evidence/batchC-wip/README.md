@@ -8,7 +8,7 @@
 
 运行 38301093470 已完成：x64/ARM64 打包构建成功，Linux 测试成功，ARM64 测试编译成功。两个 Windows 测试作业失败，跨平台清单检查跳过。编译通过不能代替更新失败收尾验证。
 
-QueryPathState 仅将明确不存在作为允许清理的条件；异常类型和查询失败保留。本次接手没有修改产品代码、更新协议、工作流、VERSION 或发布状态。
+QueryPathState 仅将明确不存在作为允许清理的条件；异常类型和查询失败保留。接手后的产品修改仅为下述健康事件错误码保存；未修改更新协议、工作流、VERSION 或发布状态。
 
 ## 记录隔离修订
 
@@ -55,3 +55,13 @@ update_runtime_tests 新增 Windows 专属事务用例：共享读占用 README.
 两个失败分别是：尚未迁移的 updater_portable_integration_tests 在错误哈希场景等待旧的静默退出而超时；新增 updater_fake_main_tests 无法加载 Get-FileHash。这第二项是新增测试自身的问题，不能归为产品预期失败。本次修正复用现有更新集成脚本的 Windows PowerShell 模块路径初始化，修正后的结果待 CI 验证。
 
 本记录不把事务层验证或辅助程序自测视作统一失败收尾验证；不把部分作业成功写成完整 CI 通过。
+
+## 健康事件错误码复核
+
+发现 CreateHealthEvent 仅保存了 CreateEventW 的失败码；令牌查询和安全描述符失败分支先清理再返回，调用方随后读取的 last-error 不可靠。此外 SetEntriesInAclW 直接返回错误码，原实现丢弃了该值。
+
+改为显式 DWORD 输出参数：在失败 API 处保存错误码，清理后直接传给失败收尾；SetEntriesInAclW 使用返回值。返回码仍为 4，创建事件的权限和成功流程不变。产品变动仅在 UpdaterMain.cpp，无测试入口。这些罕见失败分支目前仅代码审查覆盖，不能写成运行验证通过。
+
+API 依据（2026-10-13 核对）：
+- https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setentriesinaclw
+- https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
