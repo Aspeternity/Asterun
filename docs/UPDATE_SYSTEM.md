@@ -83,12 +83,14 @@ The helper:
 
 1. waits for the old Asterun PID to exit;
 2. validates the staged source again;
-3. backs up each existing application file that will be replaced under `data/update/backup/<old-version>`;
+3. backs up each existing application file under a unique `data/update/backup/<old-version>-<per-attempt-token>/` path for portable updates (or `.asterun-update-work.<token>/backup/` under the protected installation root for elevated updates);
 4. copies the staged application files while explicitly skipping any staged `data/` subtree;
 5. restarts the new `Asterun.exe` with a one-shot local health-event name;
 6. waits up to 30 seconds for normal startup to signal health;
-7. deletes backup/staging on success;
+7. deletes only the current attempt's backup/staging on success, leaving historical recovery directories untouched;
 8. on copy, launch or health failure, restores the backed-up files and relaunches the previous build.
+
+An already-existing backup directory is never reused or cleared: the new attempt fails closed, preserving earlier recovery contents. The generated backup path uses an independent random token rather than the health-event token.
 
 The normal Asterun destructor still owns managed Everything shutdown during the update exit, so the updater does not duplicate or bypass the existing Everything lifecycle.
 
