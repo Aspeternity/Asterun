@@ -286,7 +286,7 @@ SettingsStore::SettingsStore(
       legacyIniPath_(
           std::move(legacyIniPath)) {}
 
-void SettingsStore::Load() {
+void SettingsStore::Load(bool allowWrites) {
     settings_ = Settings{};
     settings_.updateChannel =
         DefaultUpdateChannelForVersion(
@@ -299,7 +299,7 @@ void SettingsStore::Load() {
     migratedFromOlderSchema_ = false;
     migratedFromSchemaVersion_ = 0;
 
-    if (LoadJson()) {
+    if (LoadJson(allowWrites)) {
         return;
     }
 
@@ -315,15 +315,18 @@ void SettingsStore::Load() {
         MigrateLegacyIni();
     }
 
-    Save();
+    if (allowWrites) {
+        Save();
+    }
 }
 
-bool SettingsStore::LoadJson() {
+bool SettingsStore::LoadJson(bool allowWrites) {
     auto load =
         config::LoadJsonWithBackup(
             jsonPath_,
             config::kSettingsSchemaVersion,
-            config::ValidSettingsNode);
+            config::ValidSettingsNode,
+            allowWrites);
 
     preserveInvalidInput_ =
         load.status == config::JsonLoadStatus::InvalidExisting ||
@@ -830,7 +833,8 @@ bool SettingsStore::LoadJson() {
                 true;
         }
 
-        if (!readOnlyDueToNewerSchema_ &&
+        if (allowWrites &&
+            !readOnlyDueToNewerSchema_ &&
             load.schemaVersion > 0 &&
             load.schemaVersion <
                 config::kSettingsSchemaVersion) {
