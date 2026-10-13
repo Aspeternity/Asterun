@@ -253,13 +253,7 @@ int main() {
         assert(
             IsOwnedEverythingProcessPath(
                 install,
-                ownedExecutable,
-                false));
-        assert(
-            IsOwnedEverythingProcessPath(
-                install,
-                ownedExecutable,
-                true));
+                ownedExecutable));
 
         const auto protectedRoot =
             ManagedEverythingServiceHostRoot();
@@ -273,13 +267,7 @@ int main() {
             assert(
                 !IsOwnedEverythingProcessPath(
                     install,
-                    protectedExecutable,
-                    false));
-            assert(
-                !IsOwnedEverythingProcessPath(
-                    install,
-                    protectedExecutable,
-                    true));
+                    protectedExecutable));
         }
 
         assert(
@@ -287,8 +275,7 @@ int main() {
                 install,
                 base /
                     L"external" /
-                    L"Everything.exe",
-                true));
+                    L"Everything.exe"));
 
         std::wstring command =
             QuoteArgument(
