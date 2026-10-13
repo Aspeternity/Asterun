@@ -874,10 +874,14 @@ int WINAPI wWinMain(
 
     cleanupWork();
 
-    std::filesystem::remove_all(
-        args.backup,
-        cleanupError);
-    cleanupError.clear();
+    // Elevated updates back up into protectedWorkRoot, not args.backup.
+    // Only the portable path owns and may delete the supplied backup.
+    if (!args.secureReextract) {
+        std::filesystem::remove_all(
+            transaction.backup,
+            cleanupError);
+        cleanupError.clear();
+    }
     std::filesystem::remove_all(
         args.source,
         cleanupError);
