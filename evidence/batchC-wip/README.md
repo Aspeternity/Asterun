@@ -73,3 +73,13 @@ API 依据（2026-10-13 核对）：
 改用 Windows CommandLineToArgvW 解析实际记录，严格要求 argc 为 1 且程序名为 Asterun.exe；进程归属继续由本次启动的 PID 和各自记录目录核对。增加三个解析对照：带空格的程序路径及尾部空白允许，额外空参数和普通参数都必须检出；不删除无参数要求。新的输出记录实际命令行和参数数目。此自测仍不启动 Update.exe，也不操作提示框。
 
 API 依据：https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw
+
+## 产品辅助函数的直接测试
+
+新增 updater_failure_support_tests，在测试翻译单元中包含原始 UpdaterMain.cpp，直接调用内部函数；没有复制实现、替换 API 或增加产品测试开关。测试入口为控制台 wmain，不调用产品 wWinMain、FinishFailedUpdate 或提示框。
+
+- RestartPreviousVersion：缺失程序创建失败；真实辅助进程以 0、3 退出；真实辅助进程观察五秒后仍存活。每个可启动场景要求各自记录中恰好一次无参数启动。辅助程序新增 stay15 模式，15 秒后自行退出，测试核对映像后等待其自然退出。
+- CreateHealthEvent：真实成功创建并触发；与本次测试创建的同名互斥量冲突时，返回空句柄并报告 ERROR_INVALID_HANDLE（6）。这覆盖真实创建事件失败的错误码传递，不覆盖令牌查询/ACL 分配等罕见失败。
+- QueryPathState：缺失路径、普通目录、普通文件和空路径。访问拒绝和重解析点不因本测试而记为已验证。
+
+这部分只验证产品支持函数；重启状态查询失败、完整收尾的分支选择、恢复材料保留、最终返回码和提示数量仍需端到端验证。不能将本用例的通过替代原场景 1–11 或旧版对比。新增 Windows CTest，ARM64 仅编译。
