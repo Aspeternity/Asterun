@@ -195,8 +195,23 @@ function Invoke-Updater([hashtable]$case) {
             }
             $ticks += 1
             if ($ticks -ge 150) {
-                Stop-Process -Id $process.Id -Force
-                throw "Updater failure dialog timeout ($($case.Name)); found=$ownedDialogs posted=$sentClose"
+                # One-run, test-only failure observation: distinguish a modal
+                # error prompt from a hung rollback or old-app launch.
+                $oldExe = Join-Path $case.Install 'Asterun.exe'
+                $oldCount = @(Get-CimInstance Win32_Process -Filter "Name = 'Asterun.exe'" | Where-Object {
+                    $_.ExecutablePath -and $_.ExecutablePath -ieq $oldExe }).Count
+                $readme = '(missing)'
+                if (Test-Path -LiteralPath (Join-Path $case.Install 'README.md')) {
+                    $readme = (Get-Content -LiteralPath (Join-Path $case.Install 'README.md') -Raw).Trim()
+                }
+                $workerState = '(unknown)'
+                try {
+                    $live = Get-Process -Id $process.Id -ErrorAction Stop
+                    $states = @($live.Threads | ForEach-Object { "$($_.ThreadState)/$($_.WaitReason)" })
+                    $workerState = "window=$($live.MainWindowHandle) threads=$($states -join ',')"
+                } catch { $workerState = $_.Exception.Message }
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                throw "Updater dialog timeout ($($case.Name)): found=$ownedDialogs posted=$sentClose oldRunning=$oldCount oldReadme=$readme worker=$workerState"
             }
         }
     } elseif (-not $process.WaitForExit(180000)) {
