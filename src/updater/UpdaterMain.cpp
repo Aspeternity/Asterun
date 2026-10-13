@@ -493,6 +493,27 @@ LaunchMain(
     return true;
 }
 
+// Error dialogs block forever on CI/service window stations without a
+// visible user desktop. Return failure normally there; keep dialogs for users.
+[[nodiscard]] bool CanShowUpdateDialog() noexcept {
+    const HWINSTA station = GetProcessWindowStation();
+    USEROBJECTFLAGS flags{};
+    DWORD required = 0;
+    return station &&
+        GetUserObjectInformationW(
+            station, UOI_FLAGS,
+            &flags, sizeof(flags), &required) &&
+        (flags.dwFlags & WSF_VISIBLE) != 0;
+}
+
+void ShowFailureDialog(const std::wstring& message) {
+    if (CanShowUpdateDialog()) {
+        MessageBoxW(
+            nullptr, message.c_str(),
+            L"Asterun", MB_OK | MB_ICONERROR);
+    }
+}
+
 void ShowUpdateFailure(
     std::wstring_view reason,
     bool restarted,
@@ -507,9 +528,7 @@ void ShowUpdateFailure(
         message += L"\nRecovery files were retained at:\n";
         message += recovery.wstring();
     }
-    MessageBoxW(
-        nullptr, message.c_str(),
-        L"Asterun", MB_OK | MB_ICONERROR);
+    ShowFailureDialog(message);
 }
 
 [[nodiscard]] HANDLE
@@ -637,7 +656,7 @@ int WINAPI wWinMain(
             L"the DLL search path for the updater. No files were changed.\n\n"
             L"Error code: " +
             std::to_wstring(searchError);
-        MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
+        ShowFailureDialog(message);
         SetLastError(searchError);
         return 2;
     }
@@ -646,10 +665,8 @@ int WINAPI wWinMain(
         ParseArguments();
 
     if (!parsed) {
-        MessageBoxW(
-            nullptr,
-            L"Update.exe requires a valid update request from Asterun. No files were changed.",
-            L"Asterun", MB_OK | MB_ICONERROR);
+        ShowFailureDialog(
+            L"Update.exe requires a valid update request from Asterun. No files were changed.");
         return 2;
     }
 
@@ -658,10 +675,8 @@ int WINAPI wWinMain(
 
     if (!WaitForParent(
             args.parentPid)) {
-        MessageBoxW(
-            nullptr,
-            L"The previous Asterun process did not exit. The update was cancelled before changing any files.",
-            L"Asterun", MB_OK | MB_ICONERROR);
+        ShowFailureDialog(
+            L"The previous Asterun process did not exit. The update was cancelled before changing any files.");
         return 2;
     }
 
@@ -824,7 +839,7 @@ int WINAPI wWinMain(
             }
             const auto message = L"The update could not be fully restored. Recovery files were kept at:\n" +
                 transaction.backup.wstring();
-            MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
+            ShowFailureDialog(message);
         }
         return recovery.Complete();
     };
@@ -918,7 +933,7 @@ int WINAPI wWinMain(
             preserveRecovery = true;
             const auto message = L"The updated application is still running. Recovery files were kept at:\n" +
                 transaction.backup.wstring();
-            MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
+            ShowFailureDialog(message);
             cleanupWork();
             return 7;
         }
