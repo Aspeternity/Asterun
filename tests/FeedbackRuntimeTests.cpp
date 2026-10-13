@@ -2,12 +2,15 @@
 #include <commctrl.h>
 #include <cassert>
 #include <cwchar>
+#include <cstdio>
 
 namespace {
 bool observed{};
 bool deletion{};
 int buttonToClick{IDCANCEL};
 int compactLogicalWidth{};
+int longerLogicalWidth{};
+bool measuringLonger{};
 
 BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     wchar_t title[128]{};
@@ -21,8 +24,10 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
         RECT bounds{};
         assert(GetWindowRect(window, &bounds));
         const UINT dpi = GetDpiForWindow(window);
-        compactLogicalWidth = MulDiv(bounds.right - bounds.left,
+        const int logicalWidth = MulDiv(bounds.right - bounds.left,
             96, dpi ? static_cast<int>(dpi) : 96);
+        if (measuringLonger) longerLogicalWidth = logicalWidth;
+        else compactLogicalWidth = logicalWidth;
     }
     SendMessageW(window, TDM_CLICK_BUTTON, buttonToClick, 0);
     return FALSE;
@@ -52,8 +57,18 @@ int main() {
     assert(altrun::ui::ShowMessage(nullptr, L"Silent confirmation", L"Feedback runtime test",
         MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO);
     assert(observed);
-    // A short localized prompt must fit in a compact native dialog.
-    // The value is normalized from the monitor DPI to 96-DPI pixels.
+    observed = false;
+    measuringLonger = true;
+    // Longer content deliberately keeps native TaskDialog's automatic sizing
+    // as a reference on the same runner, DPI and system font.
+    assert(altrun::ui::ShowMessage(nullptr,
+        L"Longer instructions require more room to remain readable; "
+        L"please check the options carefully before continuing.",
+        L"Feedback runtime test", MB_YESNO | MB_ICONWARNING) == IDNO);
+    assert(observed);
+    std::fprintf(stderr,
+        "UI01_NATIVE_TASKDIALOG_SIZES compact=%d baseline_long=%d (96dpi pixels)\n",
+        compactLogicalWidth, longerLogicalWidth);
     assert(compactLogicalWidth > 0 && compactLogicalWidth <= 340);
     KillTimer(nullptr, timer);
     HANDLE after{};
