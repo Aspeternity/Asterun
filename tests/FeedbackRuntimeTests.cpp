@@ -13,18 +13,6 @@ int longerLogicalWidth{};
 int chineseLogicalWidth{};
 bool measuringLonger{};
 bool measuringChinese{};
-int compactTicks{};
-int compactDialogMatches{};
-int compactButtonMissing{};
-
-BOOL CALLBACK ReportDialogChild(HWND child, LPARAM) {
-    wchar_t cls[80]{};
-    GetClassNameW(child, cls, 80);
-    std::fprintf(stderr, "UI01_CHILD id=%d class=%ls visible=%d enabled=%d\n",
-        GetDlgCtrlID(child), cls, IsWindowVisible(child), IsWindowEnabled(child));
-    return TRUE;
-}
-
 
 BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     wchar_t title[128]{};
@@ -32,7 +20,6 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     const wchar_t* expected = deletion ? L"Delete shortcut" :
         measuringChinese ? L"测试运行" : L"Feedback runtime test";
     if (std::wcscmp(title, expected) != 0) return TRUE;
-    if (measuringChinese) ++compactDialogMatches;
     // TaskDialog button IDs are public message IDs, not a contract for child
     // HWND IDs or hierarchy. Exercise the real action through its supported API.
     // A native MessageBox is not a TaskDialog. WM_COMMAND with lParam=0
@@ -41,19 +28,12 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     HWND compactOk{};
     if (measuringChinese) {
         compactOk = GetDlgItem(window, IDOK);
+        // The native single-action dialog can expose its actual button
+        // under IDCANCEL on the Windows CI host. Click that real HWND,
+        // then assert MessageBoxW still returns IDOK for MB_OK.
+        if (!compactOk) compactOk = GetDlgItem(window, IDCANCEL);
         if (!compactOk || !IsWindowVisible(window) ||
             !IsWindowVisible(compactOk) || !IsWindowEnabled(compactOk)) {
-            if (++compactButtonMissing == 8) {
-                wchar_t cls[80]{};
-                GetClassNameW(window, cls, 80);
-                std::fprintf(stderr,
-                    "UI01_WINDOW class=%ls visible=%d active=%d ok=%d okVisible=%d okEnabled=%d\n",
-                    cls, IsWindowVisible(window),
-                    GetActiveWindow() == window, compactOk != nullptr,
-                    compactOk ? IsWindowVisible(compactOk) : -1,
-                    compactOk ? IsWindowEnabled(compactOk) : -1);
-                EnumChildWindows(window, ReportDialogChild, 0);
-            }
             return TRUE; // UI is still initializing; retry on the next tick.
         }
     }
@@ -78,12 +58,6 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
 
 void CALLBACK ClosePrompt(HWND, UINT, UINT_PTR, DWORD) {
     EnumThreadWindows(GetCurrentThreadId(), CloseTestDialog, 0);
-    if (measuringChinese && !observed && ++compactTicks >= 35) {
-        std::fprintf(stderr,
-            "UI01_NATIVE_DIALOG_NOT_READY ticks=%d matches=%d no_ok=%d\n",
-            compactTicks, compactDialogMatches, compactButtonMissing);
-        assert(false && "Compact native notice was not automatable after 3.5 seconds");
-    }
 }
 }
 
