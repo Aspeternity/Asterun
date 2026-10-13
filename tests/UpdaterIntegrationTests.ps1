@@ -63,22 +63,17 @@ function Check([bool]$condition, [string]$message) {
     else { Write-Output "  FAIL $message"; $script:failures.Add($message) }
 }
 
-# Test-only Win32 bridge: close only MessageBox windows owned by the updater
-# process, so failure-path integration runs never depend on human clicks.
+# The updater shows one modal message on failure. Enumerating class
+# '#32770' on the test desktop missed windows on hosted Windows runners;
+# Process.MainWindowHandle provides the exact updater-owned HWND instead.
 Add-Type -Namespace AsterunUpdaterIt -Name DialogControl -MemberDefinition @'
-[System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-public static extern System.IntPtr FindWindowEx(System.IntPtr parent, System.IntPtr after, string cls, string title);
 [System.Runtime.InteropServices.DllImport("user32.dll")]
 public static extern uint GetWindowThreadProcessId(System.IntPtr window, out uint pid);
-[System.Runtime.InteropServices.DllImport("user32.dll")]
+[System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
 public static extern bool PostMessage(System.IntPtr window, uint msg, System.IntPtr wParam, System.IntPtr lParam);
+[System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+public static extern int GetClassName(System.IntPtr window, System.Text.StringBuilder buffer, int length);
 '@
-
-# Session 0 cannot display a user-facing prompt even when .NET reports
-# UserInteractive=True. Child Update.exe inherits the same session.
-$script:sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
-$script:canShowDialogs = [Environment]::UserInteractive -and ($script:sessionId -ne 0)
-Write-Host "  updater integration: session=$script:sessionId user-interactive=$([Environment]::UserInteractive) allow-dialog=$script:canShowDialogs"
 
 function Test-Elevated {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -168,51 +163,35 @@ function Invoke-Updater([hashtable]$case) {
     Write-Host "  run: $updater $($arguments -join ' ')"  # not Write-Output: this function returns the exit code
     $process = Start-Process -FilePath $updater -ArgumentList $arguments -PassThru
     $null = $process.Handle  # keep the handle so ExitCode is available after exit
-    if ($case.ContainsKey('ExpectFailureDialog') -and $script:canShowDialogs) {
+    if ($case.ContainsKey('ExpectFailureDialog')) {
         $case.DialogObserved = $false
-        $ticks = 0
-        $ownedDialogs = 0
-        $sentClose = 0
-        while (-not $process.WaitForExit(200)) {
-            # Enumerate all standard dialogs, not just the first window with
-            # an exact title. Some runners have unrelated top-level dialogs.
-            $dialog = [AsterunUpdaterIt.DialogControl]::FindWindowEx(
-                [IntPtr]::Zero, [IntPtr]::Zero, '#32770', $null)
-            while ($dialog -ne [IntPtr]::Zero) {
-                [uint32]$dialogPid = 0
-                [void][AsterunUpdaterIt.DialogControl]::GetWindowThreadProcessId($dialog, [ref]$dialogPid)
-                if ($dialogPid -eq [uint32]$process.Id) {
-                    $case.DialogObserved = $true
-                    $ownedDialogs += 1
-                    # WM_COMMAND / IDOK. Only the selected updater's window.
+        $sent = 0
+        $lastWindow = 'none'
+        for ($tick = 0; $tick -lt 150; $tick++) {
+            if ($process.WaitForExit(200)) { break }
+            $window = (Get-Process -Id $process.Id -ErrorAction SilentlyContinue).MainWindowHandle
+            if ($null -ne $window -and $window -ne [IntPtr]::Zero) {
+                [uint32]$ownerPid = 0
+                [void][AsterunUpdaterIt.DialogControl]::GetWindowThreadProcessId($window, [ref]$ownerPid)
+                if ($ownerPid -eq [uint32]$process.Id) {
+                    $class = New-Object System.Text.StringBuilder 128
+                    [void][AsterunUpdaterIt.DialogControl]::GetClassName($window, $class, $class.Capacity)
+                    $lastWindow = "hwnd=$window class=$class"
+                    # WM_COMMAND / IDOK, only to a verified updater-owned HWND.
                     if ([AsterunUpdaterIt.DialogControl]::PostMessage(
-                            $dialog, 0x0111, [IntPtr]1, [IntPtr]::Zero)) {
-                        $sentClose += 1
+                            $window, 0x0111, [IntPtr]1, [IntPtr]::Zero)) {
+                        $sent++
+                        $case.DialogObserved = $true
                     }
                 }
-                $dialog = [AsterunUpdaterIt.DialogControl]::FindWindowEx(
-                    [IntPtr]::Zero, $dialog, '#32770', $null)
             }
-            $ticks += 1
-            if ($ticks -ge 150) {
-                # One-run, test-only failure observation: distinguish a modal
-                # error prompt from a hung rollback or old-app launch.
-                $oldExe = Join-Path $case.Install 'Asterun.exe'
-                $oldCount = @(Get-CimInstance Win32_Process -Filter "Name = 'Asterun.exe'" | Where-Object {
-                    $_.ExecutablePath -and $_.ExecutablePath -ieq $oldExe }).Count
-                $readme = '(missing)'
-                if (Test-Path -LiteralPath (Join-Path $case.Install 'README.md')) {
-                    $readme = (Get-Content -LiteralPath (Join-Path $case.Install 'README.md') -Raw).Trim()
-                }
-                $workerState = '(unknown)'
-                try {
-                    $live = Get-Process -Id $process.Id -ErrorAction Stop
-                    $states = @($live.Threads | ForEach-Object { "$($_.ThreadState)/$($_.WaitReason)" })
-                    $workerState = "window=$($live.MainWindowHandle) threads=$($states -join ',')"
-                } catch { $workerState = $_.Exception.Message }
-                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-                throw "Updater dialog timeout ($($case.Name)): found=$ownedDialogs posted=$sentClose oldRunning=$oldCount oldReadme=$readme worker=$workerState"
-            }
+        }
+        if (-not $process.HasExited) {
+            $oldExe = Join-Path $case.Install 'Asterun.exe'
+            $oldCount = @(Get-CimInstance Win32_Process -Filter "Name = 'Asterun.exe'" | Where-Object {
+                $_.ExecutablePath -and $_.ExecutablePath -ieq $oldExe }).Count
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw "Updater did not exit ($($case.Name)): $lastWindow posted=$sent oldRunning=$oldCount"
         }
     } elseif (-not $process.WaitForExit(180000)) {
         Stop-Process -Id $process.Id -Force
@@ -314,11 +293,7 @@ function Assert-Unchanged([hashtable]$case, [int]$exitCode, [int]$expected, [boo
         $_.ExecutablePath -and $_.ExecutablePath -ieq (Join-Path $case.Install 'Asterun.exe') })
     Check ($running.Count -eq [int]$expectRestart) "$($case.Name): previous Asterun launch expectation ($expectRestart)"
     if ($case.ContainsKey('ExpectFailureDialog')) {
-        if ($script:canShowDialogs) {
-            Check $case.DialogObserved "$($case.Name): interactive updater failure message"
-        } else {
-            Write-Host "  noninteractive runner: failure dialog suppressed"
-        }
+        Check $case.DialogObserved "$($case.Name): updater failure message was displayed and acknowledged"
     }
 }
 
@@ -417,9 +392,7 @@ try {
         $case.Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $case.Archive).Hash.ToLowerInvariant()
         $code = Invoke-Updater $case
         Check ($code -eq 7) 'restartfailed: correctly reports failed old-version relaunch'
-        if ($script:canShowDialogs) {
-            Check $case.DialogObserved 'restartfailed: failure message displayed'
-        }
+        Check $case.DialogObserved 'restartfailed: updater failure message displayed'
         Check ((Get-Content -LiteralPath (Join-Path $case.Install 'Asterun.exe') -Raw) -eq 'invalid-old-app') 'restartfailed: rollback restored original bytes'
         $protected = @(Get-ChildItem -LiteralPath $case.Install -Force -Directory -Filter '.asterun-update-work.*')
         Check ($protected.Count -eq 1) 'restartfailed: protected recovery root retained'
