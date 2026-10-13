@@ -11,6 +11,7 @@
 #include <functional>
 #include <future>
 #include <iostream>
+#include <iterator>
 
 namespace {
 std::filesystem::path fixtureRoot;
@@ -19,6 +20,7 @@ unsigned stopCalls{};
 bool managedRunning{};
 bool failMutex{};
 unsigned forwarded{};
+std::wstring lastMessage;
 std::function<void()> modalCheck;
 ULONGLONG modalDeadline{};
 const wchar_t* modalClass{};
@@ -40,7 +42,10 @@ EverythingBootstrapSnapshot TestRunEverythingBootstrap(
 }
 }
 namespace altrun::ui {
-int TestShowMessage(HWND, const wchar_t*, const wchar_t*, UINT) { return IDOK; }
+int TestShowMessage(HWND, const wchar_t* message, const wchar_t*, UINT) {
+    lastMessage = message ? message : L"";
+    return IDOK;
+}
 }
 namespace {
 HANDLE WINAPI TestCreateMutex(LPSECURITY_ATTRIBUTES attributes, BOOL owner, LPCWSTR) {
@@ -83,6 +88,10 @@ void WriteSettings(bool everything = false) {
         "windows.startmenu":false,"windows.packaged":false,"windows.apppaths":false,
         "windows.path":false,"everything.filesystem":)" << (everything ? "true" : "false") << "}}";
 }
+std::string ReadFixtureBytes(const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+}
 void DrainQuit() {
     MSG message{};
     while (PeekMessageW(&message, nullptr, WM_QUIT, WM_QUIT, PM_REMOVE)) {}
@@ -110,6 +119,71 @@ struct AppLifecycleRuntimeFixture {
         app.window_.reset();
         DrainQuit();
     }
+    static void NoWritesBeforeOwnership(HINSTANCE instance) {
+        const auto previousFixtureRoot = fixtureRoot;
+        const auto isolated = fixtureRoot / "f04-early-ownership";
+        std::filesystem::remove_all(isolated);
+        std::filesystem::create_directories(isolated);
+        fixtureRoot = isolated;
+        const auto data = fixtureRoot / "data";
+
+        HANDLE existing = CreateMutexW(nullptr, FALSE, mutexName.c_str());
+        assert(existing);
+        {
+            App secondary(instance);
+            assert(secondary.Run() == 0 && !secondary.ownsPrimaryInstance_);
+        }
+        // A rejected second instance must not create data/settings.json.
+        assert(!std::filesystem::exists(data));
+        CloseHandle(existing);
+
+        failMutex = true;
+        {
+            App denied(instance);
+            assert(denied.Run() == 1 && !denied.ownsPrimaryInstance_);
+        }
+        failMutex = false;
+        assert(!std::filesystem::exists(data));
+
+        std::filesystem::create_directories(data);
+        const auto primaryPath = data / "settings.json";
+        const auto backupPath = data / "settings.json.bak";
+        const std::string invalid = R"({"schemaVersion":12,"general":{"soundEnabled":"invalid"}})";
+        const std::string goodBackup = R"({"schemaVersion":12,"appearance":{"language":"en-US"},"general":{"soundEnabled":false}})";
+        { std::ofstream file(primaryPath, std::ios::binary); file << invalid; }
+        { std::ofstream file(backupPath, std::ios::binary); file << goodBackup; }
+        existing = CreateMutexW(nullptr, FALSE, mutexName.c_str());
+        assert(existing);
+        lastMessage.clear();
+        {
+            App secondary(instance);
+            assert(secondary.Run() == 0 && !secondary.ownsPrimaryInstance_);
+        }
+        // Read the effective language from the good backup without repairing it.
+        assert(lastMessage.find(L"Asterun is already running") != std::wstring::npos);
+        assert(ReadFixtureBytes(primaryPath) == invalid);
+        assert(ReadFixtureBytes(backupPath) == goodBackup);
+        CloseHandle(existing);
+
+        const std::string oldSchema = R"({"schemaVersion":11,"appearance":{"language":"en-US"},"general":{"soundEnabled":false}})";
+        { std::ofstream file(primaryPath, std::ios::binary); file << oldSchema; }
+        std::filesystem::remove(backupPath);
+        existing = CreateMutexW(nullptr, FALSE, mutexName.c_str());
+        assert(existing);
+        lastMessage.clear();
+        {
+            App secondary(instance);
+            assert(secondary.Run() == 0 && !secondary.ownsPrimaryInstance_);
+        }
+        // Even a valid old schema must not be migrated by a duplicate process.
+        assert(lastMessage.find(L"Asterun is already running") != std::wstring::npos);
+        assert(ReadFixtureBytes(primaryPath) == oldSchema);
+        assert(!std::filesystem::exists(backupPath));
+        CloseHandle(existing);
+
+        fixtureRoot = previousFixtureRoot;
+        std::filesystem::remove_all(isolated);
+    }
     static void Ownership(HINSTANCE instance) {
         // The real Run() paths use an isolated named mutex and isolated files.
         for (bool running : {false, true}) {
@@ -135,11 +209,11 @@ struct AppLifecycleRuntimeFixture {
             assert(destination);
             const auto before = forwarded;
             {
-                App sender(instance, {}, {L"C:\\Fixture\\工具.exe"});
+                App sender(instance, {}, {L"C:\\Fixture\\工具.exe", L"C:\\Fixture\\second.txt"});
                 assert(sender.Run() == 0);
                 assert(!sender.ownsPrimaryInstance_ && !sender.everythingProvider_);
             }
-            assert(forwarded == before + 1);
+            assert(forwarded == before + 2);
             assert(stopCalls == 0 && managedRunning == running);
             DestroyWindow(destination);
             assert(UnregisterClassW(wc.lpszClassName, instance));
@@ -428,6 +502,7 @@ int main() {
     mutexName = L"Local\\Asterun.Batch1.Test." + std::to_wstring(GetCurrentProcessId());
     const auto com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const auto instance = GetModuleHandleW(nullptr);
+    altrun::AppLifecycleRuntimeFixture::NoWritesBeforeOwnership(instance);
     altrun::AppLifecycleRuntimeFixture::Ownership(instance);
     altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
     altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
