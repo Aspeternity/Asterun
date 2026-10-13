@@ -2952,14 +2952,12 @@ void ShortcutEditorDialog::Test() {
         CollectCommand();
 
     if (command.target.empty()) {
-        altrun::ui::ShowMessage(
+        altrun::ui::ShowCompactNotice(
             hwnd_,
             T(L"请先填写目标。",
               L"Enter a target first."),
             T(L"测试运行",
-              L"Test"),
-            MB_OK |
-                MB_ICONWARNING);
+              L"Test"));
         return;
     }
 

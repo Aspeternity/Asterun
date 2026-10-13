@@ -4,7 +4,6 @@
 #include <commctrl.h>
 #include <mmsystem.h>
 #include <iterator>
-#include <cwchar>
 #include <string>
 
 namespace altrun::ui {
@@ -74,14 +73,6 @@ int ShowMessage(HWND owner, const wchar_t* text, const wchar_t* title, UINT flag
     config.dwFlags = TDF_POSITION_RELATIVE_TO_WINDOW | TDF_ALLOW_DIALOG_CANCELLATION;
     config.pszWindowTitle = title;
     config.pszContent = text;
-    // Native TaskDialog width is measured in dialog units, not pixels.
-    // For brief, single-line text, let Common Controls size to its actual
-    // content and buttons. Keep the original native default for longer text.
-    if (text && std::wcslen(text) <= 24 &&
-        !std::wcschr(text, L'\n') &&
-        !std::wcschr(text, L'\r')) {
-        config.dwFlags |= TDF_SIZE_TO_CONTENT;
-    }
     config.pfCallback = OnDialog;
     config.lpCallbackData = static_cast<LONG_PTR>(flags);
     const UINT kind = flags & MB_TYPEMASK;
@@ -106,6 +97,14 @@ int ShowMessage(HWND owner, const wchar_t* text, const wchar_t* title, UINT flag
     if (result == IDCANCEL && kind == MB_YESNO) return IDNO;
     if (result == IDCANCEL && kind == MB_OK) return IDOK;
     return result;
+}
+
+int ShowCompactNotice(HWND owner, const wchar_t* text, const wchar_t* title) {
+    // TaskDialog enforces a wide minimum even for one short sentence.
+    // Only explicitly requested, single-button notices use the system's
+    // text-sized message box; do not affect shared warning/confirm flows.
+    // No icon is supplied, keeping the existing silent UI policy.
+    return MessageBoxW(owner, text, title, MB_OK);
 }
 
 bool ConfirmShortcutDeletion(HWND owner, std::wstring_view name, bool chinese) {

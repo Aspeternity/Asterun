@@ -33,7 +33,15 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
         else if (measuringLonger) longerLogicalWidth = logicalWidth;
         else compactLogicalWidth = logicalWidth;
     }
-    SendMessageW(window, TDM_CLICK_BUTTON, buttonToClick, 0);
+    if (measuringChinese) {
+        // Native MessageBox buttons are ordinary BUTTON HWNDs. Drive the
+        // actual OK action, not TaskDialog's unrelated TDM_CLICK_BUTTON.
+        const HWND ok = GetDlgItem(window, IDOK);
+        assert(ok);
+        SendMessageW(ok, BM_CLICK, 0, 0);
+    } else {
+        SendMessageW(window, TDM_CLICK_BUTTON, buttonToClick, 0);
+    }
     return FALSE;
 }
 
@@ -74,24 +82,22 @@ int main() {
     measuringLonger = false;
     measuringChinese = true;
     buttonToClick = IDOK;
-    assert(altrun::ui::ShowMessage(nullptr, L"请先填写目标。",
-        L"测试运行", MB_OK | MB_ICONWARNING) == IDOK);
+    assert(altrun::ui::ShowCompactNotice(nullptr, L"请先填写目标。",
+        L"测试运行") == IDOK);
     assert(observed);
 
-    // Compare actual native layouts on the same OS/font/DPI, not a hard-coded
-    // pixel cap against cxWidth expressed in dialog units. Both localized
-    // short messages must be narrower than the automatically sized long one.
-    if (!(compactLogicalWidth > 0 && chineseLogicalWidth > 0 &&
-          longerLogicalWidth > 0 &&
-          compactLogicalWidth < longerLogicalWidth &&
-          chineseLogicalWidth < longerLogicalWidth)) {
-        std::fprintf(stderr, "TaskDialog sizing EN=%d ZH=%d long=%d at 96dpi\n",
-            compactLogicalWidth, chineseLogicalWidth, longerLogicalWidth);
+    // Retain the original TaskDialog behavior for all ordinary warnings.
+    // The one requested compact notice must be meaningfully narrower at
+    // the same DPI/font than the native TaskDialog minimum.
+    const bool suitablyCompact = compactLogicalWidth > 0 &&
+        chineseLogicalWidth > 0 && longerLogicalWidth > 0 &&
+        chineseLogicalWidth + 24 < compactLogicalWidth &&
+        chineseLogicalWidth + 24 < longerLogicalWidth;
+    if (!suitablyCompact) {
+        std::fprintf(stderr, "Native dialogs: compactNotice=%d nativeShort=%d nativeLong=%d (96dpi)\n",
+            chineseLogicalWidth, compactLogicalWidth, longerLogicalWidth);
     }
-    assert(compactLogicalWidth > 0 && chineseLogicalWidth > 0 &&
-           longerLogicalWidth > 0 &&
-           compactLogicalWidth < longerLogicalWidth &&
-           chineseLogicalWidth < longerLogicalWidth);
+    assert(suitablyCompact);
     KillTimer(nullptr, timer);
     HANDLE after{};
     assert(GetCurrentActCtx(&after));

@@ -12,6 +12,9 @@ void PlayFeedback(FeedbackCue cue);
 
 // Native, silent dialogs; optional failure audio is owned by PlayFeedback.
 int ShowMessage(HWND owner, const wchar_t* text, const wchar_t* title, UINT flags);
+// For one-line, single-action notices where TaskDialog's native minimum width
+// creates excessive blank space; does not affect normal warning/confirm dialogs.
+int ShowCompactNotice(HWND owner, const wchar_t* text, const wchar_t* title);
 bool ConfirmShortcutDeletion(HWND owner, std::wstring_view name, bool chinese);
 
 // Product-level native TaskDialog flows shared by Settings and Uninstall.
