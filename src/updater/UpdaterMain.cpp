@@ -478,6 +478,46 @@ LaunchMain(
         process);
 }
 
+// Do not discard the recovery source before the old EXE relaunch result.
+[[nodiscard]] bool RestartPreviousApp(
+    const std::filesystem::path& install) {
+    PROCESS_INFORMATION restored{};
+    if (!LaunchMain(
+            install / L"Asterun.exe",
+            L"",
+            restored)) {
+        return false;
+    }
+    CloseHandle(restored.hThread);
+    CloseHandle(restored.hProcess);
+    return true;
+}
+
+// An updater failure is user-visible. Tests dismiss the updater-owned
+// message dialog by its exact HWND; do not add CI/session heuristics here.
+void ShowFailureDialog(const std::wstring& message) {
+    MessageBoxW(
+        nullptr, message.c_str(),
+        L"Asterun", MB_OK | MB_ICONERROR);
+}
+
+void ShowUpdateFailure(
+    std::wstring_view reason,
+    bool restarted,
+    const std::filesystem::path& recovery = {}) {
+    std::wstring message =
+        L"The Asterun update failed: ";
+    message.append(reason);
+    message += restarted
+        ? L"\nThe previous version was restarted."
+        : L"\nThe previous version could not be restarted automatically.";
+    if (!recovery.empty()) {
+        message += L"\nRecovery files were retained at:\n";
+        message += recovery.wstring();
+    }
+    ShowFailureDialog(message);
+}
+
 [[nodiscard]] HANDLE
 CreateHealthEvent(
     std::wstring_view name) {
@@ -603,7 +643,7 @@ int WINAPI wWinMain(
             L"the DLL search path for the updater. No files were changed.\n\n"
             L"Error code: " +
             std::to_wstring(searchError);
-        MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
+        ShowFailureDialog(message);
         SetLastError(searchError);
         return 2;
     }
@@ -612,6 +652,8 @@ int WINAPI wWinMain(
         ParseArguments();
 
     if (!parsed) {
+        ShowFailureDialog(
+            L"Update.exe requires a valid update request from Asterun. No files were changed.");
         return 2;
     }
 
@@ -620,15 +662,28 @@ int WINAPI wWinMain(
 
     if (!WaitForParent(
             args.parentPid)) {
+        ShowFailureDialog(
+            L"The previous Asterun process did not exit. The update was cancelled before changing any files.");
         return 2;
     }
+
+    // The parent launcher has exited. On failure before any file replacement,
+    // bring its intact executable back rather than leaving it stopped.
+    const auto failBeforeApply =
+        [&](std::wstring_view reason) {
+            const bool restarted =
+                RestartPreviousApp(args.install);
+            ShowUpdateFailure(reason, restarted);
+            return restarted ? 2 : 7;
+        };
 
     std::string expectedSha256;
 
     if (!AsciiSha256(
             args.sha256,
             expectedSha256)) {
-        return 2;
+        return failBeforeApply(
+            L"Invalid package checksum.");
     }
 
     altrun::win::
@@ -645,7 +700,8 @@ int WINAPI wWinMain(
             archiveError != 0
                 ? archiveError
                 : ERROR_CRC);
-        return 2;
+        return failBeforeApply(
+            L"Package integrity verification failed.");
     }
 
     std::filesystem::path
@@ -675,7 +731,9 @@ int WINAPI wWinMain(
 
     if (args.secureReextract) {
         if (!IsElevated()) {
-            return 2;
+            cleanupWork();
+            return failBeforeApply(
+                L"Administrator permission was not granted.");
         }
 
         std::uint32_t workError = 0;
@@ -688,7 +746,10 @@ int WINAPI wWinMain(
                 workError != 0
                     ? workError
                     : ERROR_ACCESS_DENIED);
-            return 2;
+            // No work root was created. The candidate path must not be
+            // removed: it could belong to an unrelated existing directory.
+            return failBeforeApply(
+                L"Could not create the protected update directory.");
         }
 
         transactionSource =
@@ -711,7 +772,8 @@ int WINAPI wWinMain(
                     ? extractionError
                     : ERROR_INVALID_DATA);
             cleanupWork();
-            return 2;
+            return failBeforeApply(
+                L"Secure package extraction failed.");
         }
 
         // The source tree now lives under the protected install root.
@@ -745,7 +807,8 @@ int WINAPI wWinMain(
              ValidateSource(
                  transaction)) {
         cleanupWork();
-        return 2;
+        return failBeforeApply(
+            L"The staged update files are invalid.");
     }
 
     altrun::updater::
@@ -763,18 +826,40 @@ int WINAPI wWinMain(
             }
             const auto message = L"The update could not be fully restored. Recovery files were kept at:\n" +
                 transaction.backup.wstring();
-            MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
+            ShowFailureDialog(message);
         }
         return recovery.Complete();
     };
+
+    // A successful rollback also needs a successful old-process relaunch.
+    // In elevated mode retain the protected backup until that is confirmed.
+    const auto failAfterApply =
+        [&](int status, std::wstring_view reason) {
+            if (!restore()) {
+                cleanupWork();
+                return 7;
+            }
+            const bool restarted =
+                RestartPreviousApp(args.install);
+            if (!restarted) {
+                preserveRecovery = true;
+            }
+            cleanupWork();
+            ShowUpdateFailure(
+                reason,
+                restarted,
+                !restarted && !journal.files.empty()
+                    ? transaction.backup
+                    : std::filesystem::path{});
+            return restarted ? status : 7;
+        };
 
     if (!altrun::updater::
              ApplyPackage(
                  transaction,
                  journal)) {
-        restore();
-        cleanupWork();
-        return 3;
+        return failAfterApply(
+            3, L"File replacement did not complete.");
     }
 
     // The applied file set and protected backup journal are sufficient for
@@ -792,9 +877,8 @@ int WINAPI wWinMain(
             args.healthEvent);
 
     if (!healthEvent) {
-        restore();
-        cleanupWork();
-        return 4;
+        return failAfterApply(
+            4, L"Could not create the startup health event.");
     }
 
     const auto mainExe =
@@ -813,20 +897,8 @@ int WINAPI wWinMain(
             mainArguments,
             child)) {
         CloseHandle(healthEvent);
-        const bool restoredCompletely = restore();
-        cleanupWork();
-        if (!restoredCompletely) return 7;
-
-        PROCESS_INFORMATION restored{};
-        if (LaunchMain(
-                mainExe,
-                L"",
-                restored)) {
-            CloseHandle(restored.hThread);
-            CloseHandle(restored.hProcess);
-        }
-
-        return 5;
+        return failAfterApply(
+            5, L"Could not start the updated application.");
     }
 
     CloseHandle(child.hThread);
@@ -848,26 +920,14 @@ int WINAPI wWinMain(
             preserveRecovery = true;
             const auto message = L"The updated application is still running. Recovery files were kept at:\n" +
                 transaction.backup.wstring();
-            MessageBoxW(nullptr, message.c_str(), L"Asterun", MB_OK | MB_ICONERROR);
+            ShowFailureDialog(message);
             cleanupWork();
             return 7;
         }
         CloseHandle(child.hProcess);
 
-        const bool restoredCompletely = restore();
-        cleanupWork();
-        if (!restoredCompletely) return 7;
-
-        PROCESS_INFORMATION restored{};
-        if (LaunchMain(
-                mainExe,
-                L"",
-                restored)) {
-            CloseHandle(restored.hThread);
-            CloseHandle(restored.hProcess);
-        }
-
-        return 6;
+        return failAfterApply(
+            6, L"The updated application failed its startup health check.");
     }
 
     CloseHandle(child.hProcess);
