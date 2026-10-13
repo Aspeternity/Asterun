@@ -202,6 +202,38 @@ int main() {
         assert(!recovered.Data().soundEnabled);
         assert(ReadText(backup) == good);
     }
+    // F04: secondary startup reads effective settings without repairing or
+    // migrating files; normal primary startup retains existing recovery.
+    {
+        const auto file = data / "f04-readonly-settings.json";
+        const auto backup = data / "f04-readonly-settings.json.bak";
+        const std::string damaged = R"({"schemaVersion":12,"general":{"soundEnabled":"bad"}})";
+        const std::string good = R"({"schemaVersion":12,"appearance":{"language":"en-US"},"general":{"soundEnabled":false}})";
+        WriteText(file, damaged);
+        WriteText(backup, good);
+        SettingsStore secondary(file);
+        secondary.Load(false);
+        assert(secondary.WasRecoveredFromBackup());
+        assert(secondary.Data().language == Language::EnUS);
+        assert(ReadText(file) == damaged);
+        assert(ReadText(backup) == good);
+
+        SettingsStore primary(file);
+        primary.Load();
+        assert(primary.WasRecoveredFromBackup());
+        assert(primary.Data().language == Language::EnUS);
+        assert(ReadText(file) != damaged);
+        assert(ReadText(backup) == good);
+
+        const std::string older = R"({"schemaVersion":11,"appearance":{"language":"en-US"}})";
+        WriteText(file, older);
+        std::filesystem::remove(backup);
+        SettingsStore oldSecondary(file);
+        oldSecondary.Load(false);
+        assert(oldSecondary.Data().language == Language::EnUS);
+        assert(ReadText(file) == older);
+        assert(!std::filesystem::exists(backup));
+    }
     {
         const auto file = data / "semantic-usage.json";
         const auto backup = data / "semantic-usage.json.bak";
