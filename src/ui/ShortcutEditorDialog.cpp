@@ -2302,16 +2302,11 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
                      : SWP_HIDEWINDOW));
     }
 
-    // This owner-drawn child includes the disclosure separator itself. Keep
-    // the text/state change paint-free until RefreshDynamicLayout commits the
-    // final frame; never suspend redraw on the top-level dialog.
+    // Do not toggle WM_SETREDRAW on this visible child: USER32 temporarily
+    // changes its visible state, exposing a blank section separator on rapid
+    // clicks. WM_SETTEXT only invalidates the button; RefreshDynamicLayout
+    // commits the final header and geometry synchronously immediately after.
     if (advancedToggle_) {
-        SendMessageW(
-            advancedToggle_,
-            WM_SETREDRAW,
-            FALSE,
-            0);
-
         SetWindowTextW(
             advancedToggle_,
             advancedExpanded_
@@ -2319,12 +2314,6 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
                     L"▾ Advanced")
                 : T(L"▸ 高级选项",
                     L"▸ Advanced"));
-
-        SendMessageW(
-            advancedToggle_,
-            WM_SETREDRAW,
-            TRUE,
-            0);
     }
 }
 
