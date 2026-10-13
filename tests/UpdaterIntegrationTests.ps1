@@ -260,7 +260,12 @@ function Assert-Updated([hashtable]$case, [int]$exitCode) {
     Check (Test-Path -LiteralPath (Join-Path $case.Install 'new-only.txt')) "$($case.Name): new package file copied"
     Check ((Get-FileHash -LiteralPath (Join-Path $case.Install 'Asterun.exe')).Hash -eq
            (Get-FileHash -LiteralPath (Join-Path $AppDir 'Asterun.exe')).Hash) "$($case.Name): Asterun.exe matches the package"
-    Check (-not (Test-Path -LiteralPath $case.Backup)) "$($case.Name): backup directory removed after success"
+    if ($case.ContainsKey('PreservedBackup')) {
+        Check ((Test-Path -LiteralPath $case.PreservedBackup) -and
+            ((Get-Content -LiteralPath $case.PreservedBackup -Raw) -eq 'previous recovery')) "$($case.Name): unrelated pre-existing recovery kept"
+    } else {
+        Check (-not (Test-Path -LiteralPath $case.Backup)) "$($case.Name): backup directory removed after success"
+    }
     Check (-not (Test-Path -LiteralPath $case.Source)) "$($case.Name): staged source removed after success"
     Check (-not (Test-Path -LiteralPath $case.Archive)) "$($case.Name): archive removed after success"
     $work = @(Get-ChildItem -LiteralPath $case.Install -Force -Directory -Filter '.asterun-update-work.*')
@@ -280,6 +285,14 @@ try {
         Assert-Updated $case $code
         Stop-InstanceFrom $case.Install
 
+        $case = New-Case 'existingbackup' $root
+        New-Item -ItemType Directory -Path $case.Backup | Out-Null
+        $prior = Join-Path $case.Backup 'recovery-errors.txt'
+        Set-Content -LiteralPath $prior -Value 'previous recovery' -NoNewline
+        Assert-Unchanged $case (Invoke-Updater $case) 3
+        Check ((Test-Path -LiteralPath $prior) -and
+            ((Get-Content -LiteralPath $prior -Raw) -eq 'previous recovery')) 'existingbackup: prior recovery must remain'
+
         $case = New-Case 'badsha' $root
         $case.Sha256 = ('0' * 64)
         Assert-Unchanged $case (Invoke-Updater $case) 2
@@ -293,6 +306,11 @@ try {
         New-OwnedDirectory $base
         $case = New-Case 'protected' $base
         $case.Secure = '1'
+        # Secure re-extract uses its own protected work root, not --backup.
+        # A successful update must not delete unrelated old recovery there.
+        New-Item -ItemType Directory -Path $case.Backup | Out-Null
+        $case.PreservedBackup = Join-Path $case.Backup 'recovery-errors.txt'
+        Set-Content -LiteralPath $case.PreservedBackup -Value 'previous recovery' -NoNewline
         $code = Invoke-Updater $case
         Assert-Updated $case $code
         Stop-InstanceFrom $case.Install

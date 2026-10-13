@@ -577,6 +577,24 @@ int main() {
 #endif
 
     {
+        // An interrupted update may have left a complete prior recovery.
+        // A new attempt must refuse to reuse that path without touching it.
+        const auto paths = Paths(root / "existing-backup");
+        PopulateSource(paths.source);
+        PopulateInstall(paths.install);
+        Write(paths.backup / "Asterun.exe", "older-recovery-app");
+        Write(paths.backup / "recovery-errors.txt", "prior failure");
+
+        TransactionJournal journal;
+        assert(!ApplyPackage(paths, journal));
+        assert(journal.files.empty());
+        assert(journal.createdDirectories.empty());
+        assert(Read(paths.backup / "Asterun.exe") == "older-recovery-app");
+        assert(Read(paths.backup / "recovery-errors.txt") == "prior failure");
+        assert(Read(paths.install / "Asterun.exe") == "old-app");
+    }
+
+    {
         const auto paths = Paths(root / "rollback-failure");
         fs::create_directories(paths.source);
         fs::create_directories(paths.install);
