@@ -5,6 +5,7 @@
 #include "ui/ShortcutPathConverterDialog.hpp"
 #include "platform/WinUtil.hpp"
 #include "platform/InstanceIpc.hpp"
+#include "platform/NotificationIdentity.hpp"
 #include <shlobj.h>
 #include <cassert>
 #include <fstream>
@@ -20,6 +21,7 @@ unsigned stopCalls{};
 bool managedRunning{};
 bool failMutex{};
 unsigned forwarded{};
+unsigned registeredNotifications{};
 std::wstring lastMessage;
 std::function<void()> modalCheck;
 ULONGLONG modalDeadline{};
@@ -40,6 +42,9 @@ EverythingBootstrapSnapshot TestRunEverythingBootstrap(
     std::stop_token, bool, bool) {
     return {};
 }
+}
+namespace altrun::notification_identity {
+void Register(HINSTANCE) noexcept { ++registeredNotifications; }
 }
 namespace altrun::ui {
 int TestShowMessage(HWND, const wchar_t* message, const wchar_t*, UINT) {
@@ -126,6 +131,7 @@ struct AppLifecycleRuntimeFixture {
         std::filesystem::create_directories(isolated);
         fixtureRoot = isolated;
         const auto data = fixtureRoot / "data";
+        registeredNotifications = 0;
 
         HANDLE existing = CreateMutexW(nullptr, FALSE, mutexName.c_str());
         assert(existing);
@@ -135,6 +141,7 @@ struct AppLifecycleRuntimeFixture {
         }
         // A rejected second instance must not create data/settings.json.
         assert(!std::filesystem::exists(data));
+        assert(registeredNotifications == 0);
         CloseHandle(existing);
 
         failMutex = true;
@@ -144,6 +151,7 @@ struct AppLifecycleRuntimeFixture {
         }
         failMutex = false;
         assert(!std::filesystem::exists(data));
+        assert(registeredNotifications == 0);
 
         std::filesystem::create_directories(data);
         const auto primaryPath = data / "settings.json";
@@ -163,6 +171,7 @@ struct AppLifecycleRuntimeFixture {
         assert(lastMessage.find(L"Asterun is already running") != std::wstring::npos);
         assert(ReadFixtureBytes(primaryPath) == invalid);
         assert(ReadFixtureBytes(backupPath) == goodBackup);
+        assert(registeredNotifications == 0);
         CloseHandle(existing);
 
         const std::string oldSchema = R"({"schemaVersion":11,"appearance":{"language":"en-US"},"general":{"soundEnabled":false}})";
@@ -179,6 +188,7 @@ struct AppLifecycleRuntimeFixture {
         assert(lastMessage.find(L"Asterun is already running") != std::wstring::npos);
         assert(ReadFixtureBytes(primaryPath) == oldSchema);
         assert(!std::filesystem::exists(backupPath));
+        assert(registeredNotifications == 0);
         CloseHandle(existing);
 
         fixtureRoot = previousFixtureRoot;
@@ -244,6 +254,7 @@ struct AppLifecycleRuntimeFixture {
             WriteSettings();
             managedRunning = running;
             stopCalls = 0;
+            const auto registeredBefore = registeredNotifications;
             {
                 App primary(instance);
                 PostQuitMessage(0);
@@ -251,6 +262,7 @@ struct AppLifecycleRuntimeFixture {
                 assert(primary.ownsPrimaryInstance_);
                 CloseLauncher(primary);
             }
+            assert(registeredNotifications == registeredBefore + 1);
             assert(stopCalls == 1 && !managedRunning);
             DrainQuit();
         }

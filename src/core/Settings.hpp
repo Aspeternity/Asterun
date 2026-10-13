@@ -87,7 +87,7 @@ public:
         std::filesystem::path jsonPath,
         std::filesystem::path legacyIniPath = {});
 
-    void Load();
+    void Load(bool allowWrites = true);
     bool Save() const;
 
     void SetUiStyle(UiStyle style);
@@ -178,7 +178,7 @@ public:
     }
 
 private:
-    bool LoadJson();
+    bool LoadJson(bool allowWrites);
     bool MigrateLegacyIni();
 
     std::filesystem::path jsonPath_;

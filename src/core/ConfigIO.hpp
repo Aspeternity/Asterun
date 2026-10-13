@@ -34,7 +34,8 @@ using JsonValidator = bool (*)(const nlohmann::json&);
 LoadJsonWithBackup(
     const std::filesystem::path& path,
     int maxSupportedSchemaVersion,
-    JsonValidator validator = nullptr);
+    JsonValidator validator = nullptr,
+    bool allowRepair = true);
 
 [[nodiscard]] std::optional<nlohmann::json>
 LoadJsonWithBackup(
