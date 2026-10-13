@@ -1786,6 +1786,25 @@ if(BUILD_TESTING)
                 -Helper "$<TARGET_FILE:updater_test_fake_main>")
         set_tests_properties(updater_fake_main_tests PROPERTIES TIMEOUT 60)
 
+        add_executable(updater_failure_support_tests
+            tests/UpdaterFailureSupportTests.cpp
+            src/updater/UpdaterTransaction.cpp
+            src/platform/SecureArchive.cpp
+            src/platform/SecureElevation.cpp)
+        target_compile_definitions(updater_failure_support_tests PRIVATE
+            UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
+            _WIN32_WINNT=0x0A00 WINVER=0x0A00)
+        target_link_libraries(updater_failure_support_tests PRIVATE
+            altrun_archive advapi32 bcrypt ole32 oleaut32 shell32 user32)
+        if(MSVC)
+            target_compile_options(updater_failure_support_tests PRIVATE /W4 /permissive- /EHsc)
+        endif()
+        altrun_enable_test_assertions(updater_failure_support_tests)
+        add_dependencies(updater_failure_support_tests updater_test_fake_main)
+        add_test(NAME updater_failure_support_tests
+            COMMAND updater_failure_support_tests "$<TARGET_FILE:updater_test_fake_main>")
+        set_tests_properties(updater_failure_support_tests PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+
         get_property(altrun_windows_tests DIRECTORY PROPERTY TESTS)
         list(REMOVE_ITEM altrun_windows_tests ${altrun_portable_tests})
         set_tests_properties(${altrun_windows_tests} PROPERTIES LABELS windows)

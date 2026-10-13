@@ -10,7 +10,7 @@
 //
 // The executable must be copied to <unique-case-root>\install\Asterun.exe.
 // The harness creates the sibling records directory before launching it.
-// Its mode file selects stay (default), exit0 or exit3. Deriving this path
+// Its mode file selects stay (default), stay15, exit0 or exit3. Deriving this path
 // from the executable avoids shared TEMP names and environment differences
 // when the updater starts the process using the shell token.
 // The helper never creates a shared record directory.
@@ -125,6 +125,12 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     }
     if (mode == "exit3") {
         return 3;
+    }
+    if (mode == "stay15") {
+        // Bounded lifetime for direct restart-observation tests: they can
+        // wait for natural exit without finding or terminating a process.
+        Sleep(15000);
+        return 0;
     }
     Sleep(INFINITE);
     return 0;
