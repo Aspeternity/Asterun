@@ -2,6 +2,15 @@
 param([Parameter(Mandatory = $true)][string]$Helper)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
+# CI starts Windows PowerShell from PowerShell 7. Use the matching module
+# directories so Get-FileHash can load Microsoft.PowerShell.Utility.
+if ($PSVersionTable.PSEdition -ne 'Core') {
+    $env:PSModulePath = @(
+        (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'WindowsPowerShell\Modules'),
+        (Join-Path $env:ProgramFiles 'WindowsPowerShell\Modules'),
+        (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\Modules')
+    ) -join ';'
+}
 $Helper = (Resolve-Path -LiteralPath $Helper).Path
 $root = Join-Path ([IO.Path]::GetTempPath()) ('asterun-helper-test-' + [guid]::NewGuid().ToString('N'))
 if (Test-Path -LiteralPath $root) { throw 'Refusing to reuse a test directory' }
