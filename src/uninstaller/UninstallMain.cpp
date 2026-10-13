@@ -857,7 +857,6 @@ ManagedEverythingServiceHostRoot() {
 
 struct ServiceCleanupResult {
     bool success{true};
-    bool removed{false};
     bool protectedServiceHost{false};
     DWORD error{ERROR_SUCCESS};
 };
@@ -1066,7 +1065,6 @@ StopAndDeleteOwnedEverythingService(
         }
     }
 
-    result.removed = true;
     return result;
 }
 
@@ -2365,7 +2363,7 @@ PerformUninstall(
         return 5;
     }
 
-    gUninstallStage = ChineseUi() ? L"停止并删除 Everything 服务" : L"Stop and remove Everything service";
+    gUninstallStage = ChineseUi() ? L"清理专属 Everything 服务" : L"Remove owned Everything service";
     const auto service =
         StopAndDeleteOwnedEverythingService(
             args.install);
@@ -2376,10 +2374,10 @@ PerformUninstall(
         return 4;
     }
 
-    // SCM can report a stopped/deleted service before its process image has
-    // fully disappeared. Verify both the portable client root and Asterun's
-    // protected service-host root before deleting any files.
-    gUninstallStage = ChineseUi() ? L"确认 Everything 已完全退出" : L"Verify Everything has exited";
+    // A stopped portable-owned service can still be releasing its image.
+    // Verify only this installation's processes; protected host processes
+    // may belong to another portable Asterun installation.
+    gUninstallStage = ChineseUi() ? L"确认专属 Everything 已退出" : L"Verify owned Everything has exited";
     if (!TerminateManagedEverythingProcesses(
             args.install)) {
         return 5;
