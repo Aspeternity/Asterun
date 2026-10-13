@@ -67,7 +67,7 @@ function Check([bool]$condition, [string]$message) {
 # process, so failure-path integration runs never depend on human clicks.
 Add-Type -Namespace AsterunUpdaterIt -Name DialogControl -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-public static extern System.IntPtr FindWindow(string cls, string title);
+public static extern System.IntPtr FindWindowEx(System.IntPtr parent, System.IntPtr after, string cls, string title);
 [System.Runtime.InteropServices.DllImport("user32.dll")]
 public static extern uint GetWindowThreadProcessId(System.IntPtr window, out uint pid);
 [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -165,22 +165,32 @@ function Invoke-Updater([hashtable]$case) {
     if ($case.ContainsKey('ExpectFailureDialog')) {
         $case.DialogObserved = $false
         $ticks = 0
+        $ownedDialogs = 0
+        $sentClose = 0
         while (-not $process.WaitForExit(200)) {
-            $dialog = [AsterunUpdaterIt.DialogControl]::FindWindow('#32770', 'Asterun')
-            if ($dialog -ne [IntPtr]::Zero) {
+            # Enumerate all standard dialogs, not just the first window with
+            # an exact title. Some runners have unrelated top-level dialogs.
+            $dialog = [AsterunUpdaterIt.DialogControl]::FindWindowEx(
+                [IntPtr]::Zero, [IntPtr]::Zero, '#32770', $null)
+            while ($dialog -ne [IntPtr]::Zero) {
                 [uint32]$dialogPid = 0
                 [void][AsterunUpdaterIt.DialogControl]::GetWindowThreadProcessId($dialog, [ref]$dialogPid)
                 if ($dialogPid -eq [uint32]$process.Id) {
                     $case.DialogObserved = $true
-                    # WM_COMMAND / IDOK; no window outside this worker is touched.
-                    [void][AsterunUpdaterIt.DialogControl]::PostMessage(
-                        $dialog, 0x0111, [IntPtr]1, [IntPtr]::Zero)
+                    $ownedDialogs += 1
+                    # WM_COMMAND / IDOK. Only the selected updater's window.
+                    if ([AsterunUpdaterIt.DialogControl]::PostMessage(
+                            $dialog, 0x0111, [IntPtr]1, [IntPtr]::Zero)) {
+                        $sentClose += 1
+                    }
                 }
+                $dialog = [AsterunUpdaterIt.DialogControl]::FindWindowEx(
+                    [IntPtr]::Zero, $dialog, '#32770', $null)
             }
             $ticks += 1
-            if ($ticks -ge 900) {
+            if ($ticks -ge 150) {
                 Stop-Process -Id $process.Id -Force
-                throw "Update.exe failure dialog did not complete ($($case.Name))"
+                throw "Updater failure dialog timeout ($($case.Name)); found=$ownedDialogs posted=$sentClose"
             }
         }
     } elseif (-not $process.WaitForExit(180000)) {
