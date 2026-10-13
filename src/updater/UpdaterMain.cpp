@@ -493,9 +493,16 @@ LaunchMain(
     return true;
 }
 
-// Error dialogs block forever on CI/service window stations without a
-// visible user desktop. Return failure normally there; keep dialogs for users.
+// WSF_VISIBLE alone is insufficient: service session 0 has no interactive
+// user desktop even when a runner reports the window station as visible.
+// Never block unattended updates on an invisible modal failure dialog.
 [[nodiscard]] bool CanShowUpdateDialog() noexcept {
+    DWORD sessionId = 0;
+    if (!ProcessIdToSessionId(GetCurrentProcessId(), &sessionId) ||
+        sessionId == 0) {
+        return false;
+    }
+
     const HWINSTA station = GetProcessWindowStation();
     USEROBJECTFLAGS flags{};
     DWORD required = 0;
