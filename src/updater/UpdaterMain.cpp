@@ -744,7 +744,8 @@ int WINAPI wWinMain(
                 workError != 0
                     ? workError
                     : ERROR_ACCESS_DENIED);
-            cleanupWork();
+            // No work root was created. The candidate path must not be
+            // removed: it could belong to an unrelated existing directory.
             return failBeforeApply(
                 L"Could not create the protected update directory.");
         }
