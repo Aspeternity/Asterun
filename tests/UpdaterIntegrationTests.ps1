@@ -63,6 +63,17 @@ function Check([bool]$condition, [string]$message) {
     else { Write-Output "  FAIL $message"; $script:failures.Add($message) }
 }
 
+# Test-only Win32 bridge: close only MessageBox windows owned by the updater
+# process, so failure-path integration runs never depend on human clicks.
+Add-Type -Namespace AsterunUpdaterIt -Name DialogControl -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+public static extern System.IntPtr FindWindow(string cls, string title);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern uint GetWindowThreadProcessId(System.IntPtr window, out uint pid);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool PostMessage(System.IntPtr window, uint msg, System.IntPtr wParam, System.IntPtr lParam);
+'@
+
 function Test-Elevated {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -151,7 +162,28 @@ function Invoke-Updater([hashtable]$case) {
     Write-Host "  run: $updater $($arguments -join ' ')"  # not Write-Output: this function returns the exit code
     $process = Start-Process -FilePath $updater -ArgumentList $arguments -PassThru
     $null = $process.Handle  # keep the handle so ExitCode is available after exit
-    if (-not $process.WaitForExit(180000)) {
+    if ($case.ContainsKey('ExpectFailureDialog')) {
+        $case.DialogObserved = $false
+        $ticks = 0
+        while (-not $process.WaitForExit(200)) {
+            $dialog = [AsterunUpdaterIt.DialogControl]::FindWindow('#32770', 'Asterun')
+            if ($dialog -ne [IntPtr]::Zero) {
+                [uint32]$dialogPid = 0
+                [void][AsterunUpdaterIt.DialogControl]::GetWindowThreadProcessId($dialog, [ref]$dialogPid)
+                if ($dialogPid -eq [uint32]$process.Id) {
+                    $case.DialogObserved = $true
+                    # WM_COMMAND / IDOK; no window outside this worker is touched.
+                    [void][AsterunUpdaterIt.DialogControl]::PostMessage(
+                        $dialog, 0x0111, [IntPtr]1, [IntPtr]::Zero)
+                }
+            }
+            $ticks += 1
+            if ($ticks -ge 900) {
+                Stop-Process -Id $process.Id -Force
+                throw "Update.exe failure dialog did not complete ($($case.Name))"
+            }
+        }
+    } elseif (-not $process.WaitForExit(180000)) {
         Stop-Process -Id $process.Id -Force
         throw "Update.exe did not exit within 180 s ($($case.Name))"
     }
@@ -240,7 +272,7 @@ public static extern bool GetTokenInformation(System.IntPtr token, int infoClass
     }
 }
 
-function Assert-Unchanged([hashtable]$case, [int]$exitCode, [int]$expected) {
+function Assert-Unchanged([hashtable]$case, [int]$exitCode, [int]$expected, [bool]$expectRestart = $false) {
     Check ($exitCode -eq $expected) "$($case.Name): exit code $exitCode (expected $expected)"
     $readme = Get-Content -LiteralPath (Join-Path $case.Install 'README.md') -Raw
     Check ($readme -eq $case.OldReadme) "$($case.Name): install README.md unchanged"
@@ -249,7 +281,10 @@ function Assert-Unchanged([hashtable]$case, [int]$exitCode, [int]$expected) {
     Check (Test-Path -LiteralPath $case.Archive) "$($case.Name): archive kept"
     $running = @(Get-CimInstance Win32_Process -Filter "Name = 'Asterun.exe'" | Where-Object {
         $_.ExecutablePath -and $_.ExecutablePath -ieq (Join-Path $case.Install 'Asterun.exe') })
-    Check ($running.Count -eq 0) "$($case.Name): no Asterun.exe was started from the install"
+    Check ($running.Count -eq [int]$expectRestart) "$($case.Name): previous Asterun launch expectation ($expectRestart)"
+    if ($case.ContainsKey('ExpectFailureDialog')) {
+        Check $case.DialogObserved "$($case.Name): updater displayed a failure message"
+    }
 }
 
 function Assert-Updated([hashtable]$case, [int]$exitCode) {
@@ -289,17 +324,35 @@ try {
         New-Item -ItemType Directory -Path $case.Backup | Out-Null
         $prior = Join-Path $case.Backup 'recovery-errors.txt'
         Set-Content -LiteralPath $prior -Value 'previous recovery' -NoNewline
-        Assert-Unchanged $case (Invoke-Updater $case) 3
+        $case.ExpectFailureDialog = $true
+        Assert-Unchanged $case (Invoke-Updater $case) 3 $true
+        Stop-InstanceFrom $case.Install
         Check ((Test-Path -LiteralPath $prior) -and
             ((Get-Content -LiteralPath $prior -Raw) -eq 'previous recovery')) 'existingbackup: prior recovery must remain'
 
         $case = New-Case 'badsha' $root
         $case.Sha256 = ('0' * 64)
-        Assert-Unchanged $case (Invoke-Updater $case) 2
+        $case.ExpectFailureDialog = $true
+        Assert-Unchanged $case (Invoke-Updater $case) 2 $true
+        Stop-InstanceFrom $case.Install
 
         $case = New-Case 'badversion' $root
         $case.Version = "$version-mismatch"
-        Assert-Unchanged $case (Invoke-Updater $case) 2
+        $case.ExpectFailureDialog = $true
+        Assert-Unchanged $case (Invoke-Updater $case) 2 $true
+        Stop-InstanceFrom $case.Install
+
+        # Fail after the first file replacement. A complete rollback must
+        # restore the old product AND restart it; no new package files remain.
+        $case = New-Case 'midapply' $root
+        Set-Content -LiteralPath (Join-Path $case.Source 'zz-conflict.txt') -Value 'new' -NoNewline
+        New-Item -ItemType Directory -Path (Join-Path $case.Install 'zz-conflict.txt') | Out-Null
+        Remove-Item -LiteralPath $case.Archive
+        New-PackageArchive $case.Source $case.Archive
+        $case.Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $case.Archive).Hash.ToLowerInvariant()
+        $case.ExpectFailureDialog = $true
+        Assert-Unchanged $case (Invoke-Updater $case) 3 $true
+        Stop-InstanceFrom $case.Install
     } else {
         $programFiles = $env:ProgramFiles
         $base = Join-Path $programFiles "AsterunUpdaterIT-$id"
@@ -314,6 +367,30 @@ try {
         $code = Invoke-Updater $case
         Assert-Updated $case $code
         Stop-InstanceFrom $case.Install
+
+        # The previous EXE cannot be launched after rollback. The updater must
+        # report this and retain protected recovery files instead of deleting
+        # its temporary protected work root before checking launch success.
+        $case = New-Case 'restartfailed' $base
+        $case.Secure = '1'
+        $case.ExpectFailureDialog = $true
+        Set-Content -LiteralPath (Join-Path $case.Install 'Asterun.exe') -Value 'invalid-old-app' -NoNewline
+        Set-Content -LiteralPath (Join-Path $case.Source 'zz-conflict.txt') -Value 'new' -NoNewline
+        New-Item -ItemType Directory -Path (Join-Path $case.Install 'zz-conflict.txt') | Out-Null
+        Remove-Item -LiteralPath $case.Archive
+        New-PackageArchive $case.Source $case.Archive
+        $case.Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $case.Archive).Hash.ToLowerInvariant()
+        $code = Invoke-Updater $case
+        Check ($code -eq 7) 'restartfailed: correctly reports failed old-version relaunch'
+        Check $case.DialogObserved 'restartfailed: failure message displayed'
+        Check ((Get-Content -LiteralPath (Join-Path $case.Install 'Asterun.exe') -Raw) -eq 'invalid-old-app') 'restartfailed: rollback restored original bytes'
+        $protected = @(Get-ChildItem -LiteralPath $case.Install -Force -Directory -Filter '.asterun-update-work.*')
+        Check ($protected.Count -eq 1) 'restartfailed: protected recovery root retained'
+        if ($protected.Count -eq 1) {
+            $saved = Join-Path $protected[0].FullName 'backup/Asterun.exe'
+            Check ((Test-Path -LiteralPath $saved) -and
+                ((Get-Content -LiteralPath $saved -Raw) -eq 'invalid-old-app')) 'restartfailed: backed-up executable retained'
+        }
     }
 } catch {
     Write-Output "  FAIL exception: $($_.Exception.Message)"
