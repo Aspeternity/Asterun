@@ -308,8 +308,7 @@ int main() {
 
         assert(
             TerminateManagedEverythingProcesses(
-                install,
-                false));
+                install));
         assert(
             WaitForSingleObject(
                 process.hProcess,
