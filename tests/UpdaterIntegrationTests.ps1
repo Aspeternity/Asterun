@@ -74,10 +74,11 @@ public static extern uint GetWindowThreadProcessId(System.IntPtr window, out uin
 public static extern bool PostMessage(System.IntPtr window, uint msg, System.IntPtr wParam, System.IntPtr lParam);
 '@
 
-# .NET UserInteractive uses UOI_FLAGS / WSF_VISIBLE on Windows, matching
-# Update.exe's native window-station check. The CI runner is noninteractive.
-$script:canShowDialogs = [Environment]::UserInteractive
-Write-Host "  updater integration: user-interactive=$script:canShowDialogs"
+# Session 0 cannot display a user-facing prompt even when .NET reports
+# UserInteractive=True. Child Update.exe inherits the same session.
+$script:sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
+$script:canShowDialogs = [Environment]::UserInteractive -and ($script:sessionId -ne 0)
+Write-Host "  updater integration: session=$script:sessionId user-interactive=$([Environment]::UserInteractive) allow-dialog=$script:canShowDialogs"
 
 function Test-Elevated {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
