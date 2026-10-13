@@ -63,16 +63,12 @@ function Check([bool]$condition, [string]$message) {
     else { Write-Output "  FAIL $message"; $script:failures.Add($message) }
 }
 
-# The updater shows one modal message on failure. Enumerating class
-# '#32770' on the test desktop missed windows on hosted Windows runners;
-# Process.MainWindowHandle provides the exact updater-owned HWND instead.
+# Dismiss only the updater's own error dialog in unattended integration tests.
 Add-Type -Namespace AsterunUpdaterIt -Name DialogControl -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("user32.dll")]
 public static extern uint GetWindowThreadProcessId(System.IntPtr window, out uint pid);
 [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
 public static extern bool PostMessage(System.IntPtr window, uint msg, System.IntPtr wParam, System.IntPtr lParam);
-[System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-public static extern int GetClassName(System.IntPtr window, System.Text.StringBuilder buffer, int length);
 '@
 
 function Test-Elevated {
@@ -166,7 +162,6 @@ function Invoke-Updater([hashtable]$case) {
     if ($case.ContainsKey('ExpectFailureDialog')) {
         $case.DialogObserved = $false
         $sent = 0
-        $lastWindow = 'none'
         for ($tick = 0; $tick -lt 150; $tick++) {
             if ($process.WaitForExit(200)) { break }
             $window = (Get-Process -Id $process.Id -ErrorAction SilentlyContinue).MainWindowHandle
@@ -174,12 +169,7 @@ function Invoke-Updater([hashtable]$case) {
                 [uint32]$ownerPid = 0
                 [void][AsterunUpdaterIt.DialogControl]::GetWindowThreadProcessId($window, [ref]$ownerPid)
                 if ($ownerPid -eq [uint32]$process.Id) {
-                    $class = New-Object System.Text.StringBuilder 128
-                    [void][AsterunUpdaterIt.DialogControl]::GetClassName($window, $class, $class.Capacity)
-                    $lastWindow = "hwnd=$window class=$class"
-                    # WM_CLOSE requests normal dialog dismissal; synthetic
-                    # WM_COMMAND/IDOK was posted but ignored by this window.
-                    # Only a verified Update.exe-owned HWND may be targeted.
+                    # WM_CLOSE only on a verified Update.exe-owned HWND.
                     if ([AsterunUpdaterIt.DialogControl]::PostMessage(
                             $window, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)) {
                         $sent++
@@ -189,11 +179,8 @@ function Invoke-Updater([hashtable]$case) {
             }
         }
         if (-not $process.HasExited) {
-            $oldExe = Join-Path $case.Install 'Asterun.exe'
-            $oldCount = @(Get-CimInstance Win32_Process -Filter "Name = 'Asterun.exe'" | Where-Object {
-                $_.ExecutablePath -and $_.ExecutablePath -ieq $oldExe }).Count
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            throw "Updater did not exit ($($case.Name)): $lastWindow posted=$sent oldRunning=$oldCount"
+            throw "Update.exe did not close its failure dialog ($($case.Name)); posted=$sent"
         }
     } elseif (-not $process.WaitForExit(180000)) {
         Stop-Process -Id $process.Id -Force
