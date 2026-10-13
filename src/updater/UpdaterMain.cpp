@@ -504,13 +504,16 @@ LaunchMain(
 
 [[nodiscard]] HANDLE
 CreateHealthEvent(
-    std::wstring_view name) {
+    std::wstring_view name,
+    DWORD& error) {
+    error = ERROR_SUCCESS;
     HANDLE token = nullptr;
 
     if (!OpenProcessToken(
             GetCurrentProcess(),
             TOKEN_QUERY,
             &token)) {
+        error = GetLastError();
         return nullptr;
     }
 
@@ -521,10 +524,12 @@ CreateHealthEvent(
         nullptr,
         0,
         &required);
+    const DWORD sizeError = GetLastError();
 
     if (required == 0 ||
-        GetLastError() !=
+        sizeError !=
             ERROR_INSUFFICIENT_BUFFER) {
+        error = sizeError != ERROR_SUCCESS ? sizeError : ERROR_INVALID_DATA;
         CloseHandle(token);
         return nullptr;
     }
@@ -541,6 +546,7 @@ CreateHealthEvent(
             tokenUser,
             required,
             &required)) {
+        error = GetLastError();
         CloseHandle(token);
         return nullptr;
     }
@@ -564,12 +570,13 @@ CreateHealthEvent(
 
     PACL acl = nullptr;
 
-    if (SetEntriesInAclW(
+    const DWORD aclError = SetEntriesInAclW(
             1,
             &access,
             nullptr,
-            &acl) !=
-        ERROR_SUCCESS) {
+            &acl);
+    if (aclError != ERROR_SUCCESS) {
+        error = aclError;
         return nullptr;
     }
 
@@ -583,6 +590,7 @@ CreateHealthEvent(
             TRUE,
             acl,
             FALSE)) {
+        error = GetLastError();
         LocalFree(acl);
         return nullptr;
     }
@@ -600,13 +608,11 @@ CreateHealthEvent(
             TRUE,
             FALSE,
             std::wstring(name).c_str());
-    // Keep CreateEventW's error for the caller across LocalFree.
-    const DWORD createError = GetLastError();
-
-    LocalFree(acl);
+    // Store the failing API's result before cleanup can change last-error.
     if (!event) {
-        SetLastError(createError);
+        error = GetLastError();
     }
+    LocalFree(acl);
     return event;
 }
 
@@ -1183,13 +1189,14 @@ int WINAPI wWinMain(
         cleanupError.clear();
     }
 
+    DWORD healthError = ERROR_SUCCESS;
     HANDLE healthEvent =
         CreateHealthEvent(
-            args.healthEvent);
+            args.healthEvent,
+            healthError);
 
     if (!healthEvent) {
-        const DWORD error = GetLastError();
-        return fail(FailedStep::PrepareHealthCheck, error, 4, 4);
+        return fail(FailedStep::PrepareHealthCheck, healthError, 4, 4);
     }
 
     const auto mainExe =
