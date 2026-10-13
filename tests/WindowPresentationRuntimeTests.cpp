@@ -341,6 +341,10 @@ void CALLBACK ExerciseAdvancedToggle(
         23,
         reinterpret_cast<DWORD_PTR>(
             &topLevelRedrawSuspends)));
+    int disclosureRedrawSuspends = 0;
+    assert(SetWindowSubclass(
+        toggle, RedrawSuspendProbe, 24,
+        reinterpret_cast<DWORD_PTR>(&disclosureRedrawSuspends)));
 
     RECT collapsed{};
     RECT expanded{};
@@ -491,6 +495,9 @@ void CALLBACK ExerciseAdvancedToggle(
         &toggleBefore,
         &toggleAfterRapid));
 
+    assert(disclosureRedrawSuspends == 0);
+    assert(RemoveWindowSubclass(
+        toggle, RedrawSuspendProbe, 24));
     assert(RemoveWindowSubclass(
         editor,
         RedrawSuspendProbe,

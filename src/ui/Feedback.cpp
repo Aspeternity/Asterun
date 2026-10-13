@@ -74,11 +74,13 @@ int ShowMessage(HWND owner, const wchar_t* text, const wchar_t* title, UINT flag
     config.dwFlags = TDF_POSITION_RELATIVE_TO_WINDOW | TDF_ALLOW_DIALOG_CANCELLATION;
     config.pszWindowTitle = title;
     config.pszContent = text;
-    // The default native TaskDialog width leaves a large empty right side
-    // for brief prompts. Preserve automatic sizing for longer/multiline text.
-    if (text && std::wcslen(text) <= 48 &&
-        !std::wcschr(text, L'\n')) {
-        config.cxWidth = 180; // Dialog units; USER32 applies the window DPI.
+    // Native TaskDialog width is measured in dialog units, not pixels.
+    // For brief, single-line text, let Common Controls size to its actual
+    // content and buttons. Keep the original native default for longer text.
+    if (text && std::wcslen(text) <= 24 &&
+        !std::wcschr(text, L'\n') &&
+        !std::wcschr(text, L'\r')) {
+        config.dwFlags |= TDF_SIZE_TO_CONTENT;
     }
     config.pfCallback = OnDialog;
     config.lpCallbackData = static_cast<LONG_PTR>(flags);
