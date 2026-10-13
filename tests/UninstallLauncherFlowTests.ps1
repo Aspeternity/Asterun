@@ -381,7 +381,8 @@ try {
     $differences = @(Compare-Snapshot $dataBefore (Get-TreeSnapshot $data))
     Check ($differences.Count -eq 0) "data\ unchanged: $($dataBefore.Keys.Count) entries, SHA-256 identical ($($differences -join '; '))"
     Check ((Get-Sha256 $userNote) -eq $userNoteBefore) 'unknown root user file is unchanged'
-    Check ((Compare-Snapshot $protectedBefore (Get-TreeSnapshot (Split-Path -Parent $protectedRecovery))).Count -eq 0) 'protected elevated recovery backup unchanged'
+    $protectedDifferences = @(Compare-Snapshot $protectedBefore (Get-TreeSnapshot (Split-Path -Parent $protectedRecovery)))
+    Check ($protectedDifferences.Count -eq 0) "protected elevated recovery backup unchanged ($($protectedDifferences -join '; '))"
 
     $how = Invoke-Button $done.Hwnd $worker.Id 1 $okButtons
     Info "pressed: $how"
