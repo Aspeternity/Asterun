@@ -22,6 +22,17 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     if (std::wcscmp(title, expected) != 0) return TRUE;
     // TaskDialog button IDs are public message IDs, not a contract for child
     // HWND IDs or hierarchy. Exercise the real action through its supported API.
+    // A native MessageBox is not a TaskDialog. WM_COMMAND with lParam=0
+    // does not emulate a real button click and can leave its modal loop
+    // running indefinitely. Only interact once the actual OK child exists.
+    HWND compactOk{};
+    if (measuringChinese) {
+        compactOk = GetDlgItem(window, IDOK);
+        if (!compactOk || !IsWindowVisible(window) ||
+            !IsWindowVisible(compactOk) || !IsWindowEnabled(compactOk)) {
+            return TRUE; // UI is still initializing; retry on the next tick.
+        }
+    }
     observed = true;
     if (!deletion) {
         RECT bounds{};
@@ -34,11 +45,7 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
         else compactLogicalWidth = logicalWidth;
     }
     if (measuringChinese) {
-        // A polling timer can observe the dialog before its BUTTON children
-        // have been created. Queue the standard dialog IDOK command instead:
-        // its modal loop processes it after native initialization completes.
-        assert(PostMessageW(window, WM_COMMAND,
-            MAKEWPARAM(IDOK, BN_CLICKED), 0));
+        SendMessageW(compactOk, BM_CLICK, 0, 0);
     } else {
         SendMessageW(window, TDM_CLICK_BUTTON, buttonToClick, 0);
     }
