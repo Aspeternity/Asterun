@@ -421,7 +421,7 @@ void CALLBACK ExerciseAdvancedToggle(
         MulDiv(16, adminDpi, 96)) / 2;
     assert(GetPixel(sampleDc, MulDiv(5, adminDpi, 96),
         glyphTop + MulDiv(3, adminDpi, 96)) ==
-        ui::kApplicationPalette.accent);
+        altrun::ui::kApplicationPalette.accent);
     SelectObject(sampleDc, oldSampleBitmap);
     DeleteObject(sampleBitmap);
     DeleteDC(sampleDc);
