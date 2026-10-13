@@ -3,6 +3,7 @@
 #include "platform/InstanceIpc.hpp"
 #include "ui/SettingsWindow.hpp"
 #include "ui/ShortcutEditorDialog.hpp"
+#include "ui/UiTheme.hpp"
 #include "ui/ShortcutPathConverterDialog.hpp"
 #include "ui/ShortcutManagerWindow.hpp"
 #include "ui/TopLevelWindowPresentation.hpp"
@@ -390,6 +391,43 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(
         topLevelRedrawSuspends ==
         0);
+
+    // The branded glyph must not replace the native auto-check state
+    // machine: mouse activation still updates BM_GETCHECK, and the checked
+    // fill must use the same application accent as Settings switches.
+    assert((GetWindowLongPtrW(admin, GWL_STYLE) & BS_TYPEMASK) ==
+           BS_AUTOCHECKBOX);
+    assert((GetWindowLongPtrW(admin, GWL_STYLE) & WS_TABSTOP) != 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+    SendMessageW(admin, BM_CLICK, 0, 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_CHECKED);
+
+    RECT adminClient{};
+    GetClientRect(admin, &adminClient);
+    HDC adminDc = GetDC(admin);
+    assert(adminDc);
+    HDC sampleDc = CreateCompatibleDC(adminDc);
+    assert(sampleDc);
+    HBITMAP sampleBitmap = CreateCompatibleBitmap(adminDc,
+        adminClient.right, adminClient.bottom);
+    assert(sampleBitmap);
+    const HGDIOBJ oldSampleBitmap = SelectObject(sampleDc, sampleBitmap);
+    assert(oldSampleBitmap);
+    PatBlt(sampleDc, 0, 0, adminClient.right, adminClient.bottom, WHITENESS);
+    SendMessageW(admin, WM_PRINTCLIENT,
+        reinterpret_cast<WPARAM>(sampleDc), PRF_CLIENT);
+    const int adminDpi = static_cast<int>(GetDpiForWindow(admin));
+    const int glyphTop = (adminClient.bottom -
+        MulDiv(16, adminDpi, 96)) / 2;
+    assert(GetPixel(sampleDc, MulDiv(5, adminDpi, 96),
+        glyphTop + MulDiv(3, adminDpi, 96)) ==
+        ui::kApplicationPalette.accent);
+    SelectObject(sampleDc, oldSampleBitmap);
+    DeleteObject(sampleBitmap);
+    DeleteDC(sampleDc);
+    ReleaseDC(admin, adminDc);
+    SendMessageW(admin, BM_CLICK, 0, 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
 
     SendMessageW(
         editor,
