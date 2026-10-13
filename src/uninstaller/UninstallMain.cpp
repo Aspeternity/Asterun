@@ -857,7 +857,6 @@ ManagedEverythingServiceHostRoot() {
 
 struct ServiceCleanupResult {
     bool success{true};
-    bool removed{false};
     bool protectedServiceHost{false};
     DWORD error{ERROR_SUCCESS};
 };
@@ -939,6 +938,10 @@ StopAndDeleteOwnedEverythingService(
     }
 
     result.protectedServiceHost = ownedProtected;
+    // No per-install identity binds this global host to the current copy.
+    // Leave it and its service running rather than disrupt another copy.
+    if (ownedProtected) return result;
+
     ServiceHandle controlled;
     controlled.value = OpenServiceW(manager.value, kEverythingService,
         SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS | SERVICE_STOP | DELETE);
@@ -1062,50 +1065,23 @@ StopAndDeleteOwnedEverythingService(
         }
     }
 
-    result.removed = true;
     return result;
 }
 
+// The protected service host is shared by multiple portable installations.
+// A directory prefix alone cannot establish exclusive ownership of it.
 [[nodiscard]] bool
 IsOwnedEverythingProcessPath(
     const std::filesystem::path& install,
-    const std::filesystem::path& actual,
-    bool includeProtectedServiceHost) {
-    if (LowerPath(
-            actual.filename()) !=
-        L"everything.exe") {
-        return false;
-    }
-
-    const auto portableRoot =
-        install /
-        L"data" /
-        L"tools" /
-        L"Everything";
-
-    if (PathStartsWithDirectory(
-            actual,
-            portableRoot)) {
-        return true;
-    }
-
-    if (!includeProtectedServiceHost) {
-        return false;
-    }
-
-    const auto protectedRoot =
-        ManagedEverythingServiceHostRoot();
-
-    return !protectedRoot.empty() &&
+    const std::filesystem::path& actual) {
+    return LowerPath(actual.filename()) == L"everything.exe" &&
         PathStartsWithDirectory(
-            actual,
-            protectedRoot);
+            actual, install / L"data" / L"tools" / L"Everything");
 }
 
 [[nodiscard]] bool
 TerminateManagedEverythingProcesses(
-    const std::filesystem::path& install,
-    bool includeProtectedServiceHost = false) {
+    const std::filesystem::path& install) {
     // A single Toolhelp snapshot is not a sufficient uninstall barrier:
     // Everything may still be completing service/client shutdown while the
     // snapshot is being walked. Repeat a few bounded passes and only touch
@@ -1142,8 +1118,7 @@ TerminateManagedEverythingProcesses(
                     actual) &&
                 IsOwnedEverythingProcessPath(
                     install,
-                    actual,
-                    includeProtectedServiceHost)) {
+                    actual)) {
                 foundOwned = true;
 
                 if (!StopOwnedProcess(
@@ -1203,8 +1178,7 @@ TerminateManagedEverythingProcesses(
                 actual) &&
             IsOwnedEverythingProcessPath(
                 install,
-                actual,
-                includeProtectedServiceHost)) {
+                actual)) {
             remaining = true;
             break;
         }
@@ -1222,43 +1196,6 @@ TerminateManagedEverythingProcesses(
             ERROR_BUSY);
         return false;
     }
-
-    return true;
-}
-
-[[nodiscard]] bool
-CleanupManagedEverythingServiceHostFiles(
-    RemovalFailure& failure) {
-    const auto root =
-        ManagedEverythingServiceHostRoot();
-
-    if (root.empty()) {
-        failure = {
-            ERROR_PATH_NOT_FOUND,
-            {},
-            {}};
-        return false;
-    }
-
-    if (!RemoveAllWithRetry(
-            root,
-            failure)) {
-        return false;
-    }
-
-    const auto altrun =
-        root.parent_path();
-    const auto vendor =
-        altrun.parent_path();
-
-    std::error_code ec;
-    std::filesystem::remove(
-        altrun,
-        ec);
-    ec.clear();
-    std::filesystem::remove(
-        vendor,
-        ec);
 
     return true;
 }
@@ -2299,7 +2236,9 @@ RemoveInstallation(
         return false;
     }
 
-    if (!linkedData && !RemoveAllWithRetry(
+    // Old F01/F02 rollback backups and diagnostics live in data/update.
+    // Only an explicitly requested full uninstall may remove them.
+    if (deleteData && !linkedData && !RemoveAllWithRetry(
             data /
                 L"update",
             failure)) {
@@ -2332,7 +2271,22 @@ RemoveInstallation(
             continue;
         }
 
-        if (it->path().filename() != kRecoveryMarker) entries.push_back(it->path());
+        if (it->path().filename() == kRecoveryMarker) continue;
+        if (!deleteData) {
+            // Package top-level allowlist: never delete unknown personal
+            // files or elevated .asterun-update-work.* recovery on keep-data.
+            const auto name = LowerPath(it->path().filename());
+            const bool packaged =
+                name == L"asterun.exe" ||
+                name == L"update.exe" ||
+                name == L"uninstall.exe" ||
+                name == L"version" ||
+                name == L"readme.md" ||
+                name == L"dict" ||
+                name == L"third_party";
+            if (!packaged) continue;
+        }
+        entries.push_back(it->path());
     }
 
     if (ec) {
@@ -2405,12 +2359,11 @@ PerformUninstall(
     // prevents a live managed client from racing service teardown.
     gUninstallStage = ChineseUi() ? L"退出托管 Everything" : L"Close managed Everything";
     if (!TerminateManagedEverythingProcesses(
-            args.install,
-            false)) {
+            args.install)) {
         return 5;
     }
 
-    gUninstallStage = ChineseUi() ? L"停止并删除 Everything 服务" : L"Stop and remove Everything service";
+    gUninstallStage = ChineseUi() ? L"清理专属 Everything 服务" : L"Remove owned Everything service";
     const auto service =
         StopAndDeleteOwnedEverythingService(
             args.install);
@@ -2421,36 +2374,24 @@ PerformUninstall(
         return 4;
     }
 
-    // SCM can report a stopped/deleted service before its process image has
-    // fully disappeared. Verify both the portable client root and Asterun's
-    // protected service-host root before deleting any files.
-    gUninstallStage = ChineseUi() ? L"确认 Everything 已完全退出" : L"Verify Everything has exited";
+    // A stopped portable-owned service can still be releasing its image.
+    // Verify only this installation's processes; protected host processes
+    // may belong to another portable Asterun installation.
+    gUninstallStage = ChineseUi() ? L"确认专属 Everything 已退出" : L"Verify owned Everything has exited";
     if (!TerminateManagedEverythingProcesses(
-            args.install,
-            true)) {
+            args.install)) {
         return 5;
     }
 
     RemovalFailure removalFailure;
 
-    // The Program Files host is Asterun-owned regardless of whether this
-    // uninstall just removed the active protected service or is cleaning an
-    // orphan left by an older portable-service migration. Failure here is
-    // uninstall failure; do not silently claim that Everything was removed.
-    gUninstallStage = ChineseUi() ? L"删除 Everything 服务宿主" : L"Remove Everything service host";
-    if (!CleanupManagedEverythingServiceHostFiles(
-            removalFailure)) {
-        gRemovalFailurePath =
-            removalFailure.path;
-        gRemovalFailureLockOwners =
-            removalFailure.lockOwners;
-        SetLastError(
-            removalFailure.error !=
-                    ERROR_SUCCESS
-                ? removalFailure.error
-                : ERROR_GEN_FAILURE);
-        return 8;
-    }
+    // The global protected host has no current-install ownership marker.
+    // Do not recurse into it, even when a detached service was left behind.
+    const auto protectedRoot = ManagedEverythingServiceHostRoot();
+    const bool retainedSharedHost =
+        service.protectedServiceHost ||
+        (!protectedRoot.empty() &&
+         GetFileAttributesW(protectedRoot.c_str()) != INVALID_FILE_ATTRIBUTES);
     DirectoryHandle rootLease;
 
     gUninstallStage = ChineseUi() ? L"释放安装目录占用" : L"Release installation directory";
@@ -2495,11 +2436,16 @@ PerformUninstall(
     std::wstring message =
         args.deleteData
             ? (ChineseUi()
-                   ? L"Asterun 已卸载完成。\n\n托管 Everything、后台服务和用户数据均已移除。"
-                   : L"Asterun has been uninstalled.\n\nManaged Everything, its service, and user data were removed.")
+                   ? L"Asterun 已卸载完成。\n\n安装目录和个人数据已删除；外部或共享 Everything 服务未被修改。"
+                   : L"Asterun has been uninstalled.\n\nThe installation and user data were deleted. External or shared Everything services were not changed.")
             : (ChineseUi()
-                   ? L"Asterun 已卸载完成。\n\n托管 Everything 和后台服务已移除；用户数据仍保留在原目录的 data 文件夹中。"
-                   : L"Asterun has been uninstalled.\n\nManaged Everything and its service were removed. User data remains in the original data folder.");
+                   ? L"Asterun 已卸载完成。\n\n当前安装的程序和专属 Everything 组件已移除；用户数据仍保留在原安装目录，其他未知文件及更新恢复资料也已保留。"
+                   : L"Asterun has been uninstalled.\n\nPrograms and exclusively owned Everything components were removed. User data remains in the original installation directory, along with unrecognized files and update recovery.");
+    if (retainedSharedHost) {
+        message += ChineseUi()
+            ? L"\n\n检测到可能被其他 Asterun 副本共享的 Everything 服务宿主。无法确认独占所有权，因此未停止或删除该宿主。"
+            : L"\n\nA potentially shared Everything service host was detected. Its exclusive ownership cannot be proven, so its files and service were left untouched.";
+    }
 
     altrun::ui::ShowMessage(
         nullptr,
