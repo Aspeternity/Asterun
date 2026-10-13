@@ -223,9 +223,9 @@ ChooseUninstallData(
             : L"Keep your personal data?";
     config.pszContent =
         chinese
-            ? L"Asterun 和由其管理的 Everything 组件都会被移除；你自己安装的 Everything 不会受到影响。\n\n"
+            ? L"Asterun 和可确认归属当前安装的 Everything 组件将被移除；共享服务宿主和你自行安装的 Everything 不会受到影响。\n\n"
               L"快捷项、设置和使用记录可以保留，方便以后重新安装。“彻底卸载”会同时删除这些个人数据。"
-            : L"Asterun and the Everything components it manages will be removed; Everything installations you manage yourself are not changed.\n\n"
+            : L"Asterun and exclusively owned Everything components will be removed; shared service hosts and externally managed Everything will be left untouched.\n\n"
               L"Shortcuts, settings and usage history can be kept for a future reinstall. “Remove everything” deletes this personal data as well.";
     config.cButtons =
         static_cast<UINT>(
