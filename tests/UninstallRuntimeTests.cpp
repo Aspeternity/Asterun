@@ -276,7 +276,7 @@ int main() {
                     protectedExecutable,
                     false));
             assert(
-                IsOwnedEverythingProcessPath(
+                !IsOwnedEverythingProcessPath(
                     install,
                     protectedExecutable,
                     true));
@@ -343,7 +343,7 @@ int main() {
         const auto install = makeInstall(L"只读文件 preserve");
         const auto user = install / L"data" / L"commands.json";
         std::ofstream(user) << "keep me";
-        const auto readonly = install / L"readonly.txt";
+        const auto readonly = install / L"README.md";
         std::ofstream(readonly) << "read only";
         assert(SetFileAttributesW(readonly.c_str(), FILE_ATTRIBUTE_READONLY));
         RemovalFailure failure;
@@ -353,8 +353,57 @@ int main() {
         assert(!std::filesystem::exists(install / kRecoveryMarker));
     }
     {
+        const auto install = makeInstall(L"preserve update recovery");
+        const auto backup = install / L"data" / L"update" / L"backup" / L"1.0.5-old";
+        const auto elevated = install / L".asterun-update-work.old" / L"backup";
+        const auto unknown = install / L"my-notes.txt";
+        const auto personalDirectory = install / L"personal";
+        std::filesystem::create_directories(backup);
+        std::filesystem::create_directories(elevated);
+        std::filesystem::create_directories(personalDirectory);
+        std::ofstream(backup / L"recovery-errors.txt") << "important old recovery";
+        std::ofstream(backup / L"Asterun.exe") << "original executable backup";
+        std::ofstream(elevated / L"recovery-errors.txt") << "elevated recovery";
+        std::ofstream(unknown) << "my personal notes";
+        std::ofstream(personalDirectory / L"note.txt") << "my own directory";
+        std::ofstream(install / L"Update.exe") << "product update helper";
+        std::ofstream(install / L"README.md") << "product readme";
+        std::filesystem::create_directories(install / L"dict");
+        std::ofstream(install / L"dict" / L"word.txt") << "product dictionary";
+
+        RemovalFailure failure;
+        assert(RemoveInstallation(install, false, failure, nullptr));
+        assert(std::filesystem::exists(backup / L"recovery-errors.txt"));
+        assert(std::filesystem::exists(backup / L"Asterun.exe"));
+        assert(std::filesystem::exists(elevated / L"recovery-errors.txt"));
+        assert(std::filesystem::exists(unknown));
+        assert(std::filesystem::exists(personalDirectory / L"note.txt"));
+        assert(!std::filesystem::exists(install / L"Asterun.exe"));
+        assert(!std::filesystem::exists(install / L"Uninstall.exe"));
+        assert(!std::filesystem::exists(install / L"VERSION"));
+        assert(!std::filesystem::exists(install / L"Update.exe"));
+        assert(!std::filesystem::exists(install / L"README.md"));
+        assert(!std::filesystem::exists(install / L"dict"));
+        assert(!std::filesystem::exists(install / kRecoveryMarker));
+    }
+    {
+        const auto install = makeInstall(L"delete data and extra files");
+        const auto backup = install / L"data" / L"update" / L"backup" / L"1.0.5-old";
+        const auto elevated = install / L".asterun-update-work.old" / L"backup";
+        std::filesystem::create_directories(backup);
+        std::filesystem::create_directories(elevated);
+        std::ofstream(backup / L"recovery-errors.txt") << "remove on explicit full delete";
+        std::ofstream(elevated / L"recovery-errors.txt") << "remove on full delete";
+        std::ofstream(install / L"user-note.txt") << "remove on full delete";
+        DirectoryHandle lease;
+        RemovalFailure failure;
+        assert(AcquireDirectoryDeleteLease(install, lease, failure, 100));
+        assert(RemoveInstallation(install, true, failure, &lease));
+        assert(!std::filesystem::exists(install));
+    }
+    {
         const auto install = makeInstall(L"locked retry");
-        const auto locked = install / L"locked.bin";
+        const auto locked = install / L"Update.exe";
         std::ofstream(locked) << "lock";
         HANDLE handle = CreateFileW(locked.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);

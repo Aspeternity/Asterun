@@ -290,8 +290,22 @@ try {
     Set-Content -LiteralPath (Join-Path $data 'backups\settings.backup.json') -Value "{`"backup`":`"$id`"}"
     [System.IO.File]::WriteAllText((Join-Path $data (U 0x4E2D,0x6587,0x7B14,0x8BB0,0x002E,0x0074,0x0078,0x0074)), "user note $id", (New-Object System.Text.UTF8Encoding($false)))
 
+    # Previously uncovered F01/F02 recovery sources must survive keep-data mode.
+    $recovery = Join-Path $data 'update\backup\1.0.5-prior'
+    $protectedRecovery = Join-Path $install '.asterun-update-work.prior\backup'
+    New-Item -ItemType Directory -Path $recovery, $protectedRecovery | Out-Null
+    Set-Content -LiteralPath (Join-Path $recovery 'recovery-errors.txt') -Value "prior recovery $id"
+    Set-Content -LiteralPath (Join-Path $recovery 'Asterun.exe') -Value "prior binary $id"
+    Set-Content -LiteralPath (Join-Path $protectedRecovery 'recovery-errors.txt') -Value "elevated recovery $id"
+    $userNote = Join-Path $install 'my-notes.txt'
+    Set-Content -LiteralPath $userNote -Value "personal file $id"
+    $protectedBefore = Get-TreeSnapshot (Split-Path -Parent $protectedRecovery)
+    $userNoteBefore = Get-Sha256 $userNote
+
     $installedUninstallHash = Get-Sha256 (Join-Path $install 'Uninstall.exe')
-    $programEntries = @(Get-ChildItem -LiteralPath $install -Force | Where-Object { $_.Name -ne 'data' } | ForEach-Object { $_.Name })
+    $programEntries = @(Get-ChildItem -LiteralPath $install -Force | Where-Object {
+        $_.Name -notin @('data', 'my-notes.txt', '.asterun-update-work.prior')
+    } | ForEach-Object { $_.Name })
     $dataBefore = Get-TreeSnapshot $data
     Info "test installation $install; program entries: $($programEntries -join ', '); data entries: $($dataBefore.Keys.Count)"
     $lua = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -ErrorAction SilentlyContinue)
@@ -361,10 +375,13 @@ try {
     Check (@($keptTexts | Where-Object { $text.Contains($_) }).Count -gt 0) 'worker reports that user data was kept'
 
     $remaining = @(Get-ChildItem -LiteralPath $install -Force | ForEach-Object { $_.Name })
-    Check ($remaining.Count -eq 1 -and $remaining[0] -eq 'data') "only data\ remains in the installation (found: $($remaining -join ', '))"
+    $expectedRemaining = @('data', 'my-notes.txt', '.asterun-update-work.prior')
+    Check ((@($remaining | Sort-Object) -join '|') -eq (@($expectedRemaining | Sort-Object) -join '|')) "only preserved user data and recovery remain (found: $($remaining -join ', '))"
     foreach ($entry in $programEntries) { Check (-not (Test-Path -LiteralPath (Join-Path $install $entry))) "program entry removed: $entry" }
     $differences = @(Compare-Snapshot $dataBefore (Get-TreeSnapshot $data))
     Check ($differences.Count -eq 0) "data\ unchanged: $($dataBefore.Keys.Count) entries, SHA-256 identical ($($differences -join '; '))"
+    Check ((Get-Sha256 $userNote) -eq $userNoteBefore) 'unknown root user file is unchanged'
+    Check ((Compare-Snapshot $protectedBefore (Get-TreeSnapshot (Split-Path -Parent $protectedRecovery))).Count -eq 0) 'protected elevated recovery backup unchanged'
 
     $how = Invoke-Button $done.Hwnd $worker.Id 1 $okButtons
     Info "pressed: $how"
