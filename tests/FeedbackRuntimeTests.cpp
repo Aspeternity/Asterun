@@ -7,6 +7,7 @@ namespace {
 bool observed{};
 bool deletion{};
 int buttonToClick{IDCANCEL};
+int compactLogicalWidth{};
 
 BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     wchar_t title[128]{};
@@ -16,6 +17,13 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     // TaskDialog button IDs are public message IDs, not a contract for child
     // HWND IDs or hierarchy. Exercise the real action through its supported API.
     observed = true;
+    if (!deletion) {
+        RECT bounds{};
+        assert(GetWindowRect(window, &bounds));
+        const UINT dpi = GetDpiForWindow(window);
+        compactLogicalWidth = MulDiv(bounds.right - bounds.left,
+            96, dpi ? static_cast<int>(dpi) : 96);
+    }
     SendMessageW(window, TDM_CLICK_BUTTON, buttonToClick, 0);
     return FALSE;
 }
@@ -44,6 +52,9 @@ int main() {
     assert(altrun::ui::ShowMessage(nullptr, L"Silent confirmation", L"Feedback runtime test",
         MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO);
     assert(observed);
+    // A short localized prompt must fit in a compact native dialog.
+    // The value is normalized from the monitor DPI to 96-DPI pixels.
+    assert(compactLogicalWidth > 0 && compactLogicalWidth <= 340);
     KillTimer(nullptr, timer);
     HANDLE after{};
     assert(GetCurrentActCtx(&after));

@@ -4,6 +4,7 @@
 #include <commctrl.h>
 #include <mmsystem.h>
 #include <iterator>
+#include <cwchar>
 #include <string>
 
 namespace altrun::ui {
@@ -73,6 +74,12 @@ int ShowMessage(HWND owner, const wchar_t* text, const wchar_t* title, UINT flag
     config.dwFlags = TDF_POSITION_RELATIVE_TO_WINDOW | TDF_ALLOW_DIALOG_CANCELLATION;
     config.pszWindowTitle = title;
     config.pszContent = text;
+    // The default native TaskDialog width leaves a large empty right side
+    // for brief prompts. Preserve automatic sizing for longer/multiline text.
+    if (text && std::wcslen(text) <= 48 &&
+        !std::wcschr(text, L'\n')) {
+        config.cxWidth = 180; // Dialog units; USER32 applies the window DPI.
+    }
     config.pfCallback = OnDialog;
     config.lpCallbackData = static_cast<LONG_PTR>(flags);
     const UINT kind = flags & MB_TYPEMASK;
