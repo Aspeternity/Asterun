@@ -493,32 +493,12 @@ LaunchMain(
     return true;
 }
 
-// WSF_VISIBLE alone is insufficient: service session 0 has no interactive
-// user desktop even when a runner reports the window station as visible.
-// Never block unattended updates on an invisible modal failure dialog.
-[[nodiscard]] bool CanShowUpdateDialog() noexcept {
-    DWORD sessionId = 0;
-    if (!ProcessIdToSessionId(GetCurrentProcessId(), &sessionId) ||
-        sessionId == 0) {
-        return false;
-    }
-
-    const HWINSTA station = GetProcessWindowStation();
-    USEROBJECTFLAGS flags{};
-    DWORD required = 0;
-    return station &&
-        GetUserObjectInformationW(
-            station, UOI_FLAGS,
-            &flags, sizeof(flags), &required) &&
-        (flags.dwFlags & WSF_VISIBLE) != 0;
-}
-
+// An updater failure is user-visible. Tests dismiss the updater-owned
+// message dialog by its exact HWND; do not add CI/session heuristics here.
 void ShowFailureDialog(const std::wstring& message) {
-    if (CanShowUpdateDialog()) {
-        MessageBoxW(
-            nullptr, message.c_str(),
-            L"Asterun", MB_OK | MB_ICONERROR);
-    }
+    MessageBoxW(
+        nullptr, message.c_str(),
+        L"Asterun", MB_OK | MB_ICONERROR);
 }
 
 void ShowUpdateFailure(
