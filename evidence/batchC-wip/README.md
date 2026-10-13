@@ -65,3 +65,11 @@ update_runtime_tests 新增 Windows 专属事务用例：共享读占用 README.
 API 依据（2026-10-13 核对）：
 - https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setentriesinaclw
 - https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
+
+## 辅助程序自测的命令行断言修正
+
+运行 38331123280 的 Windows 基线作业确认 Get-FileHash 问题已消失，退出码 0/3、启动记录和 PID 等检查通过；随后失败于把整条命令行去掉引号后与路径字符串直接比较。原输出未记录命令行，不能据此断言具体是短路径、引号还是空白差异。
+
+改用 Windows CommandLineToArgvW 解析实际记录，严格要求 argc 为 1 且程序名为 Asterun.exe；进程归属继续由本次启动的 PID 和各自记录目录核对。增加三个解析对照：带空格的程序路径及尾部空白允许，额外空参数和普通参数都必须检出；不删除无参数要求。新的输出记录实际命令行和参数数目。此自测仍不启动 Update.exe，也不操作提示框。
+
+API 依据：https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw

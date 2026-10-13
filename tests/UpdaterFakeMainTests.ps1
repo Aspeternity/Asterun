@@ -11,6 +11,28 @@ if ($PSVersionTable.PSEdition -ne 'Core') {
         (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\Modules')
     ) -join ';'
 }
+Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+public static class HelperCommandLine {
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CommandLineToArgvW(string command, out int count);
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr value);
+    public static string[] Parse(string command) {
+        int count;
+        IntPtr argv = CommandLineToArgvW(command, out count);
+        if (argv == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+        try {
+            var result = new string[count];
+            for (int i = 0; i < count; ++i)
+                result[i] = Marshal.PtrToStringUni(Marshal.ReadIntPtr(argv, i * IntPtr.Size));
+            return result;
+        } finally { LocalFree(argv); }
+    }
+}
+'@
 $Helper = (Resolve-Path -LiteralPath $Helper).Path
 $root = Join-Path ([IO.Path]::GetTempPath()) ('asterun-helper-test-' + [guid]::NewGuid().ToString('N'))
 if (Test-Path -LiteralPath $root) { throw 'Refusing to reuse a test directory' }
@@ -48,11 +70,20 @@ function Check-Record($case, $process) {
     Require ($lines[0].Contains('integrity=S-1-16-')) 'integrity recorded'
     Require ($lines[0].Contains('elevationType=')) 'elevation type recorded'
     $command = ($lines[0] -split ' cmdline=', 2)[1]
-    Require ($command.Trim('"') -eq $case.Exe) 'no application arguments'
+    # Shell execution may change the executable's path spelling or quoting.
+    # PID and the case-owned record identify the process; parse argv to check
+    # the actual no-argument contract, including rejection of an empty argument.
+    $arguments = @([HelperCommandLine]::Parse($command))
+    Write-Host "Recorded command: $command; argument count: $($arguments.Count)"
+    Require ($arguments.Count -eq 1) 'no application arguments'
+    Require ([IO.Path]::GetFileName($arguments[0]) -ieq 'Asterun.exe') 'command names the test executable'
     Require ((Get-FileHash -LiteralPath $case.Exe).Hash -eq $case.Hash) 'helper executable unchanged'
 }
 
 try {
+    Require (@([HelperCommandLine]::Parse('"C:\test directory\Asterun.exe" ')).Count -eq 1) 'parser accepts a quoted executable with trailing whitespace'
+    Require (@([HelperCommandLine]::Parse('"C:\test directory\Asterun.exe" ""')).Count -eq 2) 'parser detects an empty application argument'
+    Require (@([HelperCommandLine]::Parse('"C:\test directory\Asterun.exe" --unexpected')).Count -eq 2) 'parser detects an application argument'
     $zero = New-Case 'first' 'exit0'
     $three = New-Case 'second' 'exit3'
     $a = Start-Helper $zero
