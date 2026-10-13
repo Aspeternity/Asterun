@@ -1935,7 +1935,8 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
     GetTextExtentPoint32W(dc, label, lstrlenW(label), &extent);
     const int lineY = (rect.top + rect.bottom) / 2;
     const int lineStart = std::min(static_cast<int>(rect.right),
-        static_cast<int>(rect.left) + Scale(2) + extent.cx + Scale(14));
+        static_cast<int>(rect.left) + Scale(2) +
+        static_cast<int>(extent.cx) + Scale(14));
     HPEN separator = CreatePen(PS_SOLID, 1, palette.separator);
     if (separator) {
         const HGDIOBJ oldPen = SelectObject(dc, separator);
