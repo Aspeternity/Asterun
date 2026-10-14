@@ -386,7 +386,22 @@ struct AppLifecycleRuntimeFixture {
                 if (converter) assert(!ShortcutPathConverterDialog::Show(app, instance, owner));
                 else assert(!ShortcutEditorDialog::Show(app, instance, owner));
                 KillTimer(nullptr, timer);
-                assert(phase == 3 && IsWindowEnabled(owner));
+                // Diagnostic-only checkpoint: distinguish a missing simulated
+                // hotkey stage from an owner-enable lifecycle failure.
+                const bool ownerEnabled = IsWindowEnabled(owner) != FALSE;
+                if (phase != 3 || !ownerEnabled) {
+                    std::cerr << "P02_MODAL_FAIL converter=" << converter
+                        << " phase=" << phase
+                        << " ownerExists=" << (IsWindow(owner) != FALSE)
+                        << " ownerEnabled=" << ownerEnabled
+                        << " ownerVisible=" << (IsWindowVisible(owner) != FALSE)
+                        << " modalExists=" << (FindWindowW(modalClass, nullptr) != nullptr)
+                        << " launcherVisible=" << app.window_->IsVisible()
+                        << " foregroundIsOwner=" << (GetForegroundWindow() == owner)
+                        << "\n";
+                }
+                assert(phase == 3);
+                assert(ownerEnabled);
             }
             DestroyWindow(owner);
             CloseLauncher(app);
