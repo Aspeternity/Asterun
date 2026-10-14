@@ -3629,7 +3629,7 @@ bool App::SetHotkeyBinding(
 
     if (settingsWindow_) {
         settingsWindow_->
-            RefreshFromSettings();
+            OnHotkeyBindingsChanged(actionId);
     }
 
     return true;
@@ -3737,7 +3737,7 @@ bool App::ResetHotkeyBindings() {
 
     if (settingsWindow_) {
         settingsWindow_->
-            RefreshFromSettings();
+            OnHotkeyBindingsChanged();
     }
 
     return true;
