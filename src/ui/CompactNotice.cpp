@@ -1,6 +1,7 @@
 #include "Feedback.hpp"
 #include "AppIcon.hpp"
 #include "UiTheme.hpp"
+#include "TopLevelWindowPresentation.hpp"
 
 #include <algorithm>
 #include <iterator>
@@ -246,6 +247,8 @@ int ShowStyledCompactNotice(HWND owner, const wchar_t* message,
         if (state.font) DeleteObject(state.font);
         return 0;
     }
+    // Match the rest of Asterun: no DWM appearance/disappearance animation.
+    window_presentation::Configure(window);
     RECT client{};
     GetClientRect(window, &client);
     const int buttonWidth = NoticeScale(88, state.dpi);
@@ -267,8 +270,8 @@ int ShowStyledCompactNotice(HWND owner, const wchar_t* message,
 
     const bool reenable = owner && IsWindow(owner) && IsWindowEnabled(owner);
     if (reenable) EnableWindow(owner, FALSE);
-    ShowWindow(window, SW_SHOW);
-    UpdateWindow(window);
+    // Show only the fully painted first frame; activation happens once.
+    window_presentation::RevealFullyPainted(window);
     SetActiveWindow(window);
     SetFocus(state.ok);
     bool sawQuit = false;

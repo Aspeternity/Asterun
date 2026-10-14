@@ -182,7 +182,7 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
         background ? background : GetSysColorBrush(COLOR_WINDOW));
     if (background) DeleteObject(background);
 
-    const int size = scale(18);
+    const int size = scale(16);
     const int left = area.left + scale(2);
     const int top = (area.top + area.bottom - size) / 2;
     const RECT square{left, top, left + size, top + size};
@@ -213,8 +213,8 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
         const float dy = y - (ay + t * vy);
         return dx * dx + dy * dy <= radius * radius;
     };
-    const COLORREF border = !enabled ? RGB(174, 181, 191)
-        : checked ? palette.accent : RGB(121, 136, 153);
+    const COLORREF border = !enabled ? RGB(188, 194, 201)
+        : checked ? palette.accent : RGB(150, 157, 166);
     const COLORREF fill = checked
         ? (pressed ? RGB(0, 96, 180) : palette.accent)
         : palette.controlBackground;
@@ -227,9 +227,9 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
                     const float px = x + (sx + 0.5f) / samples;
                     const float py = y + (sy + 0.5f) / samples;
                     COLORREF color = palette.windowBackground;
-                    if (insideRound(px, py, 0.3f * unit, 3.7f * unit)) {
+                    if (insideRound(px, py, 0.3f * unit, 2.25f * unit)) {
                         color = border;
-                        if (insideRound(px, py, 1.5f * unit, 2.5f * unit))
+                        if (insideRound(px, py, 1.5f * unit, 1.05f * unit))
                             color = fill;
                         if (checked &&
                             (nearStroke(px, py, 4.5f * unit, 9.3f * unit,
@@ -1768,10 +1768,10 @@ void ShortcutEditorDialog::Layout(
                 admin_, label, static_cast<int>(std::size(label)));
             SIZE extent{};
             if (GetTextExtentPoint32W(dc, label, length, &extent)) {
-                // Match PaintAdminCheckbox: 2px inset + 18px glyph +
+                // Match PaintAdminCheckbox: 2px inset + 16px glyph +
                 // 9px gap + text + 2px right inset, with a small hit slop.
                 adminWidth = std::min(advancedFieldWidth,
-                    static_cast<int>(extent.cx) + Scale(2 + 18 + 9 + 2 + 6));
+                    static_cast<int>(extent.cx) + Scale(2 + 16 + 9 + 2 + 6));
             }
             if (previous) SelectObject(dc, previous);
             ReleaseDC(hwnd_, dc);
