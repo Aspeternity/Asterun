@@ -17,6 +17,8 @@
 #include <objbase.h>
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <uxtheme.h>
+#include <vssym32.h>
 
 #include <algorithm>
 #include <array>
@@ -184,32 +186,54 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
     const int size = scale(18);
     const int left = area.left + scale(2);
     const int top = (area.top + area.bottom - size) / 2;
-    HBRUSH fill = CreateSolidBrush(checked
-        ? (pressed ? RGB(0, 96, 180) : palette.accent)
-        : palette.controlBackground);
-    HPEN border = CreatePen(PS_SOLID, std::max(1, scale(1)),
-        checked ? palette.accent : RGB(121, 136, 153));
-    if (fill && border) {
-        HGDIOBJ prevBrush = SelectObject(dc, fill);
-        HGDIOBJ prevPen = SelectObject(dc, border);
-        RoundRect(dc, left, top, left + size, top + size,
-                  scale(5), scale(5));
-        SelectObject(dc, prevPen);
-        SelectObject(dc, prevBrush);
-    }
-    if (border) DeleteObject(border);
-    if (fill) DeleteObject(fill);
+    const RECT square{left, top, left + size, top + size};
 
-    if (checked) {
-        HPEN tick = CreatePen(PS_SOLID, std::max(2, scale(2)),
-            enabled ? RGB(255, 255, 255) : RGB(232, 232, 232));
-        if (tick) {
-            HGDIOBJ prev = SelectObject(dc, tick);
-            MoveToEx(dc, left + scale(4), top + scale(8), nullptr);
-            LineTo(dc, left + scale(7), top + scale(11));
-            LineTo(dc, left + scale(14), top + scale(5));
-            SelectObject(dc, prev);
-            DeleteObject(tick);
+    // GDI RoundRect rasterizes 18px rounded corners as asymmetric stair-steps
+    // (especially at fractional DPI). Let Windows' Visual Styles renderer
+    // paint the checkbox's antialiased outline and tick into our existing
+    // off-screen frame. Owner-draw remains the only painter/state owner.
+    bool themed = false;
+    if (HTHEME theme = OpenThemeDataForDpi(
+            draw.hwndItem, L"Button", dpi ? dpi : 96)) {
+        const bool hot = (draw.itemState & ODS_HOTLIGHT) != 0;
+        const int state = !enabled
+            ? (checked ? CBS_CHECKEDDISABLED : CBS_UNCHECKEDDISABLED)
+            : pressed
+                ? (checked ? CBS_CHECKEDPRESSED : CBS_UNCHECKEDPRESSED)
+                : hot
+                    ? (checked ? CBS_CHECKEDHOT : CBS_UNCHECKEDHOT)
+                    : (checked ? CBS_CHECKEDNORMAL : CBS_UNCHECKEDNORMAL);
+        themed = SUCCEEDED(DrawThemeBackground(
+            theme, dc, BP_CHECKBOX, state, &square, nullptr));
+        CloseThemeData(theme);
+    }
+
+    if (!themed) {
+        // Deterministic square fallback when desktop visual styles are off:
+        // straight pixel-aligned borders, never GDI's uneven RoundRect.
+        HBRUSH fill = CreateSolidBrush(checked
+            ? palette.accent : palette.controlBackground);
+        if (fill) {
+            FillRect(dc, &square, fill);
+            DeleteObject(fill);
+        }
+        HBRUSH border = CreateSolidBrush(checked
+            ? palette.accent : RGB(121, 136, 153));
+        if (border) {
+            FrameRect(dc, &square, border);
+            DeleteObject(border);
+        }
+        if (checked) {
+            HPEN tick = CreatePen(PS_SOLID, std::max(2, scale(2)),
+                enabled ? RGB(255, 255, 255) : RGB(232, 232, 232));
+            if (tick) {
+                HGDIOBJ previous = SelectObject(dc, tick);
+                MoveToEx(dc, left + scale(4), top + scale(8), nullptr);
+                LineTo(dc, left + scale(7), top + scale(11));
+                LineTo(dc, left + scale(14), top + scale(5));
+                SelectObject(dc, previous);
+                DeleteObject(tick);
+            }
         }
     }
     wchar_t label[128]{};
@@ -1582,7 +1606,10 @@ void ShortcutEditorDialog::Layout(
     y += controlRowHeight +
         Scale(6);
 
-    runtimeSeparatorY_ = y;
+    // The closed Next ComboBox is visually taller than the nominal 28px
+    // form row. Draw the divider halfway through this 12px inter-row gap:
+    // at the old y it sat nearly on the Target Type control's bottom edge.
+    runtimeSeparatorY_ = y + Scale(6);
     y += Scale(12);
 
     const int runtimeWidth =
