@@ -1,6 +1,6 @@
 # Asterun 使用教程
 
-> 本教程基于 **Asterun v1.0.3**。Asterun 是便携、键盘优先的 Windows 启动器；如果你第一次使用，先看“3 分钟快速开始”，其余章节按需要阅读即可。
+> 本教程面向 **Asterun v1.0.5（当前稳定版）**。Asterun 是便携、键盘优先的 Windows 启动器；如果你第一次使用，先看“3 分钟快速开始”，其余章节按需要阅读即可。
 
 <p align="center">
   <img src="assets/readme/modern-compact.webp" alt="Asterun Modern Compact 启动器界面" width="900">
@@ -763,7 +763,7 @@ code D:\Research\CKD Project
 
 - 正常退出 Asterun：不会删除这个入口；
 - 在设置中关闭“添加到‘发送到’菜单”：会撤销这个入口；
-- 运行 `Uninstall.exe`：v1.0.3 会校验所有权后清理 Asterun 自己创建的 `Asterun.lnk`。
+- 运行 `Uninstall.exe`：会校验所有权后清理 Asterun 自己创建的 `Asterun.lnk`。
 
 如果你启用了这类系统集成，不再使用 Asterun 时更推荐运行 `Uninstall.exe`，而不是直接删除整个文件夹。
 
