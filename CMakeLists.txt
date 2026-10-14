@@ -1170,6 +1170,17 @@ if(BUILD_TESTING)
             set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
         endforeach()
 
+        # Same tested executable, separate process/Win32 message queue. Running
+        # hotkey modals after lifecycle teardown can inherit WM_QUIT state.
+        add_test(
+            NAME app_modal_hotkey_runtime_tests
+            COMMAND app_lifecycle_runtime_tests --modal-hotkeys
+        )
+        set_tests_properties(
+            app_modal_hotkey_runtime_tests
+            PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE
+        )
+
         add_executable(uninstall_runtime_tests tests/UninstallRuntimeTests.cpp src/platform/SecureElevation.cpp src/ui/Feedback.cpp)
         get_target_property(uninstall_libraries AsterunUninstaller LINK_LIBRARIES)
         get_target_property(uninstall_definitions AsterunUninstaller COMPILE_DEFINITIONS)

@@ -147,13 +147,6 @@ jobs:
           if (-not (Test-Path build-compat/Release/Uninstall.exe)) {
             throw "Windows compatibility build did not produce Uninstall.exe."
           }
-      # Temporary diagnostic-only stress; remove after evidence collected.
-      - name: Diagnose P02 modal lifecycle reproducibility (temporary)
-        shell: pwsh
-        run: |
-          $env:ASTERUN_P02_ISOLATE = '1'
-          ctest --test-dir build-compat -C Release -R '^app_lifecycle_runtime_tests$' --repeat until-fail:8 --no-tests=error --output-on-failure
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run portable and Windows tests
         shell: pwsh
         run: >-
