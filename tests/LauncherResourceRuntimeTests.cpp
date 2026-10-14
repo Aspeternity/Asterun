@@ -28,6 +28,65 @@ bool imeConversionWritable{true};
 std::unordered_set<HGDIOBJ> ownedBitmaps;
 std::unordered_set<HDC> ownedDcs;
 
+bool probeLauncherCreation{};
+unsigned failLauncherChildAt{};
+unsigned launcherChildCreateAttempts{};
+int failEditWindowLongIndex{};
+HWND observedLauncherParent{};
+std::vector<HWND> observedLauncherChildren;
+HWND expectedLauncherNcDestroy{};
+unsigned launcherNcDestroyDefaults{};
+bool validLauncherNcDestroyHandle{true};
+
+HWND WINAPI ProbeCreateWindowExW(
+    DWORD exStyle, LPCWSTR className, LPCWSTR title, DWORD style,
+    int x, int y, int width, int height, HWND parent, HMENU menu,
+    HINSTANCE instance, LPVOID param) {
+    if (probeLauncherCreation && parent) {
+        ++launcherChildCreateAttempts;
+        if (launcherChildCreateAttempts == failLauncherChildAt) {
+            SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+            return nullptr;
+        }
+    }
+    const HWND created = ::CreateWindowExW(
+        exStyle, className, title, style, x, y, width, height,
+        parent, menu, instance, param);
+    if (probeLauncherCreation && created) {
+        if (parent) observedLauncherChildren.push_back(created);
+        else if (!observedLauncherParent) observedLauncherParent = created;
+    }
+    return created;
+}
+
+LONG_PTR WINAPI ProbeSetWindowLongPtrW(HWND hwnd, int index, LONG_PTR value) {
+    if (probeLauncherCreation && failEditWindowLongIndex != 0 &&
+        index == failEditWindowLongIndex) {
+        wchar_t className[32]{};
+        if (GetClassNameW(hwnd, className, 32) != 0 &&
+            lstrcmpiW(className, L"EDIT") == 0) {
+            SetLastError(ERROR_ACCESS_DENIED);
+            return 0;
+        }
+    }
+    return ::SetWindowLongPtrW(hwnd, index, value);
+}
+
+LRESULT WINAPI ProbeDefWindowProcW(
+    HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    if (message == WM_NCDESTROY) {
+        const HWND expected = expectedLauncherNcDestroy
+            ? expectedLauncherNcDestroy
+            : (probeLauncherCreation ? observedLauncherParent : nullptr);
+        if (expected) {
+            ++launcherNcDestroyDefaults;
+            validLauncherNcDestroyHandle &=
+                hwnd == expected;
+        }
+    }
+    return ::DefWindowProcW(hwnd, message, wParam, lParam);
+}
+
 // Test-only context-menu selection to exercise the actual launcher -> editor
 // command path without blocking Windows CI on a native popup menu selection.
 UINT contextMenuChoice{};
@@ -167,6 +226,9 @@ void ClearImeProbeCounts() {
     imeContextReleases = 0;
 }
 }
+#define CreateWindowExW ProbeCreateWindowExW
+#define SetWindowLongPtrW ProbeSetWindowLongPtrW
+#define DefWindowProcW ProbeDefWindowProcW
 #define DeleteObject TestDeleteObject
 #define DeleteDC TestDeleteDc
 #define LoadImageW TestLoadImage
@@ -181,6 +243,9 @@ void ClearImeProbeCounts() {
 #define ImmSetOpenStatus TestImmSetOpenStatus
 #define ImmReleaseContext TestImmReleaseContext
 #include "../src/ui/LauncherWindow.cpp"
+#undef CreateWindowExW
+#undef SetWindowLongPtrW
+#undef DefWindowProcW
 #undef ImmReleaseContext
 #undef ImmSetOpenStatus
 #undef ImmSetConversionStatus
@@ -224,6 +289,72 @@ struct LauncherResourceRuntimeFixture {
         assert(w.classicBackgroundSize_.cx == 0 && w.classicBackgroundSize_.cy == 0);
     }
     static void Destroy(LauncherWindow& w) { if (w.hwnd_) DestroyWindow(w.hwnd_); DrainQuit(); }
+
+    static void VerifyLauncherCreateFailures(App& app, HINSTANCE instance) {
+        auto& settings = const_cast<Settings&>(app.SettingsData());
+        const auto previousStyle = settings.uiStyle;
+        settings.uiStyle = UiStyle::ModernCompact;
+        {
+            // Warm up the native controls before comparing process resources.
+            LauncherWindow warm(app, instance);
+            assert(warm.Create());
+            Destroy(warm);
+        }
+        const auto before = Sample("launcher-create-failure-before");
+
+        const auto exercise = [&](unsigned failChild, int failWindowLong) {
+            DrainQuit();
+            probeLauncherCreation = true;
+            failLauncherChildAt = failChild;
+            launcherChildCreateAttempts = 0;
+            failEditWindowLongIndex = failWindowLong;
+            observedLauncherParent = nullptr;
+            observedLauncherChildren.clear();
+            expectedLauncherNcDestroy = nullptr;
+            launcherNcDestroyDefaults = 0;
+            validLauncherNcDestroyHandle = true;
+
+            LauncherWindow window(app, instance);
+            assert(!window.Create());
+            assert(!window.hwnd_);
+            assert(observedLauncherParent && !IsWindow(observedLauncherParent));
+            for (const auto child : observedLauncherChildren) {
+                assert(!IsWindow(child));
+            }
+            if (failChild != 0) assert(launcherChildCreateAttempts == failChild);
+            assert(launcherNcDestroyDefaults == 1 && validLauncherNcDestroyHandle);
+            // Aborted creation must not signal the application's main loop to quit.
+            MSG message{};
+            assert(!PeekMessageW(&message, nullptr, WM_QUIT, WM_QUIT, PM_NOREMOVE));
+
+            probeLauncherCreation = false;
+            failLauncherChildAt = 0;
+            failEditWindowLongIndex = 0;
+            assert(window.Create());
+            assert(window.edit_ && window.list_ &&
+                   window.preview_ && window.classicPreview_);
+            expectedLauncherNcDestroy = window.hwnd_;
+            launcherNcDestroyDefaults = 0;
+            validLauncherNcDestroyHandle = true;
+            Destroy(window);
+            assert(launcherNcDestroyDefaults == 1 && validLauncherNcDestroyHandle);
+            expectedLauncherNcDestroy = nullptr;
+        };
+
+        for (unsigned failure = 1; failure <= 4; ++failure) {
+            exercise(failure, 0);
+        }
+        exercise(0, GWLP_USERDATA);
+        exercise(0, GWLP_WNDPROC);
+
+        const auto after = Sample("launcher-create-failure-after");
+        assert(after.gdi <= before.gdi + 4);
+        assert(after.user <= before.user + 4);
+        assert(after.handles <= before.handles + 4);
+        settings.uiStyle = previousStyle;
+        std::cout << "Launcher WM_NCDESTROY/creation-failure rollback passed"
+                  << std::endl;
+    }
     static void Dpi(LauncherWindow& w, UINT dpi) {
         RECT rect{}; GetWindowRect(w.hwnd_, &rect);
         SendMessageW(w.hwnd_, WM_DPICHANGED, MAKEWPARAM(dpi, dpi), reinterpret_cast<LPARAM>(&rect));
@@ -871,6 +1002,7 @@ struct LauncherResourceRuntimeFixture {
         auto& settings = const_cast<Settings&>(app.settingsStore_.Data());
         settings.showTrayIcon = false; settings.soundEnabled = false;
         settings.autoCheckUpdates = false;
+        VerifyLauncherCreateFailures(app, instance);
         const auto resourceCount = static_cast<unsigned>(kClassicShortcutResourceIds.size() + kClassicCloseResourceIds.size() + 1);
         // Warm Win32's first DC/bitmap initialization before process-wide counts.
         {
