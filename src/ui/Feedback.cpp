@@ -99,14 +99,6 @@ int ShowMessage(HWND owner, const wchar_t* text, const wchar_t* title, UINT flag
     return result;
 }
 
-int ShowCompactNotice(HWND owner, const wchar_t* text, const wchar_t* title) {
-    // TaskDialog enforces a wide minimum even for one short sentence.
-    // Only explicitly requested, single-button notices use the system's
-    // text-sized message box; do not affect shared warning/confirm flows.
-    // No icon is supplied, keeping the existing silent UI policy.
-    return MessageBoxW(owner, text, title, MB_OK);
-}
-
 bool ConfirmShortcutDeletion(HWND owner, std::wstring_view name, bool chinese) {
     std::wstring question = chinese ? L"确定删除“" : L"Delete \"";
     question.append(name);
