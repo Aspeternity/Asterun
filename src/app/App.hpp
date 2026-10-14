@@ -341,6 +341,7 @@ private:
     void StopProviderDebounceTimer();
     void PostUiNotification(UINT message, WPARAM wParam = 0, LPARAM lParam = 0);
     bool HandleUiNotification(UINT message, WPARAM wParam, LPARAM lParam);
+    bool HandleHotkeyMessage(WPARAM id);
     void FlushDetectedProviderChanges();
     void HandleDynamicQueryCompleted();
     void HandleEverythingBootstrapCompleted(
