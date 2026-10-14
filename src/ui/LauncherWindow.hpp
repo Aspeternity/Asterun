@@ -71,7 +71,7 @@ private:
 
     bool EnsureClassicResources();
     void ReleaseClassicResources();
-    void CreateChildren();
+    bool CreateChildren();
     void ApplyFonts();
     void RecreateBrushes();
     void UpdateControlFrames();
