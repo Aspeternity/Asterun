@@ -246,6 +246,7 @@ if(WIN32)
         src/ui/LauncherWindow.cpp
         src/ui/LauncherWindowLayout.cpp
         src/ui/Feedback.cpp
+        src/ui/CompactNotice.cpp
         src/ui/Feedback.rc
         src/ui/SettingsWindow.cpp
         src/ui/SettingsWindowLayout.cpp
@@ -1169,6 +1170,17 @@ if(BUILD_TESTING)
             set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
         endforeach()
 
+        # Same tested executable, separate process/Win32 message queue. Running
+        # hotkey modals after lifecycle teardown can inherit WM_QUIT state.
+        add_test(
+            NAME app_modal_hotkey_runtime_tests
+            COMMAND app_lifecycle_runtime_tests --modal-hotkeys
+        )
+        set_tests_properties(
+            app_modal_hotkey_runtime_tests
+            PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE
+        )
+
         add_executable(uninstall_runtime_tests tests/UninstallRuntimeTests.cpp src/platform/SecureElevation.cpp src/ui/Feedback.cpp)
         get_target_property(uninstall_libraries AsterunUninstaller LINK_LIBRARIES)
         get_target_property(uninstall_definitions AsterunUninstaller COMPILE_DEFINITIONS)
@@ -1185,10 +1197,13 @@ if(BUILD_TESTING)
         add_executable(feedback_runtime_tests
             tests/FeedbackRuntimeTests.cpp
             src/ui/Feedback.cpp
+            src/ui/CompactNotice.cpp
+            src/ui/TopLevelWindowPresentation.cpp
+            src/core/SettingsLayout.cpp
             src/ui/Feedback.rc
         )
         target_include_directories(feedback_runtime_tests PRIVATE src)
-        target_link_libraries(feedback_runtime_tests PRIVATE user32 comctl32 winmm)
+        target_link_libraries(feedback_runtime_tests PRIVATE user32 gdi32 comctl32 winmm dwmapi)
         target_compile_definitions(feedback_runtime_tests PRIVATE
             UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
             _WIN32_WINNT=0x0A00 WINVER=0x0A00)

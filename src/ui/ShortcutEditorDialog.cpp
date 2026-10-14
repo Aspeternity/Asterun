@@ -22,6 +22,7 @@
 #include <array>
 #include <cwctype>
 #include <filesystem>
+#include <vector>
 
 namespace altrun {
 namespace {
@@ -131,6 +132,158 @@ void SetChecked(
             ? BST_CHECKED
             : BST_UNCHECKED,
         0);
+}
+// The administrator choice is a single owner-drawn BUTTON. A native
+// BS_AUTOCHECKBOX subclass painted over the native glyph and focus indicator;
+// button-state repaints then exposed two different checkbox frames.
+LRESULT CALLBACK AdminCheckboxSubclass(
+    HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam,
+    UINT_PTR id, DWORD_PTR) {
+    if (message == BM_GETCHECK) {
+        return GetWindowLongPtrW(hwnd, GWLP_USERDATA)
+            ? BST_CHECKED : BST_UNCHECKED;
+    }
+    if (message == BM_SETCHECK) {
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA,
+            wParam == BST_CHECKED ? 1 : 0);
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return 0;
+    }
+    if (message == WM_NCDESTROY) {
+        RemoveWindowSubclass(hwnd, AdminCheckboxSubclass, id);
+    }
+    return DefSubclassProc(hwnd, message, wParam, lParam);
+}
+
+void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
+    if (!draw.hDC || !draw.hwndItem) return;
+    const int width = draw.rcItem.right - draw.rcItem.left;
+    const int height = draw.rcItem.bottom - draw.rcItem.top;
+    if (width <= 0 || height <= 0) return;
+    const auto scale = [dpi](int n) {
+        return MulDiv(n, static_cast<int>(dpi ? dpi : 96), 96);
+    };
+    HDC memory = CreateCompatibleDC(draw.hDC);
+    HBITMAP bitmap = memory
+        ? CreateCompatibleBitmap(draw.hDC, width, height) : nullptr;
+    HGDIOBJ oldBitmap = memory && bitmap
+        ? SelectObject(memory, bitmap) : nullptr;
+    const bool buffered = oldBitmap && oldBitmap != HGDI_ERROR;
+    HDC dc = buffered ? memory : draw.hDC;
+    RECT area = buffered
+        ? RECT{0, 0, width, height} : draw.rcItem;
+    const auto& palette = ui::kApplicationPalette;
+    const bool enabled = (draw.itemState & ODS_DISABLED) == 0;
+    const bool checked = IsChecked(draw.hwndItem);
+    const bool pressed = (draw.itemState & ODS_SELECTED) != 0;
+
+    HBRUSH background = CreateSolidBrush(palette.windowBackground);
+    FillRect(dc, &area,
+        background ? background : GetSysColorBrush(COLOR_WINDOW));
+    if (background) DeleteObject(background);
+
+    const int size = scale(16);
+    const int left = area.left + scale(2);
+    const int top = (area.top + area.bottom - size) / 2;
+    const RECT square{left, top, left + size, top + size};
+
+    // Paint the tiny glyph with deterministic 4x subpixel coverage. Native
+    // theme rendering is not consistent between Windows 10/11/headless hosts,
+    // while ordinary GDI RoundRect gives visibly uneven 18px corners.
+    // Output directly to the existing buffered HDC in one GDI operation.
+    constexpr int samples = 4;
+    const float unit = static_cast<float>(size) / 18.0f;
+    const auto insideRound = [size](float x, float y,
+                                    float inset, float radius) {
+        const float side = static_cast<float>(size);
+        if (x < inset || y < inset ||
+            x >= side - inset || y >= side - inset) return false;
+        const float nearX = std::clamp(x, inset + radius, side - inset - radius);
+        const float nearY = std::clamp(y, inset + radius, side - inset - radius);
+        const float dx = x - nearX, dy = y - nearY;
+        return dx * dx + dy * dy <= radius * radius;
+    };
+    const auto nearStroke = [](float x, float y, float ax, float ay,
+                               float bx, float by, float radius) {
+        const float vx = bx - ax, vy = by - ay;
+        const float t = std::clamp(
+            ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy),
+            0.0f, 1.0f);
+        const float dx = x - (ax + t * vx);
+        const float dy = y - (ay + t * vy);
+        return dx * dx + dy * dy <= radius * radius;
+    };
+    const COLORREF border = !enabled ? RGB(188, 194, 201)
+        : checked ? palette.accent : RGB(150, 157, 166);
+    const COLORREF fill = checked
+        ? (pressed ? RGB(0, 96, 180) : palette.accent)
+        : palette.controlBackground;
+    std::vector<DWORD> pixels(static_cast<std::size_t>(size) * size);
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            int r = 0, g = 0, b = 0;
+            for (int sy = 0; sy < samples; ++sy) {
+                for (int sx = 0; sx < samples; ++sx) {
+                    const float px = x + (sx + 0.5f) / samples;
+                    const float py = y + (sy + 0.5f) / samples;
+                    COLORREF color = palette.windowBackground;
+                    if (insideRound(px, py, 0.3f * unit, 2.25f * unit)) {
+                        color = border;
+                        if (insideRound(px, py, 1.5f * unit, 1.05f * unit))
+                            color = fill;
+                        if (checked &&
+                            (nearStroke(px, py, 4.5f * unit, 9.3f * unit,
+                                        7.4f * unit, 12.0f * unit, unit) ||
+                             nearStroke(px, py, 7.4f * unit, 12.0f * unit,
+                                        13.7f * unit, 5.8f * unit, unit)))
+                            color = RGB(255, 255, 255);
+                    }
+                    r += GetRValue(color);
+                    g += GetGValue(color);
+                    b += GetBValue(color);
+                }
+            }
+            constexpr int total = samples * samples;
+            pixels[static_cast<std::size_t>(y) * size + x] =
+                (static_cast<DWORD>(r / total) << 16) |
+                (static_cast<DWORD>(g / total) << 8) |
+                static_cast<DWORD>(b / total);
+        }
+    }
+    BITMAPINFO bitmapInfo{};
+    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth = size;
+    bitmapInfo.bmiHeader.biHeight = -size; // top-down; no image flip
+    bitmapInfo.bmiHeader.biPlanes = 1;
+    bitmapInfo.bmiHeader.biBitCount = 32;
+    bitmapInfo.bmiHeader.biCompression = BI_RGB;
+    SetDIBitsToDevice(dc, square.left, square.top, size, size,
+        0, 0, 0, size, pixels.data(), &bitmapInfo, DIB_RGB_COLORS);
+    wchar_t label[128]{};
+    GetWindowTextW(draw.hwndItem, label,
+        static_cast<int>(std::size(label)));
+    HGDIOBJ prevFont = font ? SelectObject(dc, font) : nullptr;
+    SetBkMode(dc, TRANSPARENT);
+    // A mouse click also focuses a BUTTON. Changing the whole label to
+    // accent on focus made it appear to flash rather than just checking it.
+    // Keep the readable label neutral; the accent-filled checkbox carries
+    // selection state and the standard tab navigation remains intact.
+    SetTextColor(dc, enabled ? palette.text : palette.mutedText);
+    RECT text{
+        left + size + scale(9), area.top,
+        area.right - scale(2), area.bottom
+    };
+    DrawTextW(dc, label, -1, &text,
+        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    if (prevFont) SelectObject(dc, prevFont);
+
+    if (buffered) {
+        BitBlt(draw.hDC, draw.rcItem.left, draw.rcItem.top,
+               width, height, memory, 0, 0, SRCCOPY);
+        SelectObject(memory, oldBitmap);
+    }
+    if (bitmap) DeleteObject(bitmap);
+    if (memory) DeleteDC(memory);
 }
 
 enum class PickerResult {
@@ -912,7 +1065,10 @@ void ShortcutEditorDialog::CreateControls() {
     makeButton(
         admin_,
         kIdAdmin,
-        BS_AUTOCHECKBOX);
+        BS_OWNERDRAW);
+    if (admin_) {
+        SetWindowSubclass(admin_, AdminCheckboxSubclass, 1, 0);
+    }
 
     makeButton(
         test_,
@@ -1473,7 +1629,10 @@ void ShortcutEditorDialog::Layout(
     y += controlRowHeight +
         Scale(6);
 
-    runtimeSeparatorY_ = y;
+    // The closed Next ComboBox is visually taller than the nominal 28px
+    // form row. Draw the divider halfway through this 12px inter-row gap:
+    // at the old y it sat nearly on the Target Type control's bottom edge.
+    runtimeSeparatorY_ = y + Scale(6);
     y += Scale(12);
 
     const int runtimeWidth =
@@ -1598,65 +1757,24 @@ void ShortcutEditorDialog::Layout(
         y += Scale(
             kAdminTopGapLogical);
 
-        int adminWidth =
-            advancedFieldWidth;
-        SIZE adminIdeal{};
-
-        if (SendMessageW(
-                admin_,
-                BCM_GETIDEALSIZE,
-                0,
-                reinterpret_cast<LPARAM>(
-                    &adminIdeal)) != FALSE &&
-            adminIdeal.cx > 0) {
-            adminWidth =
-                std::min(
-                    advancedFieldWidth,
-                    static_cast<int>(
-                        adminIdeal.cx) +
-                        Scale(2));
-        } else {
-            HDC adminDc =
-                GetDC(hwnd_);
-
-            if (adminDc) {
-                HGDIOBJ oldAdminFont =
-                    SelectObject(
-                        adminDc,
-                        font_);
-
-                wchar_t adminText[128]{};
-                GetWindowTextW(
-                    admin_,
-                    adminText,
-                    static_cast<int>(
-                        _countof(adminText)));
-
-                SIZE adminTextSize{};
-                if (GetTextExtentPoint32W(
-                        adminDc,
-                        adminText,
-                        GetWindowTextLengthW(
-                            admin_),
-                        &adminTextSize)) {
-                    adminWidth =
-                        std::min(
-                            advancedFieldWidth,
-                            static_cast<int>(
-                                adminTextSize.cx) +
-                                GetSystemMetricsForDpi(
-                                    SM_CXMENUCHECK,
-                                    dpi_) +
-                                Scale(14));
-                }
-
-                SelectObject(
-                    adminDc,
-                    oldAdminFont);
-                ReleaseDC(
-                    hwnd_,
-                    adminDc);
+        // BS_OWNERDRAW has no meaningful BCM_GETIDEALSIZE for a custom
+        // checkbox+label. The old ideal-size branch could clip the label's
+        // clickable HWND even while the text appeared next to the glyph.
+        int adminWidth = advancedFieldWidth;
+        if (HDC dc = GetDC(hwnd_)) {
+            const HGDIOBJ previous = font_ ? SelectObject(dc, font_) : nullptr;
+            wchar_t label[128]{};
+            const int length = GetWindowTextW(
+                admin_, label, static_cast<int>(std::size(label)));
+            SIZE extent{};
+            if (GetTextExtentPoint32W(dc, label, length, &extent)) {
+                // Match PaintAdminCheckbox: 2px inset + 16px glyph +
+                // 9px gap + text + 2px right inset, with a small hit slop.
+                adminWidth = std::min(advancedFieldWidth,
+                    static_cast<int>(extent.cx) + Scale(2 + 16 + 9 + 2 + 6));
             }
+            if (previous) SelectObject(dc, previous);
+            ReleaseDC(hwnd_, dc);
         }
 
         moveControl(
@@ -1800,123 +1918,60 @@ void ShortcutEditorDialog::DrawEditorChrome(
 
 void ShortcutEditorDialog::DrawAdvancedHeader(
     const DRAWITEMSTRUCT& draw) const {
-    if (!hwnd_ ||
-        draw.hwndItem !=
-            advancedToggle_) {
-        return;
-    }
+    if (!hwnd_ || draw.hwndItem != advancedToggle_) return;
+    const int width = draw.rcItem.right - draw.rcItem.left;
+    const int height = draw.rcItem.bottom - draw.rcItem.top;
+    if (width <= 0 || height <= 0) return;
 
-    RECT rect =
-        draw.rcItem;
-    const auto& palette =
-        ui::kApplicationPalette;
+    // Paint label and entire separator into one completed off-screen frame.
+    // The previous on-screen FillRect preceded the line and exposed a
+    // blank separator when Advanced was clicked repeatedly.
+    HDC memory = CreateCompatibleDC(draw.hDC);
+    HBITMAP bitmap = memory
+        ? CreateCompatibleBitmap(draw.hDC, width, height) : nullptr;
+    HGDIOBJ oldBitmap = memory && bitmap ? SelectObject(memory, bitmap) : nullptr;
+    const bool buffered = memory && bitmap && oldBitmap && oldBitmap != HGDI_ERROR;
+    HDC dc = buffered ? memory : draw.hDC;
+    RECT rect = buffered ? RECT{0, 0, width, height} : draw.rcItem;
+    const auto& palette = ui::kApplicationPalette;
+    const bool disabled = (draw.itemState & ODS_DISABLED) != 0;
 
-    const bool disabled =
-        (draw.itemState &
-         ODS_DISABLED) != 0;
-
-    // Keep the disclosure row background invariant while pressed. The arrow
-    // and label already provide button feedback; repainting the full separator
-    // strip with a different pressed color is visible as a flash when users
-    // expand/collapse rapidly.
-    HBRUSH background =
-        CreateSolidBrush(
-            palette.windowBackground);
-    FillRect(
-        draw.hDC,
-        &rect,
-        background);
-    DeleteObject(background);
-
-    wchar_t text[128]{};
-    GetWindowTextW(
-        draw.hwndItem,
-        text,
-        static_cast<int>(
-            _countof(text)));
-
-    SetBkMode(
-        draw.hDC,
-        TRANSPARENT);
-    SetTextColor(
-        draw.hDC,
-        disabled
-            ? palette.mutedText
-            : palette.text);
-
-    HGDIOBJ oldFont =
-        SelectObject(
-            draw.hDC,
-            semiboldFont_
-                ? semiboldFont_
-                : font_);
-
-    RECT textRect =
-        rect;
-    textRect.left += Scale(2);
-    textRect.right -= Scale(2);
-
-    DrawTextW(
-        draw.hDC,
-        text,
-        -1,
-        &textRect,
-        DT_LEFT |
-            DT_VCENTER |
-            DT_SINGLELINE |
-            DT_NOPREFIX);
-
+    HBRUSH background = CreateSolidBrush(palette.windowBackground);
+    FillRect(dc, &rect, background ? background : GetSysColorBrush(COLOR_WINDOW));
+    if (background) DeleteObject(background);
+    wchar_t label[128]{};
+    GetWindowTextW(draw.hwndItem, label, static_cast<int>(std::size(label)));
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, disabled ? palette.mutedText : palette.text);
+    const HGDIOBJ oldFont =
+        SelectObject(dc, semiboldFont_ ? semiboldFont_ : font_);
+    RECT text = rect;
+    text.left += Scale(2);
+    text.right -= Scale(2);
+    DrawTextW(dc, label, -1, &text, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
     SIZE extent{};
-    GetTextExtentPoint32W(
-        draw.hDC,
-        text,
-        GetWindowTextLengthW(
-            draw.hwndItem),
-        &extent);
-
-    const int lineY =
-        (rect.top +
-         rect.bottom) / 2;
-    const int lineStart =
-        std::min(
-            rect.right,
-            rect.left +
-                Scale(2) +
-                extent.cx +
-                Scale(14));
-
-    HPEN linePen =
-        CreatePen(
-            PS_SOLID,
-            1,
-            palette.separator);
-    HGDIOBJ oldPen =
-        SelectObject(
-            draw.hDC,
-            linePen);
-
-    MoveToEx(
-        draw.hDC,
-        lineStart,
-        lineY,
-        nullptr);
-    LineTo(
-        draw.hDC,
-        rect.right,
-        lineY);
-
-    SelectObject(
-        draw.hDC,
-        oldPen);
-    DeleteObject(linePen);
-
-    // Deliberately do not draw ODS_FOCUS here. The disclosure remains a
-    // native Button for Tab/Space/click semantics, but its low-noise section
-    // header presentation never exposes the classic dotted focus rectangle.
-
-    SelectObject(
-        draw.hDC,
-        oldFont);
+    GetTextExtentPoint32W(dc, label, lstrlenW(label), &extent);
+    const int lineY = (rect.top + rect.bottom) / 2;
+    const int lineStart = std::min(static_cast<int>(rect.right),
+        static_cast<int>(rect.left) + Scale(2) +
+        static_cast<int>(extent.cx) + Scale(14));
+    HPEN separator = CreatePen(PS_SOLID, 1, palette.separator);
+    if (separator) {
+        const HGDIOBJ oldPen = SelectObject(dc, separator);
+        MoveToEx(dc, lineStart, lineY, nullptr);
+        LineTo(dc, rect.right, lineY);
+        SelectObject(dc, oldPen);
+        DeleteObject(separator);
+    }
+    // Native BUTTON retains click and Space. Omit the classic dotted focus.
+    SelectObject(dc, oldFont);
+    if (buffered) {
+        BitBlt(draw.hDC, draw.rcItem.left, draw.rcItem.top,
+            width, height, memory, 0, 0, SRCCOPY);
+        SelectObject(memory, oldBitmap);
+    }
+    if (bitmap) DeleteObject(bitmap);
+    if (memory) DeleteDC(memory);
 }
 
 void ShortcutEditorDialog::DrawActionButton(
@@ -2265,16 +2320,11 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
                      : SWP_HIDEWINDOW));
     }
 
-    // This owner-drawn child includes the disclosure separator itself. Keep
-    // the text/state change paint-free until RefreshDynamicLayout commits the
-    // final frame; never suspend redraw on the top-level dialog.
+    // Do not toggle WM_SETREDRAW on this visible child: USER32 temporarily
+    // changes its visible state, exposing a blank section separator on rapid
+    // clicks. WM_SETTEXT only invalidates the button; RefreshDynamicLayout
+    // commits the final header and geometry synchronously immediately after.
     if (advancedToggle_) {
-        SendMessageW(
-            advancedToggle_,
-            WM_SETREDRAW,
-            FALSE,
-            0);
-
         SetWindowTextW(
             advancedToggle_,
             advancedExpanded_
@@ -2282,12 +2332,6 @@ void ShortcutEditorDialog::UpdateAdvancedVisibility() {
                     L"▾ Advanced")
                 : T(L"▸ 高级选项",
                     L"▸ Advanced"));
-
-        SendMessageW(
-            advancedToggle_,
-            WM_SETREDRAW,
-            TRUE,
-            0);
     }
 }
 
@@ -2926,14 +2970,13 @@ void ShortcutEditorDialog::Test() {
         CollectCommand();
 
     if (command.target.empty()) {
-        altrun::ui::ShowMessage(
+        altrun::ui::ShowCompactNotice(
             hwnd_,
             T(L"请先填写目标。",
               L"Enter a target first."),
             T(L"测试运行",
               L"Test"),
-            MB_OK |
-                MB_ICONWARNING);
+            app_.SettingsData().language == Language::ZhCN);
         return;
     }
 
@@ -3374,9 +3417,8 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         return 0;
 
     case WM_ERASEBKGND:
-        DrawEditorChrome(
-            reinterpret_cast<HDC>(
-                wParam));
+        // WM_PAINT fills the editor once; an erase-time chrome pass
+        // produces a second incomplete frame during rapid resizing.
         return TRUE;
 
     case WM_PAINT: {
@@ -3470,6 +3512,11 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             kIdAdvancedToggle) {
             DrawAdvancedHeader(
                 *draw);
+            return TRUE;
+        }
+
+        if (id == kIdAdmin) {
+            PaintAdminCheckbox(*draw, font_, dpi_);
             return TRUE;
         }
 
@@ -3606,6 +3653,15 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseWorkingDirectory();
+            }
+            return 0;
+
+        case kIdAdmin:
+            // Owner-drawn BUTTONs report the second quick mouse click as
+            // BN_DOUBLECLICKED, not necessarily BN_CLICKED. Treat both as
+            // exactly one activation, just like the Advanced disclosure.
+            if (notify == BN_CLICKED || notify == BN_DOUBLECLICKED) {
+                SetChecked(admin_, !IsChecked(admin_));
             }
             return 0;
 

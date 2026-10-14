@@ -13,6 +13,8 @@
 #include <future>
 #include <iostream>
 #include <iterator>
+#include <string_view>
+#include <unordered_map>
 
 namespace {
 std::filesystem::path fixtureRoot;
@@ -26,6 +28,33 @@ std::wstring lastMessage;
 std::function<void()> modalCheck;
 ULONGLONG modalDeadline{};
 const wchar_t* modalClass{};
+bool mockHotkeys{};
+int failNextHotkeyId{};
+std::unordered_map<int, HWND> mockHotkeyOwners;
+BOOL WINAPI ProbeRegisterHotKey(HWND target, int id, UINT mods, UINT key) {
+    if (!mockHotkeys) return ::RegisterHotKey(target, id, mods, key);
+    if (failNextHotkeyId == id) {
+        failNextHotkeyId = 0;
+        SetLastError(ERROR_HOTKEY_ALREADY_REGISTERED);
+        return FALSE;
+    }
+    if (mockHotkeyOwners.contains(id)) {
+        SetLastError(ERROR_HOTKEY_ALREADY_REGISTERED);
+        return FALSE;
+    }
+    mockHotkeyOwners[id] = target;
+    return TRUE;
+}
+BOOL WINAPI ProbeUnregisterHotKey(HWND target, int id) {
+    if (!mockHotkeys) return ::UnregisterHotKey(target, id);
+    const auto entry = mockHotkeyOwners.find(id);
+    if (entry == mockHotkeyOwners.end() || entry->second != target) {
+        SetLastError(ERROR_HOTKEY_NOT_REGISTERED);
+        return FALSE;
+    }
+    mockHotkeyOwners.erase(entry);
+    return TRUE;
+}
 }
 namespace altrun::win {
 std::filesystem::path TestExecutableDirectory() { return fixtureRoot; }
@@ -73,10 +102,14 @@ HRESULT WINAPI TestKnownFolder(REFKNOWNFOLDERID, DWORD, HANDLE, PWSTR* path) {
 #define ShowMessage TestShowMessage
 #define CreateMutexW TestCreateMutex
 #define RegOpenKeyExW TestRegOpenKey
+#define RegisterHotKey ProbeRegisterHotKey
+#define UnregisterHotKey ProbeUnregisterHotKey
 #define SHGetKnownFolderPath TestKnownFolder
 #include "../src/app/App.cpp"
 #undef SHGetKnownFolderPath
 #undef RegOpenKeyExW
+#undef RegisterHotKey
+#undef UnregisterHotKey
 #undef CreateMutexW
 #undef ShowMessage
 #undef RunEverythingBootstrap
@@ -377,6 +410,81 @@ struct AppLifecycleRuntimeFixture {
         }
     }
 
+    static void ModalHotkeyRouting(HINSTANCE instance) {
+        WriteSettings();
+        assert(mockHotkeyOwners.empty());
+        {
+            App app(instance);
+            app.settingsStore_.Load();
+            app.ReloadCommands();
+            assert(app.CanRevealLauncher());
+            app.uiThreadId_ = GetCurrentThreadId();
+            assert(app.CreateUpdateDispatchWindow());
+            const HWND dispatcher = app.updateDispatchWindow_;
+            assert(dispatcher);
+            mockHotkeys = true;
+            assert(app.RebindGlobalHotkey({"alt"}, "f24"));
+            assert(app.RebindAuxiliaryHotkey(true, {"ctrl"}, "f23"));
+            assert(app.RebindShortcutManagerHotkey(true, {"shift"}, "f22"));
+            for (int id : {App::kGlobalHotkeyId, App::kAuxiliaryHotkeyId,
+                           App::kShortcutManagerHotkeyId}) {
+                assert(mockHotkeyOwners.at(id) == dispatcher);
+            }
+
+            // A failed rebind must restore the same registration window.
+            failNextHotkeyId = App::kGlobalHotkeyId;
+            assert(!app.RebindGlobalHotkey({"ctrl"}, "f21"));
+            assert(app.hotkeyRegistered_);
+            assert(app.hotkeyLastError_ == ERROR_HOTKEY_ALREADY_REGISTERED);
+            assert(mockHotkeyOwners.at(App::kGlobalHotkeyId) == dispatcher);
+
+            app.window_ = std::make_unique<LauncherWindow>(app, instance);
+            assert(app.window_->Create());
+            assert(!app.window_->IsVisible());
+            HWND owner = CreateWindowExW(0, L"STATIC", L"modal-hotkey-owner",
+                WS_POPUP | WS_VISIBLE, 0, 0, 200, 100,
+                nullptr, nullptr, instance, nullptr);
+            assert(owner);
+            for (bool converter : {true, false}) {
+                int phase = 0;
+                modalClass = converter ? L"Asterun.ShortcutPathConverter" :
+                    L"Asterun.ShortcutEditor";
+                modalDeadline = GetTickCount64() + 6000;
+                modalCheck = [&] {
+                    const HWND modal = FindWindowW(modalClass, nullptr);
+                    assert(modal && !IsWindowEnabled(owner));
+                    if (phase == 0) {
+                        assert(PostMessageW(dispatcher, WM_HOTKEY,
+                            App::kGlobalHotkeyId, MAKELPARAM(MOD_ALT, VK_F24)));
+                        ++phase;
+                    } else if (phase == 1) {
+                        assert(app.window_->IsVisible());
+                        assert(PostMessageW(dispatcher, WM_HOTKEY,
+                            App::kAuxiliaryHotkeyId, MAKELPARAM(MOD_CONTROL, VK_F23)));
+                        ++phase;
+                    } else if (phase == 2) {
+                        assert(!app.window_->IsVisible());
+                        assert(PostMessageW(modal, WM_CLOSE, 0, 0));
+                        ++phase;
+                    }
+                };
+                const auto timer = SetTimer(nullptr, 0, 30, CheckModal);
+                assert(timer);
+                if (converter) assert(!ShortcutPathConverterDialog::Show(app, instance, owner));
+                else assert(!ShortcutEditorDialog::Show(app, instance, owner));
+                KillTimer(nullptr, timer);
+                assert(phase == 3 && IsWindowEnabled(owner));
+            }
+            DestroyWindow(owner);
+            CloseLauncher(app);
+            // App destructor must unregister all three HWND-owned hotkeys
+            // before destroying the shared dispatch window.
+        }
+        assert(mockHotkeyOwners.empty());
+        mockHotkeys = false;
+        failNextHotkeyId = 0;
+    }
+
     static void ModalDelivery(HINSTANCE instance) {
         WriteSettings();
         App app(instance);
@@ -508,18 +616,30 @@ struct AppLifecycleRuntimeFixture {
     }
 };
 }
-int main() {
+int main(int argc, char* argv[]) {
     fixtureRoot = std::filesystem::temp_directory_path() /
         (L"Asterun-Batch1-" + std::to_wstring(GetCurrentProcessId()));
     mutexName = L"Local\\Asterun.Batch1.Test." + std::to_wstring(GetCurrentProcessId());
     const auto com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const auto instance = GetModuleHandleW(nullptr);
-    altrun::AppLifecycleRuntimeFixture::NoWritesBeforeOwnership(instance);
-    altrun::AppLifecycleRuntimeFixture::Ownership(instance);
-    altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
-    altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
-    altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
+    const bool modalHotkeysOnly = argc == 2 &&
+        std::string_view(argv[1]) == "--modal-hotkeys";
+    assert(argc == 1 || modalHotkeysOnly);
+    if (modalHotkeysOnly) {
+        // Win32 modal pumps and WM_QUIT are thread-scoped. Run this strict
+        // hotkey regression in its own process, not after lifecycle shutdown
+        // tests that intentionally destroy the launcher's main window.
+        altrun::AppLifecycleRuntimeFixture::ModalHotkeyRouting(instance);
+    } else {
+        altrun::AppLifecycleRuntimeFixture::NoWritesBeforeOwnership(instance);
+        altrun::AppLifecycleRuntimeFixture::Ownership(instance);
+        altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
+        altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
+        altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
+    }
     if (SUCCEEDED(com)) CoUninitialize();
     std::filesystem::remove_all(fixtureRoot);
-    std::cout << "Primary ownership and modal dispatcher regressions passed\n";
+    std::cout << (modalHotkeysOnly
+        ? "Modal hotkey dispatcher regressions passed\n"
+        : "Primary ownership and modal dispatcher regressions passed\n");
 }
