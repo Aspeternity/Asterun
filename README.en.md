@@ -40,9 +40,11 @@ Asterun is a native, lightweight, keyboard-first launcher for Windows 10/11, des
 
 Built with C++23 + Win32, Asterun brings application discovery, pinyin and mixed-language search, usage-aware ranking, smart numeric launch, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model into one compact launcher experience.
 
-## v1.0.2 — Current Stable Release
+## Current Stable Release: v1.0.5
 
-Asterun 1.0.2 is the current stable release and the recommended version for normal use. Detailed release history is kept in [CHANGELOG.md](CHANGELOG.md), so the project homepage stays focused on installation, features and everyday use.
+**[Asterun v1.0.5](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.5) is officially released** and recommended for everyday use. It improves EXE icon refresh after updates, search-field focus after shortcut editing, English input on the first launcher reveal, and short-query matching and ranking. Fresh installations no longer create bundled user shortcuts. See the [changelog](CHANGELOG.md) for release details.
+
+The **[dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) development prerelease** is built from `main` after successful CI and may include maintenance fixes made after v1.0.5. It is a separate channel, not part of the v1.0.5 stable release.
 
 ## Interface Preview
 
@@ -229,9 +231,9 @@ Useful reports include:
 
 ## Acknowledgements
 
-Asterun is an independent implementation inspired by classic ALTRun.
+Asterun is an independently developed Windows launcher inspired by classic ALTRun.
 
-Classic mode includes the original launcher background and two corner glyph assets, and the product uses the original ALTRun application icon and `Popup.wav`. These original assets are included with permission from the original author.
+Classic mode includes the original launcher background, two corner graphics and `Popup.wav`, used with permission from the original author. **Asterun's application icon, tray icon and brand artwork are Asterun's own designs; the original ALTRun application icon is no longer used.**
 
 Everything is a third-party product by voidtools. Additional dependency and attribution information is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
@@ -245,5 +247,5 @@ Bundled third-party components and original ALTRun assets remain subject to thei
 
 <p align="center">
   <strong>Asterun</strong><br>
-  Fast enough to disappear into your workflow.
+  Launch Faster, Go Further
 </p>
