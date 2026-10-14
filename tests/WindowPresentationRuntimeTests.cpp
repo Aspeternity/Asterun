@@ -10,10 +10,13 @@
 
 #include <commctrl.h>
 #include <objbase.h>
+#include <uxtheme.h>
 #include <cassert>
 #include <array>
 #include <iostream>
 #include <string_view>
+#include <set>
+#include <vector>
 
 #ifdef NDEBUG
 #error "window_presentation_runtime_tests requires assertions"
@@ -329,6 +332,42 @@ void CALLBACK ExerciseAdvancedToggle(
         GetDlgItem(
             editor,
             kAdminId);
+    const HWND typeCombo = GetDlgItem(editor, 53104);
+    const HWND runtimeCombo = GetDlgItem(editor, 53118);
+
+    assert(typeCombo && runtimeCombo);
+    RECT typeScreen{}, runtimeScreen{};
+    assert(GetWindowRect(typeCombo, &typeScreen));
+    assert(GetWindowRect(runtimeCombo, &runtimeScreen));
+    MapWindowPoints(nullptr, editor,
+        reinterpret_cast<POINT*>(&typeScreen), 2);
+    MapWindowPoints(nullptr, editor,
+        reinterpret_cast<POINT*>(&runtimeScreen), 2);
+    const int visibleGap = runtimeScreen.top - typeScreen.bottom;
+    const int expectedMidY = (typeScreen.bottom + runtimeScreen.top) / 2;
+    if (visibleGap <= 0) {
+        std::cerr << "UI01 separator geometry invalid: type.bottom="
+            << typeScreen.bottom << " runtime.top=" << runtimeScreen.top << "\n";
+    }
+    assert(visibleGap > 2);
+    RedrawWindow(editor, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+    HDC parentDc = GetDC(editor);
+    assert(parentDc);
+    const int lineX = MulDiv(36, GetDpiForWindow(editor), 96);
+    bool separatorCentered = false;
+    for (int dy = -1; dy <= 1; ++dy) {
+        if (GetPixel(parentDc, lineX, expectedMidY + dy) ==
+            altrun::ui::kApplicationPalette.separator) {
+            separatorCentered = true;
+        }
+    }
+    if (!separatorCentered) {
+        std::cerr << "UI01 separator NOT centered: type.bottom="
+            << typeScreen.bottom << " runtime.top=" << runtimeScreen.top
+            << " midY=" << expectedMidY << " gap=" << visibleGap << "\n";
+    }
+    ReleaseDC(editor, parentDc);
+    assert(separatorCentered);
 
     assert(toggle);
     assert(arguments);
@@ -427,15 +466,46 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(SendMessageW(editor, WM_DRAWITEM, kAdminId,
         reinterpret_cast<LPARAM>(&adminDraw)) == TRUE);
     const int adminDpi = static_cast<int>(GetDpiForWindow(admin));
-    const int glyphTop = (adminClient.bottom -
-        MulDiv(16, adminDpi, 96)) / 2;
-    assert(GetPixel(sampleDc, MulDiv(5, adminDpi, 96),
-        glyphTop + MulDiv(3, adminDpi, 96)) ==
-        altrun::ui::kApplicationPalette.accent);
+    const int glyphSide = MulDiv(18, adminDpi, 96);
+    const int glyphTop = (adminClient.bottom - glyphSide) / 2;
+    const int glyphX = MulDiv(2, adminDpi, 96);
+    const auto readGlyph = [&]() {
+        std::vector<COLORREF> samples;
+        for (int y = glyphTop; y < glyphTop + glyphSide; ++y) {
+            for (int x = glyphX; x < glyphX + glyphSide; ++x)
+                samples.push_back(GetPixel(sampleDc, x, y));
+        }
+        return samples;
+    };
+    const auto checkedPixels = readGlyph();
     // With focus and while checked, the untouched gutter must remain the
     // editor's exact white background: no blue native focus-ring residue.
     assert(GetPixel(sampleDc, 0, glyphTop + MulDiv(3, adminDpi, 96)) ==
         altrun::ui::kApplicationPalette.windowBackground);
+
+    // The checked and unchecked themed states must paint distinctly.
+    // With Visual Styles enabled, antialiased edge coverage should give
+    // intermediate shades instead of GDI RoundRect's two hard colors.
+    SendMessageW(admin, BM_SETCHECK, BST_UNCHECKED, 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+    PatBlt(sampleDc, 0, 0, adminClient.right, adminClient.bottom, WHITENESS);
+    assert(SendMessageW(editor, WM_DRAWITEM, kAdminId,
+        reinterpret_cast<LPARAM>(&adminDraw)) == TRUE);
+    const auto uncheckedPixels = readGlyph();
+    std::set<COLORREF> edgeColors(
+        uncheckedPixels.begin(), uncheckedPixels.end());
+    int visualChangePixels = 0;
+    for (std::size_t i = 0; i < checkedPixels.size(); ++i)
+        if (checkedPixels[i] != uncheckedPixels[i]) ++visualChangePixels;
+    assert(visualChangePixels >= glyphSide);
+    if (IsThemeActive() && IsAppThemed()) {
+        if (edgeColors.size() < 4) {
+            std::cerr << "UI01 checkbox outline not smoothed; shades="
+                << edgeColors.size() << "\n";
+        }
+        assert(edgeColors.size() >= 4);
+    }
+    SendMessageW(admin, BM_SETCHECK, BST_CHECKED, 0);
     SelectObject(sampleDc, oldSampleBitmap);
     DeleteObject(sampleBitmap);
     DeleteDC(sampleDc);
