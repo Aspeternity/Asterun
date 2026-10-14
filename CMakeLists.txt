@@ -1187,6 +1187,8 @@ if(BUILD_TESTING)
             tests/FeedbackRuntimeTests.cpp
             src/ui/Feedback.cpp
             src/ui/CompactNotice.cpp
+            src/ui/TopLevelWindowPresentation.cpp
+            src/core/SettingsLayout.cpp
             src/ui/Feedback.rc
         )
         target_include_directories(feedback_runtime_tests PRIVATE src)
