@@ -147,6 +147,15 @@ jobs:
           if (-not (Test-Path build-compat/Release/Uninstall.exe)) {
             throw "Windows compatibility build did not produce Uninstall.exe."
           }
+      # Temporary diagnostic stress gate: remove after root-cause fix.
+      - name: Diagnose P02 modal lifecycle reproducibility (temporary)
+        shell: pwsh
+        run: >-
+          ctest --test-dir build-compat -C Release
+          -R "^app_lifecycle_runtime_tests$"
+          --repeat until-fail:8
+          --no-tests=error
+          --output-on-failure
       - name: Run portable and Windows tests
         shell: pwsh
         run: >-
