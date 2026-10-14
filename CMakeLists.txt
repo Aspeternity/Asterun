@@ -246,6 +246,7 @@ if(WIN32)
         src/ui/LauncherWindow.cpp
         src/ui/LauncherWindowLayout.cpp
         src/ui/Feedback.cpp
+        src/ui/CompactNotice.cpp
         src/ui/Feedback.rc
         src/ui/SettingsWindow.cpp
         src/ui/SettingsWindowLayout.cpp
@@ -1185,10 +1186,11 @@ if(BUILD_TESTING)
         add_executable(feedback_runtime_tests
             tests/FeedbackRuntimeTests.cpp
             src/ui/Feedback.cpp
+            src/ui/CompactNotice.cpp
             src/ui/Feedback.rc
         )
         target_include_directories(feedback_runtime_tests PRIVATE src)
-        target_link_libraries(feedback_runtime_tests PRIVATE user32 comctl32 winmm)
+        target_link_libraries(feedback_runtime_tests PRIVATE user32 gdi32 comctl32 winmm)
         target_compile_definitions(feedback_runtime_tests PRIVATE
             UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
             _WIN32_WINNT=0x0A00 WINVER=0x0A00)

@@ -396,11 +396,10 @@ void CALLBACK ExerciseAdvancedToggle(
         topLevelRedrawSuspends ==
         0);
 
-    // The branded glyph must not replace the native auto-check state
-    // machine: mouse activation still updates BM_GETCHECK, and the checked
-    // fill must use the same application accent as Settings switches.
+    // One owner-drawn glyph and one emulated BM_CHECK state owner. The old
+    // native BS_AUTOCHECKBOX + paint subclass produced focus/checked residue.
     assert((GetWindowLongPtrW(admin, GWL_STYLE) & BS_TYPEMASK) ==
-           BS_AUTOCHECKBOX);
+           BS_OWNERDRAW);
     assert((GetWindowLongPtrW(admin, GWL_STYLE) & WS_TABSTOP) != 0);
     assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
     SendMessageW(admin, BM_CLICK, 0, 0);
@@ -418,20 +417,36 @@ void CALLBACK ExerciseAdvancedToggle(
     const HGDIOBJ oldSampleBitmap = SelectObject(sampleDc, sampleBitmap);
     assert(oldSampleBitmap);
     PatBlt(sampleDc, 0, 0, adminClient.right, adminClient.bottom, WHITENESS);
-    SendMessageW(admin, WM_PRINTCLIENT,
-        reinterpret_cast<WPARAM>(sampleDc), PRF_CLIENT);
+    DRAWITEMSTRUCT adminDraw{};
+    adminDraw.CtlType = ODT_BUTTON;
+    adminDraw.CtlID = kAdminId;
+    adminDraw.hwndItem = admin;
+    adminDraw.hDC = sampleDc;
+    adminDraw.rcItem = adminClient;
+    adminDraw.itemState = ODS_FOCUS;
+    assert(SendMessageW(editor, WM_DRAWITEM, kAdminId,
+        reinterpret_cast<LPARAM>(&adminDraw)) == TRUE);
     const int adminDpi = static_cast<int>(GetDpiForWindow(admin));
     const int glyphTop = (adminClient.bottom -
         MulDiv(16, adminDpi, 96)) / 2;
     assert(GetPixel(sampleDc, MulDiv(5, adminDpi, 96),
         glyphTop + MulDiv(3, adminDpi, 96)) ==
         altrun::ui::kApplicationPalette.accent);
+    // With focus and while checked, the untouched gutter must remain the
+    // editor's exact white background: no blue native focus-ring residue.
+    assert(GetPixel(sampleDc, 0, glyphTop + MulDiv(3, adminDpi, 96)) ==
+        altrun::ui::kApplicationPalette.windowBackground);
     SelectObject(sampleDc, oldSampleBitmap);
     DeleteObject(sampleBitmap);
     DeleteDC(sampleDc);
     ReleaseDC(admin, adminDc);
     SendMessageW(admin, BM_CLICK, 0, 0);
     assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+    for (int n = 0; n < 20; ++n) {
+        SendMessageW(admin, BM_CLICK, 0, 0);
+        assert(SendMessageW(admin, BM_GETCHECK, 0, 0) ==
+               (n % 2 == 0 ? BST_CHECKED : BST_UNCHECKED));
+    }
 
     SendMessageW(
         editor,

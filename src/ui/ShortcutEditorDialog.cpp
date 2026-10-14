@@ -132,102 +132,112 @@ void SetChecked(
             : BST_UNCHECKED,
         0);
 }
-void PaintAdminCheckbox(HWND hwnd, HDC dc) {
-    if (!dc) return;
-    RECT client{};
-    GetClientRect(hwnd, &client);
-    const UINT dpi = std::max<UINT>(96, GetDpiForWindow(hwnd));
-    const auto scale = [dpi](int n) { return MulDiv(n, static_cast<int>(dpi), 96); };
+// The administrator choice is a single owner-drawn BUTTON. A native
+// BS_AUTOCHECKBOX subclass painted over the native glyph and focus indicator;
+// button-state repaints then exposed two different checkbox frames.
+LRESULT CALLBACK AdminCheckboxSubclass(
+    HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam,
+    UINT_PTR id, DWORD_PTR) {
+    if (message == BM_GETCHECK) {
+        return GetWindowLongPtrW(hwnd, GWLP_USERDATA)
+            ? BST_CHECKED : BST_UNCHECKED;
+    }
+    if (message == BM_SETCHECK) {
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA,
+            wParam == BST_CHECKED ? 1 : 0);
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return 0;
+    }
+    if (message == WM_NCDESTROY) {
+        RemoveWindowSubclass(hwnd, AdminCheckboxSubclass, id);
+    }
+    return DefSubclassProc(hwnd, message, wParam, lParam);
+}
+
+void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
+    if (!draw.hDC || !draw.hwndItem) return;
+    const int width = draw.rcItem.right - draw.rcItem.left;
+    const int height = draw.rcItem.bottom - draw.rcItem.top;
+    if (width <= 0 || height <= 0) return;
+    const auto scale = [dpi](int n) {
+        return MulDiv(n, static_cast<int>(dpi ? dpi : 96), 96);
+    };
+    HDC memory = CreateCompatibleDC(draw.hDC);
+    HBITMAP bitmap = memory
+        ? CreateCompatibleBitmap(draw.hDC, width, height) : nullptr;
+    HGDIOBJ oldBitmap = memory && bitmap
+        ? SelectObject(memory, bitmap) : nullptr;
+    const bool buffered = oldBitmap && oldBitmap != HGDI_ERROR;
+    HDC dc = buffered ? memory : draw.hDC;
+    RECT area = buffered
+        ? RECT{0, 0, width, height} : draw.rcItem;
     const auto& palette = ui::kApplicationPalette;
-    const bool enabled = IsWindowEnabled(hwnd) != FALSE;
-    const bool checked = IsChecked(hwnd);
+    const bool enabled = (draw.itemState & ODS_DISABLED) == 0;
+    const bool checked = IsChecked(draw.hwndItem);
+    const bool pressed = (draw.itemState & ODS_SELECTED) != 0;
+
     HBRUSH background = CreateSolidBrush(palette.windowBackground);
-    FillRect(dc, &client, background ? background : GetSysColorBrush(COLOR_WINDOW));
+    FillRect(dc, &area,
+        background ? background : GetSysColorBrush(COLOR_WINDOW));
     if (background) DeleteObject(background);
 
-    const int edge = scale(16);
-    const int left = scale(2);
-    const int top = (client.bottom - client.top - edge) / 2;
-    const RECT box{left, top, left + edge, top + edge};
-    const COLORREF accent = checked && enabled ? palette.accent : RGB(149, 161, 175);
-    HBRUSH fill = CreateSolidBrush(checked && enabled
-        ? palette.accent : palette.windowBackground);
-    HPEN border = CreatePen(PS_SOLID, std::max(1, scale(1)), accent);
+    const int size = scale(16);
+    const int left = area.left + scale(2);
+    const int top = (area.top + area.bottom - size) / 2;
+    HBRUSH fill = CreateSolidBrush(checked
+        ? (pressed ? RGB(0, 96, 180) : palette.accent)
+        : palette.controlBackground);
+    HPEN border = CreatePen(PS_SOLID, 1,
+        checked ? palette.accent : RGB(152, 161, 173));
     if (fill && border) {
-        const HGDIOBJ oldBrush = SelectObject(dc, fill);
-        const HGDIOBJ oldPen = SelectObject(dc, border);
-        RoundRect(dc, box.left, box.top, box.right, box.bottom, scale(5), scale(5));
-        SelectObject(dc, oldPen);
-        SelectObject(dc, oldBrush);
+        HGDIOBJ prevBrush = SelectObject(dc, fill);
+        HGDIOBJ prevPen = SelectObject(dc, border);
+        RoundRect(dc, left, top, left + size, top + size,
+                  scale(5), scale(5));
+        SelectObject(dc, prevPen);
+        SelectObject(dc, prevBrush);
     }
     if (border) DeleteObject(border);
     if (fill) DeleteObject(fill);
 
     if (checked) {
-        HPEN check = CreatePen(PS_SOLID, std::max(2, scale(2)),
-            enabled ? RGB(255, 255, 255) : palette.mutedText);
-        if (check) {
-            const HGDIOBJ oldPen = SelectObject(dc, check);
+        HPEN tick = CreatePen(PS_SOLID, std::max(2, scale(2)),
+            enabled ? RGB(255, 255, 255) : RGB(232, 232, 232));
+        if (tick) {
+            HGDIOBJ prev = SelectObject(dc, tick);
             MoveToEx(dc, left + scale(4), top + scale(8), nullptr);
             LineTo(dc, left + scale(7), top + scale(11));
             LineTo(dc, left + scale(13), top + scale(5));
-            SelectObject(dc, oldPen);
-            DeleteObject(check);
+            SelectObject(dc, prev);
+            DeleteObject(tick);
         }
     }
-
     wchar_t label[128]{};
-    GetWindowTextW(hwnd, label, static_cast<int>(std::size(label)));
-    const HFONT font = reinterpret_cast<HFONT>(SendMessageW(hwnd, WM_GETFONT, 0, 0));
-    const HGDIOBJ oldFont = font ? SelectObject(dc, font) : nullptr;
+    GetWindowTextW(draw.hwndItem, label,
+        static_cast<int>(std::size(label)));
+    HGDIOBJ prevFont = font ? SelectObject(dc, font) : nullptr;
     SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, enabled ? palette.text : palette.mutedText);
-    RECT text{box.right + scale(8), client.top, client.right, client.bottom};
-    DrawTextW(dc, label, -1, &text, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-    if (oldFont) SelectObject(dc, oldFont);
-    if (GetFocus() == hwnd) {
-        HPEN focus = CreatePen(PS_SOLID, std::max(1, scale(1)), palette.accent);
-        if (focus) {
-            const HGDIOBJ oldPen = SelectObject(dc, focus);
-            const HGDIOBJ oldBrush = SelectObject(dc, GetStockObject(NULL_BRUSH));
-            RoundRect(dc, box.left - scale(2), box.top - scale(2),
-                      box.right + scale(2), box.bottom + scale(2), scale(7), scale(7));
-            SelectObject(dc, oldBrush);
-            SelectObject(dc, oldPen);
-            DeleteObject(focus);
-        }
-    }
-}
+    const bool keyboardFocus =
+        (draw.itemState & ODS_FOCUS) != 0 &&
+        (SendMessageW(draw.hwndItem, WM_QUERYUISTATE, 0, 0) &
+         UISF_HIDEFOCUS) == 0;
+    SetTextColor(dc, !enabled ? palette.mutedText :
+        keyboardFocus ? palette.accent : palette.text);
+    RECT text{
+        left + size + scale(9), area.top,
+        area.right - scale(2), area.bottom
+    };
+    DrawTextW(dc, label, -1, &text,
+        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    if (prevFont) SelectObject(dc, prevFont);
 
-LRESULT CALLBACK AdminCheckboxSubclass(HWND hwnd, UINT message,
-    WPARAM wParam, LPARAM lParam, UINT_PTR id, DWORD_PTR) {
-    switch (message) {
-    case WM_PAINT: {
-        PAINTSTRUCT paint{};
-        HDC dc = BeginPaint(hwnd, &paint);
-        PaintAdminCheckbox(hwnd, dc);
-        EndPaint(hwnd, &paint);
-        return 0;
+    if (buffered) {
+        BitBlt(draw.hDC, draw.rcItem.left, draw.rcItem.top,
+               width, height, memory, 0, 0, SRCCOPY);
+        SelectObject(memory, oldBitmap);
     }
-    case WM_PRINTCLIENT:
-        PaintAdminCheckbox(hwnd, reinterpret_cast<HDC>(wParam));
-        return 0;
-    case WM_ERASEBKGND:
-        return TRUE;
-    case WM_NCDESTROY:
-        RemoveWindowSubclass(hwnd, AdminCheckboxSubclass, id);
-        break;
-    default:
-        break;
-    }
-    // Keep native BS_AUTOCHECKBOX click/Space/tab and BM_GETCHECK behavior.
-    const LRESULT result = DefSubclassProc(hwnd, message, wParam, lParam);
-    if (message == BM_SETCHECK || message == WM_SETTEXT ||
-        message == WM_ENABLE || message == WM_SETFOCUS ||
-        message == WM_KILLFOCUS) {
-        InvalidateRect(hwnd, nullptr, FALSE);
-    }
-    return result;
+    if (bitmap) DeleteObject(bitmap);
+    if (memory) DeleteDC(memory);
 }
 
 enum class PickerResult {
@@ -1009,7 +1019,7 @@ void ShortcutEditorDialog::CreateControls() {
     makeButton(
         admin_,
         kIdAdmin,
-        BS_AUTOCHECKBOX);
+        BS_OWNERDRAW);
     if (admin_) {
         SetWindowSubclass(admin_, AdminCheckboxSubclass, 1, 0);
     }
@@ -2957,7 +2967,8 @@ void ShortcutEditorDialog::Test() {
             T(L"请先填写目标。",
               L"Enter a target first."),
             T(L"测试运行",
-              L"Test"));
+              L"Test"),
+            app_.SettingsData().language == Language::ZhCN);
         return;
     }
 
@@ -3496,6 +3507,11 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             return TRUE;
         }
 
+        if (id == kIdAdmin) {
+            PaintAdminCheckbox(*draw, font_, dpi_);
+            return TRUE;
+        }
+
         if (id == kIdBrowseFile ||
             id == kIdBrowseFolder ||
             id == kIdBrowseWorkdir ||
@@ -3629,6 +3645,12 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseWorkingDirectory();
+            }
+            return 0;
+
+        case kIdAdmin:
+            if (notify == BN_CLICKED) {
+                SetChecked(admin_, !IsChecked(admin_));
             }
             return 0;
 

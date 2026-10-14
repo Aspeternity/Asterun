@@ -1,4 +1,5 @@
 #include "ui/Feedback.hpp"
+#include "ui/UiTheme.hpp"
 #include <commctrl.h>
 #include <cassert>
 #include <cwchar>
@@ -13,29 +14,60 @@ int longerLogicalWidth{};
 int chineseLogicalWidth{};
 bool measuringLonger{};
 bool measuringChinese{};
+bool measuringEnglishCompact{};
+int englishCompactWidth{};
+bool compactPaletteVerified{};
 
 BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     wchar_t title[128]{};
     GetWindowTextW(window, title, 128);
     const wchar_t* expected = deletion ? L"Delete shortcut" :
-        measuringChinese ? L"测试运行" : L"Feedback runtime test";
+        measuringChinese ? L"测试运行" :
+        measuringEnglishCompact ? L"Test" : L"Feedback runtime test";
     if (std::wcscmp(title, expected) != 0) return TRUE;
-    // TaskDialog button IDs are public message IDs, not a contract for child
-    // HWND IDs or hierarchy. Exercise the real action through its supported API.
-    // A native MessageBox is not a TaskDialog. WM_COMMAND with lParam=0
-    // does not emulate a real button click and can leave its modal loop
-    // running indefinitely. Only interact once the actual OK child exists.
+    // Asterun's notice has one explicit owner-drawn IDOK button. Native
+    // TaskDialogs retain their existing supported TDM_CLICK_BUTTON path.
+    const bool compact = measuringChinese || measuringEnglishCompact;
     HWND compactOk{};
-    if (measuringChinese) {
+    if (compact) {
+        wchar_t className[80]{};
+        GetClassNameW(window, className, static_cast<int>(std::size(className)));
+        assert(std::wcscmp(className, L"Asterun.CompactNotice") == 0);
         compactOk = GetDlgItem(window, IDOK);
-        // The native single-action dialog can expose its actual button
-        // under IDCANCEL on the Windows CI host. Click that real HWND,
-        // then assert MessageBoxW still returns IDOK for MB_OK.
-        if (!compactOk) compactOk = GetDlgItem(window, IDCANCEL);
-        if (!compactOk || !IsWindowVisible(window) ||
-            !IsWindowVisible(compactOk) || !IsWindowEnabled(compactOk)) {
-            return TRUE; // UI is still initializing; retry on the next tick.
-        }
+        if (!compactOk || !IsWindowVisible(compactOk) ||
+            !IsWindowEnabled(compactOk)) return TRUE;
+        assert((GetWindowLongPtrW(compactOk, GWL_STYLE) & BS_TYPEMASK) ==
+               BS_OWNERDRAW);
+        assert((GetWindowLongPtrW(compactOk, GWL_STYLE) & WS_TABSTOP) != 0);
+        wchar_t label[16]{};
+        GetWindowTextW(compactOk, label, static_cast<int>(std::size(label)));
+        assert(std::wcscmp(label, measuringChinese ? L"确定" : L"OK") == 0);
+        RECT bounds{};
+        assert(GetClientRect(compactOk, &bounds));
+        HDC buttonDc = GetDC(compactOk);
+        assert(buttonDc);
+        HDC buffer = CreateCompatibleDC(buttonDc);
+        assert(buffer);
+        HBITMAP bitmap = CreateCompatibleBitmap(buttonDc,
+            bounds.right, bounds.bottom);
+        assert(bitmap);
+        HGDIOBJ previous = SelectObject(buffer, bitmap);
+        assert(previous);
+        DRAWITEMSTRUCT draw{};
+        draw.CtlType = ODT_BUTTON;
+        draw.CtlID = IDOK;
+        draw.hwndItem = compactOk;
+        draw.hDC = buffer;
+        draw.rcItem = bounds;
+        assert(SendMessageW(window, WM_DRAWITEM, IDOK,
+               reinterpret_cast<LPARAM>(&draw)) == TRUE);
+        assert(GetPixel(buffer, 12, bounds.bottom / 2) ==
+               altrun::ui::kApplicationPalette.accent);
+        compactPaletteVerified = true;
+        SelectObject(buffer, previous);
+        DeleteObject(bitmap);
+        DeleteDC(buffer);
+        ReleaseDC(compactOk, buttonDc);
     }
     observed = true;
     if (!deletion) {
@@ -45,10 +77,11 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
         const int logicalWidth = MulDiv(bounds.right - bounds.left,
             96, dpi ? static_cast<int>(dpi) : 96);
         if (measuringChinese) chineseLogicalWidth = logicalWidth;
+        else if (measuringEnglishCompact) englishCompactWidth = logicalWidth;
         else if (measuringLonger) longerLogicalWidth = logicalWidth;
         else compactLogicalWidth = logicalWidth;
     }
-    if (measuringChinese) {
+    if (compact) {
         SendMessageW(compactOk, BM_CLICK, 0, 0);
     } else {
         SendMessageW(window, TDM_CLICK_BUTTON, buttonToClick, 0);
@@ -94,19 +127,29 @@ int main() {
     measuringChinese = true;
     buttonToClick = IDOK;
     assert(altrun::ui::ShowCompactNotice(nullptr, L"请先填写目标。",
-        L"测试运行") == IDOK);
+        L"测试运行", true) == IDOK);
     assert(observed);
+    observed = false;
+    measuringChinese = false;
+    measuringEnglishCompact = true;
+    assert(altrun::ui::ShowCompactNotice(nullptr, L"Enter a target first.",
+        L"Test", false) == IDOK);
+    assert(observed);
+    assert(compactPaletteVerified);
 
     // Retain the original TaskDialog behavior for all ordinary warnings.
     // The one requested compact notice must be meaningfully narrower at
     // the same DPI/font than the native TaskDialog minimum.
     const bool suitablyCompact = compactLogicalWidth > 0 &&
-        chineseLogicalWidth > 0 && longerLogicalWidth > 0 &&
+        chineseLogicalWidth > 0 && englishCompactWidth > 0 &&
+        longerLogicalWidth > 0 &&
         chineseLogicalWidth + 24 < compactLogicalWidth &&
+        englishCompactWidth + 24 < compactLogicalWidth &&
         chineseLogicalWidth + 24 < longerLogicalWidth;
     if (!suitablyCompact) {
-        std::fprintf(stderr, "Native dialogs: compactNotice=%d nativeShort=%d nativeLong=%d (96dpi)\n",
-            chineseLogicalWidth, compactLogicalWidth, longerLogicalWidth);
+        std::fprintf(stderr, "Asterun notice widths ZH=%d EN=%d, TaskDialog short=%d long=%d (96dpi)\n",
+            chineseLogicalWidth, englishCompactWidth,
+            compactLogicalWidth, longerLogicalWidth);
     }
     assert(suitablyCompact);
     KillTimer(nullptr, timer);
