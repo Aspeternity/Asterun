@@ -11,6 +11,7 @@
 #include <functional>
 #include <future>
 #include <iostream>
+#include <string_view>
 #include <unordered_map>
 
 namespace {
@@ -24,7 +25,6 @@ std::function<void()> modalCheck;
 ULONGLONG modalDeadline{};
 const wchar_t* modalClass{};
 bool mockHotkeys{};
-unsigned uiFailureDialogCount{};
 int failNextHotkeyId{};
 std::unordered_map<int, HWND> mockHotkeyOwners;
 BOOL WINAPI ProbeRegisterHotKey(HWND target, int id, UINT mods, UINT key) {
@@ -69,10 +69,7 @@ EverythingBootstrapSnapshot TestRunEverythingBootstrap(
 }
 }
 namespace altrun::ui {
-int TestShowMessage(HWND, const wchar_t*, const wchar_t*, UINT) {
-    ++uiFailureDialogCount;
-    return IDOK;
-}
+int TestShowMessage(HWND, const wchar_t*, const wchar_t*, UINT) { return IDOK; }
 }
 namespace {
 HANDLE WINAPI TestCreateMutex(LPSECURITY_ATTRIBUTES attributes, BOOL owner, LPCWSTR) {
@@ -358,8 +355,6 @@ struct AppLifecycleRuntimeFixture {
             app.window_ = std::make_unique<LauncherWindow>(app, instance);
             assert(app.window_->Create());
             assert(!app.window_->IsVisible());
-            const HWND initialLauncherHwnd = app.window_->hwnd_;
-            assert(initialLauncherHwnd && IsWindow(initialLauncherHwnd));
             HWND owner = CreateWindowExW(0, L"STATIC", L"modal-hotkey-owner",
                 WS_POPUP | WS_VISIBLE, 0, 0, 200, 100,
                 nullptr, nullptr, instance, nullptr);
@@ -387,39 +382,12 @@ struct AppLifecycleRuntimeFixture {
                         ++phase;
                     }
                 };
-                MSG quitBefore{};
-                const bool hadPendingQuitBefore =
-                    PeekMessageW(&quitBefore, nullptr, WM_QUIT, WM_QUIT, PM_NOREMOVE) != FALSE;
-                const unsigned uiFailureBefore = uiFailureDialogCount;
                 const auto timer = SetTimer(nullptr, 0, 30, CheckModal);
                 assert(timer);
                 if (converter) assert(!ShortcutPathConverterDialog::Show(app, instance, owner));
                 else assert(!ShortcutEditorDialog::Show(app, instance, owner));
                 KillTimer(nullptr, timer);
-                // Diagnostic-only checkpoint: distinguish a missing simulated
-                // hotkey stage from an owner-enable lifecycle failure.
-                const bool ownerEnabled = IsWindowEnabled(owner) != FALSE;
-                if (phase != 3 || !ownerEnabled) {
-                    std::cerr << "P02_MODAL_FAIL converter=" << converter
-                        << " phase=" << phase
-                        << " ownerExists=" << (IsWindow(owner) != FALSE)
-                        << " ownerEnabled=" << ownerEnabled
-                        << " ownerVisible=" << (IsWindowVisible(owner) != FALSE)
-                        << " modalExists=" << (FindWindowW(modalClass, nullptr) != nullptr)
-                        << " launcherVisible=" << app.window_->IsVisible()
-                        << " launcherHwndStillSame=" << (app.window_->hwnd_ == initialLauncherHwnd)
-                        << " launcherHwndStillValid=" << (IsWindow(initialLauncherHwnd) != FALSE)
-                        << " foregroundIsOwner=" << (GetForegroundWindow() == owner)
-                        << " uiFailureDialogCalls=" << (uiFailureDialogCount - uiFailureBefore)
-                        << " hadPendingQuitBefore=" << hadPendingQuitBefore
-                        << " pendingQuitAfter=" << ([] {
-                            MSG quit{};
-                            return PeekMessageW(&quit, nullptr, WM_QUIT, WM_QUIT, PM_NOREMOVE) != FALSE;
-                        }())
-                        << "\n";
-                }
-                assert(phase == 3);
-                assert(ownerEnabled);
+                assert(phase == 3 && IsWindowEnabled(owner));
             }
             DestroyWindow(owner);
             CloseLauncher(app);
@@ -562,25 +530,29 @@ struct AppLifecycleRuntimeFixture {
     }
 };
 }
-int main() {
+int main(int argc, char* argv[]) {
     fixtureRoot = std::filesystem::temp_directory_path() /
         (L"Asterun-Batch1-" + std::to_wstring(GetCurrentProcessId()));
     mutexName = L"Local\\Asterun.Batch1.Test." + std::to_wstring(GetCurrentProcessId());
     const auto com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const auto instance = GetModuleHandleW(nullptr);
-    // Temporary isolation probe only. Never retain in final diff.
-    if (GetEnvironmentVariableW(L"ASTERUN_P02_ISOLATE", nullptr, 0) != 0) {
+    const bool modalHotkeysOnly = argc == 2 &&
+        std::string_view(argv[1]) == "--modal-hotkeys";
+    assert(argc == 1 || modalHotkeysOnly);
+    if (modalHotkeysOnly) {
+        // Win32 modal pumps and WM_QUIT are thread-scoped. Run this strict
+        // hotkey regression in its own process, not after lifecycle shutdown
+        // tests that intentionally destroy the launcher's main window.
         altrun::AppLifecycleRuntimeFixture::ModalHotkeyRouting(instance);
-        if (SUCCEEDED(com)) CoUninitialize();
-        std::filesystem::remove_all(fixtureRoot);
-        return 0;
+    } else {
+        altrun::AppLifecycleRuntimeFixture::Ownership(instance);
+        altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
+        altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
+        altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
     }
-    altrun::AppLifecycleRuntimeFixture::Ownership(instance);
-    altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
-    altrun::AppLifecycleRuntimeFixture::ModalHotkeyRouting(instance);
-    altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
-    altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
     if (SUCCEEDED(com)) CoUninitialize();
     std::filesystem::remove_all(fixtureRoot);
-    std::cout << "Primary ownership and modal dispatcher regressions passed\n";
+    std::cout << (modalHotkeysOnly
+        ? "Modal hotkey dispatcher regressions passed\n"
+        : "Primary ownership and modal dispatcher regressions passed\n");
 }
