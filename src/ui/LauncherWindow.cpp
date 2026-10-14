@@ -600,6 +600,7 @@ bool LauncherWindow::Create() {
     RefreshResults();
     Reposition();
     firstRevealPending_ = true;
+    creationCompleted_ = true;
     return true;
 }
 
@@ -4700,9 +4701,24 @@ LRESULT LauncherWindow::HandleMessage(
         RestoreEnglishInputSession();
         CancelPendingNumericIntent();
         RemoveTrayIcon();
-        hwnd_ = nullptr;
-        PostQuitMessage(0);
+        // An aborted Create() must not post WM_QUIT before the main pump.
+        if (creationCompleted_) PostQuitMessage(0);
         return 0;
+
+    case WM_NCDESTROY: {
+        // Keep the actual HWND valid through the final native message.
+        const HWND destroyedWindow = hwnd_;
+        const LRESULT result =
+            DefWindowProcW(destroyedWindow, message, wParam, lParam);
+        hwnd_ = nullptr;
+        edit_ = nullptr;
+        list_ = nullptr;
+        preview_ = nullptr;
+        classicPreview_ = nullptr;
+        oldEditProc_ = nullptr;
+        creationCompleted_ = false;
+        return result;
+    }
     }
 
     return DefWindowProcW(hwnd_, message, wParam, lParam);

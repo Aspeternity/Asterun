@@ -186,6 +186,7 @@ private:
     bool notificationOnlyTrayIcon_{false};
     UINT taskbarCreatedMessage_{0};
     bool firstRevealPending_{true};
+    bool creationCompleted_{false};
     bool imeComposing_{false};
     struct ImeSession {
         bool started{false};
