@@ -465,7 +465,7 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(SendMessageW(editor, WM_DRAWITEM, kAdminId,
         reinterpret_cast<LPARAM>(&adminDraw)) == TRUE);
     const int adminDpi = static_cast<int>(GetDpiForWindow(admin));
-    const int glyphSide = MulDiv(18, adminDpi, 96);
+    const int glyphSide = MulDiv(16, adminDpi, 96);
     const int glyphTop = (adminClient.bottom - glyphSide) / 2;
     const int glyphX = MulDiv(2, adminDpi, 96);
     const auto readGlyph = [&]() {
@@ -490,6 +490,10 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(SendMessageW(editor, WM_DRAWITEM, kAdminId,
         reinterpret_cast<LPARAM>(&adminDraw)) == TRUE);
     const auto uncheckedPixels = readGlyph();
+    // The reduced 16px outline must not leave dark pixels in the
+    // surrounding label gutter. Older 18px frames fail this boundary.
+    assert(GetPixel(sampleDc, glyphX + glyphSide, adminClient.bottom / 2) ==
+        altrun::ui::kApplicationPalette.windowBackground);
     std::set<COLORREF> edgeColors(
         uncheckedPixels.begin(), uncheckedPixels.end());
     int visualChangePixels = 0;
@@ -540,7 +544,7 @@ void CALLBACK ExerciseAdvancedToggle(
     if (oldWidthFont) SelectObject(widthDc, oldWidthFont);
     ReleaseDC(admin, widthDc);
     const int labelHitMinimum = adminTextSize.cx +
-        MulDiv(2 + 18 + 9 + 2, adminDpi, 96);
+        MulDiv(2 + 16 + 9 + 2, adminDpi, 96);
     assert(adminHit.right - adminHit.left >= labelHitMinimum);
 
     // Native BUTTON mouse routing (not BM_CLICK): a click on the right edge

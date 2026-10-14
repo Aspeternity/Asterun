@@ -1190,7 +1190,7 @@ if(BUILD_TESTING)
             src/ui/Feedback.rc
         )
         target_include_directories(feedback_runtime_tests PRIVATE src)
-        target_link_libraries(feedback_runtime_tests PRIVATE user32 gdi32 comctl32 winmm)
+        target_link_libraries(feedback_runtime_tests PRIVATE user32 gdi32 comctl32 winmm dwmapi)
         target_compile_definitions(feedback_runtime_tests PRIVATE
             UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
             _WIN32_WINNT=0x0A00 WINVER=0x0A00)

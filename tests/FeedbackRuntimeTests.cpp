@@ -1,6 +1,7 @@
 #include "ui/Feedback.hpp"
 #include "ui/UiTheme.hpp"
 #include <commctrl.h>
+#include <dwmapi.h>
 #include <cassert>
 #include <cwchar>
 #include <cstdio>
@@ -57,6 +58,14 @@ BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
         wchar_t className[80]{};
         GetClassNameW(window, className, static_cast<int>(std::size(className)));
         assert(std::wcscmp(className, L"Asterun.CompactNotice") == 0);
+        // Asterun top-level windows opt out of DWM transition effects.
+        // Compositor-less CI hosts can reject this optional DWM query.
+        BOOL transitionsDisabled = FALSE;
+        if (SUCCEEDED(DwmGetWindowAttribute(window,
+                DWMWA_TRANSITIONS_FORCEDISABLED, &transitionsDisabled,
+                sizeof(transitionsDisabled)))) {
+            assert(transitionsDisabled == TRUE);
+        }
         compactOk = GetDlgItem(window, IDOK);
         if (!compactOk || !IsWindowVisible(compactOk) ||
             !IsWindowEnabled(compactOk)) return TRUE;
