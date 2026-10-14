@@ -1098,6 +1098,112 @@ int main() {
                 assert(!(GetWindowLongPtrW(window, GWL_STYLE) & WS_VSCROLL));
                 assert(!IsWindowVisible(GetDlgItem(window, 51608)));
             }
+            // UI-R01B: ODA_SELECT/ODA_FOCUS (mouse press/release and
+            // keyboard focus) must not touch provider row text pixels.
+            // Rendering the full owner-drawn row on every press caused
+            // label text to blink even when the provider state was staged.
+            SendMessageW(window, WM_COMMAND,
+                MAKEWPARAM(51005, BN_CLICKED), 0);
+            const HWND providerRow = GetDlgItem(window, 51601);
+            const HWND providerSibling = GetDlgItem(window, 51602);
+            assert(providerRow && providerSibling);
+            assert(IsWindowVisible(providerRow));
+            assert(IsWindowVisible(providerSibling));
+
+            RECT providerBounds{};
+            assert(GetClientRect(providerRow, &providerBounds));
+            const int providerWidth = providerBounds.right;
+            const int providerHeight = providerBounds.bottom;
+            assert(providerWidth > 150 && providerHeight > 20);
+            const HDC providerDc = GetDC(providerRow);
+            assert(providerDc);
+            const HDC sampleDc = CreateCompatibleDC(providerDc);
+            const HBITMAP sampleBitmap = CreateCompatibleBitmap(
+                providerDc, providerWidth, providerHeight);
+            assert(sampleDc && sampleBitmap);
+            const HGDIOBJ originalBitmap = SelectObject(
+                sampleDc, sampleBitmap);
+            assert(originalBitmap && originalBitmap != HGDI_ERROR);
+            const COLORREF sentinelColor = RGB(251, 0, 251);
+            const HBRUSH sentinelBrush = CreateSolidBrush(sentinelColor);
+            assert(sentinelBrush);
+
+            DRAWITEMSTRUCT draw{};
+            draw.CtlType = ODT_BUTTON;
+            draw.CtlID = 51601;
+            draw.hwndItem = providerRow;
+            draw.hDC = sampleDc;
+            draw.rcItem = providerBounds;
+            const auto fillSentinel = [&]() {
+                assert(FillRect(sampleDc, &providerBounds, sentinelBrush));
+            };
+            const auto renderProvider = [&](UINT action, UINT state) {
+                fillSentinel();
+                draw.itemAction = action;
+                draw.itemState = state;
+                assert(SendMessageW(window, WM_DRAWITEM, 51601,
+                    reinterpret_cast<LPARAM>(&draw)) == TRUE);
+            };
+
+            renderProvider(ODA_SELECT, ODS_SELECTED);
+            assert(GetPixel(sampleDc, 4, providerHeight / 2) ==
+                sentinelColor);
+            assert(GetPixel(sampleDc, providerWidth - 39,
+                providerHeight / 2) != sentinelColor);
+            renderProvider(ODA_SELECT, 0);
+            assert(GetPixel(sampleDc, 4, providerHeight / 2) ==
+                sentinelColor);
+            renderProvider(ODA_FOCUS, ODS_FOCUS);
+            assert(GetPixel(sampleDc, 4, providerHeight / 2) ==
+                sentinelColor);
+
+            // Full exposure/resize still must redraw the complete label,
+            // and the label background must be stable during a pressed
+            // (ODS_SELECTED) full draw.
+            renderProvider(ODA_DRAWENTIRE, 0);
+            const COLORREF normalLabelBackground =
+                GetPixel(sampleDc, 4, providerHeight / 2);
+            assert(normalLabelBackground != sentinelColor);
+            renderProvider(ODA_DRAWENTIRE, ODS_SELECTED);
+            assert(GetPixel(sampleDc, 4, providerHeight / 2) ==
+                normalLabelBackground);
+
+            assert(SelectObject(sampleDc, originalBitmap) == sampleBitmap);
+            DeleteObject(sentinelBrush);
+            DeleteObject(sampleBitmap);
+            DeleteDC(sampleDc);
+            assert(ReleaseDC(providerRow, providerDc) == 1);
+
+            // Repeated BN_CLICKED/BN_DOUBLECLICKED must stage exactly one
+            // toggle each, leave unrelated row paint untouched and commit
+            // the final (unchanged) state at the 180 ms debounce boundary.
+            RedrawWindow(providerSibling, nullptr, nullptr,
+                RDW_INVALIDATE | RDW_UPDATENOW);
+            PaintMessageCounts providerSiblingPaint{};
+            assert(SetWindowSubclass(providerSibling, PaintMessageProbe,
+                96, reinterpret_cast<DWORD_PTR>(&providerSiblingPaint)));
+            const bool originallyEnabled = providers::IsEnabled(
+                app.SettingsData().providerEnabled,
+                providers::kStartMenu, true);
+            for (int click = 0; click < 12; ++click) {
+                SendMessageW(window, WM_COMMAND,
+                    MAKEWPARAM(51601,
+                        click % 3 == 0 ? BN_DOUBLECLICKED : BN_CLICKED),
+                    reinterpret_cast<LPARAM>(providerRow));
+                assert(IsWindowVisible(window));
+                UpdateWindow(providerSibling);
+                assert(providerSiblingPaint.paint == 0);
+                assert(providerSiblingPaint.erase == 0);
+            }
+            SendMessageW(window, WM_TIMER, 0x51691, 0);
+            assert(providers::IsEnabled(
+                app.SettingsData().providerEnabled,
+                providers::kStartMenu, true) == originallyEnabled);
+            assert(RemoveWindowSubclass(providerSibling,
+                PaintMessageProbe, 96));
+            SendMessageW(window, WM_COMMAND,
+                MAKEWPARAM(51001, BN_CLICKED), 0);
+
             ShowWindow(window, SW_HIDE);
             settings.RefreshFromSettings();
             assert(!IsWindowVisible(window));
