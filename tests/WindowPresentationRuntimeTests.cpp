@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "core/HotkeyRegistry.hpp"
 #include "NumericIntentRuntimeFixture.hpp"
 #include "platform/InstanceIpc.hpp"
 #include "ui/SettingsWindow.hpp"
@@ -1000,6 +1001,75 @@ int main() {
                 SWP_NOMOVE |
                     SWP_NOZORDER |
                     SWP_NOACTIVATE);
+
+            // UI-R01: a Hotkeys switch must not make the visible Settings
+            // HWND temporarily lose WS_VISIBLE through WM_SETREDRAW, repaint
+            // the sidebar, or invalidate an unrelated sibling switch.
+            SendMessageW(
+                window,
+                WM_COMMAND,
+                MAKEWPARAM(51006, BN_CLICKED),
+                0);
+            std::size_t exitIndex = 0;
+            for (const auto& action : HotkeyActionRegistry()) {
+                if (action.id == hotkey_actions::kExitApplication) break;
+                ++exitIndex;
+            }
+            assert(exitIndex + 1 < HotkeyActionRegistry().size());
+            const HWND exitToggle = GetDlgItem(
+                window, static_cast<int>(51740 + exitIndex));
+            const HWND otherToggle = GetDlgItem(
+                window, static_cast<int>(51740 + exitIndex + 1));
+            const HWND sidebarButton = GetDlgItem(window, 51001);
+            assert(exitToggle && otherToggle && sidebarButton);
+            assert(IsWindowVisible(exitToggle));
+            assert(IsWindowVisible(otherToggle));
+            RedrawWindow(sidebarButton, nullptr, nullptr,
+                RDW_INVALIDATE | RDW_UPDATENOW);
+            RedrawWindow(otherToggle, nullptr, nullptr,
+                RDW_INVALIDATE | RDW_UPDATENOW);
+
+            int hotkeyRedrawSuspends = 0;
+            PaintMessageCounts sidebarPaint{};
+            PaintMessageCounts otherHotkeyPaint{};
+            assert(SetWindowSubclass(window, RedrawSuspendProbe, 6,
+                reinterpret_cast<DWORD_PTR>(&hotkeyRedrawSuspends)));
+            assert(SetWindowSubclass(sidebarButton, PaintMessageProbe, 7,
+                reinterpret_cast<DWORD_PTR>(&sidebarPaint)));
+            assert(SetWindowSubclass(otherToggle, PaintMessageProbe, 8,
+                reinterpret_cast<DWORD_PTR>(&otherHotkeyPaint)));
+
+            const auto originalExit = EffectiveHotkeyBinding(
+                app.SettingsData().hotkeyBindings,
+                hotkey_actions::kExitApplication);
+            for (int toggle = 0; toggle < 12; ++toggle) {
+                SendMessageW(window, WM_COMMAND,
+                    MAKEWPARAM(51740 + exitIndex, BN_CLICKED),
+                    reinterpret_cast<LPARAM>(exitToggle));
+                const auto current = EffectiveHotkeyBinding(
+                    app.SettingsData().hotkeyBindings,
+                    hotkey_actions::kExitApplication);
+                assert(current.enabled ==
+                    ((toggle % 2 == 0) ? !originalExit.enabled
+                                       : originalExit.enabled));
+                // Process any queued invalidation before inspecting counts.
+                UpdateWindow(sidebarButton);
+                UpdateWindow(otherToggle);
+                assert(IsWindowVisible(window));
+                assert((GetWindowLongPtrW(window, GWL_STYLE) & WS_VISIBLE) != 0);
+                assert(hotkeyRedrawSuspends == 0);
+                assert(sidebarPaint.paint == 0 && sidebarPaint.erase == 0);
+                assert(otherHotkeyPaint.paint == 0 &&
+                       otherHotkeyPaint.erase == 0);
+            }
+            assert(RemoveWindowSubclass(otherToggle,
+                PaintMessageProbe, 8));
+            assert(RemoveWindowSubclass(sidebarButton,
+                PaintMessageProbe, 7));
+            assert(RemoveWindowSubclass(window,
+                RedrawSuspendProbe, 6));
+            SendMessageW(window, WM_COMMAND,
+                MAKEWPARAM(51001, BN_CLICKED), 0);
 
             // Toggling one General setting must remain row-local. The old
             // success path called RefreshFromSettings(), invalidating every
