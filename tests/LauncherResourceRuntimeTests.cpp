@@ -791,6 +791,9 @@ struct LauncherResourceRuntimeFixture {
                 editorCloseObserved = false;
                 contextMenuChoice = 41004; // kResultContextEditShortcut
                 emulateActiveContextMenuOwner = true;
+                // A prior launcher teardown must not poison this modal loop.
+                MSG pendingQuit{};
+                assert(!PeekMessageW(&pendingQuit, nullptr, WM_QUIT, WM_QUIT, PM_NOREMOVE));
                 const UINT_PTR timer = SetTimer(
                     nullptr, 0, 20, CloseEditorForFocusProbe);
                 assert(timer);
@@ -799,8 +802,8 @@ struct LauncherResourceRuntimeFixture {
 
                 KillTimer(nullptr, timer);
                 emulateActiveContextMenuOwner = false;
-                assert(editorCloseObserved);
                 assert(contextMenuChoice == 0);
+                assert(editorCloseObserved);
                 assert(window.IsVisible());
                 assert(GetActiveWindow() == window.hwnd_);
                 assert(GetFocus() == window.edit_);
@@ -1002,7 +1005,6 @@ struct LauncherResourceRuntimeFixture {
         auto& settings = const_cast<Settings&>(app.settingsStore_.Data());
         settings.showTrayIcon = false; settings.soundEnabled = false;
         settings.autoCheckUpdates = false;
-        VerifyLauncherCreateFailures(app, instance);
         const auto resourceCount = static_cast<unsigned>(kClassicShortcutResourceIds.size() + kClassicCloseResourceIds.size() + 1);
         // Warm Win32's first DC/bitmap initialization before process-wide counts.
         {
@@ -1076,6 +1078,9 @@ struct LauncherResourceRuntimeFixture {
             app,
             instance);
         MeasureShows(app, instance);
+        // Fault-injected native window creation is isolated from the modal/
+        // activation regression tests, which depend on thread input state.
+        VerifyLauncherCreateFailures(app, instance);
     }
 };
 }
