@@ -1,8 +1,8 @@
 # Asterun Roadmap
 
-Asterun v1.0.4 is the current stable release following owner acceptance. v1.0.5 is the active, unreleased maintenance branch.
+Asterun v1.0.5 is the current stable release (published 2026-10-09). Post-release maintenance on `main` is distributed separately through the rolling `dev-latest` prerelease.
 
-## v1.0.5 - Icon refresh, modal focus and short-query search polish (in development)
+## v1.0.5 - Icon refresh, modal focus and short-query search polish (released 2026-10-09)
 
 - On a successful upgrade handshake, the newly launched Asterun.exe notifies the Shell of changes to only the three installed EXE files.
 - Restore keyboard focus to the already-active Launcher search EDIT after the context-menu Shortcut Editor closes; do not globally foreground/re-show the Launcher or change the Shortcut Manager's modal behavior.
@@ -12,7 +12,7 @@ Asterun v1.0.4 is the current stable release following owner acceptance. v1.0.5 
 - Start fresh installations with no pre-created user shortcuts (`np`, `calc`, `cmd`, `explorer`, `pwsh`); keep normal system application discovery.
 - Fix Microsoft Pinyin's cold-first-reveal English input by managing native/alphanumeric conversion state without a repeated timer/message patch; remove all temporary IME tracing and restore state on hide.
 - Do not alter the install transaction, rollback, existing icon artwork, user data, or global Explorer icon cache.
-- Build #1005 and scoped Windows 11 x64 real-machine acceptance are complete. Waiting for the owner's separate merge and stable-release authorizations; native ARM64 hardware is not claimed.
+- Build #1005 and scoped Windows 11 x64 real-machine acceptance were completed before the owner-approved v1.0.5 release on 2026-10-09; native ARM64 hardware acceptance is not claimed.
 
 ## v1.0.4 - Launcher input, shortcut UX, native UI and branding (completed)
 

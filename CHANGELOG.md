@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.5 (in development)
+## 1.0.5 (released 2026-10-09)
 
 - Send asynchronous, targeted `SHCNE_UPDATEITEM` notifications for Asterun.exe, Update.exe and Uninstall.exe only after a successful post-update startup health event.
 - Perform the refresh from the newly installed Asterun.exe: the in-place updater runs the previous version's Update.exe, so this also covers the first v1.0.4 -> v1.0.5 upgrade.
@@ -18,7 +18,7 @@
 - Remove automatic creation of the five formerly bundled user shortcuts (`np`, `calc`, `cmd`, `explorer`, `pwsh`). Fresh installs start with an empty editable shortcut list; Windows application Providers still discover applications including Calculator and Notepad. Existing saved user shortcuts remain untouched.
 - Fix the first Alt+Space reveal selecting Chinese composition despite "default English input" being enabled. Manage IME native/alphanumeric conversion independently of IME open status, restore relevant state on hide/destroy, and respect manual mode changes. Remove both the ineffective first-reveal retry and the temporary IME diagnostics entirely; retain only permanent functional regression coverage.
 - Final Build #1005: Core, Windows x64/ARM64, Windows 10 API baseline and desktop runtime smoke all green. Owner confirmed Windows 11 x64 real-machine acceptance for icon refresh, upgrade/rollback safety, input mode, user shortcuts and search regressions. Native ARM64 hardware acceptance is not claimed.
-- Stable v1.0.5 remains unreleased until separately authorized merge and publication.
+- Stable v1.0.5 was published on 2026-10-09. Subsequent maintenance changes on `main` belong to the separate rolling `dev-latest` prerelease, not to the original v1.0.5 release.
 
 
 ## 1.0.4
