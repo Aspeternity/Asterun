@@ -10,7 +10,6 @@
 
 #include <commctrl.h>
 #include <objbase.h>
-#include <uxtheme.h>
 #include <cassert>
 #include <array>
 #include <iostream>
@@ -483,9 +482,8 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(GetPixel(sampleDc, 0, glyphTop + MulDiv(3, adminDpi, 96)) ==
         altrun::ui::kApplicationPalette.windowBackground);
 
-    // The checked and unchecked themed states must paint distinctly.
-    // With Visual Styles enabled, antialiased edge coverage should give
-    // intermediate shades instead of GDI RoundRect's two hard colors.
+    // Both states must paint distinctly and show real subpixel edge shades
+    // independently of the host OS theme and runner desktop configuration.
     SendMessageW(admin, BM_SETCHECK, BST_UNCHECKED, 0);
     assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
     PatBlt(sampleDc, 0, 0, adminClient.right, adminClient.bottom, WHITENESS);
@@ -498,13 +496,11 @@ void CALLBACK ExerciseAdvancedToggle(
     for (std::size_t i = 0; i < checkedPixels.size(); ++i)
         if (checkedPixels[i] != uncheckedPixels[i]) ++visualChangePixels;
     assert(visualChangePixels >= glyphSide);
-    if (IsThemeActive() && IsAppThemed()) {
-        if (edgeColors.size() < 4) {
-            std::cerr << "UI01 checkbox outline not smoothed; shades="
-                << edgeColors.size() << "\n";
-        }
-        assert(edgeColors.size() >= 4);
+    if (edgeColors.size() < 4) {
+        std::cerr << "UI01 checkbox outline not smoothed; shades="
+            << edgeColors.size() << "\n";
     }
+    assert(edgeColors.size() >= 4);
     SendMessageW(admin, BM_SETCHECK, BST_CHECKED, 0);
     SelectObject(sampleDc, oldSampleBitmap);
     DeleteObject(sampleBitmap);

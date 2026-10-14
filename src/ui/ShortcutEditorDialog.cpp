@@ -17,13 +17,12 @@
 #include <objbase.h>
 #include <shlobj.h>
 #include <shobjidl.h>
-#include <uxtheme.h>
-#include <vssym32.h>
 
 #include <algorithm>
 #include <array>
 #include <cwctype>
 #include <filesystem>
+#include <vector>
 
 namespace altrun {
 namespace {
@@ -188,54 +187,78 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
     const int top = (area.top + area.bottom - size) / 2;
     const RECT square{left, top, left + size, top + size};
 
-    // GDI RoundRect rasterizes 18px rounded corners as asymmetric stair-steps
-    // (especially at fractional DPI). Let Windows' Visual Styles renderer
-    // paint the checkbox's antialiased outline and tick into our existing
-    // off-screen frame. Owner-draw remains the only painter/state owner.
-    bool themed = false;
-    if (HTHEME theme = OpenThemeDataForDpi(
-            draw.hwndItem, L"Button", dpi ? dpi : 96)) {
-        const bool hot = (draw.itemState & ODS_HOTLIGHT) != 0;
-        const int state = !enabled
-            ? (checked ? CBS_CHECKEDDISABLED : CBS_UNCHECKEDDISABLED)
-            : pressed
-                ? (checked ? CBS_CHECKEDPRESSED : CBS_UNCHECKEDPRESSED)
-                : hot
-                    ? (checked ? CBS_CHECKEDHOT : CBS_UNCHECKEDHOT)
-                    : (checked ? CBS_CHECKEDNORMAL : CBS_UNCHECKEDNORMAL);
-        themed = SUCCEEDED(DrawThemeBackground(
-            theme, dc, BP_CHECKBOX, state, &square, nullptr));
-        CloseThemeData(theme);
-    }
-
-    if (!themed) {
-        // Deterministic square fallback when desktop visual styles are off:
-        // straight pixel-aligned borders, never GDI's uneven RoundRect.
-        HBRUSH fill = CreateSolidBrush(checked
-            ? palette.accent : palette.controlBackground);
-        if (fill) {
-            FillRect(dc, &square, fill);
-            DeleteObject(fill);
-        }
-        HBRUSH border = CreateSolidBrush(checked
-            ? palette.accent : RGB(121, 136, 153));
-        if (border) {
-            FrameRect(dc, &square, border);
-            DeleteObject(border);
-        }
-        if (checked) {
-            HPEN tick = CreatePen(PS_SOLID, std::max(2, scale(2)),
-                enabled ? RGB(255, 255, 255) : RGB(232, 232, 232));
-            if (tick) {
-                HGDIOBJ previous = SelectObject(dc, tick);
-                MoveToEx(dc, left + scale(4), top + scale(8), nullptr);
-                LineTo(dc, left + scale(7), top + scale(11));
-                LineTo(dc, left + scale(14), top + scale(5));
-                SelectObject(dc, previous);
-                DeleteObject(tick);
+    // Paint the tiny glyph with deterministic 4x subpixel coverage. Native
+    // theme rendering is not consistent between Windows 10/11/headless hosts,
+    // while ordinary GDI RoundRect gives visibly uneven 18px corners.
+    // Output directly to the existing buffered HDC in one GDI operation.
+    constexpr int samples = 4;
+    const float unit = static_cast<float>(size) / 18.0f;
+    const auto insideRound = [size](float x, float y,
+                                    float inset, float radius) {
+        const float side = static_cast<float>(size);
+        if (x < inset || y < inset ||
+            x >= side - inset || y >= side - inset) return false;
+        const float nearX = std::clamp(x, inset + radius, side - inset - radius);
+        const float nearY = std::clamp(y, inset + radius, side - inset - radius);
+        const float dx = x - nearX, dy = y - nearY;
+        return dx * dx + dy * dy <= radius * radius;
+    };
+    const auto nearStroke = [](float x, float y, float ax, float ay,
+                               float bx, float by, float radius) {
+        const float vx = bx - ax, vy = by - ay;
+        const float t = std::clamp(
+            ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy),
+            0.0f, 1.0f);
+        const float dx = x - (ax + t * vx);
+        const float dy = y - (ay + t * vy);
+        return dx * dx + dy * dy <= radius * radius;
+    };
+    const COLORREF border = !enabled ? RGB(174, 181, 191)
+        : checked ? palette.accent : RGB(121, 136, 153);
+    const COLORREF fill = checked
+        ? (pressed ? RGB(0, 96, 180) : palette.accent)
+        : palette.controlBackground;
+    std::vector<DWORD> pixels(static_cast<std::size_t>(size) * size);
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            int r = 0, g = 0, b = 0;
+            for (int sy = 0; sy < samples; ++sy) {
+                for (int sx = 0; sx < samples; ++sx) {
+                    const float px = x + (sx + 0.5f) / samples;
+                    const float py = y + (sy + 0.5f) / samples;
+                    COLORREF color = palette.windowBackground;
+                    if (insideRound(px, py, 0.3f * unit, 3.7f * unit)) {
+                        color = border;
+                        if (insideRound(px, py, 1.5f * unit, 2.5f * unit))
+                            color = fill;
+                        if (checked &&
+                            (nearStroke(px, py, 4.5f * unit, 9.3f * unit,
+                                        7.4f * unit, 12.0f * unit, unit) ||
+                             nearStroke(px, py, 7.4f * unit, 12.0f * unit,
+                                        13.7f * unit, 5.8f * unit, unit)))
+                            color = RGB(255, 255, 255);
+                    }
+                    r += GetRValue(color);
+                    g += GetGValue(color);
+                    b += GetBValue(color);
+                }
             }
+            constexpr int total = samples * samples;
+            pixels[static_cast<std::size_t>(y) * size + x] =
+                (static_cast<DWORD>(r / total) << 16) |
+                (static_cast<DWORD>(g / total) << 8) |
+                static_cast<DWORD>(b / total);
         }
     }
+    BITMAPINFO bitmapInfo{};
+    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth = size;
+    bitmapInfo.bmiHeader.biHeight = -size; // top-down; no image flip
+    bitmapInfo.bmiHeader.biPlanes = 1;
+    bitmapInfo.bmiHeader.biBitCount = 32;
+    bitmapInfo.bmiHeader.biCompression = BI_RGB;
+    SetDIBitsToDevice(dc, square.left, square.top, size, size,
+        0, 0, 0, size, pixels.data(), &bitmapInfo, DIB_RGB_COLORS);
     wchar_t label[128]{};
     GetWindowTextW(draw.hwndItem, label,
         static_cast<int>(std::size(label)));
