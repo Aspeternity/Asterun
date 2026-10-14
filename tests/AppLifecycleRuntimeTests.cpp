@@ -24,6 +24,7 @@ std::function<void()> modalCheck;
 ULONGLONG modalDeadline{};
 const wchar_t* modalClass{};
 bool mockHotkeys{};
+unsigned uiFailureDialogCount{};
 int failNextHotkeyId{};
 std::unordered_map<int, HWND> mockHotkeyOwners;
 BOOL WINAPI ProbeRegisterHotKey(HWND target, int id, UINT mods, UINT key) {
@@ -68,7 +69,10 @@ EverythingBootstrapSnapshot TestRunEverythingBootstrap(
 }
 }
 namespace altrun::ui {
-int TestShowMessage(HWND, const wchar_t*, const wchar_t*, UINT) { return IDOK; }
+int TestShowMessage(HWND, const wchar_t*, const wchar_t*, UINT) {
+    ++uiFailureDialogCount;
+    return IDOK;
+}
 }
 namespace {
 HANDLE WINAPI TestCreateMutex(LPSECURITY_ATTRIBUTES attributes, BOOL owner, LPCWSTR) {
@@ -381,6 +385,10 @@ struct AppLifecycleRuntimeFixture {
                         ++phase;
                     }
                 };
+                MSG quitBefore{};
+                const bool hadPendingQuitBefore =
+                    PeekMessageW(&quitBefore, nullptr, WM_QUIT, WM_QUIT, PM_NOREMOVE) != FALSE;
+                const unsigned uiFailureBefore = uiFailureDialogCount;
                 const auto timer = SetTimer(nullptr, 0, 30, CheckModal);
                 assert(timer);
                 if (converter) assert(!ShortcutPathConverterDialog::Show(app, instance, owner));
@@ -398,6 +406,12 @@ struct AppLifecycleRuntimeFixture {
                         << " modalExists=" << (FindWindowW(modalClass, nullptr) != nullptr)
                         << " launcherVisible=" << app.window_->IsVisible()
                         << " foregroundIsOwner=" << (GetForegroundWindow() == owner)
+                        << " uiFailureDialogCalls=" << (uiFailureDialogCount - uiFailureBefore)
+                        << " hadPendingQuitBefore=" << hadPendingQuitBefore
+                        << " pendingQuitAfter=" << ([] {
+                            MSG quit{};
+                            return PeekMessageW(&quit, nullptr, WM_QUIT, WM_QUIT, PM_NOREMOVE) != FALSE;
+                        }())
                         << "\n";
                 }
                 assert(phase == 3);
