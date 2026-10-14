@@ -447,6 +447,55 @@ void CALLBACK ExerciseAdvancedToggle(
         assert(SendMessageW(admin, BM_GETCHECK, 0, 0) ==
                (n % 2 == 0 ? BST_CHECKED : BST_UNCHECKED));
     }
+    // Owner-drawn BUTTONs deliver BN_DOUBLECLICKED for closely spaced
+    // mouse clicks. A BM_CLICK-only test never exercised this path.
+    SendMessageW(editor, WM_COMMAND,
+        MAKEWPARAM(kAdminId, BN_DOUBLECLICKED),
+        reinterpret_cast<LPARAM>(admin));
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    SendMessageW(editor, WM_COMMAND,
+        MAKEWPARAM(kAdminId, BN_CLICKED),
+        reinterpret_cast<LPARAM>(admin));
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+
+    // The entire glyph + visible label must be within the clickable HWND.
+    RECT adminHit{};
+    assert(GetClientRect(admin, &adminHit));
+    HDC widthDc = GetDC(admin);
+    assert(widthDc);
+    const HFONT adminFont = reinterpret_cast<HFONT>(
+        SendMessageW(admin, WM_GETFONT, 0, 0));
+    HGDIOBJ oldWidthFont = adminFont ? SelectObject(widthDc, adminFont) : nullptr;
+    wchar_t adminLabel[128]{};
+    GetWindowTextW(admin, adminLabel, 128);
+    SIZE adminTextSize{};
+    assert(GetTextExtentPoint32W(widthDc, adminLabel,
+        lstrlenW(adminLabel), &adminTextSize));
+    if (oldWidthFont) SelectObject(widthDc, oldWidthFont);
+    ReleaseDC(admin, widthDc);
+    const int labelHitMinimum = adminTextSize.cx +
+        MulDiv(2 + 18 + 9 + 2, adminDpi, 96);
+    assert(adminHit.right - adminHit.left >= labelHitMinimum);
+
+    // Native BUTTON mouse routing (not BM_CLICK): a click on the right edge
+    // of the label must toggle, as must the second mouse click of a pair.
+    const int labelX = std::min(static_cast<int>(adminHit.right) - 3,
+        labelHitMinimum - MulDiv(4, adminDpi, 96));
+    const LPARAM pointer = MAKELPARAM(labelX,
+        (adminHit.bottom - adminHit.top) / 2);
+    SendMessageW(admin, WM_LBUTTONDOWN, MK_LBUTTON, pointer);
+    SendMessageW(admin, WM_LBUTTONUP, 0, pointer);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    SendMessageW(admin, WM_LBUTTONDBLCLK, MK_LBUTTON, pointer);
+    SendMessageW(admin, WM_LBUTTONUP, 0, pointer);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+
+    // Space from keyboard focus must toggle the same state exactly once.
+    SetFocus(admin);
+    SendMessageW(admin, WM_KEYDOWN, VK_SPACE, 0);
+    SendMessageW(admin, WM_KEYUP, VK_SPACE, 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    SendMessageW(admin, BM_SETCHECK, BST_UNCHECKED, 0);
 
     SendMessageW(
         editor,

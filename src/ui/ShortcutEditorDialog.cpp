@@ -181,14 +181,14 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
         background ? background : GetSysColorBrush(COLOR_WINDOW));
     if (background) DeleteObject(background);
 
-    const int size = scale(16);
+    const int size = scale(18);
     const int left = area.left + scale(2);
     const int top = (area.top + area.bottom - size) / 2;
     HBRUSH fill = CreateSolidBrush(checked
         ? (pressed ? RGB(0, 96, 180) : palette.accent)
         : palette.controlBackground);
-    HPEN border = CreatePen(PS_SOLID, 1,
-        checked ? palette.accent : RGB(152, 161, 173));
+    HPEN border = CreatePen(PS_SOLID, std::max(1, scale(1)),
+        checked ? palette.accent : RGB(121, 136, 153));
     if (fill && border) {
         HGDIOBJ prevBrush = SelectObject(dc, fill);
         HGDIOBJ prevPen = SelectObject(dc, border);
@@ -207,7 +207,7 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
             HGDIOBJ prev = SelectObject(dc, tick);
             MoveToEx(dc, left + scale(4), top + scale(8), nullptr);
             LineTo(dc, left + scale(7), top + scale(11));
-            LineTo(dc, left + scale(13), top + scale(5));
+            LineTo(dc, left + scale(14), top + scale(5));
             SelectObject(dc, prev);
             DeleteObject(tick);
         }
@@ -217,12 +217,11 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
         static_cast<int>(std::size(label)));
     HGDIOBJ prevFont = font ? SelectObject(dc, font) : nullptr;
     SetBkMode(dc, TRANSPARENT);
-    const bool keyboardFocus =
-        (draw.itemState & ODS_FOCUS) != 0 &&
-        (SendMessageW(draw.hwndItem, WM_QUERYUISTATE, 0, 0) &
-         UISF_HIDEFOCUS) == 0;
-    SetTextColor(dc, !enabled ? palette.mutedText :
-        keyboardFocus ? palette.accent : palette.text);
+    // A mouse click also focuses a BUTTON. Changing the whole label to
+    // accent on focus made it appear to flash rather than just checking it.
+    // Keep the readable label neutral; the accent-filled checkbox carries
+    // selection state and the standard tab navigation remains intact.
+    SetTextColor(dc, enabled ? palette.text : palette.mutedText);
     RECT text{
         left + size + scale(9), area.top,
         area.right - scale(2), area.bottom
@@ -1708,65 +1707,24 @@ void ShortcutEditorDialog::Layout(
         y += Scale(
             kAdminTopGapLogical);
 
-        int adminWidth =
-            advancedFieldWidth;
-        SIZE adminIdeal{};
-
-        if (SendMessageW(
-                admin_,
-                BCM_GETIDEALSIZE,
-                0,
-                reinterpret_cast<LPARAM>(
-                    &adminIdeal)) != FALSE &&
-            adminIdeal.cx > 0) {
-            adminWidth =
-                std::min(
-                    advancedFieldWidth,
-                    static_cast<int>(
-                        adminIdeal.cx) +
-                        Scale(12));
-        } else {
-            HDC adminDc =
-                GetDC(hwnd_);
-
-            if (adminDc) {
-                HGDIOBJ oldAdminFont =
-                    SelectObject(
-                        adminDc,
-                        font_);
-
-                wchar_t adminText[128]{};
-                GetWindowTextW(
-                    admin_,
-                    adminText,
-                    static_cast<int>(
-                        _countof(adminText)));
-
-                SIZE adminTextSize{};
-                if (GetTextExtentPoint32W(
-                        adminDc,
-                        adminText,
-                        GetWindowTextLengthW(
-                            admin_),
-                        &adminTextSize)) {
-                    adminWidth =
-                        std::min(
-                            advancedFieldWidth,
-                            static_cast<int>(
-                                adminTextSize.cx) +
-                                GetSystemMetricsForDpi(
-                                    SM_CXMENUCHECK,
-                                    dpi_) +
-                                Scale(14));
-                }
-
-                SelectObject(
-                    adminDc,
-                    oldAdminFont);
-                ReleaseDC(
-                    hwnd_,
-                    adminDc);
+        // BS_OWNERDRAW has no meaningful BCM_GETIDEALSIZE for a custom
+        // checkbox+label. The old ideal-size branch could clip the label's
+        // clickable HWND even while the text appeared next to the glyph.
+        int adminWidth = advancedFieldWidth;
+        if (HDC dc = GetDC(hwnd_)) {
+            const HGDIOBJ previous = font_ ? SelectObject(dc, font_) : nullptr;
+            wchar_t label[128]{};
+            const int length = GetWindowTextW(
+                admin_, label, static_cast<int>(std::size(label)));
+            SIZE extent{};
+            if (GetTextExtentPoint32W(dc, label, length, &extent)) {
+                // Match PaintAdminCheckbox: 2px inset + 18px glyph +
+                // 9px gap + text + 2px right inset, with a small hit slop.
+                adminWidth = std::min(advancedFieldWidth,
+                    static_cast<int>(extent.cx) + Scale(2 + 18 + 9 + 2 + 6));
             }
+            if (previous) SelectObject(dc, previous);
+            ReleaseDC(hwnd_, dc);
         }
 
         moveControl(
@@ -3649,7 +3607,10 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             return 0;
 
         case kIdAdmin:
-            if (notify == BN_CLICKED) {
+            // Owner-drawn BUTTONs report the second quick mouse click as
+            // BN_DOUBLECLICKED, not necessarily BN_CLICKED. Treat both as
+            // exactly one activation, just like the Advanced disclosure.
+            if (notify == BN_CLICKED || notify == BN_DOUBLECLICKED) {
                 SetChecked(admin_, !IsChecked(admin_));
             }
             return 0;
