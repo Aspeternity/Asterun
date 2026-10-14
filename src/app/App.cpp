@@ -17,6 +17,7 @@
 #include "../platform/AppIdentity.hpp"
 #include "../platform/Hotkey.hpp"
 #include "../platform/InstanceIpc.hpp"
+#include "../platform/NotificationIdentity.hpp"
 #include "../platform/WinClipboard.hpp"
 #include "../platform/WinUtil.hpp"
 #include "../platform/UpdateIconRefresh.hpp"
@@ -349,6 +350,56 @@ int App::Run() {
             app_identity::kAppUserModelId);
     (void)appIdentityResult;
 
+    SetLastError(ERROR_SUCCESS);
+    singleInstanceMutex_ =
+        CreateMutexW(
+            nullptr,
+            FALSE,
+            L"Local\\Aspeternity.Asterun.SingleInstance.v1");
+    const DWORD mutexError = GetLastError();
+
+    if (!singleInstanceMutex_) {
+        altrun::ui::ShowMessage(
+            nullptr,
+            L"Unable to create the Asterun single-instance guard.",
+            L"Asterun",
+            MB_ICONERROR | MB_OK);
+        return 1;
+    }
+
+    if (mutexError == ERROR_ALREADY_EXISTS) {
+        if (!startupShortcutPaths_.empty()) {
+            if (ForwardShortcutRequestsToExistingInstance()) {
+                return 0;
+            }
+
+            settingsStore_.Load(false); // Secondary reads language without repairing data.
+            ui::SetFeedbackEnabled(settingsStore_.Data().soundEnabled);
+            altrun::ui::ShowMessage(
+                nullptr,
+                settingsStore_.Data().language == Language::ZhCN
+                    ? L"Asterun 已经在运行，但无法把“发送到”请求交给现有实例。"
+                    : L"Asterun is already running, but the Send To request could not be forwarded to the existing instance.",
+                L"Asterun",
+                MB_ICONWARNING | MB_OK);
+            return 1;
+        }
+
+        settingsStore_.Load(false); // Secondary reads language without writes.
+        ui::SetFeedbackEnabled(settingsStore_.Data().soundEnabled);
+        altrun::ui::ShowMessage(
+            nullptr,
+            settingsStore_.Data().language == Language::ZhCN
+                ? L"Asterun 已经在运行。\n\n请检查系统托盘，避免多个实例同时抢占全局热键。"
+                : L"Asterun is already running.\n\nCheck the system tray. Multiple instances are blocked to prevent global-hotkey conflicts.",
+            L"Asterun",
+            MB_ICONINFORMATION | MB_OK);
+        return 0;
+    }
+
+    // Only the primary instance may persist its notification icon and identity.
+    notification_identity::Register(instance_);
+
     std::error_code ec;
 
     std::filesystem::create_directories(
@@ -371,48 +422,6 @@ int App::Run() {
     desiredSendToRegistration_.store(
         settingsStore_.Data()
             .addToSendToMenu);
-
-    SetLastError(ERROR_SUCCESS);
-    singleInstanceMutex_ =
-        CreateMutexW(
-            nullptr,
-            FALSE,
-            L"Local\\Aspeternity.Asterun.SingleInstance.v1");
-
-    if (!singleInstanceMutex_) {
-        altrun::ui::ShowMessage(
-            nullptr,
-            L"Unable to create the Asterun single-instance guard.",
-            L"Asterun",
-            MB_ICONERROR | MB_OK);
-        return 1;
-    }
-
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        if (!startupShortcutPaths_.empty()) {
-            if (ForwardShortcutRequestsToExistingInstance()) {
-                return 0;
-            }
-
-            altrun::ui::ShowMessage(
-                nullptr,
-                settingsStore_.Data().language == Language::ZhCN
-                    ? L"Asterun 已经在运行，但无法把“发送到”请求交给现有实例。"
-                    : L"Asterun is already running, but the Send To request could not be forwarded to the existing instance.",
-                L"Asterun",
-                MB_ICONWARNING | MB_OK);
-            return 1;
-        }
-
-        altrun::ui::ShowMessage(
-            nullptr,
-            settingsStore_.Data().language == Language::ZhCN
-                ? L"Asterun 已经在运行。\n\n请检查系统托盘，避免多个实例同时抢占全局热键。"
-                : L"Asterun is already running.\n\nCheck the system tray. Multiple instances are blocked to prevent global-hotkey conflicts.",
-            L"Asterun",
-            MB_ICONINFORMATION | MB_OK);
-        return 0;
-    }
 
     // Background notifications use a message-only HWND so nested Windows message
     // loops dispatch them normally. A thread-message fallback remains only

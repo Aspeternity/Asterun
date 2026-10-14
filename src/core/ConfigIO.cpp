@@ -99,7 +99,8 @@ JsonLoadResult
 LoadJsonWithBackup(
     const std::filesystem::path& path,
     int maxSupportedSchemaVersion,
-    JsonValidator validator) {
+    JsonValidator validator,
+    bool allowRepair) {
 
     auto current = LoadOne(path);
     if (current) {
@@ -122,7 +123,7 @@ LoadJsonWithBackup(
         }
         if (!validator || validator(*recovered)) {
             // Only a semantically valid primary may replace the good backup.
-            const bool repaired = SaveJsonAtomic(path, *recovered, validator);
+            const bool repaired = allowRepair && SaveJsonAtomic(path, *recovered, validator);
             return {JsonLoadStatus::RecoveredBackup, std::move(recovered), version, repaired};
         }
     }
