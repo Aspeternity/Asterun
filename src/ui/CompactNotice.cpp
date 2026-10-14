@@ -297,13 +297,21 @@ int ShowStyledCompactNotice(HWND owner, const wchar_t* message,
             DispatchMessageW(&msg);
         }
     }
-    if (IsWindow(window)) DestroyWindow(window);
-    if (state.font) DeleteObject(state.font);
+    // Restore the owner while its active modal still exists. If the popup
+    // is destroyed first, Windows sees a disabled owner with no modal, and
+    // can briefly activate/repaint a different window behind the editor.
     if (reenable && IsWindow(owner)) {
         EnableWindow(owner, TRUE);
         if (IsWindowVisible(owner) && !IsIconic(owner))
             SetActiveWindow(owner);
     }
+    if (IsWindow(window)) {
+        SetWindowPos(window, nullptr, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+            SWP_NOACTIVATE | SWP_HIDEWINDOW);
+        DestroyWindow(window);
+    }
+    if (state.font) DeleteObject(state.font);
     if (sawQuit) PostQuitMessage(quitCode);
     return IDOK;
 }

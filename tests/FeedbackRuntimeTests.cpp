@@ -17,6 +17,30 @@ bool measuringChinese{};
 bool measuringEnglishCompact{};
 int englishCompactWidth{};
 bool compactPaletteVerified{};
+struct OwnerModalProbe {
+    bool disabled{};
+    bool restored{};
+    bool noticeAliveAtRestore{};
+    int unexpectedHide{};
+};
+LRESULT CALLBACK OwnerModalSubclass(
+    HWND owner, UINT message, WPARAM wParam, LPARAM lParam,
+    UINT_PTR id, DWORD_PTR data) {
+    auto& probe = *reinterpret_cast<OwnerModalProbe*>(data);
+    if (message == WM_ENABLE) {
+        if (wParam == FALSE) probe.disabled = true;
+        else {
+            probe.restored = true;
+            const HWND notice = FindWindowW(L"Asterun.CompactNotice", nullptr);
+            probe.noticeAliveAtRestore = notice && IsWindow(notice);
+        }
+    } else if (message == WM_SHOWWINDOW && wParam == FALSE) {
+        ++probe.unexpectedHide;
+    } else if (message == WM_NCDESTROY) {
+        RemoveWindowSubclass(owner, OwnerModalSubclass, id);
+    }
+    return DefSubclassProc(owner, message, wParam, lParam);
+}
 
 BOOL CALLBACK CloseTestDialog(HWND window, LPARAM) {
     wchar_t title[128]{};
@@ -152,6 +176,27 @@ int main() {
             compactLogicalWidth, longerLogicalWidth);
     }
     assert(suitablyCompact);
+
+    // Reproduce real editor ownership: a visible enabled parent must be
+    // restored while its modal dialog still exists. Destroying the modal
+    // first leaves the disabled parent with no active modal, causing an
+    // intermediate activation/paint flash on some desktops.
+    HWND owner = CreateWindowExW(0, L"STATIC", L"UI-01 modal owner",
+        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        100, 100, 540, 380, nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+    assert(owner && IsWindowVisible(owner));
+    OwnerModalProbe probe{};
+    assert(SetWindowSubclass(owner, OwnerModalSubclass, 45,
+        reinterpret_cast<DWORD_PTR>(&probe)));
+    observed = false;
+    assert(altrun::ui::ShowCompactNotice(owner, L"Enter a target first.",
+        L"Test", false) == IDOK);
+    assert(observed && probe.disabled && probe.restored);
+    assert(probe.noticeAliveAtRestore);
+    assert(probe.unexpectedHide == 0 && IsWindowVisible(owner) &&
+           IsWindowEnabled(owner));
+    assert(RemoveWindowSubclass(owner, OwnerModalSubclass, 45));
+    DestroyWindow(owner);
     KillTimer(nullptr, timer);
     HANDLE after{};
     assert(GetCurrentActCtx(&after));
