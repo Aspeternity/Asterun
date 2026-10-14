@@ -3,6 +3,7 @@
 #include "platform/InstanceIpc.hpp"
 #include "ui/SettingsWindow.hpp"
 #include "ui/ShortcutEditorDialog.hpp"
+#include "ui/UiTheme.hpp"
 #include "ui/ShortcutPathConverterDialog.hpp"
 #include "ui/ShortcutManagerWindow.hpp"
 #include "ui/TopLevelWindowPresentation.hpp"
@@ -10,8 +11,11 @@
 #include <commctrl.h>
 #include <objbase.h>
 #include <cassert>
+#include <array>
 #include <iostream>
 #include <string_view>
+#include <set>
+#include <vector>
 
 #ifdef NDEBUG
 #error "window_presentation_runtime_tests requires assertions"
@@ -135,6 +139,22 @@ LRESULT CALLBACK RedrawSuspendProbe(HWND window, UINT message,
         message,
         wParam,
         lParam);
+}
+
+// Catch buttons briefly exposed during Settings page transitions. A final
+// hidden state is insufficient: it misses the one-frame reset-link flash.
+LRESULT CALLBACK HotkeyResetExposureProbe(
+    HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam,
+    UINT_PTR, DWORD_PTR data) {
+    // SetWindowPos(SWP_SHOWWINDOW) does not necessarily dispatch
+    // WM_SHOWWINDOW. Observe the actual visibility transition request.
+    if (message == WM_WINDOWPOSCHANGING && lParam) {
+        const auto* pos = reinterpret_cast<const WINDOWPOS*>(lParam);
+        if ((pos->flags & SWP_SHOWWINDOW) != 0) {
+            ++*reinterpret_cast<int*>(data);
+        }
+    }
+    return DefSubclassProc(hwnd, message, wParam, lParam);
 }
 
 struct PaintMessageCounts {
@@ -311,6 +331,42 @@ void CALLBACK ExerciseAdvancedToggle(
         GetDlgItem(
             editor,
             kAdminId);
+    const HWND typeCombo = GetDlgItem(editor, 53104);
+    const HWND runtimeCombo = GetDlgItem(editor, 53118);
+
+    assert(typeCombo && runtimeCombo);
+    RECT typeScreen{}, runtimeScreen{};
+    assert(GetWindowRect(typeCombo, &typeScreen));
+    assert(GetWindowRect(runtimeCombo, &runtimeScreen));
+    MapWindowPoints(nullptr, editor,
+        reinterpret_cast<POINT*>(&typeScreen), 2);
+    MapWindowPoints(nullptr, editor,
+        reinterpret_cast<POINT*>(&runtimeScreen), 2);
+    const int visibleGap = runtimeScreen.top - typeScreen.bottom;
+    const int expectedMidY = (typeScreen.bottom + runtimeScreen.top) / 2;
+    if (visibleGap <= 0) {
+        std::cerr << "UI01 separator geometry invalid: type.bottom="
+            << typeScreen.bottom << " runtime.top=" << runtimeScreen.top << "\n";
+    }
+    assert(visibleGap > 2);
+    RedrawWindow(editor, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+    HDC parentDc = GetDC(editor);
+    assert(parentDc);
+    const int lineX = MulDiv(36, GetDpiForWindow(editor), 96);
+    bool separatorCentered = false;
+    for (int dy = -1; dy <= 1; ++dy) {
+        if (GetPixel(parentDc, lineX, expectedMidY + dy) ==
+            altrun::ui::kApplicationPalette.separator) {
+            separatorCentered = true;
+        }
+    }
+    if (!separatorCentered) {
+        std::cerr << "UI01 separator NOT centered: type.bottom="
+            << typeScreen.bottom << " runtime.top=" << runtimeScreen.top
+            << " midY=" << expectedMidY << " gap=" << visibleGap << "\n";
+    }
+    ReleaseDC(editor, parentDc);
+    assert(separatorCentered);
 
     assert(toggle);
     assert(arguments);
@@ -323,6 +379,10 @@ void CALLBACK ExerciseAdvancedToggle(
         23,
         reinterpret_cast<DWORD_PTR>(
             &topLevelRedrawSuspends)));
+    int disclosureRedrawSuspends = 0;
+    assert(SetWindowSubclass(
+        toggle, RedrawSuspendProbe, 24,
+        reinterpret_cast<DWORD_PTR>(&disclosureRedrawSuspends)));
 
     RECT collapsed{};
     RECT expanded{};
@@ -373,6 +433,139 @@ void CALLBACK ExerciseAdvancedToggle(
     assert(
         topLevelRedrawSuspends ==
         0);
+
+    // One owner-drawn glyph and one emulated BM_CHECK state owner. The old
+    // native BS_AUTOCHECKBOX + paint subclass produced focus/checked residue.
+    assert((GetWindowLongPtrW(admin, GWL_STYLE) & BS_TYPEMASK) ==
+           BS_OWNERDRAW);
+    assert((GetWindowLongPtrW(admin, GWL_STYLE) & WS_TABSTOP) != 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+    SendMessageW(admin, BM_CLICK, 0, 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_CHECKED);
+
+    RECT adminClient{};
+    GetClientRect(admin, &adminClient);
+    HDC adminDc = GetDC(admin);
+    assert(adminDc);
+    HDC sampleDc = CreateCompatibleDC(adminDc);
+    assert(sampleDc);
+    HBITMAP sampleBitmap = CreateCompatibleBitmap(adminDc,
+        adminClient.right, adminClient.bottom);
+    assert(sampleBitmap);
+    const HGDIOBJ oldSampleBitmap = SelectObject(sampleDc, sampleBitmap);
+    assert(oldSampleBitmap);
+    PatBlt(sampleDc, 0, 0, adminClient.right, adminClient.bottom, WHITENESS);
+    DRAWITEMSTRUCT adminDraw{};
+    adminDraw.CtlType = ODT_BUTTON;
+    adminDraw.CtlID = kAdminId;
+    adminDraw.hwndItem = admin;
+    adminDraw.hDC = sampleDc;
+    adminDraw.rcItem = adminClient;
+    adminDraw.itemState = ODS_FOCUS;
+    assert(SendMessageW(editor, WM_DRAWITEM, kAdminId,
+        reinterpret_cast<LPARAM>(&adminDraw)) == TRUE);
+    const int adminDpi = static_cast<int>(GetDpiForWindow(admin));
+    const int glyphSide = MulDiv(16, adminDpi, 96);
+    const int glyphTop = (adminClient.bottom - glyphSide) / 2;
+    const int glyphX = MulDiv(2, adminDpi, 96);
+    const auto readGlyph = [&]() {
+        std::vector<COLORREF> samples;
+        for (int y = glyphTop; y < glyphTop + glyphSide; ++y) {
+            for (int x = glyphX; x < glyphX + glyphSide; ++x)
+                samples.push_back(GetPixel(sampleDc, x, y));
+        }
+        return samples;
+    };
+    const auto checkedPixels = readGlyph();
+    // With focus and while checked, the untouched gutter must remain the
+    // editor's exact white background: no blue native focus-ring residue.
+    assert(GetPixel(sampleDc, 0, glyphTop + MulDiv(3, adminDpi, 96)) ==
+        altrun::ui::kApplicationPalette.windowBackground);
+
+    // Both states must paint distinctly and show real subpixel edge shades
+    // independently of the host OS theme and runner desktop configuration.
+    SendMessageW(admin, BM_SETCHECK, BST_UNCHECKED, 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+    PatBlt(sampleDc, 0, 0, adminClient.right, adminClient.bottom, WHITENESS);
+    assert(SendMessageW(editor, WM_DRAWITEM, kAdminId,
+        reinterpret_cast<LPARAM>(&adminDraw)) == TRUE);
+    const auto uncheckedPixels = readGlyph();
+    // The reduced 16px outline must not leave dark pixels in the
+    // surrounding label gutter. Older 18px frames fail this boundary.
+    assert(GetPixel(sampleDc, glyphX + glyphSide, adminClient.bottom / 2) ==
+        altrun::ui::kApplicationPalette.windowBackground);
+    std::set<COLORREF> edgeColors(
+        uncheckedPixels.begin(), uncheckedPixels.end());
+    int visualChangePixels = 0;
+    for (std::size_t i = 0; i < checkedPixels.size(); ++i)
+        if (checkedPixels[i] != uncheckedPixels[i]) ++visualChangePixels;
+    assert(visualChangePixels >= glyphSide);
+    if (edgeColors.size() < 4) {
+        std::cerr << "UI01 checkbox outline not smoothed; shades="
+            << edgeColors.size() << "\n";
+    }
+    assert(edgeColors.size() >= 4);
+    SendMessageW(admin, BM_SETCHECK, BST_CHECKED, 0);
+    SelectObject(sampleDc, oldSampleBitmap);
+    DeleteObject(sampleBitmap);
+    DeleteDC(sampleDc);
+    ReleaseDC(admin, adminDc);
+    SendMessageW(admin, BM_CLICK, 0, 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+    for (int n = 0; n < 20; ++n) {
+        SendMessageW(admin, BM_CLICK, 0, 0);
+        assert(SendMessageW(admin, BM_GETCHECK, 0, 0) ==
+               (n % 2 == 0 ? BST_CHECKED : BST_UNCHECKED));
+    }
+    // Owner-drawn BUTTONs deliver BN_DOUBLECLICKED for closely spaced
+    // mouse clicks. A BM_CLICK-only test never exercised this path.
+    SendMessageW(editor, WM_COMMAND,
+        MAKEWPARAM(kAdminId, BN_DOUBLECLICKED),
+        reinterpret_cast<LPARAM>(admin));
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    SendMessageW(editor, WM_COMMAND,
+        MAKEWPARAM(kAdminId, BN_CLICKED),
+        reinterpret_cast<LPARAM>(admin));
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+
+    // The entire glyph + visible label must be within the clickable HWND.
+    RECT adminHit{};
+    assert(GetClientRect(admin, &adminHit));
+    HDC widthDc = GetDC(admin);
+    assert(widthDc);
+    const HFONT adminFont = reinterpret_cast<HFONT>(
+        SendMessageW(admin, WM_GETFONT, 0, 0));
+    HGDIOBJ oldWidthFont = adminFont ? SelectObject(widthDc, adminFont) : nullptr;
+    wchar_t adminLabel[128]{};
+    GetWindowTextW(admin, adminLabel, 128);
+    SIZE adminTextSize{};
+    assert(GetTextExtentPoint32W(widthDc, adminLabel,
+        lstrlenW(adminLabel), &adminTextSize));
+    if (oldWidthFont) SelectObject(widthDc, oldWidthFont);
+    ReleaseDC(admin, widthDc);
+    const int labelHitMinimum = adminTextSize.cx +
+        MulDiv(2 + 16 + 9 + 2, adminDpi, 96);
+    assert(adminHit.right - adminHit.left >= labelHitMinimum);
+
+    // Native BUTTON mouse routing (not BM_CLICK): a click on the right edge
+    // of the label must toggle, as must the second mouse click of a pair.
+    const int labelX = std::min(static_cast<int>(adminHit.right) - 3,
+        labelHitMinimum - MulDiv(4, adminDpi, 96));
+    const LPARAM pointer = MAKELPARAM(labelX,
+        (adminHit.bottom - adminHit.top) / 2);
+    SendMessageW(admin, WM_LBUTTONDOWN, MK_LBUTTON, pointer);
+    SendMessageW(admin, WM_LBUTTONUP, 0, pointer);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    SendMessageW(admin, WM_LBUTTONDBLCLK, MK_LBUTTON, pointer);
+    SendMessageW(admin, WM_LBUTTONUP, 0, pointer);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_UNCHECKED);
+
+    // Space from keyboard focus must toggle the same state exactly once.
+    SetFocus(admin);
+    SendMessageW(admin, WM_KEYDOWN, VK_SPACE, 0);
+    SendMessageW(admin, WM_KEYUP, VK_SPACE, 0);
+    assert(SendMessageW(admin, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    SendMessageW(admin, BM_SETCHECK, BST_UNCHECKED, 0);
 
     SendMessageW(
         editor,
@@ -436,6 +629,9 @@ void CALLBACK ExerciseAdvancedToggle(
         &toggleBefore,
         &toggleAfterRapid));
 
+    assert(disclosureRedrawSuspends == 0);
+    assert(RemoveWindowSubclass(
+        toggle, RedrawSuspendProbe, 24));
     assert(RemoveWindowSubclass(
         editor,
         RedrawSuspendProbe,
@@ -583,6 +779,34 @@ int main() {
                 !IsIconic(window) &&
                 IsWindowVisible(window) &&
                 HasAboutHeading(window));
+
+            // A default hotkey's Reset button must never become visible even
+            // for a transient frame when opening the Hotkeys page.
+            SendMessageW(window, WM_COMMAND, MAKEWPARAM(51001, BN_CLICKED), 0);
+            std::array<HWND, 20> resetLinks{};
+            std::size_t resetCount = 0;
+            int prematureResetShows = 0;
+            for (UINT index = 0; index < resetLinks.size(); ++index) {
+                const HWND reset = GetDlgItem(window, 51760 + index);
+                if (!reset) continue;
+                assert(!IsWindowVisible(reset));
+                assert(SetWindowSubclass(reset, HotkeyResetExposureProbe,
+                    91, reinterpret_cast<DWORD_PTR>(&prematureResetShows)));
+                resetLinks[resetCount++] = reset;
+            }
+            assert(resetCount > 0);
+            for (int pass = 0; pass < 3; ++pass) {
+                SendMessageW(window, WM_COMMAND, MAKEWPARAM(51006, BN_CLICKED), 0);
+                for (std::size_t index = 0; index < resetCount; ++index) {
+                    assert(!IsWindowVisible(resetLinks[index]));
+                }
+                SendMessageW(window, WM_COMMAND, MAKEWPARAM(51001, BN_CLICKED), 0);
+            }
+            assert(prematureResetShows == 0);
+            for (std::size_t index = 0; index < resetCount; ++index) {
+                assert(RemoveWindowSubclass(resetLinks[index],
+                    HotkeyResetExposureProbe, 91));
+            }
 
             // Reproduce the real high-DPI/small-work-area path where General
             // genuinely needs scrolling. Settings now owns an in-client

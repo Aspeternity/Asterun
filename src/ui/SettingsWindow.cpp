@@ -2277,17 +2277,21 @@ void SettingsWindow::RefreshHotkeyPage(
         row.resetVisible =
             showReset;
 
-        ShowWindow(
-            row.status,
-            row.statusVisible
-                ? SW_SHOW
-                : SW_HIDE);
+        // Page entry only computes desired visibility. ShowPage commits the
+        // final HWND states quietly after the previous page has been hidden.
+        if (relayout) {
+            ShowWindow(
+                row.status,
+                row.statusVisible
+                    ? SW_SHOW
+                    : SW_HIDE);
 
-        ShowWindow(
-            row.reset,
-            row.resetVisible
-                ? SW_SHOW
-                : SW_HIDE);
+            ShowWindow(
+                row.reset,
+                row.resetVisible
+                    ? SW_SHOW
+                    : SW_HIDE);
+        }
     }
 
     syncing_ = oldSyncing;
@@ -3257,9 +3261,16 @@ void SettingsWindow::ShowPage(Page page) {
 
     page_ = page;
 
+    // Compute the Hotkeys row state before exposing any of its HWNDs.
+    // The previous order showed every Reset link for a transient frame.
+    if (page == Page::Hotkeys) {
+        RefreshHotkeyPage(false);
+    }
+
     const auto setVisibleQuiet =
-        [](const std::vector<HWND>& controls,
-           bool visible) {
+        [this](const std::vector<HWND>& controls,
+               bool visible,
+               bool hotkeyControls = false) {
             for (HWND control : controls) {
                 if (!control) {
                     continue;
@@ -3271,8 +3282,13 @@ void SettingsWindow::ShowPage(Page page) {
                          GWL_STYLE) &
                      WS_VISIBLE) != 0;
 
+                const bool shouldShow =
+                    visible &&
+                    (!hotkeyControls ||
+                     HotkeyControlDesiredVisible(control));
+
                 if (currentlyVisible ==
-                    visible) {
+                    shouldShow) {
                     continue;
                 }
 
@@ -3288,7 +3304,7 @@ void SettingsWindow::ShowPage(Page page) {
                         SWP_NOZORDER |
                         SWP_NOACTIVATE |
                         SWP_NOREDRAW |
-                        (visible
+                        (shouldShow
                              ? SWP_SHOWWINDOW
                              : SWP_HIDEWINDOW));
             }
@@ -3299,7 +3315,8 @@ void SettingsWindow::ShowPage(Page page) {
         page == Page::General);
     setVisibleQuiet(
         hotkeyControls_,
-        page == Page::Hotkeys);
+        page == Page::Hotkeys,
+        true);
     setVisibleQuiet(
         appearanceControls_,
         page == Page::Appearance);
@@ -3329,10 +3346,7 @@ void SettingsWindow::ShowPage(Page page) {
         }
     }
 
-    if (page == Page::Hotkeys) {
-        RefreshHotkeyPage(false);
-    } else if (
-        page == Page::Providers) {
+    if (page == Page::Providers) {
         SetTimer(
             hwnd_,
             kProviderStatusTimerId,
