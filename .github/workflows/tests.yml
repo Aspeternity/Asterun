@@ -150,12 +150,57 @@ jobs:
       # Temporary diagnostic stress gate: remove after root-cause fix.
       - name: Diagnose P02 modal lifecycle reproducibility (temporary)
         shell: pwsh
+        run: |
+          $env:ASTERUN_P02_ISOLATE = '1'
+          ctest --test-dir build-compat -C Release -R '^app_lifecycle_runtime_tests
+      - name: Run portable and Windows tests
+        shell: pwsh
         run: >-
           ctest --test-dir build-compat -C Release
-          -R "^app_lifecycle_runtime_tests$"
-          --repeat until-fail:8
+          --label-regex "^(portable|windows)$"
           --no-tests=error
+          --output-junit "${{ github.workspace }}/test-results/junit.xml"
           --output-on-failure
+      - name: Verify executed test list
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path test-results | Out-Null
+          ctest --test-dir build-compat -C Release --show-only=json-v1 | Out-File -Encoding utf8NoBOM test-results/inventory.json
+          python scripts/verify_ctest_run.py `
+            --inventory test-results/inventory.json `
+            --junit test-results/junit.xml `
+            --require-label portable `
+            --require-label windows `
+            --list-output test-results/execution-list.tsv `
+            --title "Windows 10 API baseline x64 tests (executed)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: test-results-windows-compat-x64
+          path: test-results/
+          if-no-files-found: error
+
+  test-inventory:
+    name: Cross-platform test inventory
+    needs: [linux-tests, windows-x64-tests, windows-arm64-test-build, windows-compat]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          path: test-results
+      - name: Every Linux portable test is covered on Windows
+        run: |
+          python3 scripts/compare_test_lists.py \
+            --reference test-results/test-results-linux/execution-list.tsv \
+            --target test-results/test-results-windows-x64/execution-list.tsv passed \
+            --target test-results/test-results-windows-compat-x64/execution-list.tsv passed \
+            --target test-results/test-results-windows-arm64-build-only/execution-list.tsv "built, NOT RUN"
+ --repeat until-fail:8 --no-tests=error --output-on-failure
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run portable and Windows tests
         shell: pwsh
         run: >-

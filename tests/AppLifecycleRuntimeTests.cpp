@@ -568,6 +568,13 @@ int main() {
     mutexName = L"Local\\Asterun.Batch1.Test." + std::to_wstring(GetCurrentProcessId());
     const auto com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const auto instance = GetModuleHandleW(nullptr);
+    // Temporary isolation probe only. Never retain in final diff.
+    if (GetEnvironmentVariableW(L"ASTERUN_P02_ISOLATE", nullptr, 0) != 0) {
+        altrun::AppLifecycleRuntimeFixture::ModalHotkeyRouting(instance);
+        if (SUCCEEDED(com)) CoUninitialize();
+        std::filesystem::remove_all(fixtureRoot);
+        return 0;
+    }
     altrun::AppLifecycleRuntimeFixture::Ownership(instance);
     altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
     altrun::AppLifecycleRuntimeFixture::ModalHotkeyRouting(instance);
