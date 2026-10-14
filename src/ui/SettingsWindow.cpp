@@ -34,6 +34,20 @@ namespace {
 constexpr wchar_t kSettingsClass[] = L"Asterun.Settings";
 constexpr wchar_t kSettingsTitle[] = L"Asterun Settings";
 
+// Do not repaint unchanged native STATIC or owner-drawn BUTTON labels.
+bool SetControlTextIfChanged(HWND hwnd, std::wstring_view wanted) {
+    if (!hwnd) return false;
+    const int length = GetWindowTextLengthW(hwnd);
+    std::wstring previous(static_cast<std::size_t>(std::max(0, length)) + 1, L'\0');
+    const int copied = GetWindowTextW(
+        hwnd, previous.data(), static_cast<int>(previous.size()));
+    previous.resize(static_cast<std::size_t>(std::max(0, copied)));
+    if (previous == wanted) return false;
+    const std::wstring value(wanted);
+    SetWindowTextW(hwnd, value.c_str());
+    return true;
+}
+
 constexpr DWORD kSettingsWindowExStyle =
     WS_EX_APPWINDOW;
 constexpr DWORD kSettingsWindowStyle =
@@ -1716,6 +1730,11 @@ void SettingsWindow::ApplyLanguage() {
             RDW_UPDATENOW);
 }
 
+void SettingsWindow::OnHotkeyBindingsChanged(
+    std::string_view changedActionId) {
+    RefreshHotkeyPage(true, changedActionId);
+}
+
 void SettingsWindow::RefreshFromSettings() {
     if (!hwnd_) return;
 
@@ -1996,54 +2015,33 @@ SettingsWindow::HotkeyRowFromControlId(
 }
 
 void SettingsWindow::SetHotkeyRowStatus(
-    std::string_view actionId,
-    std::wstring_view status) {
-    auto* row =
-        FindHotkeyRow(actionId);
+    std::string_view actionId, std::wstring_view status) {
+    auto* row = FindHotkeyRow(actionId);
+    if (!row || !row->status) return;
 
-    if (!row || !row->status) {
-        return;
+    const bool visible = hwnd_ && page_ == Page::Hotkeys &&
+        IsWindowVisible(hwnd_);
+    const int previousHeight = HotkeyAuxiliaryHeight(*row);
+    const bool previousVisible = row->statusVisible;
+    const bool changed = SetControlTextIfChanged(row->status, status);
+    row->statusVisible = !status.empty();
+    if (!changed && previousVisible == row->statusVisible) return;
+    if (!visible) return;
+
+    if (previousVisible != row->statusVisible) {
+        SetWindowPos(row->status, nullptr, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+            SWP_NOACTIVATE | SWP_NOREDRAW |
+            (row->statusVisible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
     }
-
-    const bool atomicUpdate =
-        hwnd_ &&
-        page_ == Page::Hotkeys;
-
-    window_presentation::ScopedRedrawSuspend redrawGuard(
-        atomicUpdate ? hwnd_ : nullptr);
-
-    SetWindowTextW(
-        row->status,
-        std::wstring(status).c_str());
-
-    row->statusVisible =
-        !status.empty();
-
-    ShowWindow(
-        row->status,
-        row->statusVisible
-            ? SW_SHOW
-            : SW_HIDE);
-
-    if (!atomicUpdate) {
-        return;
+    if (previousHeight != HotkeyAuxiliaryHeight(*row)) {
+        // A changing help/error line can move subsequent rows; repaint only
+        // the content pane without hiding the visible top-level window.
+        UpdatePageScrollBar();
+        LayoutCurrentPage(FALSE);
+        RedrawCurrentPage();
     }
-
-    Layout();
-
-    redrawGuard.Resume();
-
-    RedrawWindow(
-        hwnd_,
-        nullptr,
-        nullptr,
-        RDW_INVALIDATE |
-            RDW_ERASE |
-            RDW_ALLCHILDREN |
-            RDW_FRAME |
-            RDW_UPDATENOW);
 }
-
 
 bool SettingsWindow::
 HotkeyRowHasAuxiliaryContent(
@@ -2154,165 +2152,110 @@ int SettingsWindow::HotkeyGroupHeight(
 }
 
 void SettingsWindow::RefreshHotkeyPage(
-    bool relayout) {
-    if (hotkeyRows_.empty()) {
-        return;
-    }
+    bool relayout, std::string_view changedActionId) {
+    if (hotkeyRows_.empty()) return;
 
-    const bool atomicUpdate =
-        relayout &&
-        hwnd_ &&
-        page_ == Page::Hotkeys;
-
-    window_presentation::ScopedRedrawSuspend redrawGuard(
-        atomicUpdate ? hwnd_ : nullptr);
-
-    const bool oldSyncing =
-        syncing_;
+    const bool visible = hwnd_ && page_ == Page::Hotkeys &&
+        IsWindowVisible(hwnd_);
+    bool needsLayout = false;
+    std::vector<RECT> linkDirty;
+    const bool wasSyncing = syncing_;
     syncing_ = true;
+    const auto& bindings = app_.SettingsData().hotkeyBindings;
 
-    const auto bindings =
-        app_.SettingsData()
-            .hotkeyBindings;
+    for (auto& row : hotkeyRows_) {
+        const auto* action = FindHotkeyAction(row.actionId);
+        if (!action) continue;
 
-    for (auto& row :
-         hotkeyRows_) {
-        const auto* action =
-            FindHotkeyAction(
-                row.actionId);
+        const auto binding = EffectiveHotkeyBinding(
+            bindings, row.actionId);
+        const int previousHeight = HotkeyAuxiliaryHeight(row);
+        const bool oldStatusVisible = row.statusVisible;
+        const bool oldResetVisible = row.resetVisible;
 
-        if (!action) {
-            continue;
+        SetControlTextIfChanged(row.title, HotkeyActionLabel(row.actionId));
+        const bool capturing = capturingHotkeyActionId_ == row.actionId;
+        const std::wstring captureText = capturing
+            ? T(L"请按新的快捷键…", L"Press a new shortcut…")
+            : FormatHotkeyBinding(row.actionId);
+        SetControlTextIfChanged(row.capture, captureText);
+
+        // A single binding change never invalidates sibling toggles.
+        if (row.enabled && (changedActionId.empty() ||
+                            changedActionId == row.actionId)) {
+            InvalidateRect(row.enabled, nullptr, FALSE);
         }
 
-        const auto binding =
-            EffectiveHotkeyBinding(
-                bindings,
-                row.actionId);
-
-        SetWindowTextW(
-            row.title,
-            HotkeyActionLabel(
-                row.actionId).c_str());
-
-        const bool capturing =
-            capturingHotkeyActionId_ ==
-                row.actionId;
-
-        SetWindowTextW(
-            row.capture,
-            capturing
-                ? T(L"请按新的快捷键…",
-                    L"Press a new shortcut…")
-                : FormatHotkeyBinding(
-                      row.actionId).c_str());
-
-        if (row.enabled) {
-            InvalidateRect(
-                row.enabled,
-                nullptr,
-                TRUE);
-        }
-
-        auto current =
-            binding;
-        auto defaults =
-            action->defaultBinding;
-
-        CanonicalizeHotkeyBinding(
-            current);
-        CanonicalizeHotkeyBinding(
-            defaults);
-
-        const bool modified =
-            current.enabled !=
-                defaults.enabled ||
-            current.key !=
-                defaults.key ||
-            current.modifiers !=
-                defaults.modifiers;
-
-        SetWindowTextW(
-            row.reset,
-            T(L"恢复默认",
-              L"Reset"));
+        auto current = binding;
+        auto defaults = action->defaultBinding;
+        CanonicalizeHotkeyBinding(current);
+        CanonicalizeHotkeyBinding(defaults);
+        const bool modified = current.enabled != defaults.enabled ||
+            current.key != defaults.key ||
+            current.modifiers != defaults.modifiers;
+        SetControlTextIfChanged(row.reset, T(L"恢复默认", L"Reset"));
 
         std::wstring status;
-
         if (capturing) {
-            status =
-                T(L"按下新组合键，Esc 取消",
-                  L"Press a new shortcut; Esc cancels");
-        } else if (
-            binding.enabled &&
-            action->scope ==
-                HotkeyScope::Global &&
-            !app_.IsHotkeyActionRegistered(
-                row.actionId)) {
-            status =
-                T(L"Windows 注册失败，旧绑定仍有效。错误码：",
-                  L"Windows registration failed; the previous binding remains active. Error: ");
-            status +=
-                std::to_wstring(
-                    app_.HotkeyActionLastError(
-                        row.actionId));
+            status = T(L"按下新组合键，Esc 取消",
+                       L"Press a new shortcut; Esc cancels");
+        } else if (binding.enabled &&
+                   action->scope == HotkeyScope::Global &&
+                   !app_.IsHotkeyActionRegistered(row.actionId)) {
+            status = T(L"Windows 注册失败，旧绑定仍有效。错误码：",
+                       L"Windows registration failed; the previous binding remains active. Error: ");
+            status += std::to_wstring(
+                app_.HotkeyActionLastError(row.actionId));
         }
+        const bool statusTextChanged =
+            SetControlTextIfChanged(row.status, status);
+        row.statusVisible = page_ == Page::Hotkeys && !status.empty();
+        row.resetVisible = page_ == Page::Hotkeys && modified;
 
-        const bool showStatus =
-            page_ == Page::Hotkeys &&
-            !status.empty();
+        // ShowPage(relayout=false) stages the state before showing children.
+        if (!relayout || !visible) continue;
 
-        // Per-item Reset is an inline main-row action. Only status/capture
-        // copy expands the row below the shortcut control.
-        const bool showReset =
-            page_ == Page::Hotkeys &&
-            modified;
-
-        SetWindowTextW(
-            row.status,
-            status.c_str());
-
-        row.statusVisible =
-            showStatus;
-        row.resetVisible =
-            showReset;
-
-        // Page entry only computes desired visibility. ShowPage commits the
-        // final HWND states quietly after the previous page has been hidden.
-        if (relayout) {
-            ShowWindow(
-                row.status,
-                row.statusVisible
-                    ? SW_SHOW
-                    : SW_HIDE);
-
-            ShowWindow(
-                row.reset,
-                row.resetVisible
-                    ? SW_SHOW
-                    : SW_HIDE);
+        if (previousHeight != HotkeyAuxiliaryHeight(row) ||
+            oldStatusVisible != row.statusVisible ||
+            (statusTextChanged && row.statusVisible)) {
+            needsLayout = true;
+        }
+        if (oldStatusVisible != row.statusVisible) {
+            SetWindowPos(row.status, nullptr, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                SWP_NOACTIVATE | SWP_NOREDRAW |
+                (row.statusVisible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
+        }
+        if (oldResetVisible != row.resetVisible) {
+            RECT dirty{};
+            if (GetWindowRect(row.reset, &dirty)) {
+                MapWindowPoints(HWND_DESKTOP, hwnd_,
+                    reinterpret_cast<POINT*>(&dirty), 2);
+                linkDirty.push_back(dirty);
+            }
+            SetWindowPos(row.reset, nullptr, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                SWP_NOACTIVATE | SWP_NOREDRAW |
+                (row.resetVisible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
         }
     }
+    syncing_ = wasSyncing;
+    if (!relayout || !visible) return;
 
-    syncing_ = oldSyncing;
-
-    if (!atomicUpdate) {
-        return;
+    if (needsLayout) {
+        UpdatePageScrollBar();
+        LayoutCurrentPage(FALSE);
+        RedrawCurrentPage();
+    } else if (!linkDirty.empty()) {
+        // Reset links do not change row height. Clip and repaint only the
+        // affected area, leaving the sidebar and other buttons untouched.
+        ClipHotkeyControlsToViewport(FALSE);
+        for (const RECT& dirty : linkDirty) {
+            RedrawWindow(hwnd_, &dirty, nullptr,
+                RDW_INVALIDATE | RDW_NOERASE |
+                RDW_ALLCHILDREN | RDW_UPDATENOW);
+        }
     }
-
-    Layout();
-
-    redrawGuard.Resume();
-
-    RedrawWindow(
-        hwnd_,
-        nullptr,
-        nullptr,
-        RDW_INVALIDATE |
-            RDW_ERASE |
-            RDW_ALLCHILDREN |
-            RDW_FRAME |
-            RDW_UPDATENOW);
 }
 
 void SettingsWindow::BeginHotkeyCapture(
@@ -2524,7 +2467,7 @@ void SettingsWindow::ToggleHotkeyActionEnabled(
         return;
     }
 
-    RefreshHotkeyPage();
+    // App::SetHotkeyBinding synchronized this row already.
 }
 
 void SettingsWindow::ResetHotkeyAction(
@@ -2566,12 +2509,10 @@ void SettingsWindow::ResetHotkeyAction(
         return;
     }
 
-    if (capturingHotkeyActionId_ ==
-        actionId) {
-        CancelHotkeyCapture(false);
+    if (capturingHotkeyActionId_ == actionId) {
+        // Dismiss the capture prompt after the App's binding refresh.
+        CancelHotkeyCapture();
     }
-
-    RefreshHotkeyPage();
 }
 
 void SettingsWindow::ResetAllHotkeys() {
@@ -2601,8 +2542,8 @@ void SettingsWindow::ResetAllHotkeys() {
         return;
     }
 
-    CancelHotkeyCapture(false);
-    RefreshHotkeyPage();
+    // App already refreshed bindings. Only a live capture needs another pass.
+    CancelHotkeyCapture();
 }
 
 void SettingsWindow::RefreshProviderStatus() {
