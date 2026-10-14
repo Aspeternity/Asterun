@@ -358,6 +358,8 @@ struct AppLifecycleRuntimeFixture {
             app.window_ = std::make_unique<LauncherWindow>(app, instance);
             assert(app.window_->Create());
             assert(!app.window_->IsVisible());
+            const HWND initialLauncherHwnd = app.window_->hwnd_;
+            assert(initialLauncherHwnd && IsWindow(initialLauncherHwnd));
             HWND owner = CreateWindowExW(0, L"STATIC", L"modal-hotkey-owner",
                 WS_POPUP | WS_VISIBLE, 0, 0, 200, 100,
                 nullptr, nullptr, instance, nullptr);
@@ -405,6 +407,8 @@ struct AppLifecycleRuntimeFixture {
                         << " ownerVisible=" << (IsWindowVisible(owner) != FALSE)
                         << " modalExists=" << (FindWindowW(modalClass, nullptr) != nullptr)
                         << " launcherVisible=" << app.window_->IsVisible()
+                        << " launcherHwndStillSame=" << (app.window_->hwnd_ == initialLauncherHwnd)
+                        << " launcherHwndStillValid=" << (IsWindow(initialLauncherHwnd) != FALSE)
                         << " foregroundIsOwner=" << (GetForegroundWindow() == owner)
                         << " uiFailureDialogCalls=" << (uiFailureDialogCount - uiFailureBefore)
                         << " hadPendingQuitBefore=" << hadPendingQuitBefore
