@@ -2900,18 +2900,25 @@ void SettingsWindow::RefreshProviderStatus() {
     providerActionsVisible_ = showActions;
 
     if (managedEverythingTrayIcon_) {
+        const bool showControl = visible && showTray;
+        const bool wasVisible =
+            (GetWindowLongPtrW(managedEverythingTrayIcon_,
+                GWL_STYLE) & WS_VISIBLE) != 0;
         setProviderVisibleQuiet(
-            managedEverythingTrayIcon_,
-            visible && showTray);
-        EnableWindow(
-            managedEverythingTrayIcon_,
-            enabled &&
-                !bootstrap.running &&
-                !externalActive);
-        InvalidateRect(
-            managedEverythingTrayIcon_,
-            nullptr,
-            TRUE);
+            managedEverythingTrayIcon_, showControl);
+        const bool shouldEnable =
+            enabled && !bootstrap.running && !externalActive;
+        const bool enabledChanged =
+            (IsWindowEnabled(managedEverythingTrayIcon_) != FALSE) !=
+                shouldEnable;
+        if (enabledChanged) {
+            EnableWindow(managedEverythingTrayIcon_, shouldEnable);
+        }
+        // This control is shown with SWP_NOREDRAW. Its initial reveal
+        // still needs paint; subsequent unchanged status ticks do not.
+        if ((showControl && !wasVisible) || enabledChanged) {
+            InvalidateRect(managedEverythingTrayIcon_, nullptr, FALSE);
+        }
     }
 
     if (providerUpdateEverything_) {
@@ -3080,12 +3087,8 @@ ToggleManagedEverythingTrayIcon() {
                 MB_ICONERROR);
     }
 
-    if (managedEverythingTrayIcon_) {
-        InvalidateRect(
-            managedEverythingTrayIcon_,
-            nullptr,
-            FALSE);
-    }
+    // The provider WM_COMMAND path redraws only the switch glyph. A full
+    // row invalidation here repainted the unchanged left label.
     RefreshProviderStatus();
 }
 
@@ -5673,25 +5676,18 @@ void SettingsWindow::DrawGeneralToggle(
         (item.itemState &
          ODS_SELECTED) != 0;
 
-    const COLORREF rowColor =
-        pressed
-            ? kCardPressed
-            : kCardBackground;
-
-    HBRUSH rowBrush =
-        CreateSolidBrush(
-            rowColor);
-
-    FillRect(
-        item.hDC,
-        &rect,
-        rowBrush);
-    DeleteObject(
-        rowBrush);
-
     const UINT id =
         static_cast<UINT>(
             item.CtlID);
+    // Search sources use a whole-row owner-drawn button. On native mouse
+    // down/up only the right switch must change, not the static label.
+    const bool providerRow =
+        id == kIdProviderStartMenu ||
+        id == kIdProviderPackaged ||
+        id == kIdProviderAppPaths ||
+        id == kIdProviderPath ||
+        id == kIdProviderEverything ||
+        id == kIdManagedEverythingTrayIcon;
 
     const bool checked =
         ToggleChecked(id);
@@ -5782,6 +5778,41 @@ void SettingsWindow::DrawGeneralToggle(
     switchRect.bottom =
         switchRect.top +
         switchHeight;
+
+    const RECT switchSurface{
+        switchRect.left - Scale(3),
+        rect.top,
+        rect.right,
+        rect.bottom,
+    };
+    if (providerRow &&
+        (item.itemAction & ODA_DRAWENTIRE) == 0 &&
+        (item.itemAction & (ODA_SELECT | ODA_FOCUS)) != 0) {
+        if ((item.itemAction & ODA_SELECT) != 0) {
+            const HBRUSH surfaceBrush =
+                CreateSolidBrush(pressed ? kCardPressed : kCardBackground);
+            FillRect(item.hDC, &switchSurface, surfaceBrush);
+            DeleteObject(surfaceBrush);
+            DrawSwitchGlyph(item.hDC, switchRect, checked, pressed);
+        }
+        // No text or separator repaint on mouse press/release or ODA_FOCUS.
+        // Focus never had an independently painted rectangle here.
+        return;
+    }
+
+    // Full exposure/resizing still paints labels and separators. Even on a
+    // pressed full draw, the left label background remains unchanged.
+    const COLORREF rowColor =
+        providerRow ? kCardBackground :
+        (pressed ? kCardPressed : kCardBackground);
+    const HBRUSH rowBrush = CreateSolidBrush(rowColor);
+    FillRect(item.hDC, &rect, rowBrush);
+    DeleteObject(rowBrush);
+    if (providerRow && pressed) {
+        const HBRUSH pressedBrush = CreateSolidBrush(kCardPressed);
+        FillRect(item.hDC, &switchSurface, pressedBrush);
+        DeleteObject(pressedBrush);
+    }
 
     DrawSwitchGlyph(
         item.hDC,
@@ -6901,6 +6932,24 @@ LRESULT SettingsWindow::HandleMessage(
                         RDW_UPDATENOW);
             };
 
+        const auto redrawProviderToggle = [&]() {
+            if (!commandControl) return;
+            RECT row{};
+            if (!GetClientRect(commandControl, &row)) {
+                redrawClickedToggle();
+                return;
+            }
+            // Restrict updates to the switch surface, including the
+            // managed Everything tray switch on this same page.
+            const RECT dirty{
+                std::max(row.left,
+                    row.right - Scale(18) - Scale(40) - Scale(4)),
+                row.top, row.right, row.bottom,
+            };
+            RedrawWindow(commandControl, &dirty, nullptr,
+                RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW);
+        };
+
         // BS_OWNERDRAW buttons report the second press of a rapid
         // double-click as BN_DOUBLECLICKED rather than BN_CLICKED.
         // Treat both notifications as one physical toggle activation so
@@ -7031,7 +7080,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdProviderEverything:
             if (toggleActivated) {
                 ToggleProviderSetting(id);
-                redrawClickedToggle();
+                redrawProviderToggle();
             }
             return 0;
 
@@ -7056,7 +7105,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdManagedEverythingTrayIcon:
             if (toggleActivated) {
                 ToggleManagedEverythingTrayIcon();
-                redrawClickedToggle();
+                redrawProviderToggle();
             }
             return 0;
 
