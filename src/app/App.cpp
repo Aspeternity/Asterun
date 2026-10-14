@@ -307,19 +307,18 @@ App::~App() {
         providerRefreshThread_.join();
     }
 
-    // All producers have stopped; none can post to a destroyed/recycled HWND.
-    DestroyUpdateDispatchWindow();
-
+    // Window-owned hotkeys must be unregistered before their message-only
+    // HWND is destroyed. Keep the dispatcher alive until all bindings release.
     if (hotkeyRegistered_) {
         UnregisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kGlobalHotkeyId);
         hotkeyRegistered_ = false;
     }
 
     if (auxiliaryHotkeyRegistered_) {
         UnregisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kAuxiliaryHotkeyId);
         auxiliaryHotkeyRegistered_ =
             false;
@@ -327,11 +326,14 @@ App::~App() {
 
     if (shortcutManagerHotkeyRegistered_) {
         UnregisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kShortcutManagerHotkeyId);
         shortcutManagerHotkeyRegistered_ =
             false;
     }
+
+    // All producers have stopped and no hotkey remains bound to this HWND.
+    DestroyUpdateDispatchWindow();
 
     if (singleInstanceMutex_) {
         CloseHandle(singleInstanceMutex_);
@@ -634,34 +636,12 @@ int App::Run() {
             continue;
         }
 
+        // Rare no-dispatcher fallback: thread WM_HOTKEY still reaches
+        // the main pump. Normal registrations target updateDispatchWindow_.
         if (msg.message == WM_HOTKEY &&
-            msg.hwnd == nullptr) {
-            if (msg.wParam ==
-                    static_cast<WPARAM>(
-                        kShortcutManagerHotkeyId)) {
-                ShowShortcutManager();
-                continue;
-            }
-
-            if (msg.wParam ==
-                    static_cast<WPARAM>(
-                        kGlobalHotkeyId) ||
-                msg.wParam ==
-                    static_cast<WPARAM>(
-                        kAuxiliaryHotkeyId)) {
-
-                if (window_) {
-                    // Capture the foreground Windows context before Asterun
-                    // takes focus. Hiding an already-visible launcher must not
-                    // replace the session snapshot with Asterun itself.
-                    if (!window_->IsVisible()) {
-                        CaptureActivationContext();
-                    }
-
-                    window_->Toggle();
-                }
-                continue;
-            }
+            msg.hwnd == nullptr &&
+            HandleHotkeyMessage(msg.wParam)) {
+            continue;
         }
 
         TranslateMessage(&msg);
@@ -674,6 +654,30 @@ int App::Run() {
     }
 
     return static_cast<int>(msg.wParam);
+}
+
+// A single hotkey action path serves both main-loop fallback messages
+// and HWND-targeted WM_HOTKEY while nested modal pumps are running.
+bool App::HandleHotkeyMessage(WPARAM id) {
+    if (id == static_cast<WPARAM>(kShortcutManagerHotkeyId)) {
+        ShowShortcutManager();
+        return true;
+    }
+
+    if (id != static_cast<WPARAM>(kGlobalHotkeyId) &&
+        id != static_cast<WPARAM>(kAuxiliaryHotkeyId)) {
+        return false;
+    }
+
+    if (window_) {
+        // Capture the desktop context before an initially hidden launcher
+        // claims foreground. Hiding a visible launcher keeps its snapshot.
+        if (!window_->IsVisible()) {
+            CaptureActivationContext();
+        }
+        window_->Toggle();
+    }
+    return true;
 }
 
 void App::ReloadCommands() {
@@ -2426,6 +2430,7 @@ App::UpdateDispatchWindowProc(
 
     if (self && !self->shuttingDown_) {
         if (self->HandleUiNotification(message, wParam, lParam)) return 0;
+        if (message == WM_HOTKEY && self->HandleHotkeyMessage(wParam)) return 0;
 
         if (message == WM_TIMER && self->providerDebounceTimer_ != 0 &&
             wParam == kProviderDebounceTimerId) {
@@ -3052,7 +3057,7 @@ bool App::RebindAuxiliaryHotkey(
     if (!enabled) {
         if (auxiliaryHotkeyRegistered_) {
             UnregisterHotKey(
-                nullptr,
+                updateDispatchWindow_,
                 kAuxiliaryHotkeyId);
         }
 
@@ -3090,7 +3095,7 @@ bool App::RebindAuxiliaryHotkey(
 
     if (hadOld) {
         UnregisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kAuxiliaryHotkeyId);
         auxiliaryHotkeyRegistered_ =
             false;
@@ -3099,7 +3104,7 @@ bool App::RebindAuxiliaryHotkey(
     SetLastError(ERROR_SUCCESS);
 
     if (RegisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kAuxiliaryHotkeyId,
             newModifiers,
             newVk)) {
@@ -3121,7 +3126,7 @@ bool App::RebindAuxiliaryHotkey(
     if (hadOld &&
         oldVk != 0 &&
         RegisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kAuxiliaryHotkeyId,
             oldModifiers,
             oldVk)) {
@@ -3156,7 +3161,7 @@ bool App::RebindShortcutManagerHotkey(
     if (!enabled) {
         if (shortcutManagerHotkeyRegistered_) {
             UnregisterHotKey(
-                nullptr,
+                updateDispatchWindow_,
                 kShortcutManagerHotkeyId);
         }
 
@@ -3195,7 +3200,7 @@ bool App::RebindShortcutManagerHotkey(
 
     if (hadOld) {
         UnregisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kShortcutManagerHotkeyId);
         shortcutManagerHotkeyRegistered_ =
             false;
@@ -3204,7 +3209,7 @@ bool App::RebindShortcutManagerHotkey(
     SetLastError(ERROR_SUCCESS);
 
     if (RegisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kShortcutManagerHotkeyId,
             newModifiers,
             newVk)) {
@@ -3225,7 +3230,7 @@ bool App::RebindShortcutManagerHotkey(
     if (hadOld &&
         oldVk != 0 &&
         RegisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kShortcutManagerHotkeyId,
             oldModifiers,
             oldVk)) {
@@ -3285,7 +3290,7 @@ bool App::RebindGlobalHotkey(
     // actual Windows registration had become unavailable.
     if (hadOld) {
         UnregisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kGlobalHotkeyId);
         hotkeyRegistered_ = false;
     }
@@ -3293,7 +3298,7 @@ bool App::RebindGlobalHotkey(
     SetLastError(ERROR_SUCCESS);
 
     if (RegisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kGlobalHotkeyId,
             newModifiers,
             newVk)) {
@@ -3315,7 +3320,7 @@ bool App::RebindGlobalHotkey(
     if (hadOld &&
         oldVk != 0 &&
         RegisterHotKey(
-            nullptr,
+            updateDispatchWindow_,
             kGlobalHotkeyId,
             oldModifiers,
             oldVk)) {
