@@ -11,6 +11,7 @@
 #include <functional>
 #include <future>
 #include <iostream>
+#include <string_view>
 #include <unordered_map>
 
 namespace {
@@ -529,18 +530,29 @@ struct AppLifecycleRuntimeFixture {
     }
 };
 }
-int main() {
+int main(int argc, char* argv[]) {
     fixtureRoot = std::filesystem::temp_directory_path() /
         (L"Asterun-Batch1-" + std::to_wstring(GetCurrentProcessId()));
     mutexName = L"Local\\Asterun.Batch1.Test." + std::to_wstring(GetCurrentProcessId());
     const auto com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const auto instance = GetModuleHandleW(nullptr);
-    altrun::AppLifecycleRuntimeFixture::Ownership(instance);
-    altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
-    altrun::AppLifecycleRuntimeFixture::ModalHotkeyRouting(instance);
-    altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
-    altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
+    const bool modalHotkeysOnly = argc == 2 &&
+        std::string_view(argv[1]) == "--modal-hotkeys";
+    assert(argc == 1 || modalHotkeysOnly);
+    if (modalHotkeysOnly) {
+        // Win32 modal pumps and WM_QUIT are thread-scoped. Run this strict
+        // hotkey regression in its own process, not after lifecycle shutdown
+        // tests that intentionally destroy the launcher's main window.
+        altrun::AppLifecycleRuntimeFixture::ModalHotkeyRouting(instance);
+    } else {
+        altrun::AppLifecycleRuntimeFixture::Ownership(instance);
+        altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
+        altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
+        altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
+    }
     if (SUCCEEDED(com)) CoUninitialize();
     std::filesystem::remove_all(fixtureRoot);
-    std::cout << "Primary ownership and modal dispatcher regressions passed\n";
+    std::cout << (modalHotkeysOnly
+        ? "Modal hotkey dispatcher regressions passed\n"
+        : "Primary ownership and modal dispatcher regressions passed\n");
 }
