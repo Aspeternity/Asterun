@@ -1,7 +1,6 @@
 #include "app/App.hpp"
 #include "platform/DllSearchHardening.hpp"
 #include "platform/WinUtil.hpp"
-#include "platform/NotificationIdentity.hpp"
 
 #include <objbase.h>
 #include <shellapi.h>
@@ -211,12 +210,6 @@ int WINAPI wWinMain(
 
     SetProcessDpiAwarenessContext(
         DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-
-    // Windows 11 renders an app attribution row above notifications. Give the
-    // process a stable AUMID + icon before any Asterun window/tray UI exists
-    // so that row uses the Asterun mark instead of an empty placeholder.
-    altrun::notification_identity::Register(
-        instance);
 
     const HRESULT comResult =
         CoInitializeEx(
