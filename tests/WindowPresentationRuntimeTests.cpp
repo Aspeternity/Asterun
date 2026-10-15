@@ -113,6 +113,58 @@ void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor) {
     applyDpi(initialDpi, changedDpi);
 }
 
+
+// UI-R02: verify selected CJK UI face exists and contains all frequently
+// reported Han glyphs, rather than relying on silent GDI face substitution.
+int CALLBACK MarkFoundUiFont(const LOGFONTW*, const TEXTMETRICW*,
+                             DWORD, LPARAM context) {
+    *reinterpret_cast<bool*>(context) = true;
+    return 0;
+}
+
+bool InstalledUiTypeface(HDC dc, const wchar_t* name) {
+    LOGFONTW requested{};
+    requested.lfCharSet = DEFAULT_CHARSET;
+    lstrcpynW(requested.lfFaceName, name, LF_FACESIZE);
+    bool found = false;
+    EnumFontFamiliesExW(dc, &requested, MarkFoundUiFont,
+        reinterpret_cast<LPARAM>(&found), 0);
+    return found;
+}
+
+void AssertChineseUiTypeface() {
+    HDC dc = GetDC(nullptr);
+    assert(dc);
+    const bool hasYaHei = InstalledUiTypeface(dc, L"Microsoft YaHei");
+    const bool hasYaHeiUi = InstalledUiTypeface(dc, L"Microsoft YaHei UI");
+    const wchar_t* expected = hasYaHei ? L"Microsoft YaHei"
+        : hasYaHeiUi ? L"Microsoft YaHei UI" : L"Segoe UI";
+    const auto spec = altrun::ui::ApplicationFontSpec(
+        altrun::Language::ZhCN, altrun::ui::UiFontRole::Body);
+    assert(lstrcmpiW(spec.face, expected) == 0);
+
+    const HFONT font = altrun::ui::CreateFontHandle(spec, 96);
+    assert(font);
+    const HGDIOBJ old = SelectObject(dc, font);
+    assert(old && old != HGDI_ERROR);
+    wchar_t realized[LF_FACESIZE]{};
+    assert(GetTextFaceW(dc, LF_FACESIZE, realized) != 0);
+    if (hasYaHei || hasYaHeiUi) {
+        // These common glyphs must be provided by the chosen face itself,
+        // without per-character substitution to visually unrelated fonts.
+        assert(lstrcmpiW(realized, expected) == 0);
+        constexpr wchar_t sample[] = L"搜索来源新建快捷词";
+        WORD glyphs[(sizeof(sample) / sizeof(wchar_t)) - 1]{};
+        assert(GetGlyphIndicesW(dc, sample,
+            static_cast<int>((sizeof(sample) / sizeof(wchar_t)) - 1),
+            glyphs, GGI_MARK_NONEXISTING_GLYPHS) != GDI_ERROR);
+        for (const WORD glyph : glyphs) assert(glyph != 0xffff);
+    }
+    assert(SelectObject(dc, old) == font);
+    assert(DeleteObject(font));
+    assert(ReleaseDC(nullptr, dc) == 1);
+}
+
 void AssertApplicationTypographyPolicy() {
     for (const auto language :
          {altrun::Language::ZhCN, altrun::Language::EnUS}) {
@@ -765,6 +817,7 @@ int main() {
     const auto com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const HINSTANCE instance = GetModuleHandleW(nullptr);
     AssertApplicationTypographyPolicy();
+    AssertChineseUiTypeface();
 
     const HWND owner = CreateWindowExW(WS_EX_TOOLWINDOW, L"STATIC", L"Owner",
         WS_POPUP, -20000, -20000, 200, 100, nullptr, nullptr, instance, nullptr);
