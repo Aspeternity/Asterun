@@ -60,7 +60,7 @@ private:
         LPARAM lParam);
 
     void CreateControls();
-    void ApplyFonts();
+    void ApplyFonts(BOOL repaint = TRUE);
     void CloseWindow();
     void ApplyLanguage();
     void Layout(bool repaint = true);

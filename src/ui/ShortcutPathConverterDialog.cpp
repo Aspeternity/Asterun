@@ -1118,7 +1118,7 @@ void ShortcutPathConverterDialog::CreateControls() {
 
 }
 
-void ShortcutPathConverterDialog::ApplyFonts() {
+void ShortcutPathConverterDialog::ApplyFonts(BOOL repaint) {
     const auto language = app_.SettingsData().language;
     HFONT body = ui::CreateFontHandle(
         ui::ApplicationFontSpec(language, ui::UiFontRole::Body), dpi_);
@@ -1142,12 +1142,12 @@ void ShortcutPathConverterDialog::ApplyFonts() {
         rule_, list_, status_, apply_}) {
         if (control) {
             SendMessageW(control, WM_SETFONT,
-                reinterpret_cast<WPARAM>(font_), FALSE);
+                reinterpret_cast<WPARAM>(font_), repaint);
         }
     }
     if (modeTitle_) {
         SendMessageW(modeTitle_, WM_SETFONT,
-            reinterpret_cast<WPARAM>(groupFont_), FALSE);
+            reinterpret_cast<WPARAM>(groupFont_), repaint);
     }
     if (list_) {
         ui::InitializeNextListView(list_, dpi_, font_, groupFont_);
@@ -2998,7 +2998,7 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
                 SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
             dpiLayoutInProgress_ = false;
         }
-        ApplyFonts();
+        ApplyFonts(FALSE);
         Layout(false);
         RedrawWindow(hwnd_, nullptr, nullptr,
             RDW_INVALIDATE | RDW_NOERASE |

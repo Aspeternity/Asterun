@@ -1089,7 +1089,7 @@ void ShortcutEditorDialog::CreateControls() {
     ApplyFonts();
 }
 
-void ShortcutEditorDialog::ApplyFonts() {
+void ShortcutEditorDialog::ApplyFonts(BOOL repaint) {
     const auto language = app_.SettingsData().language;
     HFONT body = ui::CreateFontHandle(
         ui::ApplicationFontSpec(language, ui::UiFontRole::Body), dpi_);
@@ -1123,7 +1123,7 @@ void ShortcutEditorDialog::ApplyFonts() {
             // All form labels use one body font. Only the Advanced header and
             // primary action retain a semantic semibold paint role.
             SendMessageW(control, WM_SETFONT,
-                reinterpret_cast<WPARAM>(font_), FALSE);
+                reinterpret_cast<WPARAM>(font_), repaint);
         }
     }
 
@@ -3398,7 +3398,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
                 SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
             dynamicLayoutInProgress_ = false;
         }
-        ApplyFonts();
+        ApplyFonts(FALSE);
         RefreshDynamicLayout();
         return 0;
     }
