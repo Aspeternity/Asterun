@@ -26,6 +26,7 @@ public:
     void ShowAbout();
     void ApplyLanguage();
     void RefreshFromSettings();
+    void OnHotkeyBindingsChanged(std::string_view actionId = {});
     void OnProgramIndexRefreshCompleted(
         int outcome);
     void OnDynamicProviderStatusChanged();
@@ -215,7 +216,8 @@ private:
     };
 
     void RefreshHotkeyPage(
-        bool relayout = true);
+        bool relayout = true,
+        std::string_view changedActionId = {});
     void BeginHotkeyCapture(
         std::string_view actionId);
     void CancelHotkeyCapture(
