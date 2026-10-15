@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "core/HotkeyRegistry.hpp"
 #include "NumericIntentRuntimeFixture.hpp"
 #include "platform/InstanceIpc.hpp"
 #include "ui/SettingsWindow.hpp"
@@ -161,6 +162,12 @@ struct PaintMessageCounts {
     int paint{};
     int erase{};
 };
+
+LRESULT CALLBACK TextChangeProbe(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
+                                 UINT_PTR, DWORD_PTR data) {
+    if (msg == WM_SETTEXT) ++*reinterpret_cast<int*>(data);
+    return DefSubclassProc(hwnd, msg, wp, lp);
+}
 
 LRESULT CALLBACK PaintMessageProbe(
     HWND window,
@@ -1079,6 +1086,115 @@ int main() {
                 pinyin,
                 PaintMessageProbe,
                 5));
+
+            if (attempt == 0) {
+                // Exercise real owner-drawn BUTTON input, not fake WM_COMMAND.
+                // General is the visual/interaction reference for all pages.
+                SetActiveWindow(window);
+                int topLevelSuspends = 0;
+                assert(SetWindowSubclass(window, RedrawSuspendProbe, 60,
+                    reinterpret_cast<DWORD_PTR>(&topLevelSuspends)));
+                const bool originalGeneral =
+                    app.SettingsData().defaultEnglishInputOnReveal;
+                for (int n = 0; n < 8; ++n) {
+                    SendMessageW(defaultEnglish, BM_CLICK, 0, 0);
+                    assert(app.SettingsData().defaultEnglishInputOnReveal ==
+                        (n % 2 == 0 ? !originalGeneral : originalGeneral));
+                    assert(IsWindowVisible(window));
+                }
+                SendMessageW(window, WM_COMMAND,
+                    MAKEWPARAM(51006, BN_CLICKED), 0);
+                std::size_t exitIndex = 0;
+                for (const auto& action : HotkeyActionRegistry()) {
+                    if (action.id == hotkey_actions::kExitApplication) break;
+                    ++exitIndex;
+                }
+                assert(exitIndex + 1 < HotkeyActionRegistry().size());
+                const HWND hotkey = GetDlgItem(window, 51740 + exitIndex);
+                const HWND hotkeySibling = GetDlgItem(window, 51740 + exitIndex + 1);
+                const HWND sidebar = GetDlgItem(window, 51001);
+                assert(hotkey && hotkeySibling && sidebar);
+                assert(IsWindowVisible(hotkey));
+                PaintMessageCounts hotkeySiblingPaint{}, sidebarPaint{};
+                assert(SetWindowSubclass(hotkeySibling, PaintMessageProbe, 61,
+                    reinterpret_cast<DWORD_PTR>(&hotkeySiblingPaint)));
+                assert(SetWindowSubclass(sidebar, PaintMessageProbe, 62,
+                    reinterpret_cast<DWORD_PTR>(&sidebarPaint)));
+                const bool originalHotkey = EffectiveHotkeyBinding(
+                    app.SettingsData().hotkeyBindings,
+                    hotkey_actions::kExitApplication).enabled;
+                for (int n = 0; n < 8; ++n) {
+                    SendMessageW(hotkey, BM_CLICK, 0, 0);
+                    assert(EffectiveHotkeyBinding(
+                        app.SettingsData().hotkeyBindings,
+                        hotkey_actions::kExitApplication).enabled ==
+                        (n % 2 == 0 ? !originalHotkey : originalHotkey));
+                    assert(IsWindowVisible(window) && topLevelSuspends == 0);
+                    UpdateWindow(hotkeySibling);
+                    UpdateWindow(sidebar);
+                    assert(hotkeySiblingPaint.paint == 0 &&
+                           hotkeySiblingPaint.erase == 0 &&
+                           sidebarPaint.paint == 0 &&
+                           sidebarPaint.erase == 0);
+                }
+                assert(RemoveWindowSubclass(sidebar, PaintMessageProbe, 62));
+                assert(RemoveWindowSubclass(hotkeySibling, PaintMessageProbe, 61));
+
+                SendMessageW(window, WM_COMMAND,
+                    MAKEWPARAM(51005, BN_CLICKED), 0);
+                const HWND provider = GetDlgItem(window, 51601);
+                const HWND sibling = GetDlgItem(window, 51602);
+                assert(provider && sibling && IsWindowVisible(provider));
+                PaintMessageCounts sourceSiblingPaint{};
+                assert(SetWindowSubclass(sibling, PaintMessageProbe, 63,
+                    reinterpret_cast<DWORD_PTR>(&sourceSiblingPaint)));
+                const bool originalProvider = providers::IsEnabled(
+                    app.SettingsData().providerEnabled, providers::kStartMenu, true);
+                const ULONGLONG begin = GetTickCount64();
+                for (int n = 0; n < 8; ++n) {
+                    SendMessageW(provider, BM_CLICK, 0, 0);
+                    UpdateWindow(sibling);
+                    assert(IsWindowVisible(window) && topLevelSuspends == 0);
+                    assert(sourceSiblingPaint.paint == 0 &&
+                           sourceSiblingPaint.erase == 0);
+                }
+                SendMessageW(window, WM_TIMER, 0x51691, 0);
+                assert(providers::IsEnabled(app.SettingsData().providerEnabled,
+                    providers::kStartMenu, true) == originalProvider);
+                assert(RemoveWindowSubclass(sibling, PaintMessageProbe, 63));
+
+                // Unchanged Everything status must not set identical text on
+                // every 1-second poll and indirectly invalidate other rows.
+                HWND status = nullptr;
+                EnumChildWindows(window, [](HWND child, LPARAM data) -> BOOL {
+                    wchar_t name[24]{}, label[512]{};
+                    GetClassNameW(child, name, 24);
+                    if (lstrcmpiW(name, L"STATIC") != 0 ||
+                        !IsWindowVisible(child)) return TRUE;
+                    GetWindowTextW(child, label, 512);
+                    if (std::wstring_view(label).find(L"Everything") !=
+                        std::wstring_view::npos &&
+                        (label[0] == L'○' || label[0] == L'◌' ||
+                         label[0] == L'⚠')) {
+                        *reinterpret_cast<HWND*>(data) = child;
+                        return FALSE;
+                    }
+                    return TRUE;
+                }, reinterpret_cast<LPARAM>(&status));
+                assert(status);
+                int redundantTextUpdates = 0;
+                assert(SetWindowSubclass(status, TextChangeProbe, 64,
+                    reinterpret_cast<DWORD_PTR>(&redundantTextUpdates)));
+                for (int n = 0; n < 3; ++n)
+                    SendMessageW(window, WM_TIMER, 0x51690, 0);
+                assert(redundantTextUpdates == 0);
+                assert(RemoveWindowSubclass(status, TextChangeProbe, 64));
+                assert(RemoveWindowSubclass(window, RedrawSuspendProbe, 60));
+                std::cout << "Native provider clicks + stable status: "
+                          << (GetTickCount64() - begin) << " ms\n";
+                SendMessageW(window, WM_COMMAND,
+                    MAKEWPARAM(51001, BN_CLICKED), 0);
+            }
 
             // Repeated General -> Sources -> Appearance -> Sources must keep
             // overlay scrolling frame-neutral on the first visit, including
