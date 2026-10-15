@@ -1080,83 +1080,55 @@ void ShortcutEditorDialog::CreateControls() {
         cancel_,
         kIdCancel);
 
-    font_ =
-        ui::CreateFontHandle(
-            ui::ApplicationFontSpec(
-                app_.SettingsData().language,
-                ui::UiFontRole::Body),
-            dpi_);
-
-    semiboldFont_ =
-        ui::CreateFontHandle(
-            ui::ApplicationFontSpec(
-                app_.SettingsData().language,
-                ui::UiFontRole::BodySemibold),
-            dpi_);
-
     backgroundBrush_ =
         CreateSolidBrush(
-            ui::kApplicationPalette
-                .windowBackground);
+            ui::kApplicationPalette.windowBackground);
     footerBrush_ =
         CreateSolidBrush(
-            ui::kApplicationPalette
-                .bottomBackground);
+            ui::kApplicationPalette.bottomBackground);
+    ApplyFonts();
+}
 
-    const HWND allControls[] = {
-        keywordLabel_,
-        keyword_,
-        keywordHint_,
-        nameLabel_,
-        name_,
-        targetLabel_,
-        target_,
-        browseFile_,
-        browseFolder_,
-        typeLabel_,
-        type_,
-        typeHint_,
-        runtimeInputLabel_,
-        runtimeInput_,
-        runtimeInputHint_,
-        testInputLabel_,
-        testInput_,
-        advancedToggle_,
-        argumentsLabel_,
-        arguments_,
-        workdirLabel_,
-        workdir_,
-        browseWorkdir_,
-        admin_,
-        test_,
-        save_,
-        cancel_,
-    };
+void ShortcutEditorDialog::ApplyFonts() {
+    const auto language = app_.SettingsData().language;
+    HFONT body = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::Body), dpi_);
+    if (!body) return;
 
-    for (HWND control : allControls) {
-        SendMessageW(
-            control,
-            WM_SETFONT,
-            reinterpret_cast<WPARAM>(
-                font_),
-            TRUE);
+    HFONT emphasis = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::BodySemibold),
+        dpi_);
+    if (!emphasis) {
+        DeleteObject(body);
+        return;
     }
 
-    const HWND emphasizedControls[] = {
-        keywordLabel_,
-        nameLabel_,
-        targetLabel_,
-    };
+    // Install replacement fonts before destroying old ones. Native EDIT,
+    // ComboBox and STATIC controls retain HFONT handles via WM_SETFONT.
+    const HFONT previousBody = font_;
+    const HFONT previousEmphasis = semiboldFont_;
+    font_ = body;
+    semiboldFont_ = emphasis;
 
-    for (HWND control :
-         emphasizedControls) {
-        SendMessageW(
-            control,
-            WM_SETFONT,
-            reinterpret_cast<WPARAM>(
-                semiboldFont_),
-            TRUE);
+    const HWND controls[] = {
+        keywordLabel_, keyword_, keywordHint_, nameLabel_, name_,
+        targetLabel_, target_, browseFile_, browseFolder_, typeLabel_,
+        type_, typeHint_, runtimeInputLabel_, runtimeInput_,
+        runtimeInputHint_, testInputLabel_, testInput_, advancedToggle_,
+        argumentsLabel_, arguments_, workdirLabel_, workdir_,
+        browseWorkdir_, admin_, test_, save_, cancel_,
+    };
+    for (HWND control : controls) {
+        if (control) {
+            // All form labels use one body font. Only the Advanced header and
+            // primary action retain a semantic semibold paint role.
+            SendMessageW(control, WM_SETFONT,
+                reinterpret_cast<WPARAM>(font_), FALSE);
+        }
     }
+
+    if (previousBody) DeleteObject(previousBody);
+    if (previousEmphasis) DeleteObject(previousEmphasis);
 }
 
 void ShortcutEditorDialog::ApplyLanguage() {
@@ -3409,6 +3381,27 @@ LRESULT ShortcutEditorDialog::HandleMessage(
     case WM_NCMBUTTONDOWN:
         dismissComboFocus();
         break;
+
+    case WM_DPICHANGED: {
+        const UINT nextDpi = HIWORD(wParam);
+        if (nextDpi == 0) return 0;
+        dpi_ = nextDpi;
+
+        // WM_SIZE is synchronous during SetWindowPos: defer child layout
+        // until fonts and the final content-dependent height are ready.
+        const auto* suggested = reinterpret_cast<const RECT*>(lParam);
+        if (suggested) {
+            dynamicLayoutInProgress_ = true;
+            SetWindowPos(hwnd_, nullptr, suggested->left, suggested->top,
+                suggested->right - suggested->left,
+                suggested->bottom - suggested->top,
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+            dynamicLayoutInProgress_ = false;
+        }
+        ApplyFonts();
+        RefreshDynamicLayout();
+        return 0;
+    }
 
     case WM_SIZE:
         if (!dynamicLayoutInProgress_) {
