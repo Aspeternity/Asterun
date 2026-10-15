@@ -108,13 +108,43 @@ BOOL WINAPI ProbeSetForegroundWindow(HWND window) {
     }
     return SetForegroundWindow(window);
 }
+
+// TEMPORARY UI-R02 x64 CI diagnosis. Remove in the resolution commit.
+unsigned editorCbtCreates{}, editorCbtShows{}, editorCbtDestroys{};
+unsigned modalGetTimer{}, modalGetQuit{}, editorCloseTimerCalls{};
+unsigned editorCloseTimerNoHwnd{}, modalGetOther{};
+LRESULT CALLBACK EditorLifecycleCbt(int code, WPARAM wParam, LPARAM lParam) {
+    if (code == HCBT_CREATEWND || code == HCBT_ACTIVATE ||
+        code == HCBT_DESTROYWND) {
+        const HWND hwnd = reinterpret_cast<HWND>(wParam);
+        wchar_t name[64]{};
+        if (hwnd && GetClassNameW(hwnd, name, 64) > 0 &&
+            lstrcmpiW(name, L"Asterun.ShortcutEditor") == 0) {
+            if (code == HCBT_CREATEWND) ++editorCbtCreates;
+            if (code == HCBT_ACTIVATE) ++editorCbtShows;
+            if (code == HCBT_DESTROYWND) ++editorCbtDestroys;
+        }
+    }
+    return CallNextHookEx(nullptr, code, wParam, lParam);
+}
+LRESULT CALLBACK EditorMessageHook(int code, WPARAM wParam, LPARAM lParam) {
+    if (code >= 0 && lParam) {
+        const auto& msg = *reinterpret_cast<const MSG*>(lParam);
+        if (msg.message == WM_QUIT) ++modalGetQuit;
+        else if (msg.message == WM_TIMER) ++modalGetTimer;
+        else ++modalGetOther;
+    }
+    return CallNextHookEx(nullptr, code, wParam, lParam);
+}
+
 enum class EditorCloseForProbe { WindowClose, CancelButton, SaveButton };
 EditorCloseForProbe editorCloseForProbe{EditorCloseForProbe::WindowClose};
 bool editorCloseObserved{};
 void CALLBACK CloseEditorForFocusProbe(
     HWND, UINT, UINT_PTR timer, DWORD) {
+    ++editorCloseTimerCalls;
     const HWND editor = FindWindowW(L"Asterun.ShortcutEditor", nullptr);
-    if (!editor) return;
+    if (!editor) { ++editorCloseTimerNoHwnd; return; }
 
     editorCloseObserved = true;
     KillTimer(nullptr, timer);
@@ -789,6 +819,15 @@ struct LauncherResourceRuntimeFixture {
 
                 editorCloseForProbe = closeAction;
                 editorCloseObserved = false;
+                editorCbtCreates = editorCbtShows = editorCbtDestroys = 0;
+                modalGetTimer = modalGetQuit = modalGetOther = 0;
+                editorCloseTimerCalls = editorCloseTimerNoHwnd = 0;
+                const auto beforeModalTick = GetTickCount64();
+                HHOOK editorHook = SetWindowsHookExW(WH_CBT,
+                    EditorLifecycleCbt, nullptr, GetCurrentThreadId());
+                HHOOK messagesHook = SetWindowsHookExW(WH_GETMESSAGE,
+                    EditorMessageHook, nullptr, GetCurrentThreadId());
+                assert(editorHook && messagesHook);
                 contextMenuChoice = 41004; // kResultContextEditShortcut
                 emulateActiveContextMenuOwner = true;
                 // A prior launcher teardown must not poison this modal loop.
@@ -800,6 +839,27 @@ struct LauncherResourceRuntimeFixture {
 
                 window.ShowResultContextMenu(POINT{-1, -1});
 
+                assert(UnhookWindowsHookEx(messagesHook));
+                assert(UnhookWindowsHookEx(editorHook));
+                if (!editorCloseObserved) {
+                    std::cerr << "UIR02_MODAL_PROBE style="
+                        << (style == UiStyle::Classic ? "classic" : "modern")
+                        << " action=" << static_cast<int>(closeAction)
+                        << " elapsed_ms=" << (GetTickCount64() - beforeModalTick)
+                        << " cbt_creates=" << editorCbtCreates
+                        << " activates=" << editorCbtShows
+                        << " destroys=" << editorCbtDestroys
+                        << " get_timer=" << modalGetTimer
+                        << " get_quit=" << modalGetQuit
+                        << " get_other=" << modalGetOther
+                        << " timer_calls=" << editorCloseTimerCalls
+                        << " timer_no_editor=" << editorCloseTimerNoHwnd
+                        << " live_editor=" << (FindWindowW(
+                            L"Asterun.ShortcutEditor", nullptr) != nullptr)
+                        << " active_is_launcher="
+                        << (GetActiveWindow() == window.hwnd_)
+                        << std::endl;
+                }
                 KillTimer(nullptr, timer);
                 emulateActiveContextMenuOwner = false;
                 assert(contextMenuChoice == 0);
