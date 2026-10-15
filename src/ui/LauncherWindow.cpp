@@ -592,7 +592,12 @@ bool LauncherWindow::Create() {
     modernDpiMetrics_ =
         ui::ModernCompactLauncherMetricsForDpi(
             dpi_);
-    CreateChildren();
+    if (!CreateChildren()) {
+        // DestroyWindow recursively frees any children already created.
+        // WM_DESTROY must not post WM_QUIT for this incomplete startup.
+        DestroyWindow(hwnd_);
+        return false;
+    }
     ApplyAppearance();
     ApplyLanguage();
     AddTrayIcon();
@@ -600,10 +605,11 @@ bool LauncherWindow::Create() {
     RefreshResults();
     Reposition();
     firstRevealPending_ = true;
+    creationCompleted_ = true;
     return true;
 }
 
-void LauncherWindow::CreateChildren() {
+bool LauncherWindow::CreateChildren() {
     edit_ = CreateWindowExW(
         0,
         L"EDIT",
@@ -614,6 +620,7 @@ void LauncherWindow::CreateChildren() {
         reinterpret_cast<HMENU>(1001),
         instance_,
         nullptr);
+    if (!edit_) return false;
 
     list_ = CreateWindowExW(
         0,
@@ -628,6 +635,7 @@ void LauncherWindow::CreateChildren() {
         reinterpret_cast<HMENU>(1002),
         instance_,
         nullptr);
+    if (!list_) return false;
 
     preview_ = CreateWindowExW(
         0,
@@ -643,6 +651,7 @@ void LauncherWindow::CreateChildren() {
         reinterpret_cast<HMENU>(1003),
         instance_,
         nullptr);
+    if (!preview_) return false;
 
     classicPreview_ = CreateWindowExW(
         0,
@@ -656,10 +665,22 @@ void LauncherWindow::CreateChildren() {
         reinterpret_cast<HMENU>(1005),
         instance_,
         nullptr);
+    if (!classicPreview_) return false;
 
-    SetWindowLongPtrW(edit_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-    oldEditProc_ = reinterpret_cast<WNDPROC>(
-        SetWindowLongPtrW(edit_, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(EditProc)));
+    // A zero previous value is valid for GWLP_USERDATA: check last error.
+    SetLastError(ERROR_SUCCESS);
+    const LONG_PTR previousData =
+        SetWindowLongPtrW(edit_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+    if (previousData == 0 && GetLastError() != ERROR_SUCCESS) return false;
+
+    // EDIT must already have a native window procedure. Do not enter its
+    // subclass with an invalid previous procedure on any failure path.
+    SetLastError(ERROR_SUCCESS);
+    const LONG_PTR previousProc =
+        SetWindowLongPtrW(edit_, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(EditProc));
+    if (previousProc == 0) return false;
+    oldEditProc_ = reinterpret_cast<WNDPROC>(previousProc);
+    return true;
 }
 
 const ui::UiPalette&
@@ -4700,9 +4721,24 @@ LRESULT LauncherWindow::HandleMessage(
         RestoreEnglishInputSession();
         CancelPendingNumericIntent();
         RemoveTrayIcon();
-        hwnd_ = nullptr;
-        PostQuitMessage(0);
+        // An aborted Create() must not post WM_QUIT before the main pump.
+        if (creationCompleted_) PostQuitMessage(0);
         return 0;
+
+    case WM_NCDESTROY: {
+        // Keep the actual HWND valid through the final native message.
+        const HWND destroyedWindow = hwnd_;
+        const LRESULT result =
+            DefWindowProcW(destroyedWindow, message, wParam, lParam);
+        hwnd_ = nullptr;
+        edit_ = nullptr;
+        list_ = nullptr;
+        preview_ = nullptr;
+        classicPreview_ = nullptr;
+        oldEditProc_ = nullptr;
+        creationCompleted_ = false;
+        return result;
+    }
     }
 
     return DefWindowProcW(hwnd_, message, wParam, lParam);
