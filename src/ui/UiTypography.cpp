@@ -54,9 +54,34 @@ int CALLBACK FoundModernFont(
 ApplicationFace(
     Language language) noexcept {
 
-    return language == Language::ZhCN
-        ? L"Microsoft YaHei UI"
-        : L"Segoe UI";
+    if (language != Language::ZhCN) {
+        return L"Segoe UI";
+    }
+
+    // The UI-specific face has different CJK outlines at compact sizes.
+    // Prefer the screen-reading face when installed; do not allow GDI to
+    // silently substitute an unavailable font. Resolve once per process.
+    static const wchar_t* const face = []() -> const wchar_t* {
+        HDC dc = GetDC(nullptr);
+        if (!dc) return L"Microsoft YaHei UI";
+        const wchar_t* selected = L"Segoe UI";
+        for (const wchar_t* candidate :
+             {L"Microsoft YaHei", L"Microsoft YaHei UI"}) {
+            LOGFONTW query{};
+            query.lfCharSet = DEFAULT_CHARSET;
+            lstrcpynW(query.lfFaceName, candidate, LF_FACESIZE);
+            bool found = false;
+            EnumFontFamiliesExW(dc, &query, FoundModernFont,
+                reinterpret_cast<LPARAM>(&found), 0);
+            if (found) {
+                selected = candidate;
+                break;
+            }
+        }
+        ReleaseDC(nullptr, dc);
+        return selected;
+    }();
+    return face;
 }
 
 [[nodiscard]] int
