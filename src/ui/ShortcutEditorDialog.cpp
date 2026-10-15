@@ -1127,12 +1127,6 @@ void ShortcutEditorDialog::ApplyFonts(BOOL repaint) {
         }
     }
 
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::EditorKeywordLabel,
-        hwnd_, keywordLabel_);
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::EditorKeywordInput,
-        hwnd_, keyword_);
     if (previousBody) DeleteObject(previousBody);
     if (previousEmphasis) DeleteObject(previousEmphasis);
 }
@@ -1923,9 +1917,6 @@ void ShortcutEditorDialog::DrawAdvancedHeader(
     SetTextColor(dc, disabled ? palette.mutedText : palette.text);
     const HGDIOBJ oldFont =
         SelectObject(dc, semiboldFont_ ? semiboldFont_ : font_);
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::EditorAdvancedPaint,
-        hwnd_, draw.hwndItem, dc);
     RECT text = rect;
     text.left += Scale(2);
     text.right -= Scale(2);
