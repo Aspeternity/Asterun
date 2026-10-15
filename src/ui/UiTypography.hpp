@@ -42,24 +42,4 @@ CreateFontHandle(
     const UiFontSpec& spec,
     UINT dpi);
 
-
-// TEMPORARY UI-R02 FONT DIAGNOSIS (owner-approved; delete before merge).
-// Captures only system font metrics; never reads/records control text.
-enum class TemporaryR02FontSlot {
-    SettingsNavControl,
-    SettingsSectionControl,
-    SettingsNavPaint,
-    ManagerFilter,
-    ManagerList,
-    ManagerActionPaint,
-    EditorKeywordLabel,
-    EditorKeywordInput,
-    EditorAdvancedPaint,
-    Count,
-};
-
-void TraceTemporaryR02Font(
-    TemporaryR02FontSlot slot, HWND owner, HWND control,
-    HDC paintDc = nullptr) noexcept;
-
 } // namespace altrun::ui

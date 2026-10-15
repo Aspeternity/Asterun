@@ -1259,12 +1259,6 @@ void ShortcutManagerWindow::RecreateFonts() {
             list_,
             resizePolicy);
     }
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::ManagerFilter,
-        hwnd_, filter_);
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::ManagerList,
-        hwnd_, list_);
 }
 
 void ShortcutManagerWindow::
@@ -1689,9 +1683,6 @@ DrawActionButton(
         SelectObject(
             item.hDC,
             font_);
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::ManagerActionPaint,
-        hwnd_, item.hwndItem, item.hDC);
 
     RECT textRect =
         surface;

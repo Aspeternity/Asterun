@@ -1356,12 +1356,6 @@ void SettingsWindow::ApplyFonts() {
             combo,
             dpi_);
     }
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::SettingsNavControl,
-        hwnd_, navProviders_);
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::SettingsSectionControl,
-        hwnd_, providerSectionTitle_);
 }
 
 void SettingsWindow::ApplyLanguage() {
@@ -4731,9 +4725,6 @@ void SettingsWindow::DrawNavigationButton(
         SelectObject(
             item.hDC,
             normalFont_);
-    ui::TraceTemporaryR02Font(
-        ui::TemporaryR02FontSlot::SettingsNavPaint,
-        hwnd_, item.hwndItem, item.hDC);
 
     RECT textRect{
         surface.left + Scale(16),
