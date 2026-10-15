@@ -1,6 +1,7 @@
 #include "Feedback.hpp"
 #include "AppIcon.hpp"
 #include "UiTheme.hpp"
+#include "UiTypography.hpp"
 #include "TopLevelWindowPresentation.hpp"
 
 #include <algorithm>
@@ -199,11 +200,10 @@ int ShowStyledCompactNotice(HWND owner, const wchar_t* message,
         ? GetDpiForWindow(owner) : GetDpiForSystem();
     if (state.dpi == 0) state.dpi = 96;
 
-    const wchar_t* face = chinese ? L"Microsoft YaHei UI" : L"Segoe UI";
-    state.font = CreateFontW(-MulDiv(10, static_cast<int>(state.dpi), 72),
-        0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, face);
+    state.font = CreateFontHandle(
+        ApplicationFontSpec(chinese ? Language::ZhCN : Language::EnUS,
+            UiFontRole::Body),
+        state.dpi);
 
     constexpr DWORD style = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN;
     constexpr DWORD exStyle = WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT;

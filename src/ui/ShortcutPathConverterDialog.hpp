@@ -60,9 +60,10 @@ private:
         LPARAM lParam);
 
     void CreateControls();
+    void ApplyFonts();
     void CloseWindow();
     void ApplyLanguage();
-    void Layout();
+    void Layout(bool repaint = true);
     void Scan(
         std::optional<std::size_t>
             appliedFieldCount = std::nullopt);
@@ -131,6 +132,7 @@ private:
     HFONT font_{};
     HFONT groupFont_{};
     UINT dpi_{96};
+    bool dpiLayoutInProgress_{false};
     Mode mode_{Mode::Portable};
     bool changed_{false};
     bool closed_{false};

@@ -4724,9 +4724,7 @@ void SettingsWindow::DrawNavigationButton(
     HGDIOBJ oldFont =
         SelectObject(
             item.hDC,
-            selected
-                ? sectionFont_
-                : normalFont_);
+            normalFont_);
 
     RECT textRect{
         surface.left + Scale(16),

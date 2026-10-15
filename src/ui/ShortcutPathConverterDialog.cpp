@@ -1049,55 +1049,7 @@ void ShortcutPathConverterDialog::CreateControls() {
         kIdApply,
         BS_OWNERDRAW);
 
-    const auto language =
-        app_.SettingsData().language;
-
-    font_ =
-        ui::CreateFontHandle(
-            ui::ApplicationFontSpec(
-                language,
-                ui::UiFontRole::Body),
-            dpi_);
-
-    groupFont_ =
-        ui::CreateFontHandle(
-            ui::ApplicationFontSpec(
-                language,
-                ui::UiFontRole::BodySemibold),
-            dpi_);
-
-    for (HWND control :
-         std::array<HWND, 8>{
-             modeTitle_,
-             portable_,
-             absolute_,
-             rescan_,
-             rule_,
-             list_,
-             status_,
-             apply_}) {
-        SendMessageW(
-            control,
-            WM_SETFONT,
-            reinterpret_cast<WPARAM>(
-                font_),
-            TRUE);
-    }
-
-    SendMessageW(
-        modeTitle_,
-        WM_SETFONT,
-        reinterpret_cast<WPARAM>(
-            groupFont_),
-        TRUE);
-
-    ui::InitializeNextListView(
-        list_,
-        dpi_,
-        font_,
-        groupFont_
-            ? groupFont_
-            : font_);
+    ApplyFonts();
 
     ui::NextListColumnResizePolicy
         resizePolicy{};
@@ -1164,6 +1116,45 @@ void ShortcutPathConverterDialog::CreateControls() {
             &column);
     }
 
+}
+
+void ShortcutPathConverterDialog::ApplyFonts() {
+    const auto language = app_.SettingsData().language;
+    HFONT body = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::Body), dpi_);
+    if (!body) return;
+
+    HFONT heading = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::BodySemibold),
+        dpi_);
+    if (!heading) {
+        DeleteObject(body);
+        return;
+    }
+
+    const HFONT previousBody = font_;
+    const HFONT previousHeading = groupFont_;
+    font_ = body;
+    groupFont_ = heading;
+
+    for (HWND control : std::array<HWND, 8>{
+        modeTitle_, portable_, absolute_, rescan_,
+        rule_, list_, status_, apply_}) {
+        if (control) {
+            SendMessageW(control, WM_SETFONT,
+                reinterpret_cast<WPARAM>(font_), FALSE);
+        }
+    }
+    if (modeTitle_) {
+        SendMessageW(modeTitle_, WM_SETFONT,
+            reinterpret_cast<WPARAM>(groupFont_), FALSE);
+    }
+    if (list_) {
+        ui::InitializeNextListView(list_, dpi_, font_, groupFont_);
+    }
+
+    if (previousBody) DeleteObject(previousBody);
+    if (previousHeading) DeleteObject(previousHeading);
 }
 
 void ShortcutPathConverterDialog::ApplyLanguage() {
@@ -1600,10 +1591,21 @@ void ShortcutPathConverterDialog::DrawActionButton(
         oldFont);
 }
 
-void ShortcutPathConverterDialog::Layout() {
+void ShortcutPathConverterDialog::Layout(bool repaint) {
     if (!hwnd_) {
         return;
     }
+
+    const auto moveControl = [repaint](HWND control, int x, int y,
+                                       int width, int height) {
+        if (repaint) {
+            MoveWindow(control, x, y, width, height, TRUE);
+        } else {
+            SetWindowPos(control, nullptr, x, y, width, height,
+                SWP_NOZORDER | SWP_NOACTIVATE |
+                SWP_NOREDRAW | SWP_NOCOPYBITS);
+        }
+    };
 
     RECT client{};
     GetClientRect(
@@ -1622,7 +1624,7 @@ void ShortcutPathConverterDialog::Layout() {
 
     int y = Scale(18);
 
-    MoveWindow(
+    moveControl(
         modeTitle_,
         margin,
         y,
@@ -1631,8 +1633,7 @@ void ShortcutPathConverterDialog::Layout() {
             static_cast<int>(
                 client.right) -
                 margin * 2),
-        titleHeight,
-        TRUE);
+        titleHeight);
 
     y += Scale(28);
 
@@ -1654,25 +1655,23 @@ void ShortcutPathConverterDialog::Layout() {
             Scale(210),
             (cardsWidth - gap) / 2);
 
-    MoveWindow(
+    moveControl(
         portable_,
         margin,
         y,
         cardWidth,
-        cardHeight,
-        TRUE);
+        cardHeight);
 
-    MoveWindow(
+    moveControl(
         absolute_,
         margin +
             cardWidth +
             gap,
         y,
         cardWidth,
-        cardHeight,
-        TRUE);
+        cardHeight);
 
-    MoveWindow(
+    moveControl(
         rescan_,
         static_cast<int>(
             client.right) -
@@ -1684,13 +1683,12 @@ void ShortcutPathConverterDialog::Layout() {
                 (cardHeight -
                  buttonHeight) / 2),
         rescanWidth,
-        buttonHeight,
-        TRUE);
+        buttonHeight);
 
     y += cardHeight +
         Scale(10);
 
-    MoveWindow(
+    moveControl(
         rule_,
         margin,
         y,
@@ -1699,13 +1697,12 @@ void ShortcutPathConverterDialog::Layout() {
             static_cast<int>(
                 client.right) -
                 margin * 2),
-        ruleHeight,
-        TRUE);
+        ruleHeight);
 
     y += ruleHeight +
         Scale(10);
 
-    MoveWindow(
+    moveControl(
         list_,
         margin,
         y,
@@ -1719,8 +1716,7 @@ void ShortcutPathConverterDialog::Layout() {
             static_cast<int>(
                 client.bottom) -
                 y -
-                footerHeight),
-        TRUE);
+                footerHeight));
 
     const int footerY =
         static_cast<int>(
@@ -1728,7 +1724,7 @@ void ShortcutPathConverterDialog::Layout() {
         margin -
         buttonHeight;
 
-    MoveWindow(
+    moveControl(
         apply_,
         static_cast<int>(
             client.right) -
@@ -1736,10 +1732,9 @@ void ShortcutPathConverterDialog::Layout() {
             buttonWidth,
         footerY,
         buttonWidth,
-        buttonHeight,
-        TRUE);
+        buttonHeight);
 
-    MoveWindow(
+    moveControl(
         status_,
         margin,
         footerY +
@@ -1754,8 +1749,7 @@ void ShortcutPathConverterDialog::Layout() {
                 margin * 2 -
                 buttonWidth -
                 gap),
-        Scale(20),
-        TRUE);
+        Scale(20));
 
     UpdateColumnWidths();
 }
@@ -2991,8 +2985,29 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
         return 0;
     }
 
+    case WM_DPICHANGED: {
+        const UINT nextDpi = HIWORD(wParam);
+        if (nextDpi == 0) return 0;
+        dpi_ = nextDpi;
+        const auto* suggested = reinterpret_cast<const RECT*>(lParam);
+        if (suggested) {
+            dpiLayoutInProgress_ = true;
+            SetWindowPos(hwnd_, nullptr, suggested->left, suggested->top,
+                suggested->right - suggested->left,
+                suggested->bottom - suggested->top,
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+            dpiLayoutInProgress_ = false;
+        }
+        ApplyFonts();
+        Layout(false);
+        RedrawWindow(hwnd_, nullptr, nullptr,
+            RDW_INVALIDATE | RDW_NOERASE |
+            RDW_ALLCHILDREN | RDW_UPDATENOW);
+        return 0;
+    }
+
     case WM_SIZE:
-        Layout();
+        if (!dpiLayoutInProgress_) Layout();
         return 0;
 
     case WM_DRAWITEM: {
