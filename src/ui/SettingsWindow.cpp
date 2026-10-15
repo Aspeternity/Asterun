@@ -458,6 +458,10 @@ ReleaseWindowResources() {
         DeleteObject(normalFont_);
         normalFont_ = nullptr;
     }
+    if (navFont_) {
+        DeleteObject(navFont_);
+        navFont_ = nullptr;
+    }
     if (titleFont_) {
         DeleteObject(titleFont_);
         titleFont_ = nullptr;
@@ -1142,6 +1146,10 @@ void SettingsWindow::ApplyFonts() {
         DeleteObject(normalFont_);
         normalFont_ = nullptr;
     }
+    if (navFont_) {
+        DeleteObject(navFont_);
+        navFont_ = nullptr;
+    }
     if (titleFont_) {
         DeleteObject(titleFont_);
         titleFont_ = nullptr;
@@ -1164,6 +1172,10 @@ void SettingsWindow::ApplyFonts() {
                 language,
                 ui::UiFontRole::Body),
             dpi_);
+    // Isolated UI-R02 A/B: 11pt regular Chinese navigation only.
+    auto navSpec = ui::ApplicationFontSpec(language, ui::UiFontRole::Body);
+    if (language == Language::ZhCN) navSpec.pointSize = 11;
+    navFont_ = ui::CreateFontHandle(navSpec, dpi_);
     sectionFont_ =
         ui::CreateFontHandle(
             ui::ApplicationFontSpec(
@@ -1246,16 +1258,20 @@ void SettingsWindow::ApplyFonts() {
         openGitHub_,
     };
 
-    for (HWND control :
-         normalControls) {
-        if (control) {
-            SendMessageW(
-                control,
-                WM_SETFONT,
-                reinterpret_cast<WPARAM>(
-                    normalFont_),
-                TRUE);
-        }
+    // Assign exactly one font per control: avoid a second WM_SETFONT
+    // repaint on the Settings navigation during language/DPI updates.
+    for (HWND control : normalControls) {
+        if (!control) continue;
+        const bool navigation =
+            control == navGeneral_ ||
+            control == navHotkeys_ ||
+            control == navProviders_ ||
+            control == navAppearance_ ||
+            control == navData_ ||
+            control == navAbout_;
+        HFONT chosen = navigation && navFont_ ? navFont_ : normalFont_;
+        SendMessageW(control, WM_SETFONT,
+            reinterpret_cast<WPARAM>(chosen), TRUE);
     }
 
     for (const auto& row :
@@ -4724,7 +4740,7 @@ void SettingsWindow::DrawNavigationButton(
     HGDIOBJ oldFont =
         SelectObject(
             item.hDC,
-            normalFont_);
+            navFont_ ? navFont_ : normalFont_);
 
     RECT textRect{
         surface.left + Scale(16),

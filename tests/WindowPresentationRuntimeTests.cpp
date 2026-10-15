@@ -54,19 +54,19 @@ ProcessResourceSnapshot ProcessResources() {
 LRESULT CALLBACK RedrawSuspendProbe(HWND, UINT, WPARAM, LPARAM,
                                        UINT_PTR, DWORD_PTR);
 
-void AssertBodyFont(HWND control, UINT dpi) {
+void AssertBodyFont(HWND control, UINT dpi, int pointSize = 10) {
     assert(control && IsWindow(control));
     const auto font = reinterpret_cast<HFONT>(
         SendMessageW(control, WM_GETFONT, 0, 0));
     assert(font);
     LOGFONTW logical{};
     assert(GetObjectW(font, sizeof(logical), &logical) == sizeof(logical));
-    assert(logical.lfHeight == -MulDiv(10, static_cast<int>(dpi), 72));
+    assert(logical.lfHeight == -MulDiv(pointSize, static_cast<int>(dpi), 72));
     assert(logical.lfWeight == FW_NORMAL);
 }
 
-void AssertEditorLabelFonts(HWND editor, UINT dpi) {
-    struct Probe { UINT dpi; int labels; } probe{dpi, 0};
+void AssertEditorLabelFonts(HWND editor, UINT dpi, int pointSize = 10) {
+    struct Probe { UINT dpi; int labels; int pointSize; } probe{dpi, 0, pointSize};
     EnumChildWindows(editor, [](HWND control, LPARAM data) -> BOOL {
         wchar_t cls[32]{};
         if (!GetClassNameW(control, cls, 32) ||
@@ -74,7 +74,7 @@ void AssertEditorLabelFonts(HWND editor, UINT dpi) {
             (GetWindowLongPtrW(control, GWL_STYLE) & SS_TYPEMASK) != SS_RIGHT ||
             GetWindowTextLengthW(control) == 0) return TRUE;
         auto& state = *reinterpret_cast<Probe*>(data);
-        AssertBodyFont(control, state.dpi);
+        AssertBodyFont(control, state.dpi, state.pointSize);
         ++state.labels;
         return TRUE;
     }, reinterpret_cast<LPARAM>(&probe));
@@ -83,7 +83,8 @@ void AssertEditorLabelFonts(HWND editor, UINT dpi) {
     assert(probe.labels >= 5);
 }
 
-void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor) {
+void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor, int editorPointSize = 10) {
+    const int expectedPointSize = editor ? editorPointSize : 10;
     const UINT initialDpi = GetDpiForWindow(window);
     assert(initialDpi != 0);
     const UINT changedDpi = initialDpi == 120 ? 144 : 120;
@@ -104,11 +105,11 @@ void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor) {
         assert(suspended == 0);
         assert(RemoveWindowSubclass(window, RedrawSuspendProbe, 89));
         assert(IsWindow(window) && IsWindowVisible(window));
-        AssertBodyFont(bodyControl, dpi);
-        if (editor) AssertEditorLabelFonts(window, dpi);
+        AssertBodyFont(bodyControl, dpi, expectedPointSize);
+        if (editor) AssertEditorLabelFonts(window, dpi, expectedPointSize);
     };
-    AssertBodyFont(bodyControl, initialDpi);
-    if (editor) AssertEditorLabelFonts(window, initialDpi);
+    AssertBodyFont(bodyControl, initialDpi, expectedPointSize);
+    if (editor) AssertEditorLabelFonts(window, initialDpi, expectedPointSize);
     applyDpi(changedDpi, initialDpi);
     applyDpi(initialDpi, changedDpi);
 }
@@ -347,6 +348,7 @@ bool ownerEnabledAtModalDestroy{};
 bool expectedOwnerEnabledAtModalDestroy{};
 bool observedKeywordCaretAtEnd{};
 bool checkUiR02ModalDpi{};
+int uiR02EditorTrialPointSize = 10;
 bool observedEditorDpiCheck{};
 bool observedConverterDpiCheck{};
 
@@ -376,7 +378,8 @@ void CALLBACK CancelEditor(HWND, UINT, UINT_PTR timer, DWORD) {
     assert(!IsWindowEnabled(modalOwner));
     observedEditor = true;
     if (checkUiR02ModalDpi) {
-        AssertModalFontDpiUpdate(editor, GetDlgItem(editor, 53102), true);
+        AssertModalFontDpiUpdate(editor, GetDlgItem(editor, 53102),
+            true, uiR02EditorTrialPointSize);
         observedEditorDpiCheck = true;
     }
     ArmModalDestroyProbe(editor);
@@ -943,10 +946,13 @@ int main() {
                 IsWindowVisible(window) &&
                 HasAboutHeading(window));
 
-            // A navigation selection changes its background/accent, not the
-            // native child font role or its 10pt body metrics.
+            // A/B: selected/unselected navigation stay identical in regular
+            // weight; other Settings body stays at 10pt.
+            const int navPoints =
+                app.SettingsData().language == Language::ZhCN ? 11 : 10;
             for (const UINT id : {51001u, 51006u}) {
-                AssertBodyFont(GetDlgItem(window, id), GetDpiForWindow(window));
+                AssertBodyFont(GetDlgItem(window, id),
+                    GetDpiForWindow(window), navPoints);
             }
             // A default hotkey's Reset button must never become visible even
             // for a transient frame when opening the Hotkeys page.
@@ -1510,6 +1516,8 @@ int main() {
         observedEditorDpiCheck = false;
         observedConverterDpiCheck = false;
         checkUiR02ModalDpi = true;
+        uiR02EditorTrialPointSize =
+            app.SettingsData().language == Language::ZhCN ? 11 : 10;
         timer = SetTimer(nullptr, 0, 20, CancelEditor);
         assert(timer);
         assert(!ShortcutEditorDialog::ShowNew(app, instance, owner, seed));

@@ -443,6 +443,7 @@ private:
     HWND openGitHub_{};
 
     HFONT normalFont_{};
+    HFONT navFont_{};
     HFONT titleFont_{};
     HFONT appNameFont_{};
     HFONT sectionFont_{};

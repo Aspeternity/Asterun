@@ -1091,8 +1091,10 @@ void ShortcutEditorDialog::CreateControls() {
 
 void ShortcutEditorDialog::ApplyFonts(BOOL repaint) {
     const auto language = app_.SettingsData().language;
-    HFONT body = ui::CreateFontHandle(
-        ui::ApplicationFontSpec(language, ui::UiFontRole::Body), dpi_);
+    // Isolated UI-R02 A/B: Chinese Shortcut Editor 11pt regular only.
+    auto bodySpec = ui::ApplicationFontSpec(language, ui::UiFontRole::Body);
+    if (language == Language::ZhCN) bodySpec.pointSize = 11;
+    HFONT body = ui::CreateFontHandle(bodySpec, dpi_);
     if (!body) return;
 
     HFONT emphasis = ui::CreateFontHandle(
@@ -1370,8 +1372,11 @@ void ShortcutEditorDialog::Layout(
     GetClientRect(hwnd_, &client);
 
     const int margin = Scale(24);
-    const int labelHeight = Scale(18);
-    const int hintHeight = Scale(18);
+    // 11pt at 144 DPI requires a 20-logical-pixel label slot.
+    const int labelHeight =
+        Scale(app_.SettingsData().language == Language::ZhCN ? 20 : 18);
+    const int hintHeight =
+        Scale(app_.SettingsData().language == Language::ZhCN ? 20 : 18);
     const int gap = Scale(8);
     const int formLabelGap = Scale(12);
     const int columnGap = Scale(18);
