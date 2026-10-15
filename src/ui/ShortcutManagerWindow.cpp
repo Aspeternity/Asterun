@@ -1200,12 +1200,10 @@ void ShortcutManagerWindow::RecreateFonts() {
     const auto language =
         app_.SettingsData().language;
 
-    font_ =
-        ui::CreateFontHandle(
-            ui::ApplicationFontSpec(
-                language,
-                ui::UiFontRole::Body),
-            dpi_);
+    // Isolated UI-R02 A/B: Chinese Shortcut Manager 11pt regular only.
+    auto bodySpec = ui::ApplicationFontSpec(language, ui::UiFontRole::Body);
+    if (language == Language::ZhCN) bodySpec.pointSize = 11;
+    font_ = ui::CreateFontHandle(bodySpec, dpi_);
 
     semiboldFont_ =
         ui::CreateFontHandle(
