@@ -735,8 +735,9 @@ void CALLBACK ExerciseAdvancedToggle(
             assert(GetWindowRect(runtimeCombo, &runtimeRow));
             assert(GetWindowRect(testInput, &testRow));
             const int visibleGap = testRow.top - runtimeRow.bottom;
+            // Distinguish a visual gap from merely non-overlapping HWNDs.
             const int minimum = altrun::ui::Scale(
-                8, GetDpiForWindow(editor));
+                10, GetDpiForWindow(editor));
             if (visibleGap < minimum) {
                 std::cerr << "UI-INPUT-01 runtime/test rows too close: "
                     << visibleGap << " < " << minimum << "\n";

@@ -35,7 +35,7 @@ constexpr int kEditorWidthLogical = 590;
 constexpr int kInitialEditorHeightLogical = 420;
 constexpr int kRuntimeTestExtraHeightLogical = 42;
 // Preserve the space below Test input; this adds breathing room above it.
-constexpr int kRuntimeTestTopGapLogical = 8;
+constexpr int kRuntimeTestTopGapLogical = 14;
 constexpr int kControlRowHeightLogical = 28;
 constexpr int kFooterButtonHeightLogical = 32;
 constexpr int kFooterBottomMarginLogical = 16;
