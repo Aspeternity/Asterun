@@ -73,11 +73,13 @@ private:
     void ReleaseClassicResources();
     bool CreateChildren();
     void ApplyFonts();
+    void UpdateSearchCueBanner();
     void RecreateBrushes();
     void UpdateControlFrames();
     void UpdateWindowChrome();
     void Layout();
     void Reposition();
+    void RepositionOnce();
     void PaintWindowBackground(HDC dc);
     void PaintClassicBackground(HDC dc, const RECT& client);
     void PaintClassicTitleBar(HDC dc, const RECT& client);
@@ -162,6 +164,8 @@ private:
     HFONT searchGlyphFont_{};
     HFONT shortcutHintFont_{};
     HFONT shortcutArrowFont_{};
+    // Modern: small font for the user-shortcut keyword tag after the name.
+    HFONT keywordTagFont_{};
     HBRUSH windowBrush_{};
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};

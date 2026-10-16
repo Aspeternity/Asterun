@@ -14,6 +14,20 @@ void ApplyNextComboBoxMetrics(
     HWND combo,
     UINT dpi);
 
+// Override the closed (selection-field) outer height in physical pixels so
+// a combo can sit at the same height as neighbouring text fields. 0 restores
+// the shared default. Remembered across ApplyNextComboBoxMetrics calls.
+void SetNextComboBoxClosedHeight(
+    HWND combo,
+    int pixels);
+
+// The override set above, or 0 when the combo uses the shared default.
+// The drop-down popup sizes its rows from it so a compact field opens a
+// matching compact list.
+[[nodiscard]] int
+NextComboBoxClosedHeightOverride(
+    HWND combo) noexcept;
+
 void MoveNextComboBox(
     HWND combo,
     int x,

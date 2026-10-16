@@ -239,6 +239,23 @@ void LauncherWindow::Layout() {
 }
 
 void LauncherWindow::Reposition() {
+    // Moving onto a monitor with a different scale synchronously delivers
+    // WM_DPICHANGED, which resizes the window around its new top-left. The
+    // first pass was computed with the old size, so place once more with the
+    // settled size (the same two-pass policy as the Shortcut Manager).
+    RECT before{};
+    GetWindowRect(hwnd_, &before);
+    RepositionOnce();
+
+    RECT after{};
+    GetWindowRect(hwnd_, &after);
+    if ((after.right - after.left) != (before.right - before.left) ||
+        (after.bottom - after.top) != (before.bottom - before.top)) {
+        RepositionOnce();
+    }
+}
+
+void LauncherWindow::RepositionOnce() {
     const auto& settings =
         app_.SettingsData();
 
@@ -267,9 +284,11 @@ void LauncherWindow::Reposition() {
 
         MONITORINFO info{
             sizeof(info)};
-        GetMonitorInfoW(
-            monitor,
-            &info);
+        if (!GetMonitorInfoW(
+                monitor,
+                &info)) {
+            return;
+        }
 
         const int workWidth =
             info.rcWork.right -
@@ -334,9 +353,12 @@ void LauncherWindow::Reposition() {
 
     MONITORINFO info{
         sizeof(info)};
-    GetMonitorInfoW(
-        monitor,
-        &info);
+    if (!GetMonitorInfoW(
+            monitor,
+            &info)) {
+        // An empty work area would pin the launcher to the origin.
+        return;
+    }
 
     const int workWidth =
         info.rcWork.right -

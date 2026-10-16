@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../core/Settings.hpp"
+
 #include <windows.h>
 #include <commctrl.h>
 
@@ -74,6 +76,8 @@ private:
     void UpdateEmptyText();
     void ReleaseWindowResources();
     void CloseWindow();
+    void RememberNormalPosition();
+    void HideFocusCuesAfterModal();
     void ResetTransientState(
         std::wstring_view preferredId);
     void DrawActionButton(
@@ -119,6 +123,8 @@ private:
     HFONT font_{};
     HFONT semiboldFont_{};
     UINT dpi_{96};
+    // Language the current fonts were built for (faces differ per language).
+    Language fontLanguage_{Language::ZhCN};
     bool suppressFilterRefresh_{false};
     std::vector<std::wstring>
         visibleIds_;

@@ -7,6 +7,7 @@
 #include "TopLevelWindowPresentation.hpp"
 #include "UiListView.hpp"
 #include "UiEditChrome.hpp"
+#include "UiRoundedFrame.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
@@ -366,11 +367,34 @@ ReleaseWindowResources() {
 }
 
 void ShortcutManagerWindow::
+RememberNormalPosition() {
+    // A maximized/snapped-to-top or minimized rectangle is not a placement
+    // to restore later (maximized windows report e.g. -8,-8). Match Settings.
+    if (!hwnd_ ||
+        IsIconic(hwnd_) ||
+        IsZoomed(hwnd_)) {
+        return;
+    }
+
+    RECT rect{};
+    if (GetWindowRect(
+            hwnd_,
+            &rect)) {
+        app_.RememberShortcutManagerPosition(
+            rect.left,
+            rect.top);
+    }
+}
+
+void ShortcutManagerWindow::
 CloseWindow() {
     if (!hwnd_ ||
         !IsWindow(hwnd_)) {
         return;
     }
+
+    // Also covers programmatic moves and a close right after a move.
+    RememberNormalPosition();
 
     window_presentation::
         HideForDestroy(
@@ -483,9 +507,9 @@ bool ShortcutManagerWindow::Create() {
 
     CreateControls();
 
+    // ApplyLanguage ends with Refresh(); no second list rebuild here.
     ApplyLanguage();
     Layout();
-    Refresh();
     ApplyConfiguredPlacement();
 
     return true;
@@ -669,6 +693,14 @@ void ShortcutManagerWindow::ApplyLanguage() {
         pathConversion_,
         T(L"路径转换…",
           L"Path conversion…"));
+
+    // zh-CN and en-US use different ShortcutBody faces. Rebuild the fonts
+    // when the language changes while the window is open; the search box
+    // height follows the font, so lay out again.
+    if (fontLanguage_ != app_.SettingsData().language) {
+        RecreateFonts();
+        Layout();
+    }
 
     InvalidateRect(
         filter_,
@@ -1186,29 +1218,29 @@ void ShortcutManagerWindow::Layout() {
 }
 
 void ShortcutManagerWindow::RecreateFonts() {
-    if (font_) {
-        DeleteObject(
-            font_);
-        font_ = nullptr;
-    }
-
-    if (semiboldFont_) {
-        DeleteObject(
-            semiboldFont_);
-        semiboldFont_ = nullptr;
-    }
-
     const auto language =
         app_.SettingsData().language;
 
-    font_ = ui::CreateFontHandle(
+    HFONT body = ui::CreateFontHandle(
         ui::ApplicationFontSpec(language, ui::UiFontRole::ShortcutBody),
         dpi_);
+    if (!body) {
+        return;
+    }
 
     auto emphasisSpec = ui::ApplicationFontSpec(
         language, ui::UiFontRole::ShortcutBody);
     emphasisSpec.weight = FW_SEMIBOLD;
-    semiboldFont_ = ui::CreateFontHandle(emphasisSpec, dpi_);
+    HFONT emphasis = ui::CreateFontHandle(emphasisSpec, dpi_);
+
+    // Install replacements before destroying the old fonts: EDIT, ListView
+    // and the EDIT chrome's font measurement keep the HFONT given by
+    // WM_SETFONT until it is replaced.
+    const HFONT previousBody = font_;
+    const HFONT previousEmphasis = semiboldFont_;
+    font_ = body;
+    semiboldFont_ = emphasis;
+    fontLanguage_ = language;
 
     for (HWND control :
          std::array<HWND, 7>{
@@ -1227,6 +1259,23 @@ void ShortcutManagerWindow::RecreateFonts() {
                     font_),
                 TRUE);
         }
+    }
+
+    // The EDIT chrome centers its client area from the font height in
+    // WM_NCCALCSIZE; re-run it even if the search box keeps its size.
+    if (filter_) {
+        SetWindowPos(
+            filter_,
+            nullptr,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE |
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_FRAMECHANGED);
     }
 
     if (list_) {
@@ -1254,6 +1303,13 @@ void ShortcutManagerWindow::RecreateFonts() {
         ui::ConfigureNextListColumnResize(
             list_,
             resizePolicy);
+    }
+
+    if (previousBody) {
+        DeleteObject(previousBody);
+    }
+    if (previousEmphasis) {
+        DeleteObject(previousEmphasis);
     }
 }
 
@@ -1608,16 +1664,6 @@ DrawActionButton(
     RECT rect =
         item.rcItem;
 
-    HBRUSH background =
-        CreateSolidBrush(
-            palette.windowBackground);
-    FillRect(
-        item.hDC,
-        &rect,
-        background);
-    DeleteObject(
-        background);
-
     RECT surface =
         rect;
     InflateRect(
@@ -1625,41 +1671,15 @@ DrawActionButton(
         -1,
         -1);
 
-    HBRUSH fill =
-        CreateSolidBrush(
-            fillColor);
-    HPEN pen =
-        CreatePen(
-            PS_SOLID,
-            1,
-            borderColor);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            item.hDC,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            item.hDC,
-            pen);
-
-    RoundRect(
+    // Same smooth outline and radius as the search box and editor fields.
+    ui::PaintSmoothRoundedFrame(
         item.hDC,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        Scale(6),
-        Scale(6));
-
-    SelectObject(
-        item.hDC,
-        oldBrush);
-    SelectObject(
-        item.hDC,
-        oldPen);
-    DeleteObject(fill);
-    DeleteObject(pen);
+        rect,
+        surface,
+        Scale(ui::kControlCornerRadiusLogical),
+        palette.windowBackground,
+        borderColor,
+        fillColor);
 
     wchar_t text[128]{};
     GetWindowTextW(
@@ -1702,8 +1722,10 @@ DrawActionButton(
         item.hDC,
         oldFont);
 
-    if (item.itemState &
-        ODS_FOCUS) {
+    // Keyboard cue only: after a mouse click (or when the editor returns
+    // focus to this button) ODS_NOFOCUSRECT hides the dotted rectangle.
+    if ((item.itemState & ODS_FOCUS) != 0 &&
+        (item.itemState & ODS_NOFOCUSRECT) == 0) {
         RECT focus =
             surface;
         InflateRect(
@@ -1942,13 +1964,35 @@ ShortcutManagerWindow::SelectedCommand()
         : &*it;
 }
 
-void ShortcutManagerWindow::AddShortcut() {
-    if (ShortcutEditorDialog::Show(
-            app_,
-            instance_,
-            hwnd_)) {
-        Refresh();
+// The modal dialogs return focus to the button that opened them with
+// keyboard cues on. Hide them again so a mouse-driven session does not
+// leave a dotted focus rectangle; the next Tab/Alt press restores them.
+void ShortcutManagerWindow::HideFocusCuesAfterModal() {
+    if (!hwnd_) {
+        return;
     }
+
+    SendMessageW(
+        hwnd_,
+        WM_CHANGEUISTATE,
+        MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS),
+        0);
+
+    if (HWND focused = GetFocus();
+        focused && IsChild(hwnd_, focused)) {
+        InvalidateRect(focused, nullptr, FALSE);
+    }
+}
+
+// App::CreateUserCommand / UpdateUserCommand already refresh this window
+// (selecting the saved shortcut), so a successful save needs no second
+// full ListView rebuild here.
+void ShortcutManagerWindow::AddShortcut() {
+    (void)ShortcutEditorDialog::Show(
+        app_,
+        instance_,
+        hwnd_);
+    HideFocusCuesAfterModal();
 }
 
 void ShortcutManagerWindow::EditSelected() {
@@ -1959,13 +2003,12 @@ void ShortcutManagerWindow::EditSelected() {
         return;
     }
 
-    if (ShortcutEditorDialog::Show(
-            app_,
-            instance_,
-            hwnd_,
-            id)) {
-        Refresh(id);
-    }
+    (void)ShortcutEditorDialog::Show(
+        app_,
+        instance_,
+        hwnd_,
+        id);
+    HideFocusCuesAfterModal();
 }
 
 void ShortcutManagerWindow::DeleteSelected() {
@@ -1989,12 +2032,12 @@ void ShortcutManagerWindow::TestSelected() {
 }
 
 void ShortcutManagerWindow::ConvertPaths() {
-    if (ShortcutPathConverterDialog::Show(
-            app_,
-            instance_,
-            hwnd_)) {
-        Refresh();
-    }
+    // App::ApplyUserCommandPathUpdates refreshes this window on success.
+    (void)ShortcutPathConverterDialog::Show(
+        app_,
+        instance_,
+        hwnd_);
+    HideFocusCuesAfterModal();
 }
 
 
@@ -2517,17 +2560,9 @@ LRESULT ShortcutManagerWindow::HandleMessage(
         Layout();
         return 0;
 
-    case WM_EXITSIZEMOVE: {
-        RECT rect{};
-        if (GetWindowRect(
-                hwnd_,
-                &rect)) {
-            app_.RememberShortcutManagerPosition(
-                rect.left,
-                rect.top);
-        }
+    case WM_EXITSIZEMOVE:
+        RememberNormalPosition();
         return 0;
-    }
 
     case WM_ERASEBKGND: {
         RECT rect{};

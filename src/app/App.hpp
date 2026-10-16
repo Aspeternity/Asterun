@@ -52,7 +52,11 @@ public:
         HINSTANCE instance,
         std::wstring startupHealthEvent = {},
         std::vector<std::wstring>
-            startupShortcutPaths = {});
+            startupShortcutPaths = {},
+        // Empty uses the portable <exe>/data directory. Tests pass an
+        // isolated directory so they never touch a developer's real data.
+        std::filesystem::path
+            dataDirectoryOverride = {});
     ~App();
 
     int Run();

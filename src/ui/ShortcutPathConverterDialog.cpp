@@ -5,6 +5,7 @@
 #include "TopLevelWindowPresentation.hpp"
 #include "UiListView.hpp"
 #include "UiMetrics.hpp"
+#include "UiRoundedFrame.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
 
@@ -260,401 +261,79 @@ void DrawSelectorRaster(
     }
 }
 
+// Off-screen buffer for one ListView row. Drawing code keeps using list
+// client coordinates (the viewport origin is shifted), and the finished row
+// reaches the target DC in a single BitBlt when the buffer goes out of scope.
+// Falls back to drawing directly if the bitmap cannot be created.
+class RowPaintBuffer {
+public:
+    RowPaintBuffer(HDC target, const RECT& row) noexcept
+        : target_(target), row_(row) {
+        const int width = row.right - row.left;
+        const int height = row.bottom - row.top;
+        if (!target || width <= 0 || height <= 0) return;
+        memory_ = CreateCompatibleDC(target);
+        bitmap_ = memory_
+            ? CreateCompatibleBitmap(target, width, height) : nullptr;
+        if (!bitmap_) return;
+        oldBitmap_ = SelectObject(memory_, bitmap_);
+        SetViewportOrgEx(memory_, -row.left, -row.top, nullptr);
+    }
+
+    ~RowPaintBuffer() {
+        if (memory_ && bitmap_) {
+            BitBlt(target_, row_.left, row_.top,
+                row_.right - row_.left, row_.bottom - row_.top,
+                memory_, row_.left, row_.top, SRCCOPY);
+            SelectObject(memory_, oldBitmap_);
+        }
+        if (bitmap_) DeleteObject(bitmap_);
+        if (memory_) DeleteDC(memory_);
+    }
+
+    RowPaintBuffer(const RowPaintBuffer&) = delete;
+    RowPaintBuffer& operator=(const RowPaintBuffer&) = delete;
+
+    [[nodiscard]] HDC Dc() const noexcept {
+        return memory_ && bitmap_ ? memory_ : target_;
+    }
+
+private:
+    HDC target_{};
+    RECT row_{};
+    HDC memory_{};
+    HBITMAP bitmap_{};
+    HGDIOBJ oldBitmap_{};
+};
+
 struct CheckboxRasterTemplate {
     int size{};
-    double cornerRadius{};
-    double borderThickness{};
-    double checkThickness{};
     int textGap{};
 };
 
 [[nodiscard]] CheckboxRasterTemplate
 CheckboxTemplateForDpi(
     UINT dpi) noexcept {
-    // Match the validated selector's physical-pixel scale so the square and
-    // round selection controls belong to one visual system.
+    // Match the selector's physical-pixel scale so the square and round
+    // selection controls belong to one visual system. The glyph itself is
+    // the shared ui::PaintSmoothCheckbox used by every custom checkbox.
     if (dpi <= 108) {
-        return {15, 3.0, 1.35, 1.8, 4};
+        return {15, 4};
     }
 
     if (dpi <= 132) {
-        return {17, 3.5, 1.45, 2.0, 4};
+        return {17, 4};
     }
 
     if (dpi <= 156) {
-        return {19, 4.0, 1.60, 2.2, 5};
+        return {19, 5};
     }
 
     if (dpi <= 180) {
-        return {21, 4.5, 1.75, 2.4, 5};
+        return {21, 5};
     }
 
-    return {23, 5.0, 1.90, 2.6, 6};
-}
-
-[[nodiscard]] COLORREF BlendCheckboxPixel(
-    COLORREF background,
-    COLORREF foreground,
-    double coverage) noexcept {
-    coverage =
-        std::clamp(
-            coverage,
-            0.0,
-            1.0);
-
-    const auto blendChannel =
-        [coverage](
-            int backgroundValue,
-            int foregroundValue) {
-            return static_cast<int>(
-                std::lround(
-                    static_cast<double>(
-                        backgroundValue) *
-                        (1.0 - coverage) +
-                    static_cast<double>(
-                        foregroundValue) *
-                        coverage));
-        };
-
-    return RGB(
-        blendChannel(
-            GetRValue(background),
-            GetRValue(foreground)),
-        blendChannel(
-            GetGValue(background),
-            GetGValue(foreground)),
-        blendChannel(
-            GetBValue(background),
-            GetBValue(foreground)));
-}
-
-[[nodiscard]] bool PointInsideRoundedRect(
-    double x,
-    double y,
-    double left,
-    double top,
-    double right,
-    double bottom,
-    double radius) noexcept {
-    if (x < left ||
-        x > right ||
-        y < top ||
-        y > bottom) {
-        return false;
-    }
-
-    radius =
-        std::clamp(
-            radius,
-            0.0,
-            std::min(
-                (right - left) / 2.0,
-                (bottom - top) / 2.0));
-
-    if (radius <= 0.0) {
-        return true;
-    }
-
-    const double nearestX =
-        std::clamp(
-            x,
-            left + radius,
-            right - radius);
-    const double nearestY =
-        std::clamp(
-            y,
-            top + radius,
-            bottom - radius);
-
-    const double dx =
-        x - nearestX;
-    const double dy =
-        y - nearestY;
-
-    return dx * dx +
-            dy * dy <=
-        radius * radius;
-}
-
-[[nodiscard]] double RoundedRectCoverage(
-    int pixelX,
-    int pixelY,
-    int size,
-    double inset,
-    double radius) noexcept {
-    constexpr int
-        kCheckboxSamplesPerAxis = 4;
-    constexpr int kSampleCount =
-        kCheckboxSamplesPerAxis *
-        kCheckboxSamplesPerAxis;
-
-    const double left = inset;
-    const double top = inset;
-    const double right =
-        static_cast<double>(size) -
-        inset;
-    const double bottom =
-        static_cast<double>(size) -
-        inset;
-
-    if (right <= left ||
-        bottom <= top) {
-        return 0.0;
-    }
-
-    int inside = 0;
-
-    for (int sampleY = 0;
-         sampleY <
-            kCheckboxSamplesPerAxis;
-         ++sampleY) {
-        for (int sampleX = 0;
-             sampleX <
-                kCheckboxSamplesPerAxis;
-             ++sampleX) {
-            const double x =
-                static_cast<double>(
-                    pixelX) +
-                (static_cast<double>(
-                     sampleX) +
-                 0.5) /
-                    kCheckboxSamplesPerAxis;
-            const double y =
-                static_cast<double>(
-                    pixelY) +
-                (static_cast<double>(
-                     sampleY) +
-                 0.5) /
-                    kCheckboxSamplesPerAxis;
-
-            if (PointInsideRoundedRect(
-                    x,
-                    y,
-                    left,
-                    top,
-                    right,
-                    bottom,
-                    radius)) {
-                ++inside;
-            }
-        }
-    }
-
-    return static_cast<double>(
-               inside) /
-        static_cast<double>(
-            kSampleCount);
-}
-
-[[nodiscard]] double DistanceSquaredToSegment(
-    double px,
-    double py,
-    double ax,
-    double ay,
-    double bx,
-    double by) noexcept {
-    const double abx = bx - ax;
-    const double aby = by - ay;
-    const double lengthSquared =
-        abx * abx +
-        aby * aby;
-
-    if (lengthSquared <= 0.0) {
-        const double dx = px - ax;
-        const double dy = py - ay;
-        return dx * dx +
-            dy * dy;
-    }
-
-    const double projection =
-        std::clamp(
-            ((px - ax) * abx +
-             (py - ay) * aby) /
-                lengthSquared,
-            0.0,
-            1.0);
-
-    const double closestX =
-        ax + projection * abx;
-    const double closestY =
-        ay + projection * aby;
-    const double dx =
-        px - closestX;
-    const double dy =
-        py - closestY;
-
-    return dx * dx +
-        dy * dy;
-}
-
-[[nodiscard]] double CheckmarkCoverage(
-    int pixelX,
-    int pixelY,
-    int size,
-    double thickness) noexcept {
-    constexpr int
-        kCheckboxSamplesPerAxis = 4;
-    constexpr int kSampleCount =
-        kCheckboxSamplesPerAxis *
-        kCheckboxSamplesPerAxis;
-
-    const double scale =
-        static_cast<double>(size);
-    const double x1 = scale * 0.25;
-    const double y1 = scale * 0.52;
-    const double x2 = scale * 0.43;
-    const double y2 = scale * 0.68;
-    const double x3 = scale * 0.75;
-    const double y3 = scale * 0.34;
-    const double radius =
-        thickness / 2.0;
-    const double radiusSquared =
-        radius * radius;
-
-    int inside = 0;
-
-    for (int sampleY = 0;
-         sampleY <
-            kCheckboxSamplesPerAxis;
-         ++sampleY) {
-        for (int sampleX = 0;
-             sampleX <
-                kCheckboxSamplesPerAxis;
-             ++sampleX) {
-            const double x =
-                static_cast<double>(
-                    pixelX) +
-                (static_cast<double>(
-                     sampleX) +
-                 0.5) /
-                    kCheckboxSamplesPerAxis;
-            const double y =
-                static_cast<double>(
-                    pixelY) +
-                (static_cast<double>(
-                     sampleY) +
-                 0.5) /
-                    kCheckboxSamplesPerAxis;
-
-            const double first =
-                DistanceSquaredToSegment(
-                    x,
-                    y,
-                    x1,
-                    y1,
-                    x2,
-                    y2);
-            const double second =
-                DistanceSquaredToSegment(
-                    x,
-                    y,
-                    x2,
-                    y2,
-                    x3,
-                    y3);
-
-            if (std::min(
-                    first,
-                    second) <=
-                radiusSquared) {
-                ++inside;
-            }
-        }
-    }
-
-    return static_cast<double>(
-               inside) /
-        static_cast<double>(
-            kSampleCount);
-}
-
-void DrawCheckboxRaster(
-    HDC dc,
-    int left,
-    int top,
-    const CheckboxRasterTemplate& raster,
-    bool checked,
-    COLORREF background,
-    COLORREF fillColor,
-    COLORREF borderColor,
-    COLORREF checkColor) {
-    if (!dc ||
-        raster.size <= 0) {
-        return;
-    }
-
-    const double innerInset =
-        0.5 +
-        raster.borderThickness;
-    const double innerRadius =
-        std::max(
-            0.0,
-            raster.cornerRadius -
-                raster.borderThickness);
-
-    for (int y = 0;
-         y < raster.size;
-         ++y) {
-        for (int x = 0;
-             x < raster.size;
-             ++x) {
-            const double outerCoverage =
-                RoundedRectCoverage(
-                    x,
-                    y,
-                    raster.size,
-                    0.5,
-                    raster.cornerRadius);
-            const double innerCoverage =
-                RoundedRectCoverage(
-                    x,
-                    y,
-                    raster.size,
-                    innerInset,
-                    innerRadius);
-            const double borderCoverage =
-                std::clamp(
-                    outerCoverage -
-                        innerCoverage,
-                    0.0,
-                    1.0);
-
-            COLORREF color =
-                BlendCheckboxPixel(
-                    background,
-                    fillColor,
-                    outerCoverage);
-
-            color =
-                BlendCheckboxPixel(
-                    color,
-                    borderColor,
-                    borderCoverage);
-
-            if (checked) {
-                const double checkCoverage =
-                    CheckmarkCoverage(
-                        x,
-                        y,
-                        raster.size,
-                        raster.checkThickness);
-
-                color =
-                    BlendCheckboxPixel(
-                        color,
-                        checkColor,
-                        checkCoverage);
-            }
-
-            if (color != background) {
-                SetPixelV(
-                    dc,
-                    left + x,
-                    top + y,
-                    color);
-            }
-        }
-    }
+    return {23, 6};
 }
 
 
@@ -1184,8 +863,8 @@ void ShortcutPathConverterDialog::ApplyLanguage() {
 
     SetWindowTextW(
         rule_,
-        T(L"仅转换目标、工作目录和自定义图标；参数、URL、UNC 路径和裸命令保持不变。",
-          L"Only Target, Working Directory and custom icons are converted; arguments, URLs, UNC paths and bare commands stay unchanged."));
+        T(L"仅转换目标和工作目录；参数、URL、UNC 路径和裸命令保持不变。",
+          L"Only Target and Working Directory are converted; arguments, URLs, UNC paths and bare commands stay unchanged."));
 
     SetWindowTextW(
         apply_,
@@ -1252,15 +931,6 @@ void ShortcutPathConverterDialog::DrawModeCard(
 
     RECT rect = draw.rcItem;
 
-    HBRUSH outer =
-        CreateSolidBrush(
-            palette.windowBackground);
-    FillRect(
-        draw.hDC,
-        &rect,
-        outer);
-    DeleteObject(outer);
-
     RECT surface = rect;
     InflateRect(
         &surface,
@@ -1282,41 +952,16 @@ void ShortcutPathConverterDialog::DrawModeCard(
             ? palette.accent
             : palette.frame;
 
-    HBRUSH fill =
-        CreateSolidBrush(
-            fillColor);
-    HPEN pen =
-        CreatePen(
-            PS_SOLID,
-            1,
-            borderColor);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            draw.hDC,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            draw.hDC,
-            pen);
-
-    RoundRect(
+    // GDI RoundRect left stepped, uneven corners on these large cards. Use
+    // the shared anti-aliased outline at the Settings card radius.
+    ui::PaintSmoothRoundedFrame(
         draw.hDC,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        Scale(8),
-        Scale(8));
-
-    SelectObject(
-        draw.hDC,
-        oldPen);
-    SelectObject(
-        draw.hDC,
-        oldBrush);
-    DeleteObject(pen);
-    DeleteObject(fill);
+        rect,
+        surface,
+        Scale(ui::kSettingsCardRadiusLogical),
+        palette.windowBackground,
+        borderColor,
+        fillColor);
 
     // The selector uses discrete DPI templates and a 4x4 coverage raster
     // written directly to final device pixels. This keeps the ring and center
@@ -1494,16 +1139,6 @@ void ShortcutPathConverterDialog::DrawActionButton(
     RECT rect =
         draw.rcItem;
 
-    HBRUSH outer =
-        CreateSolidBrush(
-            palette.windowBackground);
-    FillRect(
-        draw.hDC,
-        &rect,
-        outer);
-    DeleteObject(
-        outer);
-
     RECT surface =
         rect;
     InflateRect(
@@ -1511,43 +1146,15 @@ void ShortcutPathConverterDialog::DrawActionButton(
         -1,
         -1);
 
-    HBRUSH fill =
-        CreateSolidBrush(
-            fillColor);
-    HPEN pen =
-        CreatePen(
-            PS_SOLID,
-            1,
-            borderColor);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            draw.hDC,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            draw.hDC,
-            pen);
-
-    RoundRect(
+    // Same smooth outline and radius as the editor and manager buttons.
+    ui::PaintSmoothRoundedFrame(
         draw.hDC,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        Scale(6),
-        Scale(6));
-
-    SelectObject(
-        draw.hDC,
-        oldPen);
-    SelectObject(
-        draw.hDC,
-        oldBrush);
-    DeleteObject(
-        pen);
-    DeleteObject(
-        fill);
+        rect,
+        surface,
+        Scale(ui::kControlCornerRadiusLogical),
+        palette.windowBackground,
+        borderColor,
+        fillColor);
 
     wchar_t text[128]{};
     GetWindowTextW(
@@ -2232,9 +1839,12 @@ bool ShortcutPathConverterDialog::GetResultFieldLayout(
                 static_cast<double>(
                     raster.size) /
                     2.0));
+    // Indent like every other cell's text (and the 字段 header), so the
+    // glyph does not crowd the list's left border.
     const int checkboxLeft =
         fieldRect.left +
-        raster.textGap;
+        ui::NextListCellPadding(
+            dpi_);
 
     checkboxRect = RECT{
         checkboxLeft,
@@ -2295,45 +1905,32 @@ void ShortcutPathConverterDialog::DrawResultFieldCell(
         CheckboxTemplateForDpi(
             dpi_);
 
-    const int sampleX =
-        (checkboxRect.left +
-         checkboxRect.right) /
-        2;
-    const int sampleY =
-        (checkboxRect.top +
-         checkboxRect.bottom) /
-        2;
+    // Use the row's own background state rather than sampling the DC:
+    // GetPixel is CLR_INVALID outside a partial repaint's clip region.
+    const bool rowSelected =
+        (ListView_GetItemState(
+             list_,
+             itemIndex,
+             LVIS_SELECTED) &
+         LVIS_SELECTED) != 0;
+    const COLORREF background =
+        ui::NextListRowBackground(
+            list_,
+            itemIndex,
+            rowSelected);
 
-    COLORREF background =
-        GetPixel(
-            dc,
-            sampleX,
-            sampleY);
-
-    if (background ==
-        CLR_INVALID) {
-        background =
-            palette.controlBackground;
-    }
-
-    const COLORREF uncheckedBorder =
-        BlendCheckboxPixel(
-            palette.controlBackground,
-            palette.mutedText,
-            0.58);
-
-    DrawCheckboxRaster(
+    ui::PaintSmoothCheckbox(
         dc,
         checkboxRect.left,
         checkboxRect.top,
-        raster,
+        raster.size,
+        Scale(ui::kControlCornerRadiusLogical),
         row.selected,
+        true,
+        false,
         background,
-        palette.controlBackground,
-        row.selected
-            ? palette.accent
-            : uncheckedBorder,
-        palette.accent);
+        palette.accent,
+        palette.controlBackground);
 
     const bool listSelected =
         (ListView_GetItemState(
@@ -2541,13 +2138,19 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
         row.right =
             client.right;
 
+        // Paint the whole row off-screen and copy it once. ListView can repaint
+        // its item (column 0) area outside its own double buffer on hover; a
+        // direct fill -> text -> checkbox sequence then flickers on screen.
+        RowPaintBuffer buffer(draw->nmcd.hdc, row);
+        const HDC rowDc = buffer.Dc();
+
         if (IsGroupHeaderItem(
                 itemIndex)) {
             HBRUSH background =
                 CreateSolidBrush(
                     RGB(251, 252, 253));
             FillRect(
-                draw->nmcd.hdc,
+                rowDc,
                 &row,
                 background);
             DeleteObject(
@@ -2574,21 +2177,21 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
                 padding;
 
             SetBkMode(
-                draw->nmcd.hdc,
+                rowDc,
                 TRANSPARENT);
             SetTextColor(
-                draw->nmcd.hdc,
+                rowDc,
                 palette.text);
 
             HGDIOBJ previousFont =
                 SelectObject(
-                    draw->nmcd.hdc,
+                    rowDc,
                     groupFont_
                         ? groupFont_
                         : font_);
 
             DrawTextW(
-                draw->nmcd.hdc,
+                rowDc,
                 title.data(),
                 -1,
                 &textRect,
@@ -2599,11 +2202,11 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
                     DT_NOPREFIX);
 
             SelectObject(
-                draw->nmcd.hdc,
+                rowDc,
                 previousFont);
 
             ui::DrawNextListRowSeparator(
-                draw->nmcd.hdc,
+                rowDc,
                 row);
 
             return CDRF_SKIPDEFAULT;
@@ -2623,23 +2226,23 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
                     itemIndex,
                     selected));
         FillRect(
-            draw->nmcd.hdc,
+            rowDc,
             &row,
             background);
         DeleteObject(
             background);
 
         SetBkMode(
-            draw->nmcd.hdc,
+            rowDc,
             TRANSPARENT);
         SetTextColor(
-            draw->nmcd.hdc,
+            rowDc,
             ui::NextListRowText(
                 selected));
 
         HGDIOBJ oldFont =
             SelectObject(
-                draw->nmcd.hdc,
+                rowDc,
                 font_);
 
         const int padding =
@@ -2675,7 +2278,7 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
                         std::size(text)));
 
                 DrawTextW(
-                    draw->nmcd.hdc,
+                    rowDc,
                     text,
                     -1,
                     &cell,
@@ -2690,15 +2293,15 @@ LRESULT ShortcutPathConverterDialog::HandleListCustomDraw(
         }
 
         SelectObject(
-            draw->nmcd.hdc,
+            rowDc,
             oldFont);
 
         DrawResultFieldCell(
-            draw->nmcd.hdc,
+            rowDc,
             itemIndex);
 
         ui::DrawNextListRowSeparator(
-            draw->nmcd.hdc,
+            rowDc,
             row);
 
         return CDRF_SKIPDEFAULT;
@@ -3214,10 +2817,15 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
         CloseWindow();
         return 0;
 
-    case WM_NCDESTROY:
+    case WM_NCDESTROY: {
+        // Let USER32 finish its own per-window teardown before the object
+        // forgets the handle, matching Settings and the Shortcut Manager.
+        const HWND destroyedWindow = hwnd_;
         hwnd_ = nullptr;
         closed_ = true;
-        return 0;
+        return DefWindowProcW(
+            destroyedWindow, message, wParam, lParam);
+    }
 
     default:
         break;

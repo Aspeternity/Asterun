@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UiMetrics.hpp"
+#include "UiRoundedFrame.hpp"
 #include "UiTheme.hpp"
 
 #include <commctrl.h>
@@ -55,32 +56,18 @@ inline void PaintNativeEditChrome(HWND edit, UINT dpi) noexcept {
 
     const HDC dc = GetWindowDC(edit);
     if (!dc) return;
-    HBRUSH background = CreateSolidBrush(kApplicationPalette.controlBackground);
-    if (background) {
-        const RECT strips[]{
-            {0, 0, width, inside.top},
-            {0, inside.bottom, width, height},
-            {0, inside.top, inside.left, inside.bottom},
-            {inside.right, inside.top, width, inside.bottom}
-        };
-        for (const RECT& strip : strips)
-            if (strip.right > strip.left && strip.bottom > strip.top)
-                FillRect(dc, &strip, background);
-        DeleteObject(background);
-    }
 
-    const COLORREF color = IsWindowEnabled(edit) && GetFocus() == edit
+    const COLORREF frame = IsWindowEnabled(edit) && GetFocus() == edit
         ? kApplicationPalette.accent : kApplicationPalette.frame;
-    const HPEN pen = CreatePen(PS_SOLID, 1, color);
-    if (pen) {
-        const HGDIOBJ oldPen = SelectObject(dc, pen);
-        const HGDIOBJ oldBrush = SelectObject(dc, GetStockObject(NULL_BRUSH));
-        const int radius = Scale(6, dpi);
-        RoundRect(dc, 1, 1, width - 1, height - 1, radius, radius);
-        SelectObject(dc, oldBrush);
-        SelectObject(dc, oldPen);
-        DeleteObject(pen);
-    }
+    const COLORREF outside = kApplicationPalette.windowBackground;
+    const COLORREF fill = kApplicationPalette.controlBackground;
+
+    // One blit for the whole frame band; the client hole is clipped out so
+    // the native text/caret pixels are never touched.
+    PaintSmoothRoundedFrame(dc, RECT{0, 0, width, height},
+        RECT{1, 1, width - 1, height - 1},
+        Scale(kControlCornerRadiusLogical, dpi),
+        outside, frame, fill, &inside);
     ReleaseDC(edit, dc);
 }
 
