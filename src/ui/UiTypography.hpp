@@ -9,6 +9,8 @@ namespace altrun::ui {
 enum class UiFontRole {
     Body,
     BodySemibold,
+    SettingsNavigation,
+    ShortcutBody,
     SectionTitle,
     PageTitle,
     AppTitle,

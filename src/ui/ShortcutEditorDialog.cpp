@@ -1091,10 +1091,9 @@ void ShortcutEditorDialog::CreateControls() {
 
 void ShortcutEditorDialog::ApplyFonts(BOOL repaint) {
     const auto language = app_.SettingsData().language;
-    // Keep Chinese shortcut form text at 11pt Regular.
-    auto bodySpec = ui::ApplicationFontSpec(language, ui::UiFontRole::Body);
-    if (language == Language::ZhCN) bodySpec.pointSize = 11;
-    HFONT body = ui::CreateFontHandle(bodySpec, dpi_);
+    HFONT body = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::ShortcutBody),
+        dpi_);
     if (!body) return;
 
     HFONT emphasis = ui::CreateFontHandle(

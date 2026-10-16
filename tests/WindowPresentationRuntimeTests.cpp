@@ -175,6 +175,23 @@ void AssertApplicationTypographyPolicy() {
             language, altrun::ui::UiFontRole::BodySemibold);
         const auto section = altrun::ui::ApplicationFontSpec(
             language, altrun::ui::UiFontRole::SectionTitle);
+        const auto navigation = altrun::ui::ApplicationFontSpec(
+            language, altrun::ui::UiFontRole::SettingsNavigation);
+        const auto shortcut = altrun::ui::ApplicationFontSpec(
+            language, altrun::ui::UiFontRole::ShortcutBody);
+        const int localizedSize =
+            language == altrun::Language::ZhCN ? 11 : 10;
+        assert(navigation.pointSize == localizedSize);
+        assert(shortcut.pointSize == localizedSize);
+        assert(navigation.weight == FW_NORMAL);
+        assert(shortcut.weight == FW_NORMAL);
+        if (language == altrun::Language::ZhCN) {
+            const auto modern = altrun::ui::LauncherFontSpec(
+                altrun::UiStyle::ModernCompact,
+                language, altrun::ui::UiFontRole::Body);
+            assert(lstrcmpiW(navigation.face, modern.face) == 0);
+            assert(lstrcmpiW(shortcut.face, body.face) == 0);
+        }
         assert(body.pointSize == 10 && body.weight == FW_NORMAL);
         assert(emphasis.pointSize == 10 && emphasis.weight == FW_SEMIBOLD);
         assert(section.pointSize == 11 && section.weight == FW_SEMIBOLD);
@@ -948,23 +965,19 @@ int main() {
 
             // Both selected and unselected navigation use one Regular font;
             // remaining Settings controls stay on the 10pt body role.
-            const int navPoints =
-                app.SettingsData().language == Language::ZhCN ? 11 : 10;
+            const auto expectedNavFont = ui::ApplicationFontSpec(
+                app.SettingsData().language,
+                ui::UiFontRole::SettingsNavigation);
             for (const UINT id : {51001u, 51006u}) {
                 const HWND nav = GetDlgItem(window, id);
-                AssertBodyFont(nav, GetDpiForWindow(window), navPoints);
+                AssertBodyFont(nav, GetDpiForWindow(window),
+                    expectedNavFont.pointSize);
                 const HFONT handle = reinterpret_cast<HFONT>(
                     SendMessageW(nav, WM_GETFONT, 0, 0));
                 LOGFONTW font{};
                 assert(GetObjectW(handle, sizeof(font), &font) == sizeof(font));
-                const auto language = app.SettingsData().language;
-                const wchar_t* expectedFace =
-                    language == Language::ZhCN
-                    ? ui::LauncherFontSpec(UiStyle::ModernCompact,
-                        language, ui::UiFontRole::Body).face
-                    : ui::ApplicationFontSpec(
-                        language, ui::UiFontRole::Body).face;
-                assert(lstrcmpiW(font.lfFaceName, expectedFace) == 0);
+                assert(lstrcmpiW(
+                    font.lfFaceName, expectedNavFont.face) == 0);
             }
             // A default hotkey's Reset button must never become visible even
             // for a transient frame when opening the Hotkeys page.
@@ -1528,8 +1541,9 @@ int main() {
         observedEditorDpiCheck = false;
         observedConverterDpiCheck = false;
         checkUiR02ModalDpi = true;
-        expectedEditorBodyPointSize =
-            app.SettingsData().language == Language::ZhCN ? 11 : 10;
+        expectedEditorBodyPointSize = ui::ApplicationFontSpec(
+            app.SettingsData().language,
+            ui::UiFontRole::ShortcutBody).pointSize;
         timer = SetTimer(nullptr, 0, 20, CancelEditor);
         assert(timer);
         assert(!ShortcutEditorDialog::ShowNew(app, instance, owner, seed));
