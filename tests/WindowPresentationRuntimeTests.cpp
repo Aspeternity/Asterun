@@ -4,6 +4,7 @@
 #include "platform/InstanceIpc.hpp"
 #include "ui/SettingsWindow.hpp"
 #include "ui/ShortcutEditorDialog.hpp"
+#include "ui/UiComboBox.hpp"
 #include "ui/UiEditChrome.hpp"
 #include "ui/UiTheme.hpp"
 #include "ui/UiTypography.hpp"
@@ -13,7 +14,9 @@
 
 #include <commctrl.h>
 #include <objbase.h>
+#include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <array>
 #include <iostream>
 #include <string_view>
@@ -87,25 +90,72 @@ void AssertEditorLabelFonts(HWND editor, UINT dpi, int pointSize = 10) {
 void AssertNativeEditFrame(HWND parent, HWND edit, UINT dpi) {
     assert(edit && IsWindow(edit));
     assert(GetParent(edit) == parent);
-    wchar_t type[32]{};
-    assert(GetClassNameW(edit, type, 32));
-    assert(lstrcmpiW(type, L"Edit") == 0);
+    wchar_t cls[32]{};
+    assert(GetClassNameW(edit, cls, 32));
+    assert(lstrcmpiW(cls, L"Edit") == 0);
     const LONG_PTR style = GetWindowLongPtrW(edit, GWL_STYLE);
-    assert((style & WS_BORDER) == 0);
+    assert((style & WS_BORDER) != 0);  // native text/caret geometry retained
     assert((style & WS_TABSTOP) != 0);
     assert((style & ES_AUTOHSCROLL) != 0);
     assert((GetWindowLongPtrW(edit, GWL_EXSTYLE) & WS_EX_CLIENTEDGE) == 0);
+    DWORD_PTR dpiRef{};
+    assert(GetWindowSubclass(edit, altrun::ui::NativeEditChromeSubclass,
+        altrun::ui::kNativeEditChromeSubclassId, &dpiRef));
+    assert(dpiRef != 0 &&
+        *reinterpret_cast<const UINT*>(dpiRef) == dpi);
 
-    RECT inner{};
-    assert(GetWindowRect(edit, &inner));
-    MapWindowPoints(nullptr, parent, reinterpret_cast<POINT*>(&inner), 2);
-    const RECT frame = altrun::ui::NativeEditFrameRect(parent, edit, dpi);
-    const int pad = altrun::ui::Scale(
-        altrun::ui::kNativeEditFrameInsetLogical, dpi);
-    assert(frame.left == inner.left - pad);
-    assert(frame.top == inner.top - pad);
-    assert(frame.right == inner.right + pad);
-    assert(frame.bottom == inner.bottom + pad);
+    RECT window{}, client{};
+    assert(GetWindowRect(edit, &window));
+    assert(GetClientRect(edit, &client));
+    // Hidden advanced/test inputs remain 0x0 until their first expansion.
+    // They still require the native style/subclass but have no frame yet.
+    if (window.right <= window.left || window.bottom <= window.top) {
+        assert(!IsWindowVisible(edit));
+        return;
+    }
+    POINT origin{};
+    assert(ClientToScreen(edit, &origin));
+    const int top = origin.y - window.top;
+    const int bottom = window.bottom - origin.y - client.bottom;
+    const int left = origin.x - window.left;
+    const int right = window.right - origin.x - client.right;
+    assert(top > 0 && bottom > 0);
+    assert(std::abs(top - bottom) <= 2);
+    assert(left >= 1 && right >= 1);
+
+    const HDC textDc = GetDC(edit);
+    assert(textDc);
+    const HFONT body = reinterpret_cast<HFONT>(
+        SendMessageW(edit, WM_GETFONT, 0, 0));
+    const HGDIOBJ previous = body ? SelectObject(textDc, body) : nullptr;
+    TEXTMETRICW metrics{};
+    assert(GetTextMetricsW(textDc, &metrics));
+    if (previous && previous != HGDI_ERROR)
+        SelectObject(textDc, previous);
+    ReleaseDC(edit, textDc);
+    assert(client.bottom - client.top >= metrics.tmHeight);
+
+    if (IsWindowVisible(edit)) {
+        // Assert actual top-edge pixels, not just a geometrically valid
+        // (but possibly clipped/invisible) parent-space frame rectangle.
+        assert(RedrawWindow(edit, nullptr, nullptr,
+            RDW_FRAME | RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW));
+        const HDC chromeDc = GetWindowDC(edit);
+        assert(chromeDc);
+        const COLORREF color = IsWindowEnabled(edit) && GetFocus() == edit
+            ? altrun::ui::kApplicationPalette.accent
+            : altrun::ui::kApplicationPalette.frame;
+        const int width = window.right - window.left;
+        const int edgePixels = std::max(3, altrun::ui::Scale(2, dpi));
+        for (int x : {width / 4, width / 2, 3 * width / 4}) {
+            bool topEdgePresent = false;
+            for (int y = 0; y < edgePixels; ++y)
+                topEdgePresent = topEdgePresent ||
+                    GetPixel(chromeDc, x, y) == color;
+            assert(topEdgePresent);
+        }
+        ReleaseDC(edit, chromeDc);
+    }
 }
 
 void AssertEditorNativeEditFrames(HWND editor, UINT dpi) {
@@ -553,6 +603,29 @@ void CALLBACK ExerciseAdvancedToggle(
     const HWND runtimeCombo = GetDlgItem(editor, 53118);
 
     assert(typeCombo && runtimeCombo);
+    // Longest runtime mode must not be clipped by the old 185-logical max.
+    RECT runtimeBounds{};
+    assert(GetWindowRect(runtimeCombo, &runtimeBounds));
+    const int requiredRuntimeWidth =
+        altrun::ui::MeasureNextComboBoxPreferredWidth(
+            runtimeCombo, GetDpiForWindow(editor), 0, 1000);
+    assert(runtimeBounds.right - runtimeBounds.left >=
+        requiredRuntimeWidth);
+
+    // A mode change must expose/hide the native test EDIT without losing
+    // the advanced disclosure's geometry or disturbing the editor owner.
+    const HWND testInput = GetDlgItem(editor, 53122);
+    assert(testInput && !IsWindowVisible(testInput));
+    for (int mode : {1, 2, 0}) {
+        assert(SendMessageW(runtimeCombo, CB_SETCURSEL, mode, 0) == mode);
+        SendMessageW(editor, WM_COMMAND,
+            MAKEWPARAM(53118, CBN_SELCHANGE),
+            reinterpret_cast<LPARAM>(runtimeCombo));
+        assert((IsWindowVisible(testInput) != FALSE) == (mode != 0));
+        if (mode != 0)
+            AssertNativeEditFrame(editor, testInput, GetDpiForWindow(editor));
+    }
+
     RECT typeScreen{}, runtimeScreen{};
     assert(GetWindowRect(typeCombo, &typeScreen));
     assert(GetWindowRect(runtimeCombo, &runtimeScreen));
@@ -684,7 +757,21 @@ void CALLBACK ExerciseAdvancedToggle(
         reinterpret_cast<LPARAM>(&adminDraw)) == TRUE);
     const int adminDpi = static_cast<int>(GetDpiForWindow(admin));
     const int glyphSide = MulDiv(16, adminDpi, 96);
-    const int glyphTop = (adminClient.bottom - glyphSide) / 2;
+    // The production checkbox aligns to CJK visible ink instead of the
+    // nominal line-box center. Assert the painted glyph at that position.
+    const HFONT alignFont = reinterpret_cast<HFONT>(
+        SendMessageW(admin, WM_GETFONT, 0, 0));
+    const HGDIOBJ beforeAlign = alignFont
+        ? SelectObject(sampleDc, alignFont) : nullptr;
+    TEXTMETRICW alignMetrics{};
+    assert(GetTextMetricsW(sampleDc, &alignMetrics));
+    if (beforeAlign && beforeAlign != HGDI_ERROR)
+        SelectObject(sampleDc, beforeAlign);
+    const int lineTop = (adminClient.bottom - alignMetrics.tmHeight) / 2;
+    const int inkHeight = std::max(1, static_cast<int>(
+        alignMetrics.tmAscent - alignMetrics.tmInternalLeading));
+    const int glyphTop = lineTop + alignMetrics.tmAscent -
+        inkHeight / 2 - glyphSide / 2;
     const int glyphX = MulDiv(2, adminDpi, 96);
     const auto readGlyph = [&]() {
         std::vector<COLORREF> samples;

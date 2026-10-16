@@ -524,6 +524,7 @@ void ShortcutManagerWindow::CreateControls() {
         WS_CHILD |
             WS_VISIBLE |
             WS_TABSTOP |
+            WS_BORDER |
             ES_AUTOHSCROLL,
         0,
         0,
@@ -582,6 +583,7 @@ void ShortcutManagerWindow::CreateControls() {
         MAKELPARAM(
             Scale(10),
             Scale(10)));
+    (void)ui::AttachNativeEditChrome(filter_, &dpi_);
 
     RecreateFonts();
 
@@ -2530,14 +2532,6 @@ LRESULT ShortcutManagerWindow::HandleMessage(
         return 0;
     }
 
-    case WM_PAINT: {
-        PAINTSTRUCT paint{};
-        const HDC dc = BeginPaint(hwnd_, &paint);
-        ui::DrawNativeEditFrame(dc, hwnd_, filter_, dpi_);
-        EndPaint(hwnd_, &paint);
-        return 0;
-    }
-
     case WM_ERASEBKGND: {
         RECT rect{};
         GetClientRect(
@@ -2609,11 +2603,6 @@ LRESULT ShortcutManagerWindow::HandleMessage(
             ConvertPaths();
             return 0;
         case kIdFilter:
-            if (HIWORD(wParam) == EN_SETFOCUS ||
-                HIWORD(wParam) == EN_KILLFOCUS) {
-                ui::InvalidateNativeEditFrame(
-                    hwnd_, filter_, dpi_);
-            }
             if (HIWORD(wParam) ==
                     EN_CHANGE &&
                 !suppressFilterRefresh_) {
