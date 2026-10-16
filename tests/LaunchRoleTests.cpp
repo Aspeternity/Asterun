@@ -524,6 +524,103 @@ int main() {
     }
 
     {
+        // A standalone product whose own name contains "Download Manager"
+        // (Internet Download Manager in its own Start Menu folder, with a
+        // matching ProductName) is the application, not a suite downloader.
+        auto idm =
+            BaseEvidence(
+                L"Internet Download Manager",
+                L"D:/Internet Download Manager/IDMan.exe");
+        idm.startMenuFolder =
+            L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs/Internet Download Manager";
+        // Real IDMan.exe metadata: ProductName carries an "(IDM)" suffix.
+        idm.executable.productName =
+            L"Internet Download Manager (IDM)";
+        idm.executable.fileDescription =
+            L"Internet Download Manager (IDM)";
+        idm.executable.internalName =
+            L"Internet Download Manager";
+
+        const auto idmDecision =
+            ClassifyApplicationRole(idm);
+        assert(idmDecision.role !=
+               ApplicationRole::Downloader);
+        assert(idmDecision.visibility ==
+               CatalogVisibility::Normal);
+
+        // Same app found without Start Menu context (App Paths/packaged):
+        // the title is the leading part of the ProductName, so it is still
+        // the product's own name. This is the entry that wins the merge.
+        idm.startMenuFolder.clear();
+        const auto bareDecision =
+            ClassifyApplicationRole(idm);
+        assert(bareDecision.role !=
+               ApplicationRole::Downloader);
+        assert(bareDecision.visibility ==
+               CatalogVisibility::Normal);
+
+        // Extra wording on top of a suite name keeps the Downloader role.
+        auto suiteDownloader =
+            BaseEvidence(
+                L"Contoso Studio Download Manager",
+                L"C:/Program Files/Contoso/Studio/Download.exe");
+        suiteDownloader.startMenuFolder =
+            L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs/Contoso Studio";
+        suiteDownloader.executable.productName =
+            L"Contoso Studio";
+        suiteDownloader.executable.fileDescription =
+            L"Contoso Studio Download Manager";
+        assert(ClassifyApplicationRole(suiteDownloader).role ==
+               ApplicationRole::Downloader);
+
+        // Publication-time calibration only sees cached titles. The real
+        // cached IDM entries (two Start Menu shortcuts and the packaged
+        // view of IDMan.exe) must stay Normal primaries; the title-only
+        // repair used to turn all three back into StrongMatchOnly.
+        const auto makeIdm = [](CommandSource source,
+                                const wchar_t* id,
+                                const wchar_t* groupKey) {
+            Command command;
+            command.id = id;
+            command.source = source;
+            command.title = L"Internet Download Manager";
+            command.keyword = L"internetdownloadmanager";
+            command.target = L"D:\\Internet Download Manager\\IDMan.exe";
+            command.canonicalIdentity =
+                L"file:d:\\internet download manager\\idman.exe";
+            command.applicationRole = ApplicationRole::PrimaryApplication;
+            command.roleConfidence = RoleConfidence::High;
+            command.catalogVisibility = CatalogVisibility::Normal;
+            command.catalogGroupKey = groupKey;
+            return command;
+        };
+        Command userMenu = makeIdm(CommandSource::StartMenu, L"start:user",
+            L"family:internetdownloadmanager|menu:c:\\users\\asp\\appdata\\roaming\\microsoft\\windows\\start menu\\programs\\internet download manager");
+        Command commonMenu = makeIdm(CommandSource::StartMenu, L"start:common",
+            L"family:internetdownloadmanager|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\internet download manager");
+        Command packaged = makeIdm(CommandSource::PackagedApp, L"packaged:idm",
+            L"family:internetdownloadmanageridm|root:d:\\internet download manager");
+        packaged.roleConfidence = RoleConfidence::Medium;
+
+        std::vector<Command*> published{&userMenu, &commonMenu, &packaged};
+        CalibrateCatalogRoleContext(published);
+        for (const Command* command : published) {
+            assert(command->applicationRole ==
+                   ApplicationRole::PrimaryApplication);
+            assert(command->catalogVisibility ==
+                   CatalogVisibility::Normal);
+        }
+
+        // The suite helper is still recognised from its cached title.
+        Command suiteHelper = makeIdm(CommandSource::StartMenu, L"start:helper",
+            L"family:contosostudio|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\contoso studio");
+        suiteHelper.title = L"Contoso Studio Download Manager";
+        std::vector<Command*> helperOnly{&suiteHelper};
+        CalibrateCatalogRoleContext(helperOnly);
+        assert(suiteHelper.applicationRole == ApplicationRole::Downloader);
+    }
+
+    {
         // A suite helper can have a completely different EXE ProductName.
         // Start Menu suite context must still isolate the shared family and
         // group all entries without product-specific knowledge.

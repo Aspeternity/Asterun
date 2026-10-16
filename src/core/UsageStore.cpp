@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <vector>
 #include <fstream>
 #include <limits>
@@ -182,6 +183,13 @@ bool UsageStore::LoadJson() {
             UsageStat stat;
             stat.launches = it.value().value("launches", std::uint64_t{0});
             stat.lastUsedUnix = it.value().value("lastUsedUnix", std::int64_t{0});
+            if (it.value().contains("frecency") &&
+                it.value()["frecency"].is_number()) {
+                const double frecency = it.value()["frecency"].get<double>();
+                if (std::isfinite(frecency) && frecency > 0.0) {
+                    stat.frecency = frecency;
+                }
+            }
 
             if (it.value().contains("queries") &&
                 it.value()["queries"].is_object()) {
@@ -279,11 +287,13 @@ void UsageStore::Record(
     auto& stat =
         selectedIt->second;
 
+    const std::int64_t now = UnixTimeNow();
+    // Decay the old weight to now before adding this launch.
+    stat.frecency = DecayedFrecency(stat, now) + 1.0;
     if (stat.launches < std::numeric_limits<std::uint64_t>::max()) {
         ++stat.launches;
     }
-    stat.lastUsedUnix =
-        UnixTimeNow();
+    stat.lastUsedUnix = now;
 
     const std::wstring key = QueryKey(query);
     if (!key.empty()) {
@@ -410,6 +420,9 @@ bool UsageStore::SaveSnapshot(const UsageMap& snapshot) const {
             {"launches", stat.launches},
             {"lastUsedUnix", stat.lastUsedUnix}
         };
+        if (stat.frecency > 0.0) {
+            entry["frecency"] = stat.frecency;
+        }
         if (!stat.queryLaunches.empty()) {
             nlohmann::json queries = nlohmann::json::object();
             for (const auto& [key, count] : stat.queryLaunches) {
