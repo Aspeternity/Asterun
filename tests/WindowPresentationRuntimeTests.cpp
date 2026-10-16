@@ -4,6 +4,7 @@
 #include "platform/InstanceIpc.hpp"
 #include "ui/SettingsWindow.hpp"
 #include "ui/ShortcutEditorDialog.hpp"
+#include "ui/UiEditChrome.hpp"
 #include "ui/UiTheme.hpp"
 #include "ui/UiTypography.hpp"
 #include "ui/ShortcutPathConverterDialog.hpp"
@@ -83,6 +84,36 @@ void AssertEditorLabelFonts(HWND editor, UINT dpi, int pointSize = 10) {
     assert(probe.labels >= 5);
 }
 
+void AssertNativeEditFrame(HWND parent, HWND edit, UINT dpi) {
+    assert(edit && IsWindow(edit));
+    assert(GetParent(edit) == parent);
+    wchar_t type[32]{};
+    assert(GetClassNameW(edit, type, 32));
+    assert(lstrcmpiW(type, L"Edit") == 0);
+    const LONG_PTR style = GetWindowLongPtrW(edit, GWL_STYLE);
+    assert((style & WS_BORDER) == 0);
+    assert((style & WS_TABSTOP) != 0);
+    assert((style & ES_AUTOHSCROLL) != 0);
+    assert((GetWindowLongPtrW(edit, GWL_EXSTYLE) & WS_EX_CLIENTEDGE) == 0);
+
+    RECT inner{};
+    assert(GetWindowRect(edit, &inner));
+    MapWindowPoints(nullptr, parent, reinterpret_cast<POINT*>(&inner), 2);
+    const RECT frame = altrun::ui::NativeEditFrameRect(parent, edit, dpi);
+    const int pad = altrun::ui::Scale(
+        altrun::ui::kNativeEditFrameInsetLogical, dpi);
+    assert(frame.left == inner.left - pad);
+    assert(frame.top == inner.top - pad);
+    assert(frame.right == inner.right + pad);
+    assert(frame.bottom == inner.bottom + pad);
+}
+
+void AssertEditorNativeEditFrames(HWND editor, UINT dpi) {
+    for (UINT id : {53101u, 53102u, 53105u, 53122u, 53107u, 53108u}) {
+        AssertNativeEditFrame(editor, GetDlgItem(editor, id), dpi);
+    }
+}
+
 void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor, int editorPointSize = 10) {
     const int expectedPointSize = editor ? editorPointSize : 10;
     const UINT initialDpi = GetDpiForWindow(window);
@@ -106,10 +137,16 @@ void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor, int ed
         assert(RemoveWindowSubclass(window, RedrawSuspendProbe, 89));
         assert(IsWindow(window) && IsWindowVisible(window));
         AssertBodyFont(bodyControl, dpi, expectedPointSize);
-        if (editor) AssertEditorLabelFonts(window, dpi, expectedPointSize);
+        if (editor) {
+            AssertEditorLabelFonts(window, dpi, expectedPointSize);
+            AssertEditorNativeEditFrames(window, dpi);
+        }
     };
     AssertBodyFont(bodyControl, initialDpi, expectedPointSize);
-    if (editor) AssertEditorLabelFonts(window, initialDpi, expectedPointSize);
+    if (editor) {
+        AssertEditorLabelFonts(window, initialDpi, expectedPointSize);
+        AssertEditorNativeEditFrames(window, initialDpi);
+    }
     applyDpi(changedDpi, initialDpi);
     applyDpi(initialDpi, changedDpi);
 }
@@ -1576,6 +1613,9 @@ int main() {
                     managerWindow &&
                     IsWindowVisible(
                         managerWindow));
+                AssertNativeEditFrame(managerWindow,
+                    GetDlgItem(managerWindow, 52106),
+                    GetDpiForWindow(managerWindow));
                 assert(
                     IsWindowEnabled(
                         managerWindow));
