@@ -684,11 +684,12 @@ struct LauncherResourceRuntimeFixture {
             ModernPrimaryResultText(
                 user) ==
             L"TeamSpeak 3 Client");
-        // Modern: the user's keyword is a tag after the name, not a column.
+        // Modern: each user keyword is its own tag after the name.
         assert(
-            ModernKeywordTagText(
-                user) ==
-            L"ts · teamspeak");
+            (ModernKeywordTags(
+                 user) ==
+             std::vector<std::wstring>{
+                 L"ts", L"teamspeak"}));
         assert(
             ModernSecondaryResultText(
                 user).empty());
@@ -715,7 +716,7 @@ struct LauncherResourceRuntimeFixture {
             ModernSecondaryResultText(
                 application).empty());
         assert(
-            ModernKeywordTagText(
+            ModernKeywordTags(
                 application).empty());
         assert(
             ClassicShortcutResultText(
@@ -735,7 +736,7 @@ struct LauncherResourceRuntimeFixture {
                 file) ==
             L"C:\\Docs");
         assert(
-            ModernKeywordTagText(
+            ModernKeywordTags(
                 file).empty());
 
         std::cout
