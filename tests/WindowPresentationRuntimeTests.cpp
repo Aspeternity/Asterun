@@ -348,7 +348,7 @@ bool ownerEnabledAtModalDestroy{};
 bool expectedOwnerEnabledAtModalDestroy{};
 bool observedKeywordCaretAtEnd{};
 bool checkUiR02ModalDpi{};
-int uiR02EditorTrialPointSize = 10;
+int expectedEditorBodyPointSize = 10;
 bool observedEditorDpiCheck{};
 bool observedConverterDpiCheck{};
 
@@ -379,7 +379,7 @@ void CALLBACK CancelEditor(HWND, UINT, UINT_PTR timer, DWORD) {
     observedEditor = true;
     if (checkUiR02ModalDpi) {
         AssertModalFontDpiUpdate(editor, GetDlgItem(editor, 53102),
-            true, uiR02EditorTrialPointSize);
+            true, expectedEditorBodyPointSize);
         observedEditorDpiCheck = true;
     }
     ArmModalDestroyProbe(editor);
@@ -946,13 +946,25 @@ int main() {
                 IsWindowVisible(window) &&
                 HasAboutHeading(window));
 
-            // A/B: selected/unselected navigation stay identical in regular
-            // weight; other Settings body stays at 10pt.
+            // Both selected and unselected navigation use one Regular font;
+            // remaining Settings controls stay on the 10pt body role.
             const int navPoints =
                 app.SettingsData().language == Language::ZhCN ? 11 : 10;
             for (const UINT id : {51001u, 51006u}) {
-                AssertBodyFont(GetDlgItem(window, id),
-                    GetDpiForWindow(window), navPoints);
+                const HWND nav = GetDlgItem(window, id);
+                AssertBodyFont(nav, GetDpiForWindow(window), navPoints);
+                const HFONT handle = reinterpret_cast<HFONT>(
+                    SendMessageW(nav, WM_GETFONT, 0, 0));
+                LOGFONTW font{};
+                assert(GetObjectW(handle, sizeof(font), &font) == sizeof(font));
+                const auto language = app.SettingsData().language;
+                const wchar_t* expectedFace =
+                    language == Language::ZhCN
+                    ? ui::LauncherFontSpec(UiStyle::ModernCompact,
+                        language, ui::UiFontRole::Body).face
+                    : ui::ApplicationFontSpec(
+                        language, ui::UiFontRole::Body).face;
+                assert(lstrcmpiW(font.lfFaceName, expectedFace) == 0);
             }
             // A default hotkey's Reset button must never become visible even
             // for a transient frame when opening the Hotkeys page.
@@ -1516,7 +1528,7 @@ int main() {
         observedEditorDpiCheck = false;
         observedConverterDpiCheck = false;
         checkUiR02ModalDpi = true;
-        uiR02EditorTrialPointSize =
+        expectedEditorBodyPointSize =
             app.SettingsData().language == Language::ZhCN ? 11 : 10;
         timer = SetTimer(nullptr, 0, 20, CancelEditor);
         assert(timer);
