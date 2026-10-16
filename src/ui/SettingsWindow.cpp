@@ -458,6 +458,10 @@ ReleaseWindowResources() {
         DeleteObject(normalFont_);
         normalFont_ = nullptr;
     }
+    if (navFont_) {
+        DeleteObject(navFont_);
+        navFont_ = nullptr;
+    }
     if (titleFont_) {
         DeleteObject(titleFont_);
         titleFont_ = nullptr;
@@ -1142,6 +1146,10 @@ void SettingsWindow::ApplyFonts() {
         DeleteObject(normalFont_);
         normalFont_ = nullptr;
     }
+    if (navFont_) {
+        DeleteObject(navFont_);
+        navFont_ = nullptr;
+    }
     if (titleFont_) {
         DeleteObject(titleFont_);
         titleFont_ = nullptr;
@@ -1164,6 +1172,10 @@ void SettingsWindow::ApplyFonts() {
                 language,
                 ui::UiFontRole::Body),
             dpi_);
+    // One native/owner-draw navigation role, independent of Settings body.
+    navFont_ = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::SettingsNavigation),
+        dpi_);
     sectionFont_ =
         ui::CreateFontHandle(
             ui::ApplicationFontSpec(
@@ -1246,16 +1258,20 @@ void SettingsWindow::ApplyFonts() {
         openGitHub_,
     };
 
-    for (HWND control :
-         normalControls) {
-        if (control) {
-            SendMessageW(
-                control,
-                WM_SETFONT,
-                reinterpret_cast<WPARAM>(
-                    normalFont_),
-                TRUE);
-        }
+    // Assign exactly one font per control: avoid a second WM_SETFONT
+    // repaint on the Settings navigation during language/DPI updates.
+    for (HWND control : normalControls) {
+        if (!control) continue;
+        const bool navigation =
+            control == navGeneral_ ||
+            control == navHotkeys_ ||
+            control == navProviders_ ||
+            control == navAppearance_ ||
+            control == navData_ ||
+            control == navAbout_;
+        HFONT chosen = navigation && navFont_ ? navFont_ : normalFont_;
+        SendMessageW(control, WM_SETFONT,
+            reinterpret_cast<WPARAM>(chosen), TRUE);
     }
 
     for (const auto& row :
@@ -4629,6 +4645,8 @@ void SettingsWindow::DrawNavigationButton(
     const bool focused =
         (item.itemState &
          ODS_FOCUS) != 0;
+    const bool hovered =
+        (item.itemState & ODS_HOTLIGHT) != 0;
 
     RECT surface = rect;
     InflateRect(
@@ -4636,51 +4654,38 @@ void SettingsWindow::DrawNavigationButton(
         -Scale(2),
         -Scale(1));
 
+    // The native BUTTON's unpainted edge used to retain a faint idle
+    // frame. Clear the entire control with the sidebar brush first.
+    FillRect(
+        item.hDC,
+        &rect,
+        sidebarBrush_
+            ? sidebarBrush_
+            : GetSysColorBrush(COLOR_BTNFACE));
+
+    const bool showSurface =
+        selected || pressed || focused || hovered;
     const COLORREF background =
         pressed
             ? kCardPressed
             : selected
-                ? kPalette
-                      .selectionBackground
-                : focused
-                    ? kCardPressed
-                    : kSidebarBackground;
+                ? kPalette.selectionBackground
+                : kCardPressed;
 
-    HBRUSH fill =
-        CreateSolidBrush(
-            background);
-    HPEN pen =
-        CreatePen(
-            PS_SOLID,
-            1,
-            background);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            item.hDC,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            item.hDC,
-            pen);
-
-    RoundRect(
-        item.hDC,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        Scale(7),
-        Scale(7));
-
-    SelectObject(
-        item.hDC,
-        oldBrush);
-    SelectObject(
-        item.hDC,
-        oldPen);
-    DeleteObject(fill);
-    DeleteObject(pen);
+    // Idle navigation is flat and borderless. Only active/hovered/focused
+    // entries get a rounded surface; selected text keeps its accent stripe.
+    if (showSurface) {
+        HBRUSH fill = CreateSolidBrush(background);
+        HPEN pen = CreatePen(PS_SOLID, 1, background);
+        HGDIOBJ oldBrush = SelectObject(item.hDC, fill);
+        HGDIOBJ oldPen = SelectObject(item.hDC, pen);
+        RoundRect(item.hDC, surface.left, surface.top,
+            surface.right, surface.bottom, Scale(7), Scale(7));
+        SelectObject(item.hDC, oldBrush);
+        SelectObject(item.hDC, oldPen);
+        DeleteObject(fill);
+        DeleteObject(pen);
+    }
 
     if (selected) {
         RECT accent{
@@ -4724,9 +4729,7 @@ void SettingsWindow::DrawNavigationButton(
     HGDIOBJ oldFont =
         SelectObject(
             item.hDC,
-            selected
-                ? sectionFont_
-                : normalFont_);
+            navFont_ ? navFont_ : normalFont_);
 
     RECT textRect{
         surface.left + Scale(16),

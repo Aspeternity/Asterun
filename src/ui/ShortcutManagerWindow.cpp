@@ -1200,12 +1200,9 @@ void ShortcutManagerWindow::RecreateFonts() {
     const auto language =
         app_.SettingsData().language;
 
-    font_ =
-        ui::CreateFontHandle(
-            ui::ApplicationFontSpec(
-                language,
-                ui::UiFontRole::Body),
-            dpi_);
+    font_ = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::ShortcutBody),
+        dpi_);
 
     semiboldFont_ =
         ui::CreateFontHandle(
