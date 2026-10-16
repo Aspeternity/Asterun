@@ -66,9 +66,8 @@ int CALLBACK MarkInstalledFont(
     Language language) noexcept {
     if (language != Language::ZhCN) return L"Segoe UI";
 
-    // Preserve the accepted right-pane/editor appearance independently of
-    // the navigation's UI face. Changing this priority is a separate
-    // product-appearance decision, not an incidental cleanup.
+    // Preserve the accepted Settings right-pane family separately from
+    // compact Shortcut form/UI typography and navigation.
     static const wchar_t* const face = ResolveInstalledFace(
         {L"Microsoft YaHei", L"Microsoft YaHei UI"},
         L"Microsoft YaHei UI", L"Segoe UI");
@@ -82,8 +81,12 @@ ApplicationPointSize(
 
     switch (role) {
     case UiFontRole::SettingsNavigation:
-    case UiFontRole::ShortcutBody:
         return language == Language::ZhCN ? 11 : 10;
+    case UiFontRole::ShortcutHint:
+        return 9;
+    case UiFontRole::ShortcutBody:
+        // Only shortcut editor/manager use this compact CJK UI face.
+        return 10;
     case UiFontRole::SectionTitle:
         return 11;
     case UiFontRole::PageTitle:
@@ -117,6 +120,7 @@ RoleWeight(
     case UiFontRole::Body:
     case UiFontRole::SettingsNavigation:
     case UiFontRole::ShortcutBody:
+    case UiFontRole::ShortcutHint:
     case UiFontRole::LauncherAuxiliary:
     default:
         return FW_NORMAL;
@@ -130,7 +134,9 @@ UiFontSpec ApplicationFontSpec(
     UiFontRole role) noexcept {
 
     return {
-        role == UiFontRole::SettingsNavigation &&
+        (role == UiFontRole::SettingsNavigation ||
+         role == UiFontRole::ShortcutBody ||
+         role == UiFontRole::ShortcutHint) &&
                 language == Language::ZhCN
             ? PreferredChineseUiFace()
             : ApplicationFace(language),

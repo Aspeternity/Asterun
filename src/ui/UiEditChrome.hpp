@@ -143,9 +143,18 @@ inline LRESULT CALLBACK NativeEditChromeSubclass(
 
 [[nodiscard]] inline bool AttachNativeEditChrome(
     HWND edit, const UINT* dpi) noexcept {
-    return edit && dpi && SetWindowSubclass(
-        edit, NativeEditChromeSubclass, kNativeEditChromeSubclassId,
-        reinterpret_cast<DWORD_PTR>(dpi)) != FALSE;
+    if (!edit || !dpi || !SetWindowSubclass(
+            edit, NativeEditChromeSubclass, kNativeEditChromeSubclassId,
+            reinterpret_cast<DWORD_PTR>(dpi))) {
+        return false;
+    }
+
+    // Borderless EDIT starts with a full-window client. Recalculate its
+    // real non-client region after installing our subclass, before layout
+    // and before the parent is revealed. No intermediate paint is needed.
+    return SetWindowPos(edit, nullptr, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+        SWP_FRAMECHANGED | SWP_NOREDRAW) != FALSE;
 }
 
 } // namespace altrun::ui

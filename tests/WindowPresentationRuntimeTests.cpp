@@ -182,6 +182,32 @@ void AssertNativeEditFrame(HWND parent, HWND edit, UINT dpi) {
             }
             assert(leftEdgePresent && rightEdgePresent);
         }
+
+        // Negative pixel contract: one renderer only. The previous PR
+        // incorrectly combined native WS_BORDER with our rounded outline,
+        // creating dark [ and ] strokes just inside the pale outer frame.
+        const COLORREF clear = altrun::ui::kApplicationPalette.controlBackground;
+        assert(left >= 4 && right >= 4);
+        for (const int y : {height / 4, height / 2, 3 * height / 4}) {
+            for (int x = 2; x < left; ++x) {
+                const COLORREF pixel = GetPixel(chromeDc, x, y);
+                if (pixel != clear) {
+                    std::cerr << "UI-INPUT-01 duplicate left NC stroke: id="
+                        << GetDlgCtrlID(edit) << " x=" << x << " y=" << y
+                        << " dpi=" << dpi << "\n";
+                }
+                assert(pixel == clear);
+            }
+            for (int x = width - right; x < width - 2; ++x) {
+                const COLORREF pixel = GetPixel(chromeDc, x, y);
+                if (pixel != clear) {
+                    std::cerr << "UI-INPUT-01 duplicate right NC stroke: id="
+                        << GetDlgCtrlID(edit) << " x=" << x << " y=" << y
+                        << " dpi=" << dpi << "\n";
+                }
+                assert(pixel == clear);
+            }
+        }
         ReleaseDC(edit, chromeDc);
     }
 }
@@ -190,6 +216,44 @@ void AssertEditorNativeEditFrames(HWND editor, UINT dpi) {
     for (UINT id : {53101u, 53102u, 53105u, 53122u, 53107u, 53108u}) {
         AssertNativeEditFrame(editor, GetDlgItem(editor, id), dpi);
     }
+}
+
+void AssertRuntimeHintFits(HWND editor, UINT dpi) {
+    constexpr int kRuntimeHintId = 53120;
+    const HWND hint = GetDlgItem(editor, kRuntimeHintId);
+    assert(hint && IsWindow(hint));
+    AssertBodyFont(hint, dpi, 9);
+
+    const int length = GetWindowTextLengthW(hint);
+    assert(length > 0);
+    std::wstring text(static_cast<std::size_t>(length) + 1, L'\0');
+    assert(GetWindowTextW(hint, text.data(), length + 1) == length);
+    text.resize(static_cast<std::size_t>(length));
+
+    RECT available{};
+    assert(GetClientRect(hint, &available));
+    HDC dc = GetDC(hint);
+    assert(dc);
+    const auto font = reinterpret_cast<HFONT>(
+        SendMessageW(hint, WM_GETFONT, 0, 0));
+    assert(font);
+    const HGDIOBJ previous = SelectObject(dc, font);
+    assert(previous && previous != HGDI_ERROR);
+    RECT measured{};
+    assert(DrawTextW(dc, text.c_str(), -1, &measured,
+        DT_CALCRECT | DT_SINGLELINE | DT_NOPREFIX) > 0);
+    SelectObject(dc, previous);
+    ReleaseDC(hint, dc);
+
+    if (measured.right > available.right ||
+        measured.bottom > available.bottom) {
+        std::wcerr << L"UI-INPUT-01 clipped runtime hint: "
+            << text << L" measured=" << measured.right << L"x"
+            << measured.bottom << L" available=" << available.right
+            << L"x" << available.bottom << L" dpi=" << dpi << L"\n";
+    }
+    assert(measured.right <= available.right);
+    assert(measured.bottom <= available.bottom);
 }
 
 void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor, int editorPointSize = 10) {
@@ -218,12 +282,14 @@ void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor, int ed
         if (editor) {
             AssertEditorLabelFonts(window, dpi, expectedPointSize);
             AssertEditorNativeEditFrames(window, dpi);
+            AssertRuntimeHintFits(window, dpi);
         }
     };
     AssertBodyFont(bodyControl, initialDpi, expectedPointSize);
     if (editor) {
         AssertEditorLabelFonts(window, initialDpi, expectedPointSize);
         AssertEditorNativeEditFrames(window, initialDpi);
+        AssertRuntimeHintFits(window, initialDpi);
     }
     applyDpi(changedDpi, initialDpi);
     applyDpi(initialDpi, changedDpi);
@@ -294,18 +360,23 @@ void AssertApplicationTypographyPolicy() {
             language, altrun::ui::UiFontRole::SettingsNavigation);
         const auto shortcut = altrun::ui::ApplicationFontSpec(
             language, altrun::ui::UiFontRole::ShortcutBody);
-        const int localizedSize =
+        const auto hint = altrun::ui::ApplicationFontSpec(
+            language, altrun::ui::UiFontRole::ShortcutHint);
+        const int navigationSize =
             language == altrun::Language::ZhCN ? 11 : 10;
-        assert(navigation.pointSize == localizedSize);
-        assert(shortcut.pointSize == localizedSize);
+        assert(navigation.pointSize == navigationSize);
+        assert(shortcut.pointSize == 10);
+        assert(hint.pointSize == 9);
         assert(navigation.weight == FW_NORMAL);
         assert(shortcut.weight == FW_NORMAL);
+        assert(hint.weight == FW_NORMAL);
         if (language == altrun::Language::ZhCN) {
             const auto modern = altrun::ui::LauncherFontSpec(
                 altrun::UiStyle::ModernCompact,
                 language, altrun::ui::UiFontRole::Body);
             assert(lstrcmpiW(navigation.face, modern.face) == 0);
-            assert(lstrcmpiW(shortcut.face, body.face) == 0);
+            assert(lstrcmpiW(shortcut.face, navigation.face) == 0);
+            assert(lstrcmpiW(hint.face, navigation.face) == 0);
         }
         assert(body.pointSize == 10 && body.weight == FW_NORMAL);
         assert(emphasis.pointSize == 10 && emphasis.weight == FW_SEMIBOLD);
@@ -631,6 +702,7 @@ void CALLBACK ExerciseAdvancedToggle(
     const HWND runtimeCombo = GetDlgItem(editor, 53118);
 
     assert(typeCombo && runtimeCombo);
+    AssertRuntimeHintFits(editor, GetDpiForWindow(editor));
     // Longest runtime mode must not be clipped by the old 185-logical max.
     RECT runtimeBounds{};
     assert(GetWindowRect(runtimeCombo, &runtimeBounds));
@@ -656,8 +728,21 @@ void CALLBACK ExerciseAdvancedToggle(
         assert((IsWindowVisible(testInput) != FALSE) == (mode != 0));
         assert(((GetWindowLongPtrW(testInput, GWL_STYLE) &
             WS_VISIBLE) != 0) == (mode != 0));
-        if (mode != 0)
+        AssertRuntimeHintFits(editor, GetDpiForWindow(editor));
+        if (mode != 0) {
             AssertNativeEditFrame(editor, testInput, GetDpiForWindow(editor));
+            RECT runtimeRow{}, testRow{};
+            assert(GetWindowRect(runtimeCombo, &runtimeRow));
+            assert(GetWindowRect(testInput, &testRow));
+            const int visibleGap = testRow.top - runtimeRow.bottom;
+            const int minimum = altrun::ui::Scale(
+                8, GetDpiForWindow(editor));
+            if (visibleGap < minimum) {
+                std::cerr << "UI-INPUT-01 runtime/test rows too close: "
+                    << visibleGap << " < " << minimum << "\n";
+            }
+            assert(visibleGap >= minimum);
+        }
     }
 
     RECT typeScreen{}, runtimeScreen{};
