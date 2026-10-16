@@ -94,7 +94,10 @@ void AssertNativeEditFrame(HWND parent, HWND edit, UINT dpi) {
     assert(GetClassNameW(edit, cls, 32));
     assert(lstrcmpiW(cls, L"Edit") == 0);
     const LONG_PTR style = GetWindowLongPtrW(edit, GWL_STYLE);
-    assert((style & WS_BORDER) != 0);  // native text/caret geometry retained
+    // Win32 EDIT may consume WS_BORDER during WM_NCCREATE even when
+    // CreateWindowExW received it. GWL_STYLE is not its rendering contract:
+    // assert the actual nonclient insets and painted frame below.
+    assert((style & WS_CHILD) != 0);
     assert((style & WS_TABSTOP) != 0);
     assert((style & ES_AUTOHSCROLL) != 0);
     assert((GetWindowLongPtrW(edit, GWL_EXSTYLE) & WS_EX_CLIENTEDGE) == 0);
@@ -149,10 +152,35 @@ void AssertNativeEditFrame(HWND parent, HWND edit, UINT dpi) {
         const int edgePixels = std::max(3, altrun::ui::Scale(2, dpi));
         for (int x : {width / 4, width / 2, 3 * width / 4}) {
             bool topEdgePresent = false;
-            for (int y = 0; y < edgePixels; ++y)
-                topEdgePresent = topEdgePresent ||
-                    GetPixel(chromeDc, x, y) == color;
-            assert(topEdgePresent);
+            bool bottomEdgePresent = false;
+            for (int edge = 0; edge < edgePixels; ++edge) {
+                topEdgePresent |= GetPixel(chromeDc, x, edge) == color;
+                bottomEdgePresent |=
+                    GetPixel(chromeDc, x, window.bottom - window.top - 1 - edge)
+                        == color;
+            }
+            if (!topEdgePresent || !bottomEdgePresent) {
+                std::cerr << "UI-INPUT-01 missing horizontal EDIT frame: id="
+                    << GetDlgCtrlID(edit) << " x=" << x
+                    << " dpi=" << dpi << "\n";
+            }
+            assert(topEdgePresent && bottomEdgePresent);
+        }
+        const int height = window.bottom - window.top;
+        for (int y : {height / 4, height / 2, 3 * height / 4}) {
+            bool leftEdgePresent = false;
+            bool rightEdgePresent = false;
+            for (int edge = 0; edge < edgePixels; ++edge) {
+                leftEdgePresent |= GetPixel(chromeDc, edge, y) == color;
+                rightEdgePresent |= GetPixel(chromeDc, width - 1 - edge, y)
+                    == color;
+            }
+            if (!leftEdgePresent || !rightEdgePresent) {
+                std::cerr << "UI-INPUT-01 missing vertical EDIT frame: id="
+                    << GetDlgCtrlID(edit) << " y=" << y
+                    << " dpi=" << dpi << "\n";
+            }
+            assert(leftEdgePresent && rightEdgePresent);
         }
         ReleaseDC(edit, chromeDc);
     }
