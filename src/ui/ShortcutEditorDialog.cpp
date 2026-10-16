@@ -2329,12 +2329,13 @@ void ShortcutEditorDialog::UpdateRuntimeTestVisibility() {
     const bool visible =
         SelectedRuntimeInputMode() !=
         RuntimeInputMode::None;
+    // This also runs while the modal parent is hidden. IsWindowVisible
+    // would report FALSE for every child regardless of its own WS_VISIBLE
+    // bit, leaving a supposedly hidden test field visible on first reveal.
     const bool labelVisible =
-        IsWindowVisible(
-            testInputLabel_) != FALSE;
+        (GetWindowLongPtrW(testInputLabel_, GWL_STYLE) & WS_VISIBLE) != 0;
     const bool inputVisible =
-        IsWindowVisible(
-            testInput_) != FALSE;
+        (GetWindowLongPtrW(testInput_, GWL_STYLE) & WS_VISIBLE) != 0;
 
     if (labelVisible == visible &&
         inputVisible == visible) {
