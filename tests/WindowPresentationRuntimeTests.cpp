@@ -5,6 +5,7 @@
 #include "ui/SettingsWindow.hpp"
 #include "ui/ShortcutEditorDialog.hpp"
 #include "ui/UiTheme.hpp"
+#include "ui/UiTypography.hpp"
 #include "ui/ShortcutPathConverterDialog.hpp"
 #include "ui/ShortcutManagerWindow.hpp"
 #include "ui/TopLevelWindowPresentation.hpp"
@@ -47,6 +48,166 @@ ProcessResourceSnapshot ProcessResources() {
             &snapshot.handles));
 
     return snapshot;
+}
+
+
+LRESULT CALLBACK RedrawSuspendProbe(HWND, UINT, WPARAM, LPARAM,
+                                       UINT_PTR, DWORD_PTR);
+
+void AssertBodyFont(HWND control, UINT dpi, int pointSize = 10) {
+    assert(control && IsWindow(control));
+    const auto font = reinterpret_cast<HFONT>(
+        SendMessageW(control, WM_GETFONT, 0, 0));
+    assert(font);
+    LOGFONTW logical{};
+    assert(GetObjectW(font, sizeof(logical), &logical) == sizeof(logical));
+    assert(logical.lfHeight == -MulDiv(pointSize, static_cast<int>(dpi), 72));
+    assert(logical.lfWeight == FW_NORMAL);
+}
+
+void AssertEditorLabelFonts(HWND editor, UINT dpi, int pointSize = 10) {
+    struct Probe { UINT dpi; int labels; int pointSize; } probe{dpi, 0, pointSize};
+    EnumChildWindows(editor, [](HWND control, LPARAM data) -> BOOL {
+        wchar_t cls[32]{};
+        if (!GetClassNameW(control, cls, 32) ||
+            lstrcmpiW(cls, L"Static") != 0 ||
+            (GetWindowLongPtrW(control, GWL_STYLE) & SS_TYPEMASK) != SS_RIGHT ||
+            GetWindowTextLengthW(control) == 0) return TRUE;
+        auto& state = *reinterpret_cast<Probe*>(data);
+        AssertBodyFont(control, state.dpi, state.pointSize);
+        ++state.labels;
+        return TRUE;
+    }, reinterpret_cast<LPARAM>(&probe));
+    // Keyword, name, target, type, and runtime form fields must all use
+    // the same body metrics. No three-label semibold exception.
+    assert(probe.labels >= 5);
+}
+
+void AssertModalFontDpiUpdate(HWND window, HWND bodyControl, bool editor, int editorPointSize = 10) {
+    const int expectedPointSize = editor ? editorPointSize : 10;
+    const UINT initialDpi = GetDpiForWindow(window);
+    assert(initialDpi != 0);
+    const UINT changedDpi = initialDpi == 120 ? 144 : 120;
+    const auto applyDpi = [&](UINT dpi, UINT fromDpi) {
+        RECT suggested{};
+        assert(GetWindowRect(window, &suggested));
+        suggested.right = suggested.left +
+            MulDiv(suggested.right - suggested.left,
+                static_cast<int>(dpi), static_cast<int>(fromDpi));
+        suggested.bottom = suggested.top +
+            MulDiv(suggested.bottom - suggested.top,
+                static_cast<int>(dpi), static_cast<int>(fromDpi));
+        int suspended = 0;
+        assert(SetWindowSubclass(window, RedrawSuspendProbe, 89,
+            reinterpret_cast<DWORD_PTR>(&suspended)));
+        SendMessageW(window, WM_DPICHANGED, MAKEWPARAM(dpi, dpi),
+            reinterpret_cast<LPARAM>(&suggested));
+        assert(suspended == 0);
+        assert(RemoveWindowSubclass(window, RedrawSuspendProbe, 89));
+        assert(IsWindow(window) && IsWindowVisible(window));
+        AssertBodyFont(bodyControl, dpi, expectedPointSize);
+        if (editor) AssertEditorLabelFonts(window, dpi, expectedPointSize);
+    };
+    AssertBodyFont(bodyControl, initialDpi, expectedPointSize);
+    if (editor) AssertEditorLabelFonts(window, initialDpi, expectedPointSize);
+    applyDpi(changedDpi, initialDpi);
+    applyDpi(initialDpi, changedDpi);
+}
+
+
+// UI-R02: verify selected CJK UI face exists and contains all frequently
+// reported Han glyphs, rather than relying on silent GDI face substitution.
+int CALLBACK MarkFoundUiFont(const LOGFONTW*, const TEXTMETRICW*,
+                             DWORD, LPARAM context) {
+    *reinterpret_cast<bool*>(context) = true;
+    return 0;
+}
+
+bool InstalledUiTypeface(HDC dc, const wchar_t* name) {
+    LOGFONTW requested{};
+    requested.lfCharSet = DEFAULT_CHARSET;
+    lstrcpynW(requested.lfFaceName, name, LF_FACESIZE);
+    bool found = false;
+    EnumFontFamiliesExW(dc, &requested, MarkFoundUiFont,
+        reinterpret_cast<LPARAM>(&found), 0);
+    return found;
+}
+
+void AssertChineseUiTypeface() {
+    HDC dc = GetDC(nullptr);
+    assert(dc);
+    const bool hasYaHei = InstalledUiTypeface(dc, L"Microsoft YaHei");
+    const bool hasYaHeiUi = InstalledUiTypeface(dc, L"Microsoft YaHei UI");
+    const wchar_t* expected = hasYaHei ? L"Microsoft YaHei"
+        : hasYaHeiUi ? L"Microsoft YaHei UI" : L"Segoe UI";
+    const auto spec = altrun::ui::ApplicationFontSpec(
+        altrun::Language::ZhCN, altrun::ui::UiFontRole::Body);
+    assert(lstrcmpiW(spec.face, expected) == 0);
+
+    const HFONT font = altrun::ui::CreateFontHandle(spec, 96);
+    assert(font);
+    const HGDIOBJ old = SelectObject(dc, font);
+    assert(old && old != HGDI_ERROR);
+    wchar_t realized[LF_FACESIZE]{};
+    assert(GetTextFaceW(dc, LF_FACESIZE, realized) != 0);
+    if (hasYaHei || hasYaHeiUi) {
+        // These common glyphs must be provided by the chosen face itself,
+        // without per-character substitution to visually unrelated fonts.
+        assert(lstrcmpiW(realized, expected) == 0);
+        constexpr wchar_t sample[] = L"搜索来源新建快捷词";
+        WORD glyphs[(sizeof(sample) / sizeof(wchar_t)) - 1]{};
+        assert(GetGlyphIndicesW(dc, sample,
+            static_cast<int>((sizeof(sample) / sizeof(wchar_t)) - 1),
+            glyphs, GGI_MARK_NONEXISTING_GLYPHS) != GDI_ERROR);
+        for (const WORD glyph : glyphs) assert(glyph != 0xffff);
+    }
+    assert(SelectObject(dc, old) == font);
+    assert(DeleteObject(font));
+    assert(ReleaseDC(nullptr, dc) == 1);
+}
+
+void AssertApplicationTypographyPolicy() {
+    for (const auto language :
+         {altrun::Language::ZhCN, altrun::Language::EnUS}) {
+        const auto body = altrun::ui::ApplicationFontSpec(
+            language, altrun::ui::UiFontRole::Body);
+        const auto emphasis = altrun::ui::ApplicationFontSpec(
+            language, altrun::ui::UiFontRole::BodySemibold);
+        const auto section = altrun::ui::ApplicationFontSpec(
+            language, altrun::ui::UiFontRole::SectionTitle);
+        const auto navigation = altrun::ui::ApplicationFontSpec(
+            language, altrun::ui::UiFontRole::SettingsNavigation);
+        const auto shortcut = altrun::ui::ApplicationFontSpec(
+            language, altrun::ui::UiFontRole::ShortcutBody);
+        const int localizedSize =
+            language == altrun::Language::ZhCN ? 11 : 10;
+        assert(navigation.pointSize == localizedSize);
+        assert(shortcut.pointSize == localizedSize);
+        assert(navigation.weight == FW_NORMAL);
+        assert(shortcut.weight == FW_NORMAL);
+        if (language == altrun::Language::ZhCN) {
+            const auto modern = altrun::ui::LauncherFontSpec(
+                altrun::UiStyle::ModernCompact,
+                language, altrun::ui::UiFontRole::Body);
+            assert(lstrcmpiW(navigation.face, modern.face) == 0);
+            assert(lstrcmpiW(shortcut.face, body.face) == 0);
+        }
+        assert(body.pointSize == 10 && body.weight == FW_NORMAL);
+        assert(emphasis.pointSize == 10 && emphasis.weight == FW_SEMIBOLD);
+        assert(section.pointSize == 11 && section.weight == FW_SEMIBOLD);
+        assert(lstrcmpW(body.face, emphasis.face) == 0);
+        assert(lstrcmpW(body.face, section.face) == 0);
+        for (const UINT dpi : {96u, 120u, 144u, 192u}) {
+            const HFONT font = altrun::ui::CreateFontHandle(body, dpi);
+            assert(font);
+            LOGFONTW logical{};
+            assert(GetObjectW(font, sizeof(logical), &logical) ==
+                sizeof(logical));
+            assert(logical.lfHeight == -MulDiv(10, static_cast<int>(dpi), 72));
+            assert(logical.lfWeight == FW_NORMAL);
+            assert(DeleteObject(font));
+        }
+    }
 }
 
 bool EverythingServiceIsMissing() {
@@ -203,6 +364,10 @@ bool observedModalDestroy{};
 bool ownerEnabledAtModalDestroy{};
 bool expectedOwnerEnabledAtModalDestroy{};
 bool observedKeywordCaretAtEnd{};
+bool checkUiR02ModalDpi{};
+int expectedEditorBodyPointSize = 10;
+bool observedEditorDpiCheck{};
+bool observedConverterDpiCheck{};
 
 LRESULT CALLBACK ModalDestroyProbe(HWND window, UINT message, WPARAM wParam,
                                    LPARAM lParam, UINT_PTR subclassId,
@@ -229,6 +394,11 @@ void CALLBACK CancelEditor(HWND, UINT, UINT_PTR timer, DWORD) {
     assert(IsWindowVisible(editor));
     assert(!IsWindowEnabled(modalOwner));
     observedEditor = true;
+    if (checkUiR02ModalDpi) {
+        AssertModalFontDpiUpdate(editor, GetDlgItem(editor, 53102),
+            true, expectedEditorBodyPointSize);
+        observedEditorDpiCheck = true;
+    }
     ArmModalDestroyProbe(editor);
     KillTimer(nullptr, timer);
     PostMessageW(editor, WM_CLOSE, 0, 0);
@@ -241,6 +411,10 @@ void CALLBACK CancelPathConverter(HWND, UINT, UINT_PTR timer, DWORD) {
     assert(IsWindowVisible(converter));
     assert(!IsWindowEnabled(modalOwner));
     observedPathConverter = true;
+    if (checkUiR02ModalDpi) {
+        AssertModalFontDpiUpdate(converter, GetDlgItem(converter, 54104), false);
+        observedConverterDpiCheck = true;
+    }
     ArmModalDestroyProbe(converter);
     KillTimer(nullptr, timer);
     PostMessageW(converter, WM_CLOSE, 0, 0);
@@ -662,6 +836,8 @@ int main() {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     const auto com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const HINSTANCE instance = GetModuleHandleW(nullptr);
+    AssertApplicationTypographyPolicy();
+    AssertChineseUiTypeface();
 
     const HWND owner = CreateWindowExW(WS_EX_TOOLWINDOW, L"STATIC", L"Owner",
         WS_POPUP, -20000, -20000, 200, 100, nullptr, nullptr, instance, nullptr);
@@ -787,6 +963,22 @@ int main() {
                 IsWindowVisible(window) &&
                 HasAboutHeading(window));
 
+            // Both selected and unselected navigation use one Regular font;
+            // remaining Settings controls stay on the 10pt body role.
+            const auto expectedNavFont = ui::ApplicationFontSpec(
+                app.SettingsData().language,
+                ui::UiFontRole::SettingsNavigation);
+            for (const UINT id : {51001u, 51006u}) {
+                const HWND nav = GetDlgItem(window, id);
+                AssertBodyFont(nav, GetDpiForWindow(window),
+                    expectedNavFont.pointSize);
+                const HFONT handle = reinterpret_cast<HFONT>(
+                    SendMessageW(nav, WM_GETFONT, 0, 0));
+                LOGFONTW font{};
+                assert(GetObjectW(handle, sizeof(font), &font) == sizeof(font));
+                assert(lstrcmpiW(
+                    font.lfFaceName, expectedNavFont.face) == 0);
+            }
             // A default hotkey's Reset button must never become visible even
             // for a transient frame when opening the Hotkeys page.
             SendMessageW(window, WM_COMMAND, MAKEWPARAM(51001, BN_CLICKED), 0);
@@ -1341,6 +1533,27 @@ int main() {
         KillTimer(nullptr, timer);
         assert(observedPathConverter && observedModalDestroy);
         assert(ownerEnabledAtModalDestroy);
+        assert(IsWindowEnabled(owner));
+        assert(IsWindowVisible(owner));
+
+        // One actual modal per type performs a synthetic cross-monitor DPI
+        // roundtrip while visible. Later resource-soak cycles stay unchanged.
+        observedEditorDpiCheck = false;
+        observedConverterDpiCheck = false;
+        checkUiR02ModalDpi = true;
+        expectedEditorBodyPointSize = ui::ApplicationFontSpec(
+            app.SettingsData().language,
+            ui::UiFontRole::ShortcutBody).pointSize;
+        timer = SetTimer(nullptr, 0, 20, CancelEditor);
+        assert(timer);
+        assert(!ShortcutEditorDialog::ShowNew(app, instance, owner, seed));
+        KillTimer(nullptr, timer);
+        timer = SetTimer(nullptr, 0, 20, CancelPathConverter);
+        assert(timer);
+        assert(!ShortcutPathConverterDialog::Show(app, instance, owner));
+        KillTimer(nullptr, timer);
+        checkUiR02ModalDpi = false;
+        assert(observedEditorDpiCheck && observedConverterDpiCheck);
         assert(IsWindowEnabled(owner));
         assert(IsWindowVisible(owner));
 

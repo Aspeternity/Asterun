@@ -19,51 +19,71 @@ constexpr int
 constexpr int
     kModernLauncherSearchLogicalHeight96 = -14;
 
-int CALLBACK FoundModernFont(
+int CALLBACK MarkInstalledFont(
     const LOGFONTW*, const TEXTMETRICW*, DWORD, LPARAM context) {
     *reinterpret_cast<bool*>(context) = true;
     return 0;
 }
 
-[[nodiscard]] const wchar_t* ModernLauncherFace() noexcept {
-    // Select once, including for English UI: result names can mix Latin and Han.
-    // Enumeration owns no fonts and the temporary screen DC is always released.
-    static const wchar_t* const face = []() -> const wchar_t* {
-        HDC dc = GetDC(nullptr);
-        if (!dc) return L"Segoe UI";
-        const wchar_t* selected = L"Segoe UI";
-        for (const wchar_t* candidate : {L"Microsoft YaHei UI", L"Microsoft YaHei"}) {
-            LOGFONTW query{};
-            query.lfCharSet = DEFAULT_CHARSET;
-            lstrcpynW(query.lfFaceName, candidate, LF_FACESIZE);
-            bool found = false;
-            EnumFontFamiliesExW(dc, &query, FoundModernFont,
-                reinterpret_cast<LPARAM>(&found), 0);
-            if (found) {
-                selected = candidate;
-                break;
-            }
+// Resolve both application and UI display-face priorities with one GDI
+// enumeration path. Keep their existing preference order and no-DC fallback
+// intact; this consolidates the old unsuccessful font-family experiment
+// without changing the fonts realized on a normal Windows installation.
+[[nodiscard]] const wchar_t* ResolveInstalledFace(
+    std::initializer_list<const wchar_t*> priorities,
+    const wchar_t* unavailableDcFallback,
+    const wchar_t* noMatchFallback) noexcept {
+    HDC dc = GetDC(nullptr);
+    if (!dc) return unavailableDcFallback;
+
+    const wchar_t* selected = noMatchFallback;
+    for (const wchar_t* candidate : priorities) {
+        LOGFONTW query{};
+        query.lfCharSet = DEFAULT_CHARSET;
+        lstrcpynW(query.lfFaceName, candidate, LF_FACESIZE);
+        bool found = false;
+        EnumFontFamiliesExW(dc, &query, MarkInstalledFont,
+            reinterpret_cast<LPARAM>(&found), 0);
+        if (found) {
+            selected = candidate;
+            break;
         }
-        ReleaseDC(nullptr, dc);
-        return selected;
-    }();
+    }
+    ReleaseDC(nullptr, dc);
+    return selected;
+}
+
+[[nodiscard]] const wchar_t* PreferredChineseUiFace() noexcept {
+    // Mixed Latin and Han in Modern search, plus Settings navigation.
+    // Cached once: no font probing in paint/activation paths.
+    static const wchar_t* const face = ResolveInstalledFace(
+        {L"Microsoft YaHei UI", L"Microsoft YaHei"},
+        L"Segoe UI", L"Segoe UI");
     return face;
 }
 
-[[nodiscard]] const wchar_t*
-ApplicationFace(
+[[nodiscard]] const wchar_t* ApplicationFace(
     Language language) noexcept {
+    if (language != Language::ZhCN) return L"Segoe UI";
 
-    return language == Language::ZhCN
-        ? L"Microsoft YaHei UI"
-        : L"Segoe UI";
+    // Preserve the accepted right-pane/editor appearance independently of
+    // the navigation's UI face. Changing this priority is a separate
+    // product-appearance decision, not an incidental cleanup.
+    static const wchar_t* const face = ResolveInstalledFace(
+        {L"Microsoft YaHei", L"Microsoft YaHei UI"},
+        L"Microsoft YaHei UI", L"Segoe UI");
+    return face;
 }
 
 [[nodiscard]] int
 ApplicationPointSize(
+    Language language,
     UiFontRole role) noexcept {
 
     switch (role) {
+    case UiFontRole::SettingsNavigation:
+    case UiFontRole::ShortcutBody:
+        return language == Language::ZhCN ? 11 : 10;
     case UiFontRole::SectionTitle:
         return 11;
     case UiFontRole::PageTitle:
@@ -95,6 +115,8 @@ RoleWeight(
     case UiFontRole::LauncherTitle:
         return FW_BOLD;
     case UiFontRole::Body:
+    case UiFontRole::SettingsNavigation:
+    case UiFontRole::ShortcutBody:
     case UiFontRole::LauncherAuxiliary:
     default:
         return FW_NORMAL;
@@ -108,8 +130,11 @@ UiFontSpec ApplicationFontSpec(
     UiFontRole role) noexcept {
 
     return {
-        ApplicationFace(language),
-        ApplicationPointSize(role),
+        role == UiFontRole::SettingsNavigation &&
+                language == Language::ZhCN
+            ? PreferredChineseUiFace()
+            : ApplicationFace(language),
+        ApplicationPointSize(language, role),
         0,
         RoleWeight(role),
         DEFAULT_CHARSET,
@@ -143,7 +168,7 @@ UiFontSpec LauncherFontSpec(
         // CJK-capable HFONT avoids changing the control's font as mixed
         // Latin/CJK text appears; Windows font linking remains the fallback.
         return {
-            ModernLauncherFace(),
+            PreferredChineseUiFace(),
             0,
             kModernLauncherSearchLogicalHeight96,
             FW_NORMAL,
@@ -160,7 +185,7 @@ UiFontSpec LauncherFontSpec(
                 : kModernLauncherBodyPointSize;
 
     return {
-        ModernLauncherFace(),
+        PreferredChineseUiFace(),
         pointSize,
         0,
         role == UiFontRole::BodySemibold ? FW_NORMAL : RoleWeight(role),

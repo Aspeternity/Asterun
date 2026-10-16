@@ -49,6 +49,7 @@ private:
         LPARAM lParam);
 
     void CreateControls();
+    void ApplyFonts(BOOL repaint = TRUE);
     void CloseWindow();
     void ApplyLanguage();
     void UpdateWindowTitle();
