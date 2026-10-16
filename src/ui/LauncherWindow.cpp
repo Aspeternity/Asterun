@@ -31,7 +31,9 @@
 #include <iterator>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace altrun {
 
@@ -237,24 +239,50 @@ ModernSecondaryResultText(
         : std::wstring{};
 }
 
-// The keyword of a user-defined shortcut, shown as a small tag after the
-// name. It is the user's own typed trigger, so it carries real meaning;
-// provider rows simply have no tag (a decoration, not a half-empty column).
-[[nodiscard]] std::wstring
-ModernKeywordTagText(
+// The keywords of a user-defined shortcut, each shown as its own small tag
+// after the name. They are the user's own typed triggers, so they carry real
+// meaning; provider rows simply have no tags (a decoration, not a half-empty
+// column). shortcutHint joins keyword and aliases with " · ".
+[[nodiscard]] std::vector<std::wstring>
+ModernKeywordTags(
     const LauncherResult& result) {
+    std::vector<std::wstring> tags;
     if (result.kind !=
             ResultKind::UserCommand ||
         result.shortcutHint.empty()) {
-        return {};
+        return tags;
     }
 
     const std::wstring primary =
         ModernPrimaryResultText(result);
+    constexpr std::wstring_view separator = L" · ";
+    std::wstring_view rest = result.shortcutHint;
+    while (!rest.empty()) {
+        const std::size_t cut = rest.find(separator);
+        const std::wstring_view token = rest.substr(0, cut);
+        if (!token.empty() && token != primary) {
+            tags.emplace_back(token);
+        }
+        if (cut == std::wstring_view::npos) break;
+        rest.remove_prefix(cut + separator.size());
+    }
+    return tags;
+}
 
-    return result.shortcutHint == primary
-        ? std::wstring{}
-        : result.shortcutHint;
+// GDI has no alpha: mix `over` into `base` by `amount` (0..1) to get the
+// colour a translucent `over` layer would show on `base`.
+[[nodiscard]] COLORREF BlendColor(
+    COLORREF base,
+    COLORREF over,
+    double amount) noexcept {
+    const auto mix = [amount](BYTE from, BYTE to) {
+        return static_cast<BYTE>(
+            from + (to - from) * amount + 0.5);
+    };
+    return RGB(
+        mix(GetRValue(base), GetRValue(over)),
+        mix(GetGValue(base), GetGValue(over)),
+        mix(GetBValue(base), GetBValue(over)));
 }
 
 [[nodiscard]] std::wstring
@@ -840,12 +868,17 @@ void LauncherWindow::ApplyFonts() {
             },
             dpi_);
 
+    // Keyword chips sit inside a row of body text: one step below the
+    // auxiliary size so the chip stays visibly lighter than the name.
+    ui::UiFontSpec keywordTagSpec =
+        ui::LauncherFontSpec(
+            style,
+            language,
+            ui::UiFontRole::LauncherAuxiliary);
+    keywordTagSpec.logicalHeight96 = -11;
     keywordTagFont_ =
         ui::CreateFontHandle(
-            ui::LauncherFontSpec(
-                style,
-                language,
-                ui::UiFontRole::LauncherAuxiliary),
+            keywordTagSpec,
             dpi_);
 
     SendMessageW(edit_, WM_SETFONT, reinterpret_cast<WPARAM>(searchFont_), TRUE);
@@ -4168,12 +4201,12 @@ LRESULT LauncherWindow::HandleMessage(
             const std::wstring modernSecondary =
                 ModernSecondaryResultText(
                     result);
-            const std::wstring keywordTag =
-                ModernKeywordTagText(
+            const std::vector<std::wstring> keywordTags =
+                ModernKeywordTags(
                     result);
             const bool hasTrailing =
                 !modernSecondary.empty() ||
-                !keywordTag.empty();
+                !keywordTags.empty();
 
             const int contentLeft =
                 item->rcItem.left +
@@ -4263,11 +4296,15 @@ LRESULT LauncherWindow::HandleMessage(
                         contentRight,
                         primaryLeft +
                             primaryWidth);
+                // Tags belong to the name, so they sit closer to it than a
+                // secondary text column does.
                 const int secondaryLeft =
                     std::min(
                         contentRight,
                         primaryRight +
-                            modern.rowColumnGap);
+                            (modernSecondary.empty()
+                                 ? DpiScale(8)
+                                 : modern.rowColumnGap));
 
                 primaryRect.right =
                     static_cast<LONG>(
@@ -4310,29 +4347,29 @@ LRESULT LauncherWindow::HandleMessage(
                         DT_VCENTER |
                         DT_END_ELLIPSIS |
                         DT_NOPREFIX);
-            } else if (!keywordTag.empty()) {
-                // Keyword tag: muted text in a small rounded pill right
-                // after the name, sized to the text and clipped to the row.
+            } else if (!keywordTags.empty()) {
+                // Keyword tags: one borderless chip per keyword right after
+                // the name. The chip is the row background tinted a few
+                // percent toward the text (or, on the selected row, toward
+                // the accent), so it reads as part of the row rather than a
+                // white patch on top of it. At most kMaxTags chips; the rest
+                // collapse into a "+N" chip.
                 SelectObject(
                     item->hDC,
                     keywordTagFont_
                         ? keywordTagFont_
                         : auxiliaryFont_);
 
-                SIZE tagSize{};
-                GetTextExtentPoint32W(
-                    item->hDC,
-                    keywordTag.c_str(),
-                    static_cast<int>(
-                        keywordTag.size()),
-                    &tagSize);
                 TEXTMETRICW tagMetrics{};
                 GetTextMetricsW(
                     item->hDC,
                     &tagMetrics);
 
+                constexpr std::size_t kMaxTags = 3;
                 const int padX =
-                    DpiScale(7);
+                    DpiScale(5);
+                const int tagGap =
+                    DpiScale(4);
                 const int tagHeight =
                     std::min(
                         static_cast<int>(
@@ -4341,57 +4378,151 @@ LRESULT LauncherWindow::HandleMessage(
                             DpiScale(6),
                         static_cast<int>(
                             tagMetrics.tmHeight) +
-                            DpiScale(4));
+                            DpiScale(2));
                 const int rowMid =
                     (item->rcItem.top +
                      item->rcItem.bottom) / 2;
-                RECT tagRect{
-                    secondaryRect.left,
-                    rowMid - tagHeight / 2,
-                    std::min(
-                        secondaryRect.right,
-                        secondaryRect.left +
-                            static_cast<LONG>(
-                                tagSize.cx) +
-                            padX * 2),
-                    rowMid - tagHeight / 2 +
-                        tagHeight,
-                };
+                const COLORREF rowBackground =
+                    selected
+                        ? palette.selectionBackground
+                        : palette.accentBackground;
+                // Barely deeper than the row (a few percent of text, or of
+                // accent on the selected row) with plain muted text: the
+                // chip groups the keywords without competing with the name.
+                const COLORREF tagFill =
+                    selected
+                        ? BlendColor(
+                              rowBackground,
+                              palette.accent,
+                              0.05)
+                        : BlendColor(
+                              rowBackground,
+                              palette.text,
+                              0.04);
+                const COLORREF tagTextColor =
+                    palette.mutedText;
 
-                if (tagRect.right - tagRect.left >
-                        padX * 2 &&
-                    tagHeight > 0) {
-                    ui::PaintSmoothRoundedFrame(
-                        item->hDC,
-                        tagRect,
-                        tagRect,
-                        DpiScale(
-                            ui::kControlCornerRadiusLogical),
-                        selected
-                            ? palette.selectionBackground
-                            : palette.accentBackground,
-                        palette.frame,
-                        palette.controlBackground);
+                const auto measure =
+                    [&](const std::wstring& text) {
+                        SIZE size{};
+                        GetTextExtentPoint32W(
+                            item->hDC,
+                            text.c_str(),
+                            static_cast<int>(
+                                text.size()),
+                            &size);
+                        return static_cast<int>(
+                                   size.cx) +
+                            padX * 2;
+                    };
+                const auto paintTag =
+                    [&](const std::wstring& text,
+                        int left,
+                        int width) {
+                        const RECT tagRect{
+                            left,
+                            rowMid - tagHeight / 2,
+                            left + width,
+                            rowMid - tagHeight / 2 +
+                                tagHeight,
+                        };
+                        ui::PaintSmoothRoundedFrame(
+                            item->hDC,
+                            tagRect,
+                            tagRect,
+                            DpiScale(
+                                ui::kControlCornerRadiusLogical),
+                            rowBackground,
+                            tagFill,
+                            tagFill);
 
-                    RECT tagText =
-                        tagRect;
-                    InflateRect(
-                        &tagText,
-                        -padX,
-                        0);
-                    SetTextColor(
-                        item->hDC,
-                        palette.mutedText);
-                    DrawTextW(
-                        item->hDC,
-                        keywordTag.c_str(),
-                        -1,
-                        &tagText,
-                        DT_SINGLELINE |
-                            DT_CENTER |
-                            DT_VCENTER |
-                            DT_END_ELLIPSIS |
-                            DT_NOPREFIX);
+                        RECT tagText =
+                            tagRect;
+                        InflateRect(
+                            &tagText,
+                            -padX,
+                            0);
+                        SetTextColor(
+                            item->hDC,
+                            tagTextColor);
+                        DrawTextW(
+                            item->hDC,
+                            text.c_str(),
+                            -1,
+                            &tagText,
+                            DT_SINGLELINE |
+                                DT_CENTER |
+                                DT_VCENTER |
+                                DT_END_ELLIPSIS |
+                                DT_NOPREFIX);
+                    };
+
+                if (tagHeight > 0) {
+                    const int right =
+                        static_cast<int>(
+                            secondaryRect.right);
+                    int x =
+                        static_cast<int>(
+                            secondaryRect.left);
+                    std::size_t shown = 0;
+                    for (; shown < keywordTags.size() &&
+                           shown < kMaxTags;
+                         ++shown) {
+                        const int width =
+                            measure(
+                                keywordTags[shown]);
+                        // Keep room for the "+N" chip when tags remain.
+                        const bool more =
+                            shown + 1 <
+                            keywordTags.size();
+                        const int reserve =
+                            more
+                                ? tagGap +
+                                    measure(L"+9")
+                                : 0;
+                        if (x + width + reserve > right) {
+                            // A lone first tag still shows, ellipsized.
+                            if (shown == 0 &&
+                                right - x > padX * 2 +
+                                    tagMetrics.tmAveCharWidth) {
+                                paintTag(
+                                    keywordTags[0],
+                                    x,
+                                    std::min(
+                                        width,
+                                        right - x -
+                                            reserve));
+                                x += std::min(
+                                         width,
+                                         right - x -
+                                             reserve) +
+                                    tagGap;
+                                ++shown;
+                            }
+                            break;
+                        }
+                        paintTag(
+                            keywordTags[shown],
+                            x,
+                            width);
+                        x += width + tagGap;
+                    }
+
+                    if (shown < keywordTags.size()) {
+                        const std::wstring overflow =
+                            L"+" +
+                            std::to_wstring(
+                                keywordTags.size() -
+                                shown);
+                        const int width =
+                            measure(overflow);
+                        if (x + width <= right) {
+                            paintTag(
+                                overflow,
+                                x,
+                                width);
+                        }
+                    }
                 }
             }
 
