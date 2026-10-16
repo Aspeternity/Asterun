@@ -615,13 +615,19 @@ void CALLBACK ExerciseAdvancedToggle(
     // A mode change must expose/hide the native test EDIT without losing
     // the advanced disclosure's geometry or disturbing the editor owner.
     const HWND testInput = GetDlgItem(editor, 53122);
-    assert(testInput && !IsWindowVisible(testInput));
+    assert(testInput);
+    // The initial command has RuntimeInputMode::None. Verify the child's
+    // own style, not only its parent-dependent effective visibility.
+    assert((GetWindowLongPtrW(testInput, GWL_STYLE) & WS_VISIBLE) == 0);
+    assert(!IsWindowVisible(testInput));
     for (int mode : {1, 2, 0}) {
         assert(SendMessageW(runtimeCombo, CB_SETCURSEL, mode, 0) == mode);
         SendMessageW(editor, WM_COMMAND,
             MAKEWPARAM(53118, CBN_SELCHANGE),
             reinterpret_cast<LPARAM>(runtimeCombo));
         assert((IsWindowVisible(testInput) != FALSE) == (mode != 0));
+        assert(((GetWindowLongPtrW(testInput, GWL_STYLE) &
+            WS_VISIBLE) != 0) == (mode != 0));
         if (mode != 0)
             AssertNativeEditFrame(editor, testInput, GetDpiForWindow(editor));
     }
