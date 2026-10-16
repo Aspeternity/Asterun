@@ -1172,9 +1172,15 @@ void SettingsWindow::ApplyFonts() {
                 language,
                 ui::UiFontRole::Body),
             dpi_);
-    // Isolated UI-R02 A/B: 11pt regular Chinese navigation only.
+    // Navigation has its own 11pt Regular size. Reuse the application's
+    // existing installed UI-face fallback instead of introducing another
+    // font enumeration or altering right-pane typography.
     auto navSpec = ui::ApplicationFontSpec(language, ui::UiFontRole::Body);
-    if (language == Language::ZhCN) navSpec.pointSize = 11;
+    if (language == Language::ZhCN) {
+        navSpec.pointSize = 11;
+        navSpec.face = ui::LauncherFontSpec(
+            UiStyle::ModernCompact, language, ui::UiFontRole::Body).face;
+    }
     navFont_ = ui::CreateFontHandle(navSpec, dpi_);
     sectionFont_ =
         ui::CreateFontHandle(
@@ -4645,6 +4651,8 @@ void SettingsWindow::DrawNavigationButton(
     const bool focused =
         (item.itemState &
          ODS_FOCUS) != 0;
+    const bool hovered =
+        (item.itemState & ODS_HOTLIGHT) != 0;
 
     RECT surface = rect;
     InflateRect(
@@ -4652,51 +4660,38 @@ void SettingsWindow::DrawNavigationButton(
         -Scale(2),
         -Scale(1));
 
+    // The native BUTTON's unpainted edge used to retain a faint idle
+    // frame. Clear the entire control with the sidebar brush first.
+    FillRect(
+        item.hDC,
+        &rect,
+        sidebarBrush_
+            ? sidebarBrush_
+            : GetSysColorBrush(COLOR_BTNFACE));
+
+    const bool showSurface =
+        selected || pressed || focused || hovered;
     const COLORREF background =
         pressed
             ? kCardPressed
             : selected
-                ? kPalette
-                      .selectionBackground
-                : focused
-                    ? kCardPressed
-                    : kSidebarBackground;
+                ? kPalette.selectionBackground
+                : kCardPressed;
 
-    HBRUSH fill =
-        CreateSolidBrush(
-            background);
-    HPEN pen =
-        CreatePen(
-            PS_SOLID,
-            1,
-            background);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            item.hDC,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            item.hDC,
-            pen);
-
-    RoundRect(
-        item.hDC,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        Scale(7),
-        Scale(7));
-
-    SelectObject(
-        item.hDC,
-        oldBrush);
-    SelectObject(
-        item.hDC,
-        oldPen);
-    DeleteObject(fill);
-    DeleteObject(pen);
+    // Idle navigation is flat and borderless. Only active/hovered/focused
+    // entries get a rounded surface; selected text keeps its accent stripe.
+    if (showSurface) {
+        HBRUSH fill = CreateSolidBrush(background);
+        HPEN pen = CreatePen(PS_SOLID, 1, background);
+        HGDIOBJ oldBrush = SelectObject(item.hDC, fill);
+        HGDIOBJ oldPen = SelectObject(item.hDC, pen);
+        RoundRect(item.hDC, surface.left, surface.top,
+            surface.right, surface.bottom, Scale(7), Scale(7));
+        SelectObject(item.hDC, oldBrush);
+        SelectObject(item.hDC, oldPen);
+        DeleteObject(fill);
+        DeleteObject(pen);
+    }
 
     if (selected) {
         RECT accent{
