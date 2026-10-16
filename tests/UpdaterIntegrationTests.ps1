@@ -311,6 +311,20 @@ function Assert-Updated([hashtable]$case, [int]$exitCode) {
 }
 
 $exitCodeToReturn = 0
+# Each launched copy starts with first-run settings, so its shell integration
+# reconcile repoints HKCU Run and SendTo\Asterun.lnk at the temporary install.
+# Save the developer's entries and put them back exactly afterwards.
+$runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$savedRun = (Get-ItemProperty -LiteralPath $runKey -Name 'Asterun' -ErrorAction SilentlyContinue)
+if ($savedRun) { $savedRun = $savedRun.Asterun }
+$sendToLink = Join-Path ([Environment]::GetFolderPath('SendTo')) 'Asterun.lnk'
+$savedSendTo = $null
+$savedSendToTime = $null
+if (Test-Path -LiteralPath $sendToLink) {
+    $savedSendTo = [IO.File]::ReadAllBytes($sendToLink)
+    $savedSendToTime = (Get-Item -LiteralPath $sendToLink).LastWriteTimeUtc
+}
+
 try {
     Write-Output "Updater integration test, mode=$Mode, version=$version, appDir=$AppDir, root=$root"
     if ($Mode -eq 'Portable') {
@@ -404,6 +418,17 @@ try {
         }
     }
     Start-Sleep -Milliseconds 500
+    if ($null -ne $savedRun) {
+        Set-ItemProperty -LiteralPath $runKey -Name 'Asterun' -Value $savedRun -Type String
+    } else {
+        Remove-ItemProperty -LiteralPath $runKey -Name 'Asterun' -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $savedSendTo) {
+        [IO.File]::WriteAllBytes($sendToLink, $savedSendTo)
+        (Get-Item -LiteralPath $sendToLink).LastWriteTimeUtc = $savedSendToTime
+    } elseif (Test-Path -LiteralPath $sendToLink) {
+        Remove-Item -LiteralPath $sendToLink -Force -ErrorAction SilentlyContinue
+    }
     # Remove only directories this run created, identified by their marker.
     for ($i = $createdDirectories.Count - 1; $i -ge 0; --$i) {
         $dir = $createdDirectories[$i]

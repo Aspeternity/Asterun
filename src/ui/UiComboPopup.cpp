@@ -32,6 +32,9 @@ struct PopupState {
     int hoverIndex{-1};
     int topIndex{0};
     int visibleRows{0};
+    // Physical row height: the shared default, or the owning combo's
+    // compact closed height so a small field opens a matching list.
+    int rowHeight{0};
     bool trackingMouse{false};
 };
 
@@ -196,9 +199,7 @@ void EnsureActiveVisible(
             kNextComboPopupPaddingLogical,
             state.dpi);
     const int rowHeight =
-        S(
-            kNextComboPopupRowHeightLogical,
-            state.dpi);
+        state.rowHeight;
     const int scrollbarReserve =
         static_cast<int>(
             state.items.size()) >
@@ -1127,6 +1128,15 @@ bool ShowNextComboPopup(
         static_cast<int>(
             NextComboBoxVisibleItems(
                 state->items.size()));
+    const int compactRow =
+        NextComboBoxClosedHeightOverride(
+            combo);
+    state->rowHeight =
+        compactRow > 0
+            ? compactRow
+            : S(
+                  kNextComboPopupRowHeightLogical,
+                  state->dpi);
 
     const LRESULT selected =
         SendMessageW(
@@ -1163,9 +1173,7 @@ bool ShowNextComboPopup(
             kNextComboPopupPaddingLogical,
             state->dpi);
     const int rowHeight =
-        S(
-            kNextComboPopupRowHeightLogical,
-            state->dpi);
+        state->rowHeight;
     const int gap =
         S(
             kNextComboPopupGapLogical,

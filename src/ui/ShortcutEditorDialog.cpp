@@ -4,6 +4,7 @@
 
 #include "TopLevelWindowPresentation.hpp"
 #include "UiComboBox.hpp"
+#include "UiComboPopup.hpp"
 #include "UiEditChrome.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
@@ -42,6 +43,12 @@ constexpr int kFooterBottomMarginLogical = 16;
 constexpr int kFooterSeparatorGapLogical = 10;
 constexpr int kContentFooterGapLogical = 16;
 constexpr int kAdminTopGapLogical = 4;
+// Space between the Name/Keywords row and the Target label. The keyword
+// hint now sits beside its label, so no extra hint band is reserved here.
+constexpr int kIdentityToTargetGapLogical = 8;
+// Glyph-to-label gap of the custom admin checkbox (native checkboxes use
+// roughly 5-6px; 9px read as detached from its label).
+constexpr int kAdminLabelGapLogical = 6;
 constexpr int kInlineComboMinWidthLogical = 158;
 constexpr int kInlineComboMaxWidthLogical = 235;
 constexpr int kAdvancedRightInsetLogical = 18;
@@ -153,8 +160,28 @@ LRESULT CALLBACK AdminCheckboxSubclass(
         InvalidateRect(hwnd, nullptr, FALSE);
         return 0;
     }
+    if (message == WM_ERASEBKGND) {
+        // PaintAdminCheckbox fills the whole item opaquely.
+        return TRUE;
+    }
     if (message == WM_NCDESTROY) {
         RemoveWindowSubclass(hwnd, AdminCheckboxSubclass, id);
+    }
+    return DefSubclassProc(hwnd, message, wParam, lParam);
+}
+
+// An owner-drawn BUTTON erases itself with the parent's WM_CTLCOLORBTN brush
+// before WM_DRAWITEM. For the Advanced header that erase blanked the section
+// separator for a moment on every text change/click, so rapid toggling made
+// the line flash. DrawAdvancedHeader paints the full item opaquely.
+LRESULT CALLBACK NoEraseOwnerDrawSubclass(
+    HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam,
+    UINT_PTR id, DWORD_PTR) {
+    if (message == WM_ERASEBKGND) {
+        return TRUE;
+    }
+    if (message == WM_NCDESTROY) {
+        RemoveWindowSubclass(hwnd, NoEraseOwnerDrawSubclass, id);
     }
     return DefSubclassProc(hwnd, message, wParam, lParam);
 }
@@ -204,78 +231,10 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
     const int top = visualCenter - size / 2;
     const RECT square{left, top, left + size, top + size};
 
-    // Paint the tiny glyph with deterministic 4x subpixel coverage. Native
-    // theme rendering is not consistent between Windows 10/11/headless hosts,
-    // while ordinary GDI RoundRect gives visibly uneven 18px corners.
-    // Output directly to the existing buffered HDC in one GDI operation.
-    constexpr int samples = 4;
-    const float unit = static_cast<float>(size) / 18.0f;
-    const auto insideRound = [size](float x, float y,
-                                    float inset, float radius) {
-        const float side = static_cast<float>(size);
-        if (x < inset || y < inset ||
-            x >= side - inset || y >= side - inset) return false;
-        const float nearX = std::clamp(x, inset + radius, side - inset - radius);
-        const float nearY = std::clamp(y, inset + radius, side - inset - radius);
-        const float dx = x - nearX, dy = y - nearY;
-        return dx * dx + dy * dy <= radius * radius;
-    };
-    const auto nearStroke = [](float x, float y, float ax, float ay,
-                               float bx, float by, float radius) {
-        const float vx = bx - ax, vy = by - ay;
-        const float t = std::clamp(
-            ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy),
-            0.0f, 1.0f);
-        const float dx = x - (ax + t * vx);
-        const float dy = y - (ay + t * vy);
-        return dx * dx + dy * dy <= radius * radius;
-    };
-    const COLORREF border = !enabled ? RGB(188, 194, 201)
-        : checked ? palette.accent : RGB(150, 157, 166);
-    const COLORREF fill = checked
-        ? (pressed ? RGB(0, 96, 180) : palette.accent)
-        : palette.controlBackground;
-    std::vector<DWORD> pixels(static_cast<std::size_t>(size) * size);
-    for (int y = 0; y < size; ++y) {
-        for (int x = 0; x < size; ++x) {
-            int r = 0, g = 0, b = 0;
-            for (int sy = 0; sy < samples; ++sy) {
-                for (int sx = 0; sx < samples; ++sx) {
-                    const float px = x + (sx + 0.5f) / samples;
-                    const float py = y + (sy + 0.5f) / samples;
-                    COLORREF color = palette.windowBackground;
-                    if (insideRound(px, py, 0.3f * unit, 2.25f * unit)) {
-                        color = border;
-                        if (insideRound(px, py, 1.5f * unit, 1.05f * unit))
-                            color = fill;
-                        if (checked &&
-                            (nearStroke(px, py, 4.5f * unit, 9.3f * unit,
-                                        7.4f * unit, 12.0f * unit, unit) ||
-                             nearStroke(px, py, 7.4f * unit, 12.0f * unit,
-                                        13.7f * unit, 5.8f * unit, unit)))
-                            color = RGB(255, 255, 255);
-                    }
-                    r += GetRValue(color);
-                    g += GetGValue(color);
-                    b += GetBValue(color);
-                }
-            }
-            constexpr int total = samples * samples;
-            pixels[static_cast<std::size_t>(y) * size + x] =
-                (static_cast<DWORD>(r / total) << 16) |
-                (static_cast<DWORD>(g / total) << 8) |
-                static_cast<DWORD>(b / total);
-        }
-    }
-    BITMAPINFO bitmapInfo{};
-    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bitmapInfo.bmiHeader.biWidth = size;
-    bitmapInfo.bmiHeader.biHeight = -size; // top-down; no image flip
-    bitmapInfo.bmiHeader.biPlanes = 1;
-    bitmapInfo.bmiHeader.biBitCount = 32;
-    bitmapInfo.bmiHeader.biCompression = BI_RGB;
-    SetDIBitsToDevice(dc, square.left, square.top, size, size,
-        0, 0, 0, size, pixels.data(), &bitmapInfo, DIB_RGB_COLORS);
+    // Shared glyph: same outline/radius/accent as every custom checkbox.
+    ui::PaintSmoothCheckbox(dc, square.left, square.top, size,
+        scale(ui::kControlCornerRadiusLogical), checked, enabled, pressed,
+        palette.windowBackground, palette.accent, palette.controlBackground);
     wchar_t label[128]{};
     GetWindowTextW(draw.hwndItem, label,
         static_cast<int>(std::size(label)));
@@ -286,7 +245,7 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
     // selection state and the standard tab navigation remains intact.
     SetTextColor(dc, enabled ? palette.text : palette.mutedText);
     RECT text{
-        left + size + scale(9), area.top,
+        left + size + scale(kAdminLabelGapLogical), area.top,
         area.right - scale(2), area.bottom
     };
     DrawTextW(dc, label, -1, &text,
@@ -300,6 +259,18 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
     }
     if (bitmap) DeleteObject(bitmap);
     if (memory) DeleteDC(memory);
+}
+
+// A shell picker returns focus to the button that opened it with keyboard
+// cues turned on, leaving a dotted focus rectangle after a mouse-only
+// interaction. Hide the cues again; the next Tab/Alt press restores them.
+void HideFocusCuesAfterPicker(HWND dialog) {
+    if (!dialog) return;
+    SendMessageW(dialog, WM_CHANGEUISTATE,
+        MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS), 0);
+    if (HWND focused = GetFocus(); focused && IsChild(dialog, focused)) {
+        InvalidateRect(focused, nullptr, FALSE);
+    }
 }
 
 enum class PickerResult {
@@ -899,6 +870,19 @@ bool ShortcutEditorDialog::RunModal() {
             }
         }
 
+        // Esc cancels the editor, like the Shortcut Manager and the path
+        // converter. IsDialogMessage would only send IDCANCEL, which this
+        // window does not own. An open combo list consumes Esc itself first.
+        if (msg.message == WM_KEYDOWN &&
+            msg.wParam == VK_ESCAPE &&
+            (msg.hwnd == hwnd_ ||
+             IsChild(hwnd_, msg.hwnd)) &&
+            !ui::IsNextComboPopupVisible(type_) &&
+            !ui::IsNextComboPopupVisible(runtimeInput_)) {
+            CloseWindow();
+            continue;
+        }
+
         if (!IsDialogMessageW(
                 hwnd_,
                 &msg)) {
@@ -1016,7 +1000,9 @@ void ShortcutEditorDialog::CreateControls() {
 
     makeStatic(keywordLabel_);
     makeEdit(keyword_, kIdKeyword);
-    makeStatic(keywordHint_);
+    // One line beside the label: ellipsize instead of wrapping into a
+    // second line that the single-line box would clip.
+    makeStatic(keywordHint_, SS_LEFTNOWORDWRAP | SS_ENDELLIPSIS);
 
     makeStatic(nameLabel_);
     makeEdit(name_, kIdName);
@@ -1065,6 +1051,10 @@ void ShortcutEditorDialog::CreateControls() {
         advancedToggle_,
         kIdAdvancedToggle,
         BS_OWNERDRAW);
+    if (advancedToggle_) {
+        SetWindowSubclass(
+            advancedToggle_, NoEraseOwnerDrawSubclass, 1, 0);
+    }
 
     makeStatic(
         argumentsLabel_,
@@ -1182,8 +1172,8 @@ void ShortcutEditorDialog::ApplyLanguage() {
           L"Keywords *"));
     SetWindowTextW(
         keywordHint_,
-        T(L"多个快捷词用逗号分隔，第一个优先级最高。",
-          L"Separate multiple keywords with commas; the first has priority."));
+        T(L"（多个用逗号分隔，第一个优先级最高）",
+          L"(comma-separated; first has priority)"));
     SetWindowTextW(
         nameLabel_,
         T(L"名称",
@@ -1482,12 +1472,48 @@ void ShortcutEditorDialog::Layout(
                     (controlRowHeight -
                      labelHeight) / 2);
         };
-    const auto rowHintTop =
-        [&](int rowTop) {
-            return rowTop +
-                std::max(
-                    0,
-                    (controlRowHeight - hintHeight) / 2);
+    // Label and hint STATICs paint from the top of their box, while the
+    // closed Next ComboBox is taller than the nominal row and centers its
+    // own text. Size each STATIC to its font's line box and center that on
+    // the combo's real height so all three texts share one center line.
+    const auto fontMetrics =
+        [&](HFONT font) {
+            TEXTMETRICW metrics{};
+            if (HDC dc = GetDC(hwnd_)) {
+                const HGDIOBJ previous =
+                    font ? SelectObject(dc, font) : nullptr;
+                if (!GetTextMetricsW(dc, &metrics)) {
+                    metrics = {};
+                }
+                if (previous && previous != HGDI_ERROR) {
+                    SelectObject(dc, previous);
+                }
+                ReleaseDC(hwnd_, dc);
+            }
+            return metrics;
+        };
+    const TEXTMETRICW labelMetrics =
+        fontMetrics(font_);
+    const TEXTMETRICW hintMetrics =
+        fontMetrics(hintFont_ ? hintFont_ : font_);
+    const int labelLineHeight =
+        labelMetrics.tmHeight > 0
+            ? static_cast<int>(labelMetrics.tmHeight)
+            : labelHeight;
+    const int hintLineHeight =
+        hintMetrics.tmHeight > 0
+            ? static_cast<int>(hintMetrics.tmHeight)
+            : hintHeight;
+    const auto comboCenterY =
+        [&](HWND combo, int rowTop) {
+            RECT bounds{};
+            int height = controlRowHeight;
+            if (combo && GetWindowRect(combo, &bounds) &&
+                bounds.bottom > bounds.top) {
+                height = static_cast<int>(
+                    bounds.bottom - bounds.top);
+            }
+            return rowTop + height / 2;
         };
 
     int y = Scale(16);
@@ -1513,12 +1539,56 @@ void ShortcutEditorDialog::Layout(
         y,
         nameWidth,
         labelHeight);
+    // The keyword hint rides on the label line, right after "Keywords *",
+    // so the Name and Keywords columns end at the same height instead of
+    // leaving an empty band under Name.
+    int keywordLabelWidth = keywordWidth;
+    if (HDC dc = GetDC(hwnd_)) {
+        const HGDIOBJ previous =
+            font_ ? SelectObject(dc, font_) : nullptr;
+        wchar_t text[128]{};
+        const int length = GetWindowTextW(
+            keywordLabel_, text, static_cast<int>(std::size(text)));
+        SIZE extent{};
+        if (GetTextExtentPoint32W(dc, text, length, &extent)) {
+            keywordLabelWidth = std::min(
+                keywordWidth,
+                static_cast<int>(extent.cx) + Scale(2));
+        }
+        if (previous && previous != HGDI_ERROR) {
+            SelectObject(dc, previous);
+        }
+        ReleaseDC(hwnd_, dc);
+    }
     moveControl(
         keywordLabel_,
         keywordLeft,
         y,
-        keywordWidth,
+        keywordLabelWidth,
         labelHeight);
+
+    // Align baselines: the hint uses the smaller hint font.
+    const int keywordHintLeft =
+        keywordLeft +
+        keywordLabelWidth +
+        Scale(4);
+    const int keywordHintTop =
+        y +
+        std::max(
+            0,
+            static_cast<int>(
+                labelMetrics.tmAscent -
+                hintMetrics.tmAscent));
+    moveControl(
+        keywordHint_,
+        keywordHintLeft,
+        keywordHintTop,
+        std::max(
+            0,
+            keywordLeft +
+                keywordWidth -
+                keywordHintLeft),
+        hintLineHeight);
     y += Scale(20);
 
     const int identityEditTop =
@@ -1537,15 +1607,7 @@ void ShortcutEditorDialog::Layout(
         keywordWidth,
         editHeight);
     y += controlRowHeight +
-        Scale(2);
-
-    moveControl(
-        keywordHint_,
-        keywordLeft,
-        y,
-        keywordWidth,
-        hintHeight);
-    y += Scale(24);
+        Scale(kIdentityToTargetGapLogical);
 
     moveControl(
         targetLabel_,
@@ -1623,19 +1685,26 @@ void ShortcutEditorDialog::Layout(
     // Target type and Runtime input deliberately share one value-column width,
     // while the shared Next ComboBox owns text/chrome measurement.
 
-    moveControl(
-        typeLabel_,
-        margin,
-        rowTextTop(y),
-        formLabelWidth,
-        labelHeight);
+    // Inline combos sit at text-field height and on the text-field row
+    // line, instead of the taller shared default used by Settings cards.
+    ui::SetNextComboBoxClosedHeight(type_, editHeight);
+    ui::SetNextComboBoxClosedHeight(runtimeInput_, editHeight);
+
     ui::MoveNextComboBox(
         type_,
         formFieldLeft,
-        y,
+        editTop(y),
         typeWidth,
         dpi_,
         repaint);
+    const int typeCenterY =
+        comboCenterY(type_, editTop(y));
+    moveControl(
+        typeLabel_,
+        margin,
+        typeCenterY - labelLineHeight / 2,
+        formLabelWidth,
+        labelLineHeight);
 
     const int typeHintLeft =
         formFieldLeft +
@@ -1645,36 +1714,39 @@ void ShortcutEditorDialog::Layout(
     moveControl(
         typeHint_,
         typeHintLeft,
-        rowHintTop(y),
+        typeCenterY - hintLineHeight / 2,
         client.right -
             margin -
             typeHintLeft,
-        hintHeight);
+        hintLineHeight);
+    // Center the divider on the visible gap between the two combos'
+    // real edges rather than on nominal row arithmetic.
+    const int typeComboBottom =
+        editTop(y) + editHeight;
     y += controlRowHeight +
         Scale(6);
-
-    // The closed Next ComboBox is visually taller than the nominal 28px
-    // form row. Draw the divider halfway through this 12px inter-row gap:
-    // at the old y it sat nearly on the Target Type control's bottom edge.
-    runtimeSeparatorY_ = y + Scale(6);
     y += Scale(12);
+    runtimeSeparatorY_ =
+        (typeComboBottom + editTop(y)) / 2;
 
     const int runtimeWidth =
         typeWidth;
 
-    moveControl(
-        runtimeInputLabel_,
-        margin,
-        rowTextTop(y),
-        formLabelWidth,
-        labelHeight);
     ui::MoveNextComboBox(
         runtimeInput_,
         formFieldLeft,
-        y,
+        editTop(y),
         runtimeWidth,
         dpi_,
         repaint);
+    const int runtimeCenterY =
+        comboCenterY(runtimeInput_, editTop(y));
+    moveControl(
+        runtimeInputLabel_,
+        margin,
+        runtimeCenterY - labelLineHeight / 2,
+        formLabelWidth,
+        labelLineHeight);
 
     const int runtimeHintLeft =
         formFieldLeft +
@@ -1684,11 +1756,11 @@ void ShortcutEditorDialog::Layout(
     moveControl(
         runtimeInputHint_,
         runtimeHintLeft,
-        rowHintTop(y),
+        runtimeCenterY - hintLineHeight / 2,
         client.right -
             margin -
             runtimeHintLeft,
-        hintHeight);
+        hintLineHeight);
     y += controlRowHeight +
         Scale(6);
 
@@ -1794,9 +1866,10 @@ void ShortcutEditorDialog::Layout(
             SIZE extent{};
             if (GetTextExtentPoint32W(dc, label, length, &extent)) {
                 // Match PaintAdminCheckbox: 2px inset + 16px glyph +
-                // 9px gap + text + 2px right inset, with a small hit slop.
+                // label gap + text + 2px right inset, with a small hit slop.
                 adminWidth = std::min(advancedFieldWidth,
-                    static_cast<int>(extent.cx) + Scale(2 + 16 + 9 + 2 + 6));
+                    static_cast<int>(extent.cx) +
+                        Scale(2 + 16 + kAdminLabelGapLogical + 2 + 6));
             }
             if (previous) SelectObject(dc, previous);
             ReleaseDC(hwnd_, dc);
@@ -2063,17 +2136,6 @@ void ShortcutEditorDialog::DrawActionButton(
     RECT rect =
         item.rcItem;
 
-    HBRUSH background =
-        CreateSolidBrush(
-            footer
-                ? palette.bottomBackground
-                : palette.windowBackground);
-    FillRect(
-        item.hDC,
-        &rect,
-        background);
-    DeleteObject(background);
-
     RECT surface =
         rect;
     InflateRect(
@@ -2081,41 +2143,17 @@ void ShortcutEditorDialog::DrawActionButton(
         -1,
         -1);
 
-    HBRUSH fill =
-        CreateSolidBrush(
-            fillColor);
-    HPEN pen =
-        CreatePen(
-            PS_SOLID,
-            1,
-            borderColor);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            item.hDC,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            item.hDC,
-            pen);
-
-    RoundRect(
+    // Same smooth outline and radius as the neighbouring text fields.
+    ui::PaintSmoothRoundedFrame(
         item.hDC,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        Scale(6),
-        Scale(6));
-
-    SelectObject(
-        item.hDC,
-        oldBrush);
-    SelectObject(
-        item.hDC,
-        oldPen);
-    DeleteObject(fill);
-    DeleteObject(pen);
+        rect,
+        surface,
+        Scale(ui::kControlCornerRadiusLogical),
+        footer
+            ? palette.bottomBackground
+            : palette.windowBackground,
+        borderColor,
+        fillColor);
 
     wchar_t text[128]{};
     GetWindowTextW(
@@ -2161,8 +2199,10 @@ void ShortcutEditorDialog::DrawActionButton(
         item.hDC,
         oldFont);
 
-    if (item.itemState &
-        ODS_FOCUS) {
+    // Honor the window's keyboard-cue state like native buttons: the dotted
+    // rectangle belongs to keyboard navigation, not to a mouse click.
+    if ((item.itemState & ODS_FOCUS) != 0 &&
+        (item.itemState & ODS_NOFOCUSRECT) == 0) {
         RECT focus =
             surface;
         InflateRect(
@@ -2184,8 +2224,7 @@ DesiredClientHeight() const {
 
     y += Scale(20);
     y += controlRowHeight +
-        Scale(2);
-    y += Scale(24);
+        Scale(kIdentityToTargetGapLogical);
 
     y += Scale(20);
     y += controlRowHeight +
@@ -3495,6 +3534,27 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         return 0;
     }
 
+    case WM_CTLCOLORBTN: {
+        // Owner-drawn buttons erase with this brush. The default (button
+        // face gray) never matches the editor and shows between erase and
+        // WM_DRAWITEM; the surface each button sits on is at worst invisible.
+        const HWND control =
+            reinterpret_cast<HWND>(lParam);
+        const bool footer =
+            control == test_ ||
+            control == save_ ||
+            control == cancel_;
+        const HBRUSH surface =
+            footer && footerBrush_
+                ? footerBrush_
+                : backgroundBrush_;
+        return reinterpret_cast<LRESULT>(
+            surface
+                ? surface
+                : GetSysColorBrush(
+                      COLOR_WINDOW));
+    }
+
     case WM_CTLCOLORSTATIC: {
         HDC dc =
             reinterpret_cast<HDC>(
@@ -3680,6 +3740,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseTargetFile();
+                HideFocusCuesAfterPicker(hwnd_);
             }
             return 0;
 
@@ -3687,6 +3748,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseTargetFolder();
+                HideFocusCuesAfterPicker(hwnd_);
             }
             return 0;
 
@@ -3714,6 +3776,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseWorkingDirectory();
+                HideFocusCuesAfterPicker(hwnd_);
             }
             return 0;
 
@@ -3757,10 +3820,15 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         CloseWindow();
         return 0;
 
-    case WM_NCDESTROY:
+    case WM_NCDESTROY: {
+        // Let USER32 finish its own per-window teardown before the object
+        // forgets the handle, matching Settings and the Shortcut Manager.
+        const HWND destroyedWindow = hwnd_;
         hwnd_ = nullptr;
         closed_ = true;
-        return 0;
+        return DefWindowProcW(
+            destroyedWindow, message, wParam, lParam);
+    }
 
     default:
         break;

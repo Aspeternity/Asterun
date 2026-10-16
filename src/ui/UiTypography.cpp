@@ -127,7 +127,36 @@ RoleWeight(
     }
 }
 
+[[nodiscard]] bool IsYaHeiFace(const wchar_t* face) noexcept {
+    return face &&
+        (lstrcmpiW(face, L"Microsoft YaHei") == 0 ||
+         lstrcmpiW(face, L"Microsoft YaHei UI") == 0);
+}
+
 } // namespace
+
+int HintSafeFontHeight(
+    const wchar_t* face,
+    int height) noexcept {
+
+    if (height >= 0 || !IsYaHeiFace(face)) {
+        return height;
+    }
+
+    // Under GDI hinting, YaHei renders e.g. 索/级/号/存 2-3px shorter than
+    // their neighbours at these em sizes (20px is 10pt at 150% DPI). Move
+    // to the nearest size that keeps glyph heights uniform.
+    switch (-height) {
+    case 16:
+        return -15;
+    case 20:
+        return -19;
+    case 21:
+        return -22;
+    default:
+        return height;
+    }
+}
 
 UiFontSpec ApplicationFontSpec(
     Language language,
@@ -208,7 +237,8 @@ HFONT CreateFontHandle(
         dpi = 96;
     }
 
-    const int height =
+    const int height = HintSafeFontHeight(
+        spec.face,
         spec.logicalHeight96 != 0
             ? MulDiv(
                   spec.logicalHeight96,
@@ -217,7 +247,7 @@ HFONT CreateFontHandle(
             : -MulDiv(
                   spec.pointSize,
                   static_cast<int>(dpi),
-                  72);
+                  72));
 
     return CreateFontW(
         height,

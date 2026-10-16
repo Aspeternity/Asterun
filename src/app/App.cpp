@@ -258,10 +258,16 @@ App::App(
     HINSTANCE instance,
     std::wstring startupHealthEvent,
     std::vector<std::wstring>
-        startupShortcutPaths)
+        startupShortcutPaths,
+    std::filesystem::path
+        dataDirectoryOverride)
     : instance_(instance),
       baseDirectory_(win::ExecutableDirectory()),
-      dataDirectory_(baseDirectory_ / "data"),
+      dataDirectory_(
+          dataDirectoryOverride.empty()
+              ? baseDirectory_ / "data"
+              : std::move(
+                    dataDirectoryOverride)),
       commandStore_(baseDirectory_, dataDirectory_),
       usageStore_(
           dataDirectory_ / "usage.json",
@@ -655,6 +661,12 @@ int App::Run() {
 
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
+    }
+
+    // Settings debounces provider switches for a moment; persist a switch
+    // flipped just before exit while App and its workers are still alive.
+    if (settingsWindow_) {
+        settingsWindow_->FlushPendingChanges();
     }
 
     if (packagedChangeNotifyId != 0) {
@@ -3002,8 +3014,8 @@ bool App::RestoreDefaultSettings() {
     StartProviderRefresh();
 
     if (settingsWindow_) {
+        // ApplyLanguage also runs RefreshFromSettings.
         settingsWindow_->ApplyLanguage();
-        settingsWindow_->RefreshFromSettings();
     }
 
     return true;

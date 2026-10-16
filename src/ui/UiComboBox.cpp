@@ -2,6 +2,7 @@
 #include "UiComboPopup.hpp"
 
 #include "UiMetrics.hpp"
+#include "UiRoundedFrame.hpp"
 #include "UiTheme.hpp"
 
 #include <commctrl.h>
@@ -35,6 +36,10 @@ constexpr wchar_t
 constexpr wchar_t
     kNextComboHoveredProperty[] =
         L"Asterun.NextCombo.Hovered";
+
+constexpr wchar_t
+    kNextComboClosedHeightProperty[] =
+        L"Asterun.NextCombo.ClosedHeight";
 
 void SetTrackedDroppedState(
     HWND combo,
@@ -161,16 +166,8 @@ void DrawNextComboBoxSurfaceDirect(
         combo,
         &rect);
 
-    HBRUSH outer =
-        CreateSolidBrush(
-            hostBackground);
-    FillRect(
-        dc,
-        &rect,
-        outer);
-    DeleteObject(
-        outer);
-
+    // PaintSmoothRoundedFrame below covers the whole client rect, including
+    // the host-colored corners outside the outline.
     RECT surface =
         rect;
     InflateRect(
@@ -201,46 +198,16 @@ void DrawNextComboBoxSurfaceDirect(
         NextComboFillColor(
             combo);
 
-    HBRUSH fill =
-        CreateSolidBrush(
-            fillColor);
-    HPEN border =
-        CreatePen(
-            PS_SOLID,
-            1,
-            borderColor);
-
-    HGDIOBJ oldBrush =
-        SelectObject(
-            dc,
-            fill);
-    HGDIOBJ oldPen =
-        SelectObject(
-            dc,
-            border);
-
-    const int radius =
-        Scale(6, dpi);
-
-    RoundRect(
+    // Same anti-aliased outline and radius as the EDIT chrome, so a combo
+    // next to a text field reads as the same kind of control.
+    PaintSmoothRoundedFrame(
         dc,
-        surface.left,
-        surface.top,
-        surface.right,
-        surface.bottom,
-        radius,
-        radius);
-
-    SelectObject(
-        dc,
-        oldBrush);
-    SelectObject(
-        dc,
-        oldPen);
-    DeleteObject(
-        fill);
-    DeleteObject(
-        border);
+        rect,
+        surface,
+        Scale(kControlCornerRadiusLogical, dpi),
+        hostBackground,
+        borderColor,
+        fillColor);
 
     const int arrowAreaWidth =
         Scale(36, dpi);
@@ -297,7 +264,7 @@ void DrawNextComboBoxSurfaceDirect(
                     NULL_PEN));
 
         const int buttonRadius =
-            Scale(6, dpi);
+            Scale(kControlCornerRadiusLogical, dpi);
 
         RoundRect(
             dc,
@@ -341,7 +308,7 @@ void DrawNextComboBoxSurfaceDirect(
                 1,
                 Scale(2, dpi)),
             arrowColor);
-    oldPen =
+    const HGDIOBJ oldPen =
         SelectObject(
             dc,
             arrowPen);
@@ -947,6 +914,9 @@ LRESULT CALLBACK NextComboSubclassProc(
         RemovePropW(
             hwnd,
             kNextComboDroppedProperty);
+        RemovePropW(
+            hwnd,
+            kNextComboClosedHeightProperty);
         RemoveWindowSubclass(
             hwnd,
             NextComboSubclassProc,
@@ -1025,11 +995,47 @@ void ApplyNextComboBoxMetrics(
             NextComboBoxItemHeight(
                 dpi));
 
+    LPARAM selectionHeight =
+        itemHeight;
+    const int closedHeight =
+        NextComboBoxClosedHeightOverride(
+            combo);
+
+    if (closedHeight > 0) {
+        // The closed outer height is the selection field plus the native
+        // combo frame; derive that frame from the current geometry.
+        RECT bounds{};
+        const LRESULT currentSelection =
+            SendMessageW(
+                combo,
+                CB_GETITEMHEIGHT,
+                static_cast<WPARAM>(-1),
+                0);
+        if (currentSelection > 0 &&
+            GetWindowRect(
+                combo,
+                &bounds)) {
+            const int frame =
+                std::max(
+                    0,
+                    static_cast<int>(
+                        bounds.bottom -
+                        bounds.top) -
+                        static_cast<int>(
+                            currentSelection));
+            selectionHeight =
+                std::max(
+                    1,
+                    closedHeight -
+                        frame);
+        }
+    }
+
     SendMessageW(
         combo,
         CB_SETITEMHEIGHT,
         static_cast<WPARAM>(-1),
-        itemHeight);
+        selectionHeight);
 
     if (SendMessageW(
             combo,
@@ -1047,6 +1053,40 @@ void ApplyNextComboBoxMetrics(
         combo,
         nullptr,
         FALSE);
+}
+
+int NextComboBoxClosedHeightOverride(
+    HWND combo) noexcept {
+
+    return combo
+        ? static_cast<int>(
+              reinterpret_cast<INT_PTR>(
+                  GetPropW(
+                      combo,
+                      kNextComboClosedHeightProperty)))
+        : 0;
+}
+
+void SetNextComboBoxClosedHeight(
+    HWND combo,
+    int pixels) {
+
+    if (!combo) {
+        return;
+    }
+
+    if (pixels > 0) {
+        SetPropW(
+            combo,
+            kNextComboClosedHeightProperty,
+            reinterpret_cast<HANDLE>(
+                static_cast<INT_PTR>(
+                    pixels)));
+    } else {
+        RemovePropW(
+            combo,
+            kNextComboClosedHeightProperty);
+    }
 }
 
 void MoveNextComboBox(

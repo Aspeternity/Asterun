@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "core/HotkeyRegistry.hpp"
+#include "IsolatedDataDirectory.hpp"
 #include "NumericIntentRuntimeFixture.hpp"
 #include "platform/InstanceIpc.hpp"
 #include "ui/SettingsWindow.hpp"
@@ -65,7 +66,8 @@ void AssertBodyFont(HWND control, UINT dpi, int pointSize = 10) {
     assert(font);
     LOGFONTW logical{};
     assert(GetObjectW(font, sizeof(logical), &logical) == sizeof(logical));
-    assert(logical.lfHeight == -MulDiv(pointSize, static_cast<int>(dpi), 72));
+    assert(logical.lfHeight == altrun::ui::HintSafeFontHeight(
+        logical.lfFaceName, -MulDiv(pointSize, static_cast<int>(dpi), 72)));
     assert(logical.lfWeight == FW_NORMAL);
 }
 
@@ -167,7 +169,13 @@ void AssertNativeEditFrame(HWND parent, HWND edit, UINT dpi) {
             assert(topEdgePresent && bottomEdgePresent);
         }
         const int height = window.bottom - window.top;
-        for (int y : {height / 4, height / 2, 3 * height / 4}) {
+        // Corner arcs are anti-aliased (blended, never the exact frame
+        // color); probe the straight vertical run between the two arcs.
+        const int arc = altrun::ui::Scale(
+            altrun::ui::kControlCornerRadiusLogical, dpi) + 2;
+        const int straightTop = std::min(arc, height / 2);
+        const int straightBottom = std::max(height - 1 - arc, height / 2);
+        for (int y : {straightTop, height / 2, straightBottom}) {
             bool leftEdgePresent = false;
             bool rightEdgePresent = false;
             for (int edge = 0; edge < edgePixels; ++edge) {
@@ -188,7 +196,7 @@ void AssertNativeEditFrame(HWND parent, HWND edit, UINT dpi) {
         // creating dark [ and ] strokes just inside the pale outer frame.
         const COLORREF clear = altrun::ui::kApplicationPalette.controlBackground;
         assert(left >= 4 && right >= 4);
-        for (const int y : {height / 4, height / 2, 3 * height / 4}) {
+        for (const int y : {straightTop, height / 2, straightBottom}) {
             for (int x = 2; x < left; ++x) {
                 const COLORREF pixel = GetPixel(chromeDc, x, y);
                 if (pixel != clear) {
@@ -314,6 +322,27 @@ bool InstalledUiTypeface(HDC dc, const wchar_t* name) {
     return found;
 }
 
+// The OpenType 'name' table of the face realized for `face`; identical tables
+// mean the same physical face regardless of which family alias was requested.
+std::vector<unsigned char> RealizedNameTable(HDC dc, const wchar_t* face) {
+    LOGFONTW requested{};
+    requested.lfHeight = -15;
+    requested.lfCharSet = DEFAULT_CHARSET;
+    lstrcpynW(requested.lfFaceName, face, LF_FACESIZE);
+    const HFONT font = CreateFontIndirectW(&requested);
+    assert(font);
+    const HGDIOBJ old = SelectObject(dc, font);
+    assert(old && old != HGDI_ERROR);
+    constexpr DWORD kNameTable = 0x656d616e;  // 'name', little-endian tag
+    const DWORD size = GetFontData(dc, kNameTable, 0, nullptr, 0);
+    assert(size != GDI_ERROR && size != 0);
+    std::vector<unsigned char> table(size);
+    assert(GetFontData(dc, kNameTable, 0, table.data(), size) == size);
+    assert(SelectObject(dc, old) == font);
+    assert(DeleteObject(font));
+    return table;
+}
+
 void AssertChineseUiTypeface() {
     HDC dc = GetDC(nullptr);
     assert(dc);
@@ -334,7 +363,14 @@ void AssertChineseUiTypeface() {
     if (hasYaHei || hasYaHeiUi) {
         // These common glyphs must be provided by the chosen face itself,
         // without per-character substitution to visually unrelated fonts.
-        assert(lstrcmpiW(realized, expected) == 0);
+        // GetTextFaceW reports the localized family name on CJK locales
+        // (e.g. "微软雅黑" for Microsoft YaHei on zh-CN), so accept a different
+        // spelling only when it names the very same physical face.
+        if (lstrcmpiW(realized, expected) != 0) {
+            assert(InstalledUiTypeface(dc, realized));
+            assert(RealizedNameTable(dc, realized) ==
+                   RealizedNameTable(dc, expected));
+        }
         constexpr wchar_t sample[] = L"搜索来源新建快捷词";
         WORD glyphs[(sizeof(sample) / sizeof(wchar_t)) - 1]{};
         assert(GetGlyphIndicesW(dc, sample,
@@ -345,6 +381,21 @@ void AssertChineseUiTypeface() {
     assert(SelectObject(dc, old) == font);
     assert(DeleteObject(font));
     assert(ReleaseDC(nullptr, dc) == 1);
+}
+
+void AssertHintSafeFontHeights() {
+    using altrun::ui::HintSafeFontHeight;
+    for (const wchar_t* face : {L"Microsoft YaHei", L"Microsoft YaHei UI"}) {
+        assert(HintSafeFontHeight(face, -16) == -15);
+        assert(HintSafeFontHeight(face, -20) == -19);
+        assert(HintSafeFontHeight(face, -21) == -22);
+        for (const int clean : {-12, -13, -15, -17, -18, -19, -22, -27})
+            assert(HintSafeFontHeight(face, clean) == clean);
+        assert(HintSafeFontHeight(face, 20) == 20);
+    }
+    assert(HintSafeFontHeight(L"Segoe UI", -20) == -20);
+    assert(HintSafeFontHeight(L"SimSun", -16) == -16);
+    assert(HintSafeFontHeight(nullptr, -20) == -20);
 }
 
 void AssertApplicationTypographyPolicy() {
@@ -389,7 +440,14 @@ void AssertApplicationTypographyPolicy() {
             LOGFONTW logical{};
             assert(GetObjectW(font, sizeof(logical), &logical) ==
                 sizeof(logical));
-            assert(logical.lfHeight == -MulDiv(10, static_cast<int>(dpi), 72));
+            assert(logical.lfHeight == altrun::ui::HintSafeFontHeight(
+                body.face, -MulDiv(10, static_cast<int>(dpi), 72)));
+            // 10pt YaHei at 150% would be the 20px em that shrinks 索.
+            if (language == altrun::Language::ZhCN &&
+                (lstrcmpiW(body.face, L"Microsoft YaHei") == 0 ||
+                 lstrcmpiW(body.face, L"Microsoft YaHei UI") == 0)) {
+                assert(dpi != 144u || logical.lfHeight == -19);
+            }
             assert(logical.lfWeight == FW_NORMAL);
             assert(DeleteObject(font));
         }
@@ -969,7 +1027,7 @@ void CALLBACK ExerciseAdvancedToggle(
     if (oldWidthFont) SelectObject(widthDc, oldWidthFont);
     ReleaseDC(admin, widthDc);
     const int labelHitMinimum = adminTextSize.cx +
-        MulDiv(2 + 16 + 9 + 2, adminDpi, 96);
+        MulDiv(2 + 16 + 6 + 2, adminDpi, 96);
     assert(adminHit.right - adminHit.left >= labelHitMinimum);
 
     // Native BUTTON mouse routing (not BM_CLICK): a click on the right edge
@@ -1080,6 +1138,7 @@ int main() {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     const auto com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const HINSTANCE instance = GetModuleHandleW(nullptr);
+    AssertHintSafeFontHeights();
     AssertApplicationTypographyPolicy();
     AssertChineseUiTypeface();
 
@@ -1115,7 +1174,8 @@ int main() {
     {
         // Exercise the actual Settings implementation, not just rectangle
         // math: the pre-fix Create() made this HWND visible via WM_SETREDRAW.
-        App app(instance);
+        const test::IsolatedDataDirectory data(L"window-presentation-tests");
+        App app(instance, {}, {}, data.Path());
 
         // Real first-run regression: when Windows has no Everything service,
         // enabling the provider must persist successfully and enter the local
