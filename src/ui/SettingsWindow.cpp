@@ -1172,16 +1172,10 @@ void SettingsWindow::ApplyFonts() {
                 language,
                 ui::UiFontRole::Body),
             dpi_);
-    // Navigation has its own 11pt Regular size. Reuse the application's
-    // existing installed UI-face fallback instead of introducing another
-    // font enumeration or altering right-pane typography.
-    auto navSpec = ui::ApplicationFontSpec(language, ui::UiFontRole::Body);
-    if (language == Language::ZhCN) {
-        navSpec.pointSize = 11;
-        navSpec.face = ui::LauncherFontSpec(
-            UiStyle::ModernCompact, language, ui::UiFontRole::Body).face;
-    }
-    navFont_ = ui::CreateFontHandle(navSpec, dpi_);
+    // One native/owner-draw navigation role, independent of Settings body.
+    navFont_ = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::SettingsNavigation),
+        dpi_);
     sectionFont_ =
         ui::CreateFontHandle(
             ui::ApplicationFontSpec(
