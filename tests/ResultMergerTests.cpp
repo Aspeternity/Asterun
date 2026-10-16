@@ -59,6 +59,46 @@ int main() {
             L"ts · teamspeak");
     }
 
+    // A launchable app matched on a word start ranks ahead of a file whose
+    // name matches the query exactly ("chrome" -> Google Chrome, not
+    // chrome.pdf); a weak app match does not.
+    {
+        auto app = MakeResult(
+            L"chrome",
+            std::string(providers::kStartMenu),
+            ResultKind::Application,
+            L"Google Chrome",
+            L"C:\\Apps\\chrome.exe",
+            753);
+        app.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+        app.relevanceMatch = {
+            relevance::MatchKind::BoundaryPrefix,
+            relevance::MatchField::Title,
+            753,
+            false};
+
+        auto file = MakeResult(
+            L"C:\\Docs\\chrome.pdf",
+            "everything",
+            ResultKind::File,
+            L"chrome.pdf",
+            L"C:\\Docs\\chrome.pdf",
+            1000);
+        file.surfaceClass = LaunchSurfaceClass::FilesystemItem;
+        file.relevanceMatch = {
+            relevance::MatchKind::Exact,
+            relevance::MatchField::FileStem,
+            1000,
+            false};
+
+        assert(BetterLauncherResult(app, file));
+        assert(!BetterLauncherResult(file, app));
+
+        app.relevanceMatch.kind = relevance::MatchKind::Fuzzy;
+        app.relevanceMatch.score = 400;
+        assert(BetterLauncherResult(file, app));
+    }
+
     const std::vector<LauncherResult>
         staticResults{
             MakeResult(

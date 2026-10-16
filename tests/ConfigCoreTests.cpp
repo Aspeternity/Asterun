@@ -407,6 +407,11 @@ int main() {
     UsageStore queryReloaded(data / "usage.json");
     queryReloaded.Load();
     assert(queryReloaded.Data().at(calcId).queryLaunches.at(L"s") == 2);
+    // The 2023 lifetime count has decayed to ~0; four launches now add 4,
+    // and the decayed weight survives a reload.
+    const double recordedFrecency = usage.Data().at(calcId).frecency;
+    assert(recordedFrecency > 3.99 && recordedFrecency < 4.01);
+    assert(queryReloaded.Data().at(calcId).frecency == recordedFrecency);
 
     // Real persistence + search: changing a saturated preference must work,
     // survive restart, and leave unrelated query evidence/global counts alone.
@@ -2068,7 +2073,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 22,\n"
+        "  \"schemaVersion\": 24,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -2140,6 +2145,24 @@ int main() {
     ProviderCache staleSchema21Cache(
         staleSchema21ProviderCache);
     assert(staleSchema21Cache.Load().empty());
+
+    // Schemas 22 and 23 classified a product named "... Download Manager"
+    // (IDM) as a background Downloader and cached it StrongMatchOnly; 23
+    // still missed a ProductName with a suffix ("... Manager (IDM)").
+    for (const int staleSchema : {22, 23}) {
+        const auto staleProviderCache =
+            data / ("provider-cache-schema" +
+                    std::to_string(staleSchema) + "-stale.json");
+        WriteText(
+            staleProviderCache,
+            "{\n"
+            "  \"schemaVersion\": " + std::to_string(staleSchema) + ",\n"
+            "  \"providers\": {}\n"
+            "}\n");
+        ProviderCache staleCache(
+            staleProviderCache);
+        assert(staleCache.Load().empty());
+    }
 
     // Schema 19 predates opaque auxiliary corroboration and ProductName
     // semantic evidence. Generated state must rebuild so short opaque entries

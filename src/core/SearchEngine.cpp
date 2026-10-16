@@ -27,9 +27,11 @@ namespace {
 
 // A narrowly gated exception to the 1-2 ASCII character precision rule.
 // Real two-word primary application names may be recalled from their second
-// word ("Google Chrome" -> "ch"), without admitting arbitrary later-word
-// fragments from tool bundles, commands, filesystem items or user shortcuts.
-// Do not relax the shared RelevancePolicy match gate for all other surfaces.
+// word ("Google Chrome" -> "ch"); trailing version tokens do not count as
+// words ("Adobe Photoshop 2024" -> "ph"). Longer titles, tool bundles,
+// commands, filesystem items and user shortcuts stay excluded ("Security
+// Advanced Firewall" is not "ad"). Do not relax the shared RelevancePolicy
+// match gate for all other surfaces.
 [[nodiscard]] relevance::Match
 ShortPrimaryAppSecondaryWordPrefix(
     const Command& command,
@@ -66,12 +68,35 @@ ShortPrimaryAppSecondaryWordPrefix(
     }
 
     const std::wstring_view first = title.substr(0, firstEnd);
-    const std::wstring_view second = title.substr(secondStart);
-    // Limit the exception to exactly two substantive English words, with a
-    // meaningful second word: "Microsoft Edge" works; "To Do" and longer
-    // component/utility titles cannot flood two-letter searches.
+    const auto secondEnd = title.find_first_of(L" \t", secondStart);
+    const std::wstring_view second = title.substr(
+        secondStart,
+        secondEnd == std::wstring_view::npos
+            ? std::wstring_view::npos
+            : secondEnd - secondStart);
+    // Exactly two substantive English words, with a meaningful second word:
+    // "Microsoft Edge" works; "To Do" and longer component/utility titles
+    // cannot flood two-letter searches. Anything after the second word must
+    // be a version-like token containing a digit (2024, 3, x64).
     if (second.size() < 4) {
         return {};
+    }
+    for (std::size_t pos = secondEnd;
+         pos != std::wstring_view::npos;) {
+        const auto start = title.find_first_not_of(L" \t", pos);
+        if (start == std::wstring_view::npos) break;
+        const auto end = title.find_first_of(L" \t", start);
+        const auto token = title.substr(
+            start,
+            end == std::wstring_view::npos
+                ? std::wstring_view::npos
+                : end - start);
+        if (std::none_of(token.begin(), token.end(), [](wchar_t ch) {
+                return ch >= L'0' && ch <= L'9';
+            })) {
+            return {};
+        }
+        pos = end;
     }
 
     const auto isAsciiAlphaWord = [](std::wstring_view word) {
@@ -98,6 +123,28 @@ ShortPrimaryAppSecondaryWordPrefix(
 }
 
 } // namespace
+
+double DecayedFrecency(
+    const UsageStat& stat,
+    std::int64_t nowUnix) noexcept {
+
+    if (stat.launches == 0) {
+        return 0.0;
+    }
+
+    // Data written before frecency existed only has the lifetime count.
+    // Seed it as if those launches were recent, capped near the level of
+    // daily use, and let the normal decay take it from there.
+    constexpr double kSeedCap = 20.0;
+    const double base = stat.frecency > 0.0
+        ? stat.frecency
+        : std::min(kSeedCap, static_cast<double>(stat.launches));
+
+    const double ageDays =
+        static_cast<double>(std::max<std::int64_t>(
+            0, nowUnix - stat.lastUsedUnix)) / 86400.0;
+    return base * std::exp2(-ageDays / kFrecencyHalfLifeDays);
+}
 
 SearchEngine::SearchEngine(
     std::filesystem::path
@@ -226,62 +273,49 @@ int SearchEngine::UsageScore(
     const UsageStat* stat,
     std::int64_t nowUnix) {
 
+    // Empty-query order: decayed launch count (x100 for integer ranking).
+    // Daily use settles near 20 (2000); an app untouched for a month keeps
+    // a quarter of its weight, after three months under 2%.
     if (stat == nullptr ||
         stat->launches == 0) {
         return 0;
     }
 
-    int score =
-        static_cast<int>(
-            std::min<double>(
-                140.0,
-                std::log2(
-                    static_cast<double>(
-                        stat->launches) +
-                    1.0) *
-                    24.0));
-
-    if (stat->lastUsedUnix > 0) {
-        const auto age =
-            std::max<std::int64_t>(
-                0,
-                nowUnix -
-                    stat->lastUsedUnix);
-
-        const auto days =
-            age / 86400;
-
-        if (days == 0) score += 90;
-        else if (days <= 2) score += 70;
-        else if (days <= 7) score += 45;
-        else if (days <= 30) score += 20;
-    }
-
-    return score;
+    return static_cast<int>(std::lround(
+        std::min(1.0e6, DecayedFrecency(*stat, nowUnix) * 100.0)));
 }
 
 int SearchEngine::IntentUsageScore(
     const UsageStat* stat,
     const std::wstring& normalizedQuery) {
 
-    // A single accidental launch is not a preference. Frequency alone
-    // supplies a small, stable tie-break among comparable text matches;
-    // the empty-query ordering keeps its existing recency behavior.
+    // A single accidental launch is not a preference. Repeated launches for
+    // this exact query score 16..32; launches for a related query (one is a
+    // prefix of the other: "chr" learned, "ch" typed) score at most 12, so a
+    // habit learned on the exact query always outweighs one inferred from a
+    // neighbouring query. The empty-query ordering keeps its recency path.
     if (stat == nullptr || normalizedQuery.empty()) {
         return 0;
     }
 
-    const auto it = stat->queryLaunches.find(
-        normalizedQuery);
-    if (it == stat->queryLaunches.end() ||
-        it->second < 2) {
-        return 0;
+    int score = 0;
+    for (const auto& [key, evidence] : stat->queryLaunches) {
+        if (evidence < 2) {
+            continue;
+        }
+        if (key == normalizedQuery) {
+            score = std::max(
+                score,
+                std::min(
+                    32,
+                    8 + static_cast<int>(
+                        std::bit_width(evidence) - 1) * 8));
+        } else if (key.starts_with(normalizedQuery) ||
+                   normalizedQuery.starts_with(key)) {
+            score = std::max(score, evidence >= 4 ? 12 : 8);
+        }
     }
-
-    return std::min(
-        32,
-        8 + static_cast<int>(
-            std::bit_width(it->second) - 1) * 8);
+    return score;
 }
 
 bool SearchEngine::IsPinyinQuery(
@@ -793,7 +827,8 @@ bool SearchEngine::HasDistinctiveCatalogIntent(
     const Command& command,
     std::wstring_view normalizedQuery,
     std::span<const std::wstring>
-        normalizedQueryTokens) {
+        normalizedQueryTokens,
+    const PreparedCommand* prepared) {
 
     if (command.distinctiveTokens.empty()) {
         return false;
@@ -866,12 +901,20 @@ bool SearchEngine::HasDistinctiveCatalogIntent(
         }
     }
 
-    for (const auto& distinctive :
-         command.distinctiveTokens) {
+    if (prepared &&
+        prepared->distinctiveTokens.size() !=
+            command.distinctiveTokens.size()) {
+        prepared = nullptr;
+    }
 
-        const std::wstring normalizedDistinctive =
-            relevance::Normalize(
-                distinctive);
+    for (std::size_t tokenIndex = 0;
+         tokenIndex < command.distinctiveTokens.size();
+         ++tokenIndex) {
+
+        const std::wstring normalizedDistinctive = prepared
+            ? prepared->distinctiveTokens[tokenIndex].normalized
+            : relevance::Normalize(
+                  command.distinctiveTokens[tokenIndex]);
 
         if (normalizedDistinctive.size() < 2) {
             continue;
@@ -904,13 +947,96 @@ bool SearchEngine::HasDistinctiveCatalogIntent(
     return false;
 }
 
+relevance::Match SearchEngine::DistinctiveIntentMatch(
+    const Command& command,
+    const PreparedCommand* prepared,
+    std::wstring_view normalizedQuery,
+    std::span<const std::wstring> intentTokens) {
+
+    // Cached distinctive identity is stronger evidence than a generic
+    // later-word short-prefix match. Any entry may therefore match an exact
+    // distinctive token (for example a short opaque "Z5"), while
+    // StrongMatchOnly entries additionally allow a distinctive prefix so
+    // explicit intent such as "rout" can recover a restrictive "routing"
+    // surface. This remains cache-only matching: role inference and I/O stay
+    // out of the keystroke path.
+    if (prepared &&
+        prepared->distinctiveTokens.size() !=
+            command.distinctiveTokens.size()) {
+        prepared = nullptr;
+    }
+
+    const bool restrictiveIntent =
+        command.catalogVisibility ==
+        CatalogVisibility::StrongMatchOnly;
+
+    // A cached token must not manufacture an Exact/Alias escape hatch around
+    // StrongMatchOnly admission. Validate restrictive intent first so
+    // family-overlapping tokens cannot bypass AdmitCatalogEntry's family
+    // boundary. The answer does not depend on the token, so ask once.
+    if (restrictiveIntent &&
+        !HasDistinctiveCatalogIntent(
+            command,
+            normalizedQuery,
+            intentTokens,
+            prepared)) {
+        return {};
+    }
+
+    relevance::Match best{};
+    for (std::size_t tokenIndex = 0;
+         tokenIndex < command.distinctiveTokens.size();
+         ++tokenIndex) {
+        const auto& distinctive =
+            command.distinctiveTokens[tokenIndex];
+
+        auto intentMatch = prepared
+            ? relevance::MatchPreparedField(
+                  distinctive,
+                  prepared->distinctiveTokens[tokenIndex].normalized,
+                  normalizedQuery)
+            : relevance::MatchTextNormalizedQuery(
+                  distinctive, normalizedQuery);
+
+        if (!intentMatch) {
+            continue;
+        }
+
+        const bool exactDistinctive =
+            intentMatch.kind == relevance::MatchKind::Exact;
+        if (!exactDistinctive && !restrictiveIntent) {
+            continue;
+        }
+
+        if (exactDistinctive &&
+            command.source != CommandSource::User &&
+            command.catalogVisibility == CatalogVisibility::Normal &&
+            IsGenericShortCatalogWord(normalizedQuery)) {
+            // A low-information whole word inside a discovered title is
+            // weaker than a real application prefix. Keep it reachable below
+            // Prefix, without demoting user aliases, exact titles,
+            // restrictive catalog identities or opaque identifiers (Z5, v2).
+            intentMatch.kind = relevance::MatchKind::BoundaryPrefix;
+            intentMatch.score = 740;
+        }
+
+        intentMatch.field = relevance::MatchField::Alias;
+
+        if (relevance::BetterMatch(intentMatch, best)) {
+            best = intentMatch;
+        }
+    }
+    return best;
+}
+
 bool SearchEngine::AdmitCatalogEntry(
     const Command& command,
     std::wstring_view normalizedQuery,
     std::span<const std::wstring>
         normalizedQueryTokens,
     const relevance::Match& match,
-    bool explicitSyntax) {
+    bool explicitSyntax,
+    const PreparedCommand* prepared) {
 
     // A user-authored shortcut is explicit intent and must never be hidden by
     // automatically inferred catalog roles.
@@ -951,7 +1077,8 @@ bool SearchEngine::AdmitCatalogEntry(
     return HasDistinctiveCatalogIntent(
         command,
         normalizedQuery,
-        normalizedQueryTokens);
+        normalizedQueryTokens,
+        prepared);
 }
 
 std::vector<SearchResult>
@@ -1041,6 +1168,8 @@ SearchEngine::Search(
          ++i) {
 
         const auto& command = commands[i];
+        const PreparedCommand* preparedCommand =
+            prepared ? &(*prepared)[i] : nullptr;
 
         const auto usageIt =
             usage.find(command.id);
@@ -1062,6 +1191,15 @@ SearchEngine::Search(
         relevance::Match match{};
 
         if (normalizedQuery.empty()) {
+            // The empty launcher is a "recent and frequent" list: pinned
+            // entries, anything launched before, and the user's own
+            // shortcuts. Never-used discovered apps would only fill it
+            // alphabetically.
+            const bool everUsed = stat != nullptr && stat->launches > 0;
+            if (!command.pinned && !everUsed &&
+                command.source != CommandSource::User) {
+                continue;
+            }
             if (!AdmitCatalogEntry(
                     command,
                     normalizedQuery,
@@ -1087,82 +1225,13 @@ SearchEngine::Search(
                           normalizedQuery,
                           usePinyin,
                           allowTarget,
-                          prepared ? &(*prepared)[i] : nullptr);
+                          preparedCommand);
 
-            // Cached distinctive identity is stronger evidence than a
-            // generic later-word short-prefix match. Any entry may therefore
-            // match an exact distinctive token (for example a short opaque
-            // "Z5"), while StrongMatchOnly entries additionally allow a
-            // distinctive prefix so explicit intent such as "rout" can
-            // recover a restrictive "routing" surface. This remains cache-only
-            // matching: role inference and I/O stay out of the keystroke path.
             if (!wildcardQuery) {
-
-                for (std::size_t tokenIndex = 0;
-                     tokenIndex < command.distinctiveTokens.size(); ++tokenIndex) {
-                    const auto& distinctive = command.distinctiveTokens[tokenIndex];
-
-                    auto intentMatch =
-                        prepared && (*prepared)[i].distinctiveTokens.size() ==
-                            command.distinctiveTokens.size()
-                            ? relevance::MatchPreparedField(distinctive,
-                                (*prepared)[i].distinctiveTokens[tokenIndex].normalized,
-                                normalizedQuery)
-                            : relevance::MatchTextNormalizedQuery(
-                                distinctive, normalizedQuery);
-
-                    if (!intentMatch) {
-                        continue;
-                    }
-
-                    const bool exactDistinctive =
-                        intentMatch.kind ==
-                        relevance::MatchKind::Exact;
-                    const bool restrictiveIntent =
-                        command.catalogVisibility ==
-                        CatalogVisibility::
-                            StrongMatchOnly;
-
-                    // A cached token must not manufacture an Exact/Alias
-                    // escape hatch around StrongMatchOnly admission. Validate
-                    // restrictive intent first so family-overlapping tokens
-                    // cannot bypass AdmitCatalogEntry's family boundary.
-                    if (restrictiveIntent &&
-                        !HasDistinctiveCatalogIntent(
-                            command,
-                            normalizedQuery,
-                            queryTokens)) {
-                        continue;
-                    }
-
-                    if (!exactDistinctive &&
-                        !restrictiveIntent) {
-                        continue;
-                    }
-
-                    if (exactDistinctive &&
-                        command.source != CommandSource::User &&
-                        command.catalogVisibility == CatalogVisibility::Normal &&
-                        IsGenericShortCatalogWord(normalizedQuery)) {
-                        // A low-information whole word inside a discovered
-                        // title is weaker than a real application prefix.
-                        // Keep it reachable below Prefix, without demoting
-                        // user aliases, exact titles, restrictive catalog
-                        // identities or opaque identifiers (Z5, v2).
-                        intentMatch.kind =
-                            relevance::MatchKind::BoundaryPrefix;
-                        intentMatch.score = 740;
-                    }
-
-                    intentMatch.field =
-                        relevance::MatchField::
-                            Alias;
-
-                    if (relevance::BetterMatch(
-                            intentMatch,
-                            match)) {
-                        match = intentMatch;
-                    }
+                const auto intentMatch = DistinctiveIntentMatch(
+                    command, preparedCommand, normalizedQuery, queryTokens);
+                if (relevance::BetterMatch(intentMatch, match)) {
+                    match = intentMatch;
                 }
             }
 
@@ -1183,7 +1252,7 @@ SearchEngine::Search(
                             token,
                             usePinyin,
                             allowTarget,
-                            prepared ? &(*prepared)[i] : nullptr);
+                            preparedCommand);
 
                     // Multi-token intent must use the same already-cached
                     // distinctive identity as a standalone query. This is
@@ -1193,66 +1262,11 @@ SearchEngine::Search(
                     // own identity. StrongMatchOnly prefixes remain subject to
                     // the family/distinctive admission boundary.
                     if (!tokenMatch) {
-                        for (std::size_t tokenIndex = 0;
-                             tokenIndex < command.distinctiveTokens.size(); ++tokenIndex) {
-                            const auto& distinctive = command.distinctiveTokens[tokenIndex];
-
-                            auto intentMatch =
-                                prepared && (*prepared)[i].distinctiveTokens.size() ==
-                                    command.distinctiveTokens.size()
-                                    ? relevance::MatchPreparedField(distinctive,
-                                        (*prepared)[i].distinctiveTokens[tokenIndex].normalized,
-                                        token)
-                                    : relevance::MatchTextNormalizedQuery(
-                                        distinctive, token);
-
-                            if (!intentMatch) {
-                                continue;
-                            }
-
-                            const bool exactDistinctive =
-                                intentMatch.kind ==
-                                relevance::MatchKind::
-                                    Exact;
-                            const bool restrictiveIntent =
-                                command.catalogVisibility ==
-                                CatalogVisibility::
-                                    StrongMatchOnly;
-
-                            if (restrictiveIntent &&
-                                !HasDistinctiveCatalogIntent(
-                                    command,
-                                    token,
-                                    std::span<const std::wstring>(
-                                        &token,
-                                        1))) {
-                                continue;
-                            }
-
-                            if (!exactDistinctive &&
-                                !restrictiveIntent) {
-                                continue;
-                            }
-
-                            if (exactDistinctive &&
-                                command.source != CommandSource::User &&
-                                command.catalogVisibility == CatalogVisibility::Normal &&
-                                IsGenericShortCatalogWord(token)) {
-                                // Apply the same short-word classification
-                                // when scoring multi-token queries.
-                                intentMatch.kind =
-                                    relevance::MatchKind::BoundaryPrefix;
-                                intentMatch.score = 740;
-                            }
-
-                            intentMatch.field =
-                                relevance::MatchField::
-                                    Alias;
-
-                            tokenMatch =
-                                intentMatch;
-                            break;
-                        }
+                        tokenMatch = DistinctiveIntentMatch(
+                            command,
+                            preparedCommand,
+                            token,
+                            std::span<const std::wstring>(&token, 1));
                     }
 
                     if (!tokenMatch) {
@@ -1306,7 +1320,8 @@ SearchEngine::Search(
                     normalizedQuery,
                     queryTokens,
                     match,
-                    explicitSyntax) ||
+                    explicitSyntax,
+                    preparedCommand) ||
                 !relevance::
                     AdmitLaunchSurfaceNormalized(
                         command.surfaceClass,

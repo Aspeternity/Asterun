@@ -1563,6 +1563,31 @@ CatalogFamilyKey(
         .family;
 }
 
+// Publication-time passes only see the cached title, which loses the Start
+// Menu folder / ProductName that ClassifyApplicationRole used to recognise
+// a standalone product named "... Download Manager". The cached catalog
+// family keeps that identity: when the family (folder or ProductName, e.g.
+// "internetdownloadmanageridm") begins with the whole title, the title is
+// the product's own name and its "download manager" words are not a role.
+[[nodiscard]] bool
+TitleIsOwnDownloaderProductName(
+    const Command& command,
+    ApplicationRole titleRole) {
+
+    if (titleRole != ApplicationRole::Downloader) {
+        return false;
+    }
+
+    const std::wstring family =
+        CatalogFamilyKey(command);
+    const std::wstring title =
+        Compact(command.title);
+
+    return !family.empty() &&
+        !title.empty() &&
+        family.starts_with(title);
+}
+
 [[nodiscard]] bool
 IsContextPromotableRole(
     ApplicationRole role) noexcept {
@@ -3192,6 +3217,28 @@ ClassifyApplicationRole(
             EvidenceField::Structural);
     }
 
+    // "Download manager" describes a suite's background downloader only when
+    // it is extra wording on top of the product ("Contoso Studio Download
+    // Manager"). When the entry's title is the product's own name (its Start
+    // Menu folder, or the executable ProductName, possibly with a suffix such
+    // as "Internet Download Manager (IDM)"), the words are the name of a
+    // standalone application, so they carry no Downloader evidence from any
+    // field.
+    const bool titleIsProductName =
+        titleMatchesFamily ||
+        (!product.empty() &&
+         (SameCompact(
+              evidence.displayTitle,
+              product) ||
+          StartsWithCompact(
+              product,
+              evidence.displayTitle)));
+
+    if (titleIsProductName) {
+        scores[static_cast<std::size_t>(
+            ApplicationRole::Downloader)] = {};
+    }
+
     ApplicationRole bestRole =
         ApplicationRole::Unknown;
     RoleScore bestScore{};
@@ -3301,7 +3348,10 @@ void CalibrateCatalogRoleContext(
         if (!IsContextPromotableRole(
                 titleDecision.role) ||
             titleDecision.confidence ==
-                RoleConfidence::Low) {
+                RoleConfidence::Low ||
+            TitleIsOwnDownloaderProductName(
+                *command,
+                titleDecision.role)) {
             continue;
         }
 
@@ -3616,6 +3666,9 @@ void CalibrateCatalogRoleContext(
             if (identityRole &&
                 semanticPrimaryContext &&
                 IsContextPromotableRole(
+                    titleDecision.role) &&
+                !TitleIsOwnDownloaderProductName(
+                    *candidate,
                     titleDecision.role)) {
                 const auto priorTokens =
                     candidate

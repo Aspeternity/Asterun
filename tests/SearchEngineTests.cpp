@@ -3,8 +3,11 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <tuple>
 
 using namespace altrun;
 
@@ -644,6 +647,22 @@ int main(int argc, char** argv) {
         secondaryWord[12].surfaceClass = LaunchSurfaceClass::UserCommand;
         secondaryWord[13].catalogVisibility =
             CatalogVisibility::StrongMatchOnly;
+        // Real vendor + product + edition/version titles (indices 14..16).
+        for (auto [id, keyword, title] : {
+                 std::tuple{L"short-ps-2024", L"adobephotoshop2024",
+                            L"Adobe Photoshop 2024"},
+                 std::tuple{L"short-pr-2025", L"adobepremierepro2025",
+                            L"Adobe Premiere Pro 2025"},
+                 std::tuple{L"short-vscode", L"microsoftvisualstudiocode",
+                            L"Microsoft Visual Studio Code"}}) {
+            auto cmd = MakeCommand(id, keyword, title, L"app.lnk",
+                static_cast<int>(secondaryWord.size()));
+            cmd.source = CommandSource::StartMenu;
+            cmd.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            cmd.catalogVisibility = CatalogVisibility::Normal;
+            cmd.basePriority = 0;
+            secondaryWord.push_back(std::move(cmd));
+        }
 
         const auto checkShort = [&](std::wstring_view query) {
             const auto raw = engine.Search(
@@ -688,6 +707,13 @@ int main(int argc, char** argv) {
         assert(ContainsCommand(checkShort(L"ed"), 7)); // Edge is 4 letters
         assert(ContainsCommand(checkShort(L"ph"), 8));
         assert(ContainsCommand(checkShort(L"te"), 9));
+        assert(!ContainsCommand(checkShort(L"ca"), 3)); // third word
+        // A trailing version is not a word: "Adobe Photoshop 2024" -> "ph".
+        assert(ContainsCommand(checkShort(L"ph"), 14));
+        // Three real words stay gated, version or not.
+        assert(!ContainsCommand(checkShort(L"pr"), 15));
+        assert(!ContainsCommand(checkShort(L"vi"), 16));
+        assert(!ContainsCommand(checkShort(L"co"), 16));
 
         // Existing 2-character noise and earlier to/ad/so protections.
         assert(!ContainsCommand(checkShort(L"ad"), 10));
@@ -728,18 +754,16 @@ int main(int argc, char** argv) {
         const auto verifyTea = [&](const UsageMap& h) {
             const auto result = engine.Search(
                 source, h, L"tea", 20, false, false);
-            assert(ContainsCommand(result, 0));
+            // "tea" is scattered inside No-te-p-a-d, not at a word start,
+            // so Notepad no longer matches at all (whatever its history).
+            assert(!ContainsCommand(result, 0));
             assert(ContainsCommand(result, 1));
             assert(ContainsCommand(result, 2));
+            assert(ContainsCommand(result, 3)); // Microsoft Teams
             assert(result.front().commandIndex == 1); // TeamSpeak
             assert(result[1].commandIndex == 2);      // TeamSpeak 3
-            const auto np = std::find_if(result.begin(), result.end(),
-                [](const SearchResult& r) { return r.commandIndex == 0; });
-            assert(np != result.end());
             assert(result[0].relevanceMatch.kind ==
                    relevance::MatchKind::Prefix);
-            assert(np->relevanceMatch.kind ==
-                   relevance::MatchKind::TightFuzzy);
             const auto prepared = SearchEngine::PrepareIndex(source);
             const auto cached = engine.Search(
                 source, h, L"tea", 20, false, false, &prepared);
@@ -770,11 +794,15 @@ int main(int argc, char** argv) {
         assert(shortcut.front().relevanceMatch.kind ==
                relevance::MatchKind::Exact);
 
+        // Pinning still overrides ranking among matching entries, but does
+        // not make a non-matching entry (Notepad for "tea") appear.
         source[0].pinned = true;
+        source[2].pinned = true;
         const auto pinnedTea = engine.Search(
             source, history, L"tea", 20, false, false);
         assert(!pinnedTea.empty());
-        assert(pinnedTea.front().commandIndex == 0);
+        assert(pinnedTea.front().commandIndex == 2);
+        assert(!ContainsCommand(pinnedTea, 0));
     }
 
     // Real-world Provider regression: isolated, non-identifying short English
@@ -840,11 +868,21 @@ int main(int argc, char** argv) {
         };
 
         checkPrefixRanking(habits);
-        // Repeated launches may reorder comparable matches but cannot make
-        // a generic middle-word match more exact than a real name prefix.
+        // Repeatedly choosing a middle-word match for this exact query is a
+        // demonstrated preference: it now ranks ahead of the name prefixes.
         habits[L"7dtd"] = UsageStat{10000, 1, {{L"to", 10000}}};
         habits[L"todo"] = UsageStat{10000, 1, {{L"to", 10000}}};
-        checkPrefixRanking(habits);
+        {
+            const auto learned = engine.Search(
+                apps, habits, L"to", 20, false, false);
+            assert(learned.size() >= 4);
+            assert((learned[0].commandIndex == 0 &&
+                    learned[1].commandIndex == 1) ||
+                   (learned[0].commandIndex == 1 &&
+                    learned[1].commandIndex == 0));
+            assert(learned[2].commandIndex == 2); // ToDesk
+            assert(learned[3].commandIndex == 3); // Tor Browser
+        }
 
         const auto shortInitial = engine.Search(
             apps, habits, L"t", 20, false, false);
@@ -852,10 +890,16 @@ int main(int argc, char** argv) {
         assert(shortInitial[0].commandIndex == 2);
         assert(shortInitial[1].commandIndex == 3);
 
+        // "tod" still word-start matches "To Do" and "to Die", and the habit
+        // learned on "to" carries over to the longer query.
         const auto longer = engine.Search(
             apps, habits, L"tod", 20, false, false);
-        assert(!longer.empty());
-        assert(longer.front().commandIndex == 2);
+        assert(longer.size() >= 3);
+        assert((longer[0].commandIndex == 0 &&
+                longer[1].commandIndex == 1) ||
+               (longer[0].commandIndex == 1 &&
+                longer[1].commandIndex == 0));
+        assert(longer[2].commandIndex == 2);
 
         const auto of = engine.Search(
             apps, habits, L"of", 20, false, false);
@@ -2595,6 +2639,93 @@ int main(int argc, char** argv) {
         const auto narrow = engine.Search(shortcuts, contextual, L"st", 10,
                                           false, false);
         assert(narrow.front().commandIndex == 0);
+    }
+
+    // A habit learned on a longer query ("vsc") carries over to the shorter
+    // one being typed ("vs"), and a repeated choice may cross strong match
+    // tiers (Initials over Prefix). One launch is still not a preference.
+    {
+        std::vector<Command> related{
+            MakeCommand(L"diff", L"vsdiffmerge", L"VSDiffMerge",
+                        L"vsdiffmerge.exe", 0),
+            MakeCommand(L"code", L"visualstudiocode", L"Visual Studio Code",
+                        L"code.exe", 1),
+        };
+        for (auto& item : related) {
+            item.source = CommandSource::StartMenu;
+            item.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            item.basePriority = 0;
+        }
+        UsageMap learned;
+        const auto cold = engine.Search(related, learned, L"vs", 10,
+                                        false, false);
+        assert(cold.front().commandIndex == 0);
+        assert(cold[1].relevanceMatch.kind ==
+               relevance::MatchKind::Initials);
+
+        learned[L"code"] = UsageStat{1, 1, {{L"vsc", 1}}};
+        assert(engine.Search(related, learned, L"vs", 10, false, false)
+                   .front().commandIndex == 0);
+
+        learned[L"code"] = UsageStat{4, 1, {{L"vsc", 4}}};
+        const auto warm = engine.Search(related, learned, L"vs", 10,
+                                        false, false);
+        assert(warm.front().commandIndex == 1);
+        assert(warm.front().usageScore == 12);
+
+        // Exact-query evidence for the other entry still wins.
+        learned[L"diff"] = UsageStat{2, 1, {{L"vs", 2}}};
+        assert(engine.Search(related, learned, L"vs", 10, false, false)
+                   .front().commandIndex == 0);
+    }
+
+    // Decayed frecency: old data seeds from the lifetime count (capped),
+    // and the weight halves every kFrecencyHalfLifeDays.
+    {
+        constexpr std::int64_t now = 1800000000;
+        constexpr std::int64_t day = 86400;
+        UsageStat legacy{500, now};
+        assert(DecayedFrecency(legacy, now) == 20.0);
+        legacy.lastUsedUnix = now - 14 * day;
+        assert(std::abs(DecayedFrecency(legacy, now) - 10.0) < 1e-9);
+        UsageStat tracked{3, now - 28 * day};
+        tracked.frecency = 8.0;
+        assert(std::abs(DecayedFrecency(tracked, now) - 2.0) < 1e-9);
+        assert(DecayedFrecency(UsageStat{}, now) == 0.0);
+    }
+
+    // Empty query: recent use beats an old heavy history and a never-used
+    // user shortcut; never-used discovered apps are not listed at all.
+    {
+        const auto nowUnix = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        std::vector<Command> home{
+            MakeCommand(L"shortcut", L"wuye", L"Night Shift", L"night.url", 0),
+            MakeCommand(L"old", L"oldheavy", L"Old Heavy", L"old.exe", 1),
+            MakeCommand(L"recent", L"recent", L"Recent App", L"recent.exe", 2),
+            MakeCommand(L"unused", L"unused", L"Unused App", L"unused.exe", 3),
+        };
+        for (std::size_t i = 1; i < home.size(); ++i) {
+            home[i].source = CommandSource::StartMenu;
+            home[i].surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+            home[i].basePriority = 0;
+        }
+        UsageMap homeUsage;
+        homeUsage[L"old"] = UsageStat{500, nowUnix - 90 * 86400};
+        UsageStat recentStat{3, nowUnix};
+        recentStat.frecency = 3.0;
+        homeUsage[L"recent"] = recentStat;
+
+        const auto list = engine.Search(home, homeUsage, L"", 10);
+        assert(list.size() == 3);
+        assert(list[0].commandIndex == 2); // Recent App
+        assert(list[1].commandIndex == 1); // Old Heavy, decayed
+        assert(list[2].commandIndex == 0); // never-used shortcut
+        assert(!ContainsCommand(list, 3));
+
+        home[3].pinned = true;
+        const auto pinnedHome = engine.Search(home, homeUsage, L"", 10);
+        assert(pinnedHome.front().commandIndex == 3);
     }
 
     usage[L"3"] = UsageStat{42, 4102444800LL};
