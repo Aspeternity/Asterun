@@ -4,6 +4,7 @@
 
 #include "TopLevelWindowPresentation.hpp"
 #include "UiComboBox.hpp"
+#include "UiEditChrome.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
@@ -943,7 +944,6 @@ void ShortcutEditorDialog::CreateControls() {
                 WS_CHILD |
                     WS_VISIBLE |
                     WS_TABSTOP |
-                    WS_BORDER |
                     ES_AUTOHSCROLL,
                 0,
                 0,
@@ -3425,6 +3425,11 @@ LRESULT ShortcutEditorDialog::HandleMessage(
                 hwnd_,
                 &paint);
         DrawEditorChrome(dc);
+        for (HWND edit : std::array<HWND, 6>{
+                 name_, keyword_, target_,
+                 testInput_, arguments_, workdir_}) {
+            ui::DrawNativeEditFrame(dc, hwnd_, edit, dpi_);
+        }
         EndPaint(
             hwnd_,
             &paint);
@@ -3538,6 +3543,17 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         HWND commandControl =
             reinterpret_cast<HWND>(
                 lParam);
+
+        if ((notify == EN_SETFOCUS || notify == EN_KILLFOCUS) &&
+            (commandControl == name_ ||
+             commandControl == keyword_ ||
+             commandControl == target_ ||
+             commandControl == testInput_ ||
+             commandControl == arguments_ ||
+             commandControl == workdir_)) {
+            ui::InvalidateNativeEditFrame(
+                hwnd_, commandControl, dpi_);
+        }
 
         if (id == kIdType ||
             id == kIdRuntimeInput) {
