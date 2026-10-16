@@ -34,6 +34,8 @@ constexpr wchar_t kShortcutEditorClass[] =
 constexpr int kEditorWidthLogical = 590;
 constexpr int kInitialEditorHeightLogical = 420;
 constexpr int kRuntimeTestExtraHeightLogical = 42;
+// Preserve the space below Test input; this adds breathing room above it.
+constexpr int kRuntimeTestTopGapLogical = 8;
 constexpr int kControlRowHeightLogical = 28;
 constexpr int kFooterButtonHeightLogical = 32;
 constexpr int kFooterBottomMarginLogical = 16;
@@ -62,6 +64,7 @@ constexpr UINT kIdCancel = 53115;
 constexpr UINT kIdBrowseFolder = 53116;
 constexpr UINT kIdAdvancedToggle = 53117;
 constexpr UINT kIdRuntimeInput = 53118;
+constexpr UINT kIdRuntimeHint = 53120;
 constexpr UINT kIdTestInput = 53122;
 
 [[nodiscard]] std::wstring
@@ -616,6 +619,10 @@ ShortcutEditorDialog::~ShortcutEditorDialog() {
         DeleteObject(semiboldFont_);
         semiboldFont_ = nullptr;
     }
+    if (hintFont_) {
+        DeleteObject(hintFont_);
+        hintFont_ = nullptr;
+    }
 
     if (backgroundBrush_) {
         DeleteObject(backgroundBrush_);
@@ -927,8 +934,8 @@ bool ShortcutEditorDialog::RunModal() {
 void ShortcutEditorDialog::CreateControls() {
     const auto makeStatic =
         [&](HWND& control,
-            DWORD alignment =
-                SS_LEFT) {
+            DWORD alignment = SS_LEFT,
+            UINT id = 0) {
             control = CreateWindowExW(
                 0,
                 L"STATIC",
@@ -941,7 +948,8 @@ void ShortcutEditorDialog::CreateControls() {
                 0,
                 0,
                 hwnd_,
-                nullptr,
+                id ? reinterpret_cast<HMENU>(
+                    static_cast<UINT_PTR>(id)) : nullptr,
                 instance_,
                 nullptr);
         };
@@ -956,7 +964,6 @@ void ShortcutEditorDialog::CreateControls() {
                 WS_CHILD |
                     WS_VISIBLE |
                     WS_TABSTOP |
-                    WS_BORDER |
                     ES_AUTOHSCROLL,
                 0,
                 0,
@@ -1045,7 +1052,7 @@ void ShortcutEditorDialog::CreateControls() {
             kIdRuntimeInput,
             ui::kApplicationPalette
                 .windowBackground);
-    makeStatic(runtimeInputHint_);
+    makeStatic(runtimeInputHint_, SS_LEFT, kIdRuntimeHint);
 
     makeStatic(
         testInputLabel_,
@@ -1110,10 +1117,19 @@ void ShortcutEditorDialog::ApplyFonts(BOOL repaint) {
         dpi_);
     if (!body) return;
 
-    HFONT emphasis = ui::CreateFontHandle(
-        ui::ApplicationFontSpec(language, ui::UiFontRole::BodySemibold),
-        dpi_);
+    auto emphasisSpec =
+        ui::ApplicationFontSpec(language, ui::UiFontRole::ShortcutBody);
+    emphasisSpec.weight = FW_SEMIBOLD;
+    HFONT emphasis = ui::CreateFontHandle(emphasisSpec, dpi_);
     if (!emphasis) {
+        DeleteObject(body);
+        return;
+    }
+    HFONT hint = ui::CreateFontHandle(
+        ui::ApplicationFontSpec(language, ui::UiFontRole::ShortcutHint),
+        dpi_);
+    if (!hint) {
+        DeleteObject(emphasis);
         DeleteObject(body);
         return;
     }
@@ -1122,8 +1138,10 @@ void ShortcutEditorDialog::ApplyFonts(BOOL repaint) {
     // ComboBox and STATIC controls retain HFONT handles via WM_SETFONT.
     const HFONT previousBody = font_;
     const HFONT previousEmphasis = semiboldFont_;
+    const HFONT previousHint = hintFont_;
     font_ = body;
     semiboldFont_ = emphasis;
+    hintFont_ = hint;
 
     const HWND controls[] = {
         keywordLabel_, keyword_, keywordHint_, nameLabel_, name_,
@@ -1142,8 +1160,17 @@ void ShortcutEditorDialog::ApplyFonts(BOOL repaint) {
         }
     }
 
+    for (HWND hintControl :
+         {keywordHint_, typeHint_, runtimeInputHint_}) {
+        if (hintControl) {
+            SendMessageW(hintControl, WM_SETFONT,
+                reinterpret_cast<WPARAM>(hintFont_), repaint);
+        }
+    }
+
     if (previousBody) DeleteObject(previousBody);
     if (previousEmphasis) DeleteObject(previousEmphasis);
+    if (previousHint) DeleteObject(previousHint);
 }
 
 void ShortcutEditorDialog::ApplyLanguage() {
@@ -1389,7 +1416,7 @@ void ShortcutEditorDialog::Layout(
     const int labelHeight =
         Scale(app_.SettingsData().language == Language::ZhCN ? 20 : 18);
     const int hintHeight =
-        Scale(app_.SettingsData().language == Language::ZhCN ? 20 : 18);
+        Scale(app_.SettingsData().language == Language::ZhCN ? 18 : 16);
     const int gap = Scale(8);
     const int formLabelGap = Scale(12);
     const int columnGap = Scale(18);
@@ -1454,6 +1481,13 @@ void ShortcutEditorDialog::Layout(
                     0,
                     (controlRowHeight -
                      labelHeight) / 2);
+        };
+    const auto rowHintTop =
+        [&](int rowTop) {
+            return rowTop +
+                std::max(
+                    0,
+                    (controlRowHeight - hintHeight) / 2);
         };
 
     int y = Scale(16);
@@ -1611,11 +1645,11 @@ void ShortcutEditorDialog::Layout(
     moveControl(
         typeHint_,
         typeHintLeft,
-        rowTextTop(y),
+        rowHintTop(y),
         client.right -
             margin -
             typeHintLeft,
-        labelHeight);
+        hintHeight);
     y += controlRowHeight +
         Scale(6);
 
@@ -1650,16 +1684,17 @@ void ShortcutEditorDialog::Layout(
     moveControl(
         runtimeInputHint_,
         runtimeHintLeft,
-        rowTextTop(y),
+        rowHintTop(y),
         client.right -
             margin -
             runtimeHintLeft,
-        labelHeight);
+        hintHeight);
     y += controlRowHeight +
         Scale(6);
 
     if (SelectedRuntimeInputMode() !=
         RuntimeInputMode::None) {
+        y += Scale(kRuntimeTestTopGapLogical);
         moveControl(
             testInputLabel_,
             margin,
@@ -2165,8 +2200,8 @@ DesiredClientHeight() const {
 
     if (SelectedRuntimeInputMode() !=
         RuntimeInputMode::None) {
-        y += Scale(
-            kRuntimeTestExtraHeightLogical);
+        y += Scale(kRuntimeTestTopGapLogical);
+        y += Scale(kRuntimeTestExtraHeightLogical);
     }
 
     const int advancedTop = y;
@@ -2509,12 +2544,25 @@ void ShortcutEditorDialog::UpdateRuntimeInputHint() {
         TrimWide(
             ControlText(workdir_));
 
+    // An empty auto-detected target still maps to Application internally;
+    // don't promise argument-appending until the user enters a real target.
+    if (SendMessageW(type_, CB_GETCURSEL, 0, 0) <= 0 &&
+        preview.target.empty()) {
+        SetWindowTextW(runtimeInputHint_,
+            mode == RuntimeInputMode::UrlEncoded
+                ? T(L"编码后用 {input} 指定位置。",
+                    L"Encode; use {input}.")
+                : T(L"原样传递；可用 {input} 定位。",
+                    L"Pass unchanged; use {input}."));
+        return;
+    }
+
     if (!CanAcceptRuntimeInput(
             preview)) {
         SetWindowTextW(
             runtimeInputHint_,
-            T(L"请加入 {input} 指定插入位置。",
-              L"Add {input} to choose the insertion point."));
+            T(L"用 {input} 指定位置。",
+              L"Use {input} for placement."));
         return;
     }
 
@@ -2522,8 +2570,8 @@ void ShortcutEditorDialog::UpdateRuntimeInputHint() {
         RuntimeInputMode::UrlEncoded) {
         SetWindowTextW(
             runtimeInputHint_,
-            T(L"UTF-8 URL 编码后替换 {input}。",
-              L"UTF-8 URL encoded, then replaces {input}."));
+            T(L"UTF-8 编码后替换 {input}。",
+              L"UTF-8 encode into {input}."));
         return;
     }
 
@@ -2535,8 +2583,8 @@ void ShortcutEditorDialog::UpdateRuntimeInputHint() {
              CommandType::CommandLine)) {
         SetWindowTextW(
             runtimeInputHint_,
-            T(L"自动追加到固定参数；也可用 {input} 指定位置。",
-              L"Appended to fixed arguments, or place with {input}."));
+            T(L"追加到参数，或用 {input} 定位。",
+              L"Append or use {input}."));
         return;
     }
 

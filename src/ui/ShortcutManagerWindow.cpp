@@ -524,7 +524,6 @@ void ShortcutManagerWindow::CreateControls() {
         WS_CHILD |
             WS_VISIBLE |
             WS_TABSTOP |
-            WS_BORDER |
             ES_AUTOHSCROLL,
         0,
         0,
@@ -1206,12 +1205,10 @@ void ShortcutManagerWindow::RecreateFonts() {
         ui::ApplicationFontSpec(language, ui::UiFontRole::ShortcutBody),
         dpi_);
 
-    semiboldFont_ =
-        ui::CreateFontHandle(
-            ui::ApplicationFontSpec(
-                language,
-                ui::UiFontRole::BodySemibold),
-            dpi_);
+    auto emphasisSpec = ui::ApplicationFontSpec(
+        language, ui::UiFontRole::ShortcutBody);
+    emphasisSpec.weight = FW_SEMIBOLD;
+    semiboldFont_ = ui::CreateFontHandle(emphasisSpec, dpi_);
 
     for (HWND control :
          std::array<HWND, 7>{

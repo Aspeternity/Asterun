@@ -11,6 +11,7 @@ enum class UiFontRole {
     BodySemibold,
     SettingsNavigation,
     ShortcutBody,
+    ShortcutHint,
     SectionTitle,
     PageTitle,
     AppTitle,
