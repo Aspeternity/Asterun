@@ -41,7 +41,7 @@ constexpr int kFooterSeparatorGapLogical = 10;
 constexpr int kContentFooterGapLogical = 16;
 constexpr int kAdminTopGapLogical = 4;
 constexpr int kInlineComboMinWidthLogical = 158;
-constexpr int kInlineComboMaxWidthLogical = 185;
+constexpr int kInlineComboMaxWidthLogical = 235;
 constexpr int kAdvancedRightInsetLogical = 18;
 
 constexpr COLORREF kEditorHintText =
@@ -185,7 +185,20 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
 
     const int size = scale(16);
     const int left = area.left + scale(2);
-    const int top = (area.top + area.bottom - size) / 2;
+    // Align the box with the visible glyph body, not the font line box:
+    // YaHei's ascent/internal leading place CJK ink above its box center.
+    const HGDIOBJ prevFont = font ? SelectObject(dc, font) : nullptr;
+    TEXTMETRICW metrics{};
+    int visualCenter = (area.top + area.bottom) / 2;
+    if (GetTextMetricsW(dc, &metrics)) {
+        const int lineTop = area.top +
+            (area.bottom - area.top - metrics.tmHeight) / 2;
+        const int baseline = lineTop + metrics.tmAscent;
+        const int inkHeight = std::max(1,
+            static_cast<int>(metrics.tmAscent - metrics.tmInternalLeading));
+        visualCenter = baseline - inkHeight / 2;
+    }
+    const int top = visualCenter - size / 2;
     const RECT square{left, top, left + size, top + size};
 
     // Paint the tiny glyph with deterministic 4x subpixel coverage. Native
@@ -263,7 +276,6 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
     wchar_t label[128]{};
     GetWindowTextW(draw.hwndItem, label,
         static_cast<int>(std::size(label)));
-    HGDIOBJ prevFont = font ? SelectObject(dc, font) : nullptr;
     SetBkMode(dc, TRANSPARENT);
     // A mouse click also focuses a BUTTON. Changing the whole label to
     // accent on focus made it appear to flash rather than just checking it.
@@ -276,7 +288,7 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
     };
     DrawTextW(dc, label, -1, &text,
         DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-    if (prevFont) SelectObject(dc, prevFont);
+    if (prevFont && prevFont != HGDI_ERROR) SelectObject(dc, prevFont);
 
     if (buffered) {
         BitBlt(draw.hDC, draw.rcItem.left, draw.rcItem.top,
@@ -944,6 +956,7 @@ void ShortcutEditorDialog::CreateControls() {
                 WS_CHILD |
                     WS_VISIBLE |
                     WS_TABSTOP |
+                    WS_BORDER |
                     ES_AUTOHSCROLL,
                 0,
                 0,
@@ -965,6 +978,7 @@ void ShortcutEditorDialog::CreateControls() {
                     MAKELPARAM(
                         Scale(7),
                         Scale(7)));
+                (void)ui::AttachNativeEditChrome(control, &dpi_);
             }
         };
 
@@ -2327,12 +2341,13 @@ void ShortcutEditorDialog::UpdateRuntimeTestVisibility() {
         return;
     }
 
-    ShowWindow(
-        testInputLabel_,
-        visible ? SW_SHOW : SW_HIDE);
-    ShowWindow(
-        testInput_,
-        visible ? SW_SHOW : SW_HIDE);
+    // Stage both visibility changes without intermediate child paints.
+    // RefreshDynamicLayout commits one fully laid-out parent/child frame.
+    const UINT flags = SWP_NOMOVE | SWP_NOSIZE |
+        SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW |
+        (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW);
+    SetWindowPos(testInputLabel_, nullptr, 0, 0, 0, 0, flags);
+    SetWindowPos(testInput_, nullptr, 0, 0, 0, 0, flags);
 
     RefreshDynamicLayout();
 }
@@ -3425,11 +3440,6 @@ LRESULT ShortcutEditorDialog::HandleMessage(
                 hwnd_,
                 &paint);
         DrawEditorChrome(dc);
-        for (HWND edit : std::array<HWND, 6>{
-                 name_, keyword_, target_,
-                 testInput_, arguments_, workdir_}) {
-            ui::DrawNativeEditFrame(dc, hwnd_, edit, dpi_);
-        }
         EndPaint(
             hwnd_,
             &paint);
@@ -3543,17 +3553,6 @@ LRESULT ShortcutEditorDialog::HandleMessage(
         HWND commandControl =
             reinterpret_cast<HWND>(
                 lParam);
-
-        if ((notify == EN_SETFOCUS || notify == EN_KILLFOCUS) &&
-            (commandControl == name_ ||
-             commandControl == keyword_ ||
-             commandControl == target_ ||
-             commandControl == testInput_ ||
-             commandControl == arguments_ ||
-             commandControl == workdir_)) {
-            ui::InvalidateNativeEditFrame(
-                hwnd_, commandControl, dpi_);
-        }
 
         if (id == kIdType ||
             id == kIdRuntimeInput) {
