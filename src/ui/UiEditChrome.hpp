@@ -105,9 +105,13 @@ inline LRESULT CALLBACK NativeEditChromeSubclass(
             rect->top += extra / 2;
             rect->bottom -= extra - extra / 2;
         }
+        // RECT stores LONG coordinates. Keep both arithmetic branches int
+        // so MSVC can deduce the std::min/std::max template arguments.
+        const int clientWidth = static_cast<int>(
+            rect->right - rect->left);
         const int side = std::min(
             Scale(4, NativeEditChromeDpi(edit, context)),
-            std::max(0, (rect->right - rect->left -
+            std::max(0, (clientWidth -
                 Scale(32, NativeEditChromeDpi(edit, context))) / 2));
         rect->left += side;
         rect->right -= side;
