@@ -20,6 +20,7 @@
 #include "../platform/InstanceIpc.hpp"
 #include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/NotificationIdentity.hpp"
+#include "../platform/SecureElevation.hpp"
 #include "../platform/WinClipboard.hpp"
 #include "../platform/WinUtil.hpp"
 #include "../platform/UpdateIconRefresh.hpp"
@@ -344,6 +345,10 @@ App::~App() {
         shellIntegrationThread_.join();
     }
 
+    if (temporaryWorkerSweepThread_.joinable()) {
+        temporaryWorkerSweepThread_.join();
+    }
+
     StopManagedEverythingLifecycle();
 
     if (providerMonitorThread_.joinable()) {
@@ -478,16 +483,6 @@ int App::Run() {
 
     ULONG packagedChangeNotifyId = 0;
 
-    if (!dataDirectoryWritable_) {
-        altrun::ui::ShowMessage(
-            nullptr,
-            settingsStore_.Data().language == Language::ZhCN
-                ? L"Asterun 的 data 目录当前不可写。\n\n程序仍会继续运行，但设置、快捷项和使用记录可能无法保存。请将程序移动到可写目录或检查文件夹权限。"
-                : L"The Asterun data directory is not writable.\n\nThe launcher will continue running, but settings, shortcuts and usage history may not persist. Move Asterun to a writable folder or check folder permissions.",
-            L"Asterun",
-            MB_ICONWARNING | MB_OK);
-    }
-
     commandStore_.Reload(
         settingsStore_.Data()
             .providerEnabled);
@@ -526,6 +521,16 @@ int App::Run() {
     // optional warning dialog can make the updater mistake user think-time
     // for a failed startup.
     SignalStartupHealthEvent();
+
+    if (!dataDirectoryWritable_) {
+        altrun::ui::ShowMessage(
+            nullptr,
+            settingsStore_.Data().language == Language::ZhCN
+                ? L"Asterun 的 data 目录当前不可写。\n\n程序仍会继续运行，但设置、快捷项和使用记录可能无法保存。请将程序移动到可写目录或检查文件夹权限。"
+                : L"The Asterun data directory is not writable.\n\nThe launcher will continue running, but settings, shortcuts and usage history may not persist. Move Asterun to a writable folder or check folder permissions.",
+            L"Asterun",
+            MB_ICONWARNING | MB_OK);
+    }
 
     bool startupHotkeyConflict = false;
 
@@ -611,6 +616,7 @@ int App::Run() {
     // completely off the first-frame path; the worker also avoids rewriting
     // already-correct registrations on ordinary launches.
     StartShellIntegrationReconcile();
+    StartTemporaryWorkerSweep();
 
     // Cached provider results are already searchable. Refresh automatic
     // discovery off the startup path, then keep provider sources under
@@ -4668,6 +4674,20 @@ bool App::ApplySendToRegistrationUnlocked(
     shellLink->Release();
 
     return success;
+}
+
+void App::StartTemporaryWorkerSweep() {
+    if (temporaryWorkerSweepThread_.joinable()) {
+        return;
+    }
+
+    // Update.exe / Uninstall.exe run from random %TEMP% copies. A portable
+    // (non-elevated) updater cannot schedule its copy for deletion, so the
+    // next healthy launcher removes leftovers off the startup path.
+    temporaryWorkerSweepThread_ =
+        std::jthread([] {
+            (void)win::RemoveStaleTemporaryWorkers();
+        });
 }
 
 void App::StartShellIntegrationReconcile() {

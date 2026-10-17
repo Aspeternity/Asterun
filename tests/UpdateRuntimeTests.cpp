@@ -1,13 +1,17 @@
 #include "updater/UpdaterTransaction.hpp"
+#include "platform/HelperLanguage.hpp"
 #ifdef _WIN32
 #include "platform/SecureArchive.hpp"
+#include "platform/SecureElevation.hpp"
 #include "platform/UpdateIconRefresh.hpp"
 #endif
 
 #include <cassert>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -263,6 +267,83 @@ int main() {
             installed / "Uninstall.exe",
         }));
         CloseHandle(event);
+    }
+
+    {
+        // Leftover %TEMP% worker copies: only exact worker-shaped
+        // directories holding a single unlocked worker EXE are removed.
+        using altrun::win::RemoveStaleTemporaryWorkers;
+        const auto temp = fs::absolute(root / "temporary-workers");
+        const std::wstring token = L"0123456789abcdef0123456789abcdef";
+        const auto worker = [&](std::wstring_view suffix) {
+            return temp / (L"Asterun-Elevated." + std::wstring(suffix));
+        };
+
+        const auto staleUpdater = worker(token);
+        const auto staleUninstaller = worker(L"ffffffffffffffffffffffffffffffff");
+        const auto extraFile = worker(L"11111111111111111111111111111111");
+        const auto emptyWorker = worker(L"22222222222222222222222222222222");
+        const auto nestedDirectory = worker(L"33333333333333333333333333333333");
+        const auto otherExecutable = worker(L"44444444444444444444444444444444");
+        const auto upperCaseToken = worker(L"ABCDEFABCDEFABCDEFABCDEFABCDEFAB");
+        const auto shortToken = worker(L"0123456789abcdef");
+        const auto foreign = temp / L"Asterun-Batch1-1234";
+        const auto locked = worker(L"55555555555555555555555555555555");
+
+        Write(staleUpdater / "Update.exe", "worker");
+        Write(staleUninstaller / "UNINSTALL.EXE", "worker");
+        Write(extraFile / "Update.exe", "worker");
+        Write(extraFile / "notes.txt", "user");
+        fs::create_directories(emptyWorker);
+        Write(nestedDirectory / "Update.exe" / "inner.txt", "user");
+        Write(otherExecutable / "Asterun.exe", "worker");
+        Write(upperCaseToken / "Update.exe", "worker");
+        Write(shortToken / "Update.exe", "worker");
+        Write(foreign / "Update.exe", "worker");
+        Write(locked / "Update.exe", "worker");
+
+        // A junction named like a worker is a link, not a worker directory;
+        // the sweep must neither remove it nor touch its target.
+        const auto junctionTarget = temp / "junction-target";
+        Write(junctionTarget / "Update.exe", "outside");
+        const auto junction = worker(L"66666666666666666666666666666666");
+        assert(CreateJunction(junction, junctionTarget, temp));
+
+        // A running worker keeps its image open without delete sharing.
+        const HANDLE running = CreateFileW(
+            (locked / "Update.exe").c_str(), GENERIC_READ, FILE_SHARE_READ,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        assert(running != INVALID_HANDLE_VALUE);
+
+        // Too young: nothing is old enough to be a leftover yet.
+        assert(RemoveStaleTemporaryWorkers(temp, std::chrono::hours{1}) == 0);
+        assert(fs::exists(staleUpdater / "Update.exe"));
+
+        assert(RemoveStaleTemporaryWorkers(temp, std::chrono::seconds{0}) == 2);
+        assert(!fs::exists(staleUpdater));
+        assert(!fs::exists(staleUninstaller));
+        assert(fs::exists(extraFile / "Update.exe"));
+        assert(fs::exists(extraFile / "notes.txt"));
+        assert(fs::exists(emptyWorker));
+        assert(fs::exists(nestedDirectory / "Update.exe" / "inner.txt"));
+        assert(fs::exists(otherExecutable / "Asterun.exe"));
+        assert(fs::exists(upperCaseToken / "Update.exe"));
+        assert(fs::exists(shortToken / "Update.exe"));
+        assert(fs::exists(foreign / "Update.exe"));
+        assert(fs::exists(locked / "Update.exe"));
+        assert(fs::is_symlink(fs::symlink_status(junction)) ||
+            (GetFileAttributesW(junction.c_str()) & FILE_ATTRIBUTE_REPARSE_POINT));
+        assert(Read(junctionTarget / "Update.exe") == "outside");
+
+        // Once the worker exits, a later launch clears it.
+        CloseHandle(running);
+        assert(RemoveStaleTemporaryWorkers(temp, std::chrono::seconds{0}) == 1);
+        assert(!fs::exists(locked));
+
+        // A missing temporary root is not an error.
+        assert(RemoveStaleTemporaryWorkers(temp / "missing", std::chrono::seconds{0}) == 0);
+
+        RemoveDirectoryW(junction.c_str());
     }
 #endif
 
@@ -613,6 +694,102 @@ int main() {
         assert(Rollback(paths, journal).Complete());
         assert(Read(paths.install / "Asterun.exe") == "old-app");
     }
+
+    {
+        // Update.exe / Uninstall.exe follow the launcher's language setting.
+        using altrun::helper_language::ChineseFromSettingsText;
+        const auto settings = [](std::string_view language) {
+            return "{\n  \"appearance\": {\n    \"language\": " +
+                std::string(language) +
+                ",\n    \"launcher\": \"modern-compact\"\n  }\n}\n";
+        };
+        assert(ChineseFromSettingsText(settings("\"zh-CN\"")) == true);
+        assert(ChineseFromSettingsText(settings("\"en-US\"")) == false);
+        assert(ChineseFromSettingsText(settings("\"EN\"")) == false);
+        // The launcher treats every other value as Chinese.
+        assert(ChineseFromSettingsText(settings("\"fr-FR\"")) == true);
+        assert(ChineseFromSettingsText(R"({"language":"en-us"})") == false);
+        assert(ChineseFromSettingsText(R"({"language" :	"en-US"})") == false);
+        // No usable language value.
+        assert(!ChineseFromSettingsText("{}"));
+        assert(!ChineseFromSettingsText(R"({"language": 1})"));
+        assert(!ChineseFromSettingsText(R"x({"language": "en-US)x"));
+        assert(!ChineseFromSettingsText(R"({"language": "a-very-long-language-tag"})"));
+        assert(!ChineseFromSettingsText(""));
+        // A non-value occurrence is skipped in favour of the real setting.
+        const std::string_view quotedKey =
+            R"({"note": "\"language\" here", "language": "en-US"})";
+        assert(ChineseFromSettingsText(quotedKey) == false);
+    }
+
+    const auto noStagedReplacements = [](const fs::path& install) {
+        for (const auto& entry : fs::recursive_directory_iterator(install)) {
+            if (entry.path().filename().wstring().ends_with(L".asterun-update-new")) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    {
+        const auto paths = Paths(root / "atomic-replace");
+        PopulateSource(paths.source);
+        PopulateInstall(paths.install);
+        TransactionJournal journal;
+        assert(ApplyPackage(paths, journal));
+        assert(Read(paths.install / "Asterun.exe") == "new-app");
+        assert(noStagedReplacements(paths.install));
+    }
+
+#ifdef _WIN32
+    const auto lockWithoutDeleteSharing = [](const fs::path& path) {
+        // How an antivirus scan or a still-mapped image looks to the updater.
+        const HANDLE handle = CreateFileW(
+            path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        assert(handle != INVALID_HANDLE_VALUE);
+        return handle;
+    };
+
+    {
+        // A brief lock on the destination is waited out.
+        const auto paths = Paths(root / "transient-lock");
+        PopulateSource(paths.source);
+        PopulateInstall(paths.install);
+        const HANDLE lock = lockWithoutDeleteSharing(paths.install / "Asterun.exe");
+        std::jthread release([lock] {
+            Sleep(700);
+            CloseHandle(lock);
+        });
+
+        TransactionJournal journal;
+        assert(ApplyPackage(paths, journal));
+        release.join();
+        assert(Read(paths.install / "Asterun.exe") == "new-app");
+        assert(Read(paths.backup / "Asterun.exe") == "old-app");
+        assert(noStagedReplacements(paths.install));
+    }
+
+    {
+        // A lock that never clears fails the update without truncating the
+        // existing file, and rollback restores everything already replaced.
+        const auto paths = Paths(root / "persistent-lock");
+        PopulateSource(paths.source);
+        PopulateInstall(paths.install);
+        const HANDLE lock = lockWithoutDeleteSharing(paths.install / "VERSION");
+
+        TransactionJournal journal;
+        assert(!ApplyPackage(paths, journal));
+        assert(Read(paths.install / "VERSION") == "0.8.0-beta.1\n");
+        assert(noStagedReplacements(paths.install));
+        CloseHandle(lock);
+
+        assert(Rollback(paths, journal).Complete());
+        assert(Read(paths.install / "Asterun.exe") == "old-app");
+        assert(Read(paths.install / "Update.exe") == "old-updater");
+        assert(Read(paths.install / "VERSION") == "0.8.0-beta.1\n");
+    }
+#endif
 
     fs::remove_all(root, ec);
     return 0;
