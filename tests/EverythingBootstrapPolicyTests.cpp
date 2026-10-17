@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <string_view>
 
 using namespace altrun;
 
@@ -250,9 +251,13 @@ int main() {
     }
 
     {
+        // Kept out of assert(): MSVC warns (C4129) on a raw string with
+        // backslashes inside a macro argument.
+        const std::wstring_view quotedServiceCommand =
+            LR"("D:\ALTRun Test\data\tools\Everything\Everything.exe" -svc)";
         assert(
             ExtractEverythingServiceExecutable(
-                LR"("D:\ALTRun Test\data\tools\Everything\Everything.exe" -svc)") ==
+                quotedServiceCommand) ==
             L"D:\\ALTRun Test\\data\\tools\\Everything\\Everything.exe");
 
         assert(

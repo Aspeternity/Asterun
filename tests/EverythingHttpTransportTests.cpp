@@ -231,7 +231,8 @@ int main() {
             (asynchronous ? f.asyncError : f.failStart) = phase;
             std::uint32_t error{};
             assert(!Download(file, {}, error));
-            assert(error == (asynchronous ? ERROR_WINHTTP_TIMEOUT : ERROR_WINHTTP_CONNECTION_ERROR));
+            assert(error == static_cast<std::uint32_t>(
+                asynchronous ? ERROR_WINHTTP_TIMEOUT : ERROR_WINHTTP_CONNECTION_ERROR));
             CheckClosed(f);
         }
     }

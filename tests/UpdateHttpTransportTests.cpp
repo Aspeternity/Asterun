@@ -298,8 +298,8 @@ void UpdateSemantics() {
     { // Download -> real SHA256 -> verified archive -> extraction -> install handoff state.
         mz_zip_archive zip{}; assert(mz_zip_writer_init_heap(&zip, 0, 0));
         for (const char* name : {"Asterun.exe", "Update.exe", "Uninstall.exe"})
-            assert(mz_zip_writer_add_mem(&zip, name, "test", 4, MZ_DEFAULT_COMPRESSION));
-        assert(mz_zip_writer_add_mem(&zip, "VERSION", "9.0.0", 5, MZ_DEFAULT_COMPRESSION));
+            assert(mz_zip_writer_add_mem(&zip, name, "test", 4, static_cast<mz_uint>(MZ_DEFAULT_COMPRESSION)));
+        assert(mz_zip_writer_add_mem(&zip, "VERSION", "9.0.0", 5, static_cast<mz_uint>(MZ_DEFAULT_COMPRESSION)));
         void* bytes{}; size_t length{};
         assert(mz_zip_writer_finalize_heap_archive(&zip, &bytes, &length)); mz_zip_writer_end(&zip);
         Fixture f; fixture = &f; f.payload.assign(static_cast<char*>(bytes), length); mz_free(bytes);
