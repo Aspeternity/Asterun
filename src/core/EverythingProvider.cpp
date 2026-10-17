@@ -1,10 +1,14 @@
 #include "EverythingProvider.hpp"
 
+#include "EverythingIpcProtocol.hpp"
 #include "ProviderIds.hpp"
 #include "ResultRanking.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <utility>
 
 namespace altrun {
@@ -38,11 +42,30 @@ EverythingResultId(
     return id;
 }
 
+[[nodiscard]] LauncherResult MakeFileResult(
+    const EverythingIpcItem& item) {
+    LauncherResult result;
+    result.id = EverythingResultId(item.fullPath);
+    result.providerId = std::string(providers::kEverythingFilesystem);
+    result.kind = item.kind == EverythingItemKind::Folder
+        ? ResultKind::Folder
+        : ResultKind::File;
+    result.title = item.name;
+    result.subtitle = item.parentPath;
+    result.target = item.fullPath;
+    result.detail = result.target;
+    result.action.kind = result.kind == ResultKind::Folder
+        ? LauncherActionKind::OpenFolder
+        : LauncherActionKind::OpenFile;
+    result.action.payload = result.target;
+    return result;
+}
+
 } // namespace
 
 EverythingProvider::EverythingProvider(
     EverythingIpcClientOptions options)
-    : client_(options) {}
+    : client_(options), prefixClient_(options) {}
 
 std::string_view
 EverythingProvider::Id() const noexcept {
@@ -61,173 +84,107 @@ EverythingProvider::Status() const {
 }
 
 void EverythingProvider::QueryAsync(DynamicQueryRequest request, Completion completion) {
-    const auto prefixQuery = classic_behavior::BuildFilenameContinuationQuery(request.query);
-    if (prefixQuery.empty()) {
-        QueryBroad(std::move(request), std::move(completion));
-        return;
-    }
-    EverythingQueryRequest prefix{request.generation, prefixQuery,
-        static_cast<std::uint32_t>(std::clamp<std::size_t>(request.limit, 16, 1000))};
-    client_.QueryAsync(std::move(prefix),
-        [this, request = std::move(request), completion = std::move(completion)](EverythingQueryResult found) mutable {
-            std::vector<LauncherResult> prefixes;
-            if (found.status == EverythingQueryStatus::Success) {
-                for (auto& item : found.items) {
-                    LauncherResult result;
-                    result.id = EverythingResultId(item.fullPath);
-                    result.providerId = std::string(providers::kEverythingFilesystem);
-                    result.kind = item.kind == EverythingItemKind::Folder ? ResultKind::Folder : ResultKind::File;
-                    result.title = std::move(item.name);
-                    result.subtitle = std::move(item.parentPath);
-                    result.target = std::move(item.fullPath);
-                    result.detail = result.target;
-                    result.action.kind = result.kind == ResultKind::Folder ? LauncherActionKind::OpenFolder : LauncherActionKind::OpenFile;
-                    result.action.payload = result.target;
-                    if (RankDynamicResultText(result, request.query)) prefixes.push_back(std::move(result));
-                }
-            }
-            QueryBroad(std::move(request), std::move(completion), std::move(prefixes));
-        });
-}
+    // Two Everything queries per keystroke: a name-prefix pass (so a strong
+    // "v2rayN" is never starved by a broad page) and the broad query. They
+    // run on separate IPC clients at the same time; the reply is assembled
+    // once both arrive. Both ask for newest-modified first, so Everything's
+    // truncated page keeps recent files instead of the alphabetical head.
+    struct Join {
+        std::mutex mutex;
+        int remaining{0};
+        std::vector<LauncherResult> prefixes;
+        std::optional<EverythingQueryResult> broad;
+        DynamicQueryRequest request;
+        Completion completion;
+    };
+    auto join = std::make_shared<Join>();
+    const auto prefixQuery =
+        classic_behavior::BuildFilenameContinuationQuery(request.query);
+    join->remaining = prefixQuery.empty() ? 1 : 2;
 
-void EverythingProvider::QueryBroad(
-    DynamicQueryRequest request, Completion completion,
-    std::vector<LauncherResult> prefixes) {
-    EverythingQueryRequest ipcRequest;
-    ipcRequest.generation =
-        request.generation;
-    std::wstring rankingQuery =
-        request.query;
-
-    const std::size_t outputLimit =
-        request.limit;
-
-    // Everything truncates before Asterun applies its own relevance
-    // policy. For broad short queries that can starve the post-filtered set:
-    // a relevant prefix such as v2rayN may sit outside Everything's first
-    // few dozen rows while unrelated path/name hits occupy the initial page.
-    // Overfetch a bounded candidate pool, rank locally, then trim back to the
-    // launcher's requested candidate count.
+    // Everything truncates before Asterun applies its own relevance policy.
+    // Overfetch a bounded candidate pool, rank locally, then trim back to
+    // the launcher's requested candidate count.
     const std::size_t scaledLimit =
-        outputLimit >= 125
-            ? 1000
-            : outputLimit * 8;
-    const std::size_t fetchLimit =
-        std::min<std::size_t>(
-            1000,
-            std::max<std::size_t>(
-                200,
-                scaledLimit));
+        request.limit >= 125 ? 1000 : request.limit * 8;
+    EverythingQueryRequest broad;
+    broad.generation = request.generation;
+    broad.query = request.query;
+    broad.limit = static_cast<std::uint32_t>(std::min<std::size_t>(
+        1000, std::max<std::size_t>(200, scaledLimit)));
+    broad.sortType = everything_ipc::kSortDateModifiedDescending;
 
-    ipcRequest.query =
-        std::move(request.query);
-    ipcRequest.limit =
-        static_cast<std::uint32_t>(
-            fetchLimit);
+    EverythingQueryRequest prefix;
+    prefix.generation = request.generation;
+    prefix.query = prefixQuery;
+    prefix.limit = static_cast<std::uint32_t>(
+        std::clamp<std::size_t>(request.limit, 16, 1000));
+    prefix.sortType = everything_ipc::kSortDateModifiedDescending;
 
-    client_.QueryAsync(
-        std::move(ipcRequest),
-        [completion =
-             std::move(completion),
-         rankingQuery =
-             std::move(rankingQuery),
-         outputLimit,
-         prefixes = std::move(prefixes)](
-            EverythingQueryResult
-                ipcResult) mutable {
-            DynamicQueryResponse response;
-            response.generation =
-                ipcResult.generation;
-            response.providerId =
-                std::string(
-                    providers::
-                        kEverythingFilesystem);
-            response.status =
-                MapStatus(
-                    ipcResult.status);
-            response.totalMatches =
-                ipcResult.totalMatches;
-            response.latencyMicros =
-                static_cast<std::uint64_t>(
-                    std::max<
-                        std::int64_t>(
-                        0,
-                        ipcResult.latency
-                            .count()));
-            response.nativeError =
-                ipcResult.nativeError;
+    join->request = std::move(request);
+    join->completion = std::move(completion);
 
-            response.results = std::move(prefixes);
-            response.results.reserve(
-                ipcResult.items.size());
+    const auto finish = [](const std::shared_ptr<Join>& state) {
+        // Called with state->mutex released, exactly once per query.
+        DynamicQueryResponse response;
+        const EverythingQueryResult& ipc = *state->broad;
+        response.generation = ipc.generation;
+        response.providerId = std::string(providers::kEverythingFilesystem);
+        response.status = MapStatus(ipc.status);
+        response.totalMatches = ipc.totalMatches;
+        response.latencyMicros = static_cast<std::uint64_t>(
+            std::max<std::int64_t>(0, ipc.latency.count()));
+        response.nativeError = ipc.nativeError;
+        response.results = std::move(state->prefixes);
 
-            for (auto& item :
-                 ipcResult.items) {
-                LauncherResult result;
-                result.id =
-                    EverythingResultId(
-                        item.fullPath);
-                result.providerId =
-                    std::string(
-                        providers::
-                            kEverythingFilesystem);
-                result.kind =
-                    item.kind ==
-                            EverythingItemKind::
-                                Folder
-                        ? ResultKind::Folder
-                        : ResultKind::File;
-                result.title =
-                    std::move(item.name);
-                result.subtitle =
-                    std::move(
-                        item.parentPath);
-                result.target =
-                    std::move(
-                        item.fullPath);
-                result.detail =
-                    result.target;
-                if (!RankDynamicResultText(
-                        result,
-                        rankingQuery)) {
-                    continue;
+        for (const auto& item : ipc.items) {
+            LauncherResult result = MakeFileResult(item);
+            if (!RankDynamicResultText(result, state->request.query)) continue;
+            if (std::none_of(response.results.begin(), response.results.end(),
+                    [&](const LauncherResult& existing) { return existing.id == result.id; }))
+                response.results.push_back(std::move(result));
+        }
+
+        std::stable_sort(response.results.begin(), response.results.end(),
+            [](const LauncherResult& left, const LauncherResult& right) {
+                return BetterLauncherResult(left, right);
+            });
+        if (response.results.size() > state->request.limit) {
+            response.results.resize(state->request.limit);
+        }
+        if (state->completion) state->completion(std::move(response));
+    };
+
+    if (!prefixQuery.empty()) {
+        prefixClient_.QueryAsync(std::move(prefix),
+            [join, finish](EverythingQueryResult found) {
+                std::vector<LauncherResult> prefixes;
+                if (found.status == EverythingQueryStatus::Success) {
+                    for (const auto& item : found.items) {
+                        LauncherResult result = MakeFileResult(item);
+                        if (RankDynamicResultText(result, join->request.query))
+                            prefixes.push_back(std::move(result));
+                    }
                 }
+                bool done = false;
+                {
+                    std::scoped_lock lock(join->mutex);
+                    join->prefixes = std::move(prefixes);
+                    done = --join->remaining == 0;
+                }
+                if (done) finish(join);
+            });
+    }
 
-                result.action.kind =
-                    result.kind ==
-                            ResultKind::Folder
-                        ? LauncherActionKind::
-                            OpenFolder
-                        : LauncherActionKind::
-                            OpenFile;
-                result.action.payload =
-                    result.target;
-
-                if (std::none_of(response.results.begin(), response.results.end(),
-                        [&](const LauncherResult& existing) { return existing.id == result.id; }))
-                    response.results.push_back(std::move(result));
+    client_.QueryAsync(std::move(broad),
+        [join, finish](EverythingQueryResult found) {
+            bool done = false;
+            {
+                std::scoped_lock lock(join->mutex);
+                join->broad = std::move(found);
+                done = --join->remaining == 0;
             }
-
-            std::stable_sort(
-                response.results.begin(),
-                response.results.end(),
-                [](const LauncherResult& left,
-                   const LauncherResult& right) {
-                    return BetterLauncherResult(
-                        left,
-                        right);
-                });
-
-            if (response.results.size() >
-                outputLimit) {
-                response.results.resize(
-                    outputLimit);
-            }
-
-            if (completion) {
-                completion(
-                    std::move(response));
-            }
+            if (done) finish(join);
         });
 }
 

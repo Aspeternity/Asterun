@@ -1735,6 +1735,7 @@ void LauncherWindow::ApplyDynamicResults(
     }
 
     dynamicQueryPending_ = false;
+    app_.ApplyFileUsage(results, CurrentQuery());
     dynamicResults_ =
         std::move(results);
 

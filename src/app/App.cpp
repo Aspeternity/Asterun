@@ -767,6 +767,26 @@ bool App::HasStaticQueryContinuation(
             query);
 }
 
+void App::ApplyFileUsage(
+    std::vector<LauncherResult>& results,
+    std::wstring_view query) const {
+
+    // Explicit paths and Everything syntax are not habits (as for apps).
+    if (query.empty() || relevance::HasExplicitSyntax(query)) {
+        return;
+    }
+
+    const std::wstring normalized = relevance::Normalize(query);
+    const auto& usage = usageStore_.Data();
+    for (auto& result : results) {
+        const auto found = usage.find(result.id);
+        if (found != usage.end()) {
+            result.usageScore =
+                SearchEngine::IntentUsageScore(&found->second, normalized);
+        }
+    }
+}
+
 void App::ReleaseStaleSearchCaches() const {
     const auto generation = commandStore_.Generation();
     // Only old generations or a removed contextual feature are disposable.
@@ -5006,6 +5026,14 @@ bool App::ExecuteResult(
             if (!source.id.empty()) {
                 usageStore_.Record(source.id, query);
             }
+        } else if (
+            result.providerId ==
+                providers::kEverythingFilesystem &&
+            !result.id.empty() &&
+            (action.kind == LauncherActionKind::OpenFile ||
+             action.kind == LauncherActionKind::OpenFolder)) {
+            // Files and folders learn the same per-query habit as apps.
+            usageStore_.Record(result.id, query);
         }
         return true;
     }

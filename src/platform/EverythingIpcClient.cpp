@@ -498,6 +498,8 @@ EverythingIpcClient::SendPendingQuery(
     wireRequest.replyToken = token;
     wireRequest.maxResults =
         pending->request.limit;
+    wireRequest.sortType =
+        pending->request.sortType;
     wireRequest.search =
         ToUtf16(
             pending->request.query);

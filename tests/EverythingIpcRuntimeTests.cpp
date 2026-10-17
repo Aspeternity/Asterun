@@ -475,6 +475,29 @@ public:
                 .query.maxResults;
     }
 
+    // The provider sends its name-prefix pass and broad query concurrently,
+    // so arrival order is not fixed: check that one of them carried `limit`.
+    [[nodiscard]]
+    bool ReceivedMaxResults(std::uint32_t limit) const {
+        std::scoped_lock lock(
+            mutex_);
+        for (const auto& item : received_) {
+            if (item.query.maxResults == limit) return true;
+        }
+        return false;
+    }
+
+    [[nodiscard]]
+    std::vector<std::uint32_t> ReceivedSortTypes() const {
+        std::scoped_lock lock(
+            mutex_);
+        std::vector<std::uint32_t> sorts;
+        for (const auto& item : received_) {
+            sorts.push_back(item.query.sortType);
+        }
+        return sorts;
+    }
+
     bool WaitForReceived(
         std::size_t count) {
         std::unique_lock lock(
@@ -1600,9 +1623,7 @@ int main() {
         }
 
         assert(response);
-        assert(
-            server.LastMaxResults() ==
-            240);
+        assert(server.ReceivedMaxResults(240));
         assert(
             response->status ==
             DynamicQueryStatus::Success);
@@ -1662,9 +1683,7 @@ int main() {
         }
 
         assert(response);
-        assert(
-            server.LastMaxResults() ==
-            1000);
+        assert(server.ReceivedMaxResults(1000));
         assert(
             response->status ==
             DynamicQueryStatus::Success);
@@ -1821,6 +1840,14 @@ int main() {
             LauncherActionKind::
                 OpenFolder);
         assert(result.score > 0);
+
+        // Both the name-prefix pass and the broad query reached Everything
+        // (on separate clients) and asked for newest-modified first.
+        const auto sorts = server.ReceivedSortTypes();
+        assert(sorts.size() == 2);
+        for (const auto sort : sorts) {
+            assert(sort == kSortDateModifiedDescending);
+        }
     }
 
     return 0;

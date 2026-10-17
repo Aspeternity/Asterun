@@ -31,10 +31,10 @@ public:
 
 
 private:
-    void QueryBroad(DynamicQueryRequest request, Completion completion,
-                    std::vector<LauncherResult> prefixes = {});
+    // Broad query and name-prefix pass run concurrently on separate clients
+    // (each client keeps one query in flight).
     EverythingIpcClient client_;
-    // Separate generation/queue: a hidden probe cannot cancel the visible query.
+    EverythingIpcClient prefixClient_;
 };
 
 } // namespace altrun

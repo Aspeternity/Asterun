@@ -71,6 +71,12 @@ public:
     HasStaticQueryContinuation(
         std::wstring_view query) const noexcept;
 
+    // Gives filesystem results the per-query habit learned when files were
+    // opened from the launcher (same scale as app results).
+    void ApplyFileUsage(
+        std::vector<LauncherResult>& results,
+        std::wstring_view query) const;
+
     [[nodiscard]] bool
     CanRevealLauncher() const noexcept {
         return commandStore_
