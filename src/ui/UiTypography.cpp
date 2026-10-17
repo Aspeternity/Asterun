@@ -174,6 +174,7 @@ UiFontSpec ApplicationFontSpec(
         RoleWeight(role),
         DEFAULT_CHARSET,
         CLEARTYPE_QUALITY,
+        role == UiFontRole::SettingsNavigation,
     };
 }
 
@@ -231,16 +232,15 @@ UiFontSpec LauncherFontSpec(
     };
 }
 
-HFONT CreateFontHandle(
+int FontPixelHeight(
     const UiFontSpec& spec,
-    UINT dpi) {
+    UINT dpi) noexcept {
 
     if (dpi == 0) {
         dpi = 96;
     }
 
-    const int height = HintSafeFontHeight(
-        spec.face,
+    const int height =
         spec.logicalHeight96 != 0
             ? MulDiv(
                   spec.logicalHeight96,
@@ -249,7 +249,33 @@ HFONT CreateFontHandle(
             : -MulDiv(
                   spec.pointSize,
                   static_cast<int>(dpi),
-                  72));
+                  72);
+
+    // YaHei grid-fits stems only up to a 21px em; from 22px GDI merely
+    // smooths outlines, so horizontal strokes straddle two pixel rows and
+    // read as blurry (e.g. 11pt navigation at 150%). The glyphs that 21px
+    // shrinks (级/号/存/置) are not among the fixed labels.
+    constexpr int kYaHeiLargestGridFittedHeight = 21;
+
+    if (spec.fixedLabels &&
+        height == -(kYaHeiLargestGridFittedHeight + 1) &&
+        IsYaHeiFace(spec.face)) {
+        return -kYaHeiLargestGridFittedHeight;
+    }
+
+    return HintSafeFontHeight(
+        spec.face,
+        height);
+}
+
+HFONT CreateFontHandle(
+    const UiFontSpec& spec,
+    UINT dpi) {
+
+    const int height =
+        FontPixelHeight(
+            spec,
+            dpi);
 
     return CreateFontW(
         height,
