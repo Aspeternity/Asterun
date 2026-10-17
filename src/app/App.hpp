@@ -81,7 +81,6 @@ public:
         launcherRevealPending_ = true;
     }
 
-    void BeginNumericContinuationProbe(std::uint64_t token, std::wstring query);
 
     void BeginDynamicSearch(
         std::uint64_t generation,
@@ -291,7 +290,6 @@ private:
         kProviderChangedMessage =
             WM_APP + 0x172;
 
-    static constexpr UINT kNumericProbeMessage = WM_APP + 0x176;
 
     static constexpr UINT
         kDynamicQueryMessage =

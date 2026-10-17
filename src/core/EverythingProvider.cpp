@@ -42,12 +42,7 @@ EverythingResultId(
 
 EverythingProvider::EverythingProvider(
     EverythingIpcClientOptions options)
-    : client_(options), probeClient_([&] {
-          options.debounce = std::chrono::milliseconds(0);
-          options.sendTimeout = std::chrono::milliseconds(100);
-          options.replyTimeout = std::chrono::milliseconds(200);
-          return options;
-      }()) {}
+    : client_(options) {}
 
 std::string_view
 EverythingProvider::Id() const noexcept {
@@ -63,32 +58,6 @@ bool EverythingProvider::IsAvailable()
 EverythingIpcStatusSnapshot
 EverythingProvider::Status() const {
     return client_.Status();
-}
-
-void EverythingProvider::ProbeContinuation(
-    std::uint64_t generation, std::wstring query, ProbeCompletion completion) {
-    auto search = classic_behavior::BuildFilenameContinuationQuery(query);
-    if (search.empty()) {
-        completion(generation, classic_behavior::ContinuationEvidence::Unknown);
-        return;
-    }
-    probeClient_.QueryAsync({generation, std::move(search), 16},
-        [query = std::move(query), completion = std::move(completion)](EverythingQueryResult result) {
-            using classic_behavior::ContinuationEvidence;
-            auto evidence = ContinuationEvidence::Unknown;
-            if (result.status == EverythingQueryStatus::Success) {
-                for (const auto& item : result.items) {
-                    if (classic_behavior::StrongNameContinuation(item.name, query)) {
-                        evidence = ContinuationEvidence::Present;
-                        break;
-                    }
-                }
-                // A bounded, filtered page with no match is not proof of absence.
-                if (evidence != ContinuationEvidence::Present && result.totalMatches == 0 && result.items.empty())
-                    evidence = ContinuationEvidence::Absent;
-            }
-            completion(result.generation, evidence);
-        });
 }
 
 void EverythingProvider::QueryAsync(DynamicQueryRequest request, Completion completion) {

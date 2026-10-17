@@ -1745,6 +1745,19 @@ void LauncherWindow::ApplyDynamicResults(
 
     immediateExecutionPending_ =
         false;
+
+    // A numbered launch waiting for these rows: the digit is text only if
+    // it continues a name the user can now see.
+    if (pendingNumericIntent_.active &&
+        pendingNumericIntent_.probeRequired) {
+        std::wstring candidate = pendingNumericIntent_.query;
+        candidate.push_back(pendingNumericIntent_.digit);
+        pendingNumericIntent_.evidence =
+            classic_behavior::HasStrongResultContinuation(results_, candidate)
+                ? classic_behavior::ContinuationEvidence::Present
+                : classic_behavior::ContinuationEvidence::Absent;
+        ExecutePendingNumericIntent();
+    }
 }
 
 void LauncherWindow::RebuildVisibleResults(
@@ -2392,14 +2405,12 @@ HasStrongNumericContinuation(
         return true;
     }
 
+    // Only rows the user can see: a file deep in the filesystem that happens
+    // to start with these characters is not what a bare digit is for.
     return classic_behavior::
-            HasStrongResultContinuation(
-                dynamicResults_,
-                candidate) ||
-        classic_behavior::
-            HasStrongResultContinuation(
-                staticResults_,
-                candidate);
+        HasStrongResultContinuation(
+            results_,
+            candidate);
 }
 
 void LauncherWindow::ConsumeNumericKey(
@@ -2432,7 +2443,10 @@ QueuePendingNumericIntent(
     pendingNumericIntent_.token = ++numericIntentToken_;
     pendingNumericIntent_.started = GetTickCount64();
     pendingNumericIntent_.selection = static_cast<DWORD>(SendMessageW(edit_, EM_GETSEL, 0, 0));
-    pendingNumericIntent_.probeRequired = app_.DynamicSearchEnabled();
+    // While file results for this query are still on their way, wait (up to
+    // kNumericProbeBudgetMs) for them: the decision uses the rows the user
+    // will see, never every file on disk.
+    pendingNumericIntent_.probeRequired = dynamicQueryPending_;
 
     ConsumeNumericKey(
         virtualKey,
@@ -2441,11 +2455,6 @@ QueuePendingNumericIntent(
     if (!SetTimer(hwnd_, kNumericIntentTimerId, 15, nullptr)) {
         CommitPendingNumericIntentAsText();
         return;
-    }
-    if (pendingNumericIntent_.probeRequired) {
-        auto candidate = pendingNumericIntent_.query;
-        candidate.push_back(digit);
-        app_.BeginNumericContinuationProbe(pendingNumericIntent_.token, std::move(candidate));
     }
 }
 
@@ -2481,13 +2490,6 @@ CommitPendingNumericIntentAsText() {
         false;
     lastTextInputTick_ =
         GetTickCount64();
-}
-
-void LauncherWindow::ApplyNumericContinuation(
-    std::uint64_t token, classic_behavior::ContinuationEvidence evidence) {
-    if (!pendingNumericIntent_.active || token != pendingNumericIntent_.token) return;
-    pendingNumericIntent_.evidence = evidence;
-    ExecutePendingNumericIntent();
 }
 
 void LauncherWindow::
