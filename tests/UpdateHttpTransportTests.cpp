@@ -307,6 +307,14 @@ void UpdateSemantics() {
         { std::ofstream output(archive, std::ios::binary); output.write(f.payload.data(), f.payload.size()); }
         std::uint32_t error{}; const auto digest = Sha256File(archive, error); assert(digest);
         manifest.x64.sha256 = manifest.arm64.sha256 = *digest;
+        // Leftovers of an earlier, never-installed release are cleared;
+        // rollback backups beside them are not touched.
+        const auto staleStaging = root / "update/staging/8.0.0";
+        fs::create_directories(staleStaging);
+        { std::ofstream(staleStaging / "Asterun.exe") << "old"; }
+        { std::ofstream(root / "update/downloads/Asterun-x64-8.0.0.zip") << "old"; }
+        fs::create_directories(root / "update/backup/1.0.0-token");
+        { std::ofstream(root / "update/backup/1.0.0-token/Asterun.exe") << "recovery"; }
         std::vector<UpdateStage> stages;
         auto result = PrepareUpdate(root, UpdateChannel::Development, manifest, "1.0.1",
             [&](const UpdateSnapshot& s) { if (stages.empty() || stages.back() != s.stage) stages.push_back(s.stage); }, {});
@@ -316,6 +324,9 @@ void UpdateSemantics() {
         assert(result.snapshot.assetSha256 == *digest && fs::exists(result.snapshot.verifiedArchive));
         assert(fs::exists(result.snapshot.stagingDirectory / "Asterun.exe"));
         assert(!fs::exists(root / "update/downloads/Asterun-x64.zip.download")); CheckClosed(f);
+        assert(!fs::exists(staleStaging));
+        assert(!fs::exists(root / "update/downloads/Asterun-x64-8.0.0.zip"));
+        assert(fs::exists(root / "update/backup/1.0.0-token/Asterun.exe"));
     }
     fs::remove_all(root);
 }

@@ -1,6 +1,7 @@
 #include "../platform/WindowsCommandLine.hpp"
 #include "../ui/Feedback.hpp"
 #include "../platform/DllSearchHardening.hpp"
+#include "../platform/HelperLanguage.hpp"
 #include "../platform/SecureElevation.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -113,11 +114,13 @@ std::filesystem::path gRemovalFailurePath;
 std::wstring gRemovalFailureLockOwners;
 std::wstring gUninstallStage;
 
+// Decided once at startup from the installation's settings: a full removal
+// deletes those settings before the final message is shown.
+bool gChineseUi = false;
+
 [[nodiscard]] bool
 ChineseUi() {
-    return PRIMARYLANGID(
-               GetUserDefaultUILanguage()) ==
-        LANG_CHINESE;
+    return gChineseUi;
 }
 
 [[nodiscard]] std::filesystem::path
@@ -2726,6 +2729,7 @@ int WINAPI wWinMain(
     if (const DWORD searchError =
             altrun::win::RestrictDefaultDllSearchToSystem32();
         searchError != ERROR_SUCCESS) {
+        gChineseUi = altrun::helper_language::PreferChinese({});
         std::wstring message =
             ChineseUi()
                 ? L"卸载未开始：Windows 无法限制卸载程序的 DLL 搜索路径，未修改任何文件。\n\n错误代码："
@@ -2743,9 +2747,15 @@ int WINAPI wWinMain(
     }
 
     PerformArguments args;
+    const bool perform =
+        ParsePerformArguments(args);
 
-    if (ParsePerformArguments(
-            args)) {
+    // The elevated worker runs from %TEMP%; it is told the installation.
+    gChineseUi = altrun::helper_language::PreferChinese(
+        perform ? args.install
+                : CurrentExecutable().parent_path());
+
+    if (perform) {
         const int result =
             PerformUninstall(args);
 

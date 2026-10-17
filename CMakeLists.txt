@@ -511,6 +511,7 @@ if(BUILD_TESTING)
             update_runtime_tests
             PRIVATE
                 src/platform/SecureArchive.cpp
+                src/platform/SecureElevation.cpp
                 src/platform/UpdateIconRefresh.cpp
         )
         target_link_libraries(

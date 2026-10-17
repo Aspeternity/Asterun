@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <cstddef>
 #include <array>
+#include <chrono>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace altrun::win {
@@ -313,6 +315,140 @@ StartsWith(
             0,
             prefix.size()) ==
             prefix;
+}
+
+constexpr std::wstring_view
+    kTemporaryWorkerPrefix =
+        L"Asterun-Elevated.";
+
+// GenerateSecureToken: 16 random bytes as lowercase hex.
+constexpr std::size_t
+    kTemporaryWorkerTokenLength = 32;
+
+[[nodiscard]] bool
+IsTemporaryWorkerName(
+    std::wstring_view name) {
+    if (name.size() !=
+            kTemporaryWorkerPrefix.size() +
+                kTemporaryWorkerTokenLength ||
+        !StartsWith(
+            name,
+            kTemporaryWorkerPrefix)) {
+        return false;
+    }
+
+    const auto token =
+        name.substr(
+            kTemporaryWorkerPrefix.size());
+
+    return std::all_of(
+        token.begin(),
+        token.end(),
+        [](wchar_t c) {
+            return (c >= L'0' && c <= L'9') ||
+                (c >= L'a' && c <= L'f');
+        });
+}
+
+[[nodiscard]] bool
+IsTemporaryWorkerExecutableName(
+    std::wstring_view name) {
+    const auto equals =
+        [&](std::wstring_view expected) {
+            return CompareStringOrdinal(
+                       name.data(),
+                       static_cast<int>(
+                           name.size()),
+                       expected.data(),
+                       static_cast<int>(
+                           expected.size()),
+                       TRUE) == CSTR_EQUAL;
+        };
+
+    return equals(L"Update.exe") ||
+        equals(L"Uninstall.exe");
+}
+
+// The worker directory's only entry, when it is a plain worker executable.
+[[nodiscard]] std::filesystem::path
+SoleTemporaryWorkerExecutable(
+    const std::filesystem::path& directory) {
+    WIN32_FIND_DATAW entry{};
+    const HANDLE find =
+        FindFirstFileW(
+            (directory / L"*").c_str(),
+            &entry);
+
+    if (find == INVALID_HANDLE_VALUE) {
+        return {};
+    }
+
+    std::filesystem::path executable;
+    bool unexpected = false;
+
+    do {
+        const std::wstring_view name(
+            entry.cFileName);
+
+        if (name == L"." ||
+            name == L"..") {
+            continue;
+        }
+
+        if (!executable.empty() ||
+            (entry.dwFileAttributes &
+             (FILE_ATTRIBUTE_DIRECTORY |
+              FILE_ATTRIBUTE_REPARSE_POINT)) != 0 ||
+            !IsTemporaryWorkerExecutableName(
+                name)) {
+            unexpected = true;
+            break;
+        }
+
+        executable =
+            directory /
+            std::wstring(name);
+    } while (FindNextFileW(
+        find,
+        &entry));
+
+    FindClose(find);
+    return unexpected
+        ? std::filesystem::path{}
+        : executable;
+}
+
+[[nodiscard]] bool
+CreatedAtLeast(
+    const FILETIME& created,
+    std::chrono::seconds minimumAge) {
+    FILETIME nowTime{};
+    GetSystemTimeAsFileTime(&nowTime);
+
+    const auto ticks =
+        [](const FILETIME& time) {
+            return (static_cast<std::uint64_t>(
+                        time.dwHighDateTime)
+                    << 32) |
+                time.dwLowDateTime;
+        };
+
+    const std::uint64_t now =
+        ticks(nowTime);
+    const std::uint64_t then =
+        ticks(created);
+
+    // FILETIME counts 100 ns units. A creation time in the future (clock
+    // change) is treated as young rather than as eligible.
+    constexpr std::uint64_t kTicksPerSecond =
+        10'000'000;
+
+    return now >= then &&
+        (now - then) / kTicksPerSecond >=
+            static_cast<std::uint64_t>(
+                std::max<std::chrono::seconds::rep>(
+                    minimumAge.count(),
+                    0));
 }
 
 } // namespace
@@ -661,6 +797,87 @@ void ScheduleTemporaryWorkerSelfCleanup()
         directory.c_str(),
         nullptr,
         MOVEFILE_DELAY_UNTIL_REBOOT);
+}
+
+std::size_t RemoveStaleTemporaryWorkers(
+    const std::filesystem::path& temporaryRoot,
+    std::chrono::seconds minimumAge) noexcept {
+    try {
+        std::size_t removed = 0;
+        std::error_code ec;
+
+        for (std::filesystem::directory_iterator
+                 it(temporaryRoot, ec),
+             end;
+             !ec && it != end;
+             it.increment(ec)) {
+            const auto directory =
+                it->path();
+
+            if (!IsTemporaryWorkerName(
+                    directory.filename()
+                        .wstring())) {
+                continue;
+            }
+
+            WIN32_FILE_ATTRIBUTE_DATA data{};
+
+            if (!GetFileAttributesExW(
+                    directory.c_str(),
+                    GetFileExInfoStandard,
+                    &data) ||
+                (data.dwFileAttributes &
+                 FILE_ATTRIBUTE_DIRECTORY) == 0 ||
+                (data.dwFileAttributes &
+                 FILE_ATTRIBUTE_REPARSE_POINT) != 0 ||
+                !CreatedAtLeast(
+                    data.ftCreationTime,
+                    minimumAge)) {
+                continue;
+            }
+
+            const auto executable =
+                SoleTemporaryWorkerExecutable(
+                    directory);
+
+            // A running worker keeps its image locked, so DeleteFileW fails
+            // and the directory is left for a later launch.
+            if (executable.empty() ||
+                !DeleteFileW(
+                    executable.c_str())) {
+                continue;
+            }
+
+            if (RemoveDirectoryW(
+                    directory.c_str())) {
+                ++removed;
+            }
+        }
+
+        return removed;
+    } catch (...) {
+        return 0;
+    }
+}
+
+std::size_t RemoveStaleTemporaryWorkers() noexcept {
+    // Old enough that a worker another Asterun process is still preparing
+    // or launching is never mistaken for a leftover.
+    constexpr std::chrono::minutes
+        kMinimumWorkerAge{10};
+
+    std::uint32_t nativeError = 0;
+    const auto root =
+        TemporaryRoot(
+            nativeError);
+
+    if (root.empty()) {
+        return 0;
+    }
+
+    return RemoveStaleTemporaryWorkers(
+        root,
+        kMinimumWorkerAge);
 }
 
 } // namespace altrun::win

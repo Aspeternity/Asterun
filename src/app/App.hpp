@@ -324,6 +324,7 @@ private:
     bool ApplySendToRegistrationUnlocked(
         bool enabled) const;
     void StartShellIntegrationReconcile();
+    void StartTemporaryWorkerSweep();
     bool ForwardShortcutRequestsToExistingInstance()
         const;
     bool RebindGlobalHotkey(
@@ -417,6 +418,8 @@ private:
         updateThread_;
     std::jthread
         shellIntegrationThread_;
+    std::jthread
+        temporaryWorkerSweepThread_;
     std::atomic_bool
         providerRefreshRunning_{false};
 

@@ -704,6 +704,29 @@ UpdateRoot(
         L"update";
 }
 
+void ClearDirectoryContents(
+    const std::filesystem::path& directory) {
+    std::error_code ec;
+    std::vector<std::filesystem::path>
+        children;
+
+    for (std::filesystem::directory_iterator
+             it(directory, ec),
+         end;
+         !ec && it != end;
+         it.increment(ec)) {
+        children.push_back(
+            it->path());
+    }
+
+    for (const auto& child : children) {
+        std::error_code ignored;
+        std::filesystem::remove_all(
+            child,
+            ignored);
+    }
+}
+
 [[nodiscard]] std::filesystem::path
 UpdateStatePath(
     const std::filesystem::path& dataDirectory) {
@@ -1087,18 +1110,11 @@ PrepareUpdate(
                 manifest.version.begin(),
                 manifest.version.end()));
 
-    std::filesystem::remove(
-        downloadArchive,
-        ec);
-    ec.clear();
-    std::filesystem::remove(
-        verifiedArchive,
-        ec);
-    ec.clear();
-    std::filesystem::remove_all(
-        stagingDirectory,
-        ec);
-    ec.clear();
+    // Start from empty download/staging directories. A package downloaded but
+    // never installed, or superseded by a newer release, would otherwise stay
+    // in data/update indefinitely. Rollback backups live elsewhere.
+    ClearDirectoryContents(downloads);
+    ClearDirectoryContents(stagingRoot);
 
     const std::wstring url =
         UpdateAssetUrl(
