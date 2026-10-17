@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.0.6 (released 2026-10-17)
+
+Search and catalog
+- Habit-aware ranking: among strong matches, launchable entries beat files, exact matches stay first, then learned per-query habits outrank match tier (including over user shortcuts at equal tier). The empty-query list uses decayed launch frequency.
+- Catalog: de-duplicate `.url` shortcuts, admit repair tools (updaters stay excluded), classify product-name roles, add system tool aliases and keep developer tools behind a gate. The provider cache schema moves to 26 and rebuilds automatically.
+- Smarter numeric quick launch decided from the visible rows, and a safer single-result auto-execute.
+- Bare domains open as URLs; unfinished URLs are rejected; percent encoding is shared.
+- Everything: de-duplicate files by launch identity, skip noise paths, fetch newest-first, learn file usage habits and run prefix and broad queries concurrently.
+
+Interface
+- Unified native Edit chrome in shortcut dialogs, smooth control chrome, CJK font sizing and per-keyword borderless chips in the launcher.
+- Settings: consistent switch interaction across pages, UI-01 interaction and visual consistency, Chinese typography and modal per-monitor DPI consistency.
+- Settings navigation renders at Microsoft YaHei's largest grid-fitted size (21px instead of a blurry 22px at 150% scaling).
+
+Update, uninstall and robustness
+- Each update gets an isolated backup, a failed update restores and restarts the previous version, and uninstall preserves recovery data and only touches an Everything service it owns.
+- The updater now replaces each file through a temporary file and one rename, retrying brief antivirus or sharing locks, so a failed copy never truncates an installed file. Stale downloads and staging are cleared before each update.
+- Leftover `%TEMP%\Asterun-Elevated.*` updater and uninstaller copies are removed after a healthy start (portable updates previously leaked one per update).
+- The "data directory not writable" warning appears after the post-update health signal, so it can no longer make the updater roll back a healthy update.
+- Update.exe and Uninstall.exe follow the language chosen in Asterun's settings; updater failure messages are bilingual.
+- Startup acquires single-instance ownership before any persistent write; global hotkeys route through a modal-safe dispatcher; launcher window destruction and failed initialization are hardened.
+- Runtime and DLL-load hardening: static MSVC runtime, System32-only DLL search for privileged entry points, delay-loaded Restart Manager and a checked PE import/load-flag contract.
+
+Notes
+- Persisted schemas: settings 12, commands 2, usage 2 (unchanged); provider cache 26 (regenerated, no migration).
+- Updater changes take full effect from the update after this one, because each in-place update runs the previous version's Update.exe.
+- Native ARM64 hardware acceptance is not claimed.
+
 ## 1.0.5 (released 2026-10-09)
 
 - Send asynchronous, targeted `SHCNE_UPDATEITEM` notifications for Asterun.exe, Update.exe and Uninstall.exe only after a successful post-update startup health event.

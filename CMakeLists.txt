@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(Asterun VERSION 1.0.5 LANGUAGES C CXX)
+project(Asterun VERSION 1.0.6 LANGUAGES C CXX)
 
 file(
     STRINGS
@@ -511,6 +511,7 @@ if(BUILD_TESTING)
             update_runtime_tests
             PRIVATE
                 src/platform/SecureArchive.cpp
+                src/platform/SecureElevation.cpp
                 src/platform/UpdateIconRefresh.cpp
         )
         target_link_libraries(

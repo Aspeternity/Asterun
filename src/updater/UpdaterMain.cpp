@@ -10,6 +10,7 @@
 #include <aclapi.h>
 
 #include "../platform/DllSearchHardening.hpp"
+#include "../platform/HelperLanguage.hpp"
 #include "../platform/SecureArchive.hpp"
 #include "../platform/SecureElevation.hpp"
 #include "UpdaterTransaction.hpp"
@@ -29,6 +30,16 @@
 #include <vector>
 
 namespace {
+
+// Until the request names the installation, follow the Windows display
+// language; afterwards, the language chosen in Asterun's settings.
+bool gChinese = false;
+
+[[nodiscard]] const wchar_t* Text(
+    const wchar_t* chinese,
+    const wchar_t* english) {
+    return gChinese ? chinese : english;
+}
 
 struct Arguments {
     DWORD parentPid{0};
@@ -505,14 +516,19 @@ void ShowUpdateFailure(
     std::wstring_view reason,
     bool restarted,
     const std::filesystem::path& recovery = {}) {
-    std::wstring message =
-        L"The Asterun update failed: ";
+    std::wstring message = Text(
+        L"Asterun 更新失败：",
+        L"The Asterun update failed: ");
     message.append(reason);
     message += restarted
-        ? L"\nThe previous version was restarted."
-        : L"\nThe previous version could not be restarted automatically.";
+        ? Text(L"\n已重新启动之前的版本。",
+               L"\nThe previous version was restarted.")
+        : Text(L"\n无法自动重新启动之前的版本。",
+               L"\nThe previous version could not be restarted automatically.");
     if (!recovery.empty()) {
-        message += L"\nRecovery files were retained at:\n";
+        message += Text(
+            L"\n恢复文件已保留在：\n",
+            L"\nRecovery files were retained at:\n");
         message += recovery.wstring();
     }
     ShowFailureDialog(message);
@@ -638,10 +654,13 @@ int WINAPI wWinMain(
     if (const DWORD searchError =
             altrun::win::RestrictDefaultDllSearchToSystem32();
         searchError != ERROR_SUCCESS) {
+        gChinese = altrun::helper_language::PreferChinese({});
         const auto message =
-            L"The update was not started because Windows could not restrict "
-            L"the DLL search path for the updater. No files were changed.\n\n"
-            L"Error code: " +
+            std::wstring(Text(
+                L"更新未开始：Windows 无法限制更新程序的 DLL 搜索路径，未修改任何文件。\n\n错误代码：",
+                L"The update was not started because Windows could not restrict "
+                L"the DLL search path for the updater. No files were changed.\n\n"
+                L"Error code: ")) +
             std::to_wstring(searchError);
         ShowFailureDialog(message);
         SetLastError(searchError);
@@ -651,9 +670,13 @@ int WINAPI wWinMain(
     const auto parsed =
         ParseArguments();
 
+    gChinese = altrun::helper_language::PreferChinese(
+        parsed ? parsed->install : std::filesystem::path{});
+
     if (!parsed) {
-        ShowFailureDialog(
-            L"Update.exe requires a valid update request from Asterun. No files were changed.");
+        ShowFailureDialog(Text(
+            L"Update.exe 需要由 Asterun 发起的有效更新请求。未修改任何文件。",
+            L"Update.exe requires a valid update request from Asterun. No files were changed."));
         return 2;
     }
 
@@ -662,8 +685,9 @@ int WINAPI wWinMain(
 
     if (!WaitForParent(
             args.parentPid)) {
-        ShowFailureDialog(
-            L"The previous Asterun process did not exit. The update was cancelled before changing any files.");
+        ShowFailureDialog(Text(
+            L"之前的 Asterun 进程没有退出。更新已取消，未修改任何文件。",
+            L"The previous Asterun process did not exit. The update was cancelled before changing any files."));
         return 2;
     }
 
@@ -683,7 +707,7 @@ int WINAPI wWinMain(
             args.sha256,
             expectedSha256)) {
         return failBeforeApply(
-            L"Invalid package checksum.");
+            Text(L"更新包校验值无效。", L"Invalid package checksum."));
     }
 
     altrun::win::
@@ -701,7 +725,7 @@ int WINAPI wWinMain(
                 ? archiveError
                 : ERROR_CRC);
         return failBeforeApply(
-            L"Package integrity verification failed.");
+            Text(L"更新包完整性校验失败。", L"Package integrity verification failed."));
     }
 
     std::filesystem::path
@@ -733,7 +757,7 @@ int WINAPI wWinMain(
         if (!IsElevated()) {
             cleanupWork();
             return failBeforeApply(
-                L"Administrator permission was not granted.");
+                Text(L"未获得管理员权限。", L"Administrator permission was not granted."));
         }
 
         std::uint32_t workError = 0;
@@ -749,7 +773,7 @@ int WINAPI wWinMain(
             // No work root was created. The candidate path must not be
             // removed: it could belong to an unrelated existing directory.
             return failBeforeApply(
-                L"Could not create the protected update directory.");
+                Text(L"无法创建受保护的更新目录。", L"Could not create the protected update directory."));
         }
 
         transactionSource =
@@ -773,7 +797,7 @@ int WINAPI wWinMain(
                     : ERROR_INVALID_DATA);
             cleanupWork();
             return failBeforeApply(
-                L"Secure package extraction failed.");
+                Text(L"安全解压更新包失败。", L"Secure package extraction failed."));
         }
 
         // The source tree now lives under the protected install root.
@@ -808,7 +832,7 @@ int WINAPI wWinMain(
                  transaction)) {
         cleanupWork();
         return failBeforeApply(
-            L"The staged update files are invalid.");
+            Text(L"待安装的更新文件无效。", L"The staged update files are invalid."));
     }
 
     altrun::updater::
@@ -824,7 +848,9 @@ int WINAPI wWinMain(
                 output << failure.relative.generic_string() << ": "
                        << failure.error.message() << '\n';
             }
-            const auto message = L"The update could not be fully restored. Recovery files were kept at:\n" +
+            const auto message = std::wstring(Text(
+                                     L"更新未能完全还原。恢复文件已保留在：\n",
+                                     L"The update could not be fully restored. Recovery files were kept at:\n")) +
                 transaction.backup.wstring();
             ShowFailureDialog(message);
         }
@@ -859,7 +885,7 @@ int WINAPI wWinMain(
                  transaction,
                  journal)) {
         return failAfterApply(
-            3, L"File replacement did not complete.");
+            3, Text(L"文件替换未能完成。", L"File replacement did not complete."));
     }
 
     // The applied file set and protected backup journal are sufficient for
@@ -878,7 +904,7 @@ int WINAPI wWinMain(
 
     if (!healthEvent) {
         return failAfterApply(
-            4, L"Could not create the startup health event.");
+            4, Text(L"无法创建启动健康检查事件。", L"Could not create the startup health event."));
     }
 
     const auto mainExe =
@@ -898,7 +924,7 @@ int WINAPI wWinMain(
             child)) {
         CloseHandle(healthEvent);
         return failAfterApply(
-            5, L"Could not start the updated application.");
+            5, Text(L"无法启动更新后的程序。", L"Could not start the updated application."));
     }
 
     CloseHandle(child.hThread);
@@ -918,7 +944,9 @@ int WINAPI wWinMain(
         if (stopped != WAIT_OBJECT_0) {
             CloseHandle(child.hProcess);
             preserveRecovery = true;
-            const auto message = L"The updated application is still running. Recovery files were kept at:\n" +
+            const auto message = std::wstring(Text(
+                                     L"更新后的程序仍在运行。恢复文件已保留在：\n",
+                                     L"The updated application is still running. Recovery files were kept at:\n")) +
                 transaction.backup.wstring();
             ShowFailureDialog(message);
             cleanupWork();
@@ -927,7 +955,7 @@ int WINAPI wWinMain(
         CloseHandle(child.hProcess);
 
         return failAfterApply(
-            6, L"The updated application failed its startup health check.");
+            6, Text(L"更新后的程序未通过启动健康检查。", L"The updated application failed its startup health check."));
     }
 
     CloseHandle(child.hProcess);

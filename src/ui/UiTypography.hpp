@@ -27,6 +27,10 @@ struct UiFontSpec {
     int weight{};
     BYTE charset{DEFAULT_CHARSET};
     DWORD quality{CLEARTYPE_QUALITY};
+    // The text is a fixed set of short labels (Settings navigation), not
+    // arbitrary input, so it may use em sizes HintSafeFontHeight avoids for
+    // free text and prefer the largest one YaHei still grid-fits.
+    bool fixedLabels{false};
 };
 
 [[nodiscard]] UiFontSpec
@@ -46,6 +50,12 @@ LauncherFontSpec(
 HintSafeFontHeight(
     const wchar_t* face,
     int height) noexcept;
+
+// The GDI em height (negative) CreateFontHandle realizes for `spec` at `dpi`.
+[[nodiscard]] int
+FontPixelHeight(
+    const UiFontSpec& spec,
+    UINT dpi) noexcept;
 
 [[nodiscard]] HFONT
 CreateFontHandle(
