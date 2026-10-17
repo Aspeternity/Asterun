@@ -6,6 +6,7 @@
 #include "platform/WinUtil.hpp"
 #include "platform/InstanceIpc.hpp"
 #include "platform/NotificationIdentity.hpp"
+#include "IsolatedDataDirectory.hpp"
 #include <shlobj.h>
 #include <cassert>
 #include <fstream>
@@ -620,6 +621,7 @@ struct AppLifecycleRuntimeFixture {
 };
 }
 int main(int argc, char* argv[]) {
+    altrun::test::RemoveAbandonedTestDirectories(L"Asterun-Batch1");
     fixtureRoot = std::filesystem::temp_directory_path() /
         (L"Asterun-Batch1-" + std::to_wstring(GetCurrentProcessId()));
     mutexName = L"Local\\Asterun.Batch1.Test." + std::to_wstring(GetCurrentProcessId());

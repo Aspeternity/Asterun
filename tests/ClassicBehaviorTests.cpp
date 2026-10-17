@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <string_view>
 #include <vector>
 
 using namespace altrun;
@@ -336,7 +337,10 @@ int main() {
                                    relevance::MatchField::Keyword, 1320, false};
         assert(!SingleResultAutoExecutable(argument));
     }
-    assert(classic_behavior::BuildFilenameContinuationQuery(L"v2") == LR"(nopath:regex:"^[\s_-]*v[\s_-]*2")");
+    // Kept out of assert(): MSVC warns (C4129) on a raw string with
+    // backslashes inside a macro argument.
+    const std::wstring_view v2Continuation = LR"(nopath:regex:"^[\s_-]*v[\s_-]*2")";
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"v2") == v2Continuation);
     assert(classic_behavior::BuildFilenameContinuationQuery(L"c++2").find(L"c[\\s_-]*\\+") != std::wstring::npos);
     assert(classic_behavior::BuildFilenameContinuationQuery(L"ext:exe").empty());
     assert(classic_behavior::BuildFilenameContinuationQuery(L"C:\\Apps").empty());

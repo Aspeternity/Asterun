@@ -298,8 +298,8 @@ void UpdateSemantics() {
     { // Download -> real SHA256 -> verified archive -> extraction -> install handoff state.
         mz_zip_archive zip{}; assert(mz_zip_writer_init_heap(&zip, 0, 0));
         for (const char* name : {"Asterun.exe", "Update.exe", "Uninstall.exe"})
-            assert(mz_zip_writer_add_mem(&zip, name, "test", 4, MZ_DEFAULT_COMPRESSION));
-        assert(mz_zip_writer_add_mem(&zip, "VERSION", "9.0.0", 5, MZ_DEFAULT_COMPRESSION));
+            assert(mz_zip_writer_add_mem(&zip, name, "test", 4, static_cast<mz_uint>(MZ_DEFAULT_COMPRESSION)));
+        assert(mz_zip_writer_add_mem(&zip, "VERSION", "9.0.0", 5, static_cast<mz_uint>(MZ_DEFAULT_COMPRESSION)));
         void* bytes{}; size_t length{};
         assert(mz_zip_writer_finalize_heap_archive(&zip, &bytes, &length)); mz_zip_writer_end(&zip);
         Fixture f; fixture = &f; f.payload.assign(static_cast<char*>(bytes), length); mz_free(bytes);
@@ -307,6 +307,14 @@ void UpdateSemantics() {
         { std::ofstream output(archive, std::ios::binary); output.write(f.payload.data(), f.payload.size()); }
         std::uint32_t error{}; const auto digest = Sha256File(archive, error); assert(digest);
         manifest.x64.sha256 = manifest.arm64.sha256 = *digest;
+        // Leftovers of an earlier, never-installed release are cleared;
+        // rollback backups beside them are not touched.
+        const auto staleStaging = root / "update/staging/8.0.0";
+        fs::create_directories(staleStaging);
+        { std::ofstream(staleStaging / "Asterun.exe") << "old"; }
+        { std::ofstream(root / "update/downloads/Asterun-x64-8.0.0.zip") << "old"; }
+        fs::create_directories(root / "update/backup/1.0.0-token");
+        { std::ofstream(root / "update/backup/1.0.0-token/Asterun.exe") << "recovery"; }
         std::vector<UpdateStage> stages;
         auto result = PrepareUpdate(root, UpdateChannel::Development, manifest, "1.0.1",
             [&](const UpdateSnapshot& s) { if (stages.empty() || stages.back() != s.stage) stages.push_back(s.stage); }, {});
@@ -316,6 +324,9 @@ void UpdateSemantics() {
         assert(result.snapshot.assetSha256 == *digest && fs::exists(result.snapshot.verifiedArchive));
         assert(fs::exists(result.snapshot.stagingDirectory / "Asterun.exe"));
         assert(!fs::exists(root / "update/downloads/Asterun-x64.zip.download")); CheckClosed(f);
+        assert(!fs::exists(staleStaging));
+        assert(!fs::exists(root / "update/downloads/Asterun-x64-8.0.0.zip"));
+        assert(fs::exists(root / "update/backup/1.0.0-token/Asterun.exe"));
     }
     fs::remove_all(root);
 }

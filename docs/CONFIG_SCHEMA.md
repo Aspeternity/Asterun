@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. The current v1.0.5 development contract preserves the v1.0.4 stable user-data schemas:
+Each document carries its own schema version. The current v1.0.6 contract preserves the v1.0.4 stable user-data schemas:
 
 ```text
 settings.json       schemaVersion 12
@@ -22,7 +22,7 @@ provider-cache.json schemaVersion 26
 
 Schema versions are intentionally independent so adding launcher preferences does not force unrelated command or usage migrations.
 
-Post-v1.0.5 development advances **provider-cache.json to schemaVersion 26** (from 22) because catalog admission, launch-role classification, `.url` shortcut de-duplication and system tool aliases changed what a refresh produces. The provider cache is generated state, so no migration is performed: a binary that reads a cache of any other schema ignores it and rebuilds it from the Windows sources on the next refresh, in both upgrade and downgrade directions. settings.json, commands.json and usage.json are unchanged.
+v1.0.6 advances **provider-cache.json to schemaVersion 26** (from 22 in v1.0.5) because catalog admission, launch-role classification, `.url` shortcut de-duplication and system tool aliases changed what a refresh produces. The provider cache is generated state, so no migration is performed: a binary that reads a cache of any other schema ignores it and rebuilds it from the Windows sources on the next refresh, in both upgrade and downgrade directions. settings.json, commands.json and usage.json are unchanged.
 
 v1.0.4 advances **settings.json to schemaVersion 12** for `behavior.defaultEnglishInputOnReveal`. The preference defaults to `true`. On each fresh Launcher reveal, Asterun closes only the launcher's EDIT IME context so direct Latin input is ready immediately; it does not switch the system keyboard layout or modify other applications. The user may manually switch back to Chinese during that Launcher session. Schema-11 and older documents migrate atomically and older binaries treat schema 12 as read-only under the existing downgrade-protection contract.
 

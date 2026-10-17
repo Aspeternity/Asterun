@@ -1,11 +1,14 @@
 #include "UpdaterTransaction.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <system_error>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -150,6 +153,126 @@ PlainDirectory(
         !IsReparsePoint(path);
 }
 
+// Antivirus scanners and indexers briefly open freshly written executables,
+// and the previous launcher's image can stay mapped for a moment after its
+// process exits. Only those sharing failures are retried.
+constexpr int kTransientFileAttempts = 20;
+constexpr std::chrono::milliseconds
+    kTransientFileDelay{250};
+
+[[nodiscard]] bool
+IsTransientFileError(
+    const std::error_code& error) {
+#ifdef _WIN32
+    if (error.category() !=
+        std::system_category()) {
+        return false;
+    }
+
+    switch (error.value()) {
+    case ERROR_SHARING_VIOLATION:
+    case ERROR_LOCK_VIOLATION:
+    case ERROR_ACCESS_DENIED:
+    case ERROR_USER_MAPPED_FILE:
+        return true;
+    default:
+        return false;
+    }
+#else
+    return error ==
+            std::errc::device_or_resource_busy ||
+        error ==
+            std::errc::text_file_busy;
+#endif
+}
+
+template <typename Operation>
+[[nodiscard]] bool
+RetryTransient(
+    Operation operation,
+    std::error_code& ec) {
+    for (int attempt = 1;; ++attempt) {
+        ec.clear();
+        operation(ec);
+
+        if (!ec) {
+            return true;
+        }
+
+        if (attempt >=
+                kTransientFileAttempts ||
+            !IsTransientFileError(ec)) {
+            return false;
+        }
+
+        std::this_thread::sleep_for(
+            kTransientFileDelay);
+    }
+}
+
+// Writes `source` beside `destination`, then swaps it in with one rename, so
+// a failed or interrupted copy never leaves a truncated application file.
+[[nodiscard]] bool
+ReplaceFileAtomically(
+    const std::filesystem::path& source,
+    const std::filesystem::path& destination,
+    std::error_code& ec) {
+    auto staged = destination;
+    staged += L".asterun-update-new";
+
+    std::error_code ignored;
+    std::filesystem::remove(
+        staged,
+        ignored);
+
+    if (!RetryTransient(
+            [&](std::error_code& error) {
+                std::filesystem::copy_file(
+                    source,
+                    staged,
+                    std::filesystem::copy_options::
+                        overwrite_existing,
+                    error);
+            },
+            ec)) {
+        std::filesystem::remove(
+            staged,
+            ignored);
+        return false;
+    }
+
+    const bool replaced =
+        RetryTransient(
+            [&](std::error_code& error) {
+#ifdef _WIN32
+                if (!MoveFileExW(
+                        staged.c_str(),
+                        destination.c_str(),
+                        MOVEFILE_REPLACE_EXISTING |
+                            MOVEFILE_WRITE_THROUGH)) {
+                    error = std::error_code(
+                        static_cast<int>(
+                            GetLastError()),
+                        std::system_category());
+                }
+#else
+                std::filesystem::rename(
+                    staged,
+                    destination,
+                    error);
+#endif
+            },
+            ec);
+
+    if (!replaced) {
+        std::filesystem::remove(
+            staged,
+            ignored);
+    }
+
+    return replaced;
+}
+
 [[nodiscard]] bool
 EnsureInstallDirectory(
     const TransactionPaths& paths,
@@ -264,27 +387,28 @@ CopyOneFile(
             return false;
         }
 
-        std::filesystem::copy_file(
-            destination,
-            backup,
-            std::filesystem::
-                copy_options::
-                    overwrite_existing,
-            ec);
-
-        if (ec) {
+        if (!RetryTransient(
+                [&](std::error_code& error) {
+                    std::filesystem::copy_file(
+                        destination,
+                        backup,
+                        std::filesystem::
+                            copy_options::
+                                overwrite_existing,
+                        error);
+                },
+                ec)) {
             return false;
         }
     }
 
-    // Record before touching the destination. A failed copy can truncate an
-    // existing file and must remain eligible for the caller's rollback.
+    // Record before touching the destination so the caller's rollback always
+    // covers it, even though a failed replace leaves the destination intact.
     journal.files.push_back({relative, wasNew});
-    std::filesystem::copy_file(source, destination,
-        std::filesystem::copy_options::overwrite_existing, ec);
-    if (ec) return false;
-
-    return true;
+    return ReplaceFileAtomically(
+        source,
+        destination,
+        ec);
 }
 
 struct SourceEntry {
@@ -513,15 +637,16 @@ RollbackResult Rollback(
             continue;
         }
         if (it->wasNew) {
-            std::filesystem::remove(destination, ec);
+            (void)RetryTransient([&](std::error_code& error) {
+                std::filesystem::remove(destination, error);
+            }, ec);
         } else {
             const auto backup = paths.backup / it->relative;
             if (!std::filesystem::is_regular_file(backup, ec) || ec || IsReparsePoint(backup)) {
                 fail(it->relative, ec);
                 continue;
             }
-            std::filesystem::copy_file(backup, destination,
-                std::filesystem::copy_options::overwrite_existing, ec);
+            (void)ReplaceFileAtomically(backup, destination, ec);
         }
         if (ec) fail(it->relative, ec);
     }
