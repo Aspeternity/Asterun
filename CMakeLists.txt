@@ -151,6 +151,7 @@ add_library(altrun_core STATIC
     src/core/SearchEngine.cpp
     src/core/SettingsLayout.cpp
     src/core/WebAction.cpp
+    src/core/UrlEncoding.cpp
 )
 
 target_include_directories(altrun_core PUBLIC src)
