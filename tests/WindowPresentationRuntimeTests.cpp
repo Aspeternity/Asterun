@@ -1606,8 +1606,9 @@ int main() {
                     ++exitIndex;
                 }
                 assert(exitIndex + 1 < HotkeyActionRegistry().size());
-                const HWND hotkey = GetDlgItem(window, 51740 + exitIndex);
-                const HWND hotkeySibling = GetDlgItem(window, 51740 + exitIndex + 1);
+                const int exitControl = 51740 + static_cast<int>(exitIndex);
+                const HWND hotkey = GetDlgItem(window, exitControl);
+                const HWND hotkeySibling = GetDlgItem(window, exitControl + 1);
                 const HWND sidebar = GetDlgItem(window, 51001);
                 assert(hotkey && hotkeySibling && sidebar);
                 assert(IsWindowVisible(hotkey));

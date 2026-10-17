@@ -177,9 +177,11 @@ UiFontSpec ApplicationFontSpec(
     };
 }
 
+// The launcher uses the same CJK-capable faces for every UI language, so the
+// language parameter is accepted for symmetry with ApplicationFontSpec but unused.
 UiFontSpec LauncherFontSpec(
     UiStyle style,
-    Language language,
+    Language,
     UiFontRole role) noexcept {
 
     const bool modern =
