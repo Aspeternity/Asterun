@@ -40,11 +40,11 @@ Asterun is a native, lightweight, keyboard-first launcher for Windows 10/11, des
 
 Built with C++23 + Win32, Asterun brings application discovery, pinyin and mixed-language search, usage-aware ranking, smart numeric launch, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model into one compact launcher experience.
 
-## Current Stable Release: v1.0.5
+## Current Stable Release: v1.0.6
 
-**[Asterun v1.0.5](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.5) is officially released** and recommended for everyday use. It improves EXE icon refresh after updates, search-field focus after shortcut editing, English input on the first launcher reveal, and short-query matching and ranking. Fresh installations no longer create bundled user shortcuts. See the [changelog](CHANGELOG.md) for release details.
+**[Asterun v1.0.6](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.6) is officially released** and recommended for everyday use. It brings habit-aware search ranking, a more accurate application catalog and numeric quick launch, improved Everything file search, more consistent and crisper interface typography, and sturdier updates and uninstall (automatic rollback, atomic file replacement and temporary-file cleanup). See the [changelog](CHANGELOG.md) for release details.
 
-The **[dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) development prerelease** is built from `main` after successful CI and may include maintenance fixes made after v1.0.5. It is a separate channel, not part of the v1.0.5 stable release.
+The **[dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) development prerelease** is built from `main` after successful CI and may include maintenance fixes made after v1.0.6. It is a separate channel, not part of the v1.0.6 stable release.
 
 ## Interface Preview
 

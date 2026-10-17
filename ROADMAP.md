@@ -1,6 +1,16 @@
 # Asterun Roadmap
 
-Asterun v1.0.5 is the current stable release (published 2026-10-09). Post-release maintenance on `main` is distributed separately through the rolling `dev-latest` prerelease.
+Asterun v1.0.6 is the current stable release (published 2026-10-17). Post-release maintenance on `main` is distributed separately through the rolling `dev-latest` prerelease.
+
+## v1.0.6 - Habit-aware search, UI consistency and update hardening (released 2026-10-17)
+
+- Rank strong matches by launchability, exactness and learned per-query habits; decay the empty-query list by recency; refine catalog admission, roles and aliases (provider cache schema 26, rebuilt automatically).
+- Improve numeric quick launch, single-result auto-execute safety, bare-domain URLs and Everything file results (launch-identity de-duplication, newest-first, usage habits, concurrent queries).
+- Finish the native UI consistency rounds: Edit chrome, Settings switches, Chinese typography, per-monitor DPI and a crisp Settings navigation size.
+- Harden updates and uninstall: isolated backups, rollback and restart on failure, atomic retrying file replacement, stale staging and `%TEMP%` worker cleanup, helpers in the app's language, Everything ownership checks.
+- Harden runtime and DLL loading (static runtime, System32-only search, delay-loaded Restart Manager) and startup instance ownership; route global hotkeys through a modal-safe dispatcher.
+- Measured: no memory, handle or GDI growth under launcher, Settings, Shortcut Manager and Everything stress; ~110 ms warm start to a ready launcher; no CPU and ~7 wakeups per idle minute.
+- Native ARM64 hardware acceptance is not claimed.
 
 ## v1.0.5 - Icon refresh, modal focus and short-query search polish (released 2026-10-09)
 
