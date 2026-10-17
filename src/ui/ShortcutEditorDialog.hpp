@@ -140,6 +140,7 @@ private:
 
     HFONT font_{};
     HFONT semiboldFont_{};
+    HFONT hintFont_{};
     HBRUSH backgroundBrush_{};
     HBRUSH footerBrush_{};
     UINT dpi_{96};

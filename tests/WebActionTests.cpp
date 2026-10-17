@@ -1,4 +1,5 @@
 #include "core/ProviderIds.hpp"
+#include "core/UrlEncoding.hpp"
 #include "core/WebAction.hpp"
 
 #include <cassert>
@@ -126,6 +127,35 @@ int main() {
 
     assert(BuildWebActionResults(
         {}, L"not a url", 10).empty());
+
+    // Bare domains with a common web suffix open as https URLs.
+    {
+        const auto github = BuildWebActionResults({}, L"github.com", 10);
+        assert(github.size() == 1);
+        assert(github[0].target == L"https://github.com");
+        const auto path = BuildWebActionResults(
+            {}, L"docs.python.org/3/library", 10);
+        assert(path.size() == 1);
+        assert(path[0].target == L"https://docs.python.org/3/library");
+        const auto port = BuildWebActionResults({}, L"baidu.cn:8080", 10);
+        assert(port.size() == 1);
+    }
+
+    // File names, unfinished www. and bare schemes are not addresses.
+    for (const wchar_t* text : {L"readme.md", L"setup.exe", L"notes.txt",
+                                L"www.", L"www.x", L"http://", L"https://",
+                                L"github", L".com", L"a..com",
+                                L"github.com is great"}) {
+        assert(BuildWebActionResults({}, text, 10).empty());
+    }
+    assert(BuildWebActionResults({}, L"www.baidu.com", 10).size() == 1);
+
+    // Shared percent encoding (UTF-8, RFC 3986 unreserved set).
+    assert(PercentEncodeUtf8(L"a b~") == L"a%20b~");
+    assert(PercentEncodeUtf8(L"心") == L"%E5%BF%83");
+    assert(PercentEncodeUtf8(L"\U0001F600") == L"%F0%9F%98%80");
+    assert(PercentEncodeUtf8(std::wstring(1, static_cast<wchar_t>(0xD800))) ==
+           L"%EF%BF%BD");
 
     std::cout << "Smart web action tests passed\n";
     return 0;

@@ -52,7 +52,11 @@ public:
         HINSTANCE instance,
         std::wstring startupHealthEvent = {},
         std::vector<std::wstring>
-            startupShortcutPaths = {});
+            startupShortcutPaths = {},
+        // Empty uses the portable <exe>/data directory. Tests pass an
+        // isolated directory so they never touch a developer's real data.
+        std::filesystem::path
+            dataDirectoryOverride = {});
     ~App();
 
     int Run();
@@ -67,6 +71,12 @@ public:
     HasStaticQueryContinuation(
         std::wstring_view query) const noexcept;
 
+    // Gives filesystem results the per-query habit learned when files were
+    // opened from the launcher (same scale as app results).
+    void ApplyFileUsage(
+        std::vector<LauncherResult>& results,
+        std::wstring_view query) const;
+
     [[nodiscard]] bool
     CanRevealLauncher() const noexcept {
         return commandStore_
@@ -77,7 +87,6 @@ public:
         launcherRevealPending_ = true;
     }
 
-    void BeginNumericContinuationProbe(std::uint64_t token, std::wstring query);
 
     void BeginDynamicSearch(
         std::uint64_t generation,
@@ -287,7 +296,6 @@ private:
         kProviderChangedMessage =
             WM_APP + 0x172;
 
-    static constexpr UINT kNumericProbeMessage = WM_APP + 0x176;
 
     static constexpr UINT
         kDynamicQueryMessage =

@@ -30,7 +30,6 @@ public:
     void RefreshResults(
         bool allowImmediateExecution = false,
         bool preserveSelection = true);
-    void ApplyNumericContinuation(std::uint64_t token, classic_behavior::ContinuationEvidence evidence);
     void ApplyDynamicResults(
         std::uint64_t generation,
         std::vector<LauncherResult> results);
@@ -73,11 +72,13 @@ private:
     void ReleaseClassicResources();
     bool CreateChildren();
     void ApplyFonts();
+    void UpdateSearchCueBanner();
     void RecreateBrushes();
     void UpdateControlFrames();
     void UpdateWindowChrome();
     void Layout();
     void Reposition();
+    void RepositionOnce();
     void PaintWindowBackground(HDC dc);
     void PaintClassicBackground(HDC dc, const RECT& client);
     void PaintClassicTitleBar(HDC dc, const RECT& client);
@@ -162,6 +163,8 @@ private:
     HFONT searchGlyphFont_{};
     HFONT shortcutHintFont_{};
     HFONT shortcutArrowFont_{};
+    // Modern: small font for the user-shortcut keyword tag after the name.
+    HFONT keywordTagFont_{};
     HBRUSH windowBrush_{};
     HBRUSH controlBrush_{};
     HBRUSH accentBrush_{};
@@ -204,6 +207,9 @@ private:
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};
     bool numericTextCommitInProgress_{false};
+    // The pending EN_CHANGE comes from Backspace/Delete/Cut/Clear: deleting
+    // down to one result must not launch it.
+    bool deletionEditPending_{false};
     bool modernBackdropAvailable_{false};
     std::uint64_t lastTextInputTick_{0};
     UINT consumedNumericVirtualKey_{0};

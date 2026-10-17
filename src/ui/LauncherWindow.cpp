@@ -15,6 +15,7 @@
 #include "../platform/WinUtil.hpp"
 #include "ShortcutEditorDialog.hpp"
 #include "TopLevelWindowPresentation.hpp"
+#include "UiRoundedFrame.hpp"
 #include "UiTypography.hpp"
 
 #include <windowsx.h>
@@ -30,7 +31,9 @@
 #include <iterator>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace altrun {
 
@@ -162,10 +165,14 @@ FontFamilyAvailable(
 [[nodiscard]] const wchar_t*
 ModernSearchGlyphFace() {
 
-    return FontFamilyAvailable(
-               L"Segoe Fluent Icons")
-        ? L"Segoe Fluent Icons"
-        : L"Segoe MDL2 Assets";
+    // Installed icon fonts do not change while running; enumerate once
+    // instead of on every DPI/language/style font rebuild.
+    static const wchar_t* const face =
+        FontFamilyAvailable(
+            L"Segoe Fluent Icons")
+            ? L"Segoe Fluent Icons"
+            : L"Segoe MDL2 Assets";
+    return face;
 }
 
 enum ResultContextMenuId : UINT {
@@ -221,36 +228,61 @@ ModernPrimaryResultText(
     return result.subtitle;
 }
 
+// Muted secondary text in a Modern row: only the location of a file/folder.
+// Provider-discovered apps used to repeat their internal match key here
+// (the lower-cased, space-stripped name), which added no information.
 [[nodiscard]] std::wstring
 ModernSecondaryResultText(
     const LauncherResult& result) {
-    const std::wstring fallback =
-        PrimaryResultText(result);
+    return IsFileSystemResult(result)
+        ? result.subtitle
+        : std::wstring{};
+}
 
-    if (IsFileSystemResult(result)) {
-        return result.subtitle;
+// The keywords of a user-defined shortcut, each shown as its own small tag
+// after the name. They are the user's own typed triggers, so they carry real
+// meaning; provider rows simply have no tags (a decoration, not a half-empty
+// column). shortcutHint joins keyword and aliases with " · ".
+[[nodiscard]] std::vector<std::wstring>
+ModernKeywordTags(
+    const LauncherResult& result) {
+    std::vector<std::wstring> tags;
+    if (result.kind !=
+            ResultKind::UserCommand ||
+        result.shortcutHint.empty()) {
+        return tags;
     }
 
-    if (result.kind ==
-            ResultKind::UserCommand &&
-        !result.shortcutHint.empty()) {
-        const std::wstring primary =
-            result.subtitle.empty()
-                ? fallback
-                : result.subtitle;
-
-        return result.shortcutHint ==
-                primary
-            ? std::wstring{}
-            : result.shortcutHint;
+    const std::wstring primary =
+        ModernPrimaryResultText(result);
+    constexpr std::wstring_view separator = L" · ";
+    std::wstring_view rest = result.shortcutHint;
+    while (!rest.empty()) {
+        const std::size_t cut = rest.find(separator);
+        const std::wstring_view token = rest.substr(0, cut);
+        if (!token.empty() && token != primary) {
+            tags.emplace_back(token);
+        }
+        if (cut == std::wstring_view::npos) break;
+        rest.remove_prefix(cut + separator.size());
     }
+    return tags;
+}
 
-    if (result.subtitle.empty() ||
-        result.subtitle == fallback) {
-        return {};
-    }
-
-    return fallback;
+// GDI has no alpha: mix `over` into `base` by `amount` (0..1) to get the
+// colour a translucent `over` layer would show on `base`.
+[[nodiscard]] COLORREF BlendColor(
+    COLORREF base,
+    COLORREF over,
+    double amount) noexcept {
+    const auto mix = [amount](BYTE from, BYTE to) {
+        return static_cast<BYTE>(
+            from + (to - from) * amount + 0.5);
+    };
+    return RGB(
+        mix(GetRValue(base), GetRValue(over)),
+        mix(GetGValue(base), GetGValue(over)),
+        mix(GetBValue(base), GetBValue(over)));
 }
 
 [[nodiscard]] std::wstring
@@ -428,6 +460,7 @@ LauncherWindow::~LauncherWindow() {
     if (searchGlyphFont_) DeleteObject(searchGlyphFont_);
     if (shortcutHintFont_) DeleteObject(shortcutHintFont_);
     if (shortcutArrowFont_) DeleteObject(shortcutArrowFont_);
+    if (keywordTagFont_) DeleteObject(keywordTagFont_);
     if (windowBrush_) DeleteObject(windowBrush_);
     if (controlBrush_) DeleteObject(controlBrush_);
     if (accentBrush_) DeleteObject(accentBrush_);
@@ -598,11 +631,11 @@ bool LauncherWindow::Create() {
         DestroyWindow(hwnd_);
         return false;
     }
+    // ApplyAppearance builds fonts, the placeholder, layout and the first
+    // results; ApplyLanguage/RefreshResults here would only repeat that work.
     ApplyAppearance();
-    ApplyLanguage();
     AddTrayIcon();
 
-    RefreshResults();
     Reposition();
     firstRevealPending_ = true;
     creationCompleted_ = true;
@@ -736,38 +769,19 @@ void LauncherWindow::RecreateBrushes() {
 }
 
 void LauncherWindow::ApplyFonts() {
-    if (normalFont_) {
-        DeleteObject(normalFont_);
-        normalFont_ = nullptr;
-    }
-    if (searchFont_) {
-        DeleteObject(searchFont_);
-        searchFont_ = nullptr;
-    }
-    if (auxiliaryFont_) {
-        DeleteObject(auxiliaryFont_);
-        auxiliaryFont_ = nullptr;
-    }
-    if (boldFont_) {
-        DeleteObject(boldFont_);
-        boldFont_ = nullptr;
-    }
-    if (titleFont_) {
-        DeleteObject(titleFont_);
-        titleFont_ = nullptr;
-    }
-    if (searchGlyphFont_) {
-        DeleteObject(searchGlyphFont_);
-        searchGlyphFont_ = nullptr;
-    }
-    if (shortcutHintFont_) {
-        DeleteObject(shortcutHintFont_);
-        shortcutHintFont_ = nullptr;
-    }
-    if (shortcutArrowFont_) {
-        DeleteObject(shortcutArrowFont_);
-        shortcutArrowFont_ = nullptr;
-    }
+    // The search EDIT, result LISTBOX and preview STATIC keep the HFONT they
+    // were given via WM_SETFONT; delete the old fonts only after replacing.
+    const std::array<HFONT, 9> previousFonts{
+        normalFont_,
+        searchFont_,
+        auxiliaryFont_,
+        boldFont_,
+        titleFont_,
+        searchGlyphFont_,
+        shortcutHintFont_,
+        shortcutArrowFont_,
+        keywordTagFont_,
+    };
 
     const auto style =
         app_.SettingsData().uiStyle;
@@ -854,6 +868,19 @@ void LauncherWindow::ApplyFonts() {
             },
             dpi_);
 
+    // Keyword chips sit inside a row of body text: one step below the
+    // auxiliary size so the chip stays visibly lighter than the name.
+    ui::UiFontSpec keywordTagSpec =
+        ui::LauncherFontSpec(
+            style,
+            language,
+            ui::UiFontRole::LauncherAuxiliary);
+    keywordTagSpec.logicalHeight96 = -11;
+    keywordTagFont_ =
+        ui::CreateFontHandle(
+            keywordTagSpec,
+            dpi_);
+
     SendMessageW(edit_, WM_SETFONT, reinterpret_cast<WPARAM>(searchFont_), TRUE);
     SendMessageW(list_, WM_SETFONT, reinterpret_cast<WPARAM>(normalFont_), TRUE);
     SendMessageW(preview_, WM_SETFONT, reinterpret_cast<WPARAM>(auxiliaryFont_), TRUE);
@@ -868,6 +895,24 @@ void LauncherWindow::ApplyFonts() {
         LB_SETITEMHEIGHT,
         0,
         itemHeight);
+
+    for (HFONT previous : previousFonts) {
+        if (previous) {
+            DeleteObject(previous);
+        }
+    }
+}
+
+void LauncherWindow::UpdateSearchCueBanner() {
+    if (!edit_) return;
+
+    // The placeholder belongs to Modern only and follows the language.
+    SendMessageW(
+        edit_,
+        EM_SETCUEBANNER,
+        TRUE,
+        reinterpret_cast<LPARAM>(
+            IsModern() ? app_.Text(TextId::SearchPlaceholder).data() : L""));
 }
 
 
@@ -1027,6 +1072,8 @@ void LauncherWindow::ApplyAppearance() {
     RecreateBrushes();
     UpdateControlFrames();
     ApplyFonts();
+    // Classic has no placeholder; switching style must add/remove it too.
+    UpdateSearchCueBanner();
 
     ShowWindow(
         preview_,
@@ -1060,13 +1107,7 @@ void LauncherWindow::ApplyAppearance() {
 void LauncherWindow::ApplyLanguage() {
     if (!edit_) return;
 
-    SendMessageW(
-        edit_,
-        EM_SETCUEBANNER,
-        TRUE,
-        reinterpret_cast<LPARAM>(
-            IsModern() ? app_.Text(TextId::SearchPlaceholder).data() : L""));
-
+    UpdateSearchCueBanner();
     ApplyFonts();
     UpdatePreview();
     Layout();
@@ -1290,35 +1331,19 @@ void LauncherWindow::PaintWindowBackground(
                 modernDpiMetrics_
                     .searchSurface);
 
-        HGDIOBJ oldPen =
-            SelectObject(
-                dc,
-                framePen_);
-        HGDIOBJ oldBrush =
-            SelectObject(
-                dc,
-                controlBrush_);
-
-        RoundRect(
-            dc,
-            searchSurface.left,
-            searchSurface.top,
-            searchSurface.right,
-            searchSurface.bottom,
-            modernDpiMetrics_
-                .searchCornerDiameter,
-            modernDpiMetrics_
-                .searchCornerDiameter);
-
-        SelectObject(
-            dc,
-            oldBrush);
-        SelectObject(
-            dc,
-            oldPen);
-
         const auto palette =
             CurrentPalette();
+
+        // Anti-aliased surfaces (GDI RoundRect corners step visibly). The
+        // metrics store corner *diameters*; the painter takes a radius.
+        ui::PaintSmoothRoundedFrame(
+            dc,
+            searchSurface,
+            searchSurface,
+            modernDpiMetrics_.searchCornerDiameter / 2,
+            palette.windowBackground,
+            palette.frame,
+            palette.controlBackground);
 
         // The PUA Search glyph is rasterized by the Windows icon font rather
         // than by aliased GDI primitives, so it remains crisp at fractional
@@ -1366,80 +1391,44 @@ void LauncherWindow::PaintWindowBackground(
                     modernDpiMetrics_
                         .resultsSurface);
 
-            HGDIOBJ oldSurfacePen =
-                SelectObject(
-                    dc,
-                    GetStockObject(NULL_PEN));
-            HGDIOBJ oldSurfaceBrush =
-                SelectObject(
-                    dc,
-                    accentBrush_);
-
-            RoundRect(
+            // Borderless panels: outline colour == fill colour.
+            ui::PaintSmoothRoundedFrame(
                 dc,
-                resultsSurface.left,
-                resultsSurface.top,
-                resultsSurface.right,
-                resultsSurface.bottom,
-                modernDpiMetrics_
-                    .resultsCornerDiameter,
-                modernDpiMetrics_
-                    .resultsCornerDiameter);
+                resultsSurface,
+                resultsSurface,
+                modernDpiMetrics_.resultsCornerDiameter / 2,
+                palette.windowBackground,
+                palette.accentBackground,
+                palette.accentBackground);
 
             const RECT footerSurface =
                 toRect(
                     modernDpiMetrics_
                         .footerSurface);
 
-            SelectObject(
+            ui::PaintSmoothRoundedFrame(
                 dc,
-                bottomBrush_);
-            RoundRect(
-                dc,
-                footerSurface.left,
-                footerSurface.top,
-                footerSurface.right,
-                footerSurface.bottom,
-                modernDpiMetrics_
-                    .footerCornerDiameter,
-                modernDpiMetrics_
-                    .footerCornerDiameter);
-
-            SelectObject(
-                dc,
-                oldSurfaceBrush);
-            SelectObject(
-                dc,
-                oldSurfacePen);
+                footerSurface,
+                footerSurface,
+                modernDpiMetrics_.footerCornerDiameter / 2,
+                palette.windowBackground,
+                palette.bottomBackground,
+                palette.bottomBackground);
 
             const RECT action =
                 toRect(
                     modernDpiMetrics_
                         .footerAction);
-            HGDIOBJ oldActionPen =
-                SelectObject(
-                    dc,
-                    framePen_);
-            HGDIOBJ oldActionBrush =
-                SelectObject(
-                    dc,
-                    GetStockObject(NULL_BRUSH));
 
-            RoundRect(
+            // The Enter key cap sits on the footer surface.
+            ui::PaintSmoothRoundedFrame(
                 dc,
-                action.left,
-                action.top,
-                action.right,
-                action.bottom,
-                DpiScale(8),
-                DpiScale(8));
-
-            SelectObject(
-                dc,
-                oldActionBrush);
-            SelectObject(
-                dc,
-                oldActionPen);
+                action,
+                action,
+                DpiScale(8) / 2,
+                palette.bottomBackground,
+                palette.frame,
+                palette.bottomBackground);
 
             HGDIOBJ oldFont =
                 SelectObject(
@@ -1702,11 +1691,11 @@ void LauncherWindow::RefreshResults(
     CancelPendingNumericIntent();
     ++searchGeneration_;
 
+    // Fetch extra candidates so merging/de-duplication with dynamic results
+    // can still fill every visible row.
     const std::size_t
         candidateLimit =
-            std::max<std::size_t>(
-                maxResults_,
-                maxResults_ * 3);
+            maxResults_ * 3;
 
     staticResults_ =
         app_.Search(
@@ -1746,6 +1735,7 @@ void LauncherWindow::ApplyDynamicResults(
     }
 
     dynamicQueryPending_ = false;
+    app_.ApplyFileUsage(results, CurrentQuery());
     dynamicResults_ =
         std::move(results);
 
@@ -1756,6 +1746,19 @@ void LauncherWindow::ApplyDynamicResults(
 
     immediateExecutionPending_ =
         false;
+
+    // A numbered launch waiting for these rows: the digit is text only if
+    // it continues a name the user can now see.
+    if (pendingNumericIntent_.active &&
+        pendingNumericIntent_.probeRequired) {
+        std::wstring candidate = pendingNumericIntent_.query;
+        candidate.push_back(pendingNumericIntent_.digit);
+        pendingNumericIntent_.evidence =
+            classic_behavior::HasStrongResultContinuation(results_, candidate)
+                ? classic_behavior::ContinuationEvidence::Present
+                : classic_behavior::ContinuationEvidence::Absent;
+        ExecutePendingNumericIntent();
+    }
 }
 
 void LauncherWindow::RebuildVisibleResults(
@@ -2064,17 +2067,22 @@ void LauncherWindow::RebuildVisibleResults(
 
     UpdatePreview();
 
+    // With Everything enabled, the synchronous pass has dynamicQueryPending_
+    // set and never executes; ApplyDynamicResults re-runs this check with the
+    // merged rows once the matching reply arrives, so "one result left" also
+    // works with filesystem search on.
     if (classic_behavior::
             ShouldExecuteSingleResult(
-                allowImmediateExecution &&
-                    !app_.
-                        DynamicSearchEnabled(),
+                allowImmediateExecution,
                 app_.SettingsData()
                     .executeSingleResultImmediately,
                 imeComposing_,
                 queryEmpty,
                 dynamicQueryPending_,
-                results_.size())) {
+                results_.size()) &&
+        classic_behavior::
+            SingleResultAutoExecutable(
+                results_.front())) {
         ExecuteResultAt(0);
     }
 }
@@ -2398,14 +2406,12 @@ HasStrongNumericContinuation(
         return true;
     }
 
+    // Only rows the user can see: a file deep in the filesystem that happens
+    // to start with these characters is not what a bare digit is for.
     return classic_behavior::
-            HasStrongResultContinuation(
-                dynamicResults_,
-                candidate) ||
-        classic_behavior::
-            HasStrongResultContinuation(
-                staticResults_,
-                candidate);
+        HasStrongResultContinuation(
+            results_,
+            candidate);
 }
 
 void LauncherWindow::ConsumeNumericKey(
@@ -2438,7 +2444,10 @@ QueuePendingNumericIntent(
     pendingNumericIntent_.token = ++numericIntentToken_;
     pendingNumericIntent_.started = GetTickCount64();
     pendingNumericIntent_.selection = static_cast<DWORD>(SendMessageW(edit_, EM_GETSEL, 0, 0));
-    pendingNumericIntent_.probeRequired = app_.DynamicSearchEnabled();
+    // While file results for this query are still on their way, wait (up to
+    // kNumericProbeBudgetMs) for them: the decision uses the rows the user
+    // will see, never every file on disk.
+    pendingNumericIntent_.probeRequired = dynamicQueryPending_;
 
     ConsumeNumericKey(
         virtualKey,
@@ -2447,11 +2456,6 @@ QueuePendingNumericIntent(
     if (!SetTimer(hwnd_, kNumericIntentTimerId, 15, nullptr)) {
         CommitPendingNumericIntentAsText();
         return;
-    }
-    if (pendingNumericIntent_.probeRequired) {
-        auto candidate = pendingNumericIntent_.query;
-        candidate.push_back(digit);
-        app_.BeginNumericContinuationProbe(pendingNumericIntent_.token, std::move(candidate));
     }
 }
 
@@ -2487,13 +2491,6 @@ CommitPendingNumericIntentAsText() {
         false;
     lastTextInputTick_ =
         GetTickCount64();
-}
-
-void LauncherWindow::ApplyNumericContinuation(
-    std::uint64_t token, classic_behavior::ContinuationEvidence evidence) {
-    if (!pendingNumericIntent_.active || token != pendingNumericIntent_.token) return;
-    pendingNumericIntent_.evidence = evidence;
-    ExecutePendingNumericIntent();
 }
 
 void LauncherWindow::
@@ -2712,18 +2709,14 @@ void LauncherWindow::ShowNewShortcutForPath(
         ShortcutSeedFromFileSystemPath(
             path);
 
+    // App::CreateUserCommand refreshes this launcher on a successful save.
     contextActionModalActive_ = true;
-    const bool changed =
-        ShortcutEditorDialog::ShowNew(
-            app_,
-            instance_,
-            hwnd_,
-            seed);
+    (void)ShortcutEditorDialog::ShowNew(
+        app_,
+        instance_,
+        hwnd_,
+        seed);
     contextActionModalActive_ = false;
-
-    if (changed) {
-        RefreshResults();
-    }
 }
 
 void LauncherWindow::
@@ -3101,18 +3094,15 @@ void LauncherWindow::ShowResultContextMenu(
             ShortcutSeedFromLauncherResult(
                 result);
 
+        // App::CreateUserCommand already refreshed the results on save.
         contextActionModalActive_ = true;
-        const bool changed =
-            ShortcutEditorDialog::ShowNew(
-                app_,
-                instance_,
-                hwnd_,
-                seed);
+        (void)ShortcutEditorDialog::ShowNew(
+            app_,
+            instance_,
+            hwnd_,
+            seed);
         contextActionModalActive_ = false;
 
-        if (changed) {
-            RefreshResults();
-        }
         RestoreSearchFocusAfterShortcutEditor(
             inputSelectionStart,
             inputSelectionEnd);
@@ -3122,17 +3112,14 @@ void LauncherWindow::ShowResultContextMenu(
     case kResultContextEditShortcut:
         contextActionModalActive_ = true;
         {
-            const bool changed =
-                ShortcutEditorDialog::Show(
-                    app_,
-                    instance_,
-                    hwnd_,
-                    result.id);
+            // App::UpdateUserCommand already refreshed the results on save.
+            (void)ShortcutEditorDialog::Show(
+                app_,
+                instance_,
+                hwnd_,
+                result.id);
             contextActionModalActive_ = false;
 
-            if (changed) {
-                RefreshResults();
-            }
             RestoreSearchFocusAfterShortcutEditor(
                 inputSelectionStart,
                 inputSelectionEnd);
@@ -3167,6 +3154,11 @@ void LauncherWindow::ShowResultContextMenu(
         contextActionModalActive_ = true;
         app_.ConfirmDeleteUserCommand(hwnd_, result.id);
         contextActionModalActive_ = false;
+        // Same as add/edit: the modal confirmation can leave focus on the
+        // top-level launcher, where typing and navigation do nothing.
+        RestoreSearchFocusAfterShortcutEditor(
+            inputSelectionStart,
+            inputSelectionEnd);
         return;
     }
 
@@ -3445,6 +3437,18 @@ LRESULT LauncherWindow::HandleEditMessage(
         message == WM_CUT || message == WM_CLEAR)
         CommitPendingNumericIntentAsText();
 
+    // Remember whether the next text change removes text, so single-result
+    // auto execution only follows typing and pasting.
+    if (message == WM_CUT || message == WM_CLEAR ||
+        (message == WM_KEYDOWN &&
+         (wParam == VK_BACK || wParam == VK_DELETE))) {
+        deletionEditPending_ = true;
+    } else if ((message == WM_CHAR && wParam >= L' ') ||
+               message == WM_PASTE ||
+               message == WM_IME_ENDCOMPOSITION) {
+        deletionEditPending_ = false;
+    }
+
     if (message == WM_CHAR && !imeComposing_ &&
         (wParam == L'\r' || wParam == L'\t' || wParam == 27)) {
         return 0;
@@ -3656,6 +3660,15 @@ LRESULT LauncherWindow::HandleEditMessage(
                 reinterpret_cast<LPARAM>(&selectionEnd));
             context.editingText = selectionStart != selectionEnd || selectionEnd != query.size() ||
                 relevance::HasExplicitSyntax(query) || query.find_first_of(L"|!<>\"") != std::wstring::npos;
+            context.afterSeparator =
+                !query.empty() && std::iswspace(query.back()) != 0;
+            context.typingArgument =
+                std::any_of(
+                    results_.begin(),
+                    results_.end(),
+                    [](const LauncherResult& result) {
+                        return classic_behavior::ConsumesTypedText(result);
+                    });
 
             const auto decision =
                 classic_behavior::
@@ -3832,10 +3845,18 @@ LRESULT LauncherWindow::HandleMessage(
             // IME composition can emit intermediate EN_CHANGE events. Search
             // may update live, but single-result auto execution must wait
             // until composition is committed.
-            RefreshResults(
-                !imeComposing_ &&
-                    !numericTextCommitInProgress_,
-                false);
+            //
+            // Deleting text never auto-executes: Backspace from "xyzq" to
+            // "xyz" may leave one result the user did not ask for.
+            {
+                const bool deletion = deletionEditPending_;
+                deletionEditPending_ = false;
+                RefreshResults(
+                    !imeComposing_ &&
+                        !numericTextCommitInProgress_ &&
+                        !deletion,
+                    false);
+            }
             return 0;
         }
         if (LOWORD(wParam) == 1002 && HIWORD(wParam) == LBN_DBLCLK) {
@@ -3972,9 +3993,6 @@ LRESULT LauncherWindow::HandleMessage(
     case WM_CTLCOLOREDIT: {
         const auto palette =
             CurrentPalette();
-        const HWND control =
-            reinterpret_cast<HWND>(
-                lParam);
         HDC dc =
             reinterpret_cast<HDC>(
                 wParam);
@@ -3984,12 +4002,11 @@ LRESULT LauncherWindow::HandleMessage(
                 dc,
                 palette.accentBackground);
 
+            // Only the search EDIT reaches here; the command bar is an
+            // owner-drawn STATIC painted in WM_DRAWITEM.
             SetTextColor(
                 dc,
-                control ==
-                        classicPreview_
-                    ? RGB(128, 128, 128)
-                    : RGB(255, 0, 0));
+                RGB(255, 0, 0));
 
             return reinterpret_cast<LRESULT>(
                 accentBrush_);
@@ -4157,30 +4174,15 @@ LRESULT LauncherWindow::HandleMessage(
                 selectionRect.bottom -=
                     modern.rowSelectionInsetY;
 
-                HGDIOBJ oldPen =
-                    SelectObject(
-                        item->hDC,
-                        GetStockObject(NULL_PEN));
-                HGDIOBJ oldBrush =
-                    SelectObject(
-                        item->hDC,
-                        selectionBrush_);
-
-                RoundRect(
+                // Anti-aliased pill and accent bar (RoundRect corners step).
+                ui::PaintSmoothRoundedFrame(
                     item->hDC,
-                    selectionRect.left,
-                    selectionRect.top,
-                    selectionRect.right,
-                    selectionRect.bottom,
-                    modern.rowCornerDiameter,
-                    modern.rowCornerDiameter);
-
-                SelectObject(
-                    item->hDC,
-                    oldBrush);
-                SelectObject(
-                    item->hDC,
-                    oldPen);
+                    selectionRect,
+                    selectionRect,
+                    modern.rowCornerDiameter / 2,
+                    palette.accentBackground,
+                    palette.selectionBackground,
+                    palette.selectionBackground);
 
                 RECT accentRect{
                     selectionRect.left +
@@ -4196,31 +4198,16 @@ LRESULT LauncherWindow::HandleMessage(
 
                 if (accentRect.bottom >
                     accentRect.top) {
-                    HGDIOBJ oldAccentPen =
-                        SelectObject(
-                            item->hDC,
-                            GetStockObject(NULL_PEN));
-                    HGDIOBJ oldAccentBrush =
-                        SelectObject(
-                            item->hDC,
-                            focusAccentBrush_);
-                    RoundRect(
+                    ui::PaintSmoothRoundedFrame(
                         item->hDC,
-                        accentRect.left,
-                        accentRect.top,
-                        accentRect.right,
-                        accentRect.bottom,
-                        modern.selectionAccentWidth,
-                        modern.selectionAccentWidth);
-                    SelectObject(
-                        item->hDC,
-                        oldAccentBrush);
-                    SelectObject(
-                        item->hDC,
-                        oldAccentPen);
+                        accentRect,
+                        accentRect,
+                        modern.selectionAccentWidth / 2,
+                        palette.selectionBackground,
+                        palette.accent,
+                        palette.accent);
                 }
-            }
-        } else {
+            }        } else {
             FillRect(
                 item->hDC,
                 &item->rcItem,
@@ -4249,6 +4236,12 @@ LRESULT LauncherWindow::HandleMessage(
             const std::wstring modernSecondary =
                 ModernSecondaryResultText(
                     result);
+            const std::vector<std::wstring> keywordTags =
+                ModernKeywordTags(
+                    result);
+            const bool hasTrailing =
+                !modernSecondary.empty() ||
+                !keywordTags.empty();
 
             const int contentLeft =
                 item->rcItem.left +
@@ -4302,7 +4295,7 @@ LRESULT LauncherWindow::HandleMessage(
                     item->hDC,
                     boldFont_);
 
-            if (!modernSecondary.empty()) {
+            if (hasTrailing) {
                 SIZE primarySize{};
                 GetTextExtentPoint32W(
                     item->hDC,
@@ -4338,11 +4331,15 @@ LRESULT LauncherWindow::HandleMessage(
                         contentRight,
                         primaryLeft +
                             primaryWidth);
+                // Tags belong to the name, so they sit closer to it than a
+                // secondary text column does.
                 const int secondaryLeft =
                     std::min(
                         contentRight,
                         primaryRight +
-                            modern.rowColumnGap);
+                            (modernSecondary.empty()
+                                 ? DpiScale(8)
+                                 : modern.rowColumnGap));
 
                 primaryRect.right =
                     static_cast<LONG>(
@@ -4385,6 +4382,183 @@ LRESULT LauncherWindow::HandleMessage(
                         DT_VCENTER |
                         DT_END_ELLIPSIS |
                         DT_NOPREFIX);
+            } else if (!keywordTags.empty()) {
+                // Keyword tags: one borderless chip per keyword right after
+                // the name. The chip is the row background tinted a few
+                // percent toward the text (or, on the selected row, toward
+                // the accent), so it reads as part of the row rather than a
+                // white patch on top of it. At most kMaxTags chips; the rest
+                // collapse into a "+N" chip.
+                SelectObject(
+                    item->hDC,
+                    keywordTagFont_
+                        ? keywordTagFont_
+                        : auxiliaryFont_);
+
+                TEXTMETRICW tagMetrics{};
+                GetTextMetricsW(
+                    item->hDC,
+                    &tagMetrics);
+
+                constexpr std::size_t kMaxTags = 3;
+                const int padX =
+                    DpiScale(5);
+                const int tagGap =
+                    DpiScale(4);
+                const int tagHeight =
+                    std::min(
+                        static_cast<int>(
+                            item->rcItem.bottom -
+                            item->rcItem.top) -
+                            DpiScale(6),
+                        static_cast<int>(
+                            tagMetrics.tmHeight) +
+                            DpiScale(2));
+                const int rowMid =
+                    (item->rcItem.top +
+                     item->rcItem.bottom) / 2;
+                const COLORREF rowBackground =
+                    selected
+                        ? palette.selectionBackground
+                        : palette.accentBackground;
+                // Barely deeper than the row (a few percent of text, or of
+                // accent on the selected row) with plain muted text: the
+                // chip groups the keywords without competing with the name.
+                const COLORREF tagFill =
+                    selected
+                        ? BlendColor(
+                              rowBackground,
+                              palette.accent,
+                              0.05)
+                        : BlendColor(
+                              rowBackground,
+                              palette.text,
+                              0.04);
+                const COLORREF tagTextColor =
+                    palette.mutedText;
+
+                const auto measure =
+                    [&](const std::wstring& text) {
+                        SIZE size{};
+                        GetTextExtentPoint32W(
+                            item->hDC,
+                            text.c_str(),
+                            static_cast<int>(
+                                text.size()),
+                            &size);
+                        return static_cast<int>(
+                                   size.cx) +
+                            padX * 2;
+                    };
+                const auto paintTag =
+                    [&](const std::wstring& text,
+                        int left,
+                        int width) {
+                        const RECT tagRect{
+                            left,
+                            rowMid - tagHeight / 2,
+                            left + width,
+                            rowMid - tagHeight / 2 +
+                                tagHeight,
+                        };
+                        ui::PaintSmoothRoundedFrame(
+                            item->hDC,
+                            tagRect,
+                            tagRect,
+                            DpiScale(
+                                ui::kControlCornerRadiusLogical),
+                            rowBackground,
+                            tagFill,
+                            tagFill);
+
+                        RECT tagText =
+                            tagRect;
+                        InflateRect(
+                            &tagText,
+                            -padX,
+                            0);
+                        SetTextColor(
+                            item->hDC,
+                            tagTextColor);
+                        DrawTextW(
+                            item->hDC,
+                            text.c_str(),
+                            -1,
+                            &tagText,
+                            DT_SINGLELINE |
+                                DT_CENTER |
+                                DT_VCENTER |
+                                DT_END_ELLIPSIS |
+                                DT_NOPREFIX);
+                    };
+
+                if (tagHeight > 0) {
+                    const int right =
+                        static_cast<int>(
+                            secondaryRect.right);
+                    int x =
+                        static_cast<int>(
+                            secondaryRect.left);
+                    std::size_t shown = 0;
+                    for (; shown < keywordTags.size() &&
+                           shown < kMaxTags;
+                         ++shown) {
+                        const int width =
+                            measure(
+                                keywordTags[shown]);
+                        // Keep room for the "+N" chip when tags remain.
+                        const bool more =
+                            shown + 1 <
+                            keywordTags.size();
+                        const int reserve =
+                            more
+                                ? tagGap +
+                                    measure(L"+9")
+                                : 0;
+                        if (x + width + reserve > right) {
+                            // A lone first tag still shows, ellipsized.
+                            if (shown == 0 &&
+                                right - x > padX * 2 +
+                                    tagMetrics.tmAveCharWidth) {
+                                paintTag(
+                                    keywordTags[0],
+                                    x,
+                                    std::min(
+                                        width,
+                                        right - x -
+                                            reserve));
+                                x += std::min(
+                                         width,
+                                         right - x -
+                                             reserve) +
+                                    tagGap;
+                                ++shown;
+                            }
+                            break;
+                        }
+                        paintTag(
+                            keywordTags[shown],
+                            x,
+                            width);
+                        x += width + tagGap;
+                    }
+
+                    if (shown < keywordTags.size()) {
+                        const std::wstring overflow =
+                            L"+" +
+                            std::to_wstring(
+                                keywordTags.size() -
+                                shown);
+                        const int width =
+                            measure(overflow);
+                        if (x + width <= right) {
+                            paintTag(
+                                overflow,
+                                x,
+                                width);
+                        }
+                    }
+                }
             }
 
             if (selected) {

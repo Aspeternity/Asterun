@@ -4,7 +4,9 @@
 #include "RelevancePolicy.hpp"
 
 #include <algorithm>
+#include <cwctype>
 #include <string>
+#include <string_view>
 
 namespace altrun {
 namespace {
@@ -252,6 +254,52 @@ int UnifiedRankScore(
             result.providerId);
 }
 
+bool IsNoiseFilesystemPath(
+    std::wstring_view fullPath) {
+
+    std::wstring path(fullPath);
+    for (auto& ch : path) {
+        ch = ch == L'/'
+            ? L'\\'
+            : static_cast<wchar_t>(std::towlower(ch));
+    }
+    if (!path.ends_with(L'\\')) {
+        path.push_back(L'\\');
+    }
+
+    // Drive-root system folders: C:\Windows\, D:\ProgramData\Package Cache\.
+    if (path.size() >= 3 && path[1] == L':' && path[2] == L'\\') {
+        const std::wstring_view rest =
+            std::wstring_view(path).substr(3);
+        if (rest.starts_with(L"windows\\") ||
+            rest.starts_with(L"programdata\\package cache\\")) {
+            return true;
+        }
+    }
+
+    constexpr std::wstring_view kAnywhere[]{
+        L"\\$recycle.bin\\",
+        L"\\system volume information\\",
+        L"\\node_modules\\",
+        L"\\.git\\",
+        L"\\appdata\\locallow\\",
+        L"\\appdata\\roaming\\microsoft\\windows\\recent\\",
+    };
+    for (const auto segment : kAnywhere) {
+        if (path.find(segment) != std::wstring::npos) {
+            return true;
+        }
+    }
+
+    // AppData\Local holds caches and temp files; per-user installs under
+    // AppData\Local\Programs are real applications.
+    const auto local = path.find(L"\\appdata\\local\\");
+    return local != std::wstring::npos &&
+        std::wstring_view(path)
+            .substr(local)
+            .find(L"\\appdata\\local\\programs\\") != 0;
+}
+
 bool RankDynamicResultText(
     LauncherResult& result,
     std::wstring_view query) {
@@ -268,6 +316,12 @@ bool RankDynamicResultText(
     const bool explicitSyntax =
         relevance::HasExplicitSyntax(
             query);
+
+    if (!explicitSyntax &&
+        IsNoiseFilesystemPath(
+            result.target)) {
+        return false;
+    }
 
     const bool allowTarget =
         relevance::HasPathIntent(

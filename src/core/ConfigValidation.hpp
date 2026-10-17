@@ -45,6 +45,7 @@ inline bool ValidUsageRecord(const nlohmann::json& item) {
     if (item.contains("launches") && (!item["launches"].is_number_unsigned() &&
         !(item["launches"].is_number_integer() && item["launches"].get<std::int64_t>() >= 0))) return false;
     if (item.contains("lastUsedUnix") && !item["lastUsedUnix"].is_number_integer()) return false;
+    if (item.contains("frecency") && !item["frecency"].is_number()) return false;
     return !item.contains("queries") || item["queries"].is_object();
 }
 

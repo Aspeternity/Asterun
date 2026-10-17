@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cwctype>
 #include <initializer_list>
+#include <vector>
 
 namespace altrun::relevance {
 namespace {
@@ -130,6 +131,29 @@ namespace {
     }
 }
 
+// Match kinds that express clear intent; all rank above Wildcard, Substring
+// and fuzzy kinds in MatchKindTier.
+[[nodiscard]] bool StrongIntentMatch(
+    MatchKind kind) noexcept {
+    switch (kind) {
+    case MatchKind::Exact:
+    case MatchKind::Prefix:
+    case MatchKind::Initials:
+    case MatchKind::BoundaryPrefix:
+    case MatchKind::HybridPinyin:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Learned per-query preference used across strong match tiers. Non-empty
+// queries carry SearchEngine's intent score (8..32, 0 = no habit); anything
+// above that range is empty-query recency and never reaches a strong match.
+[[nodiscard]] int HabitRank(int usageScore) noexcept {
+    return std::clamp(usageScore, 0, 32);
+}
+
 [[nodiscard]] Match MatchPreparedText(
     std::wstring_view boundaryField,
     std::wstring_view normalizedField,
@@ -225,85 +249,109 @@ namespace {
         return {};
     }
 
-    std::size_t queryIndex = 0;
-    int gaps = 0;
-    int run = 0;
-    int bestRun = 0;
-    std::size_t first = 0;
-    std::size_t previous = 0;
-    bool havePrevious = false;
-
+    // Fuzzy (subsequence) matches must start at the beginning of a word:
+    // "ntp" -> Notepad and "chrme" -> Google Chrome keep working, while
+    // letters scattered inside words ("tea" in No-te-p-a-d or Charac-te-r
+    // M-a-p) no longer match. Map each normalized position back to its
+    // original character to know where words begin; Normalize only drops
+    // whitespace, '_' and '-', so the walk mirrors it exactly.
+    std::vector<bool> wordStart;
+    wordStart.reserve(normalizedField.size());
     for (std::size_t i = 0;
-         i < normalizedField.size() &&
-         queryIndex <
-             normalizedQuery.size();
+         i < boundaryField.size() &&
+         wordStart.size() < normalizedField.size();
          ++i) {
+        const wchar_t ch = boundaryField[i];
+        if (std::iswspace(ch) || ch == L'_' || ch == L'-') {
+            continue;
+        }
+        wordStart.push_back(IsWordBoundary(boundaryField, i));
+    }
+    wordStart.resize(normalizedField.size(), false);
 
-        if (normalizedField[i] !=
-            normalizedQuery[queryIndex]) {
+    const bool threeLetters = normalizedQuery.size() == 3;
+    Match best{};
+
+    // Try every word start that begins with the query's first letter and
+    // keep the best acceptable subsequence from there.
+    for (std::size_t start = 0;
+         start < normalizedField.size();
+         ++start) {
+
+        if (!wordStart[start] ||
+            normalizedField[start] != normalizedQuery[0]) {
             continue;
         }
 
-        if (!havePrevious) {
-            first = i;
-            run = 1;
+        std::size_t queryIndex = 1;
+        int gaps = 0;
+        int run = 1;
+        int bestRun = 1;
+        std::size_t previous = start;
+
+        for (std::size_t i = start + 1;
+             i < normalizedField.size() &&
+             queryIndex < normalizedQuery.size();
+             ++i) {
+
+            if (normalizedField[i] !=
+                normalizedQuery[queryIndex]) {
+                continue;
+            }
+
+            if (i == previous + 1) {
+                ++run;
+            } else {
+                gaps += static_cast<int>(i - previous - 1);
+                run = 1;
+            }
+
+            bestRun = std::max(bestRun, run);
+            previous = i;
+            ++queryIndex;
+        }
+
+        if (queryIndex != normalizedQuery.size()) {
+            continue;
+        }
+
+        const int fuzzyScore =
+            430 +
+            bestRun * 18 -
+            gaps * 12;
+
+        if (threeLetters) {
+            const std::size_t span = previous - start + 1;
+            if (gaps > 2 ||
+                span > normalizedQuery.size() + 2 ||
+                fuzzyScore < 320) {
+                continue;
+            }
         } else if (
-            i == previous + 1) {
-            ++run;
-        } else {
-            gaps +=
-                static_cast<int>(
-                    i - previous - 1);
-            run = 1;
+            // Four or more characters: the subsequence must stay close to
+            // the typed text. At most one skipped field character per query
+            // character, and at least two consecutive hits, so "notpad" and
+            // "phtshp" still find Notepad and Photoshop while "code" does
+            // not thread through "Configuration Device Editor".
+            gaps > static_cast<int>(normalizedQuery.size()) ||
+            bestRun < 2 ||
+            fuzzyScore < 260) {
+            continue;
         }
 
-        bestRun =
-            std::max(bestRun, run);
-
-        previous = i;
-        havePrevious = true;
-        ++queryIndex;
-    }
-
-    if (queryIndex !=
-        normalizedQuery.size()) {
-        return {};
-    }
-
-    const int fuzzyScore =
-        430 +
-        bestRun * 18 -
-        gaps * 12;
-
-    if (normalizedQuery.size() == 3) {
-        const std::size_t span =
-            previous - first + 1;
-
-        if (gaps > 2 ||
-            span >
-                normalizedQuery.size() + 2 ||
-            fuzzyScore < 320) {
-            return {};
+        if (fuzzyScore > best.score) {
+            best = {
+                threeLetters
+                    ? MatchKind::TightFuzzy
+                    : MatchKind::Fuzzy,
+                MatchField::None,
+                fuzzyScore,
+                false,
+            };
         }
-
-        return {
-            MatchKind::TightFuzzy,
-            MatchField::None,
-            fuzzyScore,
-            false,
-        };
     }
 
-    if (fuzzyScore < 260) {
-        return {};
-    }
-
-    return {
-        MatchKind::Fuzzy,
-        MatchField::None,
-        fuzzyScore,
-        false,
-    };
+    return best;
 }
 
 [[nodiscard]] Match MatchPreparedInitials(
@@ -623,6 +671,19 @@ bool AdmitLaunchSurfaceNormalized(
 
     case LaunchSurfaceClass::DeveloperTool:
     case LaunchSurfaceClass::CommandLineTool:
+        // Developer tools come in families of near-identical variants
+        // ("x64 Native Tools Command Prompt for VS 2022", ...). Up to three
+        // ASCII characters they must match from the start of the name (or
+        // its initials); a later word needs four or more ("comm"), so "com"
+        // is not filled with every VS command prompt.
+        if (length <= 3 &&
+            IsAsciiQuery(normalizedQuery) &&
+            match.kind != MatchKind::Exact &&
+            match.kind != MatchKind::Prefix &&
+            match.kind != MatchKind::Initials &&
+            match.kind != MatchKind::Wildcard) {
+            return false;
+        }
         return length >= 2 &&
             (!requireStrongShortMatch ||
              StrongShortMatch(
@@ -765,6 +826,49 @@ int CompareRankContext(
     // when the typed query only loosely matches "Notepad".
     if (left.pinned != right.pinned) {
         return left.pinned ? 1 : -1;
+    }
+
+    // Among strong matches (exact, prefix, initials, word-start, pinyin;
+    // every other kind ranks below them by tier anyway), three per-result
+    // keys come before the plain match tier. Each key is computed from one
+    // result alone, so the ordering stays a strict weak ordering.
+    const bool leftStrong = StrongIntentMatch(left.match.kind);
+    const bool rightStrong = StrongIntentMatch(right.match.kind);
+    if (leftStrong && rightStrong) {
+        // 1. Something launchable beats a filesystem hit: "chrome" must
+        //    open Google Chrome, not a document named chrome.pdf.
+        const bool leftLaunchable =
+            left.surface != LaunchSurfaceClass::FilesystemItem;
+        const bool rightLaunchable =
+            right.surface != LaunchSurfaceClass::FilesystemItem;
+        if (leftLaunchable != rightLaunchable) {
+            return leftLaunchable ? 1 : -1;
+        }
+
+        // 2. A complete name/keyword stays ahead of any learned habit.
+        const bool leftExact = left.match.kind == MatchKind::Exact;
+        const bool rightExact = right.match.kind == MatchKind::Exact;
+        if (leftExact != rightExact) {
+            return leftExact ? 1 : -1;
+        }
+
+        // 3. Below exact, a repeated choice for this query (or a related
+        //    one) beats a merely stronger-looking text match.
+        if (!leftExact) {
+            const int leftHabit = HabitRank(left.usageScore);
+            const int rightHabit = HabitRank(right.usageScore);
+            if (leftHabit != rightHabit) {
+                return leftHabit > rightHabit ? 1 : -1;
+            }
+        }
+    }
+
+    // Empty query (no text match on either side): order by decayed usage,
+    // so a frequently used app is not pushed below a never-used shortcut.
+    if (left.match.kind == MatchKind::None &&
+        right.match.kind == MatchKind::None &&
+        left.usageScore != right.usageScore) {
+        return left.usageScore > right.usageScore ? 1 : -1;
     }
 
     const int leftMatch =

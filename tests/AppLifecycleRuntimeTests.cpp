@@ -516,18 +516,21 @@ struct AppLifecycleRuntimeFixture {
                         WPARAM parameter{};
                         LPARAM payload{};
                         switch (kind) {
-                        case 0: // matching continuation is consumed even after focus moved
-                        case 1: // stale token must not consume a newer intent
+                        case 0: // matching file rows resolve a waiting numbered launch
+                        case 1: { // stale rows must not resolve a newer intent
+                            window.searchGeneration_ = 210;
                             window.pendingNumericIntent_.active = true;
-                            window.pendingNumericIntent_.token = 42;
-                            message = App::kNumericProbeMessage;
-                            parameter = kind == 0 ? 42 : 41;
-                            payload = static_cast<LPARAM>(classic_behavior::ContinuationEvidence::Present);
+                            window.pendingNumericIntent_.probeRequired = true;
+                            DynamicQueryResponse response;
+                            response.generation = kind == 0 ? 210 : 209;
+                            app.dynamicQueryPending_ = std::move(response);
+                            message = App::kDynamicQueryMessage;
                             verify = [&] {
                                 assert(window.pendingNumericIntent_.active == (kind == 1));
                                 assert(app.detectedProviderIds_.empty()); // no AppsFolder ID collision
                             };
                             break;
+                        }
                         case 2:
                         case 3: {
                             window.searchGeneration_ = 200;

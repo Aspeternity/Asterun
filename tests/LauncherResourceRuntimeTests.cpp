@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 #include "core/EverythingProvider.hpp"
 #include "ui/LauncherWindow.hpp"
+#include "IsolatedDataDirectory.hpp"
 #include "NumericIntentRuntimeFixture.hpp"
 #include <windows.h>
 #include <imm.h>
@@ -493,6 +494,17 @@ struct LauncherResourceRuntimeFixture {
         // Observe the actual single-result execution decision without launching
         // anything: this synthetic result has no executable command index.
         settings.executeSingleResultImmediately = true;
+        // A weak (fuzzy) single match is never launched without Enter.
+        LauncherResult weak = first;
+        weak.relevanceMatch = {relevance::MatchKind::Fuzzy,
+                               relevance::MatchField::Title, 400, false};
+        window.staticResults_ = {weak};
+        window.immediateExecutionPending_ = true;
+        window.RebuildVisibleResults(true, false, false);
+        assert(window.immediateExecutionPending_);
+        // A clear name-prefix match is.
+        first.relevanceMatch = {relevance::MatchKind::Prefix,
+                                relevance::MatchField::Title, 860, false};
         window.staticResults_ = {first};
         window.immediateExecutionPending_ = true;
         SendMessageW(window.edit_, WM_IME_STARTCOMPOSITION, 0, 0);
@@ -683,10 +695,15 @@ struct LauncherResourceRuntimeFixture {
             ModernPrimaryResultText(
                 user) ==
             L"TeamSpeak 3 Client");
+        // Modern: each user keyword is its own tag after the name.
+        assert(
+            (ModernKeywordTags(
+                 user) ==
+             std::vector<std::wstring>{
+                 L"ts", L"teamspeak"}));
         assert(
             ModernSecondaryResultText(
-                user) ==
-            L"ts · teamspeak");
+                user).empty());
         assert(
             ClassicShortcutResultText(
                 user) ==
@@ -704,14 +721,34 @@ struct LauncherResourceRuntimeFixture {
         application.shortcutHint =
             L"internal · token";
 
+        // Modern provider rows show only their name: no tag and no repeated
+        // internal match key as secondary text.
         assert(
             ModernSecondaryResultText(
-                application) ==
-            L"TeamSpeak 3 Client");
+                application).empty());
+        assert(
+            ModernKeywordTags(
+                application).empty());
         assert(
             ClassicShortcutResultText(
                 application) ==
             L"TeamSpeak 3 Client");
+
+        // Files/folders keep their location as muted secondary text.
+        LauncherResult file;
+        file.kind =
+            ResultKind::File;
+        file.title =
+            L"report.pdf";
+        file.subtitle =
+            L"C:\\Docs";
+        assert(
+            ModernSecondaryResultText(
+                file) ==
+            L"C:\\Docs");
+        assert(
+            ModernKeywordTags(
+                file).empty());
 
         std::cout
             << "User shortcut hint presentation passed"
@@ -1001,7 +1038,8 @@ struct LauncherResourceRuntimeFixture {
         std::cout << "Show input/IME/selection/single-result/numeric/dynamic/usage regression passed" << std::endl;
     }
     static void Run(HINSTANCE instance) {
-        App app(instance);
+        const test::IsolatedDataDirectory data(L"launcher-resource-tests");
+        App app(instance, {}, {}, data.Path());
         auto& settings = const_cast<Settings&>(app.settingsStore_.Data());
         settings.showTrayIcon = false; settings.soundEnabled = false;
         settings.autoCheckUpdates = false;

@@ -31,6 +31,9 @@ public:
         int outcome);
     void OnDynamicProviderStatusChanged();
     void OnUpdateStatusChanged();
+    // Commit debounced provider switches now, without error dialogs. Call
+    // while App is still fully alive (e.g. right after the message loop).
+    void FlushPendingChanges();
 
 private:
     enum class Page {
@@ -185,7 +188,8 @@ private:
     void UpdatePageHeader();
 
     void RefreshProviderStatus();
-    void CommitPendingProviderChanges();
+    void CommitPendingProviderChanges(
+        bool reportErrors = true);
     void AcquireEverything();
     void RecheckEverything();
     void ToggleManagedEverythingTrayIcon();
@@ -213,6 +217,9 @@ private:
         HWND status{};
         bool resetVisible{false};
         bool statusVisible{false};
+        // Measured auxiliary height for the current status text and font;
+        // refreshed only when either changes, never on paint/mouse paths.
+        int statusHeight{0};
     };
 
     void RefreshHotkeyPage(
@@ -247,6 +254,9 @@ private:
         const HotkeyRowControls& row) const;
     [[nodiscard]] int
     HotkeyAuxiliaryHeight(
+        const HotkeyRowControls& row) const;
+    [[nodiscard]] int
+    MeasureHotkeyStatusHeight(
         const HotkeyRowControls& row) const;
     [[nodiscard]] int
     HotkeyRowHeight(
@@ -362,7 +372,6 @@ private:
     HWND brandName_{};
     HWND brandSubtitle_{};
     HWND pageTitle_{};
-    HWND pageDescription_{};
 
     HWND generalBehaviorTitle_{};
     HWND startWithWindows_{};
@@ -385,18 +394,13 @@ private:
 
     HWND placementSectionTitle_{};
     HWND popupMonitorLabel_{};
-    HWND popupMonitorDescription_{};
     HWND popupMonitor_{};
     HWND launcherPlacementLabel_{};
-    HWND launcherPlacementDescription_{};
     HWND launcherPlacement_{};
     HWND settingsPlacementLabel_{};
-    HWND settingsPlacementDescription_{};
     HWND settingsPlacement_{};
     HWND shortcutManagerPlacementLabel_{};
-    HWND shortcutManagerPlacementDescription_{};
     HWND shortcutManagerPlacement_{};
-    HWND generalNote_{};
 
     HWND appearanceLauncherTitle_{};
     HWND uiStyleLabel_{};
@@ -404,7 +408,6 @@ private:
     HWND appearanceAppTitle_{};
     HWND languageLabel_{};
     HWND language_{};
-    HWND appearanceNote_{};
 
     HWND providerSectionTitle_{};
     HWND providerFilesTitle_{};
@@ -418,7 +421,6 @@ private:
     HWND providerGetEverything_{};
     HWND providerUpdateEverything_{};
     HWND providerRecheckEverything_{};
-    HWND providerNote_{};
 
     HWND dataPathLabel_{};
     HWND dataPath_{};
@@ -461,6 +463,9 @@ private:
     int pageScrollDragAnchorY_{0};
     int pageScrollDragStartOffset_{0};
     std::string capturingHotkeyActionId_;
+    // True from the first key-down consumed by hotkey capture until every
+    // modifier is released, so the chord's key-ups/chars are swallowed too.
+    bool captureKeySequenceActive_{false};
     std::unordered_map<std::string, bool>
         pendingProviderStates_;
     bool providerCommitInProgress_{false};

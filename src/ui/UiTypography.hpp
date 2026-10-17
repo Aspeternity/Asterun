@@ -11,6 +11,7 @@ enum class UiFontRole {
     BodySemibold,
     SettingsNavigation,
     ShortcutBody,
+    ShortcutHint,
     SectionTitle,
     PageTitle,
     AppTitle,
@@ -38,6 +39,13 @@ LauncherFontSpec(
     UiStyle style,
     Language language,
     UiFontRole role) noexcept;
+
+// Adjust a negative (em) GDI height away from pixel sizes where the face's
+// TrueType hinting visibly shrinks individual Han glyphs.
+[[nodiscard]] int
+HintSafeFontHeight(
+    const wchar_t* face,
+    int height) noexcept;
 
 [[nodiscard]] HFONT
 CreateFontHandle(
