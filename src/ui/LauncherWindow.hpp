@@ -208,6 +208,9 @@ private:
     bool dynamicQueryPending_{false};
     bool immediateExecutionPending_{false};
     bool numericTextCommitInProgress_{false};
+    // The pending EN_CHANGE comes from Backspace/Delete/Cut/Clear: deleting
+    // down to one result must not launch it.
+    bool deletionEditPending_{false};
     bool modernBackdropAvailable_{false};
     std::uint64_t lastTextInputTick_{0};
     UINT consumedNumericVirtualKey_{0};
