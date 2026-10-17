@@ -60,6 +60,10 @@ struct LauncherResult {
     // ranking and execution continue to use Command keyword/aliases directly.
     std::wstring shortcutHint;
     std::wstring target;
+    // What the row actually launches (BuildCanonicalLaunchIdentity form,
+    // e.g. "file:d:\steam\steam.exe"), so a Start Menu .lnk and the .exe
+    // Everything finds for the same program dedupe. Empty when unknown.
+    std::wstring canonicalIdentity;
     std::wstring detail;
     int score{0};
     relevance::Match relevanceMatch;

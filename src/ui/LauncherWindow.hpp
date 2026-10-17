@@ -30,7 +30,6 @@ public:
     void RefreshResults(
         bool allowImmediateExecution = false,
         bool preserveSelection = true);
-    void ApplyNumericContinuation(std::uint64_t token, classic_behavior::ContinuationEvidence evidence);
     void ApplyDynamicResults(
         std::uint64_t generation,
         std::vector<LauncherResult> results);

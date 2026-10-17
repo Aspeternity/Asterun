@@ -7,6 +7,7 @@
 #include "../core/CommandTemplate.hpp"
 #include "../core/ShortcutEditorModel.hpp"
 #include "../core/HotkeyRegistry.hpp"
+#include "../core/LaunchCatalog.hpp"
 #include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
 #include "../core/RelevancePolicy.hpp"
@@ -17,6 +18,7 @@
 #include "../platform/AppIdentity.hpp"
 #include "../platform/Hotkey.hpp"
 #include "../platform/InstanceIpc.hpp"
+#include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/NotificationIdentity.hpp"
 #include "../platform/WinClipboard.hpp"
 #include "../platform/WinUtil.hpp"
@@ -250,6 +252,46 @@ PathEqualsInsensitive(
                static_cast<int>(
                    rightNormalized.size()),
                TRUE) == CSTR_EQUAL;
+}
+
+// Launch identity of a filesystem result, in the same form provider
+// commands carry: a shortcut's resolved target and arguments, an Internet
+// Shortcut's URL, otherwise the file itself.
+[[nodiscard]] std::wstring FileLaunchIdentity(
+    const std::wstring& path) {
+
+    if (path.empty()) {
+        return {};
+    }
+
+    const std::filesystem::path file(path);
+    const std::wstring extension =
+        win::Lower(file.extension().wstring());
+
+    if (extension == L".lnk") {
+        const auto shortcut = win::InspectShellLink(file);
+        if (!shortcut || shortcut->target.empty()) {
+            return {};
+        }
+        return BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(shortcut->target),
+            shortcut->target,
+            shortcut->arguments);
+    }
+
+    if (extension == L".url") {
+        const auto url = win::ReadInternetShortcutUrl(file);
+        if (!url) {
+            return {};
+        }
+        return BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(*url),
+            *url);
+    }
+
+    return BuildCanonicalLaunchIdentity(
+        LaunchActivationKind::ShellItem,
+        path);
 }
 
 } // namespace
@@ -876,6 +918,8 @@ std::vector<LauncherResult> App::Search(
         }
 
         result.target = command.target;
+        result.canonicalIdentity =
+            command.canonicalIdentity;
         result.detail =
             CommandDetail(command);
         result.score = match.score;
@@ -1032,15 +1076,6 @@ bool App::DynamicSearchEnabled()
             false);
 }
 
-void App::BeginNumericContinuationProbe(std::uint64_t token, std::wstring query) {
-    if (!DynamicSearchEnabled()) return; // The bounded UI deadline resolves unknown as text.
-    everythingProvider_->ProbeContinuation(token, std::move(query),
-        [this](std::uint64_t generation, classic_behavior::ContinuationEvidence evidence) {
-            PostUiNotification(kNumericProbeMessage,
-                static_cast<WPARAM>(generation), static_cast<LPARAM>(evidence));
-        });
-}
-
 void App::BeginDynamicSearch(
     std::uint64_t generation,
     std::wstring query,
@@ -1061,6 +1096,13 @@ void App::BeginDynamicSearch(
         std::move(request),
         [this](
             DynamicQueryResponse response) {
+            // Still on the query worker: resolve what each file launches
+            // (shortcut target, .url address, or the file itself) so the
+            // merge can drop files that are the same program as an app row.
+            for (auto& result : response.results) {
+                result.canonicalIdentity =
+                    FileLaunchIdentity(result.target);
+            }
             {
                 std::scoped_lock lock(
                     dynamicQueryMutex_);
@@ -2392,14 +2434,9 @@ void App::HandleEverythingBootstrapCompleted(
     }
 }
 
-bool App::HandleUiNotification(UINT message, WPARAM wParam, LPARAM lParam) {
+bool App::HandleUiNotification(UINT message, WPARAM wParam, LPARAM) {
     if (shuttingDown_) return false;
     switch (message) {
-    case kNumericProbeMessage:
-        if (window_) window_->ApplyNumericContinuation(
-            static_cast<std::uint64_t>(wParam),
-            static_cast<classic_behavior::ContinuationEvidence>(lParam));
-        return true;
     case kDynamicQueryMessage:
         HandleDynamicQueryCompleted();
         return true;
