@@ -17,6 +17,16 @@ namespace altrun {
 [[nodiscard]] int UnifiedRankScore(
     const LauncherResult& result) noexcept;
 
+// System and cache locations whose files only crowd out what the user is
+// looking for: the drive-root Windows folder, AppData caches (except
+// AppData\Local\Programs), the Recycle Bin, System Volume Information,
+// Package Cache, node_modules and .git. Not applied to queries with an
+// explicit path or Everything syntax (the user asked for that location).
+[[nodiscard]] bool IsNoiseFilesystemPath(
+    std::wstring_view fullPath);
+
+// Ranks a filesystem result for `query` and returns false when it should
+// not be shown (no admissible match, or a noise path for a plain query).
 [[nodiscard]] bool RankDynamicResultText(
     LauncherResult& result,
     std::wstring_view query);

@@ -31,6 +31,8 @@ struct EverythingQueryRequest {
     std::uint64_t generation{0};
     std::wstring query;
     std::uint32_t limit{32};
+    // Everything sort type (EVERYTHING_IPC_SORT_*); 1 = name ascending.
+    std::uint32_t sortType{1};
 };
 
 struct EverythingIpcItem {

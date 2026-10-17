@@ -75,8 +75,16 @@ LaunchAdmissionReasonName(
 IsDocumentationLikeTitle(
     std::wstring_view title);
 
+// Uninstall/installer/updater entries: never useful to launch, rejected.
 [[nodiscard]] bool
 IsMaintenanceLikeTitle(
+    std::wstring_view title);
+
+// Repair tools ("DirectX 修复工具", "... Repair"): may be a suite helper or
+// a standalone product, so they are admitted on a Maintenance surface and
+// role classification decides how visible they are.
+[[nodiscard]] bool
+IsRepairLikeTitle(
     std::wstring_view title);
 
 [[nodiscard]] bool

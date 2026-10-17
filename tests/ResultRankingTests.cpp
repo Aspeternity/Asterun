@@ -32,6 +32,40 @@ LauncherResult Result(
 } // namespace
 
 int main() {
+    // Four or more characters: a fuzzy subsequence must stay close to the
+    // typed text (at most one skipped character per query character, and a
+    // run of at least two), so typos still work but scattered letters don't.
+    {
+        using relevance::MatchKind;
+        assert(relevance::MatchText(L"Notepad", L"notpad").kind ==
+               MatchKind::Fuzzy);
+        assert(relevance::MatchText(L"Photoshop", L"phtshp").kind ==
+               MatchKind::Fuzzy);
+        assert(relevance::MatchText(L"Google Chrome", L"chrme").kind ==
+               MatchKind::Fuzzy);
+        assert(!relevance::MatchText(L"Configuration Device Editor", L"code"));
+        assert(!relevance::MatchText(L"Windows Media Player", L"wmpl"));
+        assert(!relevance::MatchText(L"Character Map", L"cmap"));
+        // Three characters keep their separate TightFuzzy rule.
+        assert(relevance::MatchText(L"Notepad", L"ntp").kind ==
+               MatchKind::TightFuzzy);
+
+        // Fuzzy matches must start at a word: "tea" scattered inside these
+        // names is noise; Steam still contains "tea" as a plain substring.
+        for (std::wstring_view noise : {L"Notepad++", L"Realtek Audio Console",
+                                        L"Character Map",
+                                        L"Computer Management"}) {
+            assert(!relevance::MatchText(noise, L"tea"));
+        }
+        assert(relevance::MatchText(L"Steam", L"tea").kind ==
+               MatchKind::Substring);
+        // A later word start is tried when the first letter also occurs
+        // earlier inside a word: "tea" skips the t in "Stub" and matches
+        // from "Tie".
+        assert(relevance::MatchText(L"Stub Tie App", L"tea").kind ==
+               MatchKind::TightFuzzy);
+    }
+
     // Learned acronym order must survive the unified result merge, and the
     // comparator must stay transitive across three candidates and ties.
     {
@@ -302,16 +336,20 @@ int main() {
         assert(BetterLauncherResult(exactProvider, user));
         assert(BetterLauncherResult(exactProvider, userNotepad));
 
-        // For equal matching classes, retain the user's shortcut preference
-        // independently of Provider usage or text-score differences.
+        // For equal matching classes the user's shortcut wins on its own,
+        // but a Provider entry repeatedly chosen for this query is the
+        // user's demonstrated preference and ranks first.
         LauncherResult userPrefix = user;
         userPrefix.relevanceMatch = {
             relevance::MatchKind::Prefix,
             relevance::MatchField::Keyword, 820, false
         };
-        providerTeamspeak.usageScore = 100000;
+        providerTeamspeak.usageScore = 0;
         assert(BetterLauncherResult(userPrefix, providerTeamspeak));
         assert(!BetterLauncherResult(providerTeamspeak, userPrefix));
+        providerTeamspeak.usageScore = 100000;
+        assert(BetterLauncherResult(providerTeamspeak, userPrefix));
+        assert(!BetterLauncherResult(userPrefix, providerTeamspeak));
 
         // The shared comparator must remain transitive across pinned,
         // user/Provider, different match kinds and usage levels.
@@ -320,15 +358,22 @@ int main() {
             for (bool isPinned : {false, true}) {
                 for (auto kind : {relevance::MatchKind::Exact,
                                   relevance::MatchKind::Prefix,
+                                  relevance::MatchKind::Initials,
                                   relevance::MatchKind::TightFuzzy}) {
-                    for (int use : {0, 32}) {
-                        LauncherResult candidate = isUser ? user : app;
-                        candidate.pinned = isPinned;
-                        candidate.relevanceMatch = {
-                            kind, relevance::MatchField::Title, 700, false
-                        };
-                        candidate.usageScore = use;
-                        mixed.push_back(candidate);
+                    for (int use : {0, 12, 32}) {
+                        for (bool isFile : {false, true}) {
+                            LauncherResult candidate = isUser ? user : app;
+                            candidate.pinned = isPinned;
+                            candidate.relevanceMatch = {
+                                kind, relevance::MatchField::Title, 700, false
+                            };
+                            candidate.usageScore = use;
+                            if (isFile) {
+                                candidate.surfaceClass =
+                                    LaunchSurfaceClass::FilesystemItem;
+                            }
+                            mixed.push_back(candidate);
+                        }
                     }
                 }
             }
@@ -354,17 +399,20 @@ int main() {
     familiar.usageScore = 0;
     assert(BetterLauncherResult(shorter, familiar));
 
+    // A demonstrated habit outweighs a better-looking non-exact text score,
+    // but never a weaker match kind or an exact name.
     familiar.usageScore = 100000;
     familiar.relevanceMatch.score = 820;
-    assert(BetterLauncherResult(shorter, familiar));
+    assert(BetterLauncherResult(familiar, shorter));
 
     familiar.relevanceMatch.kind = relevance::MatchKind::Substring;
     familiar.relevanceMatch.score = 950;
     assert(BetterLauncherResult(shorter, familiar));
 
+    LauncherResult exactName = shorter;
+    exactName.relevanceMatch.kind = relevance::MatchKind::Exact;
     familiar.relevanceMatch = shorter.relevanceMatch;
-    familiar.relevanceMatch.field = relevance::MatchField::Subtitle;
-    assert(BetterLauncherResult(shorter, familiar));
+    assert(BetterLauncherResult(exactName, familiar));
 
     assert(
         ProviderRankWeight(

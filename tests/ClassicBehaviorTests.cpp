@@ -1,4 +1,5 @@
 #include "core/ClassicBehavior.hpp"
+#include "core/RelevancePolicy.hpp"
 
 #include <cassert>
 #include <iostream>
@@ -74,6 +75,30 @@ int main() {
         NumericQuickLaunchDecision::
             Text);
 
+    // A URI target's tail is not a file name continuation.
+    {
+        Command game;
+        game.keyword = L"wuye";
+        game.title = L"午夜轮班";
+        game.target = L"steam://rungameid/3722330";
+        assert(!classic_behavior::HasStrongCommandContinuation(
+            std::vector<Command>{game}, L"3"));
+        Command netflix;
+        netflix.keyword = L"netflix";
+        netflix.title = L"Netflix";
+        netflix.target = L"4DF9E0F8.Netflix_mcm4njqhnhss8!Netflix.App";
+        assert(!classic_behavior::HasStrongCommandContinuation(
+            std::vector<Command>{netflix}, L"4"));
+        // A real file name still counts: 7-Zip keeps "7" as text.
+        Command zip;
+        zip.title = L"File Manager";
+        zip.target = L"C:\\Program Files\\7-Zip\\7zFM.exe";
+        assert(classic_behavior::HasStrongCommandContinuation(
+            std::vector<Command>{zip}, L"7"));
+    }
+
+    // Empty query: a bare digit is text (115, 4399, 7zip); Ctrl/Alt+digit
+    // launches from the numbered list.
     context.strongContinuation = false;
     context.queryEmpty = true;
     assert(
@@ -82,6 +107,14 @@ int main() {
                 context) ==
         NumericQuickLaunchDecision::
             Text);
+    context.controlDown = true;
+    assert(
+        classic_behavior::
+            DecideNumericQuickLaunch(
+                context) ==
+        NumericQuickLaunchDecision::
+            ExecuteNow);
+    context.controlDown = false;
 
     context.queryEmpty = false;
     context.controlDown = true;
@@ -217,10 +250,92 @@ int main() {
     assert(classic_behavior::DecideNumericQuickLaunch(context) == NumericQuickLaunchDecision::Text);
     assert(classic_behavior::StrongNameContinuation(L" V-2rayN", L"v2"));
     assert(!classic_behavior::StrongNameContinuation(L"noise-v2.txt", L"v2"));
+    // A file row's subtitle is its location, not its name.
+    result.kind = ResultKind::File;
     result.title = L"Other";
     result.subtitle = L"v2 storage";
     result.target = L"D:\\v2\\other.exe";
     assert(!classic_behavior::HasStrongResultContinuation(std::vector<LauncherResult>{result}, L"v2"));
+
+    // App rows: the digit continues a word inside the display name.
+    LauncherResult office;
+    office.kind = ResultKind::Application;
+    office.title = L"microsoftoffice365";
+    office.subtitle = L"Microsoft Office 365";
+    office.target = L"C:\\Office\\office.lnk";
+    assert(classic_behavior::HasStrongResultContinuation(
+        std::vector<LauncherResult>{office}, L"office3"));
+    assert(!classic_behavior::HasStrongResultContinuation(
+        std::vector<LauncherResult>{office}, L"office4"));
+    LauncherResult photoshop;
+    photoshop.title = L"adobephotoshop2024";
+    photoshop.subtitle = L"Adobe Photoshop 2024";
+    assert(classic_behavior::HasStrongResultContinuation(
+        std::vector<LauncherResult>{photoshop}, L"photoshop2"));
+
+    // A digit after a space, or while typing an argument for a web search /
+    // runtime-input action, is text; Ctrl/Alt+digit still launches.
+    {
+        classic_behavior::NumericQuickLaunchContext typing{};
+        typing.enabled = true;
+        typing.queryEmpty = false;
+        typing.resultAvailable = true;
+        assert(classic_behavior::DecideNumericQuickLaunch(typing) ==
+               NumericQuickLaunchDecision::DeferExecute);
+        typing.afterSeparator = true;
+        assert(classic_behavior::DecideNumericQuickLaunch(typing) ==
+               NumericQuickLaunchDecision::Text);
+        typing.afterSeparator = false;
+        typing.typingArgument = true;
+        assert(classic_behavior::DecideNumericQuickLaunch(typing) ==
+               NumericQuickLaunchDecision::Text);
+        typing.controlDown = true;
+        assert(classic_behavior::DecideNumericQuickLaunch(typing) ==
+               NumericQuickLaunchDecision::ExecuteNow);
+    }
+
+    LauncherResult web;
+    web.providerId = "builtin.web";
+    web.id = L"builtin.web:search:g";
+    assert(classic_behavior::ConsumesTypedText(web));
+    LauncherResult runtime;
+    runtime.id = L"runtime.input:user-1";
+    runtime.providerId = "user.commands";
+    assert(classic_behavior::ConsumesTypedText(runtime));
+    assert(!classic_behavior::ConsumesTypedText(office));
+
+    // Single-result auto execution: only clear matches, never actions that
+    // are built from the text still being typed.
+    {
+        using classic_behavior::SingleResultAutoExecutable;
+        LauncherResult app = office;
+        for (auto kind : {relevance::MatchKind::Exact,
+                          relevance::MatchKind::Prefix,
+                          relevance::MatchKind::Initials,
+                          relevance::MatchKind::BoundaryPrefix,
+                          relevance::MatchKind::HybridPinyin}) {
+            app.relevanceMatch.kind = kind;
+            app.relevanceMatch.score = 800;
+            assert(SingleResultAutoExecutable(app));
+        }
+        for (auto kind : {relevance::MatchKind::Substring,
+                          relevance::MatchKind::TightFuzzy,
+                          relevance::MatchKind::Fuzzy,
+                          relevance::MatchKind::Wildcard,
+                          relevance::MatchKind::None}) {
+            app.relevanceMatch.kind = kind;
+            assert(!SingleResultAutoExecutable(app));
+        }
+
+        LauncherResult openUrl = web;
+        openUrl.relevanceMatch = {relevance::MatchKind::Exact,
+                                  relevance::MatchField::Target, 1200, false};
+        assert(!SingleResultAutoExecutable(openUrl));
+        LauncherResult argument = runtime;
+        argument.relevanceMatch = {relevance::MatchKind::Exact,
+                                   relevance::MatchField::Keyword, 1320, false};
+        assert(!SingleResultAutoExecutable(argument));
+    }
     assert(classic_behavior::BuildFilenameContinuationQuery(L"v2") == LR"(nopath:regex:"^[\s_-]*v[\s_-]*2")");
     assert(classic_behavior::BuildFilenameContinuationQuery(L"c++2").find(L"c[\\s_-]*\\+") != std::wstring::npos);
     assert(classic_behavior::BuildFilenameContinuationQuery(L"ext:exe").empty());

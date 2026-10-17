@@ -7,6 +7,7 @@
 #include "../core/CommandTemplate.hpp"
 #include "../core/ShortcutEditorModel.hpp"
 #include "../core/HotkeyRegistry.hpp"
+#include "../core/LaunchCatalog.hpp"
 #include "../core/LauncherActionPolicy.hpp"
 #include "../core/ProviderIds.hpp"
 #include "../core/RelevancePolicy.hpp"
@@ -17,6 +18,7 @@
 #include "../platform/AppIdentity.hpp"
 #include "../platform/Hotkey.hpp"
 #include "../platform/InstanceIpc.hpp"
+#include "../platform/LaunchTargetInspector.hpp"
 #include "../platform/NotificationIdentity.hpp"
 #include "../platform/WinClipboard.hpp"
 #include "../platform/WinUtil.hpp"
@@ -252,16 +254,62 @@ PathEqualsInsensitive(
                TRUE) == CSTR_EQUAL;
 }
 
+// Launch identity of a filesystem result, in the same form provider
+// commands carry: a shortcut's resolved target and arguments, an Internet
+// Shortcut's URL, otherwise the file itself.
+[[nodiscard]] std::wstring FileLaunchIdentity(
+    const std::wstring& path) {
+
+    if (path.empty()) {
+        return {};
+    }
+
+    const std::filesystem::path file(path);
+    const std::wstring extension =
+        win::Lower(file.extension().wstring());
+
+    if (extension == L".lnk") {
+        const auto shortcut = win::InspectShellLink(file);
+        if (!shortcut || shortcut->target.empty()) {
+            return {};
+        }
+        return BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(shortcut->target),
+            shortcut->target,
+            shortcut->arguments);
+    }
+
+    if (extension == L".url") {
+        const auto url = win::ReadInternetShortcutUrl(file);
+        if (!url) {
+            return {};
+        }
+        return BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(*url),
+            *url);
+    }
+
+    return BuildCanonicalLaunchIdentity(
+        LaunchActivationKind::ShellItem,
+        path);
+}
+
 } // namespace
 
 App::App(
     HINSTANCE instance,
     std::wstring startupHealthEvent,
     std::vector<std::wstring>
-        startupShortcutPaths)
+        startupShortcutPaths,
+    std::filesystem::path
+        dataDirectoryOverride)
     : instance_(instance),
       baseDirectory_(win::ExecutableDirectory()),
-      dataDirectory_(baseDirectory_ / "data"),
+      dataDirectory_(
+          dataDirectoryOverride.empty()
+              ? baseDirectory_ / "data"
+              : std::move(
+                    dataDirectoryOverride)),
       commandStore_(baseDirectory_, dataDirectory_),
       usageStore_(
           dataDirectory_ / "usage.json",
@@ -657,6 +705,12 @@ int App::Run() {
         DispatchMessageW(&msg);
     }
 
+    // Settings debounces provider switches for a moment; persist a switch
+    // flipped just before exit while App and its workers are still alive.
+    if (settingsWindow_) {
+        settingsWindow_->FlushPendingChanges();
+    }
+
     if (packagedChangeNotifyId != 0) {
         SHChangeNotifyDeregister(
             packagedChangeNotifyId);
@@ -711,6 +765,26 @@ bool App::HasStaticQueryContinuation(
         HasStrongCommandContinuation(
             commandStore_.Commands(),
             query);
+}
+
+void App::ApplyFileUsage(
+    std::vector<LauncherResult>& results,
+    std::wstring_view query) const {
+
+    // Explicit paths and Everything syntax are not habits (as for apps).
+    if (query.empty() || relevance::HasExplicitSyntax(query)) {
+        return;
+    }
+
+    const std::wstring normalized = relevance::Normalize(query);
+    const auto& usage = usageStore_.Data();
+    for (auto& result : results) {
+        const auto found = usage.find(result.id);
+        if (found != usage.end()) {
+            result.usageScore =
+                SearchEngine::IntentUsageScore(&found->second, normalized);
+        }
+    }
 }
 
 void App::ReleaseStaleSearchCaches() const {
@@ -864,6 +938,8 @@ std::vector<LauncherResult> App::Search(
         }
 
         result.target = command.target;
+        result.canonicalIdentity =
+            command.canonicalIdentity;
         result.detail =
             CommandDetail(command);
         result.score = match.score;
@@ -1020,15 +1096,6 @@ bool App::DynamicSearchEnabled()
             false);
 }
 
-void App::BeginNumericContinuationProbe(std::uint64_t token, std::wstring query) {
-    if (!DynamicSearchEnabled()) return; // The bounded UI deadline resolves unknown as text.
-    everythingProvider_->ProbeContinuation(token, std::move(query),
-        [this](std::uint64_t generation, classic_behavior::ContinuationEvidence evidence) {
-            PostUiNotification(kNumericProbeMessage,
-                static_cast<WPARAM>(generation), static_cast<LPARAM>(evidence));
-        });
-}
-
 void App::BeginDynamicSearch(
     std::uint64_t generation,
     std::wstring query,
@@ -1049,6 +1116,13 @@ void App::BeginDynamicSearch(
         std::move(request),
         [this](
             DynamicQueryResponse response) {
+            // Still on the query worker: resolve what each file launches
+            // (shortcut target, .url address, or the file itself) so the
+            // merge can drop files that are the same program as an app row.
+            for (auto& result : response.results) {
+                result.canonicalIdentity =
+                    FileLaunchIdentity(result.target);
+            }
             {
                 std::scoped_lock lock(
                     dynamicQueryMutex_);
@@ -2380,14 +2454,9 @@ void App::HandleEverythingBootstrapCompleted(
     }
 }
 
-bool App::HandleUiNotification(UINT message, WPARAM wParam, LPARAM lParam) {
+bool App::HandleUiNotification(UINT message, WPARAM wParam, LPARAM) {
     if (shuttingDown_) return false;
     switch (message) {
-    case kNumericProbeMessage:
-        if (window_) window_->ApplyNumericContinuation(
-            static_cast<std::uint64_t>(wParam),
-            static_cast<classic_behavior::ContinuationEvidence>(lParam));
-        return true;
     case kDynamicQueryMessage:
         HandleDynamicQueryCompleted();
         return true;
@@ -3002,8 +3071,8 @@ bool App::RestoreDefaultSettings() {
     StartProviderRefresh();
 
     if (settingsWindow_) {
+        // ApplyLanguage also runs RefreshFromSettings.
         settingsWindow_->ApplyLanguage();
-        settingsWindow_->RefreshFromSettings();
     }
 
     return true;
@@ -4957,6 +5026,14 @@ bool App::ExecuteResult(
             if (!source.id.empty()) {
                 usageStore_.Record(source.id, query);
             }
+        } else if (
+            result.providerId ==
+                providers::kEverythingFilesystem &&
+            !result.id.empty() &&
+            (action.kind == LauncherActionKind::OpenFile ||
+             action.kind == LauncherActionKind::OpenFolder)) {
+            // Files and folders learn the same per-query habit as apps.
+            usageStore_.Record(result.id, query);
         }
         return true;
     }

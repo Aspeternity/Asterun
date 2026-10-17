@@ -45,7 +45,20 @@ struct NumericQuickLaunchContext {
     bool strongContinuation{false};
     bool resultAvailable{false};
     bool editingText{false};
+    // The query ends with whitespace: the user is starting another word
+    // ("photoshop 2024", "g iphone 15"), so a bare digit is text.
+    bool afterSeparator{false};
+    // The visible results include an action that consumes the typed text
+    // (web search/URL, copy text, shortcut runtime input): digits belong to
+    // that argument.
+    bool typingArgument{false};
 };
+
+// Results whose action is built from the text being typed: built-in web
+// search/URL and copy-text actions, and user shortcuts receiving runtime
+// input. They are not a stable target while the user is still typing.
+[[nodiscard]] bool ConsumesTypedText(
+    const LauncherResult& result) noexcept;
 
 [[nodiscard]] int QuickLaunchIndexForDigit(
     int digit,
@@ -64,13 +77,20 @@ HasStrongCommandContinuation(
 [[nodiscard]] bool
 HasStrongResultContinuation(
     std::span<const LauncherResult> results,
-    std::wstring_view query) noexcept;
+    std::wstring_view query);
 
 [[nodiscard]] int WrappedSelectionIndex(
     int current,
     int delta,
     std::size_t count,
     bool wrap) noexcept;
+
+// Whether the one remaining result may be launched without Enter: it must
+// be a clear match (exact, name/word start, initials, pinyin) and not an
+// action built from text the user is still typing (web search, URL, copy
+// text, shortcut runtime input).
+[[nodiscard]] bool SingleResultAutoExecutable(
+    const LauncherResult& result) noexcept;
 
 [[nodiscard]] bool ShouldExecuteSingleResult(
     bool allowImmediateExecution,

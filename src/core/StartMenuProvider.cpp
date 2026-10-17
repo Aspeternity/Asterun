@@ -492,6 +492,20 @@ void StartMenuProvider::ScanPath(
             inspection.role.distinctiveTokens;
         command.basePriority = 0;
 
+        // System tools are often launched by program name (msconfig,
+        // taskschd, regedit). Index that name as an alias.
+        if (command.surfaceClass ==
+            LaunchSurfaceClass::SystemUtility) {
+            const std::wstring alias =
+                SystemToolAlias(
+                    command.title,
+                    inspection.resolvedTarget,
+                    inspection.arguments);
+            if (!alias.empty()) {
+                command.aliases.push_back(alias);
+            }
+        }
+
         if (command.keyword.empty()) {
             command.keyword =
                 win::Lower(

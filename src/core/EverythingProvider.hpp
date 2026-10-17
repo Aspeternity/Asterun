@@ -29,15 +29,12 @@ public:
         DynamicQueryRequest request,
         Completion completion) override;
 
-    using ProbeCompletion = std::function<void(std::uint64_t, classic_behavior::ContinuationEvidence)>;
-    void ProbeContinuation(std::uint64_t generation, std::wstring query, ProbeCompletion completion);
 
 private:
-    void QueryBroad(DynamicQueryRequest request, Completion completion,
-                    std::vector<LauncherResult> prefixes = {});
+    // Broad query and name-prefix pass run concurrently on separate clients
+    // (each client keeps one query in flight).
     EverythingIpcClient client_;
-    // Separate generation/queue: a hidden probe cannot cancel the visible query.
-    EverythingIpcClient probeClient_;
+    EverythingIpcClient prefixClient_;
 };
 
 } // namespace altrun

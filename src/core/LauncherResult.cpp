@@ -53,6 +53,14 @@ std::wstring FormatUserShortcutHint(
 bool SameLauncherTarget(
     const LauncherResult& left,
     const LauncherResult& right) {
+    if (!left.canonicalIdentity.empty() &&
+        !right.canonicalIdentity.empty() &&
+        EqualInsensitive(
+            left.canonicalIdentity,
+            right.canonicalIdentity)) {
+        return true;
+    }
+
     return !left.target.empty() &&
         !right.target.empty() &&
         EqualInsensitive(

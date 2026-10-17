@@ -59,6 +59,108 @@ int main() {
             L"ts · teamspeak");
     }
 
+    // A file that launches the same program as an app row is dropped: the
+    // Start Menu .lnk and the Steam.exe Everything finds share a launch
+    // identity even though their paths differ.
+    {
+        auto app = MakeResult(
+            L"start:steam",
+            std::string(providers::kStartMenu),
+            ResultKind::Application,
+            L"Steam",
+            L"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Steam\\Steam.lnk",
+            880);
+        app.canonicalIdentity = L"file:d:\\steam\\steam.exe";
+        auto exe = MakeResult(
+            L"everything.filesystem:D:\\Steam\\Steam.exe",
+            "everything.filesystem",
+            ResultKind::File,
+            L"Steam.exe",
+            L"D:\\Steam\\Steam.exe",
+            1000);
+        exe.canonicalIdentity = L"file:D:\\Steam\\steam.exe";
+        auto other = MakeResult(
+            L"everything.filesystem:D:\\Steam\\steamapps",
+            "everything.filesystem",
+            ResultKind::Folder,
+            L"steamapps",
+            L"D:\\Steam\\steamapps",
+            700);
+        other.canonicalIdentity = L"file:d:\\steam\\steamapps";
+
+        const std::vector<LauncherResult> statics{app};
+        const std::vector<LauncherResult> dynamics{exe, other};
+        const auto merged =
+            MergeLauncherResultsRanked(statics, dynamics, 10);
+        assert(merged.size() == 2);
+        assert(std::none_of(merged.begin(), merged.end(),
+            [](const LauncherResult& r) { return r.title == L"Steam.exe"; }));
+        assert(SameLauncherTarget(app, exe));
+        assert(!SameLauncherTarget(app, other));
+    }
+
+    // Noise locations are not offered for plain queries, but an explicit
+    // path still reaches them.
+    assert(IsNoiseFilesystemPath(L"C:\\Windows\\System32\\notepad.exe"));
+    assert(IsNoiseFilesystemPath(L"D:\\Windows"));
+    assert(IsNoiseFilesystemPath(L"C:\\Users\\Asp\\AppData\\Local\\Temp\\a.log"));
+    assert(IsNoiseFilesystemPath(L"C:\\Users\\Asp\\AppData\\LocalLow\\x.dat"));
+    assert(IsNoiseFilesystemPath(L"D:\\proj\\node_modules\\pkg\\index.js"));
+    assert(IsNoiseFilesystemPath(L"D:\\proj\\.git\\HEAD"));
+    assert(IsNoiseFilesystemPath(L"C:\\$Recycle.Bin\\S-1-5\\$R1.txt"));
+    assert(!IsNoiseFilesystemPath(
+        L"C:\\Users\\Asp\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"));
+    assert(!IsNoiseFilesystemPath(L"D:\\Docs\\windows notes.txt"));
+    assert(!IsNoiseFilesystemPath(L"D:\\Games\\MyWindows\\game.exe"));
+    {
+        auto noisy = MakeResult(L"noise", "everything.filesystem",
+            ResultKind::File, L"notepad.exe",
+            L"C:\\Windows\\System32\\notepad.exe", 0);
+        noisy.subtitle = L"C:\\Windows\\System32";
+        assert(!RankDynamicResultText(noisy, L"notepad"));
+        assert(RankDynamicResultText(noisy, L"C:\\Windows\\notepad"));
+    }
+
+    // A launchable app matched on a word start ranks ahead of a file whose
+    // name matches the query exactly ("chrome" -> Google Chrome, not
+    // chrome.pdf); a weak app match does not.
+    {
+        auto app = MakeResult(
+            L"chrome",
+            std::string(providers::kStartMenu),
+            ResultKind::Application,
+            L"Google Chrome",
+            L"C:\\Apps\\chrome.exe",
+            753);
+        app.surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+        app.relevanceMatch = {
+            relevance::MatchKind::BoundaryPrefix,
+            relevance::MatchField::Title,
+            753,
+            false};
+
+        auto file = MakeResult(
+            L"C:\\Docs\\chrome.pdf",
+            "everything",
+            ResultKind::File,
+            L"chrome.pdf",
+            L"C:\\Docs\\chrome.pdf",
+            1000);
+        file.surfaceClass = LaunchSurfaceClass::FilesystemItem;
+        file.relevanceMatch = {
+            relevance::MatchKind::Exact,
+            relevance::MatchField::FileStem,
+            1000,
+            false};
+
+        assert(BetterLauncherResult(app, file));
+        assert(!BetterLauncherResult(file, app));
+
+        app.relevanceMatch.kind = relevance::MatchKind::Fuzzy;
+        app.relevanceMatch.score = 400;
+        assert(BetterLauncherResult(file, app));
+    }
+
     const std::vector<LauncherResult>
         staticResults{
             MakeResult(

@@ -1,4 +1,6 @@
 #include "ClassicBehavior.hpp"
+#include "LaunchCatalog.hpp"
+#include "ProviderIds.hpp"
 #include "RelevancePolicy.hpp"
 
 #include <algorithm>
@@ -75,6 +77,14 @@ NormalizedStartsWith(
 BasenameView(
     std::wstring_view path) noexcept {
 
+    // URI and packaged-app targets are not file names: the tail of
+    // steam://rungameid/3722330 or the AUMID 4DF9E0F8.Netflix_...!Netflix
+    // must not make "3" or "4" look like the start of a name.
+    if (path.find(L"://") != std::wstring_view::npos ||
+        IsPackagedApplicationId(path)) {
+        return {};
+    }
+
     const std::size_t separator =
         path.find_last_of(L"\\/");
 
@@ -114,10 +124,31 @@ CommandContinues(
     return false;
 }
 
+// The query plus the pressed digit still names this visible result from the
+// start of a word, as search itself would match it: "office" + "3" continues
+// "Microsoft Office 365", "photoshop" + "2" continues "Photoshop 2024".
+[[nodiscard]] bool
+WordStartContinues(
+    std::wstring_view field,
+    std::wstring_view query) {
+
+    const auto kind =
+        relevance::MatchText(field, query).kind;
+    return kind == relevance::MatchKind::Exact ||
+        kind == relevance::MatchKind::Prefix ||
+        kind == relevance::MatchKind::BoundaryPrefix;
+}
+
 [[nodiscard]] bool
 ResultContinues(
     const LauncherResult& result,
-    std::wstring_view query) noexcept {
+    std::wstring_view query) {
+
+    // Launcher rows carry the display name in subtitle (title is the
+    // keyword); file and folder rows carry their location there instead.
+    const bool subtitleIsName =
+        result.kind != ResultKind::File &&
+        result.kind != ResultKind::Folder;
 
     return NormalizedStartsWith(
                result.title,
@@ -125,7 +156,14 @@ ResultContinues(
         NormalizedStartsWith(
             BasenameView(
                 result.target),
-            query);
+            query) ||
+        WordStartContinues(
+            result.title,
+            query) ||
+        (subtitleIsName &&
+         WordStartContinues(
+             result.subtitle,
+             query));
 }
 
 } // namespace
@@ -162,6 +200,13 @@ PendingNumericDecision ResolvePendingNumericIntent(
     if (probeRequired && evidence == ContinuationEvidence::Unknown)
         return elapsedMs >= kNumericProbeBudgetMs ? PendingNumericDecision::Text : PendingNumericDecision::Wait;
     return elapsedMs >= kNumericIntentGraceMs ? PendingNumericDecision::Execute : PendingNumericDecision::Wait;
+}
+
+bool ConsumesTypedText(
+    const LauncherResult& result) noexcept {
+    return result.providerId == providers::kBuiltinWeb ||
+        result.providerId == providers::kBuiltinClipboard ||
+        std::wstring_view(result.id).starts_with(L"runtime.input:");
 }
 
 int QuickLaunchIndexForDigit(
@@ -210,6 +255,8 @@ DecideNumericQuickLaunch(
     // as 7zip, 1Password, 115 and year/version searches. Power users can use
     // Ctrl/Alt+digit when they explicitly want a numbered launch from empty.
     if (context.editingText ||
+        context.afterSeparator ||
+        context.typingArgument ||
         context.queryEmpty ||
         !context.resultAvailable ||
         context.recentTextInput ||
@@ -244,7 +291,7 @@ bool HasStrongCommandContinuation(
 
 bool HasStrongResultContinuation(
     std::span<const LauncherResult> results,
-    std::wstring_view query) noexcept {
+    std::wstring_view query) {
 
     if (query.empty()) {
         return false;
@@ -301,6 +348,25 @@ int WrappedSelectionIndex(
     }
 
     return next;
+}
+
+bool SingleResultAutoExecutable(
+    const LauncherResult& result) noexcept {
+
+    if (ConsumesTypedText(result)) {
+        return false;
+    }
+
+    switch (result.relevanceMatch.kind) {
+    case relevance::MatchKind::Exact:
+    case relevance::MatchKind::Prefix:
+    case relevance::MatchKind::Initials:
+    case relevance::MatchKind::BoundaryPrefix:
+    case relevance::MatchKind::HybridPinyin:
+        return true;
+    default:
+        return false;
+    }
 }
 
 bool ShouldExecuteSingleResult(

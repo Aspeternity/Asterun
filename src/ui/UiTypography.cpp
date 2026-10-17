@@ -66,9 +66,8 @@ int CALLBACK MarkInstalledFont(
     Language language) noexcept {
     if (language != Language::ZhCN) return L"Segoe UI";
 
-    // Preserve the accepted right-pane/editor appearance independently of
-    // the navigation's UI face. Changing this priority is a separate
-    // product-appearance decision, not an incidental cleanup.
+    // Preserve the accepted Settings right-pane family separately from
+    // compact Shortcut form/UI typography and navigation.
     static const wchar_t* const face = ResolveInstalledFace(
         {L"Microsoft YaHei", L"Microsoft YaHei UI"},
         L"Microsoft YaHei UI", L"Segoe UI");
@@ -82,8 +81,12 @@ ApplicationPointSize(
 
     switch (role) {
     case UiFontRole::SettingsNavigation:
-    case UiFontRole::ShortcutBody:
         return language == Language::ZhCN ? 11 : 10;
+    case UiFontRole::ShortcutHint:
+        return 9;
+    case UiFontRole::ShortcutBody:
+        // Only shortcut editor/manager use this compact CJK UI face.
+        return 10;
     case UiFontRole::SectionTitle:
         return 11;
     case UiFontRole::PageTitle:
@@ -117,20 +120,52 @@ RoleWeight(
     case UiFontRole::Body:
     case UiFontRole::SettingsNavigation:
     case UiFontRole::ShortcutBody:
+    case UiFontRole::ShortcutHint:
     case UiFontRole::LauncherAuxiliary:
     default:
         return FW_NORMAL;
     }
 }
 
+[[nodiscard]] bool IsYaHeiFace(const wchar_t* face) noexcept {
+    return face &&
+        (lstrcmpiW(face, L"Microsoft YaHei") == 0 ||
+         lstrcmpiW(face, L"Microsoft YaHei UI") == 0);
+}
+
 } // namespace
+
+int HintSafeFontHeight(
+    const wchar_t* face,
+    int height) noexcept {
+
+    if (height >= 0 || !IsYaHeiFace(face)) {
+        return height;
+    }
+
+    // Under GDI hinting, YaHei renders e.g. 索/级/号/存 2-3px shorter than
+    // their neighbours at these em sizes (20px is 10pt at 150% DPI). Move
+    // to the nearest size that keeps glyph heights uniform.
+    switch (-height) {
+    case 16:
+        return -15;
+    case 20:
+        return -19;
+    case 21:
+        return -22;
+    default:
+        return height;
+    }
+}
 
 UiFontSpec ApplicationFontSpec(
     Language language,
     UiFontRole role) noexcept {
 
     return {
-        role == UiFontRole::SettingsNavigation &&
+        (role == UiFontRole::SettingsNavigation ||
+         role == UiFontRole::ShortcutBody ||
+         role == UiFontRole::ShortcutHint) &&
                 language == Language::ZhCN
             ? PreferredChineseUiFace()
             : ApplicationFace(language),
@@ -202,7 +237,8 @@ HFONT CreateFontHandle(
         dpi = 96;
     }
 
-    const int height =
+    const int height = HintSafeFontHeight(
+        spec.face,
         spec.logicalHeight96 != 0
             ? MulDiv(
                   spec.logicalHeight96,
@@ -211,7 +247,7 @@ HFONT CreateFontHandle(
             : -MulDiv(
                   spec.pointSize,
                   static_cast<int>(dpi),
-                  72);
+                  72));
 
     return CreateFontW(
         height,

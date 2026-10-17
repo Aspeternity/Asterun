@@ -84,6 +84,30 @@ DerivedUserCanonicalIdentity(
             shortcut->arguments);
     }
 
+    if (extension == L".url") {
+        // An Internet Shortcut launches its URL (for example a Steam game's
+        // steam://rungameid/N), which is exactly what the AppsFolder entry
+        // for that game activates. Use the URL as the launch identity so a
+        // user shortcut and the discovered app dedupe; outer arguments make
+        // it a different action, as for .lnk above.
+        if (!command.arguments.empty()) {
+            return {};
+        }
+
+        const auto url =
+            win::ReadInternetShortcutUrl(
+                path);
+
+        if (!url) {
+            return {};
+        }
+
+        return BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(
+                *url),
+            *url);
+    }
+
     return BuildCanonicalLaunchIdentity(
         ActivationKindForCatalogTarget(
             target),

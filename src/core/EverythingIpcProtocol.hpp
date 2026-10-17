@@ -17,6 +17,8 @@ inline constexpr std::uint32_t kRequestFullPathAndName = 0x00000004;
 inline constexpr std::uint32_t kDefaultRequestFlags =
     kRequestName | kRequestPath | kRequestFullPathAndName;
 inline constexpr std::uint32_t kSortNameAscending = 1;
+// EVERYTHING_IPC_SORT_DATE_MODIFIED_DESCENDING: newest first.
+inline constexpr std::uint32_t kSortDateModifiedDescending = 14;
 inline constexpr std::uint32_t kItemFolder = 0x00000001;
 inline constexpr std::uint32_t kItemDriveOrRoot = 0x00000002;
 

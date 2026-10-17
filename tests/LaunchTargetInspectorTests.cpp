@@ -319,6 +319,36 @@ int wmain() {
             .filename() ==
         doc.filename());
 
+    // A Steam game's Internet Shortcut resolves to the same launch identity
+    // as the AppsFolder entry for that game (shell:steam:\\rungameid\N), so
+    // a user's desktop .url and the discovered app can dedupe.
+    const auto gameUrl =
+        root /
+        "Night Shift.url";
+    {
+        std::ofstream output(
+            gameUrl,
+            std::ios::binary);
+        output << "[{000214A0-0000-0000-C000-000000000046}]\r\n"
+                  "Prop3=19,0\r\n"
+                  "[InternetShortcut]\r\n"
+                  "IDList=\r\n"
+                  "IconIndex=0\r\n"
+                  "URL=steam://rungameid/3722330\r\n";
+    }
+    const auto url =
+        win::ReadInternetShortcutUrl(
+            gameUrl);
+    assert(url.has_value());
+    assert(*url == L"steam://rungameid/3722330");
+    // Same string the packaged provider caches for the Steam game.
+    assert(
+        BuildCanonicalLaunchIdentity(
+            ActivationKindForCatalogTarget(*url),
+            *url) ==
+        L"shell:steam:\\\\rungameid\\3722330");
+    assert(!win::ReadInternetShortcutUrl(doc).has_value());
+
     std::filesystem::remove_all(
         root,
         ec);

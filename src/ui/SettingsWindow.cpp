@@ -427,6 +427,7 @@ ResetWindowInstanceState() {
     generalScrollOffset_ = 0;
     hotkeyScrollOffset_ = 0;
     capturingHotkeyActionId_.clear();
+    captureKeySequenceActive_ = false;
     pendingProviderStates_.clear();
     providerCommitInProgress_ = false;
     providerTrayVisible_ = false;
@@ -617,9 +618,8 @@ bool SettingsWindow::Create() {
     cardBrush_ = CreateSolidBrush(kCardBackground);
 
     CreateControls();
-    ApplyFonts();
+    // ApplyLanguage builds the fonts and runs RefreshFromSettings itself.
     ApplyLanguage();
-    RefreshFromSettings();
     ShowPage(Page::General);
     Layout();
 
@@ -731,10 +731,6 @@ void SettingsWindow::CreateControls() {
         CreateStatic(
             L"",
             SS_LEFT | SS_NOPREFIX);
-    pageDescription_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
 
     CreateGeneralPage();
     CreateHotkeyPage();
@@ -771,7 +767,6 @@ void SettingsWindow::CreateGeneralPage() {
 
     placementSectionTitle_ = CreateStatic(L"");
     popupMonitorLabel_ = CreateStatic(L"");
-    popupMonitorDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
     popupMonitor_ =
         ui::CreateNextComboBox(
             hwnd_,
@@ -780,7 +775,6 @@ void SettingsWindow::CreateGeneralPage() {
             kCardBackground);
 
     launcherPlacementLabel_ = CreateStatic(L"");
-    launcherPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
     launcherPlacement_ =
         ui::CreateNextComboBox(
             hwnd_,
@@ -789,7 +783,6 @@ void SettingsWindow::CreateGeneralPage() {
             kCardBackground);
 
     settingsPlacementLabel_ = CreateStatic(L"");
-    settingsPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
     settingsPlacement_ =
         ui::CreateNextComboBox(
             hwnd_,
@@ -798,15 +791,12 @@ void SettingsWindow::CreateGeneralPage() {
             kCardBackground);
 
     shortcutManagerPlacementLabel_ = CreateStatic(L"");
-    shortcutManagerPlacementDescription_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
     shortcutManagerPlacement_ =
         ui::CreateNextComboBox(
             hwnd_,
             instance_,
             kIdShortcutManagerPlacement,
             kCardBackground);
-
-    generalNote_ = CreateStatic(L"", SS_LEFT | SS_NOPREFIX);
 
     generalControls_ = {
         generalBehaviorTitle_, startWithWindows_,
@@ -815,11 +805,10 @@ void SettingsWindow::CreateGeneralPage() {
         searchBehaviorTitle_, defaultEnglishInputOnReveal_,
         pinyinSearch_, numericQuickLaunch_, executeSingleResult_,
         placementSectionTitle_,
-        popupMonitorLabel_, popupMonitorDescription_, popupMonitor_,
-        launcherPlacementLabel_, launcherPlacementDescription_, launcherPlacement_,
-        settingsPlacementLabel_, settingsPlacementDescription_, settingsPlacement_,
-        shortcutManagerPlacementLabel_, shortcutManagerPlacementDescription_,
-        shortcutManagerPlacement_, generalNote_,
+        popupMonitorLabel_, popupMonitor_,
+        launcherPlacementLabel_, launcherPlacement_,
+        settingsPlacementLabel_, settingsPlacement_,
+        shortcutManagerPlacementLabel_, shortcutManagerPlacement_,
     };
 }
 
@@ -938,11 +927,6 @@ void SettingsWindow::CreateAppearancePage() {
             kIdLanguage,
             kCardBackground);
 
-    appearanceNote_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-
     appearanceControls_ = {
         appearanceLauncherTitle_,
         uiStyleLabel_,
@@ -950,7 +934,6 @@ void SettingsWindow::CreateAppearancePage() {
         appearanceAppTitle_,
         languageLabel_,
         language_,
-        appearanceNote_,
     };
 }
 
@@ -1003,11 +986,6 @@ void SettingsWindow::CreateProviderPage() {
             L"",
             kIdProviderRecheckEverything);
 
-    providerNote_ =
-        CreateStatic(
-            L"",
-            SS_LEFT | SS_NOPREFIX);
-
     providerControls_ = {
         providerSectionTitle_,
         providerFilesTitle_,
@@ -1021,7 +999,6 @@ void SettingsWindow::CreateProviderPage() {
         providerGetEverything_,
         providerUpdateEverything_,
         providerRecheckEverything_,
-        providerNote_,
     };
 }
 
@@ -1142,26 +1119,15 @@ void SettingsWindow::CreateAboutPage() {
 }
 
 void SettingsWindow::ApplyFonts() {
-    if (normalFont_) {
-        DeleteObject(normalFont_);
-        normalFont_ = nullptr;
-    }
-    if (navFont_) {
-        DeleteObject(navFont_);
-        navFont_ = nullptr;
-    }
-    if (titleFont_) {
-        DeleteObject(titleFont_);
-        titleFont_ = nullptr;
-    }
-    if (appNameFont_) {
-        DeleteObject(appNameFont_);
-        appNameFont_ = nullptr;
-    }
-    if (sectionFont_) {
-        DeleteObject(sectionFont_);
-        sectionFont_ = nullptr;
-    }
+    // Child controls keep the HFONT they were given via WM_SETFONT, so the
+    // previous fonts may only be deleted after every control has the new one.
+    const std::array<HFONT, 5> previousFonts{
+        normalFont_,
+        navFont_,
+        titleFont_,
+        appNameFont_,
+        sectionFont_,
+    };
 
     const auto language =
         app_.SettingsData().language;
@@ -1202,7 +1168,6 @@ void SettingsWindow::ApplyFonts() {
         navAppearance_,
         navData_,
         navAbout_,
-        pageDescription_,
         startWithWindows_,
         startupBehaviorLabel_,
         startupBehavior_,
@@ -1214,18 +1179,13 @@ void SettingsWindow::ApplyFonts() {
         numericQuickLaunch_,
         executeSingleResult_,
         popupMonitorLabel_,
-        popupMonitorDescription_,
         popupMonitor_,
         launcherPlacementLabel_,
-        launcherPlacementDescription_,
         launcherPlacement_,
         settingsPlacementLabel_,
-        settingsPlacementDescription_,
         settingsPlacement_,
         shortcutManagerPlacementLabel_,
-        shortcutManagerPlacementDescription_,
         shortcutManagerPlacement_,
-        generalNote_,
         hotkeyResetAll_,
         providerStartMenu_,
         providerPackaged_,
@@ -1235,12 +1195,10 @@ void SettingsWindow::ApplyFonts() {
         providerStatus_,
         providerGetEverything_,
         providerRecheckEverything_,
-        providerNote_,
         uiStyleLabel_,
         uiStyle_,
         languageLabel_,
         language_,
-        appearanceNote_,
         dataPath_,
         openDataFolder_,
         dataImportTsv_,
@@ -1372,6 +1330,17 @@ void SettingsWindow::ApplyFonts() {
             combo,
             dpi_);
     }
+
+    for (HFONT previous : previousFonts) {
+        if (previous) {
+            DeleteObject(previous);
+        }
+    }
+
+    // Font and DPI both change wrapped status height.
+    for (auto& row : hotkeyRows_) {
+        row.statusHeight = MeasureHotkeyStatusHeight(row);
+    }
 }
 
 void SettingsWindow::ApplyLanguage() {
@@ -1415,7 +1384,7 @@ void SettingsWindow::ApplyLanguage() {
     SetWindowTextW(pinyinSearch_, T(L"启用拼音搜索", L"Enable Pinyin search"));
     SetWindowTextW(numericQuickLaunch_, T(L"数字键快速执行结果", L"Quick launch with number keys"));
     SetWindowTextW(executeSingleResult_,
-        T(L"仅剩一个结果时立即执行", L"Execute immediately when one result remains"));
+        T(L"仅剩一个结果时立即执行", L"Execute when one result remains"));
 
     SetWindowTextW(
         placementSectionTitle_,
@@ -1425,9 +1394,6 @@ void SettingsWindow::ApplyLanguage() {
         popupMonitorLabel_,
         T(L"启动器显示器",
           L"Launcher monitor"));
-    SetWindowTextW(
-        popupMonitorDescription_,
-        L"");
 
     SendMessageW(
         popupMonitor_,
@@ -1455,9 +1421,6 @@ void SettingsWindow::ApplyLanguage() {
         launcherPlacementLabel_,
         T(L"启动器窗口位置",
           L"Launcher window position"));
-    SetWindowTextW(
-        launcherPlacementDescription_,
-        L"");
 
     SendMessageW(
         launcherPlacement_,
@@ -1485,9 +1448,6 @@ void SettingsWindow::ApplyLanguage() {
         settingsPlacementLabel_,
         T(L"设置窗口位置",
           L"Settings window position"));
-    SetWindowTextW(
-        settingsPlacementDescription_,
-        L"");
 
     SendMessageW(
         settingsPlacement_,
@@ -1515,9 +1475,6 @@ void SettingsWindow::ApplyLanguage() {
         shortcutManagerPlacementLabel_,
         T(L"快捷项管理窗口位置",
           L"Shortcut Manager window position"));
-    SetWindowTextW(
-        shortcutManagerPlacementDescription_,
-        L"");
 
     SendMessageW(
         shortcutManagerPlacement_,
@@ -1541,9 +1498,6 @@ void SettingsWindow::ApplyLanguage() {
             T(L"上次位置",
               L"Last position")));
 
-    SetWindowTextW(
-        generalNote_,
-        L"");
     SetWindowTextW(
         hotkeyGlobalTitle_,
         T(L"全局快捷键",
@@ -1598,9 +1552,6 @@ void SettingsWindow::ApplyLanguage() {
         T(L"重新检测",
           L"Recheck"));
     SetWindowTextW(
-        providerNote_,
-        L"");
-    SetWindowTextW(
         appearanceLauncherTitle_,
         T(L"启动器",
           L"Launcher"));
@@ -1645,9 +1596,6 @@ void SettingsWindow::ApplyLanguage() {
         CB_ADDSTRING, 0,
         reinterpret_cast<LPARAM>(
             L"English"));
-    SetWindowTextW(
-        appearanceNote_,
-        L"");
     SetWindowTextW(
         dataPathLabel_,
         T(L"数据目录",
@@ -2042,6 +1990,9 @@ void SettingsWindow::SetHotkeyRowStatus(
     const bool wasVisible = row->statusVisible;
     const bool textChanged =
         SetControlTextIfChanged(row->status, status);
+    if (textChanged) {
+        row->statusHeight = MeasureHotkeyStatusHeight(*row);
+    }
     row->statusVisible = !status.empty();
     if (!textChanged && wasVisible == row->statusVisible) return;
     if (!visible) return;
@@ -2067,8 +2018,16 @@ HotkeyRowHasAuxiliaryContent(
 int SettingsWindow::HotkeyAuxiliaryHeight(
     const HotkeyRowControls& row) const {
 
-    if (!HotkeyRowHasAuxiliaryContent(
-            row)) {
+    return HotkeyRowHasAuxiliaryContent(row)
+        ? row.statusHeight
+        : 0;
+}
+
+int SettingsWindow::MeasureHotkeyStatusHeight(
+    const HotkeyRowControls& row) const {
+
+    if (!row.status ||
+        GetWindowTextLengthW(row.status) == 0) {
         return 0;
     }
 
@@ -2215,7 +2174,9 @@ void SettingsWindow::RefreshHotkeyPage(
             status += std::to_wstring(
                 app_.HotkeyActionLastError(row.actionId));
         }
-        SetControlTextIfChanged(row.status, status);
+        if (SetControlTextIfChanged(row.status, status)) {
+            row.statusHeight = MeasureHotkeyStatusHeight(row);
+        }
         row.statusVisible = page_ == Page::Hotkeys && !status.empty();
         row.resetVisible = page_ == Page::Hotkeys && modified;
         if (!relayout || !visible) continue;
@@ -2432,7 +2393,7 @@ void SettingsWindow::ToggleHotkeyActionEnabled(
             message +=
                 HotkeyActionLabel(
                     *conflict);
-            message += L"”.";
+            message += T(L"”冲突。", L"”.");
 
             SetHotkeyRowStatus(
                 actionId,
@@ -2475,7 +2436,7 @@ void SettingsWindow::ResetHotkeyAction(
         message +=
             HotkeyActionLabel(
                 *conflict);
-        message += L"”.";
+        message += T(L"”冲突。", L"”.");
 
         SetHotkeyRowStatus(
             actionId,
@@ -2987,7 +2948,7 @@ ToggleManagedEverythingTrayIcon() {
         return;
     }
 
-    const auto settings =
+    const auto& settings =
         app_.SettingsData();
 
     if (!app_
@@ -3133,13 +3094,6 @@ void SettingsWindow::UpdatePageHeader() {
     SetWindowTextW(
         pageTitle_,
         title);
-
-    SetWindowTextW(
-        pageDescription_,
-        L"");
-    ShowWindow(
-        pageDescription_,
-        SW_HIDE);
 }
 
 
@@ -3253,22 +3207,6 @@ void SettingsWindow::ShowPage(Page page) {
     setVisibleQuiet(
         aboutControls_,
         page == Page::About);
-
-    for (HWND control :
-         std::array<HWND, 7>{
-             pageDescription_,
-             popupMonitorDescription_,
-             launcherPlacementDescription_,
-             settingsPlacementDescription_,
-             generalNote_,
-             providerNote_,
-             appearanceNote_}) {
-        if (control) {
-            ShowWindow(
-                control,
-                SW_HIDE);
-        }
-    }
 
     if (page == Page::Providers) {
         SetTimer(
@@ -3537,8 +3475,8 @@ void SettingsWindow::RestoreDefaultSettings() {
         return;
     }
 
-    RefreshFromSettings();
-
+    // App::RestoreDefaultSettings already re-applied language and settings
+    // to this window.
     SetWindowTextW(
         dataStatus_,
         T(L"设置已恢复为默认值。",
@@ -3547,7 +3485,7 @@ void SettingsWindow::RestoreDefaultSettings() {
 
 void SettingsWindow::ToggleGeneralSetting(UINT id) {
     if (syncing_) return;
-    const auto settings = app_.SettingsData();
+    const auto& settings = app_.SettingsData();
     bool success = true;
     switch (id) {
     case kIdStartWithWindows:
@@ -3654,10 +3592,17 @@ void SettingsWindow::ToggleProviderSetting(
 }
 
 
-void SettingsWindow::CommitPendingProviderChanges() {
-    KillTimer(
-        hwnd_,
-        kProviderCommitTimerId);
+void SettingsWindow::FlushPendingChanges() {
+    CommitPendingProviderChanges(false);
+}
+
+void SettingsWindow::CommitPendingProviderChanges(
+    bool reportErrors) {
+    if (hwnd_) {
+        KillTimer(
+            hwnd_,
+            kProviderCommitTimerId);
+    }
 
     if (pendingProviderStates_.empty() ||
         providerCommitInProgress_) {
@@ -3757,7 +3702,7 @@ void SettingsWindow::CommitPendingProviderChanges() {
 
     RefreshProviderStatus();
 
-    if (failed) {
+    if (failed && reportErrors) {
         std::wstring message;
 
         if (everythingFailed &&
@@ -5052,24 +4997,15 @@ void SettingsWindow::DrawHotkeyToggle(
                 .hotkeyBindings,
             row.actionId);
 
-    const bool pressed =
-        (item.itemState &
-         ODS_SELECTED) != 0;
-    const bool focused =
-        (item.itemState &
-         ODS_FOCUS) != 0;
-
-    const COLORREF background =
-        pressed || focused
-            ? kCardPressed
-            : kCardBackground;
-
+    // The toggle is a small button inside the card, not a full row: a
+    // pressed/focused fill would leave a stray shaded block around the
+    // switch (focus stays on it after a click), so keep the card colour.
     RECT itemRect =
         item.rcItem;
 
     HBRUSH fill =
         CreateSolidBrush(
-            background);
+            kCardBackground);
     FillRect(
         item.hDC,
         &itemRect,
@@ -5105,7 +5041,7 @@ void SettingsWindow::DrawHotkeyToggle(
         item.hDC,
         switchRect,
         binding.enabled,
-        pressed || focused);
+        false);
 }
 
 void SettingsWindow::DrawHotkeyResetLink(
@@ -5607,70 +5543,14 @@ void SettingsWindow::DrawGeneralToggle(
     const bool checked =
         ToggleChecked(id);
 
-    const wchar_t* title = L"";
-
-    switch (id) {
-    case kIdStartWithWindows: title = T(L"开机启动", L"Start with Windows"); break;
-    case kIdSoundEnabled: title = T(L"提示音", L"Sound effects"); break;
-    case kIdShowTrayIcon: title = T(L"显示系统托盘图标", L"Show system tray icon"); break;
-    case kIdAddToSendToMenu: title = T(L"添加到“发送到”菜单", L"Add to “Send to” menu"); break;
-    case kIdDefaultEnglishInputOnReveal:
-        title =
-            T(L"唤醒时默认英文输入",
-              L"Default to English input when launcher opens");
-        break;
-    case kIdPinyinSearch:
-        title =
-            T(L"启用拼音搜索",
-              L"Enable Pinyin search");
-        break;
-    case kIdNumericQuickLaunch:
-        title =
-            T(L"数字键快速执行结果",
-              L"Quick launch with number keys");
-        break;
-    case kIdExecuteSingleResult:
-        title =
-            T(L"仅剩一个结果时立即执行",
-              L"Execute when one result remains");
-        break;
-    case kIdProviderStartMenu:
-        title =
-            T(L"开始菜单",
-              L"Start Menu");
-        break;
-    case kIdProviderPackaged:
-        title = L"Windows Apps";
-        break;
-    case kIdProviderAppPaths:
-        title = L"App Paths";
-        break;
-    case kIdProviderPath:
-        title = L"PATH";
-        break;
-    case kIdProviderEverything:
-        title =
-            T(L"Everything 文件与文件夹",
-              L"Everything files & folders");
-        break;
-    case kIdManagedEverythingTrayIcon:
-        title =
-            T(L"显示 Everything 托盘图标",
-              L"Show Everything tray icon");
-        break;
-    case kIdUpdateAutoCheck:
-        title =
-            T(L"自动检查更新",
-              L"Automatically check for updates");
-        break;
-    case kIdUpdatePrerelease:
-        title =
-            T(L"接收预发布版本更新",
-              L"Get prerelease updates");
-        break;
-    default:
-        break;
-    }
+    // Owner-draw rows paint the text ApplyLanguage assigned to the control,
+    // so the visible label and the accessible name share one source.
+    wchar_t title[128]{};
+    GetWindowTextW(
+        item.hwndItem,
+        title,
+        static_cast<int>(
+            std::size(title)));
 
     const int switchWidth =
         Scale(40);
@@ -5864,9 +5744,13 @@ void SettingsWindow::PositionForShow() {
 
     MONITORINFO info{
         sizeof(info)};
-    GetMonitorInfoW(
-        monitor,
-        &info);
+    if (!GetMonitorInfoW(
+            monitor,
+            &info)) {
+        // An empty work area would clamp the window to 0x0; keep the
+        // rectangle the window already has instead.
+        return;
+    }
 
     const int workWidth =
         info.rcWork.right -
@@ -5950,7 +5834,7 @@ void SettingsWindow::TogglePrereleaseUpdates() {
         return;
     }
 
-    const auto settings =
+    const auto& settings =
         app_.SettingsData();
 
     const UpdateChannel nextChannel =
@@ -6764,9 +6648,44 @@ LRESULT SettingsWindow::HandleMessage(
     case WM_SYSKEYDOWN:
         if (!capturingHotkeyActionId_
                  .empty()) {
+            captureKeySequenceActive_ = true;
             ApplyCapturedHotkey(
                 static_cast<UINT>(
                     wParam));
+            return 0;
+        }
+        if (captureKeySequenceActive_) {
+            // Swallow auto-repeat of the chord that just finished a capture;
+            // a fresh key press means that chord is over.
+            if ((lParam & (1 << 30)) != 0) {
+                return 0;
+            }
+            captureKeySequenceActive_ = false;
+        }
+        break;
+
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+    case WM_CHAR:
+    case WM_SYSCHAR:
+    case WM_DEADCHAR:
+    case WM_SYSDEADCHAR:
+        // The key-downs of a captured chord never reached DefWindowProc, so
+        // its key-ups/chars must not either: WM_SYSCHAR would run SC_KEYMENU
+        // (a beep on this menu-less window) and an F10/Alt key-up would enter
+        // window-menu mode and eat the next keystroke.
+        if (!capturingHotkeyActionId_.empty() ||
+            captureKeySequenceActive_) {
+            if ((message == WM_KEYUP ||
+                 message == WM_SYSKEYUP) &&
+                capturingHotkeyActionId_.empty() &&
+                (GetKeyState(VK_MENU) & 0x8000) == 0 &&
+                (GetKeyState(VK_CONTROL) & 0x8000) == 0 &&
+                (GetKeyState(VK_SHIFT) & 0x8000) == 0 &&
+                (GetKeyState(VK_LWIN) & 0x8000) == 0 &&
+                (GetKeyState(VK_RWIN) & 0x8000) == 0) {
+                captureKeySequenceActive_ = false;
+            }
             return 0;
         }
         break;
@@ -7045,7 +6964,7 @@ LRESULT SettingsWindow::HandleMessage(
         case kIdUpdateAutoCheck:
             if (toggleActivated &&
                 !syncing_) {
-                const auto settings =
+                const auto& settings =
                     app_.SettingsData();
 
                 if (!app_.SetUpdateSettings(
@@ -7690,20 +7609,8 @@ LRESULT SettingsWindow::HandleMessage(
             background);
 
         const bool muted =
-            control == pageDescription_ ||
-            control ==
-                popupMonitorDescription_ ||
-            control ==
-                launcherPlacementDescription_ ||
-            control ==
-                settingsPlacementDescription_ ||
-            control ==
-                shortcutManagerPlacementDescription_ ||
-            control == generalNote_ ||
             hotkeyMutedStatic ||
             control == providerStatus_ ||
-            control == providerNote_ ||
-            control == appearanceNote_ ||
             control == dataStatus_ ||
             control == dataPath_ ||
             control == aboutVersion_ ||
