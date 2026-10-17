@@ -387,9 +387,12 @@ bool UsageStore::PruneMissingAutomatic(
     const auto obsolete = [&](const auto& item) {
         const auto& id = item.first;
         const auto lastUsed = item.second.lastUsedUnix;
+        // Opened files/folders are never in the live command list, so they
+        // age out after the same one-year grace without a launch.
         const bool automatic = id.starts_with(L"start:") ||
             id.starts_with(L"apppath:") || id.starts_with(L"path:") ||
-            id.starts_with(L"packaged:");
+            id.starts_with(L"packaged:") ||
+            id.starts_with(L"everything.filesystem:");
         return automatic && lastUsed > 0 &&
             lastUsed < now - kGraceSeconds && !present.contains(id);
     };

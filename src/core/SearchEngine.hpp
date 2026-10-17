@@ -99,6 +99,13 @@ public:
         pinyin_.Unload();
     }
 
+    // Learned per-query habit (0, or 8..32) for a non-empty normalized
+    // query: launches on this exact query, or on a related one (one is a
+    // prefix of the other). Shared by catalog search and file results.
+    [[nodiscard]] static int IntentUsageScore(
+        const UsageStat* stat,
+        const std::wstring& normalizedQuery);
+
 private:
     [[nodiscard]] static bool GlobMatch(
         std::wstring_view field,
@@ -112,10 +119,6 @@ private:
     [[nodiscard]] static int UsageScore(
         const UsageStat* stat,
         std::int64_t nowUnix);
-
-    [[nodiscard]] static int IntentUsageScore(
-        const UsageStat* stat,
-        const std::wstring& normalizedQuery);
 
     [[nodiscard]] static bool
     IsPinyinQuery(
