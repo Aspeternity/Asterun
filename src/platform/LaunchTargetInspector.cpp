@@ -928,4 +928,34 @@ ClassifyShellActivationSurface(
     return std::nullopt;
 }
 
+std::optional<std::wstring>
+ReadInternetShortcutUrl(
+    const std::filesystem::path& path) {
+
+    // .url files are INI files ([InternetShortcut] URL=...). The profile API
+    // handles their ANSI/Unicode encodings the same way Explorer does.
+    std::array<wchar_t, 2048> buffer{};
+    const DWORD length = GetPrivateProfileStringW(
+        L"InternetShortcut",
+        L"URL",
+        L"",
+        buffer.data(),
+        static_cast<DWORD>(buffer.size()),
+        path.c_str());
+
+    if (length == 0 ||
+        length >= buffer.size() - 1) {
+        return std::nullopt;
+    }
+
+    std::wstring url(buffer.data(), length);
+    while (!url.empty() && std::iswspace(url.back())) {
+        url.pop_back();
+    }
+    if (url.empty()) {
+        return std::nullopt;
+    }
+    return url;
+}
+
 } // namespace altrun::win

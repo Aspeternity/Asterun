@@ -266,13 +266,11 @@ bool IsMaintenanceLikeTitle(
             {
                 L"uninstall",
                 L"uninstaller",
-                L"repair",
                 L"modify installation",
                 L"update helper",
                 L"update service",
                 L"setup wizard",
                 L"卸载",
-                L"修复",
                 L"更新程序",
                 L"升级程序",
             }) ||
@@ -289,11 +287,21 @@ bool IsMaintenanceLikeTitle(
                 L"uninstall",
                 L"uninstaller",
                 L"installer",
-                L"repair",
                 L"updater",
                 L"updatehelper",
                 L"updateservice",
             });
+}
+
+bool IsRepairLikeTitle(
+    std::wstring_view title) {
+
+    return ContainsAny(
+        Lower(title),
+        {
+            L"repair",
+            L"修复",
+        });
 }
 
 bool IsProductInfoLikeTitle(
@@ -507,20 +515,39 @@ LaunchAdmission EvaluateLaunchCandidate(
         return decision;
     }
 
-    if (IsMaintenanceLikeTitle(
+    // Uninstallers, installers and updaters are rejected outright. Repair
+    // tools are not: "DirectX 修复工具" is a standalone product. They stay on
+    // the restrictive Maintenance surface (3+ characters, strong match) and
+    // role classification decides whether they are a suite helper.
+    const bool repairLike =
+        IsRepairLikeTitle(
             candidate.title) ||
-        IsMaintenanceLikeTitle(
-            targetLeaf) ||
+        IsRepairLikeTitle(
+            targetLeaf);
+    const bool maintenanceSurface =
         candidate.surface ==
             LaunchSurfaceClass::
                 Maintenance ||
         targetRole ==
             LaunchSurfaceClass::
-                Maintenance) {
+                Maintenance;
+
+    if (IsMaintenanceLikeTitle(
+            candidate.title) ||
+        IsMaintenanceLikeTitle(
+            targetLeaf) ||
+        (maintenanceSurface &&
+         !repairLike)) {
         decision.reason =
             LaunchAdmissionReason::
                 Maintenance;
         return decision;
+    }
+
+    if (repairLike) {
+        decision.surface =
+            LaunchSurfaceClass::
+                Maintenance;
     }
 
     if (candidate.surface ==

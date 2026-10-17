@@ -2728,6 +2728,45 @@ int main(int argc, char** argv) {
         assert(pinnedHome.front().commandIndex == 3);
     }
 
+    // Developer tools need a name-start match up to three letters: "com"
+    // must not list every "... Command Prompt for VS 2022" variant, while
+    // "comm", "dev" and "x64" still find them.
+    {
+        std::vector<Command> tools{
+            MakeCommand(L"cmd", L"commandprompt", L"Command Prompt",
+                        L"cmd.lnk", 0),
+            MakeCommand(L"vsdev", L"developercommandpromptforvs2022",
+                        L"Developer Command Prompt for VS 2022",
+                        L"vsdev.lnk", 1),
+            MakeCommand(L"vsx64", L"x64nativetoolscommandpromptforvs2022",
+                        L"x64 Native Tools Command Prompt for VS 2022",
+                        L"vsx64.lnk", 2),
+        };
+        for (auto& tool : tools) {
+            tool.source = CommandSource::StartMenu;
+            tool.surfaceClass = LaunchSurfaceClass::DeveloperTool;
+            tool.basePriority = 0;
+        }
+        tools[0].surfaceClass = LaunchSurfaceClass::CommandLineTool;
+        UsageMap none;
+
+        const auto com = engine.Search(tools, none, L"com", 10, false, false);
+        assert(ContainsCommand(com, 0));
+        assert(!ContainsCommand(com, 1));
+        assert(!ContainsCommand(com, 2));
+
+        const auto comm = engine.Search(tools, none, L"comm", 10, false, false);
+        assert(ContainsCommand(comm, 0));
+        assert(ContainsCommand(comm, 1));
+        assert(ContainsCommand(comm, 2));
+        assert(comm.front().commandIndex == 0);
+
+        assert(ContainsCommand(
+            engine.Search(tools, none, L"dev", 10, false, false), 1));
+        assert(ContainsCommand(
+            engine.Search(tools, none, L"x64", 10, false, false), 2));
+    }
+
     usage[L"3"] = UsageStat{42, 4102444800LL};
     auto frequent = engine.Search(commands, usage, L"", 10);
     assert(!frequent.empty());

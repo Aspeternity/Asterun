@@ -3,6 +3,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cwctype>
+#include <filesystem>
+#include <tuple>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -610,6 +613,51 @@ int main() {
             assert(command->catalogVisibility ==
                    CatalogVisibility::Normal);
         }
+
+        // The same product-name rule covers the other helper roles whose
+        // words also name standalone products.
+        for (auto [title, exe, role] : {
+                 std::tuple{L"PassMark PerformanceTest",
+                            L"C:/Program Files/PerformanceTest/PerformanceTest64.exe",
+                            ApplicationRole::BenchmarkTool},
+                 std::tuple{L"DirectX Repair",
+                            L"C:/Tools/DirectX Repair/DirectX Repair.exe",
+                            ApplicationRole::RepairTool}}) {
+            auto standalone = BaseEvidence(title, exe);
+            standalone.startMenuFolder =
+                std::filesystem::path(
+                    L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs") /
+                title;
+            standalone.executable.productName = title;
+            standalone.executable.fileDescription = title;
+            const auto decision = ClassifyApplicationRole(standalone);
+            assert(decision.role != role);
+            assert(decision.visibility == CatalogVisibility::Normal);
+
+            Command cached = makeIdm(CommandSource::StartMenu, L"start:standalone",
+                L"family:placeholder|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\standalone");
+            cached.title = title;
+            std::wstring family;
+            for (wchar_t ch : std::wstring_view(title)) {
+                if (std::iswalnum(ch)) family.push_back(static_cast<wchar_t>(std::towlower(ch)));
+            }
+            cached.catalogGroupKey =
+                L"family:" + family +
+                L"|menu:c:\\programdata\\microsoft\\windows\\start menu\\programs\\standalone";
+            std::vector<Command*> one{&cached};
+            CalibrateCatalogRoleContext(one);
+            assert(cached.catalogVisibility == CatalogVisibility::Normal);
+        }
+
+        // A suite benchmark keeps its helper role (extra words on the suite).
+        auto suiteBench = BaseEvidence(
+            L"Contoso Studio Performance Test",
+            L"C:/Program Files/Contoso/Tools/Bench.exe");
+        suiteBench.startMenuFolder =
+            L"C:/ProgramData/Microsoft/Windows/Start Menu/Programs/Contoso Studio";
+        suiteBench.executable.productName = L"Contoso Studio";
+        assert(ClassifyApplicationRole(suiteBench).role ==
+               ApplicationRole::BenchmarkTool);
 
         // The suite helper is still recognised from its cached title.
         Command suiteHelper = makeIdm(CommandSource::StartMenu, L"start:helper",

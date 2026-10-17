@@ -1,4 +1,5 @@
 #include "core/LaunchCandidate.hpp"
+#include "core/LaunchSurface.hpp"
 
 #include <cassert>
 #include <iostream>
@@ -257,6 +258,72 @@ int main() {
         L"最新版本里有哪些新功能"));
     assert(IsDocumentationLikeTitle(
         L"控制台 RAR 中文手册"));
+    // Repair tools are admitted on the restrictive Maintenance surface and
+    // left to role classification; uninstallers and updaters stay rejected.
+    {
+        const auto repair =
+            EvaluateLaunchCandidate({
+                LaunchCandidateSource::StartMenu,
+                L"DirectX 修复工具",
+                L"C:\\Tools\\DirectX Repair\\DirectX Repair.exe",
+                ClassifyApplicationSurface(
+                    L"DirectX 修复工具",
+                    L"C:\\Tools\\DirectX Repair\\DirectX Repair.exe"),
+                LaunchTargetKind::GuiExecutable,
+                true,
+            });
+        assert(repair.admit);
+        assert(repair.surface ==
+               LaunchSurfaceClass::Maintenance);
+
+        const auto uninstall =
+            EvaluateLaunchCandidate({
+                LaunchCandidateSource::StartMenu,
+                L"Uninstall DirectX Repair",
+                L"C:\\Tools\\DirectX Repair\\unins000.exe",
+                LaunchSurfaceClass::PrimaryApplication,
+                LaunchTargetKind::GuiExecutable,
+                true,
+            });
+        assert(!uninstall.admit);
+        assert(uninstall.reason ==
+               LaunchAdmissionReason::Maintenance);
+    }
+    // System tools get the program name they are commonly launched by.
+    assert(SystemToolAlias(L"System Configuration",
+                           L"C:\\WINDOWS\\system32\\msconfig.exe",
+                           L"") == L"msconfig");
+    assert(SystemToolAlias(L"Task Scheduler",
+                           L"C:\\WINDOWS\\system32\\taskschd.msc",
+                           L"/s") == L"taskschd");
+    assert(SystemToolAlias(L"Registry Editor",
+                           L"C:\\WINDOWS\\regedit.exe",
+                           L"") == L"regedit");
+    // Hosts take the tool from their arguments.
+    assert(SystemToolAlias(L"Event Viewer",
+                           L"C:\\WINDOWS\\system32\\mmc.exe",
+                           L"\"C:\\WINDOWS\\system32\\eventvwr.msc\" /s") ==
+           L"eventvwr");
+    assert(SystemToolAlias(L"Programs and Features",
+                           L"C:\\WINDOWS\\system32\\control.exe",
+                           L"appwiz.cpl") == L"appwiz");
+    // Nothing new, too short, or not a program.
+    assert(SystemToolAlias(L"services",
+                           L"C:\\WINDOWS\\system32\\services.msc",
+                           L"").empty());
+    assert(SystemToolAlias(L"Windows Defender Firewall with Advanced Security",
+                           L"C:\\WINDOWS\\system32\\WF.msc",
+                           L"").empty());
+    assert(SystemToolAlias(L"Control Panel",
+                           L"C:\\WINDOWS\\system32\\control.exe",
+                           L"").empty());
+    assert(SystemToolAlias(L"Notes",
+                           L"C:\\Docs\\notes.txt",
+                           L"").empty());
+
+    assert(IsRepairLikeTitle(L"Stellar Repair for Photo"));
+    assert(!IsMaintenanceLikeTitle(L"DirectX 修复工具"));
+
     assert(IsMaintenanceLikeTitle(
         L"Uninstall Product"));
     assert(IsMaintenanceLikeTitle(

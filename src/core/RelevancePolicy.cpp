@@ -671,6 +671,19 @@ bool AdmitLaunchSurfaceNormalized(
 
     case LaunchSurfaceClass::DeveloperTool:
     case LaunchSurfaceClass::CommandLineTool:
+        // Developer tools come in families of near-identical variants
+        // ("x64 Native Tools Command Prompt for VS 2022", ...). Up to three
+        // ASCII characters they must match from the start of the name (or
+        // its initials); a later word needs four or more ("comm"), so "com"
+        // is not filled with every VS command prompt.
+        if (length <= 3 &&
+            IsAsciiQuery(normalizedQuery) &&
+            match.kind != MatchKind::Exact &&
+            match.kind != MatchKind::Prefix &&
+            match.kind != MatchKind::Initials &&
+            match.kind != MatchKind::Wildcard) {
+            return false;
+        }
         return length >= 2 &&
             (!requireStrongShortMatch ||
              StrongShortMatch(

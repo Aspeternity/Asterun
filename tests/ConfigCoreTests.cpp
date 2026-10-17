@@ -2073,7 +2073,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 24,\n"
+        "  \"schemaVersion\": 26,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"
@@ -2148,8 +2148,11 @@ int main() {
 
     // Schemas 22 and 23 classified a product named "... Download Manager"
     // (IDM) as a background Downloader and cached it StrongMatchOnly; 23
-    // still missed a ProductName with a suffix ("... Manager (IDM)").
-    for (const int staleSchema : {22, 23}) {
+    // still missed a ProductName with a suffix ("... Manager (IDM)"). 24
+    // rejected repair tools at admission and restricted standalone
+    // repair/benchmark/diagnostic/settings products. 25 had no program-name
+    // aliases for system tools (msconfig, taskschd).
+    for (const int staleSchema : {22, 23, 24, 25}) {
         const auto staleProviderCache =
             data / ("provider-cache-schema" +
                     std::to_string(staleSchema) + "-stale.json");

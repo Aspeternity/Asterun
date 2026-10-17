@@ -4,6 +4,7 @@
 #include <array>
 #include <cwctype>
 #include <string>
+#include <utility>
 
 namespace altrun {
 namespace {
@@ -247,6 +248,71 @@ ClassifyApplicationSurface(
 
     return LaunchSurfaceClass::
         PrimaryApplication;
+}
+
+std::wstring SystemToolAlias(
+    std::wstring_view title,
+    std::wstring_view resolvedTarget,
+    std::wstring_view arguments) {
+
+    const auto stemOf = [](std::wstring_view path) {
+        const auto slash = path.find_last_of(L"\\/");
+        std::wstring_view leaf = slash == std::wstring_view::npos
+            ? path
+            : path.substr(slash + 1);
+        while (!leaf.empty() &&
+               (leaf.back() == L'"' || std::iswspace(leaf.back()))) {
+            leaf.remove_suffix(1);
+        }
+        const auto dot = leaf.find_last_of(L'.');
+        return std::make_pair(
+            Lower(dot == std::wstring_view::npos
+                      ? leaf
+                      : leaf.substr(0, dot)),
+            dot == std::wstring_view::npos
+                ? std::wstring{}
+                : Lower(leaf.substr(dot)));
+    };
+
+    auto [alias, extension] = stemOf(resolvedTarget);
+
+    // Hosts launch the real tool named in their arguments.
+    constexpr std::array<std::wstring_view, 4> hosts{
+        L"mmc", L"control", L"rundll32", L"explorer"};
+    if (std::find(hosts.begin(), hosts.end(), alias) != hosts.end()) {
+        alias.clear();
+        std::wstring_view rest = arguments;
+        while (!rest.empty()) {
+            const auto start = rest.find_first_not_of(L" \t\",");
+            if (start == std::wstring_view::npos) break;
+            rest.remove_prefix(start);
+            const auto end = rest.find_first_of(L" \t\",");
+            const auto token = rest.substr(0, end);
+            const auto [stem, ext] = stemOf(token);
+            if (ext == L".msc" || ext == L".cpl") {
+                alias = stem;
+                break;
+            }
+            if (end == std::wstring_view::npos) break;
+            rest.remove_prefix(end);
+        }
+    } else if (extension != L".exe" &&
+               extension != L".msc" &&
+               extension != L".cpl") {
+        return {};
+    }
+
+    if (alias.size() < 3 ||
+        alias.size() > 16 ||
+        !std::all_of(alias.begin(), alias.end(), [](wchar_t ch) {
+            return (ch >= L'a' && ch <= L'z') ||
+                   (ch >= L'0' && ch <= L'9');
+        }) ||
+        Compact(title).starts_with(alias)) {
+        return {};
+    }
+
+    return alias;
 }
 
 } // namespace altrun
