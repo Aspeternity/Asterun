@@ -451,6 +451,28 @@ void AssertApplicationTypographyPolicy() {
             assert(logical.lfWeight == FW_NORMAL);
             assert(DeleteObject(font));
         }
+
+        // Only the fixed navigation labels move from YaHei's blurry 22px em
+        // to the grid-fitted 21px one; free-text roles keep their sizes.
+        assert(navigation.fixedLabels);
+        assert(!body.fixedLabels && !section.fixedLabels &&
+               !shortcut.fixedLabels && !hint.fixedLabels);
+        const bool yaHeiNavigation =
+            lstrcmpiW(navigation.face, L"Microsoft YaHei") == 0 ||
+            lstrcmpiW(navigation.face, L"Microsoft YaHei UI") == 0;
+        for (const UINT dpi : {96u, 120u, 144u, 192u}) {
+            const int raw = -MulDiv(navigationSize, static_cast<int>(dpi), 72);
+            const int expected = yaHeiNavigation && raw == -22
+                ? -21
+                : altrun::ui::HintSafeFontHeight(navigation.face, raw);
+            assert(altrun::ui::FontPixelHeight(navigation, dpi) == expected);
+        }
+        if (language == altrun::Language::ZhCN && yaHeiNavigation) {
+            assert(altrun::ui::FontPixelHeight(navigation, 144u) == -21);
+            // Section titles share 11pt but are not fixed labels.
+            assert(altrun::ui::FontPixelHeight(section, 144u) ==
+                   altrun::ui::HintSafeFontHeight(section.face, -22));
+        }
     }
 }
 
@@ -1274,12 +1296,13 @@ int main() {
                 ui::UiFontRole::SettingsNavigation);
             for (const UINT id : {51001u, 51006u}) {
                 const HWND nav = GetDlgItem(window, id);
-                AssertBodyFont(nav, GetDpiForWindow(window),
-                    expectedNavFont.pointSize);
                 const HFONT handle = reinterpret_cast<HFONT>(
                     SendMessageW(nav, WM_GETFONT, 0, 0));
                 LOGFONTW font{};
                 assert(GetObjectW(handle, sizeof(font), &font) == sizeof(font));
+                assert(font.lfHeight == ui::FontPixelHeight(
+                    expectedNavFont, GetDpiForWindow(window)));
+                assert(font.lfWeight == FW_NORMAL);
                 assert(lstrcmpiW(
                     font.lfFaceName, expectedNavFont.face) == 0);
             }
