@@ -1563,18 +1563,34 @@ CatalogFamilyKey(
         .family;
 }
 
+// Helper roles whose vocabulary is also used as the name of standalone
+// products (Internet Download Manager, DirectX Repair, PassMark
+// PerformanceTest, WSL Settings). Updaters, installers and uninstallers are
+// not here: they are filtered before classification.
+constexpr std::array<ApplicationRole, 5> kProductNameableRoles{
+    ApplicationRole::Downloader,
+    ApplicationRole::RepairTool,
+    ApplicationRole::BenchmarkTool,
+    ApplicationRole::DiagnosticTool,
+    ApplicationRole::ConfigurationTool,
+};
+
 // Publication-time passes only see the cached title, which loses the Start
 // Menu folder / ProductName that ClassifyApplicationRole used to recognise
 // a standalone product named "... Download Manager". The cached catalog
 // family keeps that identity: when the family (folder or ProductName, e.g.
 // "internetdownloadmanageridm") begins with the whole title, the title is
-// the product's own name and its "download manager" words are not a role.
+// the product's own name and its role words are not a role.
 [[nodiscard]] bool
-TitleIsOwnDownloaderProductName(
+TitleIsOwnProductName(
     const Command& command,
     ApplicationRole titleRole) {
 
-    if (titleRole != ApplicationRole::Downloader) {
+    if (std::find(
+            kProductNameableRoles.begin(),
+            kProductNameableRoles.end(),
+            titleRole) ==
+        kProductNameableRoles.end()) {
         return false;
     }
 
@@ -3217,13 +3233,13 @@ ClassifyApplicationRole(
             EvidenceField::Structural);
     }
 
-    // "Download manager" describes a suite's background downloader only when
-    // it is extra wording on top of the product ("Contoso Studio Download
+    // Role words such as "download manager", "repair", "performance test",
+    // "diagnostics" or "settings" describe a suite helper only when they are
+    // extra wording on top of the product ("Contoso Studio Download
     // Manager"). When the entry's title is the product's own name (its Start
     // Menu folder, or the executable ProductName, possibly with a suffix such
     // as "Internet Download Manager (IDM)"), the words are the name of a
-    // standalone application, so they carry no Downloader evidence from any
-    // field.
+    // standalone application, so they carry no helper-role evidence.
     const bool titleIsProductName =
         titleMatchesFamily ||
         (!product.empty() &&
@@ -3235,8 +3251,11 @@ ClassifyApplicationRole(
               evidence.displayTitle)));
 
     if (titleIsProductName) {
-        scores[static_cast<std::size_t>(
-            ApplicationRole::Downloader)] = {};
+        for (const ApplicationRole role :
+             kProductNameableRoles) {
+            scores[static_cast<std::size_t>(
+                role)] = {};
+        }
     }
 
     ApplicationRole bestRole =
@@ -3349,7 +3368,7 @@ void CalibrateCatalogRoleContext(
                 titleDecision.role) ||
             titleDecision.confidence ==
                 RoleConfidence::Low ||
-            TitleIsOwnDownloaderProductName(
+            TitleIsOwnProductName(
                 *command,
                 titleDecision.role)) {
             continue;
@@ -3667,7 +3686,7 @@ void CalibrateCatalogRoleContext(
                 semanticPrimaryContext &&
                 IsContextPromotableRole(
                     titleDecision.role) &&
-                !TitleIsOwnDownloaderProductName(
+                !TitleIsOwnProductName(
                     *candidate,
                     titleDecision.role)) {
                 const auto priorTokens =

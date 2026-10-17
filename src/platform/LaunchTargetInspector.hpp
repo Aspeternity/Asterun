@@ -32,6 +32,12 @@ InspectExecutableMetadata(
 InspectShellLink(
     const std::filesystem::path& path);
 
+// The URL= value of an Internet Shortcut (.url) file, e.g.
+// "steam://rungameid/3722330"; nullopt when missing or unreadable.
+[[nodiscard]] std::optional<std::wstring>
+ReadInternetShortcutUrl(
+    const std::filesystem::path& path);
+
 [[nodiscard]] std::optional<
     LaunchSurfaceClass>
 ClassifyShellActivationSurface(
