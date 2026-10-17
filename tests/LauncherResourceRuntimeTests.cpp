@@ -494,6 +494,17 @@ struct LauncherResourceRuntimeFixture {
         // Observe the actual single-result execution decision without launching
         // anything: this synthetic result has no executable command index.
         settings.executeSingleResultImmediately = true;
+        // A weak (fuzzy) single match is never launched without Enter.
+        LauncherResult weak = first;
+        weak.relevanceMatch = {relevance::MatchKind::Fuzzy,
+                               relevance::MatchField::Title, 400, false};
+        window.staticResults_ = {weak};
+        window.immediateExecutionPending_ = true;
+        window.RebuildVisibleResults(true, false, false);
+        assert(window.immediateExecutionPending_);
+        // A clear name-prefix match is.
+        first.relevanceMatch = {relevance::MatchKind::Prefix,
+                                relevance::MatchField::Title, 860, false};
         window.staticResults_ = {first};
         window.immediateExecutionPending_ = true;
         SendMessageW(window.edit_, WM_IME_STARTCOMPOSITION, 0, 0);

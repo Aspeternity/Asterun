@@ -2065,7 +2065,10 @@ void LauncherWindow::RebuildVisibleResults(
                 imeComposing_,
                 queryEmpty,
                 dynamicQueryPending_,
-                results_.size())) {
+                results_.size()) &&
+        classic_behavior::
+            SingleResultAutoExecutable(
+                results_.front())) {
         ExecuteResultAt(0);
     }
 }
@@ -3431,6 +3434,18 @@ LRESULT LauncherWindow::HandleEditMessage(
         message == WM_CUT || message == WM_CLEAR)
         CommitPendingNumericIntentAsText();
 
+    // Remember whether the next text change removes text, so single-result
+    // auto execution only follows typing and pasting.
+    if (message == WM_CUT || message == WM_CLEAR ||
+        (message == WM_KEYDOWN &&
+         (wParam == VK_BACK || wParam == VK_DELETE))) {
+        deletionEditPending_ = true;
+    } else if ((message == WM_CHAR && wParam >= L' ') ||
+               message == WM_PASTE ||
+               message == WM_IME_ENDCOMPOSITION) {
+        deletionEditPending_ = false;
+    }
+
     if (message == WM_CHAR && !imeComposing_ &&
         (wParam == L'\r' || wParam == L'\t' || wParam == 27)) {
         return 0;
@@ -3642,6 +3657,15 @@ LRESULT LauncherWindow::HandleEditMessage(
                 reinterpret_cast<LPARAM>(&selectionEnd));
             context.editingText = selectionStart != selectionEnd || selectionEnd != query.size() ||
                 relevance::HasExplicitSyntax(query) || query.find_first_of(L"|!<>\"") != std::wstring::npos;
+            context.afterSeparator =
+                !query.empty() && std::iswspace(query.back()) != 0;
+            context.typingArgument =
+                std::any_of(
+                    results_.begin(),
+                    results_.end(),
+                    [](const LauncherResult& result) {
+                        return classic_behavior::ConsumesTypedText(result);
+                    });
 
             const auto decision =
                 classic_behavior::
@@ -3818,10 +3842,18 @@ LRESULT LauncherWindow::HandleMessage(
             // IME composition can emit intermediate EN_CHANGE events. Search
             // may update live, but single-result auto execution must wait
             // until composition is committed.
-            RefreshResults(
-                !imeComposing_ &&
-                    !numericTextCommitInProgress_,
-                false);
+            //
+            // Deleting text never auto-executes: Backspace from "xyzq" to
+            // "xyz" may leave one result the user did not ask for.
+            {
+                const bool deletion = deletionEditPending_;
+                deletionEditPending_ = false;
+                RefreshResults(
+                    !imeComposing_ &&
+                        !numericTextCommitInProgress_ &&
+                        !deletion,
+                    false);
+            }
             return 0;
         }
         if (LOWORD(wParam) == 1002 && HIWORD(wParam) == LBN_DBLCLK) {
