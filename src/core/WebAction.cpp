@@ -1,4 +1,5 @@
 #include "WebAction.hpp"
+#include "UrlEncoding.hpp"
 
 #include "ProviderIds.hpp"
 
@@ -50,100 +51,71 @@ constexpr std::wstring_view kQueryPlaceholder = L"{query}";
         StartsWithInsensitive(value, L"https://");
 }
 
+// The host part of a scheme-less address: everything before the first
+// '/', '?', '#' or ':' (port).
+[[nodiscard]] std::wstring_view HostOf(std::wstring_view address) {
+    return address.substr(0, address.find_first_of(L"/?#:"));
+}
+
+// "baidu.com", "www.github.com": two or more non-empty labels made of
+// letters, digits and '-'.
+[[nodiscard]] bool IsDomainName(std::wstring_view host) {
+    if (host.empty() || host.front() == L'.' || host.back() == L'.' ||
+        host.find(L"..") != std::wstring_view::npos ||
+        host.find(L'.') == std::wstring_view::npos) {
+        return false;
+    }
+    return std::all_of(host.begin(), host.end(), [](wchar_t ch) {
+        return (ch >= L'a' && ch <= L'z') || (ch >= L'A' && ch <= L'Z') ||
+            (ch >= L'0' && ch <= L'9') || ch == L'-' || ch == L'.';
+    });
+}
+
+// Top-level domains accepted without "http://" or "www.". Kept to common
+// web suffixes so file names (readme.md, setup.exe, notes.txt) are never
+// mistaken for addresses.
+[[nodiscard]] bool HasCommonWebSuffix(std::wstring_view host) {
+    const auto dot = host.find_last_of(L'.');
+    const auto suffix = host.substr(dot + 1);
+    constexpr std::wstring_view kSuffixes[]{
+        L"com", L"cn", L"net", L"org", L"io", L"dev", L"co", L"me",
+        L"info", L"edu", L"gov", L"cc", L"tv", L"top", L"xyz", L"ai"};
+    return std::any_of(std::begin(kSuffixes), std::end(kSuffixes),
+        [&](std::wstring_view known) {
+            return EqualInsensitive(suffix, known);
+        });
+}
+
 [[nodiscard]] std::optional<std::wstring>
 NormalizeDirectUrl(std::wstring_view query) {
     query = Trim(query);
     if (query.empty() || HasWhitespace(query)) return std::nullopt;
-    if (IsHttpUrl(query)) return std::wstring(query);
-    if (StartsWithInsensitive(query, L"www.")) {
-        std::wstring result = L"https://";
-        result.append(query);
-        return result;
-    }
-    return std::nullopt;
-}
-
-void AppendUtf8(std::string& output, std::uint32_t codePoint) {
-    if (codePoint <= 0x7Fu) {
-        output.push_back(static_cast<char>(codePoint));
-    } else if (codePoint <= 0x7FFu) {
-        output.push_back(static_cast<char>(0xC0u | (codePoint >> 6)));
-        output.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
-    } else if (codePoint <= 0xFFFFu) {
-        output.push_back(static_cast<char>(0xE0u | (codePoint >> 12)));
-        output.push_back(static_cast<char>(0x80u | ((codePoint >> 6) & 0x3Fu)));
-        output.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
-    } else {
-        output.push_back(static_cast<char>(0xF0u | (codePoint >> 18)));
-        output.push_back(static_cast<char>(0x80u | ((codePoint >> 12) & 0x3Fu)));
-        output.push_back(static_cast<char>(0x80u | ((codePoint >> 6) & 0x3Fu)));
-        output.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
-    }
-}
-
-[[nodiscard]] std::string Utf8Bytes(std::wstring_view value) {
-    std::string output;
-    output.reserve(value.size() * 2);
-
-    for (std::size_t i = 0; i < value.size(); ++i) {
-        const auto unit =
-            static_cast<std::make_unsigned_t<wchar_t>>(
-                value[i]);
-        std::uint32_t codePoint =
-            static_cast<std::uint32_t>(unit);
-
-        if (codePoint >= 0xD800u && codePoint <= 0xDBFFu && i + 1 < value.size()) {
-            const auto low = static_cast<std::uint32_t>(value[i + 1]);
-            if (low >= 0xDC00u && low <= 0xDFFFu) {
-                codePoint = 0x10000u +
-                    ((codePoint - 0xD800u) << 10) +
-                    (low - 0xDC00u);
-                ++i;
-            } else {
-                codePoint = 0xFFFDu;
-            }
-        } else if (
-            (codePoint >= 0xDC00u && codePoint <= 0xDFFFu) ||
-            codePoint > 0x10FFFFu) {
-            codePoint = 0xFFFDu;
-        }
-
-        AppendUtf8(output, codePoint);
+    if (IsHttpUrl(query)) {
+        // "http://" alone (or with an empty host) is not an address yet.
+        const auto rest = query.substr(query.find(L"://") + 3);
+        if (HostOf(rest).empty()) return std::nullopt;
+        return std::wstring(query);
     }
 
-    return output;
-}
+    const std::wstring_view host = HostOf(query);
+    const bool www = StartsWithInsensitive(query, L"www.");
+    // "www." needs a real domain after it ("www.baidu.com", not "www." or
+    // "www.x"); a bare host needs a common web suffix ("github.com").
+    const bool address = www
+        ? IsDomainName(host.substr(4))
+        : IsDomainName(host) && HasCommonWebSuffix(host);
+    if (!address) return std::nullopt;
 
-[[nodiscard]] std::wstring PercentEncodeQuery(std::wstring_view value) {
-    constexpr wchar_t kHex[] = L"0123456789ABCDEF";
-    const auto utf8 = Utf8Bytes(value);
-    std::wstring output;
-    output.reserve(utf8.size() * 3);
-
-    for (const unsigned char byte : utf8) {
-        const bool unreserved =
-            (byte >= 'A' && byte <= 'Z') ||
-            (byte >= 'a' && byte <= 'z') ||
-            (byte >= '0' && byte <= '9') ||
-            byte == '-' || byte == '.' || byte == '_' || byte == '~';
-
-        if (unreserved) {
-            output.push_back(static_cast<wchar_t>(byte));
-        } else {
-            output.push_back(L'%');
-            output.push_back(kHex[(byte >> 4) & 0x0F]);
-            output.push_back(kHex[byte & 0x0F]);
-        }
-    }
-
-    return output;
+    std::wstring result = L"https://";
+    result.append(query);
+    return result;
 }
 
 [[nodiscard]] std::wstring ResolveQueryTemplate(
     std::wstring_view target,
     std::wstring_view query) {
     std::wstring resolved(target);
-    const auto encoded = PercentEncodeQuery(query);
+    const auto encoded = PercentEncodeUtf8(query);
     std::size_t position = 0;
 
     while ((position = resolved.find(kQueryPlaceholder, position)) !=
@@ -232,7 +204,7 @@ BuildWebActionResults(
 
         LauncherResult result;
         result.id = L"builtin.web:search:" + command.id + L":" +
-            PercentEncodeQuery(tail);
+            PercentEncodeUtf8(tail);
         result.providerId = std::string(providers::kBuiltinWeb);
         result.kind = ResultKind::Action;
         result.title = command.title.empty() ? command.keyword : command.title;
