@@ -17,18 +17,32 @@ if [[ ! "$COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]; then
 fi
 
 for asset in Asterun-x64.zip Asterun-ARM64.zip SHA256SUMS.txt update-manifest.json; do
-  test -f "$asset"
+  if [[ ! -f "$asset" ]]; then
+    echo "Release asset $asset is missing from $(pwd)."
+    exit 1
+  fi
 done
 
-test "$(wc -l < SHA256SUMS.txt)" -eq 2
-sha256sum -c SHA256SUMS.txt
+checksum_lines="$(wc -l < SHA256SUMS.txt)"
+if [[ "$checksum_lines" -ne 2 ]]; then
+  echo "SHA256SUMS.txt must list exactly 2 archives; found $checksum_lines lines."
+  exit 1
+fi
+
+if ! sha256sum -c SHA256SUMS.txt; then
+  echo "SHA256SUMS.txt does not match the release archives."
+  exit 1
+fi
 
 IS_PRERELEASE=false
 if [[ "$VERSION" == *-* ]]; then
   IS_PRERELEASE=true
 fi
 
-jq -e --arg version "$VERSION" --arg commit "${COMMIT,,}" --argjson prerelease "$IS_PRERELEASE" '.schemaVersion == 1 and .version == $version and .commit == $commit and .prerelease == $prerelease and .assets.x64.name == "Asterun-x64.zip" and .assets.ARM64.name == "Asterun-ARM64.zip"' update-manifest.json >/dev/null
+if ! jq -e --arg version "$VERSION" --arg commit "${COMMIT,,}" --argjson prerelease "$IS_PRERELEASE" '.schemaVersion == 1 and .version == $version and .commit == $commit and .prerelease == $prerelease and .assets.x64.name == "Asterun-x64.zip" and .assets.ARM64.name == "Asterun-ARM64.zip"' update-manifest.json >/dev/null; then
+  echo "update-manifest.json does not match version $VERSION, commit $COMMIT, prerelease=$IS_PRERELEASE and the expected asset names."
+  exit 1
+fi
 
 REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
 
@@ -43,7 +57,10 @@ fi
 verify_release() {
   local release_json="$1"
 
-  jq -e --arg tag "$TAG" --argjson prerelease "$IS_PRERELEASE" '.tag_name == $tag and .draft == false and .prerelease == $prerelease and ([.assets[].name] | sort) == (["Asterun-ARM64.zip", "Asterun-x64.zip", "SHA256SUMS.txt", "update-manifest.json"] | sort)' "$release_json" >/dev/null
+  if ! jq -e --arg tag "$TAG" --argjson prerelease "$IS_PRERELEASE" '.tag_name == $tag and .draft == false and .prerelease == $prerelease and ([.assets[].name] | sort) == (["Asterun-ARM64.zip", "Asterun-x64.zip", "SHA256SUMS.txt", "update-manifest.json"] | sort)' "$release_json" >/dev/null; then
+    echo "Release $TAG does not match the contract (published, prerelease=$IS_PRERELEASE, exactly the four expected assets)."
+    exit 1
+  fi
 
   local public_manifest_url="https://github.com/$REPOSITORY/releases/download/$TAG/update-manifest.json"
   local verified=false
@@ -65,7 +82,15 @@ verify_release() {
   fi
 }
 
-existing_release_id="$(gh api --paginate --slurp "repos/$REPOSITORY/releases?per_page=100" | jq -r --arg tag "$TAG" '[.[][] | select(.tag_name == $tag) | .id][0] // empty')"
+# Prints the ID of the release (draft or published) for $TAG, or nothing if none exists.
+lookup_release_id() {
+  gh api --paginate --slurp "repos/$REPOSITORY/releases?per_page=100" | jq -r --arg tag "$TAG" '[.[][] | select(.tag_name == $tag) | .id][0] // empty'
+}
+
+if ! existing_release_id="$(lookup_release_id)"; then
+  echo "Could not list releases of $REPOSITORY to look for an existing $TAG release."
+  exit 1
+fi
 release_json="existing-release.json"
 
 if [[ -n "$existing_release_id" ]]; then
@@ -88,8 +113,25 @@ fi
 
 gh release create "$TAG" Asterun-x64.zip Asterun-ARM64.zip SHA256SUMS.txt update-manifest.json --draft "${extra_args[@]}" --title "Asterun $TAG" --notes "Versioned build created automatically from commit $COMMIT."
 
-release_id="$(gh api --paginate --slurp "repos/$REPOSITORY/releases?per_page=100" | jq -r --arg tag "$TAG" '[.[][] | select(.tag_name == $tag) | .id][0] // empty')"
-test -n "$release_id"
+# The releases list endpoint is eventually consistent: a draft that `gh release create`
+# just returned may not be listed yet, so poll briefly before giving up.
+release_id=""
+for attempt in $(seq 1 20); do
+  if release_id="$(lookup_release_id)" && [[ -n "$release_id" ]]; then
+    break
+  fi
+
+  release_id=""
+  if [[ "$attempt" -lt 20 ]]; then
+    echo "Draft release $TAG is not listed yet (attempt $attempt/20); retrying."
+    sleep 3
+  fi
+done
+
+if [[ -z "$release_id" ]]; then
+  echo "Draft release $TAG was created but never appeared in the releases list; re-run the job to recover the draft."
+  exit 1
+fi
 
 gh api --method PATCH "repos/$REPOSITORY/releases/$release_id" -F draft=false -F prerelease="$IS_PRERELEASE" >/dev/null
 gh api "repos/$REPOSITORY/releases/$release_id" > published-release.json
