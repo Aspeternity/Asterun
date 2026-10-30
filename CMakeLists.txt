@@ -1514,6 +1514,23 @@ if(BUILD_TESTING)
             set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
         endforeach()
 
+        # UpdateManager retains its own fixed-read transport and policy tests.
+        add_executable(update_http_transport_tests tests/UpdateHttpTransportTests.cpp
+            src/platform/SecureArchive.cpp src/platform/SecureElevation.cpp)
+        target_link_libraries(update_http_transport_tests PRIVATE ${everything_test_libraries} altrun_config)
+        add_executable(update_http_runtime_tests tests/UpdateHttpRuntimeTests.cpp)
+        target_link_libraries(update_http_runtime_tests PRIVATE winhttp ws2_32)
+        foreach(target update_http_transport_tests update_http_runtime_tests)
+            target_include_directories(${target} PRIVATE src)
+            target_compile_definitions(${target} PRIVATE ${everything_test_definitions})
+            if(MSVC)
+                target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+            endif()
+            altrun_enable_test_assertions(${target})
+            add_test(NAME ${target} COMMAND ${target})
+            set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+        endforeach()
+
         add_executable(
             everything_ipc_runtime_tests
             tests/EverythingIpcRuntimeTests.cpp

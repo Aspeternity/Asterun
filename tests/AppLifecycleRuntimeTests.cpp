@@ -9,6 +9,7 @@
 #include <cassert>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iostream>
 
 namespace {
@@ -181,6 +182,54 @@ struct AppLifecycleRuntimeFixture {
         }
     }
 
+    static void UpdateWatchdog(HINSTANCE instance) {
+        // Exercise the unchanged App generation arbitration as completion races
+        // the absolute watchdog. Transport-level handle races are tested separately.
+        for (int cycle = 0; cycle < 32; ++cycle) {
+            App app(instance);
+            app.updateGeneration_ = 700;
+            app.updateStatus_.stage = win::UpdateStage::Checking;
+            app.updateStatus_.running = true;
+            app.updateWorkerRunning_ = true;
+            const auto now = GetTickCount64();
+            assert(now > kUpdateCheckWatchdogMs);
+            app.updateWorkerStartedTick_ = now - kUpdateCheckWatchdogMs;
+            std::promise<void> go, done;
+            auto ready = go.get_future(); auto finished = done.get_future();
+            app.updateThread_ = std::jthread([&](std::stop_token) {
+                ready.wait();
+                {
+                    std::scoped_lock lock(app.updateMutex_);
+                    if (app.updateGeneration_ == 700) {
+                        app.updateStatus_.stage = win::UpdateStage::Available;
+                        app.updateStatus_.running = false;
+                    }
+                }
+                app.updateWorkerRunning_ = false;
+                done.set_value();
+            });
+            if (cycle == 0) { // watchdog wins before completion can publish
+                app.HandleUpdateStatusMessage(700);
+                assert(app.updateThread_.get_stop_token().stop_requested());
+                assert(app.updateGeneration_ == 701);
+                go.set_value();
+            } else {
+                go.set_value();
+                if (cycle == 1) finished.wait(); // completion wins before watchdog
+                app.HandleUpdateStatusMessage(700);
+            }
+            assert(finished.wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+            app.HandleUpdateStatusMessage(700);
+            assert(!app.updateThread_.joinable());
+            const auto status = app.UpdateStatus();
+            assert(!status.running);
+            if (app.updateGeneration_ == 701) {
+                assert(status.failure == win::UpdateFailure::CheckTimedOut);
+                assert(status.nativeError == ERROR_TIMEOUT);
+            } else assert(status.stage == win::UpdateStage::Available);
+        }
+    }
+
     static void ModalDelivery(HINSTANCE instance) {
         WriteSettings();
         App app(instance);
@@ -320,6 +369,7 @@ int main() {
     const auto instance = GetModuleHandleW(nullptr);
     altrun::AppLifecycleRuntimeFixture::Ownership(instance);
     altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
+    altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
     if (SUCCEEDED(com)) CoUninitialize();
     std::filesystem::remove_all(fixtureRoot);
     std::cout << "Primary ownership and modal dispatcher regressions passed\n";
