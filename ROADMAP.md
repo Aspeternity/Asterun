@@ -1,6 +1,14 @@
 # Asterun Roadmap
 
-Asterun v1.0.6 is the current stable release (published 2026-10-17). Post-release maintenance on `main` is distributed separately through the rolling `dev-latest` prerelease.
+Asterun v1.0.7 is the current stable release (published 2026-10-30). Post-release maintenance on `main` is distributed separately through the rolling `dev-latest` prerelease.
+
+## v1.0.7 - Run-by-name catalog and faster Everything results (released 2026-10-30)
+
+- Treat App Paths as a run-by-name table: fold aliases into the applications they open, hide package servers and limit components (MSIX helpers, Windows-serviced and Common Files executables, unlisted parts of a listed product) to their exact name, while headless command-line packages stay normal (provider cache schema 27, rebuilt automatically).
+- Admit a restricted entry once the user has launched it.
+- Cut Everything file-result latency to ~15 ms: index-backed `startwith:` prefix pass, one query in flight with newest-wins, immediate send after a pause. Restores numbered launch after a typed query with Everything enabled.
+- Filter build/IDE intermediates and collapse repeated copies of one file name.
+- Native ARM64 hardware acceptance is not claimed.
 
 ## v1.0.6 - Habit-aware search, UI consistency and update hardening (released 2026-10-17)
 

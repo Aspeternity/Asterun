@@ -40,11 +40,11 @@ Asterun is a native, lightweight, keyboard-first launcher for Windows 10/11, des
 
 Built with C++23 + Win32, Asterun brings application discovery, pinyin and mixed-language search, usage-aware ranking, smart numeric launch, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model into one compact launcher experience.
 
-## Current Stable Release: v1.0.6
+## Current Stable Release: v1.0.7
 
-**[Asterun v1.0.6](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.6) is officially released** and recommended for everyday use. It brings habit-aware search ranking, a more accurate application catalog and numeric quick launch, improved Everything file search, more consistent and crisper interface typography, and sturdier updates and uninstall (automatic rollback, atomic file replacement and temporary-file cleanup). See the [changelog](CHANGELOG.md) for release details.
+**[Asterun v1.0.7](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.7) is officially released** and recommended for everyday use. It keeps internal helper components of MSIX apps and programs such as Office out of the application catalog (they remain reachable by full name), cuts the delay before Everything file results appear from hundreds of milliseconds to about 15 ms, restores numbered launch after a typed query, and filters build intermediates and repeated copies of one file name. See the [changelog](CHANGELOG.md) for release details.
 
-The **[dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) development prerelease** is built from `main` after successful CI and may include maintenance fixes made after v1.0.6. It is a separate channel, not part of the v1.0.6 stable release.
+The **[dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) development prerelease** is built from `main` after successful CI and may include maintenance fixes made after v1.0.7. It is a separate channel, not part of the v1.0.7 stable release.
 
 ## Interface Preview
 
