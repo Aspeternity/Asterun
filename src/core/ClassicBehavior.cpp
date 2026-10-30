@@ -175,22 +175,21 @@ bool StrongNameContinuation(std::wstring_view name, std::wstring_view query) noe
 std::wstring BuildFilenameContinuationQuery(std::wstring_view query) {
     // Never reinterpret Everything syntax/path expressions as ordinary names.
     if (relevance::HasExplicitSyntax(query) || query.size() > 128) return {};
-    std::wstring pattern = L"nopath:regex:\"^";
-    bool any = false;
-    for (const wchar_t ch : query) {
-        if (IgnoredForPrefix(ch)) continue;
-        if (ch < L' ' || (ch >= 0xD800 && ch <= 0xDFFF)) return {};
-        pattern += L"[\\s_-]*";
-        if (ch == L'\"') pattern += L"\\x22";
-        else {
-            if (std::wstring_view(L"\\.^$|()[]{}*+?").find(ch) != std::wstring_view::npos)
-                pattern.push_back(L'\\');
-            pattern.push_back(ch);
-        }
-        any = true;
+    // startwith: is answered from Everything's name index (a few ms), while
+    // a regex scans every indexed name (~200 ms on a large index) and the
+    // reply waits for this pass. The quoted text keeps operators literal; a
+    // quote cannot be escaped inside it, so such a query skips this pass.
+    std::wstring_view text = query;
+    while (!text.empty() && IgnoredForPrefix(text.front())) text.remove_prefix(1);
+    while (!text.empty() && IgnoredForPrefix(text.back())) text.remove_suffix(1);
+    if (text.empty()) return {};
+    for (const wchar_t ch : text) {
+        if (ch < L' ' || ch == L'\"' || (ch >= 0xD800 && ch <= 0xDFFF)) return {};
     }
+    std::wstring pattern = L"nopath:startwith:\"";
+    pattern += text;
     pattern += L"\"";
-    return any ? pattern : std::wstring{};
+    return pattern;
 }
 
 PendingNumericDecision ResolvePendingNumericIntent(

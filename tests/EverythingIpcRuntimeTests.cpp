@@ -185,15 +185,26 @@ std::vector<std::byte> BuildReplyItems(
 
 std::vector<std::byte> BuildReply(
     const Query2WireRequest& query) {
-    if (query.search == uR"(nopath:regex:"^[\s_-]*v[\s_-]*2")") {
+    if (query.search == u"nopath:startwith:\"v2\"") {
         return BuildReplyItems(query, {{.name = u"v2rayN.exe", .path = u"D:\\Portable",
             .fullPath = u"D:\\Portable\\v2rayN.exe"}});
     }
-    if (query.search.starts_with(u"nopath:regex:")) {
+    if (query.search.starts_with(u"nopath:startwith:")) {
         // The probe fixture supports a confirmed empty set and a truncated unknown set.
-        if (query.search.find(u"[\\s_-]*x[\\s_-]*9") != std::u16string::npos)
+        if (query.search.find(u"x9") != std::u16string::npos)
             return BuildReplyItems(query, {}, 9000);
         return BuildReplyItems(query, {});
+    }
+    if (query.search == u"dup") {
+        // Newest first, as the provider requests.
+        return BuildReplyItems(
+            query,
+            {{.name = u"dup.txt", .path = u"D:\\New", .fullPath = u"D:\\New\\dup.txt"},
+             {.name = u"DUP.txt", .path = u"D:\\Old", .fullPath = u"D:\\Old\\DUP.txt"},
+             {.flags = kItemFolder, .name = u"dup.txt", .path = u"D:\\Dirs",
+              .fullPath = u"D:\\Dirs\\dup.txt"},
+             {.name = u"dup-notes.txt", .path = u"D:\\New",
+              .fullPath = u"D:\\New\\dup-notes.txt"}});
     }
     if (query.search == u"folder") {
         return BuildReplyItems(
@@ -855,25 +866,39 @@ int main() {
     for (const UINT_PTR timerId : {UINT_PTR{0x351}, UINT_PTR{0x352}}) {
         FakeEverythingServer server(FakeEverythingServer::Mode::NoReply);
         ResultCollector collector;
-        EverythingIpcClient client(OptionsFor(server.WindowClass()));
+        auto options = OptionsFor(server.WindowClass());
+        // A query after a pause goes out at once; the debounce timer only
+        // spaces a query that follows the previous send closely. A long
+        // debounce makes the query after a timed-out warm-up need it.
+        const bool debounceTimer = timerId == 0x351;
+        if (debounceTimer) {
+            options.debounce = 1s;
+        }
+        EverythingIpcClient client(options);
+        const std::size_t before = debounceTimer ? 1U : 0U;
+        if (debounceTimer) {
+            client.QueryAsync({9000, L"warm up", 8}, collector.Callback());
+            assert(collector.WaitFor(1));
+        }
         timerFailures = 0;
         failTimerId = timerId;
         client.QueryAsync({9001, L"timer failure", 8}, collector.Callback());
-        assert(collector.WaitFor(1));
+        assert(collector.WaitFor(before + 1));
         auto results = collector.Snapshot();
         assert(timerFailures == 1 && failTimerId == 0);
-        assert(results.size() == 1 && results[0].generation == 9001);
-        assert(results[0].status == EverythingQueryStatus::Unavailable);
-        assert(results[0].nativeError == ERROR_NOT_ENOUGH_MEMORY);
-        assert(server.ReceivedCount() == (timerId == 0x351 ? 0U : 1U));
+        assert(results.size() == before + 1 && results.back().generation == 9001);
+        assert(results.back().status == EverythingQueryStatus::Unavailable);
+        assert(results.back().nativeError == ERROR_NOT_ENOUGH_MEMORY);
+        // Only the warm-up (debounce case) or the query itself was sent.
+        assert(server.ReceivedCount() == 1U);
 
         // The same client must remain usable and complete exactly once per
         // query. With timer creation restored, the silent peer now times out.
         client.QueryAsync({9002, L"recovery", 8}, collector.Callback());
-        assert(collector.WaitFor(2));
+        assert(collector.WaitFor(before + 2));
         results = collector.Snapshot();
-        assert(results.size() == 2 && results[1].generation == 9002);
-        assert(results[1].status == EverythingQueryStatus::ReplyTimeout);
+        assert(results.size() == before + 2 && results.back().generation == 9002);
+        assert(results.back().status == EverythingQueryStatus::ReplyTimeout);
     }
 
     {
@@ -1693,6 +1718,69 @@ int main() {
         assert(
             response->totalMatches ==
             500000);
+    }
+
+    {
+        // Copies of one file name collapse to the newest; a folder of the
+        // same name and other names are unaffected.
+        FakeEverythingServer server(
+            FakeEverythingServer::
+                Mode::Immediate);
+        EverythingProvider provider(
+            OptionsFor(
+                server.WindowClass()));
+
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::optional<
+            DynamicQueryResponse>
+            response;
+
+        provider.QueryAsync(
+            {
+                .generation = 860,
+                .query = L"dup",
+                .limit = 30,
+            },
+            [&](DynamicQueryResponse value) {
+                {
+                    std::scoped_lock lock(
+                        mutex);
+                    response =
+                        std::move(value);
+                }
+                cv.notify_all();
+            });
+
+        {
+            std::unique_lock lock(
+                mutex);
+            assert(
+                cv.wait_for(
+                    lock,
+                    2s,
+                    [&] {
+                        return response
+                            .has_value();
+                    }));
+        }
+
+        assert(response);
+        assert(response->results.size() == 3);
+        const auto files = std::count_if(
+            response->results.begin(),
+            response->results.end(),
+            [](const LauncherResult& result) {
+                return result.kind == ResultKind::File &&
+                    result.target.ends_with(L"dup.txt");
+            });
+        assert(files == 1);
+        assert(std::any_of(
+            response->results.begin(),
+            response->results.end(),
+            [](const LauncherResult& result) {
+                return result.target == L"D:\\New\\dup.txt";
+            }));
     }
 
     {
