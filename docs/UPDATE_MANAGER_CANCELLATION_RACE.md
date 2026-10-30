@@ -1,6 +1,6 @@
-# UpdateManager synchronous WinHTTP cancellation race
+# UpdateManager synchronous WinHTTP cancellation race (fixed)
 
-状态：单独记录，Batch 2 未修复、未修改 UpdateManager。基于 v1.0.1 / Batch 1 源码。
+状态：**已在 v1.0.2 修复**（8f068ae）。UpdateManager 的 session 改为 `WINHTTP_FLAG_ASYNC`，由 `src/platform/UpdateHttpRequest.hpp` 的 `update_http::Request` 承载：所有 WinHTTP 调用和唯一的关闭路径都在下载线程上，停止回调只发信号，状态和在途 buffer 保留到 `HANDLE_CLOSING`。`tests/UpdateHttpTransportTests.cpp` 覆盖各网络阶段的取消、关闭后迟到的回调和重复检查/下载。以下为修复前的原始记录（基于 v1.0.1 / Batch 1 源码），仅供追溯。
 
 严重程度：High（静态审查确认并发模式违反 WinHTTP 契约，尚无实机崩溃复现）。
 

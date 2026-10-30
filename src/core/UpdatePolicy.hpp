@@ -8,11 +8,6 @@
 
 namespace altrun {
 
-enum class UpdateChannel {
-    Stable,
-    Development,
-};
-
 struct UpdateAsset {
     std::string name;
     std::string sha256;
@@ -26,14 +21,6 @@ struct UpdateManifest {
     UpdateAsset x64;
     UpdateAsset arm64;
 };
-
-[[nodiscard]] const char*
-UpdateChannelName(
-    UpdateChannel channel);
-
-[[nodiscard]] UpdateChannel
-DefaultUpdateChannelForVersion(
-    std::string_view version);
 
 [[nodiscard]] std::optional<int>
 CompareVersions(
@@ -61,13 +48,16 @@ UpdateHttpStatusError(
 UpdateHttpStatusFromError(
     std::uint32_t error);
 
+// The manifest of GitHub's latest non-prerelease release.
 [[nodiscard]] std::wstring
-UpdateManifestUrl(
-    UpdateChannel channel);
+UpdateManifestUrl();
 
+// Assets come from the release tagged v<version>, not /latest/, so a release
+// published between the check and the download cannot swap the package
+// under the manifest's SHA-256.
 [[nodiscard]] std::wstring
 UpdateAssetUrl(
-    UpdateChannel channel,
+    std::string_view version,
     std::string_view assetName);
 
 [[nodiscard]] bool

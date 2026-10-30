@@ -48,4 +48,11 @@ struct RollbackResult {
     const TransactionPaths& paths,
     const TransactionJournal& journal);
 
+// After a successful update, removes files under the packaged dict/ and
+// third_party/ trees that the applied package (`journal`) no longer ships,
+// then any directories left empty. Best effort and not reversible.
+void PruneObsoletePackageFiles(
+    const TransactionPaths& paths,
+    const TransactionJournal& journal);
+
 } // namespace altrun::updater

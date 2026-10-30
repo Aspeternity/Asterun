@@ -107,8 +107,6 @@ private:
     static constexpr UINT
         kIdOpenGitHub = 51302;
     static constexpr UINT
-        kIdUpdatePrerelease = 51303;
-    static constexpr UINT
         kIdUpdateAutoCheck = 51304;
     static constexpr UINT
         kIdUpdateAction = 51305;
@@ -197,7 +195,6 @@ private:
     void RefreshDataCompatibilityStatus();
     void RefreshUpdateStatus();
     void SyncUpdateStatusTimer();
-    void TogglePrereleaseUpdates();
 
     void ToggleGeneralSetting(
         UINT id);
@@ -439,7 +436,6 @@ private:
     HWND aboutDescription_{};
     HWND updateSectionTitle_{};
     HWND updateAutoCheck_{};
-    HWND updatePrerelease_{};
     HWND updateStatus_{};
     HWND updateAction_{};
     HWND openGitHub_{};

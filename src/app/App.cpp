@@ -184,6 +184,24 @@ std::wstring FormatHotkeyBindingForStartup(
     return result;
 }
 
+// The marker exists while Update.exe works on the files. One created by an
+// elevated updater cannot be opened from here, which still proves it exists.
+bool UpdateInProgress() {
+    const HANDLE marker =
+        OpenMutexW(
+            SYNCHRONIZE,
+            FALSE,
+            app_identity::kUpdateInProgressMutexName);
+
+    if (marker) {
+        CloseHandle(marker);
+        return true;
+    }
+
+    return GetLastError() ==
+        ERROR_ACCESS_DENIED;
+}
+
 bool ProbeDirectoryWritable(
     const std::filesystem::path& directory) {
 
@@ -418,8 +436,20 @@ int App::Run() {
         CreateMutexW(
             nullptr,
             FALSE,
-            L"Local\\Aspeternity.Asterun.SingleInstance.v1");
+            app_identity::kSingleInstanceMutexName);
     const DWORD mutexError = GetLastError();
+
+    // An elevated Update.exe creates the guard with a DACL this process
+    // cannot open, so access denied also counts while it is updating.
+    if ((mutexError == ERROR_ALREADY_EXISTS ||
+         (!singleInstanceMutex_ &&
+          mutexError == ERROR_ACCESS_DENIED)) &&
+        UpdateInProgress()) {
+        // Update.exe is replacing or restoring the application files. Leave
+        // at once, without a message box that would keep Asterun.exe mapped
+        // and block the replacement; the updater restarts Asterun itself.
+        return 0;
+    }
 
     if (!singleInstanceMutex_) {
         altrun::ui::ShowMessage(
@@ -3175,12 +3205,6 @@ bool App::RestoreDefaultSettings() {
     }
 
     ui::SetFeedbackEnabled(settingsStore_.Data().soundEnabled);
-
-    if (previous.updateChannel !=
-        settingsStore_.Data()
-            .updateChannel) {
-        InvalidateUpdateCheckForChannelChange();
-    }
 
     commandStore_.ReloadProviderCache(
         settingsStore_.Data()

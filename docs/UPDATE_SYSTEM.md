@@ -2,43 +2,21 @@
 
 Asterun v0.7.0-alpha.9 introduces a native portable updater. It is designed around four constraints: update checks stay low-noise, installation is always user-triggered, portable user data is never replaced, and a failed new build can roll back to the previous application files.
 
-## Channels
+## Release source
 
-- **Stable** reads `/releases/latest/download/update-manifest.json`, which follows GitHub's latest non-prerelease release.
-- **Development** reads `/releases/download/dev-latest/update-manifest.json`, the rolling release published only after the full main CI succeeds.
+There is a single update source: versioned stable releases. The client reads `/releases/latest/download/update-manifest.json`, which follows GitHub's latest non-prerelease release. The package itself is then downloaded from that manifest's own release, `/releases/download/v<version>/`, so a release published between the check and the download cannot swap the package under the manifest's SHA-256. A missing manifest is reported as an HTTP failure; there is no fallback to the GitHub API. When the latest release is older than the running build (a prerelease or a local build), the status says so instead of "up to date"; nothing is ever downgraded.
 
-Prerelease binaries default to Development. Stable binaries default to Stable. The persisted settings surface is:
+The former Development channel and its rolling `dev-latest` release were removed: their manifest carried the VERSION of `main`, which only changes at a release, so they never offered anything between releases. Builds from `main` are tested locally instead. A persisted `update.channel` value from older versions is ignored and dropped on the next save.
+
+The persisted settings surface is:
 
 ```json
 "update": {
-  "autoCheck": true,
-  "channel": "development"
+  "autoCheck": true
 }
 ```
 
 Automatic checks are throttled by `data/update/update-state.json` to at most once per 6 hours. The launcher re-evaluates that throttle at startup and hourly while it stays in the tray, so a new release is normally noticed within about 7 hours. A failed check does not count and is retried at the next hourly evaluation. Each newly found version is announced once in the notification area (`notifiedVersion` in the same file); clicking it opens Settings at About. An automatic check also refreshes an existing, not yet installed offer without hiding it, so a newer release replaces the older one. Runtime status/progress is not persisted into settings.
-
-## Rolling development release publication
-
-`dev-latest` is part of the updater contract, not merely a convenience GitHub Release. The client anonymously reads:
-
-```text
-https://github.com/Aspeternity/Asterun/releases/download/dev-latest/update-manifest.json
-```
-
-A GitHub Draft Release is invisible at that endpoint and returns HTTP 404 even when authenticated CI can still enumerate the draft. The main workflow therefore treats publication as a verified transaction:
-
-1. release publication is serialized and is not cancelled midway;
-2. `origin/main` is rechecked immediately before mutating `dev-latest`;
-3. an existing release is found through the authenticated Releases collection, which includes orphan drafts;
-4. the rolling tag is forced to the current main commit;
-5. an orphan draft is repaired to `draft=false` / `prerelease=true`;
-6. package/checksum assets are replaced first and `update-manifest.json` is uploaded last;
-7. bootstrap uses an explicit draft followed by an explicit publish PATCH;
-8. CI re-validates the authenticated release state/tag, then anonymously downloads the exact `update-manifest.json` endpoint used by installed Development clients;
-9. the anonymous manifest must byte-match the locally generated manifest and its version/commit must match VERSION/GITHUB_SHA.
-
-The verifier intentionally does not make a second anonymous `api.github.com` release-metadata request: hosted-runner IPs share GitHub's unauthenticated API rate limit and can receive HTTP 403 even when the release asset is healthy. Draft state is already checked through authenticated release metadata, while an unpublished/inaccessible release still fails the exact anonymous manifest download. Any Draft state, HTTP 404, stale tag, stale manifest or content mismatch fails the workflow.
 
 ## Release manifest
 
@@ -67,7 +45,7 @@ Asset names are restricted to a single safe filename. The client chooses the pac
 
 ## Download and staging
 
-The main process uses native WinHTTP over HTTPS. An update ZIP is first stored with a `.download` suffix, SHA-256 is computed with Windows BCrypt, and only a matching package is promoted to the real ZIP filename. Windows Shell ZIP extraction writes to:
+The main process uses native WinHTTP over HTTPS. An update ZIP is first stored with a `.download` suffix, SHA-256 is computed with Windows BCrypt, and only a matching package is promoted to the real ZIP filename. The bounded in-process ZIP extractor (path-traversal, entry-count and size limits) writes to:
 
 ```text
 data/update/staging/<version>/
@@ -79,15 +57,17 @@ Before installation, the staged tree must contain a matching `VERSION`, `Asterun
 
 `Update.exe` is packaged beside the main executable. Before apply, the main process copies it to `%TEMP%`, launches that temporary copy and exits normally. This lets the helper replace both the main EXE and the packaged updater.
 
+From its start until it launches an Asterun itself, the helper holds Asterun's single-instance guard plus an update-in-progress marker. An Asterun started by hand during that time exits at once and silently, instead of mapping `Asterun.exe` and making the replacement or a rollback fail.
+
 The helper:
 
-1. waits for the old Asterun PID to exit;
+1. waits up to 10 minutes for the old Asterun PID to exit (closing a managed Everything can be slow); if it still runs, the update is cancelled before any file changes;
 2. validates the staged source again;
 3. backs up each existing application file under a unique `data/update/backup/<old-version>-<per-attempt-token>/` path for portable updates (or `.asterun-update-work.<token>/backup/` under the protected installation root for elevated updates);
 4. copies the staged application files while explicitly skipping any staged `data/` subtree;
 5. restarts the new `Asterun.exe` with a one-shot local health-event name;
-6. waits up to 30 seconds for normal startup to signal health;
-7. deletes only the current attempt's backup/staging on success, leaving historical recovery directories untouched;
+6. waits up to 30 seconds for normal startup to signal health, and rolls back at once if the new process exits first;
+7. deletes only the current attempt's backup/staging on success, leaving historical recovery directories untouched, and removes files under the packaged `dict/` and `third_party/` trees that the new package no longer ships;
 8. on copy, launch or health failure, restores the backed-up files and relaunches the previous build.
 
 An already-existing backup directory is never reused or cleared: the new attempt fails closed, preserving earlier recovery contents. The generated backup path uses an independent random token rather than the health-event token.

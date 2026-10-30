@@ -9,6 +9,7 @@
 #include <shellapi.h>
 #include <aclapi.h>
 
+#include "../platform/AppIdentity.hpp"
 #include "../platform/DllSearchHardening.hpp"
 #include "../platform/HelperLanguage.hpp"
 #include "../platform/SecureArchive.hpp"
@@ -281,6 +282,59 @@ CreateProtectedWorkRoot(
     return false;
 }
 
+// Update.exe holds Asterun's single-instance guard and the update marker
+// whenever no Asterun of its own is running. An Asterun started by hand then
+// exits at once instead of keeping Asterun.exe mapped, which would make the
+// file replacement or a rollback fail. Taken before the old process exits,
+// so the named guard never lapses in between.
+class InstanceGuard {
+public:
+    InstanceGuard() = default;
+    InstanceGuard(const InstanceGuard&) = delete;
+    InstanceGuard& operator=(const InstanceGuard&) = delete;
+
+    ~InstanceGuard() {
+        Release();
+    }
+
+    void Acquire() {
+        if (!instance_) {
+            instance_ = CreateMutexW(
+                nullptr,
+                FALSE,
+                altrun::app_identity::kSingleInstanceMutexName);
+        }
+
+        if (!marker_) {
+            marker_ = CreateMutexW(
+                nullptr,
+                FALSE,
+                altrun::app_identity::kUpdateInProgressMutexName);
+        }
+    }
+
+    // Before starting any Asterun, which must become the primary instance.
+    void Release() {
+        for (HANDLE* handle : {&marker_, &instance_}) {
+            if (*handle) {
+                CloseHandle(*handle);
+                *handle = nullptr;
+            }
+        }
+    }
+
+private:
+    HANDLE instance_{nullptr};
+    HANDLE marker_{nullptr};
+};
+
+InstanceGuard gInstanceGuard;
+
+// The old process normally exits within seconds, but closing a managed
+// Everything can take much longer. Waiting it out lets the update proceed
+// instead of cancelling while that process is still on its way out.
+constexpr DWORD kParentExitTimeoutMs = 10 * 60 * 1000;
+
 [[nodiscard]] bool
 WaitForParent(DWORD pid) {
     HANDLE process =
@@ -297,7 +351,7 @@ WaitForParent(DWORD pid) {
     const DWORD wait =
         WaitForSingleObject(
             process,
-            60000);
+            kParentExitTimeoutMs);
 
     CloseHandle(process);
     return wait ==
@@ -492,6 +546,7 @@ LaunchMain(
 // Do not discard the recovery source before the old EXE relaunch result.
 [[nodiscard]] bool RestartPreviousApp(
     const std::filesystem::path& install) {
+    gInstanceGuard.Release();
     PROCESS_INFORMATION restored{};
     if (!LaunchMain(
             install / L"Asterun.exe",
@@ -683,8 +738,11 @@ int WINAPI wWinMain(
     const Arguments& args =
         *parsed;
 
+    gInstanceGuard.Acquire();
+
     if (!WaitForParent(
             args.parentPid)) {
+        gInstanceGuard.Release();
         ShowFailureDialog(Text(
             L"之前的 Asterun 进程没有退出。更新已取消，未修改任何文件。",
             L"The previous Asterun process did not exit. The update was cancelled before changing any files."));
@@ -861,6 +919,7 @@ int WINAPI wWinMain(
     // In elevated mode retain the protected backup until that is confirmed.
     const auto failAfterApply =
         [&](int status, std::wstring_view reason) {
+            gInstanceGuard.Acquire();
             if (!restore()) {
                 cleanupWork();
                 return 7;
@@ -918,6 +977,8 @@ int WINAPI wWinMain(
 
     PROCESS_INFORMATION child{};
 
+    gInstanceGuard.Release();
+
     if (!LaunchMain(
             mainExe,
             mainArguments,
@@ -929,12 +990,27 @@ int WINAPI wWinMain(
 
     CloseHandle(child.hThread);
 
+    // Also watch the process: a build that exits or crashes during startup
+    // is rolled back at once instead of after the full health timeout. A
+    // signal sent just before exiting still wins (lowest index).
+    const HANDLE startup[]{
+        healthEvent,
+        child.hProcess,
+    };
     const DWORD wait =
-        WaitForSingleObject(
-            healthEvent,
+        WaitForMultipleObjects(
+            2,
+            startup,
+            FALSE,
             30000);
 
     CloseHandle(healthEvent);
+
+    if (wait == WAIT_OBJECT_0 + 1) {
+        CloseHandle(child.hProcess);
+        return failAfterApply(
+            6, Text(L"更新后的程序在启动时退出。", L"The updated application exited during startup."));
+    }
 
     if (wait != WAIT_OBJECT_0) {
         TerminateProcess(
@@ -961,6 +1037,12 @@ int WINAPI wWinMain(
     CloseHandle(child.hProcess);
 
     cleanupWork();
+
+    // The new build is healthy, so files the package no longer ships can go
+    // without a way back.
+    altrun::updater::PruneObsoletePackageFiles(
+        transaction,
+        journal);
 
     // Elevated updates back up into protectedWorkRoot, not args.backup.
     // Only the portable path owns and may delete the supplied backup.

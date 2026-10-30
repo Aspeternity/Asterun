@@ -187,6 +187,29 @@ struct AppLifecycleRuntimeFixture {
         assert(!std::filesystem::exists(data));
         assert(registeredNotifications == 0);
 
+        {
+            // While Update.exe holds the guard and its marker, a second
+            // instance leaves silently, also when an elevated updater's guard
+            // cannot be opened.
+            const HANDLE marker = CreateMutexW(
+                nullptr, FALSE, app_identity::kUpdateInProgressMutexName);
+            assert(marker);
+            existing = CreateMutexW(nullptr, FALSE, mutexName.c_str());
+            assert(existing);
+            for (const bool denied : {false, true}) {
+                failMutex = denied;
+                lastMessage.clear();
+                App updating(instance);
+                assert(updating.Run() == 0 && !updating.ownsPrimaryInstance_);
+                assert(lastMessage.empty());
+            }
+            failMutex = false;
+            CloseHandle(existing);
+            CloseHandle(marker);
+            assert(!std::filesystem::exists(data));
+            assert(registeredNotifications == 0);
+        }
+
         std::filesystem::create_directories(data);
         const auto primaryPath = data / "settings.json";
         const auto backupPath = data / "settings.json.bak";

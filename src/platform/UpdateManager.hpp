@@ -15,7 +15,7 @@ enum class UpdateStage {
     Idle,
     Checking,
     UpToDate,
-    ChannelNotNewer,
+    NewerThanRelease,
     Available,
     Downloading,
     Verifying,
@@ -30,7 +30,6 @@ enum class UpdateFailure {
     Cancelled,
     ManifestDownloadFailed,
     CheckTimedOut,
-    StableManifestUnavailable,
     ManifestInvalid,
     UnsupportedArchitecture,
     AssetDownloadFailed,
@@ -96,14 +95,12 @@ void MarkUpdateNotified(
 CheckForUpdate(
     const std::filesystem::path& dataDirectory,
     std::string_view currentVersion,
-    UpdateChannel channel,
     UpdateProgress progress,
     std::stop_token stopToken = {});
 
 [[nodiscard]] UpdatePrepareResult
 PrepareUpdate(
     const std::filesystem::path& dataDirectory,
-    UpdateChannel channel,
     const UpdateManifest& manifest,
     std::string_view currentVersion,
     UpdateProgress progress,

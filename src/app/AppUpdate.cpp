@@ -10,91 +10,16 @@
 namespace altrun {
 
 bool App::SetUpdateSettings(
-    bool autoCheck,
-    UpdateChannel channel) {
-    const auto previous =
-        settingsStore_.Data();
-
-    if (previous.autoCheckUpdates ==
-            autoCheck &&
-        previous.updateChannel ==
-            channel) {
+    bool autoCheck) {
+    if (settingsStore_.Data()
+            .autoCheckUpdates ==
+        autoCheck) {
         return true;
     }
 
-    if (!settingsStore_
-             .SetUpdateSettings(
-                 autoCheck,
-                 channel)) {
-        return false;
-    }
-
-    const bool channelChanged =
-        previous.updateChannel !=
-        channel;
-
-    if (!channelChanged) {
-        return true;
-    }
-
-    InvalidateUpdateCheckForChannelChange();
-    return true;
-}
-
-void App::InvalidateUpdateCheckForChannelChange() {
-    bool checking = false;
-    bool preserveActiveUpdate = false;
-
-    {
-        std::scoped_lock lock(
-            updateMutex_);
-
-        // A quiet refresh of an offer is a check too: its result belongs
-        // to the previous channel and must never be published.
-        checking =
-            (updateStatus_.stage ==
-                 win::UpdateStage::Checking &&
-             updateStatus_.running) ||
-            updateRefreshingOffer_;
-
-        preserveActiveUpdate =
-            updateStatus_.stage ==
-                win::UpdateStage::Downloading ||
-            updateStatus_.stage ==
-                win::UpdateStage::Verifying ||
-            updateStatus_.stage ==
-                win::UpdateStage::Extracting ||
-            updateStatus_.stage ==
-                win::UpdateStage::ReadyToInstall ||
-            updateStatus_.stage ==
-                win::UpdateStage::Applying;
-
-        updateSettingsChangedSinceCheck_ =
-            true;
-
-        if (checking) {
-            ++updateGeneration_;
-            updateRefreshingOffer_ = false;
-            updateCheckAutomatic_ = false;
-        }
-
-        if (!preserveActiveUpdate) {
-            updateStatus_ = {};
-            updateManifest_.reset();
-            updateInstallWhenReady_ =
-                false;
-        }
-    }
-
-    if (checking &&
-        updateThread_.joinable()) {
-        updateThread_.request_stop();
-    }
-
-    if (settingsWindow_) {
-        settingsWindow_->
-            OnUpdateStatusChanged();
-    }
+    return settingsStore_
+        .SetUpdateSettings(
+            autoCheck);
 }
 
 win::UpdateSnapshot
@@ -102,14 +27,6 @@ App::UpdateStatus() const {
     std::scoped_lock lock(
         updateMutex_);
     return updateStatus_;
-}
-
-bool App::UpdateSettingsChangedSinceCheck()
-    const {
-    std::scoped_lock lock(
-        updateMutex_);
-    return
-        updateSettingsChangedSinceCheck_;
 }
 
 bool App::UpdateWorkerRunning()
@@ -169,7 +86,7 @@ bool App::StartUpdateCheck(
                 refreshOffer ||
                 stage == win::UpdateStage::Idle ||
                 stage == win::UpdateStage::UpToDate ||
-                stage == win::UpdateStage::ChannelNotNewer ||
+                stage == win::UpdateStage::NewerThanRelease ||
                 (stage == win::UpdateStage::Failed &&
                  !updateManifest_);
 
@@ -183,9 +100,6 @@ bool App::StartUpdateCheck(
         updateThread_.join();
     }
 
-    const auto channel =
-        settingsStore_.Data()
-            .updateChannel;
     const std::uint64_t generation =
         ++updateGeneration_;
 
@@ -201,8 +115,6 @@ bool App::StartUpdateCheck(
             updateStatus_.currentVersion =
                 std::string(kVersion);
             updateManifest_.reset();
-            updateSettingsChangedSinceCheck_ =
-                false;
             updateInstallWhenReady_ =
                 false;
         }
@@ -219,7 +131,6 @@ bool App::StartUpdateCheck(
     updateThread_ =
         std::jthread(
             [this,
-             channel,
              generation,
              refreshOffer](
                 std::stop_token stopToken) {
@@ -260,7 +171,6 @@ bool App::StartUpdateCheck(
                     win::CheckForUpdate(
                         dataDirectory_,
                         kVersion,
-                        channel,
                         progress,
                         stopToken);
 
@@ -351,9 +261,6 @@ bool App::StartUpdateDownloadAndInstall() {
         updateThread_.join();
     }
 
-    const auto channel =
-        settingsStore_.Data()
-            .updateChannel;
     const std::uint64_t generation =
         ++updateGeneration_;
 
@@ -385,7 +292,6 @@ bool App::StartUpdateDownloadAndInstall() {
     updateThread_ =
         std::jthread(
             [this,
-             channel,
              manifest =
                  std::move(manifest),
              generation](
@@ -424,7 +330,6 @@ bool App::StartUpdateDownloadAndInstall() {
                 const auto result =
                     win::PrepareUpdate(
                         dataDirectory_,
-                        channel,
                         manifest,
                         kVersion,
                         progress,

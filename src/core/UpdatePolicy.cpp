@@ -287,24 +287,6 @@ WideAscii(
 
 } // namespace
 
-const char*
-UpdateChannelName(
-    UpdateChannel channel) {
-    return channel ==
-            UpdateChannel::
-                Development
-        ? "development"
-        : "stable";
-}
-
-UpdateChannel
-DefaultUpdateChannelForVersion(
-    std::string_view) {
-    // Prerelease updates are always opt-in. First-run and reset defaults
-    // stay on the stable channel regardless of the current build label.
-    return UpdateChannel::Stable;
-}
-
 std::optional<int>
 CompareVersions(
     std::string_view left,
@@ -369,34 +351,35 @@ UpdateHttpStatusFromError(
 }
 
 std::wstring
-UpdateManifestUrl(
-    UpdateChannel channel) {
-    if (channel ==
-        UpdateChannel::
-            Development) {
-        return
-            L"https://github.com/Aspeternity/Asterun/releases/download/dev-latest/update-manifest.json";
-    }
-
+UpdateManifestUrl() {
     return
         L"https://github.com/Aspeternity/Asterun/releases/latest/download/update-manifest.json";
 }
 
 std::wstring
 UpdateAssetUrl(
-    UpdateChannel channel,
+    std::string_view version,
     std::string_view assetName) {
     if (!IsSafeUpdateAssetName(
             assetName)) {
         return {};
     }
 
+    if (!version.empty() &&
+        (version.front() == 'v' ||
+         version.front() == 'V')) {
+        version.remove_prefix(1);
+    }
+
+    // A parsed version holds only digits, letters, '.' and '-'.
+    if (!ParseVersion(version)) {
+        return {};
+    }
+
     std::wstring result =
-        channel ==
-                UpdateChannel::
-                    Development
-            ? L"https://github.com/Aspeternity/Asterun/releases/download/dev-latest/"
-            : L"https://github.com/Aspeternity/Asterun/releases/latest/download/";
+        L"https://github.com/Aspeternity/Asterun/releases/download/v";
+    result += WideAscii(version);
+    result += L"/";
 
     result += WideAscii(
         assetName);

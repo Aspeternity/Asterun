@@ -1084,10 +1084,6 @@ void SettingsWindow::CreateAboutPage() {
         CreateCheckboxRow(
             L"",
             kIdUpdateAutoCheck);
-    updatePrerelease_ =
-        CreateCheckboxRow(
-            L"",
-            kIdUpdatePrerelease);
 
     updateStatus_ =
         CreateStatic(
@@ -1111,7 +1107,6 @@ void SettingsWindow::CreateAboutPage() {
         aboutDescription_,
         updateSectionTitle_,
         updateAutoCheck_,
-        updatePrerelease_,
         updateStatus_,
         updateAction_,
         openGitHub_,
@@ -1210,7 +1205,6 @@ void SettingsWindow::ApplyFonts() {
         aboutVersion_,
         aboutDescription_,
         updateAutoCheck_,
-        updatePrerelease_,
         updateStatus_,
         updateAction_,
         openGitHub_,
@@ -1666,10 +1660,6 @@ void SettingsWindow::ApplyLanguage() {
         T(L"自动检查更新",
           L"Automatically check for updates"));
     SetWindowTextW(
-        updatePrerelease_,
-        T(L"接收预发布版本更新",
-          L"Get prerelease updates"));
-    SetWindowTextW(
         updateAction_,
         T(L"检查更新",
           L"Check for updates"));
@@ -1803,27 +1793,18 @@ void SettingsWindow::RefreshFromSettings() {
             : BST_UNCHECKED,
         0);
 
-    SendMessageW(
-        updatePrerelease_,
-        BM_SETCHECK,
-        settings.updateChannel ==
-                UpdateChannel::Development
-            ? BST_CHECKED
-            : BST_UNCHECKED,
-        0);
-
     RefreshHotkeyPage();
     RefreshUpdateStatus();
     SyncUpdateStatusTimer();
 
     for (HWND control :
-         std::array<HWND, 16>{
+         std::array<HWND, 15>{
              startWithWindows_, showTrayIcon_, soundEnabled_, addToSendToMenu_,
              defaultEnglishInputOnReveal_, pinyinSearch_, numericQuickLaunch_,
              executeSingleResult_, providerStartMenu_, providerPackaged_,
              providerAppPaths_, providerPath_, providerEverything_,
              managedEverythingTrayIcon_,
-             updateAutoCheck_, updatePrerelease_}) {
+             updateAutoCheck_}) {
         if (control) {
             InvalidateRect(
                 control,
@@ -3907,9 +3888,6 @@ bool SettingsWindow::ToggleChecked(
     case kIdAddToSendToMenu: return settings.addToSendToMenu;
     case kIdUpdateAutoCheck:
         return settings.autoCheckUpdates;
-    case kIdUpdatePrerelease:
-        return settings.updateChannel ==
-            UpdateChannel::Development;
     case kIdDefaultEnglishInputOnReveal:
         return settings
             .defaultEnglishInputOnReveal;
@@ -5829,34 +5807,6 @@ void SettingsWindow::SyncUpdateStatusTimer() {
     }
 }
 
-void SettingsWindow::TogglePrereleaseUpdates() {
-    if (syncing_) {
-        return;
-    }
-
-    const auto& settings =
-        app_.SettingsData();
-
-    const UpdateChannel nextChannel =
-        settings.updateChannel ==
-                UpdateChannel::Development
-            ? UpdateChannel::Stable
-            : UpdateChannel::Development;
-
-    if (!app_.SetUpdateSettings(
-            settings.autoCheckUpdates,
-            nextChannel)) {
-        altrun::ui::ShowMessage(
-            hwnd_,
-            T(L"无法保存更新设置。",
-              L"Could not save update settings."),
-            L"Asterun",
-            MB_OK | MB_ICONERROR);
-    }
-
-    RefreshFromSettings();
-}
-
 void SettingsWindow::RefreshUpdateStatus() {
     if (!updateStatus_ ||
         !updateAction_) {
@@ -5865,8 +5815,6 @@ void SettingsWindow::RefreshUpdateStatus() {
 
     const auto status =
         app_.UpdateStatus();
-    const bool settingsChanged =
-        app_.UpdateSettingsChangedSinceCheck();
     const bool workerRunning =
         app_.UpdateWorkerRunning();
 
@@ -5881,11 +5829,8 @@ void SettingsWindow::RefreshUpdateStatus() {
     switch (status.stage) {
     case win::UpdateStage::Idle:
         text =
-            settingsChanged
-                ? T(L"尚未按当前设置检查更新。",
-                    L"Updates have not been checked with the current settings.")
-                : T(L"尚未检查更新。",
-                    L"Updates have not been checked yet.");
+            T(L"尚未检查更新。",
+              L"Updates have not been checked yet.");
         actionEnabled = true;
         break;
 
@@ -5905,7 +5850,7 @@ void SettingsWindow::RefreshUpdateStatus() {
         actionEnabled = true;
         break;
 
-    case win::UpdateStage::ChannelNotNewer:
+    case win::UpdateStage::NewerThanRelease:
         text =
             T(L"正式版最新为 v",
               L"The latest stable release is v");
@@ -6022,11 +5967,6 @@ void SettingsWindow::RefreshUpdateStatus() {
                 T(L"检查更新超时，请重试",
                   L"update check timed out; try again");
             break;
-        case win::UpdateFailure::StableManifestUnavailable:
-            text +=
-                T(L"最新稳定版未提供应用内更新清单，请从 GitHub 手动更新",
-                  L"the latest stable release does not provide an in-app update manifest; update manually from GitHub");
-            break;
         case win::UpdateFailure::ManifestInvalid:
             text +=
                 T(L"更新清单无效",
@@ -6139,10 +6079,6 @@ void SettingsWindow::RefreshUpdateStatus() {
 
     EnableWindow(
         updateAutoCheck_,
-        TRUE);
-
-    EnableWindow(
-        updatePrerelease_,
         TRUE);
 
     // updateStatus_ is SS_OWNERDRAW. WM_SETTEXT updates its backing text
@@ -6981,14 +6917,6 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdUpdatePrerelease:
-            if (toggleActivated &&
-                !syncing_) {
-                TogglePrereleaseUpdates();
-                redrawClickedToggle();
-            }
-            return 0;
-
         case kIdUpdateAutoCheck:
             if (toggleActivated &&
                 !syncing_) {
@@ -6996,8 +6924,7 @@ LRESULT SettingsWindow::HandleMessage(
                     app_.SettingsData();
 
                 if (!app_.SetUpdateSettings(
-                        !settings.autoCheckUpdates,
-                        settings.updateChannel)) {
+                        !settings.autoCheckUpdates)) {
                     altrun::ui::ShowMessage(
                         hwnd_,
                         T(L"无法保存更新设置。",
@@ -7117,8 +7044,7 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdProviderPath ||
             item->CtlID == kIdProviderEverything ||
             item->CtlID == kIdManagedEverythingTrayIcon ||
-            item->CtlID == kIdUpdateAutoCheck ||
-            item->CtlID == kIdUpdatePrerelease) {
+            item->CtlID == kIdUpdateAutoCheck) {
             DrawGeneralToggle(
                 *item);
             return TRUE;
@@ -7552,10 +7478,11 @@ LRESULT SettingsWindow::HandleMessage(
                     560));
         } else if (
             page_ == Page::About) {
+            // One toggle row (50) plus the status/action row.
             drawCard(
                 PageCardRect(
                     246,
-                    174,
+                    124,
                     560));
         }
 

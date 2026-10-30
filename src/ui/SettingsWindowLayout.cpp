@@ -1061,18 +1061,9 @@ void SettingsWindow::LayoutAbout(int contentLeft, int contentWidth, BOOL repaint
             rowHeight,
             repaint);
 
-        MoveSettingsChild(
-            updatePrerelease_,
-            contentLeft + Scale(1),
-            updateTop +
-                rowHeight,
-            width - Scale(2),
-            rowHeight,
-            repaint);
-
         const int statusRowTop =
             updateTop +
-            rowHeight * 2;
+            rowHeight;
         const int actionHeight =
             Scale(34);
         const int statusHeight =

@@ -2,7 +2,6 @@
 
 #include "HotkeyRegistry.hpp"
 #include "ProviderIds.hpp"
-#include "UpdatePolicy.hpp"
 
 #include <filesystem>
 #include <string>
@@ -77,8 +76,6 @@ struct Settings {
     bool managedEverythingShowTrayIcon{false};
 
     bool autoCheckUpdates{true};
-    UpdateChannel updateChannel{
-        UpdateChannel::Stable};
 };
 
 class SettingsStore {
@@ -125,8 +122,7 @@ public:
     bool SetManagedEverythingShowTrayIcon(
         bool enabled);
     bool SetUpdateSettings(
-        bool autoCheck,
-        UpdateChannel channel);
+        bool autoCheck);
     bool SetWindowPlacement(
         std::string launcherPlacement,
         std::string settingsPlacement,

@@ -3,7 +3,6 @@
 #include "ConfigIO.hpp"
 #include "ConfigValidation.hpp"
 #include "HotkeyRegistry.hpp"
-#include "Version.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -288,9 +287,6 @@ SettingsStore::SettingsStore(
 
 void SettingsStore::Load(bool allowWrites) {
     settings_ = Settings{};
-    settings_.updateChannel =
-        DefaultUpdateChannelForVersion(
-            kVersion);
     readOnlyDueToNewerSchema_ =
         false;
     unsupportedSchemaVersion_ = 0;
@@ -771,21 +767,6 @@ bool SettingsStore::LoadJson(bool allowWrites) {
                     "autoCheck",
                     settings_
                         .autoCheckUpdates);
-
-            const std::string channel =
-                LowerAscii(
-                    update.value(
-                        "channel",
-                        std::string(
-                            UpdateChannelName(
-                                settings_
-                                    .updateChannel))));
-
-            settings_.updateChannel =
-                channel == "development"
-                    ? UpdateChannel::
-                          Development
-                    : UpdateChannel::Stable;
         }
 
         // PATH is opt-in for new installations. Existing settings written
@@ -1089,10 +1070,7 @@ bool SettingsStore::Save() const {
         }},
         {"update", {
             {"autoCheck",
-             settings_.autoCheckUpdates},
-            {"channel",
-             UpdateChannelName(
-                 settings_.updateChannel)}
+             settings_.autoCheckUpdates}
         }}
     };
 
@@ -1470,8 +1448,7 @@ bool SettingsStore::SetManagedEverythingShowTrayIcon(
 }
 
 bool SettingsStore::SetUpdateSettings(
-    bool autoCheck,
-    UpdateChannel channel) {
+    bool autoCheck) {
     if (readOnlyDueToNewerSchema_ || preserveInvalidInput_) {
         return false;
     }
@@ -1481,8 +1458,6 @@ bool SettingsStore::SetUpdateSettings(
 
     settings_.autoCheckUpdates =
         autoCheck;
-    settings_.updateChannel =
-        channel;
 
     if (!Save()) {
         settings_ = previous;
@@ -1639,9 +1614,6 @@ bool SettingsStore::ResetDefaults() {
         settings_;
 
     settings_ = Settings{};
-    settings_.updateChannel =
-        DefaultUpdateChannelForVersion(
-            kVersion);
 
     if (!Save()) {
         settings_ = previous;

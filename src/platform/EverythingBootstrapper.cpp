@@ -3,7 +3,6 @@
 #include "EverythingHttpRequest.hpp"
 
 #include "../core/EverythingBootstrapPolicy.hpp"
-#include "../core/ArchiveExtractor.hpp"
 #include "SecureElevation.hpp"
 #include "SecureArchive.hpp"
 
@@ -2410,19 +2409,6 @@ NarrowAscii(
     return result;
 }
 
-[[nodiscard]] bool
-ExtractZipVerified(const std::filesystem::path& archive,
-    const std::filesystem::path& destination, std::uint32_t& nativeError,
-    std::stop_token stopToken) {
-    std::error_code error;
-    if (!altrun::ExtractArchive(archive, destination, error, stopToken)) {
-        nativeError = stopToken.stop_requested() ? ERROR_CANCELLED : ERROR_INVALID_DATA;
-        return false;
-    }
-    nativeError = 0;
-    return true;
-}
-
 // The downloaded ZIP is checked against voidtools' checksum manifest, but a
 // portable source can be modified later. Authenticate the bytes after they
 // have been copied into the administrator-owned staging directory and before
@@ -4409,7 +4395,7 @@ RunEverythingBootstrap(
     const auto stagingDirectory = toolsRoot /
         (L".asterun-extract-" + extractionToken);
 
-    if (!ExtractZipVerified(
+    if (!ExtractZipVerifiedSecure(
             verifiedArchive,
             stagingDirectory,
             nativeError,

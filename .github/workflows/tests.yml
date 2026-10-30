@@ -1,8 +1,8 @@
 name: Tests
 
-# Shared test gate. Called by build.yml (pull requests, main, rolling
-# development prerelease) and by release.yml (versioned releases), so both
-# publication paths require exactly the same test selection and checks:
+# Shared test gate. Called by build.yml (pull requests and main) and by
+# release.yml (versioned releases), so both require exactly the same test
+# selection and checks:
 # CTest labels select the tests, scripts/verify_ctest_run.py rejects zero,
 # missing, filtered or failed tests, and the inventory job requires every
 # portable test that passed on Linux to pass on both Windows x64 jobs and to

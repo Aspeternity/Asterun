@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <set>
 #include <string>
 #include <system_error>
 #include <thread>
@@ -663,6 +664,63 @@ RollbackResult Rollback(
         if (ec) fail(*it, ec);
     }
     return result;
+}
+
+void PruneObsoletePackageFiles(
+    const TransactionPaths& paths,
+    const TransactionJournal& journal) {
+    std::set<std::wstring> shipped;
+    for (const auto& record : journal.files) {
+        shipped.insert(LowerPath(record.relative));
+    }
+
+    // Only trees that belong wholly to the package; top-level user files,
+    // data/ and recovery directories are never candidates.
+    for (const auto* tree : {L"dict", L"third_party"}) {
+        const auto root = paths.install / tree;
+        if (!PlainDirectory(root)) {
+            continue;
+        }
+
+        std::vector<std::filesystem::path> obsolete;
+        std::vector<std::filesystem::path> directories{root};
+        std::error_code ec;
+        for (std::filesystem::recursive_directory_iterator it(root, ec), end;
+             !ec && it != end; it.increment(ec)) {
+            if (IsReparsePoint(it->path())) {
+                it.disable_recursion_pending();
+                continue;
+            }
+            // Relative to the tree the iterator walks, so the spelling of
+            // paths.install (a trailing separator, say) cannot mismatch.
+            const auto inTree = it->path().lexically_relative(root);
+            if (inTree.empty() || *inTree.begin() == L"..") {
+                continue;
+            }
+            std::error_code typeError;
+            if (it->is_directory(typeError)) {
+                directories.push_back(it->path());
+            } else if (it->is_regular_file(typeError) &&
+                       !shipped.contains(LowerPath(
+                           std::filesystem::path(tree) / inTree))) {
+                obsolete.push_back(it->path());
+            }
+        }
+
+        for (const auto& file : obsolete) {
+            std::error_code ignored;
+            std::filesystem::remove(file, ignored);
+        }
+
+        // Pre-order enumeration: children follow their parent, so removing in
+        // reverse empties the deepest first. Non-empty directories stay.
+        for (auto it = directories.rbegin(); it != directories.rend(); ++it) {
+            std::error_code ignored;
+            if (std::filesystem::is_empty(*it, ignored) && !ignored) {
+                std::filesystem::remove(*it, ignored);
+            }
+        }
+    }
 }
 
 } // namespace altrun::updater

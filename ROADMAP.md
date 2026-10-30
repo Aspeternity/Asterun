@@ -1,6 +1,6 @@
 # Asterun Roadmap
 
-Asterun v1.0.7 is the current stable release (published 2026-10-30). Post-release maintenance on `main` is distributed separately through the rolling `dev-latest` prerelease.
+Asterun v1.0.7 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
 
 ## v1.0.7 - Run-by-name catalog and faster Everything results (released 2026-10-30)
 

@@ -44,8 +44,6 @@ Built with C++23 + Win32, Asterun brings application discovery, pinyin and mixed
 
 **[Asterun v1.0.7](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.7) is officially released** and recommended for everyday use. It keeps internal helper components of MSIX apps and programs such as Office out of the application catalog (they remain reachable by full name), cuts the delay before Everything file results appear from hundreds of milliseconds to about 15 ms, restores numbered launch after a typed query, and filters build intermediates and repeated copies of one file name. See the [changelog](CHANGELOG.md) for release details.
 
-The **[dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) development prerelease** is built from `main` after successful CI and may include maintenance fixes made after v1.0.7. It is a separate channel, not part of the v1.0.7 stable release.
-
 ## Interface Preview
 
 <p align="center">
@@ -172,7 +170,6 @@ Configuration files use versioned schemas, atomic writes and backup recovery. Se
 | Channel | Intended use | Link |
 | --- | --- | --- |
 | **Stable** | Recommended for normal use. Versioned, immutable releases. | [Latest stable](https://github.com/Aspeternity/Asterun/releases/latest) |
-| **Development** | Rolling build from the latest successful `main` CI. May contain unfinished changes. | [dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) |
 
 Official release assets include x64/ARM64 portable ZIPs, SHA-256 checksums and an update manifest.
 

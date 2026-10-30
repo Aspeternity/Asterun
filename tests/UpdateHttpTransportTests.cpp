@@ -238,10 +238,10 @@ void UpdateSemantics() {
         assert(!DownloadTextWithRetry(L"https://example.invalid/manifest", output, error, {}));
         assert(error == ERROR_FILE_TOO_LARGE && f.opens == 1); CheckClosed(f);
     }
-    for (auto channel : {UpdateChannel::Stable, UpdateChannel::Development}) {
+    {
         Fixture f; fixture = &f; f.payload = manifestText;
         for (int i = 0; i < 4; ++i) {
-            auto result = CheckForUpdate(root, "1.0.1", channel, {}, {});
+            auto result = CheckForUpdate(root, "1.0.1", {}, {});
             assert(result.snapshot.stage == UpdateStage::Available && result.manifest);
             assert(result.manifest->version == "9.0.0");
         }
@@ -249,13 +249,13 @@ void UpdateSemantics() {
     }
     { // Existing retry budget: initial attempt + 250ms + 750ms, then success.
         Fixture f; fixture = &f; f.payload = manifestText; f.statuses = {503, 503, 200};
-        auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, {});
+        auto result = CheckForUpdate(root, "1.0.1", {}, {});
         assert(result.snapshot.stage == UpdateStage::Available && f.opens == 3); CheckClosed(f);
     }
     for (DWORD status : {403UL, 503UL}) {
         fs::remove_all(root / "update");
         Fixture f; fixture = &f; f.statuses = {status};
-        auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, {});
+        auto result = CheckForUpdate(root, "1.0.1", {}, {});
         assert(result.snapshot.failure == UpdateFailure::ManifestDownloadFailed);
         assert(result.snapshot.nativeError == UpdateHttpStatusError(status));
         assert(f.opens == (status == 503 ? 3U : 1U));
@@ -263,7 +263,7 @@ void UpdateSemantics() {
     }
     { // 429 rate limiting is retried like a gateway failure.
         Fixture f; fixture = &f; f.payload = manifestText; f.statuses = {429, 200};
-        auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, {});
+        auto result = CheckForUpdate(root, "1.0.1", {}, {});
         assert(result.snapshot.stage == UpdateStage::Available && f.opens == 2); CheckClosed(f);
     }
     { // Check throttle and once-per-version announcement share update-state.json.
@@ -271,7 +271,7 @@ void UpdateSemantics() {
         assert(UpdateNotifiedVersion(root).empty());
         MarkUpdateNotified(root, "9.0.0");
         Fixture f; fixture = &f; f.payload = manifestText;
-        auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, {});
+        auto result = CheckForUpdate(root, "1.0.1", {}, {});
         assert(result.snapshot.stage == UpdateStage::Available); CheckClosed(f);
         assert(UpdateNotifiedVersion(root) == "9.0.0");
         const auto now = static_cast<std::int64_t>(std::chrono::system_clock::to_time_t(
@@ -280,15 +280,23 @@ void UpdateSemantics() {
         MarkUpdateNotified(root, "9.0.1");
         assert(UpdateNotifiedVersion(root) == "9.0.1" && !UpdateAutoCheckDue(root, now));
     }
-    { // Stable-only 404 legacy release metadata fallback remains intact.
-        Fixture f; fixture = &f; f.statuses = {404, 200}; f.payload = R"({"tag_name":"v1.0.1"})";
-        auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Stable, {}, {});
-        assert(result.snapshot.stage == UpdateStage::UpToDate && f.opens == 2);
-        assert(f.objects.back() == L"/repos/Aspeternity/Asterun/releases/latest"); CheckClosed(f);
+    { // A missing stable manifest is an HTTP failure; no release-metadata fallback.
+        Fixture f; fixture = &f; f.statuses = {404};
+        auto result = CheckForUpdate(root, "1.0.1", {}, {});
+        assert(result.snapshot.failure == UpdateFailure::ManifestDownloadFailed && f.opens == 1);
+        assert(result.snapshot.nativeError == UpdateHttpStatusError(404)); CheckClosed(f);
+    }
+    { // A build newer than the latest release says so; nothing is downgraded.
+        Fixture f; fixture = &f; f.payload = manifestText;
+        auto newer = CheckForUpdate(root, "9.1.0-beta.1", {}, {});
+        assert(newer.snapshot.stage == UpdateStage::NewerThanRelease);
+        assert(newer.snapshot.availableVersion == "9.0.0");
+        auto same = CheckForUpdate(root, "9.0.0", {}, {});
+        assert(same.snapshot.stage == UpdateStage::UpToDate); CheckClosed(f);
     }
     { // Invalid manifest remains a parse failure, never a retry.
         Fixture f; fixture = &f;
-        auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, {});
+        auto result = CheckForUpdate(root, "1.0.1", {}, {});
         assert(result.snapshot.failure == UpdateFailure::ManifestInvalid && f.opens == 1); CheckClosed(f);
     }
     for (bool package : {false, true}) for (DWORD phase : {
@@ -297,8 +305,8 @@ void UpdateSemantics() {
         Fixture f; fixture = &f; f.blocked = phase; f.payload = manifestText;
         std::stop_source stop;
         std::jthread worker([&] {
-            auto snapshot = package ? PrepareUpdate(root, UpdateChannel::Development, manifest, "1.0.1", {}, stop.get_token()).snapshot
-                : CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, stop.get_token()).snapshot;
+            auto snapshot = package ? PrepareUpdate(root, manifest, "1.0.1", {}, stop.get_token()).snapshot
+                : CheckForUpdate(root, "1.0.1", {}, stop.get_token()).snapshot;
             assert(snapshot.failure == UpdateFailure::Cancelled && snapshot.nativeError == ERROR_CANCELLED);
         });
         f.Wait(&Fixture::entered); stop.request_stop(); worker.join(); CheckClosed(f);
@@ -306,14 +314,20 @@ void UpdateSemantics() {
     }
     for (DWORD failure : {WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE, WINHTTP_CALLBACK_STATUS_READ_COMPLETE}) {
         Fixture f; fixture = &f; f.failStart = failure;
-        auto result = PrepareUpdate(root, UpdateChannel::Development, manifest, "1.0.1", {}, {});
+        auto result = PrepareUpdate(root, manifest, "1.0.1", {}, {});
         assert(result.snapshot.failure == UpdateFailure::AssetDownloadFailed && f.opens == 1);
         assert(!fs::exists(root / "update/downloads/Asterun-x64.zip.download")); CheckClosed(f);
     }
     { // A transient package HTTP failure is NOT retried.
         Fixture f; fixture = &f; f.statuses = {503};
-        auto result = PrepareUpdate(root, UpdateChannel::Development, manifest, "1.0.1", {}, {});
+        auto result = PrepareUpdate(root, manifest, "1.0.1", {}, {});
         assert(result.snapshot.failure == UpdateFailure::AssetDownloadFailed && f.opens == 1); CheckClosed(f);
+    }
+    { // Packages come from the manifest's own release tag, never /latest/.
+        Fixture f; fixture = &f; f.statuses = {404};
+        (void)PrepareUpdate(root, manifest, "1.0.1", {}, {});
+        assert(f.objects.back() == L"/Aspeternity/Asterun/releases/download/v9.0.0/Asterun-x64.zip");
+        CheckClosed(f);
     }
     { // Download -> real SHA256 -> verified archive -> extraction -> install handoff state.
         mz_zip_archive zip{}; assert(mz_zip_writer_init_heap(&zip, 0, 0));
@@ -336,7 +350,7 @@ void UpdateSemantics() {
         fs::create_directories(root / "update/backup/1.0.0-token");
         { std::ofstream(root / "update/backup/1.0.0-token/Asterun.exe") << "recovery"; }
         std::vector<UpdateStage> stages;
-        auto result = PrepareUpdate(root, UpdateChannel::Development, manifest, "1.0.1",
+        auto result = PrepareUpdate(root, manifest, "1.0.1",
             [&](const UpdateSnapshot& s) { if (stages.empty() || stages.back() != s.stage) stages.push_back(s.stage); }, {});
         assert(result.snapshot.stage == UpdateStage::ReadyToInstall);
         assert((stages == std::vector{UpdateStage::Downloading, UpdateStage::Verifying,
