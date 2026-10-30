@@ -157,6 +157,9 @@ private:
         inFlight_;
     std::uint32_t
         nextReplyToken_{0xA5100000U};
+    // Worker thread only: when the last query went to Everything.
+    std::chrono::steady_clock::time_point
+        lastSent_{};
 
     mutable std::mutex statusMutex_;
     EverythingIpcStatusSnapshot status_;
