@@ -241,6 +241,8 @@ public:
     bool StartUpdateCheck(
         bool force,
         bool ignoreThrottle = false);
+    // Quietly re-checks a shown offer that was not confirmed recently.
+    bool RefreshUpdateOffer();
     bool StartUpdateDownloadAndInstall();
     bool RetryUpdate();
     bool CancelUpdateDownload();
@@ -379,6 +381,9 @@ private:
         std::uint64_t generation);
     void StartUpdateReconcileTimer();
     void StopUpdateReconcileTimer();
+    bool LaunchUpdateCheck(
+        bool automatic,
+        bool refreshOffer);
     bool BeginPreparedUpdate();
     void AnnounceAvailableUpdate(
         const std::string& version);
@@ -491,6 +496,8 @@ private:
     bool updateCheckAutomatic_{false};
     // That automatic check is quietly refreshing a visible offer.
     bool updateRefreshingOffer_{false};
+    // GetTickCount64() when a fetched manifest last confirmed the offer.
+    std::uint64_t updateOfferCheckedTick_{0};
     std::wstring startupHealthEvent_;
     std::vector<std::wstring>
         startupShortcutPaths_;
