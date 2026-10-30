@@ -1,6 +1,13 @@
 # Asterun Roadmap
 
-Asterun v1.0.7 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
+Asterun v1.0.8 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
+
+## v1.0.8 - Visible updates and a sturdier updater (released 2026-10-30)
+
+- Automatic update checks are re-evaluated hourly in the tray (6-hour throttle); a new version is announced once; an "updated to vX" notice follows a completed update.
+- Cancellable download, retry without re-checking or re-downloading, HTTP status errors, 429 retry.
+- Packages are downloaded from the manifest's own `v<version>` release; the GitHub API fallback and the Development channel / `dev-latest` were removed.
+- Update.exe: immediate rollback on early exit, 10-minute wait for the old process, single-instance guard during apply, pruning of files the package no longer ships (effective from the update after 1.0.8).
 
 ## v1.0.7 - Run-by-name catalog and faster Everything results (released 2026-10-30)
 

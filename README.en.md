@@ -40,9 +40,9 @@ Asterun is a native, lightweight, keyboard-first launcher for Windows 10/11, des
 
 Built with C++23 + Win32, Asterun brings application discovery, pinyin and mixed-language search, usage-aware ranking, smart numeric launch, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model into one compact launcher experience.
 
-## Current Stable Release: v1.0.7
+## Current Stable Release: v1.0.8
 
-**[Asterun v1.0.7](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.7) is officially released** and recommended for everyday use. It keeps internal helper components of MSIX apps and programs such as Office out of the application catalog (they remain reachable by full name), cuts the delay before Everything file results appear from hundreds of milliseconds to about 15 ms, restores numbered launch after a typed query, and filters build intermediates and repeated copies of one file name. See the [changelog](CHANGELOG.md) for release details.
+**[Asterun v1.0.8](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.8) is officially released** and recommended for everyday use. It makes in-app updates visible: Asterun keeps checking while it stays in the tray, announces a new version once in the notification area and confirms the new version after updating; downloads can be cancelled, failures retried directly, and errors are clearer. The updater itself is sturdier (immediate rollback when the new build fails to start, no second instance during an update, removal of files the new package no longer ships), and the never-functional Development channel is gone. See the [changelog](CHANGELOG.md) for release details.
 
 ## Interface Preview
 

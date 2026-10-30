@@ -1,6 +1,6 @@
 # Asterun 使用教程
 
-> 本教程面向 **Asterun v1.0.7（当前稳定版）**。Asterun 是便携、键盘优先的 Windows 启动器；如果你第一次使用，先看“3 分钟快速开始”，其余章节按需要阅读即可。
+> 本教程面向 **Asterun v1.0.8（当前稳定版）**。Asterun 是便携、键盘优先的 Windows 启动器；如果你第一次使用，先看“3 分钟快速开始”，其余章节按需要阅读即可。
 
 <p align="center">
   <img src="assets/readme/modern-compact.webp" alt="Asterun Modern Compact 启动器界面" width="900">
