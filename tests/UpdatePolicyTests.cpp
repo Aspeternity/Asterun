@@ -767,8 +767,16 @@ int main() {
     assert(IsTransientUpdateHttpStatus(502));
     assert(IsTransientUpdateHttpStatus(503));
     assert(IsTransientUpdateHttpStatus(504));
+    assert(IsTransientUpdateHttpStatus(429));
     assert(!IsTransientUpdateHttpStatus(404));
     assert(!IsTransientUpdateHttpStatus(500));
+
+    // HTTP statuses never collide with Win32 errors of the same number.
+    assert(UpdateHttpStatusError(404) == 0x80190194u);
+    assert(UpdateHttpStatusFromError(UpdateHttpStatusError(503)) == 503);
+    assert(UpdateHttpStatusFromError(404) == 0);
+    assert(UpdateHttpStatusFromError(1223) == 0);
+    assert(UpdateHttpStatusFromError(0) == 0);
 
     assert(IsUpdateVersionNewer(
         "0.8.0-alpha.5.42", "0.8.0-alpha.5.43"));
@@ -781,252 +789,29 @@ int main() {
             "0.7.0"));
 
     assert(
-        DefaultUpdateChannelForVersion(
-            "0.7.0-alpha.9") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.7.0-beta.12") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.7.0-rc.1") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.7.0") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.1") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.2") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.3") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.4") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.5") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.6") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.7") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.8") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.4.9") ==
-        UpdateChannel::Stable);
+        UpdateManifestUrl() ==
+        L"https://github.com/Aspeternity/Asterun/releases/latest/download/update-manifest.json");
 
     assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.1") ==
-        UpdateChannel::Stable);
-
+        UpdateAssetUrl(
+            "1.0.7",
+            "Asterun-x64.zip") ==
+        L"https://github.com/Aspeternity/Asterun/releases/download/v1.0.7/Asterun-x64.zip");
     assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.2") ==
-        UpdateChannel::Stable);
+        UpdateAssetUrl(
+            "v1.1.0-beta.2",
+            "Asterun-ARM64.zip") ==
+        L"https://github.com/Aspeternity/Asterun/releases/download/v1.1.0-beta.2/Asterun-ARM64.zip");
     assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.3") ==
-        UpdateChannel::Stable);
+        UpdateAssetUrl(
+            "1.0/../x",
+            "Asterun-x64.zip")
+            .empty());
     assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.4") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.5") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.6") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.7") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.8") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.9") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.10") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.11") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.12") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.13") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.14") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.15") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.16") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.17") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.18") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.19") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.20") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.21") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.22") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.23") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.24") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.25") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.26") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.27") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.28") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.29") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.30") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.31") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.32") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.33") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.34") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.35") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.36") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.37") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.38") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.39") ==
-        UpdateChannel::Stable);
-    assert(
-        DefaultUpdateChannelForVersion(
-            "0.8.0-alpha.5.40") ==
-        UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion(
-        "0.8.0-alpha.5.41") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion(
-        "0.8.0-alpha.5.42") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion(
-        "0.8.0-alpha.5.43") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.44") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.45") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.46") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.47") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.48") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.5.49") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.6.1") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.6.2") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.6.3") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-alpha.6.4") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-beta.1") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-beta.2") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("0.8.0-beta.3") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("1.0.0") == UpdateChannel::Stable);
-    assert(DefaultUpdateChannelForVersion("1.0.1") == UpdateChannel::Stable);
-
-    assert(
-        UpdateManifestUrl(
-            UpdateChannel::
-                Development)
-            .find(L"dev-latest") !=
-        std::wstring::npos);
-    assert(
-        UpdateManifestUrl(
-            UpdateChannel::Stable)
-            .find(L"/latest/") !=
-        std::wstring::npos);
+        UpdateAssetUrl(
+            "1.0.7",
+            "../Asterun.zip")
+            .empty());
 
     assert(
         IsSafeUpdateAssetName(

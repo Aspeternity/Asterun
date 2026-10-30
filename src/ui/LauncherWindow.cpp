@@ -2626,18 +2626,56 @@ void LauncherWindow::RemoveTrayIcon() {
     notificationOnlyTrayIcon_ = false;
 }
 
-void LauncherWindow::ShowStartupNotification(
-    std::wstring_view activationHotkey) {
+bool LauncherWindow::ShowTrayBalloon(
+    std::wstring_view message,
+    bool opensAbout) {
     if (!hwnd_) {
-        return;
+        return false;
     }
 
     AddTrayIcon(true);
 
     if (!trayIconAdded_) {
-        return;
+        return false;
     }
 
+    NOTIFYICONDATAW data{};
+    InitializeTrayIconIdentity(
+        data,
+        hwnd_);
+    data.uFlags =
+        NIF_INFO |
+        NIF_GUID;
+    data.dwInfoFlags =
+        NIIF_INFO |
+        NIIF_NOSOUND;
+
+    wcsncpy_s(
+        data.szInfoTitle,
+        L"Asterun",
+        _TRUNCATE);
+    wcsncpy_s(
+        data.szInfo,
+        std::wstring(message).c_str(),
+        _TRUNCATE);
+
+    if (!Shell_NotifyIconW(NIM_MODIFY, &data)) {
+        return false;
+    }
+
+    trayBalloonOpensAbout_ = opensAbout;
+    return true;
+}
+
+void LauncherWindow::ShowUpdateNotification(
+    std::wstring_view message) {
+    (void)ShowTrayBalloon(
+        message,
+        true);
+}
+
+void LauncherWindow::ShowStartupNotification(
+    std::wstring_view activationHotkey) {
     const bool zh =
         app_.SettingsData().language ==
         Language::ZhCN;
@@ -2659,27 +2697,9 @@ void LauncherWindow::ShowStartupNotification(
                 : L" to show";
     }
 
-    NOTIFYICONDATAW data{};
-    InitializeTrayIconIdentity(
-        data,
-        hwnd_);
-    data.uFlags =
-        NIF_INFO |
-        NIF_GUID;
-    data.dwInfoFlags =
-        NIIF_INFO |
-        NIIF_NOSOUND;
-
-    wcsncpy_s(
-        data.szInfoTitle,
-        L"Asterun",
-        _TRUNCATE);
-    wcsncpy_s(
-        data.szInfo,
-        message.c_str(),
-        _TRUNCATE);
-
-    if (Shell_NotifyIconW(NIM_MODIFY, &data)) {
+    if (ShowTrayBalloon(
+            message,
+            false)) {
         ui::PlayFeedback(FeedbackCue::Startup);
     }
 }
@@ -4857,20 +4877,29 @@ LRESULT LauncherWindow::HandleMessage(
             NIN_BALLOONUSERCLICK) {
             const bool temporary =
                 notificationOnlyTrayIcon_;
-            Show();
+            const bool opensAbout =
+                trayBalloonOpensAbout_;
+            trayBalloonOpensAbout_ = false;
+            if (opensAbout) {
+                app_.ShowAbout();
+            } else {
+                Show();
+            }
             if (temporary) {
                 RemoveTrayIcon();
             }
             return 0;
         }
 
-        if ((event ==
-                 NIN_BALLOONHIDE ||
-             event ==
-                 NIN_BALLOONTIMEOUT) &&
-            notificationOnlyTrayIcon_) {
-            RemoveTrayIcon();
-            return 0;
+        if (event ==
+                NIN_BALLOONHIDE ||
+            event ==
+                NIN_BALLOONTIMEOUT) {
+            trayBalloonOpensAbout_ = false;
+            if (notificationOnlyTrayIcon_) {
+                RemoveTrayIcon();
+                return 0;
+            }
         }
 
         if (event ==

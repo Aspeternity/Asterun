@@ -3,7 +3,6 @@
 #include "UpdateHttpRequest.hpp"
 
 #include "../core/ConfigIO.hpp"
-#include "../core/ArchiveExtractor.hpp"
 #include "../core/UpdateManifest.hpp"
 #include "SecureElevation.hpp"
 #include "SecureArchive.hpp"
@@ -16,7 +15,6 @@
 #endif
 #include <windows.h>
 #include <shellapi.h>
-#include <shldisp.h>
 #include <winhttp.h>
 
 #include <algorithm>
@@ -43,10 +41,6 @@ constexpr std::uint64_t
 constexpr std::uint64_t
     kMaximumPackageBytes =
         128ULL * 1024ULL * 1024ULL;
-
-constexpr wchar_t
-    kStableLatestReleaseMetadataUrl[] =
-        L"https://api.github.com/repos/Aspeternity/Asterun/releases/latest";
 
 struct InternetHandle {
     std::atomic<HINTERNET>
@@ -138,7 +132,8 @@ IsRetryableUpdateCheckError(
     std::uint32_t error) {
     return
         IsTransientUpdateHttpStatus(
-            error) ||
+            UpdateHttpStatusFromError(
+                error)) ||
         IsNetworkTimeout(error);
 }
 
@@ -341,7 +336,9 @@ OpenRequest(
 
     if (status < 200 ||
         status >= 300) {
-        nativeError = status;
+        nativeError =
+            UpdateHttpStatusError(
+                status);
         return false;
     }
 
@@ -507,43 +504,6 @@ DownloadTextWithRetry(
     }
 }
 
-[[nodiscard]]
-std::optional<std::string>
-ParseLatestStableReleaseVersion(
-    std::string_view text) {
-    try {
-        const auto value =
-            nlohmann::json::parse(text);
-
-        if (!value.is_object() ||
-            !value.contains("tag_name") ||
-            !value["tag_name"].is_string()) {
-            return std::nullopt;
-        }
-
-        std::string version =
-            value["tag_name"]
-                .get<std::string>();
-
-        if (!version.empty() &&
-            (version.front() == 'v' ||
-             version.front() == 'V')) {
-            version.erase(
-                version.begin());
-        }
-
-        if (!CompareVersions(
-                version,
-                version)) {
-            return std::nullopt;
-        }
-
-        return version;
-    } catch (...) {
-        return std::nullopt;
-    }
-}
-
 [[nodiscard]] bool
 DownloadFile(
     std::wstring_view url,
@@ -684,19 +644,6 @@ ReadFileText(
     return true;
 }
 
-[[nodiscard]] bool
-ExtractZipVerified(const std::filesystem::path& archive,
-    const std::filesystem::path& destination, std::uint32_t& nativeError,
-    std::stop_token stopToken) {
-    std::error_code error;
-    if (!altrun::ExtractArchive(archive, destination, error, stopToken)) {
-        nativeError = stopToken.stop_requested() ? ERROR_CANCELLED : ERROR_INVALID_DATA;
-        return false;
-    }
-    nativeError = 0;
-    return true;
-}
-
 [[nodiscard]] std::filesystem::path
 UpdateRoot(
     const std::filesystem::path& dataDirectory) {
@@ -735,6 +682,33 @@ UpdateStatePath(
         L"update-state.json";
 }
 
+// update-state.json is shared by the check throttle and the once-per-version
+// notification; each writer updates only its own field.
+void UpdateStateField(
+    const std::filesystem::path& dataDirectory,
+    const char* key,
+    nlohmann::json fieldValue) {
+    auto value =
+        config::LoadJsonWithBackup(
+            UpdateStatePath(
+                dataDirectory))
+            .value_or(
+                nlohmann::json::object());
+
+    if (!value.is_object()) {
+        value = nlohmann::json::object();
+    }
+
+    value["schemaVersion"] = 1;
+    value[key] =
+        std::move(fieldValue);
+
+    (void)config::SaveJsonAtomic(
+        UpdateStatePath(
+            dataDirectory),
+        value);
+}
+
 void MarkChecked(
     const std::filesystem::path& dataDirectory) {
     const auto now =
@@ -743,17 +717,11 @@ void MarkChecked(
                 std::chrono::
                     system_clock::now());
 
-    const nlohmann::json value = {
-        {"schemaVersion", 1},
-        {"lastCheckUnix",
-         static_cast<std::int64_t>(
-             now)},
-    };
-
-    (void)config::SaveJsonAtomic(
-        UpdateStatePath(
-            dataDirectory),
-        value);
+    UpdateStateField(
+        dataDirectory,
+        "lastCheckUnix",
+        static_cast<std::int64_t>(
+            now));
 }
 
 [[nodiscard]] std::wstring
@@ -820,11 +788,40 @@ bool UpdateAutoCheckDue(
         intervalSeconds;
 }
 
+std::string
+UpdateNotifiedVersion(
+    const std::filesystem::path& dataDirectory) {
+    const auto state =
+        config::LoadJsonWithBackup(
+            UpdateStatePath(
+                dataDirectory));
+
+    if (!state ||
+        !state->is_object() ||
+        !state->contains(
+            "notifiedVersion") ||
+        !(*state)["notifiedVersion"]
+             .is_string()) {
+        return {};
+    }
+
+    return (*state)["notifiedVersion"]
+        .get<std::string>();
+}
+
+void MarkUpdateNotified(
+    const std::filesystem::path& dataDirectory,
+    std::string_view version) {
+    UpdateStateField(
+        dataDirectory,
+        "notifiedVersion",
+        std::string(version));
+}
+
 UpdateCheckResult
 CheckForUpdate(
     const std::filesystem::path& dataDirectory,
     std::string_view currentVersion,
-    UpdateChannel channel,
     UpdateProgress progress,
     std::stop_token stopToken) {
     UpdateCheckResult result;
@@ -844,98 +841,12 @@ CheckForUpdate(
     std::uint32_t nativeError = 0;
 
     if (!DownloadTextWithRetry(
-            UpdateManifestUrl(
-                channel),
+            UpdateManifestUrl(),
             text,
             nativeError,
             stopToken)) {
-        // Stable v0.6.0 predates the native updater and has no
-        // update-manifest.json. Treat that legacy release as release metadata
-        // rather than surfacing HTTP 404 as a system error.
-        if (channel ==
-                UpdateChannel::Stable &&
-            nativeError == 404 &&
-            !stopToken.stop_requested()) {
-            std::string releaseText;
-            std::uint32_t releaseError = 0;
-
-            if (DownloadTextWithRetry(
-                    kStableLatestReleaseMetadataUrl,
-                    releaseText,
-                    releaseError,
-                    stopToken)) {
-                const auto stableVersion =
-                    ParseLatestStableReleaseVersion(
-                        releaseText);
-
-                if (!stableVersion) {
-                    snapshot =
-                        Fail(
-                            snapshot,
-                            UpdateFailure::
-                                ManifestInvalid,
-                            ERROR_INVALID_DATA,
-                            progress);
-                    return result;
-                }
-
-                const auto comparison =
-                    CompareVersions(
-                        *stableVersion,
-                        currentVersion);
-
-                if (!comparison) {
-                    snapshot =
-                        Fail(
-                            snapshot,
-                            UpdateFailure::
-                                ManifestInvalid,
-                            ERROR_INVALID_DATA,
-                            progress);
-                    return result;
-                }
-
-                MarkChecked(
-                    dataDirectory);
-
-                snapshot.availableVersion =
-                    *stableVersion;
-                snapshot.nativeError = 0;
-                snapshot.running = false;
-
-                if (*comparison > 0) {
-                    snapshot =
-                        Fail(
-                            snapshot,
-                            UpdateFailure::
-                                StableManifestUnavailable,
-                            0,
-                            progress);
-                    return result;
-                }
-
-                snapshot.stage =
-                    *comparison < 0
-                        ? UpdateStage::
-                              ChannelNotNewer
-                        : UpdateStage::
-                              UpToDate;
-                snapshot.failure =
-                    UpdateFailure::None;
-
-                if (progress) {
-                    progress(snapshot);
-                }
-
-                return result;
-            }
-
-            nativeError =
-                releaseError;
-        }
-
         // A transient GitHub/release handoff failure must not suppress update
-        // checks for the next 24 hours. Only a completed manifest fetch counts
+        // checks for the next interval. Only a completed manifest fetch counts
         // as an automatic check for throttle purposes.
         snapshot =
             Fail(
@@ -988,8 +899,17 @@ CheckForUpdate(
     if (!IsUpdateVersionNewer(
             currentVersion,
             manifest->version)) {
+        // A build newer than the latest stable release (a prerelease or a
+        // local build) says so rather than claiming the release is current.
+        const auto comparison =
+            CompareVersions(
+                manifest->version,
+                currentVersion);
         snapshot.stage =
-            UpdateStage::UpToDate;
+            comparison &&
+                    *comparison < 0
+                ? UpdateStage::NewerThanRelease
+                : UpdateStage::UpToDate;
         snapshot.failure =
             UpdateFailure::None;
         snapshot.running = false;
@@ -1017,7 +937,6 @@ CheckForUpdate(
 UpdatePrepareResult
 PrepareUpdate(
     const std::filesystem::path& dataDirectory,
-    UpdateChannel channel,
     const UpdateManifest& manifest,
     std::string_view currentVersion,
     UpdateProgress progress,
@@ -1118,7 +1037,7 @@ PrepareUpdate(
 
     const std::wstring url =
         UpdateAssetUrl(
-            channel,
+            manifest.version,
             asset.name);
 
     std::uint32_t nativeError = 0;
@@ -1201,7 +1120,7 @@ PrepareUpdate(
             Fail(
                 snapshot,
                 UpdateFailure::
-                    ExtractionFailed,
+                    AssetDownloadFailed,
                 nativeError,
                 progress);
         return result;
@@ -1212,7 +1131,7 @@ PrepareUpdate(
         UpdateStage::Extracting,
         progress);
 
-    if (!ExtractZipVerified(
+    if (!ExtractZipVerifiedSecure(
             verifiedArchive,
             stagingDirectory,
             nativeError,
@@ -1266,6 +1185,9 @@ PrepareUpdate(
         ec) {
         std::filesystem::remove(
             verifiedArchive,
+            ec);
+        std::filesystem::remove_all(
+            stagingDirectory,
             ec);
         snapshot =
             Fail(

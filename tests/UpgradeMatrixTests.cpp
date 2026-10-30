@@ -21,13 +21,6 @@ using namespace altrun;
 
 namespace {
 
-std::string ExpectedDefaultUpdateChannelName() {
-    return DefaultUpdateChannelForVersion(kVersion) ==
-            UpdateChannel::Stable
-        ? "stable"
-        : "development";
-}
-
 std::string ReadText(
     const std::filesystem::path& path) {
     std::ifstream input(
@@ -580,9 +573,6 @@ void AssertSchema6Migration(
         !store.IsReadOnlyDueToNewerSchema());
     assert(
         store.Data().autoCheckUpdates);
-    assert(
-        store.Data().updateChannel ==
-        DefaultUpdateChannelForVersion(kVersion));
 
     const auto migrated =
         nlohmann::json::parse(
@@ -596,11 +586,10 @@ void AssertSchema6Migration(
         migrated.at("update")
             .at("autoCheck")
             .get<bool>());
+    // The removed update channel is no longer written.
     assert(
-        migrated.at("update")
-            .at("channel")
-            .get<std::string>() ==
-        ExpectedDefaultUpdateChannelName());
+        !migrated.at("update")
+             .contains("channel"));
 
     AssertDowngradeReadOnly(path);
 }
@@ -779,17 +768,12 @@ void AssertCleanInstall(
     assert(
         store.Data().autoCheckUpdates);
     assert(
-        store.Data().updateChannel ==
-        DefaultUpdateChannelForVersion(kVersion));
-    assert(
         root.at("update")
             .at("autoCheck")
             .get<bool>());
     assert(
-        root.at("update")
-            .at("channel")
-            .get<std::string>() ==
-        ExpectedDefaultUpdateChannelName());
+        !root.at("update")
+             .contains("channel"));
 
     const auto& bindings =
         root.at("hotkeys")

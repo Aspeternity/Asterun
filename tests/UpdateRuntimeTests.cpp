@@ -741,6 +741,36 @@ int main() {
         assert(noStagedReplacements(paths.install));
     }
 
+    {
+        // Files the new package dropped from its own trees are removed after
+        // a successful update; everything outside those trees stays.
+        const auto paths = Paths(root / "prune-obsolete");
+        PopulateSource(paths.source);
+        Write(paths.source / "dict" / "mandarin" / "word.txt", "new-word");
+        Write(paths.source / "third_party" / "miniz-LICENSE.txt", "new-license");
+        PopulateInstall(paths.install);
+        Write(paths.install / "dict" / "mandarin" / "word.txt", "old-word");
+        Write(paths.install / "dict" / "mandarin" / "renamed.txt", "old-renamed");
+        Write(paths.install / "dict" / "retired" / "old.txt", "old-retired");
+        Write(paths.install / "third_party" / "dropped-LICENSE.txt", "old-license");
+        Write(paths.install / "notes.txt", "user");
+        Write(paths.install / "data" / "settings.json", "{}");
+
+        TransactionJournal journal;
+        assert(ApplyPackage(paths, journal));
+        auto trailing = paths;
+        trailing.install /= ""; // spelled with a trailing separator
+        altrun::updater::PruneObsoletePackageFiles(trailing, journal);
+        assert(Read(paths.install / "dict" / "mandarin" / "word.txt") == "new-word");
+        assert(Read(paths.install / "third_party" / "miniz-LICENSE.txt") == "new-license");
+        assert(!fs::exists(paths.install / "dict" / "mandarin" / "renamed.txt"));
+        assert(!fs::exists(paths.install / "dict" / "retired"));
+        assert(!fs::exists(paths.install / "third_party" / "dropped-LICENSE.txt"));
+        assert(Read(paths.install / "notes.txt") == "user");
+        assert(Read(paths.install / "data" / "settings.json") == "{}");
+        assert(Read(paths.install / "Asterun.exe") == "new-app");
+    }
+
 #ifdef _WIN32
     const auto lockWithoutDeleteSharing = [](const fs::path& path) {
         // How an antivirus scan or a still-mapped image looks to the updater.

@@ -15,7 +15,7 @@ enum class UpdateStage {
     Idle,
     Checking,
     UpToDate,
-    ChannelNotNewer,
+    NewerThanRelease,
     Available,
     Downloading,
     Verifying,
@@ -30,7 +30,6 @@ enum class UpdateFailure {
     Cancelled,
     ManifestDownloadFailed,
     CheckTimedOut,
-    StableManifestUnavailable,
     ManifestInvalid,
     UnsupportedArchitecture,
     AssetDownloadFailed,
@@ -80,20 +79,28 @@ UpdateAutoCheckDue(
     const std::filesystem::path& dataDirectory,
     std::int64_t nowUnixSeconds,
     std::int64_t intervalSeconds =
-        24 * 60 * 60);
+        6 * 60 * 60);
+
+// The newest version an automatic check has already announced, so each
+// release is announced once rather than on every check.
+[[nodiscard]] std::string
+UpdateNotifiedVersion(
+    const std::filesystem::path& dataDirectory);
+
+void MarkUpdateNotified(
+    const std::filesystem::path& dataDirectory,
+    std::string_view version);
 
 [[nodiscard]] UpdateCheckResult
 CheckForUpdate(
     const std::filesystem::path& dataDirectory,
     std::string_view currentVersion,
-    UpdateChannel channel,
     UpdateProgress progress,
     std::stop_token stopToken = {});
 
 [[nodiscard]] UpdatePrepareResult
 PrepareUpdate(
     const std::filesystem::path& dataDirectory,
-    UpdateChannel channel,
     const UpdateManifest& manifest,
     std::string_view currentVersion,
     UpdateProgress progress,

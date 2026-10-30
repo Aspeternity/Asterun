@@ -78,8 +78,7 @@
     "showTrayIcon": false
   },
   "update": {
-    "autoCheck": true,
-    "channel": "stable"
+    "autoCheck": true
   },
   "windowPlacement": {
     "launcherMode": "top",

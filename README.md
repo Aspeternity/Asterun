@@ -41,11 +41,9 @@ Asterun 是一款面向 Windows 10/11 的原生、轻量、键盘优先启动器
 
 它以 C++23 + Win32 构建，将程序发现、拼音与中英文混合搜索、使用习惯排序、智能数字键启动、自定义快捷项、可选 Everything 文件/文件夹搜索、原生更新与卸载统一在一个紧凑的启动体验中。
 
-## v1.0.7 — 当前稳定版
+## v1.0.8 — 当前稳定版
 
-**[Asterun v1.0.7](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.7) 已正式发布**，推荐普通用户使用。本版让程序目录不再混入 MSIX 应用和 Office 等程序的内部辅助组件（输入完整名仍可找到），并把开启 Everything 时文件结果的出现延迟从数百毫秒降到约 15 毫秒，同时恢复了输入查询后的数字键启动，并过滤构建中间文件与重复的同名文件。完整版本变更见 [更新日志](CHANGELOG.md)。
-
-**开发预发布版** [dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) 来自通过完整 CI 的 `main`，可能包含 v1.0.7 发布后的维护修复。它与正式稳定版是不同发布渠道，不能把开发版的全部修改视为已经包含在 v1.0.7 中。
+**[Asterun v1.0.8](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.8) 已正式发布**，推荐普通用户使用。本版让应用内更新更容易被看到：常驻托盘时也会定期检查，发现新版本会在通知区提示一次，更新完成后会确认新版本号；下载可以取消，失败后可直接重试，错误信息也更清楚。更新器本身更稳健（新版本启动失败立即回滚、更新期间阻止重复启动、清理新版不再需要的旧文件），并移除了从未真正起作用的开发通道。完整版本变更见 [更新日志](CHANGELOG.md)。
 
 ## 界面预览
 
@@ -173,7 +171,6 @@ Asterun/
 | 渠道 | 用途 | 链接 |
 | --- | --- | --- |
 | **Stable** | 推荐普通用户使用。正式版本号、不可变 Release。 | [最新稳定版](https://github.com/Aspeternity/Asterun/releases/latest) |
-| **Development** | 最新成功通过 CI 的 `main` 滚动构建，可能包含尚未完成的修改。 | [dev-latest](https://github.com/Aspeternity/Asterun/releases/tag/dev-latest) |
 
 官方 Release 会提供 x64 / ARM64 便携包、SHA-256 校验文件和更新清单。
 

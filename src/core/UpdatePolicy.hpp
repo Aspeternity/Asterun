@@ -8,11 +8,6 @@
 
 namespace altrun {
 
-enum class UpdateChannel {
-    Stable,
-    Development,
-};
-
 struct UpdateAsset {
     std::string name;
     std::string sha256;
@@ -26,14 +21,6 @@ struct UpdateManifest {
     UpdateAsset x64;
     UpdateAsset arm64;
 };
-
-[[nodiscard]] const char*
-UpdateChannelName(
-    UpdateChannel channel);
-
-[[nodiscard]] UpdateChannel
-DefaultUpdateChannelForVersion(
-    std::string_view version);
 
 [[nodiscard]] std::optional<int>
 CompareVersions(
@@ -49,13 +36,28 @@ IsUpdateVersionNewer(
 IsTransientUpdateHttpStatus(
     std::uint32_t status);
 
-[[nodiscard]] std::wstring
-UpdateManifestUrl(
-    UpdateChannel channel);
+// HTTP failures share the native-error slot with Win32 errors. They are
+// encoded like winerror.h HTTP_E_STATUS_* values so a status such as 404 can
+// never be mistaken for the Win32 error with the same number.
+[[nodiscard]] std::uint32_t
+UpdateHttpStatusError(
+    std::uint32_t status);
 
+// The HTTP status carried by `error`, or 0 when it is not an HTTP failure.
+[[nodiscard]] std::uint32_t
+UpdateHttpStatusFromError(
+    std::uint32_t error);
+
+// The manifest of GitHub's latest non-prerelease release.
+[[nodiscard]] std::wstring
+UpdateManifestUrl();
+
+// Assets come from the release tagged v<version>, not /latest/, so a release
+// published between the check and the download cannot swap the package
+// under the manifest's SHA-256.
 [[nodiscard]] std::wstring
 UpdateAssetUrl(
-    UpdateChannel channel,
+    std::string_view version,
     std::string_view assetName);
 
 [[nodiscard]] bool

@@ -18,6 +18,7 @@ SUPPORTED = {
     "1.0.5": (12, 2, 2, 22, "1.0.5.30000"),
     "1.0.6": (12, 2, 2, 26, "1.0.6.30000"),
     "1.0.7": (12, 2, 2, 27, "1.0.7.30000"),
+    "1.0.8": (12, 2, 2, 27, "1.0.8.30000"),
 }
 
 
@@ -101,11 +102,11 @@ security_contracts = {
         "LockExecutableForElevation(", "LaunchSecuredExecutable("),
     "src/platform/UpdateManager.cpp": (
         "WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP",
-        "ExtractArchive(", "assetSha256"),
+        "ExtractZipVerifiedSecure(", "assetSha256"),
     "src/platform/SecureArchive.cpp": ("LockAndVerifySha256(", "ExtractArchive("),
     "src/platform/EverythingBootstrapper.cpp": (
         "VerifyEverythingPublisher(", "WinVerifyTrust(",
-        "CopyManagedEverythingToProtectedHost(", "ExtractArchive("),
+        "CopyManagedEverythingToProtectedHost(", "ExtractZipVerifiedSecure("),
     "src/updater/UpdaterTransaction.cpp": ("Rollback(", "RollbackResult"),
     "src/updater/UpdaterMain.cpp": ("recovery.Complete()", "secureReextract"),
     "src/core/ConfigIO.cpp": ("InvalidExisting", "SaveJsonAtomic("),
@@ -125,16 +126,14 @@ for path, tokens in {
     require(path, *tokens)
 
 for path in (".github/workflows/build.yml", ".github/workflows/release.yml"):
-    require(path, "permissions:\n  contents: read", "contents: write",
+    require(path, "permissions:\n  contents: read",
             "verify_release_contract.py", "verify_package.ps1")
-require(
-    ".github/workflows/build.yml",
-    '.prerelease == ($version | contains("-"))',
-)
-# Both publication paths must pass the same shared test gate: the rolling
-# development prerelease (build.yml) and versioned releases (release.yml).
-require(".github/workflows/build.yml", "uses: ./.github/workflows/tests.yml",
-        "needs: [repository-checks, tests, build-windows]")
+# Only versioned releases publish; build.yml never writes to the repository.
+require(".github/workflows/release.yml", "contents: write")
+if "contents: write" in read(".github/workflows/build.yml"):
+    fail("build.yml must not publish releases")
+# CI builds and versioned releases pass the same shared test gate.
+require(".github/workflows/build.yml", "uses: ./.github/workflows/tests.yml")
 require(".github/workflows/release.yml", "uses: ./.github/workflows/tests.yml",
         "needs: [preflight, tests, build]")
 # Both packaging jobs check the shipped executables' DLL imports and

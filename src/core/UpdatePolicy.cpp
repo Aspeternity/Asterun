@@ -287,24 +287,6 @@ WideAscii(
 
 } // namespace
 
-const char*
-UpdateChannelName(
-    UpdateChannel channel) {
-    return channel ==
-            UpdateChannel::
-                Development
-        ? "development"
-        : "stable";
-}
-
-UpdateChannel
-DefaultUpdateChannelForVersion(
-    std::string_view) {
-    // Prerelease updates are always opt-in. First-run and reset defaults
-    // stay on the stable channel regardless of the current build label.
-    return UpdateChannel::Stable;
-}
-
 std::optional<int>
 CompareVersions(
     std::string_view left,
@@ -338,40 +320,66 @@ bool IsUpdateVersionNewer(
 bool IsTransientUpdateHttpStatus(
     std::uint32_t status) {
     return
+        status == 429 ||
         status == 502 ||
         status == 503 ||
         status == 504;
 }
 
-std::wstring
-UpdateManifestUrl(
-    UpdateChannel channel) {
-    if (channel ==
-        UpdateChannel::
-            Development) {
-        return
-            L"https://github.com/Aspeternity/Asterun/releases/download/dev-latest/update-manifest.json";
-    }
+namespace {
 
+constexpr std::uint32_t
+    kHttpStatusErrorBase =
+        0x80190000u;
+
+} // namespace
+
+std::uint32_t
+UpdateHttpStatusError(
+    std::uint32_t status) {
+    return kHttpStatusErrorBase |
+        (status & 0xFFFFu);
+}
+
+std::uint32_t
+UpdateHttpStatusFromError(
+    std::uint32_t error) {
+    return (error & 0xFFFF0000u) ==
+            kHttpStatusErrorBase
+        ? error & 0xFFFFu
+        : 0;
+}
+
+std::wstring
+UpdateManifestUrl() {
     return
         L"https://github.com/Aspeternity/Asterun/releases/latest/download/update-manifest.json";
 }
 
 std::wstring
 UpdateAssetUrl(
-    UpdateChannel channel,
+    std::string_view version,
     std::string_view assetName) {
     if (!IsSafeUpdateAssetName(
             assetName)) {
         return {};
     }
 
+    if (!version.empty() &&
+        (version.front() == 'v' ||
+         version.front() == 'V')) {
+        version.remove_prefix(1);
+    }
+
+    // A parsed version holds only digits, letters, '.' and '-'.
+    if (!ParseVersion(version)) {
+        return {};
+    }
+
     std::wstring result =
-        channel ==
-                UpdateChannel::
-                    Development
-            ? L"https://github.com/Aspeternity/Asterun/releases/download/dev-latest/"
-            : L"https://github.com/Aspeternity/Asterun/releases/latest/download/";
+        L"https://github.com/Aspeternity/Asterun/releases/download/v";
+    result += WideAscii(version);
+    result += L"/";
 
     result += WideAscii(
         assetName);

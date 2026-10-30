@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.8 (released 2026-10-30)
+
+### Updates you can see
+
+- Re-evaluate the automatic update check hourly while Asterun stays in the tray; checks are throttled to once per 6 hours (was 24) and a failed check is retried.
+- Announce each newly found version once in the notification area; clicking it opens Settings at About. After an update, confirm the new version once.
+- An automatic check quietly refreshes an existing offer, so a newer release replaces it.
+- The action button cancels a download in progress. Retry reinstalls a verified package after a declined UAC prompt without downloading again; other failures retry the download directly.
+- Report HTTP failures as "HTTP <status>", retry HTTP 429, and say when the running build is newer than the latest release instead of "up to date".
+
+### Updater
+
+- Download the package from the manifest's own `v<version>` release instead of `/latest/`, so a release published mid-update cannot cause a checksum mismatch.
+- Remove the Development channel (Settings toggle, `update.channel` setting, rolling `dev-latest` release) and the v0.6.0 GitHub API fallback.
+- Update.exe rolls back at once when the new build exits before signalling health, waits up to 10 minutes for the old process, keeps a manually started Asterun from locking files during the update, and removes files under `dict/` and `third_party/` that the new package no longer ships. Because the installed Update.exe applies an update, these take effect from the update after 1.0.8.
+
 ## 1.0.7 (released 2026-10-30)
 
 Search and catalog

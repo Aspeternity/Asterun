@@ -1084,10 +1084,6 @@ void SettingsWindow::CreateAboutPage() {
         CreateCheckboxRow(
             L"",
             kIdUpdateAutoCheck);
-    updatePrerelease_ =
-        CreateCheckboxRow(
-            L"",
-            kIdUpdatePrerelease);
 
     updateStatus_ =
         CreateStatic(
@@ -1111,7 +1107,6 @@ void SettingsWindow::CreateAboutPage() {
         aboutDescription_,
         updateSectionTitle_,
         updateAutoCheck_,
-        updatePrerelease_,
         updateStatus_,
         updateAction_,
         openGitHub_,
@@ -1210,7 +1205,6 @@ void SettingsWindow::ApplyFonts() {
         aboutVersion_,
         aboutDescription_,
         updateAutoCheck_,
-        updatePrerelease_,
         updateStatus_,
         updateAction_,
         openGitHub_,
@@ -1666,10 +1660,6 @@ void SettingsWindow::ApplyLanguage() {
         T(L"自动检查更新",
           L"Automatically check for updates"));
     SetWindowTextW(
-        updatePrerelease_,
-        T(L"接收预发布版本更新",
-          L"Get prerelease updates"));
-    SetWindowTextW(
         updateAction_,
         T(L"检查更新",
           L"Check for updates"));
@@ -1803,27 +1793,18 @@ void SettingsWindow::RefreshFromSettings() {
             : BST_UNCHECKED,
         0);
 
-    SendMessageW(
-        updatePrerelease_,
-        BM_SETCHECK,
-        settings.updateChannel ==
-                UpdateChannel::Development
-            ? BST_CHECKED
-            : BST_UNCHECKED,
-        0);
-
     RefreshHotkeyPage();
     RefreshUpdateStatus();
     SyncUpdateStatusTimer();
 
     for (HWND control :
-         std::array<HWND, 16>{
+         std::array<HWND, 15>{
              startWithWindows_, showTrayIcon_, soundEnabled_, addToSendToMenu_,
              defaultEnglishInputOnReveal_, pinyinSearch_, numericQuickLaunch_,
              executeSingleResult_, providerStartMenu_, providerPackaged_,
              providerAppPaths_, providerPath_, providerEverything_,
              managedEverythingTrayIcon_,
-             updateAutoCheck_, updatePrerelease_}) {
+             updateAutoCheck_}) {
         if (control) {
             InvalidateRect(
                 control,
@@ -3907,9 +3888,6 @@ bool SettingsWindow::ToggleChecked(
     case kIdAddToSendToMenu: return settings.addToSendToMenu;
     case kIdUpdateAutoCheck:
         return settings.autoCheckUpdates;
-    case kIdUpdatePrerelease:
-        return settings.updateChannel ==
-            UpdateChannel::Development;
     case kIdDefaultEnglishInputOnReveal:
         return settings
             .defaultEnglishInputOnReveal;
@@ -5829,34 +5807,6 @@ void SettingsWindow::SyncUpdateStatusTimer() {
     }
 }
 
-void SettingsWindow::TogglePrereleaseUpdates() {
-    if (syncing_) {
-        return;
-    }
-
-    const auto& settings =
-        app_.SettingsData();
-
-    const UpdateChannel nextChannel =
-        settings.updateChannel ==
-                UpdateChannel::Development
-            ? UpdateChannel::Stable
-            : UpdateChannel::Development;
-
-    if (!app_.SetUpdateSettings(
-            settings.autoCheckUpdates,
-            nextChannel)) {
-        altrun::ui::ShowMessage(
-            hwnd_,
-            T(L"无法保存更新设置。",
-              L"Could not save update settings."),
-            L"Asterun",
-            MB_OK | MB_ICONERROR);
-    }
-
-    RefreshFromSettings();
-}
-
 void SettingsWindow::RefreshUpdateStatus() {
     if (!updateStatus_ ||
         !updateAction_) {
@@ -5865,8 +5815,6 @@ void SettingsWindow::RefreshUpdateStatus() {
 
     const auto status =
         app_.UpdateStatus();
-    const bool settingsChanged =
-        app_.UpdateSettingsChangedSinceCheck();
     const bool workerRunning =
         app_.UpdateWorkerRunning();
 
@@ -5875,15 +5823,14 @@ void SettingsWindow::RefreshUpdateStatus() {
         T(L"检查更新",
           L"Check for updates");
     bool actionEnabled = false;
+    // While a package is being prepared the action button cancels it.
+    bool actionCancels = false;
 
     switch (status.stage) {
     case win::UpdateStage::Idle:
         text =
-            settingsChanged
-                ? T(L"尚未按当前设置检查更新。",
-                    L"Updates have not been checked with the current settings.")
-                : T(L"尚未检查更新。",
-                    L"Updates have not been checked yet.");
+            T(L"尚未检查更新。",
+              L"Updates have not been checked yet.");
         actionEnabled = true;
         break;
 
@@ -5903,7 +5850,7 @@ void SettingsWindow::RefreshUpdateStatus() {
         actionEnabled = true;
         break;
 
-    case win::UpdateStage::ChannelNotNewer:
+    case win::UpdateStage::NewerThanRelease:
         text =
             T(L"正式版最新为 v",
               L"The latest stable release is v");
@@ -5947,8 +5894,9 @@ void SettingsWindow::RefreshUpdateStatus() {
         }
 
         actionText =
-            T(L"正在下载...",
-              L"Downloading...");
+            T(L"取消",
+              L"Cancel");
+        actionCancels = true;
         break;
 
     case win::UpdateStage::Verifying:
@@ -5956,8 +5904,9 @@ void SettingsWindow::RefreshUpdateStatus() {
             T(L"正在校验更新包 SHA-256...",
               L"Verifying update package SHA-256...");
         actionText =
-            T(L"正在校验...",
-              L"Verifying...");
+            T(L"取消",
+              L"Cancel");
+        actionCancels = true;
         break;
 
     case win::UpdateStage::Extracting:
@@ -5965,8 +5914,9 @@ void SettingsWindow::RefreshUpdateStatus() {
             T(L"正在准备更新文件...",
               L"Preparing update files...");
         actionText =
-            T(L"正在准备...",
-              L"Preparing...");
+            T(L"取消",
+              L"Cancel");
+        actionCancels = true;
         break;
 
     case win::UpdateStage::ReadyToInstall:
@@ -5987,7 +5937,17 @@ void SettingsWindow::RefreshUpdateStatus() {
               L"Updating...");
         break;
 
-    case win::UpdateStage::Failed:
+    case win::UpdateStage::Failed: {
+        const std::uint32_t httpStatus =
+            UpdateHttpStatusFromError(
+                status.nativeError);
+        const bool userDeclinedElevation =
+            status.failure ==
+                win::UpdateFailure::
+                    LaunchUpdaterFailed &&
+            status.nativeError ==
+                ERROR_CANCELLED;
+
         text =
             T(L"更新失败：",
               L"Update failed: ");
@@ -5996,7 +5956,7 @@ void SettingsWindow::RefreshUpdateStatus() {
         case win::UpdateFailure::ManifestDownloadFailed:
             text +=
                 IsTransientUpdateHttpStatus(
-                    status.nativeError)
+                    httpStatus)
                     ? T(L"暂时无法检查更新，请稍后重试",
                         L"temporarily unable to check for updates; try again later")
                     : T(L"无法获取更新清单",
@@ -6006,11 +5966,6 @@ void SettingsWindow::RefreshUpdateStatus() {
             text +=
                 T(L"检查更新超时，请重试",
                   L"update check timed out; try again");
-            break;
-        case win::UpdateFailure::StableManifestUnavailable:
-            text +=
-                T(L"最新稳定版未提供应用内更新清单，请从 GitHub 手动更新",
-                  L"the latest stable release does not provide an in-app update manifest; update manually from GitHub");
             break;
         case win::UpdateFailure::ManifestInvalid:
             text +=
@@ -6054,8 +6009,11 @@ void SettingsWindow::RefreshUpdateStatus() {
             break;
         case win::UpdateFailure::LaunchUpdaterFailed:
             text +=
-                T(L"无法启动更新程序",
-                  L"could not start the updater");
+                userDeclinedElevation
+                    ? T(L"已取消管理员授权，可重试安装",
+                        L"administrator permission was declined; you can retry the installation")
+                    : T(L"无法启动更新程序",
+                        L"could not start the updater");
             break;
         case win::UpdateFailure::Cancelled:
             text +=
@@ -6074,12 +6032,19 @@ void SettingsWindow::RefreshUpdateStatus() {
             break;
         }
 
-        if (status.nativeError != 0 &&
+        if (httpStatus != 0) {
+            if (!IsTransientUpdateHttpStatus(
+                    httpStatus)) {
+                text += L"  ·  HTTP ";
+                text += std::to_wstring(
+                    httpStatus);
+            }
+        } else if (
+            status.nativeError != 0 &&
             status.failure !=
                 win::UpdateFailure::
                     CheckTimedOut &&
-            !IsTransientUpdateHttpStatus(
-                status.nativeError)) {
+            !userDeclinedElevation) {
             text +=
                 T(L"  ·  系统错误 ",
                   L"  ·  native error ");
@@ -6093,6 +6058,7 @@ void SettingsWindow::RefreshUpdateStatus() {
         actionEnabled = true;
         break;
     }
+    }
 
     SetWindowTextW(
         updateStatus_,
@@ -6103,18 +6069,16 @@ void SettingsWindow::RefreshUpdateStatus() {
 
     EnableWindow(
         updateAction_,
-        actionEnabled &&
-                !status.running &&
-                !workerRunning
+        (actionCancels
+             ? status.running
+             : actionEnabled &&
+                 !status.running &&
+                 !workerRunning)
             ? TRUE
             : FALSE);
 
     EnableWindow(
         updateAutoCheck_,
-        TRUE);
-
-    EnableWindow(
-        updatePrerelease_,
         TRUE);
 
     // updateStatus_ is SS_OWNERDRAW. WM_SETTEXT updates its backing text
@@ -6953,14 +6917,6 @@ LRESULT SettingsWindow::HandleMessage(
             }
             return 0;
 
-        case kIdUpdatePrerelease:
-            if (toggleActivated &&
-                !syncing_) {
-                TogglePrereleaseUpdates();
-                redrawClickedToggle();
-            }
-            return 0;
-
         case kIdUpdateAutoCheck:
             if (toggleActivated &&
                 !syncing_) {
@@ -6968,8 +6924,7 @@ LRESULT SettingsWindow::HandleMessage(
                     app_.SettingsData();
 
                 if (!app_.SetUpdateSettings(
-                        !settings.autoCheckUpdates,
-                        settings.updateChannel)) {
+                        !settings.autoCheckUpdates)) {
                     altrun::ui::ShowMessage(
                         hwnd_,
                         T(L"无法保存更新设置。",
@@ -6988,11 +6943,17 @@ LRESULT SettingsWindow::HandleMessage(
                 const auto status =
                     app_.UpdateStatus();
 
-                if (status.stage ==
-                        win::UpdateStage::Available &&
-                    !status.running) {
+                if (status.running) {
+                    app_.CancelUpdateDownload();
+                } else if (
+                    status.stage ==
+                    win::UpdateStage::Available) {
                     app_.StartUpdateDownloadAndInstall();
-                } else if (!status.running) {
+                } else if (
+                    status.stage ==
+                    win::UpdateStage::Failed) {
+                    app_.RetryUpdate();
+                } else {
                     app_.StartUpdateCheck(true);
                 }
 
@@ -7083,8 +7044,7 @@ LRESULT SettingsWindow::HandleMessage(
             item->CtlID == kIdProviderPath ||
             item->CtlID == kIdProviderEverything ||
             item->CtlID == kIdManagedEverythingTrayIcon ||
-            item->CtlID == kIdUpdateAutoCheck ||
-            item->CtlID == kIdUpdatePrerelease) {
+            item->CtlID == kIdUpdateAutoCheck) {
             DrawGeneralToggle(
                 *item);
             return TRUE;
@@ -7518,10 +7478,11 @@ LRESULT SettingsWindow::HandleMessage(
                     560));
         } else if (
             page_ == Page::About) {
+            // One toggle row (50) plus the status/action row.
             drawCard(
                 PageCardRect(
                     246,
-                    174,
+                    124,
                     560));
         }
 

@@ -70,7 +70,7 @@ jobs:
     name: Tests
     # Same reusable gate as build.yml (Linux, both Windows x64 jobs, ARM64
     # build-only, cross-platform inventory). A versioned release cannot skip
-    # any test that the rolling development prerelease requires.
+    # any test that an ordinary main build requires.
     needs: preflight
     uses: ./.github/workflows/tests.yml
 

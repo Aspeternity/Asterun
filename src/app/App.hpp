@@ -212,8 +212,7 @@ public:
         bool enabled,
         bool refreshSettingsWindow = true);
     bool SetUpdateSettings(
-        bool autoCheck,
-        UpdateChannel channel);
+        bool autoCheck);
     bool SetWindowPlacementSettings(
         std::string launcherPlacement,
         std::string settingsPlacement,
@@ -230,12 +229,12 @@ public:
     [[nodiscard]] win::UpdateSnapshot
     UpdateStatus() const;
     [[nodiscard]] bool
-    UpdateSettingsChangedSinceCheck() const;
-    [[nodiscard]] bool
     UpdateWorkerRunning() const noexcept;
     bool StartUpdateCheck(
         bool force);
     bool StartUpdateDownloadAndInstall();
+    bool RetryUpdate();
+    bool CancelUpdateDownload();
     bool RepairGlobalHotkey(
         bool forceRebind = true);
 
@@ -370,9 +369,10 @@ private:
         std::uint64_t generation);
     void StartUpdateReconcileTimer();
     void StopUpdateReconcileTimer();
-    void InvalidateUpdateCheckForChannelChange();
     bool BeginPreparedUpdate();
-    void SignalStartupHealthEvent();
+    void AnnounceAvailableUpdate(
+        const std::string& version);
+    bool SignalStartupHealthEvent();
     void CaptureActivationContext();
 
     HINSTANCE instance_{};
@@ -470,8 +470,12 @@ private:
     std::atomic<std::uint64_t>
         updateWorkerStartedTick_{0};
     UINT_PTR updateReconcileTimer_{0};
-    bool updateSettingsChangedSinceCheck_{false};
     bool updateInstallWhenReady_{false};
+    // The running check was started by the automatic schedule; its result
+    // may be announced in the notification area.
+    bool updateCheckAutomatic_{false};
+    // That automatic check is quietly refreshing a visible offer.
+    bool updateRefreshingOffer_{false};
     std::wstring startupHealthEvent_;
     std::vector<std::wstring>
         startupShortcutPaths_;

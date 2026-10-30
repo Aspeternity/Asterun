@@ -57,6 +57,16 @@ constexpr UINT_PTR
     kUpdateReconcileTimerId =
         0xA175;
 
+// A tray-resident launcher can run for weeks. Re-evaluate the 6-hour
+// automatic-check throttle hourly instead of only at startup.
+constexpr UINT_PTR
+    kUpdateAutoCheckTimerId =
+        0xA178;
+
+constexpr UINT
+    kUpdateAutoCheckPollMs =
+        60U * 60U * 1000U;
+
 constexpr UINT
     kPackagedProviderChangedMessage =
         WM_APP + 0x177; // 0x176 is the numeric continuation notification.
@@ -172,6 +182,24 @@ std::wstring FormatHotkeyBindingForStartup(
     }
 
     return result;
+}
+
+// The marker exists while Update.exe works on the files. One created by an
+// elevated updater cannot be opened from here, which still proves it exists.
+bool UpdateInProgress() {
+    const HANDLE marker =
+        OpenMutexW(
+            SYNCHRONIZE,
+            FALSE,
+            app_identity::kUpdateInProgressMutexName);
+
+    if (marker) {
+        CloseHandle(marker);
+        return true;
+    }
+
+    return GetLastError() ==
+        ERROR_ACCESS_DENIED;
 }
 
 bool ProbeDirectoryWritable(
@@ -408,8 +436,20 @@ int App::Run() {
         CreateMutexW(
             nullptr,
             FALSE,
-            L"Local\\Aspeternity.Asterun.SingleInstance.v1");
+            app_identity::kSingleInstanceMutexName);
     const DWORD mutexError = GetLastError();
+
+    // An elevated Update.exe creates the guard with a DACL this process
+    // cannot open, so access denied also counts while it is updating.
+    if ((mutexError == ERROR_ALREADY_EXISTS ||
+         (!singleInstanceMutex_ &&
+          mutexError == ERROR_ACCESS_DENIED)) &&
+        UpdateInProgress()) {
+        // Update.exe is replacing or restoring the application files. Leave
+        // at once, without a message box that would keep Asterun.exe mapped
+        // and block the replacement; the updater restarts Asterun itself.
+        return 0;
+    }
 
     if (!singleInstanceMutex_) {
         altrun::ui::ShowMessage(
@@ -520,7 +560,8 @@ int App::Run() {
     // and created the real desktop window successfully. Signal before any
     // optional warning dialog can make the updater mistake user think-time
     // for a failed startup.
-    SignalStartupHealthEvent();
+    const bool postUpdateLaunch =
+        SignalStartupHealthEvent();
 
     if (!dataDirectoryWritable_) {
         altrun::ui::ShowMessage(
@@ -610,6 +651,17 @@ int App::Run() {
         default:
             break;
         }
+    } else if (postUpdateLaunch) {
+        // The updater restarts Asterun without presenting the launcher;
+        // confirm the completed update instead of returning silently.
+        const std::wstring version(
+            kVersion.begin(),
+            kVersion.end());
+        window_->ShowUpdateNotification(
+            settingsStore_.Data().language ==
+                    Language::ZhCN
+                ? L"Asterun 已更新到 v" + version
+                : L"Asterun was updated to v" + version);
     }
 
     // Shell integration can touch Explorer, COM and the filesystem. Keep it
@@ -666,6 +718,14 @@ int App::Run() {
     if (settingsStore_.Data()
             .autoCheckUpdates) {
         StartUpdateCheck(false);
+    }
+
+    if (updateDispatchWindow_) {
+        SetTimer(
+            updateDispatchWindow_,
+            kUpdateAutoCheckTimerId,
+            kUpdateAutoCheckPollMs,
+            nullptr);
     }
 
     MSG msg{};
@@ -2549,6 +2609,15 @@ App::UpdateDispatchWindowProc(
             return 0;
         }
 
+        if (message == WM_TIMER &&
+            wParam ==
+                kUpdateAutoCheckTimerId) {
+            // StartUpdateCheck(false) applies the setting, the 6-hour
+            // throttle and the in-progress/offer guards.
+            (void)self->StartUpdateCheck(false);
+            return 0;
+        }
+
         if (message == WM_NCDESTROY &&
             self->updateDispatchWindow_ ==
                 hwnd) {
@@ -2714,8 +2783,8 @@ void App::HandleUpdateStatusMessage(
     bool workerRunning =
         updateWorkerRunning_.load();
 
-    // Reconciliation/repaint can only mirror App state. If synchronous
-    // WinHTTP itself stops progressing, bound Checking and invalidate the old
+    // Reconciliation/repaint can only mirror App state. If WinHTTP itself
+    // stops progressing, bound Checking and invalidate the old
     // generation before requesting cancellation.
     if (status.stage ==
             win::UpdateStage::Checking &&
@@ -2783,6 +2852,52 @@ void App::HandleUpdateStatusMessage(
         }
     }
 
+    // A quiet offer refresh never shows Checking. Bound it the same way, but
+    // abandon only the refresh: the offer it was refreshing stays usable.
+    if (workerRunning) {
+        const std::uint64_t started =
+            updateWorkerStartedTick_.load();
+        const std::uint64_t now =
+            static_cast<std::uint64_t>(
+                GetTickCount64());
+
+        if (started != 0 &&
+            now >= started &&
+            now - started >=
+                kUpdateCheckWatchdogMs) {
+            bool abandonedRefresh =
+                false;
+
+            {
+                std::scoped_lock lock(
+                    updateMutex_);
+
+                if (generation ==
+                        updateGeneration_
+                            .load() &&
+                    updateRefreshingOffer_ &&
+                    updateWorkerRunning_
+                        .load()) {
+                    ++updateGeneration_;
+                    updateRefreshingOffer_ =
+                        false;
+                    updateCheckAutomatic_ =
+                        false;
+                    abandonedRefresh = true;
+                }
+            }
+
+            if (abandonedRefresh) {
+                if (updateThread_.joinable()) {
+                    updateThread_.request_stop();
+                }
+
+                // As above, the stale-generation path joins the worker.
+                return;
+            }
+        }
+    }
+
     status = UpdateStatus();
     workerRunning =
         updateWorkerRunning_.load();
@@ -2799,6 +2914,7 @@ void App::HandleUpdateStatusMessage(
     }
 
     bool beginPreparedUpdate = false;
+    std::string announceVersion;
 
     {
         std::scoped_lock lock(
@@ -2814,6 +2930,24 @@ void App::HandleUpdateStatusMessage(
                 false;
             beginPreparedUpdate = true;
         }
+
+        // Consume the automatic-check marker once that check has a result.
+        // A quiet refresh keeps showing the old offer until it completes.
+        if (updateCheckAutomatic_ &&
+            !updateRefreshingOffer_ &&
+            !updateStatus_.running &&
+            updateStatus_.stage !=
+                win::UpdateStage::Checking) {
+            updateCheckAutomatic_ =
+                false;
+
+            if (updateStatus_.stage ==
+                win::UpdateStage::Available) {
+                announceVersion =
+                    updateStatus_
+                        .availableVersion;
+            }
+        }
     }
 
     if (settingsWindow_) {
@@ -2821,9 +2955,40 @@ void App::HandleUpdateStatusMessage(
             OnUpdateStatusChanged();
     }
 
+    if (!announceVersion.empty()) {
+        AnnounceAvailableUpdate(
+            announceVersion);
+    }
+
     if (beginPreparedUpdate) {
         BeginPreparedUpdate();
     }
+}
+
+void App::AnnounceAvailableUpdate(
+    const std::string& version) {
+    // Announce each release once; Settings keeps showing the offer after.
+    if (!window_ ||
+        win::UpdateNotifiedVersion(
+            dataDirectory_) == version) {
+        return;
+    }
+
+    win::MarkUpdateNotified(
+        dataDirectory_,
+        version);
+
+    const std::wstring wideVersion(
+        version.begin(),
+        version.end());
+    window_->ShowUpdateNotification(
+        settingsStore_.Data().language ==
+                Language::ZhCN
+            ? L"发现 Asterun 新版本 v" +
+                wideVersion +
+                L"\n点击查看并安装"
+            : L"Asterun v" + wideVersion +
+                L" is available\nClick to review and install");
 }
 
 bool App::BeginPreparedUpdate() {
@@ -2882,19 +3047,21 @@ bool App::BeginPreparedUpdate() {
     return true;
 }
 
-void App::SignalStartupHealthEvent() {
+bool App::SignalStartupHealthEvent() {
     if (startupHealthEvent_.empty()) {
-        return;
+        return false;
     }
 
     // Update.exe executes from the PREVIOUS release. The newly installed
     // launcher must notify the Shell after its health event is signaled,
     // including for the first in-place upgrade from v1.0.4.
-    (void)win::SignalUpdateHealthAndRefreshIcons(
-        startupHealthEvent_,
-        baseDirectory_);
+    const bool signaled =
+        win::SignalUpdateHealthAndRefreshIcons(
+            startupHealthEvent_,
+            baseDirectory_);
 
     startupHealthEvent_.clear();
+    return signaled;
 }
 
 void App::FlushDetectedProviderChanges() {
@@ -3038,12 +3205,6 @@ bool App::RestoreDefaultSettings() {
     }
 
     ui::SetFeedbackEnabled(settingsStore_.Data().soundEnabled);
-
-    if (previous.updateChannel !=
-        settingsStore_.Data()
-            .updateChannel) {
-        InvalidateUpdateCheckForChannelChange();
-    }
 
     commandStore_.ReloadProviderCache(
         settingsStore_.Data()

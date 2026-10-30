@@ -62,7 +62,7 @@ inline bool ValidSettingsNode(const nlohmann::json& node) {
     if (!node.is_object()) return false;
     if (!FieldsHaveType(node, {"launcher", "language", "startupBehavior",
         "popupMonitor", "launcherMode", "settingsMode", "shortcutManagerMode",
-        "key", "channel"}, Type::string) ||
+        "key"}, Type::string) ||
         !FieldsHaveType(node, {"startWithWindows", "showTrayIcon", "soundEnabled",
         "addToSendToMenu", "launcherLastValid", "settingsLastValid",
         "shortcutManagerLastValid", "enabled", "defaultEnglishInputOnReveal",

@@ -39,6 +39,9 @@ public:
     void Toggle();
     void ShowStartupNotification(
         std::wstring_view activationHotkey);
+    // Clicking the balloon opens Settings at About, where updates live.
+    void ShowUpdateNotification(
+        std::wstring_view message);
     void QueueNewShortcutForPath(
         std::wstring path);
 
@@ -67,6 +70,9 @@ private:
 
     LRESULT HandleMessage(UINT message, WPARAM wParam, LPARAM lParam);
     LRESULT HandleEditMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+    bool ShowTrayBalloon(
+        std::wstring_view message,
+        bool opensAbout);
 
     bool EnsureClassicResources();
     void ReleaseClassicResources();
@@ -187,6 +193,7 @@ private:
         pendingShortcutPaths_;
     bool trayIconAdded_{false};
     bool notificationOnlyTrayIcon_{false};
+    bool trayBalloonOpensAbout_{false};
     UINT taskbarCreatedMessage_{0};
     bool firstRevealPending_{true};
     bool creationCompleted_{false};
