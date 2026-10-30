@@ -3,6 +3,7 @@
 #include "ShortcutPathConverterDialog.hpp"
 
 #include "TopLevelWindowPresentation.hpp"
+#include "UiFocusCues.hpp"
 #include "UiListView.hpp"
 #include "UiMetrics.hpp"
 #include "UiRoundedFrame.hpp"
@@ -542,6 +543,8 @@ bool ShortcutPathConverterDialog::RunModal() {
         if (result < 0) {
             break;
         }
+
+        ui::HideFocusCuesOnMouseDown(msg);
 
         if (msg.message == WM_KEYDOWN &&
             (msg.wParam == VK_LEFT ||
@@ -2571,6 +2574,10 @@ LRESULT ShortcutPathConverterDialog::HandleMessage(
     UINT message,
     WPARAM wParam,
     LPARAM lParam) {
+    if (ui::HandleFocusCueMessage(hwnd_, message, wParam)) {
+        return 0;
+    }
+
     switch (message) {
     case WM_GETMINMAXINFO: {
         auto* minMax =

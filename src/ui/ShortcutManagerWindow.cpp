@@ -7,6 +7,7 @@
 #include "TopLevelWindowPresentation.hpp"
 #include "UiListView.hpp"
 #include "UiEditChrome.hpp"
+#include "UiFocusCues.hpp"
 #include "UiRoundedFrame.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
@@ -1964,26 +1965,6 @@ ShortcutManagerWindow::SelectedCommand()
         : &*it;
 }
 
-// The modal dialogs return focus to the button that opened them with
-// keyboard cues on. Hide them again so a mouse-driven session does not
-// leave a dotted focus rectangle; the next Tab/Alt press restores them.
-void ShortcutManagerWindow::HideFocusCuesAfterModal() {
-    if (!hwnd_) {
-        return;
-    }
-
-    SendMessageW(
-        hwnd_,
-        WM_CHANGEUISTATE,
-        MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS),
-        0);
-
-    if (HWND focused = GetFocus();
-        focused && IsChild(hwnd_, focused)) {
-        InvalidateRect(focused, nullptr, FALSE);
-    }
-}
-
 // App::CreateUserCommand / UpdateUserCommand already refresh this window
 // (selecting the saved shortcut), so a successful save needs no second
 // full ListView rebuild here.
@@ -1992,7 +1973,7 @@ void ShortcutManagerWindow::AddShortcut() {
         app_,
         instance_,
         hwnd_);
-    HideFocusCuesAfterModal();
+    ui::HideFocusCues(hwnd_);
 }
 
 void ShortcutManagerWindow::EditSelected() {
@@ -2008,7 +1989,7 @@ void ShortcutManagerWindow::EditSelected() {
         instance_,
         hwnd_,
         id);
-    HideFocusCuesAfterModal();
+    ui::HideFocusCues(hwnd_);
 }
 
 void ShortcutManagerWindow::DeleteSelected() {
@@ -2037,7 +2018,7 @@ void ShortcutManagerWindow::ConvertPaths() {
         app_,
         instance_,
         hwnd_);
-    HideFocusCuesAfterModal();
+    ui::HideFocusCues(hwnd_);
 }
 
 
@@ -2496,6 +2477,10 @@ LRESULT ShortcutManagerWindow::HandleMessage(
     UINT message,
     WPARAM wParam,
     LPARAM lParam) {
+    if (ui::HandleFocusCueMessage(hwnd_, message, wParam)) {
+        return 0;
+    }
+
     switch (message) {
     case WM_SYSCOMMAND:
         if ((wParam & 0xFFF0u) ==

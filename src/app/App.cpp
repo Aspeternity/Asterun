@@ -27,6 +27,7 @@
 #include "../ui/LauncherWindow.hpp"
 #include "../ui/SettingsWindow.hpp"
 #include "../ui/ShortcutManagerWindow.hpp"
+#include "../ui/UiFocusCues.hpp"
 
 #include <shellapi.h>
 #include <shlobj.h>
@@ -767,6 +768,7 @@ int App::Run() {
             continue;
         }
 
+        ui::HideFocusCuesOnMouseDown(msg);
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }

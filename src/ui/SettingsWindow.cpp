@@ -4,6 +4,7 @@
 
 #include "TopLevelWindowPresentation.hpp"
 #include "UiComboBox.hpp"
+#include "UiFocusCues.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
 
@@ -5270,8 +5271,9 @@ void SettingsWindow::DrawActionButton(
         item.hDC,
         oldFont);
 
-    if (item.itemState &
-        ODS_FOCUS) {
+    // Keyboard cue only, like the other owner-drawn buttons.
+    if ((item.itemState & ODS_FOCUS) != 0 &&
+        (item.itemState & ODS_NOFOCUSRECT) == 0) {
         RECT focus =
             surface;
         InflateRect(
@@ -6206,6 +6208,9 @@ LRESULT SettingsWindow::HandleMessage(
     UINT message,
     WPARAM wParam,
     LPARAM lParam) {
+    if (ui::HandleFocusCueMessage(hwnd_, message, wParam)) {
+        return 0;
+    }
 
     const auto isHotkeyCaptureWindow =
         [&](HWND control) {
