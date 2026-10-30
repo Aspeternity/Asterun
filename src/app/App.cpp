@@ -1330,7 +1330,8 @@ bool App::StartEverythingBootstrap(
     return true;
 }
 
-bool App::StartEverythingUpdateCheck() {
+bool App::StartEverythingUpdateCheck(
+    bool quiet) {
     if (!providers::IsEnabled(
             settingsStore_.Data()
                 .providerEnabled,
@@ -1381,12 +1382,16 @@ bool App::StartEverythingUpdateCheck() {
         dataDirectory_;
     const std::uint64_t generation =
         ++everythingBootstrapGeneration_;
+    lastEverythingUpdateCheck_ =
+        std::chrono::steady_clock::now();
 
     everythingBootstrapThread_ =
         std::jthread(
             [this,
              dataDirectory,
-             generation](
+             generation,
+             quiet,
+             previous = bootstrap](
                 std::stop_token stopToken) {
                 const auto progress =
                     [this](
@@ -1408,8 +1413,16 @@ bool App::StartEverythingUpdateCheck() {
                 {
                     std::scoped_lock lock(
                         everythingBootstrapMutex_);
+                    // An automatic check that could not reach voidtools
+                    // says nothing new; keep the running status instead
+                    // of showing a failure the user never asked about.
                     everythingBootstrapStatus_ =
-                        result;
+                        quiet &&
+                                result.failure !=
+                                    win::EverythingBootstrapFailure::
+                                        None
+                            ? previous
+                            : result;
                 }
 
                 PostUiNotification(kEverythingBootstrapMessage, static_cast<WPARAM>(generation));
@@ -2422,6 +2435,13 @@ void App::HandleDynamicQueryCompleted() {
         return;
     }
 
+    if (response->providerId ==
+            providers::kEverythingFilesystem &&
+        response->status ==
+            DynamicQueryStatus::Unavailable) {
+        RecoverManagedEverythingIfStopped();
+    }
+
     if (window_) {
         window_->ApplyDynamicResults(
             response->generation,
@@ -2433,6 +2453,78 @@ void App::HandleDynamicQueryCompleted() {
         settingsWindow_->
             OnDynamicProviderStatusChanged();
     }
+}
+
+// Bootstrap only runs at startup, on settings changes and on "Recheck", so
+// a managed Everything that crashed or was closed would otherwise leave
+// file search silently empty until then. Launcher queries and the open
+// Search sources page call this. An external Everything is the user's to
+// run, and several instances need the user to pick one.
+void App::RecoverManagedEverythingIfStopped() {
+    if (shuttingDown_ ||
+        !everythingProvider_) {
+        return;
+    }
+
+    const auto ipc =
+        everythingProvider_->Status();
+    if (ipc.availability ==
+            EverythingAvailability::Available ||
+        ipc.ambiguousNamedInstances) {
+        return;
+    }
+
+    const auto bootstrap =
+        EverythingBootstrapStatus();
+    if (bootstrap.running ||
+        (bootstrap.source !=
+             win::EverythingBootstrapSource::
+                 Managed &&
+         bootstrap.source !=
+             win::EverythingBootstrapSource::
+                 Downloaded)) {
+        return;
+    }
+
+    const auto now =
+        std::chrono::steady_clock::now();
+    if (lastEverythingRestart_ &&
+        now - *lastEverythingRestart_ <
+            std::chrono::minutes(1)) {
+        return;
+    }
+
+    if (StartEverythingBootstrap(false)) {
+        lastEverythingRestart_ = now;
+    }
+}
+
+// The managed copy runs with Everything's own update check off, so Asterun
+// checks in its place, at most daily and only with automatic update checks
+// on. A newer version only shows in Settings; installing stays manual.
+void App::AutoCheckManagedEverythingUpdate() {
+    if (!settingsStore_.Data()
+             .autoCheckUpdates) {
+        return;
+    }
+
+    if (lastEverythingUpdateCheck_ &&
+        std::chrono::steady_clock::now() -
+                *lastEverythingUpdateCheck_ <
+            std::chrono::hours(24)) {
+        return;
+    }
+
+    const auto bootstrap =
+        EverythingBootstrapStatus();
+    if (bootstrap.stage !=
+            win::EverythingBootstrapStage::
+                Ready ||
+        bootstrap.updateAvailable) {
+        return;
+    }
+
+    (void)StartEverythingUpdateCheck(true);
 }
 
 void App::StopManagedEverythingLifecycle() {
@@ -2617,6 +2709,7 @@ App::UpdateDispatchWindowProc(
             // StartUpdateCheck(false) applies the setting, the 6-hour
             // throttle and the in-progress/offer guards.
             (void)self->StartUpdateCheck(false);
+            self->AutoCheckManagedEverythingUpdate();
             return 0;
         }
 

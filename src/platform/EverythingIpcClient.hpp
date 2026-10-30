@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace altrun {
 
@@ -76,9 +77,21 @@ private:
             started;
     };
 
+    // Bytes of a WM_COPYDATA reply, copied out so Everything's SendMessage
+    // returns before Asterun parses and ranks them.
+    struct ReceivedReply {
+        HWND sourceWindow{nullptr};
+        std::uint32_t replyToken{0};
+        std::vector<std::byte> bytes;
+        bool oversized{false};
+    };
+
     static constexpr UINT
         kQueryQueuedMessage =
             WM_APP + 0x351;
+    static constexpr UINT
+        kReplyReceivedMessage =
+            WM_APP + 0x352;
     static constexpr UINT_PTR
         kDebounceTimerId = 0x351;
     static constexpr UINT_PTR
@@ -101,12 +114,14 @@ private:
         HWND hwnd);
     void SendPendingQuery(
         HWND hwnd);
-    void HandleReply(
+    void QueueReply(
         HWND hwnd,
         HWND sourceWindow,
         std::uint32_t replyToken,
         const void* data,
         std::size_t size);
+    void HandleReply(
+        ReceivedReply reply);
     void HandleReplyTimeout(
         HWND hwnd);
 
@@ -155,6 +170,9 @@ private:
         pending_;
     std::optional<InFlightQuery>
         inFlight_;
+    // Worker thread only: a reply copied out of WM_COPYDATA, not yet parsed.
+    std::optional<ReceivedReply>
+        receivedReply_;
     std::uint32_t
         nextReplyToken_{0xA5100000U};
     // Worker thread only: when the last query went to Everything.

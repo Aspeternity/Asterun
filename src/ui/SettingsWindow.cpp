@@ -2493,6 +2493,16 @@ void SettingsWindow::RefreshProviderStatus() {
     bool showUpdateEverything = false;
     bool showRecheck = false;
     std::wstring text;
+    // Everything is installed but its service needs administrator approval;
+    // the action button then does exactly that instead of "Get and start".
+    const bool serviceRepairRequired =
+        bootstrap.failure ==
+        win::EverythingBootstrapFailure::
+            ServiceRepairRequired;
+    const bool serviceRequired =
+        bootstrap.failure ==
+        win::EverythingBootstrapFailure::
+            ServiceRequired;
 
     // Treat the tray preference as a runtime control, not as an
     // installation-path preference. ManagedEverythingExecutable() always
@@ -2604,7 +2614,6 @@ void SettingsWindow::RefreshProviderStatus() {
         text =
             T(L"● Everything 正在运行",
               L"● Everything is running");
-        showRecheck = true;
 
         if (managedActive) {
             showUpdateEverything = true;
@@ -2659,16 +2668,11 @@ void SettingsWindow::RefreshProviderStatus() {
         showGetEverything = true;
         showRecheck = true;
 
-        if (bootstrap.failure ==
-                win::EverythingBootstrapFailure::
-                    ServiceRepairRequired) {
+        if (serviceRepairRequired) {
             text =
                 T(L"⚠ 需要管理员权限修复文件索引组件",
                   L"⚠ Administrator approval is needed to repair file indexing");
-        } else if (
-            bootstrap.failure ==
-                win::EverythingBootstrapFailure::
-                    ServiceRequired) {
+        } else if (serviceRequired) {
             text =
                 T(L"⚠ 需要管理员权限启用文件索引",
                   L"⚠ Administrator approval is needed to enable file indexing");
@@ -2793,6 +2797,19 @@ void SettingsWindow::RefreshProviderStatus() {
                     L"Check for updates"));
     }
 
+    if (providerGetEverything_) {
+        SetControlTextIfChanged(
+            providerGetEverything_,
+            serviceRepairRequired
+                ? T(L"修复文件索引",
+                    L"Repair file indexing")
+                : serviceRequired
+                ? T(L"启用文件索引",
+                    L"Enable file indexing")
+                : T(L"获取并启动 Everything",
+                    L"Get and start Everything"));
+    }
+
     setProviderVisibleQuiet(
         providerGetEverything_,
         visible &&
@@ -2856,12 +2873,24 @@ void SettingsWindow::RefreshProviderStatus() {
 }
 
 void SettingsWindow::AcquireEverything() {
-    if (app_.EverythingBootstrapStatus()
-            .running) {
+    const auto bootstrap =
+        app_.EverythingBootstrapStatus();
+    if (bootstrap.running) {
         return;
     }
 
-    if (!altrun::ui::
+    // Enabling or repairing the index of an installed Everything downloads
+    // nothing, so it goes straight to the UAC prompt.
+    const bool serviceOnly =
+        bootstrap.failure ==
+            win::EverythingBootstrapFailure::
+                ServiceRequired ||
+        bootstrap.failure ==
+            win::EverythingBootstrapFailure::
+                ServiceRepairRequired;
+
+    if (!serviceOnly &&
+        !altrun::ui::
              ConfirmEverythingSetup(
                  hwnd_,
                  app_.SettingsData()
@@ -6608,6 +6637,7 @@ LRESULT SettingsWindow::HandleMessage(
         if (wParam ==
             kProviderStatusTimerId &&
             page_ == Page::Providers) {
+            app_.RecoverManagedEverythingIfStopped();
             RefreshProviderStatus();
             return 0;
         }

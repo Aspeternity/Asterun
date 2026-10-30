@@ -16,6 +16,7 @@
 #include <windows.h>
 
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -116,7 +117,12 @@ public:
     bool StartEverythingBootstrap(
         bool allowDownload,
         bool forceManagedUpdate = false);
-    bool StartEverythingUpdateCheck();
+    // quiet: an automatic check; a failure keeps the previous status.
+    bool StartEverythingUpdateCheck(
+        bool quiet = false);
+    // Starts an Asterun-managed Everything again, without elevation and at
+    // most once a minute, when it is no longer reachable.
+    void RecoverManagedEverythingIfStopped();
 
     [[nodiscard]] std::wstring
     DataCompatibilityWarning() const;
@@ -355,6 +361,7 @@ private:
     void HandleEverythingBootstrapCompleted(
         std::uint64_t generation);
     void StopManagedEverythingLifecycle();
+    void AutoCheckManagedEverythingUpdate();
     static LRESULT CALLBACK
     UpdateDispatchWindowProc(
         HWND hwnd,
@@ -455,6 +462,11 @@ private:
         everythingBootstrapStatus_;
     std::uint64_t
         everythingBootstrapGeneration_{0};
+    // UI thread only.
+    std::optional<std::chrono::steady_clock::time_point>
+        lastEverythingRestart_;
+    std::optional<std::chrono::steady_clock::time_point>
+        lastEverythingUpdateCheck_;
 
     HWND updateDispatchWindow_{};
     mutable std::mutex
