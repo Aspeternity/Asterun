@@ -257,8 +257,28 @@ void UpdateSemantics() {
         Fixture f; fixture = &f; f.statuses = {status};
         auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, {});
         assert(result.snapshot.failure == UpdateFailure::ManifestDownloadFailed);
-        assert(result.snapshot.nativeError == status && f.opens == (status == 503 ? 3U : 1U));
+        assert(result.snapshot.nativeError == UpdateHttpStatusError(status));
+        assert(f.opens == (status == 503 ? 3U : 1U));
         assert(!fs::exists(root / "update/update-state.json")); CheckClosed(f);
+    }
+    { // 429 rate limiting is retried like a gateway failure.
+        Fixture f; fixture = &f; f.payload = manifestText; f.statuses = {429, 200};
+        auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, {});
+        assert(result.snapshot.stage == UpdateStage::Available && f.opens == 2); CheckClosed(f);
+    }
+    { // Check throttle and once-per-version announcement share update-state.json.
+        fs::remove_all(root / "update");
+        assert(UpdateNotifiedVersion(root).empty());
+        MarkUpdateNotified(root, "9.0.0");
+        Fixture f; fixture = &f; f.payload = manifestText;
+        auto result = CheckForUpdate(root, "1.0.1", UpdateChannel::Development, {}, {});
+        assert(result.snapshot.stage == UpdateStage::Available); CheckClosed(f);
+        assert(UpdateNotifiedVersion(root) == "9.0.0");
+        const auto now = static_cast<std::int64_t>(std::chrono::system_clock::to_time_t(
+            std::chrono::system_clock::now()));
+        assert(!UpdateAutoCheckDue(root, now));
+        MarkUpdateNotified(root, "9.0.1");
+        assert(UpdateNotifiedVersion(root) == "9.0.1" && !UpdateAutoCheckDue(root, now));
     }
     { // Stable-only 404 legacy release metadata fallback remains intact.
         Fixture f; fixture = &f; f.statuses = {404, 200}; f.payload = R"({"tag_name":"v1.0.1"})";

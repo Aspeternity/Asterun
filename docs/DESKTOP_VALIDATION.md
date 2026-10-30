@@ -1018,7 +1018,7 @@ The following checks extend the historical desktop matrix for the schema-4 centr
 Use an installed/extracted alpha.9-or-newer build for these checks. The first transition from an older build still requires one manual download because those binaries do not contain the updater.
 
 - [ ] On a prerelease build, Settings → About defaults the update channel to **Development** after schema-6 → schema-7 migration; a clean future stable build defaults to **Stable**.
-- [ ] Disabling automatic checks persists across restart. Enabling it does not trigger more than one automatic network check within 24 hours.
+- [ ] Disabling automatic checks persists across restart. Enabling it does not trigger more than one automatic network check within 6 hours.
 - [ ] **Check for updates** runs asynchronously and leaves Launcher input responsive.
 - [ ] Development channel resolves `dev-latest/update-manifest.json`; Stable resolves GitHub's latest non-prerelease release.
 - [ ] When the manifest version equals the running version, About reports up to date and **Download and install** is disabled.

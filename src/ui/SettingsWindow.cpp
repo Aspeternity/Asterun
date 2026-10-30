@@ -5875,6 +5875,8 @@ void SettingsWindow::RefreshUpdateStatus() {
         T(L"检查更新",
           L"Check for updates");
     bool actionEnabled = false;
+    // While a package is being prepared the action button cancels it.
+    bool actionCancels = false;
 
     switch (status.stage) {
     case win::UpdateStage::Idle:
@@ -5947,8 +5949,9 @@ void SettingsWindow::RefreshUpdateStatus() {
         }
 
         actionText =
-            T(L"正在下载...",
-              L"Downloading...");
+            T(L"取消",
+              L"Cancel");
+        actionCancels = true;
         break;
 
     case win::UpdateStage::Verifying:
@@ -5956,8 +5959,9 @@ void SettingsWindow::RefreshUpdateStatus() {
             T(L"正在校验更新包 SHA-256...",
               L"Verifying update package SHA-256...");
         actionText =
-            T(L"正在校验...",
-              L"Verifying...");
+            T(L"取消",
+              L"Cancel");
+        actionCancels = true;
         break;
 
     case win::UpdateStage::Extracting:
@@ -5965,8 +5969,9 @@ void SettingsWindow::RefreshUpdateStatus() {
             T(L"正在准备更新文件...",
               L"Preparing update files...");
         actionText =
-            T(L"正在准备...",
-              L"Preparing...");
+            T(L"取消",
+              L"Cancel");
+        actionCancels = true;
         break;
 
     case win::UpdateStage::ReadyToInstall:
@@ -5987,7 +5992,17 @@ void SettingsWindow::RefreshUpdateStatus() {
               L"Updating...");
         break;
 
-    case win::UpdateStage::Failed:
+    case win::UpdateStage::Failed: {
+        const std::uint32_t httpStatus =
+            UpdateHttpStatusFromError(
+                status.nativeError);
+        const bool userDeclinedElevation =
+            status.failure ==
+                win::UpdateFailure::
+                    LaunchUpdaterFailed &&
+            status.nativeError ==
+                ERROR_CANCELLED;
+
         text =
             T(L"更新失败：",
               L"Update failed: ");
@@ -5996,7 +6011,7 @@ void SettingsWindow::RefreshUpdateStatus() {
         case win::UpdateFailure::ManifestDownloadFailed:
             text +=
                 IsTransientUpdateHttpStatus(
-                    status.nativeError)
+                    httpStatus)
                     ? T(L"暂时无法检查更新，请稍后重试",
                         L"temporarily unable to check for updates; try again later")
                     : T(L"无法获取更新清单",
@@ -6054,8 +6069,11 @@ void SettingsWindow::RefreshUpdateStatus() {
             break;
         case win::UpdateFailure::LaunchUpdaterFailed:
             text +=
-                T(L"无法启动更新程序",
-                  L"could not start the updater");
+                userDeclinedElevation
+                    ? T(L"已取消管理员授权，可重试安装",
+                        L"administrator permission was declined; you can retry the installation")
+                    : T(L"无法启动更新程序",
+                        L"could not start the updater");
             break;
         case win::UpdateFailure::Cancelled:
             text +=
@@ -6074,12 +6092,19 @@ void SettingsWindow::RefreshUpdateStatus() {
             break;
         }
 
-        if (status.nativeError != 0 &&
+        if (httpStatus != 0) {
+            if (!IsTransientUpdateHttpStatus(
+                    httpStatus)) {
+                text += L"  ·  HTTP ";
+                text += std::to_wstring(
+                    httpStatus);
+            }
+        } else if (
+            status.nativeError != 0 &&
             status.failure !=
                 win::UpdateFailure::
                     CheckTimedOut &&
-            !IsTransientUpdateHttpStatus(
-                status.nativeError)) {
+            !userDeclinedElevation) {
             text +=
                 T(L"  ·  系统错误 ",
                   L"  ·  native error ");
@@ -6093,6 +6118,7 @@ void SettingsWindow::RefreshUpdateStatus() {
         actionEnabled = true;
         break;
     }
+    }
 
     SetWindowTextW(
         updateStatus_,
@@ -6103,9 +6129,11 @@ void SettingsWindow::RefreshUpdateStatus() {
 
     EnableWindow(
         updateAction_,
-        actionEnabled &&
-                !status.running &&
-                !workerRunning
+        (actionCancels
+             ? status.running
+             : actionEnabled &&
+                 !status.running &&
+                 !workerRunning)
             ? TRUE
             : FALSE);
 
@@ -6988,11 +7016,17 @@ LRESULT SettingsWindow::HandleMessage(
                 const auto status =
                     app_.UpdateStatus();
 
-                if (status.stage ==
-                        win::UpdateStage::Available &&
-                    !status.running) {
+                if (status.running) {
+                    app_.CancelUpdateDownload();
+                } else if (
+                    status.stage ==
+                    win::UpdateStage::Available) {
                     app_.StartUpdateDownloadAndInstall();
-                } else if (!status.running) {
+                } else if (
+                    status.stage ==
+                    win::UpdateStage::Failed) {
+                    app_.RetryUpdate();
+                } else {
                     app_.StartUpdateCheck(true);
                 }
 

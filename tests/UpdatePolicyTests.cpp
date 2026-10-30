@@ -767,8 +767,16 @@ int main() {
     assert(IsTransientUpdateHttpStatus(502));
     assert(IsTransientUpdateHttpStatus(503));
     assert(IsTransientUpdateHttpStatus(504));
+    assert(IsTransientUpdateHttpStatus(429));
     assert(!IsTransientUpdateHttpStatus(404));
     assert(!IsTransientUpdateHttpStatus(500));
+
+    // HTTP statuses never collide with Win32 errors of the same number.
+    assert(UpdateHttpStatusError(404) == 0x80190194u);
+    assert(UpdateHttpStatusFromError(UpdateHttpStatusError(503)) == 503);
+    assert(UpdateHttpStatusFromError(404) == 0);
+    assert(UpdateHttpStatusFromError(1223) == 0);
+    assert(UpdateHttpStatusFromError(0) == 0);
 
     assert(IsUpdateVersionNewer(
         "0.8.0-alpha.5.42", "0.8.0-alpha.5.43"));

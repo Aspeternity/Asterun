@@ -411,6 +411,64 @@ struct AppLifecycleRuntimeFixture {
         }
     }
 
+    static void UpdateUserActions(HINSTANCE instance) {
+        App app(instance);
+        // A running check is not a package download and cannot be cancelled
+        // from the action button; nothing but Failed can be retried.
+        app.updateStatus_.stage = win::UpdateStage::Checking;
+        app.updateStatus_.running = true;
+        assert(!app.CancelUpdateDownload());
+        assert(!app.RetryUpdate());
+
+        for (const auto stage : {win::UpdateStage::Downloading,
+                 win::UpdateStage::Verifying, win::UpdateStage::Extracting}) {
+            app.updateStatus_.stage = stage;
+            app.updateStatus_.running = true;
+            app.updateInstallWhenReady_ = true;
+            app.updateThread_ = std::jthread([](std::stop_token token) {
+                while (!token.stop_requested())
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            });
+            assert(app.CancelUpdateDownload());
+            // The install handoff is withdrawn before the worker is stopped.
+            assert(!app.updateInstallWhenReady_);
+            assert(app.updateThread_.get_stop_token().stop_requested());
+            app.updateThread_.join();
+        }
+
+        app.updateStatus_.stage = win::UpdateStage::ReadyToInstall;
+        app.updateStatus_.running = false;
+        assert(!app.CancelUpdateDownload());
+    }
+
+    static void UpdateOfferRefreshWatchdog(HINSTANCE instance) {
+        // A stalled quiet refresh is abandoned without hiding the offer.
+        App app(instance);
+        app.updateGeneration_ = 900;
+        app.updateStatus_.stage = win::UpdateStage::Available;
+        app.updateStatus_.availableVersion = "9.0.0";
+        app.updateManifest_ = UpdateManifest{};
+        app.updateCheckAutomatic_ = true;
+        app.updateRefreshingOffer_ = true;
+        app.updateWorkerRunning_ = true;
+        const auto now = GetTickCount64();
+        assert(now > kUpdateCheckWatchdogMs);
+        app.updateWorkerStartedTick_ = now - kUpdateCheckWatchdogMs;
+        app.updateThread_ = std::jthread([&app](std::stop_token token) {
+            while (!token.stop_requested())
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            app.updateWorkerRunning_ = false;
+        });
+        app.HandleUpdateStatusMessage(900);
+        assert(app.updateGeneration_ == 901);
+        assert(app.updateThread_.get_stop_token().stop_requested());
+        assert(!app.updateRefreshingOffer_ && !app.updateCheckAutomatic_);
+        app.updateThread_.join();
+        const auto status = app.UpdateStatus();
+        assert(status.stage == win::UpdateStage::Available);
+        assert(status.availableVersion == "9.0.0" && app.updateManifest_);
+    }
+
     static void ModalHotkeyRouting(HINSTANCE instance) {
         WriteSettings();
         assert(mockHotkeyOwners.empty());
@@ -640,6 +698,8 @@ int main(int argc, char* argv[]) {
         altrun::AppLifecycleRuntimeFixture::Ownership(instance);
         altrun::AppLifecycleRuntimeFixture::ModalDelivery(instance);
         altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
+        altrun::AppLifecycleRuntimeFixture::UpdateUserActions(instance);
+        altrun::AppLifecycleRuntimeFixture::UpdateOfferRefreshWatchdog(instance);
         altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
     }
     if (SUCCEEDED(com)) CoUninitialize();

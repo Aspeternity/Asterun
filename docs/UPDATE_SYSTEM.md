@@ -16,7 +16,7 @@ Prerelease binaries default to Development. Stable binaries default to Stable. T
 }
 ```
 
-Automatic checks are throttled by `data/update/update-state.json` to at most once per 24 hours. Runtime status/progress is not persisted into settings.
+Automatic checks are throttled by `data/update/update-state.json` to at most once per 6 hours. The launcher re-evaluates that throttle at startup and hourly while it stays in the tray, so a new release is normally noticed within about 7 hours. A failed check does not count and is retried at the next hourly evaluation. Each newly found version is announced once in the notification area (`notifiedVersion` in the same file); clicking it opens Settings at About. An automatic check also refreshes an existing, not yet installed offer without hiding it, so a newer release replaces the older one. Runtime status/progress is not persisted into settings.
 
 ## Rolling development release publication
 

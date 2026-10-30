@@ -338,9 +338,34 @@ bool IsUpdateVersionNewer(
 bool IsTransientUpdateHttpStatus(
     std::uint32_t status) {
     return
+        status == 429 ||
         status == 502 ||
         status == 503 ||
         status == 504;
+}
+
+namespace {
+
+constexpr std::uint32_t
+    kHttpStatusErrorBase =
+        0x80190000u;
+
+} // namespace
+
+std::uint32_t
+UpdateHttpStatusError(
+    std::uint32_t status) {
+    return kHttpStatusErrorBase |
+        (status & 0xFFFFu);
+}
+
+std::uint32_t
+UpdateHttpStatusFromError(
+    std::uint32_t error) {
+    return (error & 0xFFFF0000u) ==
+            kHttpStatusErrorBase
+        ? error & 0xFFFFu
+        : 0;
 }
 
 std::wstring

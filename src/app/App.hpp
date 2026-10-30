@@ -236,6 +236,8 @@ public:
     bool StartUpdateCheck(
         bool force);
     bool StartUpdateDownloadAndInstall();
+    bool RetryUpdate();
+    bool CancelUpdateDownload();
     bool RepairGlobalHotkey(
         bool forceRebind = true);
 
@@ -372,7 +374,9 @@ private:
     void StopUpdateReconcileTimer();
     void InvalidateUpdateCheckForChannelChange();
     bool BeginPreparedUpdate();
-    void SignalStartupHealthEvent();
+    void AnnounceAvailableUpdate(
+        const std::string& version);
+    bool SignalStartupHealthEvent();
     void CaptureActivationContext();
 
     HINSTANCE instance_{};
@@ -472,6 +476,11 @@ private:
     UINT_PTR updateReconcileTimer_{0};
     bool updateSettingsChangedSinceCheck_{false};
     bool updateInstallWhenReady_{false};
+    // The running check was started by the automatic schedule; its result
+    // may be announced in the notification area.
+    bool updateCheckAutomatic_{false};
+    // That automatic check is quietly refreshing a visible offer.
+    bool updateRefreshingOffer_{false};
     std::wstring startupHealthEvent_;
     std::vector<std::wstring>
         startupShortcutPaths_;

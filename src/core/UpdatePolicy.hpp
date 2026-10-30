@@ -49,6 +49,18 @@ IsUpdateVersionNewer(
 IsTransientUpdateHttpStatus(
     std::uint32_t status);
 
+// HTTP failures share the native-error slot with Win32 errors. They are
+// encoded like winerror.h HTTP_E_STATUS_* values so a status such as 404 can
+// never be mistaken for the Win32 error with the same number.
+[[nodiscard]] std::uint32_t
+UpdateHttpStatusError(
+    std::uint32_t status);
+
+// The HTTP status carried by `error`, or 0 when it is not an HTTP failure.
+[[nodiscard]] std::uint32_t
+UpdateHttpStatusFromError(
+    std::uint32_t error);
+
 [[nodiscard]] std::wstring
 UpdateManifestUrl(
     UpdateChannel channel);

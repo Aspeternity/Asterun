@@ -138,7 +138,8 @@ IsRetryableUpdateCheckError(
     std::uint32_t error) {
     return
         IsTransientUpdateHttpStatus(
-            error) ||
+            UpdateHttpStatusFromError(
+                error)) ||
         IsNetworkTimeout(error);
 }
 
@@ -341,7 +342,9 @@ OpenRequest(
 
     if (status < 200 ||
         status >= 300) {
-        nativeError = status;
+        nativeError =
+            UpdateHttpStatusError(
+                status);
         return false;
     }
 
@@ -735,6 +738,33 @@ UpdateStatePath(
         L"update-state.json";
 }
 
+// update-state.json is shared by the check throttle and the once-per-version
+// notification; each writer updates only its own field.
+void UpdateStateField(
+    const std::filesystem::path& dataDirectory,
+    const char* key,
+    nlohmann::json fieldValue) {
+    auto value =
+        config::LoadJsonWithBackup(
+            UpdateStatePath(
+                dataDirectory))
+            .value_or(
+                nlohmann::json::object());
+
+    if (!value.is_object()) {
+        value = nlohmann::json::object();
+    }
+
+    value["schemaVersion"] = 1;
+    value[key] =
+        std::move(fieldValue);
+
+    (void)config::SaveJsonAtomic(
+        UpdateStatePath(
+            dataDirectory),
+        value);
+}
+
 void MarkChecked(
     const std::filesystem::path& dataDirectory) {
     const auto now =
@@ -743,17 +773,11 @@ void MarkChecked(
                 std::chrono::
                     system_clock::now());
 
-    const nlohmann::json value = {
-        {"schemaVersion", 1},
-        {"lastCheckUnix",
-         static_cast<std::int64_t>(
-             now)},
-    };
-
-    (void)config::SaveJsonAtomic(
-        UpdateStatePath(
-            dataDirectory),
-        value);
+    UpdateStateField(
+        dataDirectory,
+        "lastCheckUnix",
+        static_cast<std::int64_t>(
+            now));
 }
 
 [[nodiscard]] std::wstring
@@ -820,6 +844,36 @@ bool UpdateAutoCheckDue(
         intervalSeconds;
 }
 
+std::string
+UpdateNotifiedVersion(
+    const std::filesystem::path& dataDirectory) {
+    const auto state =
+        config::LoadJsonWithBackup(
+            UpdateStatePath(
+                dataDirectory));
+
+    if (!state ||
+        !state->is_object() ||
+        !state->contains(
+            "notifiedVersion") ||
+        !(*state)["notifiedVersion"]
+             .is_string()) {
+        return {};
+    }
+
+    return (*state)["notifiedVersion"]
+        .get<std::string>();
+}
+
+void MarkUpdateNotified(
+    const std::filesystem::path& dataDirectory,
+    std::string_view version) {
+    UpdateStateField(
+        dataDirectory,
+        "notifiedVersion",
+        std::string(version));
+}
+
 UpdateCheckResult
 CheckForUpdate(
     const std::filesystem::path& dataDirectory,
@@ -854,7 +908,8 @@ CheckForUpdate(
         // rather than surfacing HTTP 404 as a system error.
         if (channel ==
                 UpdateChannel::Stable &&
-            nativeError == 404 &&
+            nativeError ==
+                UpdateHttpStatusError(404) &&
             !stopToken.stop_requested()) {
             std::string releaseText;
             std::uint32_t releaseError = 0;
@@ -935,7 +990,7 @@ CheckForUpdate(
         }
 
         // A transient GitHub/release handoff failure must not suppress update
-        // checks for the next 24 hours. Only a completed manifest fetch counts
+        // checks for the next interval. Only a completed manifest fetch counts
         // as an automatic check for throttle purposes.
         snapshot =
             Fail(
@@ -1201,7 +1256,7 @@ PrepareUpdate(
             Fail(
                 snapshot,
                 UpdateFailure::
-                    ExtractionFailed,
+                    AssetDownloadFailed,
                 nativeError,
                 progress);
         return result;
@@ -1266,6 +1321,9 @@ PrepareUpdate(
         ec) {
         std::filesystem::remove(
             verifiedArchive,
+            ec);
+        std::filesystem::remove_all(
+            stagingDirectory,
             ec);
         snapshot =
             Fail(
