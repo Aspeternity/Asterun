@@ -34,7 +34,8 @@ Query #102 "dock"
 Query #103 "docker"
        |
        +-- latest pending query replaces earlier pending work
-       +-- 70 ms debounce
+       +-- one query in flight; the next is sent when it ends
+       +-- sent at once after a pause; spaced 70 ms apart while typing
        +-- Query2W WM_COPYDATA on worker thread
        +-- unique 32-bit reply token
        +-- LIST2 reply to hidden HWND

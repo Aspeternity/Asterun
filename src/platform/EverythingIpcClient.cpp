@@ -371,6 +371,7 @@ EverythingIpcClient::HandleWindowMessage(
                 hwnd,
                 kReplyTimerId);
             HandleReplyTimeout(hwnd);
+            SchedulePendingQuery(hwnd);
             return 0;
         }
         break;
@@ -394,6 +395,13 @@ EverythingIpcClient::HandleWindowMessage(
                 copyData->dwData),
             copyData->lpData,
             copyData->cbData);
+        // Everything is still inside its SendMessage to us; send the next
+        // query after this message returns.
+        PostMessageW(
+            hwnd,
+            kQueryQueuedMessage,
+            0,
+            0);
         return TRUE;
     }
 
@@ -422,7 +430,30 @@ EverythingIpcClient::SchedulePendingQuery(
     KillTimer(
         hwnd,
         kDebounceTimerId);
-    if (!SetTimer(hwnd, kDebounceTimerId, TimerDelay(options_.debounce), nullptr)) {
+
+    // Everything answers one query at a time, so a query sent while another
+    // runs only queues behind work whose answer is already stale. Keep one
+    // query in flight; the newest pending one goes out when it ends.
+    {
+        std::scoped_lock lock(pendingMutex_);
+        if (!pending_ || inFlight_) {
+            return;
+        }
+    }
+
+    // Debounce spaces queries out while typing; it does not delay the first
+    // query after a pause.
+    const auto sinceLastSend =
+        std::chrono::steady_clock::now() - lastSent_;
+    if (sinceLastSend >= options_.debounce) {
+        SendPendingQuery(hwnd);
+        return;
+    }
+
+    const auto remaining =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            options_.debounce - sinceLastSend);
+    if (!SetTimer(hwnd, kDebounceTimerId, TimerDelay(remaining), nullptr)) {
         const DWORD error = GetLastError();
         std::optional<PendingQuery> failed;
         {
@@ -507,6 +538,9 @@ EverythingIpcClient::SendPendingQuery(
     auto payload =
         everything_ipc::EncodeQuery2(
             wireRequest);
+
+    lastSent_ =
+        std::chrono::steady_clock::now();
 
     inFlight_ = InFlightQuery{
         .generation =

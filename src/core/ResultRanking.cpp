@@ -277,6 +277,9 @@ bool IsNoiseFilesystemPath(
         }
     }
 
+    // Build and IDE intermediates are rewritten on every build, so a
+    // newest-first page fills with them: MSBuild tracking logs (*.tlog),
+    // obj\, CMakeFiles\, .vs\, .idea\ and Python bytecode caches.
     constexpr std::wstring_view kAnywhere[]{
         L"\\$recycle.bin\\",
         L"\\system volume information\\",
@@ -284,6 +287,12 @@ bool IsNoiseFilesystemPath(
         L"\\.git\\",
         L"\\appdata\\locallow\\",
         L"\\appdata\\roaming\\microsoft\\windows\\recent\\",
+        L".tlog\\",
+        L"\\obj\\",
+        L"\\cmakefiles\\",
+        L"\\.vs\\",
+        L"\\.idea\\",
+        L"\\__pycache__\\",
     };
     for (const auto segment : kAnywhere) {
         if (path.find(segment) != std::wstring::npos) {
