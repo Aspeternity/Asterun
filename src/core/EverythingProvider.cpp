@@ -2,13 +2,17 @@
 
 #include "EverythingIpcProtocol.hpp"
 #include "ProviderIds.hpp"
+#include "RelevancePolicy.hpp"
 #include "ResultRanking.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <cwctype>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
+#include <unordered_set>
 #include <utility>
 
 namespace altrun {
@@ -149,6 +153,20 @@ void EverythingProvider::QueryAsync(DynamicQueryRequest request, Completion comp
             [](const LauncherResult& left, const LauncherResult& right) {
                 return BetterLauncherResult(left, right);
             });
+        // Many copies of one file name (build outputs, caches, backups)
+        // crowd out everything else. Keep the best-ranked one of each name;
+        // both passes are newest first, so ties keep the newest copy.
+        // Explicit Everything syntax asks for every match.
+        if (!relevance::HasExplicitSyntax(state->request.query)) {
+            std::unordered_set<std::wstring> seenNames;
+            std::erase_if(response.results, [&](const LauncherResult& result) {
+                std::wstring key = result.kind == ResultKind::Folder ? L"d|" : L"f|";
+                for (const wchar_t ch : result.title) {
+                    key.push_back(static_cast<wchar_t>(std::towlower(ch)));
+                }
+                return !seenNames.insert(std::move(key)).second;
+            });
+        }
         if (response.results.size() > state->request.limit) {
             response.results.resize(state->request.limit);
         }

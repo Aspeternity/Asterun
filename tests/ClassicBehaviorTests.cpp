@@ -337,11 +337,14 @@ int main() {
                                    relevance::MatchField::Keyword, 1320, false};
         assert(!SingleResultAutoExecutable(argument));
     }
-    // Kept out of assert(): MSVC warns (C4129) on a raw string with
-    // backslashes inside a macro argument.
-    const std::wstring_view v2Continuation = LR"(nopath:regex:"^[\s_-]*v[\s_-]*2")";
-    assert(classic_behavior::BuildFilenameContinuationQuery(L"v2") == v2Continuation);
-    assert(classic_behavior::BuildFilenameContinuationQuery(L"c++2").find(L"c[\\s_-]*\\+") != std::wstring::npos);
+    // The name-prefix pass is an index-backed startwith:, never a regex scan.
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"v2") ==
+           L"nopath:startwith:\"v2\"");
+    assert(classic_behavior::BuildFilenameContinuationQuery(L" visual studio ") ==
+           L"nopath:startwith:\"visual studio\"");
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"c++2") ==
+           L"nopath:startwith:\"c++2\"");
+    assert(classic_behavior::BuildFilenameContinuationQuery(L"a\"b").empty());
     assert(classic_behavior::BuildFilenameContinuationQuery(L"ext:exe").empty());
     assert(classic_behavior::BuildFilenameContinuationQuery(L"C:\\Apps").empty());
     assert(classic_behavior::BuildFilenameContinuationQuery(L"   ").empty());

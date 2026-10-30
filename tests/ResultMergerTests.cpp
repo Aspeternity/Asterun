@@ -108,6 +108,16 @@ int main() {
     assert(IsNoiseFilesystemPath(L"D:\\proj\\node_modules\\pkg\\index.js"));
     assert(IsNoiseFilesystemPath(L"D:\\proj\\.git\\HEAD"));
     assert(IsNoiseFilesystemPath(L"C:\\$Recycle.Bin\\S-1-5\\$R1.txt"));
+    // Build and IDE intermediates.
+    assert(IsNoiseFilesystemPath(
+        L"D:\\proj\\build\\app.dir\\Release\\app.tlog\\Cl.items.tlog"));
+    assert(IsNoiseFilesystemPath(L"D:\\proj\\obj\\Debug\\app.dll"));
+    assert(IsNoiseFilesystemPath(L"D:\\proj\\build\\CMakeFiles\\3.29\\x.cmake"));
+    assert(IsNoiseFilesystemPath(L"D:\\proj\\.vs\\proj\\v17\\.suo"));
+    assert(IsNoiseFilesystemPath(L"D:\\proj\\.idea\\workspace.xml"));
+    assert(IsNoiseFilesystemPath(L"D:\\proj\\pkg\\__pycache__\\m.cpython-312.pyc"));
+    assert(!IsNoiseFilesystemPath(L"D:\\proj\\build\\Release\\app.exe"));
+    assert(!IsNoiseFilesystemPath(L"D:\\Models\\objects\\chair.obj"));
     assert(!IsNoiseFilesystemPath(
         L"C:\\Users\\Asp\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"));
     assert(!IsNoiseFilesystemPath(L"D:\\Docs\\windows notes.txt"));
