@@ -1467,7 +1467,9 @@ void LauncherWindow::Show() {
             0);
     }
 
+    const auto generationBeforeReset = searchGeneration_;
     SetWindowTextW(edit_, L"");
+    const bool refreshedByReset = searchGeneration_ != generationBeforeReset;
 
     Reposition();
 
@@ -1485,7 +1487,9 @@ void LauncherWindow::Show() {
     SetForegroundWindow(hwnd_);
     SetFocus(edit_);
     SendMessageW(edit_, EM_SETSEL, 0, -1);
-    RefreshResults();
+    // EN_CHANGE normally already refreshed the empty query before reveal.
+    // Retain the explicit refresh only when resetting EDIT did not do so.
+    if (!refreshedByReset) RefreshResults();
     if (!wasVisible && IsWindowVisible(hwnd_)) ui::PlayFeedback(FeedbackCue::Reveal);
 }
 
