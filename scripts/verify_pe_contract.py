@@ -41,6 +41,9 @@ ALLOWED_IMPORTS = {
         "winmm.dll", "comdlg32.dll", "advapi32.dll", "user32.dll", "gdi32.dll",
         "imm32.dll", "msimg32.dll", "dwmapi.dll", "uxtheme.dll", "version.dll",
         "msi.dll", "winhttp.dll", "bcrypt.dll", "wintrust.dll", "crypt32.dll",
+        # MSIX package manifests are read with XmlLite (System32, like the
+        # rest; DependentLoadFlags keeps it from resolving anywhere else).
+        "xmllite.dll",
         # The static MSVC STL imports WaitOnAddress/WakeByAddress* (std::atomic
         # wait) through this API set; with the DLL runtime they came through
         # MSVCP140_ATOMIC_WAIT.dll. API sets are resolved by the loader's API

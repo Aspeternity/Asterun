@@ -1036,7 +1036,8 @@ bool SearchEngine::AdmitCatalogEntry(
         normalizedQueryTokens,
     const relevance::Match& match,
     bool explicitSyntax,
-    const PreparedCommand* prepared) {
+    const PreparedCommand* prepared,
+    bool launchedBefore) {
 
     // A user-authored shortcut is explicit intent and must never be hidden by
     // automatically inferred catalog roles.
@@ -1054,6 +1055,12 @@ bool SearchEngine::AdmitCatalogEntry(
 
     case CatalogVisibility::StrongMatchOnly:
         break;
+    }
+
+    // Having launched an entry is stronger evidence than any inferred role:
+    // a restricted entry the user actually uses behaves like a normal one.
+    if (launchedBefore) {
+        return true;
     }
 
     if (normalizedQuery.empty()) {
@@ -1205,7 +1212,9 @@ SearchEngine::Search(
                     normalizedQuery,
                     queryTokens,
                     match,
-                    false) ||
+                    false,
+                    nullptr,
+                    everUsed) ||
                 !relevance::
                     AdmitLaunchSurfaceNormalized(
                         command.surfaceClass,
@@ -1321,7 +1330,9 @@ SearchEngine::Search(
                     queryTokens,
                     match,
                     explicitSyntax,
-                    preparedCommand) ||
+                    preparedCommand,
+                    stat != nullptr &&
+                        stat->launches > 0) ||
                 !relevance::
                     AdmitLaunchSurfaceNormalized(
                         command.surfaceClass,

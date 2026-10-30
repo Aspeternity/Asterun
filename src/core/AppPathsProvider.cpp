@@ -5,6 +5,7 @@
 #include "ProviderFingerprint.hpp"
 #include "ProviderIds.hpp"
 #include "../platform/LaunchTargetInspector.hpp"
+#include "../platform/RunByNameInspector.hpp"
 #include "../platform/WinUtil.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -14,6 +15,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <shlobj.h>
 
 #include <algorithm>
 #include <array>
@@ -21,6 +23,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -31,6 +34,12 @@ namespace {
 
 constexpr wchar_t kAppPathsKey[] =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths";
+
+constexpr wchar_t kUninstallKey[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
+
+constexpr std::wstring_view kPackageStore =
+    L"\\program files\\windowsapps\\";
 
 std::wstring StripQuotes(
     std::wstring value) {
@@ -172,6 +181,349 @@ bool AddDiscovered(
     return true;
 }
 
+std::wstring NormalizeRoot(
+    std::wstring_view value) {
+
+    std::wstring root =
+        NormalizeTarget(value);
+
+    while (root.size() > 3 &&
+           root.back() == L'\\') {
+        root.pop_back();
+    }
+
+    return root;
+}
+
+bool PathWithin(
+    std::wstring_view path,
+    std::wstring_view root) {
+
+    return !root.empty() &&
+        path.size() > root.size() &&
+        path.starts_with(root) &&
+        path[root.size()] == L'\\';
+}
+
+std::wstring KnownFolderRoot(
+    REFKNOWNFOLDERID id) {
+
+    PWSTR path = nullptr;
+
+    if (FAILED(SHGetKnownFolderPath(
+            id,
+            KF_FLAG_DEFAULT,
+            nullptr,
+            &path)) ||
+        path == nullptr) {
+        return {};
+    }
+
+    std::wstring root =
+        NormalizeRoot(path);
+    CoTaskMemFree(path);
+    return root;
+}
+
+// Everything discovery needs to judge where a run-by-name entry comes from,
+// gathered once per refresh rather than per entry.
+struct RunByNameContext {
+    std::filesystem::path aliasDirectory;
+    std::vector<std::wstring> sharedRoots;
+    std::vector<std::wstring> broadRoots;
+    std::vector<std::wstring> installRoots;
+    std::unordered_map<
+        std::wstring,
+        std::vector<std::wstring>>
+        packageServers;
+};
+
+// A drive root, or a folder that holds many products, is not one product.
+bool IsBroadRoot(
+    const RunByNameContext& context,
+    std::wstring_view root) {
+
+    return root.size() <= 3 ||
+        std::find(
+            context.broadRoots.begin(),
+            context.broadRoots.end(),
+            root) !=
+            context.broadRoots.end();
+}
+
+void CollectInstallRoots(
+    HKEY root,
+    REGSAM view,
+    RunByNameContext& context) {
+
+    HKEY uninstall{};
+
+    if (RegOpenKeyExW(
+            root,
+            kUninstallKey,
+            0,
+            KEY_READ | view,
+            &uninstall) != ERROR_SUCCESS) {
+        return;
+    }
+
+    for (DWORD index = 0;; ++index) {
+        std::array<wchar_t, 512>
+            nameBuffer{};
+
+        DWORD nameLength =
+            static_cast<DWORD>(
+                nameBuffer.size());
+
+        const LSTATUS status =
+            RegEnumKeyExW(
+                uninstall,
+                index,
+                nameBuffer.data(),
+                &nameLength,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr);
+
+        if (status ==
+            ERROR_NO_MORE_ITEMS) {
+            break;
+        }
+
+        if (status != ERROR_SUCCESS) {
+            continue;
+        }
+
+        HKEY productKey{};
+
+        if (RegOpenKeyExW(
+                uninstall,
+                nameBuffer.data(),
+                0,
+                KEY_READ | view,
+                &productKey) != ERROR_SUCCESS) {
+            continue;
+        }
+
+        const std::wstring location =
+            NormalizeRoot(
+                RegistryString(
+                    productKey,
+                    L"InstallLocation"));
+
+        RegCloseKey(productKey);
+
+        if (location.size() < 3 ||
+            location[1] != L':' ||
+            IsBroadRoot(
+                context,
+                location)) {
+            continue;
+        }
+
+        context.installRoots.push_back(
+            location);
+    }
+
+    RegCloseKey(uninstall);
+}
+
+RunByNameContext MakeRunByNameContext() {
+
+    RunByNameContext context;
+
+    context.aliasDirectory =
+        win::AppExecutionAliasDirectory();
+
+    for (const KNOWNFOLDERID* id : {
+             &FOLDERID_ProgramFilesCommon,
+             &FOLDERID_ProgramFilesCommonX86,
+             &FOLDERID_ProgramFilesCommonX64}) {
+        std::wstring root =
+            KnownFolderRoot(*id);
+
+        if (!root.empty()) {
+            context.sharedRoots.push_back(
+                std::move(root));
+        }
+    }
+
+    context.broadRoots =
+        context.sharedRoots;
+
+    for (const KNOWNFOLDERID* id : {
+             &FOLDERID_ProgramFiles,
+             &FOLDERID_ProgramFilesX86,
+             &FOLDERID_ProgramFilesX64,
+             &FOLDERID_UserProgramFiles,
+             &FOLDERID_Windows,
+             &FOLDERID_System,
+             &FOLDERID_SystemX86,
+             &FOLDERID_LocalAppData,
+             &FOLDERID_RoamingAppData,
+             &FOLDERID_ProgramData,
+             &FOLDERID_Profile}) {
+        std::wstring root =
+            KnownFolderRoot(*id);
+
+        if (!root.empty()) {
+            context.broadRoots.push_back(
+                std::move(root));
+        }
+    }
+
+    CollectInstallRoots(
+        HKEY_LOCAL_MACHINE,
+        KEY_WOW64_64KEY,
+        context);
+    CollectInstallRoots(
+        HKEY_LOCAL_MACHINE,
+        KEY_WOW64_32KEY,
+        context);
+    CollectInstallRoots(
+        HKEY_CURRENT_USER,
+        KEY_WOW64_64KEY,
+        context);
+
+    std::sort(
+        context.installRoots.begin(),
+        context.installRoots.end());
+    context.installRoots.erase(
+        std::unique(
+            context.installRoots.begin(),
+            context.installRoots.end()),
+        context.installRoots.end());
+
+    return context;
+}
+
+// "c:\program files\windowsapps\<package full name>" for a packaged EXE.
+std::wstring PackageRoot(
+    std::wstring_view normalizedTarget) {
+
+    if (normalizedTarget.size() < 3 ||
+        normalizedTarget[1] != L':' ||
+        !normalizedTarget.substr(2)
+             .starts_with(kPackageStore)) {
+        return {};
+    }
+
+    const std::size_t begin =
+        2 + kPackageStore.size();
+    const std::size_t end =
+        normalizedTarget.find(
+            L'\\',
+            begin);
+
+    if (end == std::wstring_view::npos ||
+        end == begin) {
+        return {};
+    }
+
+    return std::wstring(
+        normalizedTarget.substr(0, end));
+}
+
+RunByNameEvidence CollectRunByNameEvidence(
+    RunByNameContext& context,
+    std::wstring_view alias,
+    std::wstring_view target) {
+
+    RunByNameEvidence evidence;
+
+    const std::wstring normalized =
+        NormalizeTarget(target);
+    const std::wstring packageRoot =
+        PackageRoot(normalized);
+
+    if (!packageRoot.empty()) {
+        // MSIX mirrors its execution aliases into App Paths. The per-user
+        // alias stub names the exact application that owns this one.
+        if (!context.aliasDirectory.empty()) {
+            const auto link =
+                win::ReadAppExecutionAlias(
+                    context.aliasDirectory /
+                    std::wstring(alias));
+
+            if (link &&
+                NormalizeTarget(
+                    link->target) ==
+                    normalized) {
+                evidence.packagedAppId =
+                    link->appUserModelId;
+            }
+        }
+
+        auto [servers, inserted] =
+            context.packageServers
+                .try_emplace(packageRoot);
+
+        if (inserted) {
+            servers->second =
+                win::PackageServerExecutables(
+                    std::filesystem::path(
+                        packageRoot));
+        }
+
+        const std::wstring relative =
+            normalized.substr(
+                packageRoot.size() + 1);
+
+        evidence.packageServer =
+            std::find(
+                servers->second.begin(),
+                servers->second.end(),
+                relative) !=
+            servers->second.end();
+
+        return evidence;
+    }
+
+    evidence.osComponent =
+        win::IsOwnedByTrustedInstaller(
+            std::filesystem::path(target));
+
+    evidence.sharedComponent =
+        std::any_of(
+            context.sharedRoots.begin(),
+            context.sharedRoots.end(),
+            [&](const std::wstring& root) {
+                return PathWithin(
+                    normalized,
+                    root);
+            });
+
+    // The deepest registered install location wins; otherwise the EXE's
+    // own folder stands in for the product.
+    for (const auto& root :
+         context.installRoots) {
+        if (PathWithin(normalized, root) &&
+            root.size() >
+                evidence.productRoot.size()) {
+            evidence.productRoot = root;
+        }
+    }
+
+    if (evidence.productRoot.empty()) {
+        std::wstring folder =
+            NormalizeRoot(
+                std::filesystem::path(
+                    normalized)
+                    .parent_path()
+                    .wstring());
+
+        if (!IsBroadRoot(
+                context,
+                folder)) {
+            evidence.productRoot =
+                std::move(folder);
+        }
+    }
+
+    return evidence;
+}
+
 void EnumerateAppPathsKey(
     HKEY root,
     REGSAM view,
@@ -179,6 +531,7 @@ void EnumerateAppPathsKey(
     std::unordered_set<std::wstring>& seenTargets,
     ProviderAdmissionDiagnostics&
         diagnostics,
+    RunByNameContext& context,
     std::stop_token stop) {
 
     HKEY appPaths{};
@@ -376,6 +729,11 @@ void EnumerateAppPathsKey(
             role.catalogGroupKey;
         command.distinctiveTokens =
             role.distinctiveTokens;
+        command.runByName =
+            CollectRunByNameEvidence(
+                context,
+                subkeyName,
+                command.target);
         command.basePriority = 0;
         command.id =
             MakeId(command.target);
@@ -521,6 +879,9 @@ AppPathsProvider::DiscoverDetailed(std::stop_token stop) const {
             KEY_WOW64_32KEY,
         };
 
+    RunByNameContext context =
+        MakeRunByNameContext();
+
     for (const REGSAM view : views) {
         if (stop.stop_requested()) break;
         EnumerateAppPathsKey(
@@ -529,6 +890,7 @@ AppPathsProvider::DiscoverDetailed(std::stop_token stop) const {
             commands,
             seenTargets,
             diagnostics,
+            context,
             stop);
         if (stop.stop_requested()) break;
 
@@ -538,6 +900,7 @@ AppPathsProvider::DiscoverDetailed(std::stop_token stop) const {
             commands,
             seenTargets,
             diagnostics,
+            context,
             stop);
     }
 
