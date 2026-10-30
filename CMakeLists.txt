@@ -1493,6 +1493,27 @@ if(BUILD_TESTING)
             COMMAND everything_lifecycle_tests
         )
 
+        # Everything-only transport: deterministic callback races plus real
+        # WinHTTP loopback cancellation, independent of external network speed.
+        add_executable(everything_http_transport_tests
+            tests/EverythingHttpTransportTests.cpp
+            src/platform/SecureArchive.cpp src/platform/SecureElevation.cpp)
+        get_target_property(everything_test_libraries everything_lifecycle_tests LINK_LIBRARIES)
+        get_target_property(everything_test_definitions everything_lifecycle_tests COMPILE_DEFINITIONS)
+        target_link_libraries(everything_http_transport_tests PRIVATE ${everything_test_libraries})
+        add_executable(everything_http_runtime_tests tests/EverythingHttpRuntimeTests.cpp)
+        target_link_libraries(everything_http_runtime_tests PRIVATE winhttp ws2_32)
+        foreach(target everything_http_transport_tests everything_http_runtime_tests)
+            target_include_directories(${target} PRIVATE src)
+            target_compile_definitions(${target} PRIVATE ${everything_test_definitions})
+            if(MSVC)
+                target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+            endif()
+            altrun_enable_test_assertions(${target})
+            add_test(NAME ${target} COMMAND ${target})
+            set_tests_properties(${target} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+        endforeach()
+
         add_executable(
             everything_ipc_runtime_tests
             tests/EverythingIpcRuntimeTests.cpp
