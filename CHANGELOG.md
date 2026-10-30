@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.7 (released 2026-10-30)
+
+Search and catalog
+- App Paths is treated as the shell's run-by-name table, not an application list. Internal helpers that MSIX packages mirror into App Paths (for example Claude's `claude-ssh-proxy`) and Win32 components (Office's `msoasb`, `SKYPESERVER`, `TabTip`, `wab`) no longer appear for short prefixes; they stay reachable by their full name, and normally once launched. Package COM/service servers are hidden.
+- Run-by-name names fold into the application they open as search aliases (`mspaint` → Paint, `winword` → Word, `wt` → Terminal, `olk` → Outlook). Command-line packages with no listed app (`wsl`, `winget`) and programs whose only entry is App Paths stay normal.
+- The provider cache schema moves to 27 and rebuilds automatically.
+
+Everything file search
+- File and folder results now arrive about 15 ms after typing instead of 250–500 ms: the name-prefix pass uses Everything's index (`startwith:`) instead of a regex scan, only one query runs at a time with the newest one sent next, and a query after a pause is sent immediately.
+- With Everything enabled, typing a digit after a query launches the numbered result again (the slow reply previously made it count as text).
+- Build and IDE intermediates (`*.tlog`, `obj`, `CMakeFiles`, `.vs`, `.idea`, `__pycache__`) are filtered, and repeated copies of one file name collapse to the newest unless the query uses Everything syntax.
+
+Notes
+- Persisted schemas: settings 12, commands 2, usage 2 (unchanged); provider cache 27 (regenerated, no migration).
+- Native ARM64 hardware acceptance is not claimed.
+
 ## 1.0.6 (released 2026-10-17)
 
 Search and catalog
