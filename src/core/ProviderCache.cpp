@@ -14,7 +14,7 @@ namespace altrun {
 
 namespace {
 
-constexpr int kProviderCacheSchemaVersion = 26;
+constexpr int kProviderCacheSchemaVersion = 27;
 
 const char* TypeName(
     CommandType type) {
@@ -291,6 +291,35 @@ ParseCommand(
         }
     }
 
+    if (item.contains("runByName") &&
+        item["runByName"].is_object()) {
+        const auto& evidence =
+            item["runByName"];
+
+        command.runByName.packagedAppId =
+            text::FromUtf8(
+                evidence.value(
+                    "packagedAppId",
+                    std::string{}));
+        command.runByName.packageServer =
+            evidence.value(
+                "packageServer",
+                false);
+        command.runByName.osComponent =
+            evidence.value(
+                "osComponent",
+                false);
+        command.runByName.sharedComponent =
+            evidence.value(
+                "sharedComponent",
+                false);
+        command.runByName.productRoot =
+            text::FromUtf8(
+                evidence.value(
+                    "productRoot",
+                    std::string{}));
+    }
+
     if (!item.contains(
             "applicationRole") ||
         !item.contains(
@@ -343,7 +372,7 @@ nlohmann::json CommandJson(
             text::ToUtf8(token));
     }
 
-    return {
+    nlohmann::json json = {
         {"id", text::ToUtf8(command.id)},
         {"name", text::ToUtf8(command.title)},
         {"keyword", text::ToUtf8(command.keyword)},
@@ -383,6 +412,29 @@ nlohmann::json CommandJson(
              distinctiveTokens)},
         {"basePriority", command.basePriority}
     };
+
+    if (command.source ==
+        CommandSource::AppPaths) {
+        const auto& evidence =
+            command.runByName;
+
+        json["runByName"] = {
+            {"packagedAppId",
+             text::ToUtf8(
+                 evidence.packagedAppId)},
+            {"packageServer",
+             evidence.packageServer},
+            {"osComponent",
+             evidence.osComponent},
+            {"sharedComponent",
+             evidence.sharedComponent},
+            {"productRoot",
+             text::ToUtf8(
+                 evidence.productRoot)},
+        };
+    }
+
+    return json;
 }
 
 } // namespace

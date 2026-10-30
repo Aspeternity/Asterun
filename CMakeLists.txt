@@ -236,6 +236,7 @@ if(WIN32)
         src/platform/Hotkey.cpp
         src/platform/LaunchTargetInspector.cpp
         src/platform/NotificationIdentity.cpp
+        src/platform/RunByNameInspector.cpp
         src/platform/UpdateIconRefresh.cpp
         src/platform/SecureArchive.cpp
         src/platform/SecureElevation.cpp
@@ -275,7 +276,7 @@ if(WIN32)
     target_include_directories(altrun_windows_runtime PRIVATE
         src "${CMAKE_CURRENT_BINARY_DIR}/generated")
     target_link_libraries(altrun_windows_runtime PRIVATE
-        altrun_config altrun_archive)
+        altrun_config altrun_archive xmllite)
     target_compile_definitions(altrun_windows_runtime PRIVATE
         UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
         _WIN32_WINNT=0x0A00 WINVER=0x0A00)
@@ -1224,6 +1225,7 @@ if(BUILD_TESTING)
             src/core/ProviderRegistry.cpp
             src/core/StartMenuProvider.cpp
             src/platform/LaunchTargetInspector.cpp
+            src/platform/RunByNameInspector.cpp
             src/platform/WinUtil.cpp
         )
 
@@ -1242,6 +1244,7 @@ if(BUILD_TESTING)
                 uuid
                 version
                 msi
+                xmllite
         )
 
         target_compile_definitions(

@@ -4,6 +4,7 @@
 #include <cwctype>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -259,6 +260,148 @@ bool HasPackagedFamily(
                        });
 }
 
+// The packaged application that an MSIX execution alias opens, when the
+// Windows Apps provider publishes it.
+const Command* PackagedAliasOwner(
+    const Command& command,
+    const std::vector<const Command*>& candidates) {
+    const std::wstring& appId = command.runByName.packagedAppId;
+    if (command.source != CommandSource::AppPaths || appId.empty()) {
+        return nullptr;
+    }
+
+    const std::wstring identity = L"aumid:" + Lower(appId);
+    const auto owner = std::find_if(
+        candidates.begin(), candidates.end(), [&](const Command* candidate) {
+            return candidate->source == CommandSource::PackagedApp &&
+                Lower(candidate->canonicalIdentity) == identity;
+        });
+    return owner == candidates.end() ? nullptr : *owner;
+}
+
+// A run-by-name entry folded into the application it opens keeps its name
+// as an alias, so "mspaint" or "winword" still reaches Paint or Word.
+void FoldRunByNameAlias(
+    const Command& alias,
+    const Command& owner,
+    std::vector<std::wstring>& folded) {
+    if (alias.source != CommandSource::AppPaths) {
+        return;
+    }
+
+    const std::wstring name = Lower(Trim(alias.title));
+    const std::wstring compact = Compact(name);
+    const std::wstring ownerTitle = Compact(owner.title);
+    if (compact.empty() || compact == Compact(owner.keyword) ||
+        ownerTitle.starts_with(compact)) {
+        return;
+    }
+
+    const auto sameName = [&](const std::wstring& existing) {
+        return Compact(existing) == compact;
+    };
+    if (std::any_of(owner.aliases.begin(), owner.aliases.end(), sameName) ||
+        std::any_of(folded.begin(), folded.end(), sameName)) {
+        return;
+    }
+
+    folded.push_back(name);
+}
+
+bool PathWithin(
+    std::wstring_view path,
+    std::wstring_view root) {
+    return !root.empty() && path.size() > root.size() &&
+        path.starts_with(root) && path[root.size()] == L'\\';
+}
+
+// A surface that the platform's own application lists (Start Menu or
+// AppsFolder) publishes, reduced to what identifies its product.
+struct ListedSurface {
+    std::wstring packageFamily;
+    std::wstring path;
+};
+
+ListedSurface DescribeListedSurface(
+    const Command& command) {
+    ListedSurface surface;
+    const std::wstring identity = Lower(command.canonicalIdentity);
+
+    if (identity.starts_with(L"aumid:")) {
+        const std::size_t bang = identity.find(L'!');
+        if (bang != std::wstring::npos && bang > 6) {
+            surface.packageFamily = identity.substr(6, bang - 6);
+        }
+    } else if (identity.starts_with(L"file:")) {
+        surface.path = identity.substr(5, identity.find(L"|args:") - 5);
+    }
+
+    return surface;
+}
+
+// App Paths is the shell's run-by-name table, not an application list. An
+// entry that survived de-duplication is not one of the listed applications;
+// it is a component when Windows services it, it lives in Common Files, its
+// package declares it a server, or its product already has a listed surface.
+// (A listed shortcut that runs the same EXE with arguments is a distinct
+// action, so the plain EXE is not folded into it.) Components stay reachable
+// by their exact name (as with Win+R) and by past use, but no longer surface
+// on a prefix of a shared product word.
+void ApplyRunByNamePolicy(
+    std::vector<Command>& commands) {
+    std::vector<ListedSurface> listed;
+
+    for (const auto& command : commands) {
+        if ((command.source == CommandSource::StartMenu ||
+             command.source == CommandSource::PackagedApp) &&
+            command.catalogVisibility != CatalogVisibility::Hidden) {
+            listed.push_back(DescribeListedSurface(command));
+        }
+    }
+
+    for (auto& command : commands) {
+        if (command.source != CommandSource::AppPaths) {
+            continue;
+        }
+
+        const RunByNameEvidence& evidence = command.runByName;
+
+        if (evidence.packageServer) {
+            command.catalogVisibility = CatalogVisibility::Hidden;
+            continue;
+        }
+
+        bool component = false;
+
+        if (!evidence.packagedAppId.empty()) {
+            // A package with no listed application is headless: its
+            // aliases (wsl, winget) are the product itself.
+            const std::wstring appId = Lower(evidence.packagedAppId);
+            const std::wstring family = appId.substr(0, appId.find(L'!'));
+            component = std::any_of(
+                listed.begin(), listed.end(), [&](const ListedSurface& surface) {
+                    return surface.packageFamily == family;
+                });
+        } else if (evidence.osComponent || evidence.sharedComponent) {
+            component = true;
+        } else if (!evidence.productRoot.empty()) {
+            const std::wstring root = Lower(evidence.productRoot);
+            component = std::any_of(
+                listed.begin(), listed.end(), [&](const ListedSurface& surface) {
+                    return PathWithin(surface.path, root);
+                });
+        }
+
+        if (!component ||
+            command.catalogVisibility == CatalogVisibility::Hidden) {
+            continue;
+        }
+
+        command.catalogVisibility = CatalogVisibility::StrongMatchOnly;
+        command.distinctiveTokens.clear();
+    }
+}
+
 void IncrementAccepted(
     CommandMergeStats& stats,
     CommandSource source) {
@@ -410,18 +553,48 @@ MergeCommandViews(
     providerRepresentatives.reserve(
         candidates.size());
 
+    // Which representative a suppressed Provider entry collapsed into, and
+    // the run-by-name aliases each representative gains from it.
+    std::unordered_map<const Command*, const Command*>
+        representativeOf;
+    std::unordered_map<const Command*, std::vector<std::wstring>>
+        foldedAliases;
+
+    const auto fold =
+        [&](const Command& alias,
+            const Command* owner) {
+            const auto resolved =
+                representativeOf.find(owner);
+            if (resolved != representativeOf.end()) {
+                owner = resolved->second;
+            }
+            FoldRunByNameAlias(
+                alias,
+                *owner,
+                foldedAliases[owner]);
+        };
+
     for (const Command* command :
          candidates) {
+        if (const Command* owner =
+                PackagedAliasOwner(*command, candidates)) {
+            fold(*command, owner);
+            IncrementSuppressed(result.stats, command->source);
+            continue;
+        }
+
         const std::wstring packageFamily =
-            PackagedFamilyForAppPaths(*command);
+            command->runByName.packagedAppId.empty()
+                ? PackagedFamilyForAppPaths(*command)
+                : std::wstring{};
         if (!packageFamily.empty() &&
             HasPackagedFamily(candidates, packageFamily)) {
             IncrementSuppressed(result.stats, command->source);
             continue;
         }
 
-        const bool providerDuplicate =
-            std::any_of(
+        const auto providerDuplicate =
+            std::find_if(
                 providerRepresentatives.begin(),
                 providerRepresentatives.end(),
                 [&](const Command* existing) {
@@ -431,7 +604,11 @@ MergeCommandViews(
                             *existing);
                 });
 
-        if (providerDuplicate) {
+        if (providerDuplicate !=
+            providerRepresentatives.end()) {
+            representativeOf[command] =
+                *providerDuplicate;
+            fold(*command, *providerDuplicate);
             IncrementSuppressed(
                 result.stats,
                 command->source);
@@ -467,10 +644,24 @@ MergeCommandViews(
         result.commands.push_back(
             *command);
 
+        const auto folded =
+            foldedAliases.find(command);
+        if (folded != foldedAliases.end()) {
+            auto& aliases =
+                result.commands.back().aliases;
+            aliases.insert(
+                aliases.end(),
+                folded->second.begin(),
+                folded->second.end());
+        }
+
         IncrementAccepted(
             result.stats,
             command->source);
     }
+
+    ApplyRunByNamePolicy(
+        result.commands);
 
     return result;
 }

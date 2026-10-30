@@ -1885,6 +1885,49 @@ int main() {
         featureSettings.Data().providerEnabled,
         providers::kPath));
 
+    {
+        // App Paths entries carry the run-by-name evidence the merge stage
+        // needs; it must survive a cache generation.
+        ProviderCache runByNameCache(
+            data / "run-by-name-cache.json");
+
+        // Cached App Paths entries are kept only while their EXE exists.
+        const auto helperExe = data / "test-helper.exe";
+        WriteText(helperExe, "MZ");
+
+        Command alias;
+        alias.id = L"apppath:test";
+        alias.title = L"test-helper";
+        alias.keyword = L"testhelper";
+        alias.target = helperExe.wstring();
+        alias.source = CommandSource::AppPaths;
+        alias.canonicalIdentity = L"file:c:\\apps\\test-helper.exe";
+        alias.runByName.packagedAppId = L"Test.Package_abc!Helper";
+        alias.runByName.packageServer = true;
+        alias.runByName.osComponent = true;
+        alias.runByName.sharedComponent = true;
+        alias.runByName.productRoot = L"c:\\apps";
+
+        ProviderCacheEntry entry;
+        entry.generatedAtUnix = 1700000300;
+        entry.commands = {alias};
+
+        ProviderCacheData written;
+        written[std::string(providers::kAppPaths)] = entry;
+        assert(runByNameCache.Save(written));
+
+        const auto loaded = runByNameCache.Load();
+        const auto& evidence =
+            loaded.at(std::string(providers::kAppPaths))
+                .commands.at(0)
+                .runByName;
+        assert(evidence.packagedAppId == L"Test.Package_abc!Helper");
+        assert(evidence.packageServer);
+        assert(evidence.osComponent);
+        assert(evidence.sharedComponent);
+        assert(evidence.productRoot == L"c:\\apps");
+    }
+
     ProviderCache providerCache(
         data / "provider-cache.json");
 
@@ -2073,7 +2116,7 @@ int main() {
     WriteText(
         mismatchedProviderCache,
         "{\n"
-        "  \"schemaVersion\": 26,\n"
+        "  \"schemaVersion\": 27,\n"
         "  \"providers\": {\n"
         "    \"windows.startmenu\": {\n"
         "      \"generatedAtUnix\": 1700000250,\n"

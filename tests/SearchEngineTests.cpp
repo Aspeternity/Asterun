@@ -2831,6 +2831,31 @@ int main(int argc, char** argv) {
         }
     }
 
+    // A run-by-name component is reachable by its exact name only, until the
+    // user launches it: real use outranks the inferred restriction.
+    {
+        std::vector<Command> components{
+            MakeCommand(L"proxy", L"claudesshproxy", L"claude-ssh-proxy",
+                        L"claude-ssh-proxy.exe", 0),
+        };
+        components[0].source = CommandSource::AppPaths;
+        components[0].surfaceClass = LaunchSurfaceClass::PrimaryApplication;
+        components[0].catalogVisibility = CatalogVisibility::StrongMatchOnly;
+        components[0].basePriority = 0;
+
+        UsageMap unused;
+        assert(engine.Search(components, unused, L"cl", 10, false, false)
+                   .empty());
+        assert(!engine.Search(components, unused, L"claudesshproxy", 10,
+                              false, false)
+                    .empty());
+
+        UsageMap launched;
+        launched[L"proxy"] = UsageStat{1, 4102444800LL, {}};
+        assert(!engine.Search(components, launched, L"cl", 10, false, false)
+                    .empty());
+    }
+
     std::cout << "SearchEngine + Pinyin tests passed\n";
     return 0;
 }
