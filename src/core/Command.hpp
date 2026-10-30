@@ -30,6 +30,22 @@ enum class RuntimeInputMode {
     UrlEncoded,
 };
 
+// App Paths is the shell's run-by-name table, not an application list.
+// Discovery records where a run-by-name entry comes from so the merge stage
+// can tell a product's own surface from one of its components.
+struct RunByNameEvidence {
+    // AUMID named by the per-user MSIX execution alias for this entry.
+    std::wstring packagedAppId;
+    // The package manifest declares this EXE as a COM or service server.
+    bool packageServer{false};
+    // Serviced by Windows itself (owned by TrustedInstaller).
+    bool osComponent{false};
+    // Installed under Common Files, the shared-components location.
+    bool sharedComponent{false};
+    // Product install root (Uninstall InstallLocation, else the EXE folder).
+    std::wstring productRoot;
+};
+
 struct Command {
     std::wstring id;
     std::wstring keyword;
@@ -62,6 +78,7 @@ struct Command {
     std::wstring catalogGroupKey;
     std::vector<std::wstring>
         distinctiveTokens;
+    RunByNameEvidence runByName;
     int basePriority{0};
 };
 
