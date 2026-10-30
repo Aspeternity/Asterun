@@ -431,6 +431,7 @@ int App::Run() {
     commandStore_.Reload(
         settingsStore_.Data()
             .providerEnabled);
+    ReleaseStaleSearchCaches();
     usageStore_.Load(
         commandStore_.LegacyIdMap());
 
@@ -678,6 +679,7 @@ void App::ReloadCommands() {
     commandStore_.Reload(
         settingsStore_.Data()
             .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     if (window_) {
         window_->RefreshResults();
@@ -697,9 +699,27 @@ bool App::HasStaticQueryContinuation(
             query);
 }
 
+void App::ReleaseStaleSearchCaches() const {
+    const auto generation = commandStore_.Generation();
+    // Only old generations or a removed contextual feature are disposable.
+    // Swapping with empty objects releases capacity as well as their contents.
+    if (contextSearchCache_.generation != 0 &&
+        (contextSearchCache_.generation != generation ||
+         !commandStore_.HasContextFolderTemplates())) {
+        ContextSearchCache empty;
+        std::swap(contextSearchCache_, empty);
+    }
+    if (baseSearchGeneration_ != 0 && baseSearchGeneration_ != generation) {
+        SearchEngine::PreparedIndex{}.swap(baseSearchIndex_);
+        baseSearchGeneration_ = 0;
+    }
+}
+
 std::vector<LauncherResult> App::Search(
     std::wstring_view query,
     std::size_t limit) const {
+
+    ReleaseStaleSearchCaches();
 
     // A missing/stale generated provider snapshot is rebuilt in the
     // background. Never expose the transient user-only command vector as if
@@ -1390,6 +1410,8 @@ bool App::CreateUserCommand(
         return false;
     }
 
+    ReleaseStaleSearchCaches();
+
     if (window_) window_->RefreshResults();
     if (shortcutManagerWindow_) {
         if (createdId) {
@@ -1411,6 +1433,8 @@ bool App::UpdateUserCommand(
             std::move(command))) {
         return false;
     }
+
+    ReleaseStaleSearchCaches();
 
     if (window_) window_->RefreshResults();
     if (shortcutManagerWindow_) {
@@ -1442,6 +1466,8 @@ bool App::DeleteUserCommand(
         return false;
     }
 
+    ReleaseStaleSearchCaches();
+
     // A deleted user shortcut has a permanent identity; stale usage cannot
     // improve another command's ranking and need not survive the deletion.
     (void) usageStore_.Remove(id);
@@ -1463,6 +1489,8 @@ bool App::MoveUserCommand(
         return false;
     }
 
+    ReleaseStaleSearchCaches();
+
     if (window_) window_->RefreshResults();
     if (shortcutManagerWindow_) {
         shortcutManagerWindow_->Refresh(id);
@@ -1478,6 +1506,8 @@ bool App::ApplyUserCommandPathUpdates(
                  updates)) {
         return false;
     }
+
+    ReleaseStaleSearchCaches();
 
     if (window_) {
         window_->RefreshResults();
@@ -1510,6 +1540,8 @@ bool App::ImportUserCommands(
             skipped)) {
         return false;
     }
+
+    ReleaseStaleSearchCaches();
 
     if (window_) {
         window_->RefreshResults();
@@ -1667,6 +1699,7 @@ void App::HandleProviderRefreshCompleted(
     commandStore_.PublishProviderCache(
         settingsStore_.Data()
             .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     if (outcome == ProviderRefreshOutcome::Success &&
         commandStore_.IndexSearchable()) {
@@ -2921,6 +2954,7 @@ bool App::RestoreDefaultSettings() {
     commandStore_.ReloadProviderCache(
         settingsStore_.Data()
             .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     everythingProvider_.reset();
 
@@ -3928,6 +3962,7 @@ bool App::SetProviderEnabled(
         .ReloadProviderCache(
             settingsStore_.Data()
                 .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     {
         std::scoped_lock lock(
@@ -4007,6 +4042,7 @@ bool App::SetProviderEnabledBatch(
         .ReloadProviderCache(
             settingsStore_.Data()
                 .providerEnabled);
+    ReleaseStaleSearchCaches();
 
     {
         std::scoped_lock lock(

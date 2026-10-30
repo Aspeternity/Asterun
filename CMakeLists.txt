@@ -1060,12 +1060,19 @@ if(BUILD_TESTING)
         target_link_libraries(app_lifecycle_runtime_tests PRIVATE ${window_runtime_libraries})
         target_compile_definitions(app_lifecycle_runtime_tests PRIVATE ${window_runtime_definitions})
 
+        add_executable(launcher_resource_runtime_tests
+            tests/LauncherResourceRuntimeTests.cpp
+            src/resources.rc src/ui/Feedback.rc src/app.manifest)
+        target_include_directories(launcher_resource_runtime_tests PRIVATE ${window_runtime_includes})
+        target_link_libraries(launcher_resource_runtime_tests PRIVATE ${window_runtime_libraries} psapi)
+        target_compile_definitions(launcher_resource_runtime_tests PRIVATE ${window_runtime_definitions})
+
         add_executable(ui_listview_failure_tests
             tests/UiListViewFailureTests.cpp src/app.manifest)
         target_include_directories(ui_listview_failure_tests PRIVATE src)
         target_link_libraries(ui_listview_failure_tests PRIVATE user32 gdi32 comctl32 uxtheme)
         target_compile_definitions(ui_listview_failure_tests PRIVATE ${window_runtime_definitions})
-        foreach(target app_lifecycle_runtime_tests ui_listview_failure_tests)
+        foreach(target app_lifecycle_runtime_tests ui_listview_failure_tests launcher_resource_runtime_tests)
             if(MSVC)
                 target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
             endif()
