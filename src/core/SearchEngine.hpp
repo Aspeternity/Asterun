@@ -183,7 +183,8 @@ private:
             normalizedQueryTokens,
         const relevance::Match& match,
         bool explicitSyntax,
-        const PreparedCommand* prepared = nullptr);
+        const PreparedCommand* prepared = nullptr,
+        bool launchedBefore = false);
 
     PinyinSearch pinyin_;
 };
