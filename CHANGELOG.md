@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.1 (released 2026-10-30)
+
+### Updates
+
+- An update offer no longer goes stale. Showing Settings → About re-checks a version that was already found (at most once a minute): a newer release replaces it, a withdrawn one clears it, and a failed check keeps it. The button reads "Checking..." meanwhile.
+- Download and install fetches the release information again first, so it installs the newest stable release, stops if no release is newer than the installed one, and falls back to the offered release if the check fails.
+- A version found by a check started from Settings is not announced again in the notification area.
+- These rules apply from 1.1.1 on; an older version still installs whichever release it offered.
+
 ## 1.1.0 (released 2026-10-30)
 
 ### Updates

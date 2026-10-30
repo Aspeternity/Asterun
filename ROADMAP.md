@@ -1,6 +1,12 @@
 # Asterun Roadmap
 
-Asterun v1.1.0 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
+Asterun v1.1.1 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
+
+## v1.1.1 - Fresh update offers (released 2026-10-30)
+
+- Showing Settings → About re-checks a displayed update offer (at most once a minute); a newer release replaces it and a withdrawn one clears it.
+- Download and install fetches the manifest again first and installs the newest release, falling back to the offered one if the fetch fails.
+- A version already seen in Settings is not announced again in the notification area.
 
 ## v1.1.0 - Timely update notices (released 2026-10-30)
 
