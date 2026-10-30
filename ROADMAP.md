@@ -1,6 +1,12 @@
 # Asterun Roadmap
 
-Asterun v1.0.9 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
+Asterun v1.1.0 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
+
+## v1.1.0 - Timely update notices (released 2026-10-30)
+
+- Every launch checks once, 30 seconds after startup, bypassing the 6-hour throttle; the startup notice and an update notice no longer overlap.
+- Tray-resident checks keep the hourly evaluation with the 6-hour throttle.
+- The release contract picks `docs/V<major>.<minor>_RELEASE_VALIDATION.md` by version.
 
 ## v1.0.9 - Self-recovering Everything (released 2026-10-30)
 

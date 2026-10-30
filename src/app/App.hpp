@@ -236,8 +236,11 @@ public:
     UpdateStatus() const;
     [[nodiscard]] bool
     UpdateWorkerRunning() const noexcept;
+    // force: a manual check (ignores the setting and the throttle).
+    // ignoreThrottle: an automatic check that skips the 6-hour throttle.
     bool StartUpdateCheck(
-        bool force);
+        bool force,
+        bool ignoreThrottle = false);
     bool StartUpdateDownloadAndInstall();
     bool RetryUpdate();
     bool CancelUpdateDownload();

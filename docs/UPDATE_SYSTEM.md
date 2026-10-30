@@ -16,7 +16,7 @@ The persisted settings surface is:
 }
 ```
 
-Automatic checks are throttled by `data/update/update-state.json` to at most once per 6 hours. The launcher re-evaluates that throttle at startup and hourly while it stays in the tray, so a new release is normally noticed within about 7 hours. A failed check does not count and is retried at the next hourly evaluation. Each newly found version is announced once in the notification area (`notifiedVersion` in the same file); clicking it opens Settings at About. An automatic check also refreshes an existing, not yet installed offer without hiding it, so a newer release replaces the older one. Runtime status/progress is not persisted into settings.
+Every launch checks once, 30 seconds after startup, so the startup notice has gone before an update notice can appear and the network is usually up after sign-in. While the launcher stays in the tray it re-evaluates hourly, throttled by `data/update/update-state.json` to at most once per 6 hours, so a new release is normally noticed at the next launch or within about 7 hours. A failed check does not count and is retried at the next hourly evaluation. Each newly found version is announced once in the notification area (`notifiedVersion` in the same file); clicking it opens Settings at About. An automatic check also refreshes an existing, not yet installed offer without hiding it, so a newer release replaces the older one. Runtime status/progress is not persisted into settings.
 
 ## Release manifest
 

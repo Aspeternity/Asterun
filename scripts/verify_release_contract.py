@@ -20,6 +20,7 @@ SUPPORTED = {
     "1.0.7": (12, 2, 2, 27, "1.0.7.30000"),
     "1.0.8": (12, 2, 2, 27, "1.0.8.30000"),
     "1.0.9": (12, 2, 2, 27, "1.0.9.30000"),
+    "1.1.0": (12, 2, 2, 27, "1.1.0.30000"),
 }
 
 
@@ -65,10 +66,11 @@ require("src/resources.rc", version,
 for path in ("src/app.manifest", "src/uninstaller/uninstaller.manifest"):
     require(path, f'version="{fixed}"')
 require("src/uninstaller/uninstaller.manifest", "PerMonitorV2", "longPathAware")
+major_minor = ".".join(version.split("-")[0].split(".")[:2])
 release_validation = (
-    "docs/V1.0_RELEASE_VALIDATION.md"
-    if version.startswith("1.0.")
-    else "docs/V0.8_BETA_VALIDATION.md"
+    "docs/V0.8_BETA_VALIDATION.md"
+    if major_minor == "0.8"
+    else f"docs/V{major_minor}_RELEASE_VALIDATION.md"
 )
 for path in ("README.md", "CHANGELOG.md", "ROADMAP.md", release_validation):
     require(path, version)
