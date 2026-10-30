@@ -40,9 +40,9 @@ Asterun is a native, lightweight, keyboard-first launcher for Windows 10/11, des
 
 Built with C++23 + Win32, Asterun brings application discovery, pinyin and mixed-language search, usage-aware ranking, smart numeric launch, user shortcuts, optional Everything file/folder search, native update/uninstall support, and a portable data model into one compact launcher experience.
 
-## Current Stable Release: v1.0.9
+## Current Stable Release: v1.1.0
 
-**[Asterun v1.0.9](https://github.com/Aspeternity/Asterun/releases/tag/v1.0.9) is officially released** and recommended for everyday use. It makes Everything file search more dependable: a managed Everything that stops is started again automatically and its indexing service restarts itself after a crash, and when administrator approval is needed the button says exactly what it will do. Updating Everything keeps the existing index instead of re-scanning every drive and removes the old version, and with automatic update checks on Asterun also checks for a new Everything once a day. Buttons no longer keep a dotted focus rectangle after a mouse click. See the [changelog](CHANGELOG.md) for release details.
+**[Asterun v1.1.0](https://github.com/Aspeternity/Asterun/releases/tag/v1.1.0) is officially released** and recommended for everyday use. New versions are announced sooner: every launch checks for an update about 30 seconds after startup, regardless of the 6-hour throttle, and only after the startup notice has gone, so the two notifications no longer overlap. The previous release, v1.0.9, made Everything file search more dependable: a managed Everything that stops is started again automatically and its indexing service restarts itself after a crash, and when administrator approval is needed the button says exactly what it will do. Updating Everything keeps the existing index instead of re-scanning every drive and removes the old version, and with automatic update checks on Asterun also checks for a new Everything once a day. Buttons no longer keep a dotted focus rectangle after a mouse click. See the [changelog](CHANGELOG.md) for release details.
 
 ## Interface Preview
 

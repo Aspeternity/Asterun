@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 (released 2026-10-30)
+
+### Updates
+
+- Every launch checks for an update once, 30 seconds after startup, even if the last automatic check was less than 6 hours ago. A release published shortly before you start Asterun is now announced at that launch instead of up to 6 hours later.
+- The delay lets the startup notice disappear first, so the two notifications no longer overlap, and gives the network time to come up after sign-in.
+- While Asterun stays in the tray, checks keep the hourly evaluation with the 6-hour throttle; each version is still announced once.
+
 ## 1.0.9 (released 2026-10-30)
 
 ### Everything file search
