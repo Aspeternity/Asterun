@@ -9,6 +9,15 @@
 
 namespace altrun {
 
+namespace {
+
+// An offer confirmed within this window is not refetched when About reopens.
+constexpr std::uint64_t
+    kUpdateOfferFreshMs =
+        60ULL * 1000ULL;
+
+} // namespace
+
 bool App::SetUpdateSettings(
     bool autoCheck) {
     if (settingsStore_.Data()
@@ -64,8 +73,8 @@ bool App::StartUpdateCheck(
     }
 
     // An automatic check over an existing offer runs quietly: the offer
-    // stays visible and is replaced only by another offer, so a newer
-    // release supersedes it while a failed or timed-out check cannot.
+    // stays visible until a fetched manifest replaces it, so a failed or
+    // timed-out check cannot hide it.
     bool refreshOffer = false;
 
     {
@@ -98,6 +107,49 @@ bool App::StartUpdateCheck(
         }
     }
 
+    return LaunchUpdateCheck(
+        !force,
+        refreshOffer);
+}
+
+bool App::RefreshUpdateOffer() {
+    if (updateWorkerRunning_.load()) {
+        return false;
+    }
+
+    {
+        std::scoped_lock lock(
+            updateMutex_);
+
+        if (updateStatus_.running ||
+            updateStatus_.stage !=
+                win::UpdateStage::Available ||
+            !updateManifest_) {
+            return false;
+        }
+
+        // Switching Settings pages back and forth must not refetch an offer
+        // that was confirmed moments ago.
+        const std::uint64_t now =
+            static_cast<std::uint64_t>(
+                GetTickCount64());
+
+        if (updateOfferCheckedTick_ != 0 &&
+            now >= updateOfferCheckedTick_ &&
+            now - updateOfferCheckedTick_ <
+                kUpdateOfferFreshMs) {
+            return false;
+        }
+    }
+
+    return LaunchUpdateCheck(
+        false,
+        true);
+}
+
+bool App::LaunchUpdateCheck(
+    bool automatic,
+    bool refreshOffer) {
     if (updateThread_.joinable()) {
         updateThread_.join();
     }
@@ -121,7 +173,7 @@ bool App::StartUpdateCheck(
                 false;
         }
 
-        updateCheckAutomatic_ = !force;
+        updateCheckAutomatic_ = automatic;
         updateRefreshingOffer_ = refreshOffer;
     }
 
@@ -134,6 +186,7 @@ bool App::StartUpdateCheck(
         std::jthread(
             [this,
              generation,
+             automatic,
              refreshOffer](
                 std::stop_token stopToken) {
                 try {
@@ -175,6 +228,7 @@ bool App::StartUpdateCheck(
                         kVersion,
                         progress,
                         stopToken);
+                bool shownInSettings = false;
 
                 if (generation ==
                     updateGeneration_.load()) {
@@ -184,20 +238,40 @@ bool App::StartUpdateCheck(
                     if (generation ==
                         updateGeneration_
                             .load()) {
+                        // A refresh keeps the offer through a failed or
+                        // timed-out fetch, but a fetched manifest is
+                        // authoritative: a newer release replaces the offer
+                        // and a withdrawn one clears it.
                         if (!refreshOffer ||
-                            (result.snapshot.stage ==
-                                 win::UpdateStage::
-                                     Available &&
-                             result.manifest)) {
+                            result.manifest) {
                             updateStatus_ =
                                 result.snapshot;
                             updateManifest_ =
                                 result.manifest;
                         }
 
+                        if (result.snapshot.stage ==
+                                win::UpdateStage::
+                                    Available &&
+                            result.manifest) {
+                            updateOfferCheckedTick_ =
+                                static_cast<std::uint64_t>(
+                                    GetTickCount64());
+                            shownInSettings =
+                                !automatic;
+                        }
+
                         updateRefreshingOffer_ =
                             false;
                     }
+                }
+
+                // A check started from Settings already showed this release;
+                // a later automatic check must not announce it again.
+                if (shownInSettings) {
+                    win::MarkUpdateNotified(
+                        dataDirectory_,
+                        result.manifest->version);
                 }
                 } catch (...) {
                     std::scoped_lock lock(updateMutex_);
@@ -240,7 +314,7 @@ bool App::StartUpdateDownloadAndInstall() {
             updateMutex_);
 
         // Failed with a retained manifest means preparing or launching the
-        // offered release failed; downloading it again needs no new check.
+        // offered release failed; it can be downloaded again from the offer.
         if (updateStatus_.running ||
             (updateStatus_.stage !=
                  win::UpdateStage::
@@ -329,15 +403,75 @@ bool App::StartUpdateDownloadAndInstall() {
                             generation);
                     };
 
-                const auto result =
-                    win::PrepareUpdate(
+                // The offer may be hours old. Fetch the manifest again so the
+                // newest release is installed and a withdrawn one is not; a
+                // failed fetch falls back to the offered release, which is
+                // still a valid signed package.
+                UpdateManifest target =
+                    manifest;
+                bool withdrawn = false;
+                const auto latest =
+                    win::CheckForUpdate(
                         dataDirectory_,
-                        manifest,
                         kVersion,
-                        progress,
+                        {},
                         stopToken);
 
-                if (generation ==
+                if (!stopToken.stop_requested() &&
+                    latest.manifest) {
+                    std::scoped_lock lock(
+                        updateMutex_);
+
+                    if (generation !=
+                        updateGeneration_
+                            .load()) {
+                        // Superseded; the stale-generation path joins us.
+                    } else if (
+                        latest.snapshot.stage ==
+                        win::UpdateStage::
+                            Available) {
+                        target =
+                            *latest.manifest;
+                        updateManifest_ =
+                            target;
+                        updateStatus_.availableVersion =
+                            target.version;
+                        updateOfferCheckedTick_ =
+                            static_cast<std::uint64_t>(
+                                GetTickCount64());
+                    } else {
+                        // No release is newer than this build any more.
+                        updateStatus_ =
+                            latest.snapshot;
+                        updateManifest_ =
+                            latest.manifest;
+                        updateInstallWhenReady_ =
+                            false;
+                        withdrawn = true;
+                    }
+                }
+
+                win::UpdatePrepareResult result;
+
+                if (stopToken.stop_requested()) {
+                    // Cancelled during the fetch; the cancel path below
+                    // restores the offer.
+                    result.snapshot.currentVersion =
+                        std::string(kVersion);
+                    result.snapshot.availableVersion =
+                        target.version;
+                } else if (!withdrawn) {
+                    result =
+                        win::PrepareUpdate(
+                            dataDirectory_,
+                            target,
+                            kVersion,
+                            progress,
+                            stopToken);
+                }
+
+                if (!withdrawn &&
+                    generation ==
                     updateGeneration_.load()) {
                     std::scoped_lock lock(
                         updateMutex_);

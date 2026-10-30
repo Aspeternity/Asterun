@@ -492,6 +492,33 @@ struct AppLifecycleRuntimeFixture {
         assert(status.availableVersion == "9.0.0" && app.updateManifest_);
     }
 
+    static void UpdateOfferRefreshGuards(HINSTANCE instance) {
+        // Reopening About refetches only a shown offer that is not fresh.
+        App app(instance);
+        app.updateGeneration_ = 50;
+        app.updateStatus_.stage = win::UpdateStage::UpToDate;
+        app.updateManifest_ = UpdateManifest{};
+        assert(!app.RefreshUpdateOffer());
+
+        app.updateStatus_.stage = win::UpdateStage::Available;
+        app.updateManifest_.reset();
+        assert(!app.RefreshUpdateOffer());
+
+        app.updateManifest_ = UpdateManifest{};
+        app.updateOfferCheckedTick_ = GetTickCount64();
+        assert(!app.RefreshUpdateOffer());
+
+        app.updateOfferCheckedTick_ = 0;
+        app.updateWorkerRunning_ = true;
+        assert(!app.RefreshUpdateOffer());
+        app.updateWorkerRunning_ = false;
+
+        assert(app.updateGeneration_ == 50);
+        assert(!app.updateThread_.joinable());
+        const auto status = app.UpdateStatus();
+        assert(status.stage == win::UpdateStage::Available && !status.running);
+    }
+
     static void ModalHotkeyRouting(HINSTANCE instance) {
         WriteSettings();
         assert(mockHotkeyOwners.empty());
@@ -723,6 +750,7 @@ int main(int argc, char* argv[]) {
         altrun::AppLifecycleRuntimeFixture::UpdateWatchdog(instance);
         altrun::AppLifecycleRuntimeFixture::UpdateUserActions(instance);
         altrun::AppLifecycleRuntimeFixture::UpdateOfferRefreshWatchdog(instance);
+        altrun::AppLifecycleRuntimeFixture::UpdateOfferRefreshGuards(instance);
         altrun::AppLifecycleRuntimeFixture::SearchCacheLifetime(instance);
     }
     if (SUCCEEDED(com)) CoUninitialize();

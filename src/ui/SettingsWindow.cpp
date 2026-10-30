@@ -3231,6 +3231,8 @@ void SettingsWindow::ShowPage(Page page) {
         RefreshDataCompatibilityStatus();
     } else if (
         page == Page::About) {
+        // A shown offer may be stale (a newer release since the check).
+        app_.RefreshUpdateOffer();
         RefreshUpdateStatus();
         SyncUpdateStatusTimer();
     }
@@ -5901,9 +5903,13 @@ void SettingsWindow::RefreshUpdateStatus() {
         text += std::wstring(
             status.availableVersion.begin(),
             status.availableVersion.end());
+        // A quiet refresh keeps the offer text but holds the action.
         actionText =
-            T(L"下载并安装",
-              L"Download and install");
+            workerRunning
+                ? T(L"正在检查...",
+                    L"Checking...")
+                : T(L"下载并安装",
+                    L"Download and install");
         actionEnabled = true;
         break;
 
@@ -6160,6 +6166,12 @@ void SettingsWindow::Present(
     // user could see a fully opened Settings window repaint into About.
     if (selectAbout) {
         ShowPage(Page::About);
+    } else if (
+        page_ == Page::About) {
+        // Reopening on About does not go through ShowPage.
+        app_.RefreshUpdateOffer();
+        RefreshUpdateStatus();
+        SyncUpdateStatusTimer();
     }
 
     if (page_ == Page::Providers) {
