@@ -141,11 +141,13 @@ void EverythingProvider::QueryAsync(DynamicQueryRequest request, Completion comp
         response.nativeError = ipc.nativeError;
         response.results = std::move(state->prefixes);
 
+        std::unordered_set<std::wstring> seenIds;
+        seenIds.reserve(response.results.size() + ipc.items.size());
+        for (const auto& result : response.results) seenIds.insert(result.id);
         for (const auto& item : ipc.items) {
             LauncherResult result = MakeFileResult(item);
             if (!RankDynamicResultText(result, state->request.query)) continue;
-            if (std::none_of(response.results.begin(), response.results.end(),
-                    [&](const LauncherResult& existing) { return existing.id == result.id; }))
+            if (seenIds.insert(result.id).second)
                 response.results.push_back(std::move(result));
         }
 

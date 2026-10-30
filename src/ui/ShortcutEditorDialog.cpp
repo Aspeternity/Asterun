@@ -6,6 +6,7 @@
 #include "UiComboBox.hpp"
 #include "UiComboPopup.hpp"
 #include "UiEditChrome.hpp"
+#include "UiFocusCues.hpp"
 #include "UiMetrics.hpp"
 #include "UiTheme.hpp"
 #include "UiTypography.hpp"
@@ -259,18 +260,6 @@ void PaintAdminCheckbox(const DRAWITEMSTRUCT& draw, HFONT font, UINT dpi) {
     }
     if (bitmap) DeleteObject(bitmap);
     if (memory) DeleteDC(memory);
-}
-
-// A shell picker returns focus to the button that opened it with keyboard
-// cues turned on, leaving a dotted focus rectangle after a mouse-only
-// interaction. Hide the cues again; the next Tab/Alt press restores them.
-void HideFocusCuesAfterPicker(HWND dialog) {
-    if (!dialog) return;
-    SendMessageW(dialog, WM_CHANGEUISTATE,
-        MAKEWPARAM(UIS_SET, UISF_HIDEFOCUS), 0);
-    if (HWND focused = GetFocus(); focused && IsChild(dialog, focused)) {
-        InvalidateRect(focused, nullptr, FALSE);
-    }
 }
 
 enum class PickerResult {
@@ -826,6 +815,8 @@ bool ShortcutEditorDialog::RunModal() {
         if (result < 0) {
             break;
         }
+
+        ui::HideFocusCuesOnMouseDown(msg);
 
         // Save remains the editor's default action even though the visual
         // button is owner-drawn. Keep the old Enter workflow for native Edit
@@ -3422,6 +3413,10 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             }
         };
 
+    if (ui::HandleFocusCueMessage(hwnd_, message, wParam)) {
+        return 0;
+    }
+
     switch (message) {
     case WM_LBUTTONDOWN:
     case WM_RBUTTONDOWN:
@@ -3740,7 +3735,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseTargetFile();
-                HideFocusCuesAfterPicker(hwnd_);
+                ui::HideFocusCues(hwnd_);
             }
             return 0;
 
@@ -3748,7 +3743,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseTargetFolder();
-                HideFocusCuesAfterPicker(hwnd_);
+                ui::HideFocusCues(hwnd_);
             }
             return 0;
 
@@ -3776,7 +3771,7 @@ LRESULT ShortcutEditorDialog::HandleMessage(
             if (HIWORD(wParam) ==
                 BN_CLICKED) {
                 BrowseWorkingDirectory();
-                HideFocusCuesAfterPicker(hwnd_);
+                ui::HideFocusCues(hwnd_);
             }
             return 0;
 

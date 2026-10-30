@@ -387,7 +387,10 @@ EverythingIpcClient::HandleWindowMessage(
             return FALSE;
         }
 
-        HandleReply(
+        // Everything is still inside its SendMessage to us and serves no
+        // other query until it returns. Only copy the bytes here; parsing,
+        // ranking and the next query run after this message returns.
+        QueueReply(
             hwnd,
             reinterpret_cast<HWND>(
                 wParam),
@@ -395,15 +398,18 @@ EverythingIpcClient::HandleWindowMessage(
                 copyData->dwData),
             copyData->lpData,
             copyData->cbData);
-        // Everything is still inside its SendMessage to us; send the next
-        // query after this message returns.
-        PostMessageW(
-            hwnd,
-            kQueryQueuedMessage,
-            0,
-            0);
         return TRUE;
     }
+
+    case kReplyReceivedMessage:
+        if (receivedReply_) {
+            auto reply =
+                std::move(*receivedReply_);
+            receivedReply_.reset();
+            HandleReply(std::move(reply));
+        }
+        SchedulePendingQuery(hwnd);
+        return 0;
 
     case WM_CLOSE:
         DestroyWindow(hwnd);
@@ -616,7 +622,7 @@ EverythingIpcClient::SendPendingQuery(
     }
 }
 
-void EverythingIpcClient::HandleReply(
+void EverythingIpcClient::QueueReply(
     HWND hwnd,
     HWND sourceWindow,
     std::uint32_t replyToken,
@@ -626,15 +632,55 @@ void EverythingIpcClient::HandleReply(
         inFlight_->replyToken !=
             replyToken ||
         inFlight_->sourceWindow !=
-            sourceWindow) {
+            sourceWindow ||
+        receivedReply_) {
+        return;
+    }
+
+    ReceivedReply reply;
+    reply.sourceWindow = sourceWindow;
+    reply.replyToken = replyToken;
+    reply.oversized =
+        size > options_.maxReplyBytes;
+    // A stale generation is dropped unparsed, so skip the copy too.
+    if (!reply.oversized &&
+        inFlight_->generation ==
+            latestGeneration_.load()) {
+        const auto* first =
+            static_cast<const std::byte*>(
+                data);
+        reply.bytes.assign(
+            first,
+            first + size);
+    }
+    receivedReply_ = std::move(reply);
+
+    // If the post fails, the reply timer still ends this query.
+    if (!PostMessageW(
+            hwnd,
+            kReplyReceivedMessage,
+            0,
+            0)) {
+        receivedReply_.reset();
         return;
     }
 
     KillTimer(
         hwnd,
         kReplyTimerId);
+}
 
-    if (size > options_.maxReplyBytes) {
+void EverythingIpcClient::HandleReply(
+    ReceivedReply reply) {
+    if (!inFlight_ ||
+        inFlight_->replyToken !=
+            reply.replyToken ||
+        inFlight_->sourceWindow !=
+            reply.sourceWindow) {
+        return;
+    }
+
+    if (reply.oversized) {
         CompleteInFlight(
             EverythingQueryStatus::
                 ProtocolError,
@@ -649,11 +695,8 @@ void EverythingIpcClient::HandleReply(
     }
 
     const auto bytes =
-        std::span(
-            reinterpret_cast<
-                const std::byte*>(
-                    data),
-            size);
+        std::span<const std::byte>(
+            reply.bytes);
 
     auto parsed =
         everything_ipc::ParseList2(

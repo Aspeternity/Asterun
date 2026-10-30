@@ -77,7 +77,6 @@ private:
     void ReleaseWindowResources();
     void CloseWindow();
     void RememberNormalPosition();
-    void HideFocusCuesAfterModal();
     void ResetTransientState(
         std::wstring_view preferredId);
     void DrawActionButton(

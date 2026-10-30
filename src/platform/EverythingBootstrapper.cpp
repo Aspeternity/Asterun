@@ -87,6 +87,34 @@ struct ServiceHandle {
         const ServiceHandle&) = delete;
 };
 
+// Let the SCM restart an Asterun-owned Everything service that crashed or
+// was ended from Task Manager. Its DACL lets only administrators start it,
+// so otherwise a dead service needs another UAC prompt before file search
+// works again. Best effort: the service runs fine without it. The handle
+// needs SERVICE_CHANGE_CONFIG and SERVICE_START.
+void ConfigureEverythingServiceRecovery(
+    SC_HANDLE service) noexcept {
+    SC_ACTION actions[] = {
+        {SC_ACTION_RESTART, 1000},
+        {SC_ACTION_RESTART, 5000},
+        {SC_ACTION_RESTART, 30000},
+    };
+
+    SERVICE_FAILURE_ACTIONSW failure{};
+    failure.dwResetPeriod =
+        24U * 60U * 60U;
+    failure.cActions =
+        static_cast<DWORD>(
+            std::size(actions));
+    failure.lpsaActions =
+        actions;
+
+    (void)ChangeServiceConfig2W(
+        service,
+        SERVICE_CONFIG_FAILURE_ACTIONS,
+        &failure);
+}
+
 [[nodiscard]] EverythingPackageArchitecture
 CurrentArchitecture() {
 #if defined(_M_ARM64) || defined(__aarch64__)
@@ -2720,6 +2748,164 @@ NeedsInstall(
     return snapshot;
 }
 
+constexpr std::wstring_view
+    kStaleManagedDirectoryPrefix =
+        L".asterun-stale-";
+
+// A version directory that already exists blocks the staging rename. It is
+// never a usable install here (a complete one would have been picked before
+// any download), typically a copy whose Everything.exe was quarantined while
+// Everything.db/ini survived. Move it aside so the fresh copy can take its
+// place; its index can still seed the new copy.
+[[nodiscard]] bool
+SetAsideManagedVersionDirectory(
+    const std::filesystem::path& directory,
+    std::filesystem::path& setAside,
+    std::uint32_t& nativeError) {
+    setAside.clear();
+
+    std::error_code ec;
+    if (!std::filesystem::exists(
+            directory,
+            ec)) {
+        return true;
+    }
+
+    if (ManagedDefaultIpcRunning(
+            directory /
+            L"Everything.exe")) {
+        nativeError =
+            ERROR_SHARING_VIOLATION;
+        return false;
+    }
+
+    std::wstring token;
+    if (!GenerateSecureToken(
+            token,
+            nativeError)) {
+        return false;
+    }
+
+    const auto target =
+        directory.parent_path() /
+        (std::wstring(
+             kStaleManagedDirectoryPrefix) +
+         token);
+
+    ec.clear();
+    std::filesystem::rename(
+        directory,
+        target,
+        ec);
+    if (ec) {
+        nativeError =
+            static_cast<std::uint32_t>(
+                ec.value());
+        return false;
+    }
+
+    setAside = target;
+    return true;
+}
+
+// Everything keeps its index next to Everything.exe, so a new version
+// directory starts empty and would re-index every volume. Seed it from the
+// previous copy (already stopped, so the file is complete). Best effort: a
+// missing or rejected index only means Everything rebuilds it.
+void SeedManagedEverythingIndex(
+    const std::filesystem::path& targetDirectory,
+    std::initializer_list<
+        std::filesystem::path>
+        sourceDirectories) {
+    const auto target =
+        targetDirectory /
+        L"Everything.db";
+
+    if (FileExists(target)) {
+        return;
+    }
+
+    for (const auto& source :
+         sourceDirectories) {
+        if (source.empty()) {
+            continue;
+        }
+
+        const auto index =
+            source /
+            L"Everything.db";
+        if (FileExists(index) &&
+            CopyFileW(
+                index.c_str(),
+                target.c_str(),
+                TRUE)) {
+            return;
+        }
+    }
+}
+
+// After a new version is confirmed running, older version directories only
+// hold a stale copy of the index (often ~100 MB). Remove them, and any
+// directory set aside above. Everything still running from a directory, or
+// a locked file, leaves that directory for the next update.
+void RemoveSupersededManagedVersions(
+    const std::filesystem::path& dataDirectory,
+    std::wstring_view currentVersion) {
+    const auto root =
+        ManagedEverythingRoot(
+            dataDirectory);
+
+    std::vector<std::filesystem::path>
+        obsolete;
+    std::error_code ec;
+
+    for (std::filesystem::
+             directory_iterator it(
+                 root,
+                 ec),
+         end;
+         !ec && it != end;
+         it.increment(ec)) {
+        if (!it->is_directory(ec) ||
+            ec) {
+            ec.clear();
+            continue;
+        }
+
+        const auto name =
+            it->path().filename().wstring();
+        const auto executable =
+            it->path() /
+            L"Everything.exe";
+
+        if (name.starts_with(
+                kStaleManagedDirectoryPrefix)) {
+            obsolete.push_back(it->path());
+            continue;
+        }
+
+        const auto version =
+            VersionFromManagedExecutablePath(
+                executable);
+        if (version &&
+            CompareEverythingVersions(
+                *version,
+                currentVersion) < 0 &&
+            !ManagedDefaultIpcRunning(
+                executable)) {
+            obsolete.push_back(it->path());
+        }
+    }
+
+    for (const auto& directory :
+         obsolete) {
+        std::error_code removeError;
+        std::filesystem::remove_all(
+            directory,
+            removeError);
+    }
+}
+
 } // namespace
 
 bool
@@ -3203,6 +3389,11 @@ ApplyManagedEverythingServiceEnabledPolicy(
         };
     }
 
+    if (enabled) {
+        ConfigureEverythingServiceRecovery(
+            service.value);
+    }
+
     const auto rollbackStartType =
         [&]() {
             (void)ChangeServiceConfigW(
@@ -3565,6 +3756,18 @@ RepairManagedEverythingServicePath(
             };
         }
 
+        ServiceHandle installed;
+        installed.value =
+            OpenServiceW(
+                manager.value,
+                L"Everything",
+                SERVICE_CHANGE_CONFIG |
+                    SERVICE_START);
+        if (installed.value) {
+            ConfigureEverythingServiceRecovery(
+                installed.value);
+        }
+
         return {
             true,
             0,
@@ -3594,6 +3797,9 @@ RepairManagedEverythingServicePath(
                 GetLastError()),
         };
     }
+
+    ConfigureEverythingServiceRecovery(
+        service.value);
 
     if (status.dwCurrentState !=
         SERVICE_RUNNING) {
@@ -4058,45 +4264,45 @@ RunEverythingBootstrap(
             if (LaunchEverything(
                     candidate.path,
                     launchError)) {
-            Report(
-                snapshot,
-                EverythingBootstrapStage::
-                    WaitingForIpc,
-                progress);
-
-            if (WaitForIpc(
-                    stopToken)) {
-                snapshot.stage =
+                Report(
+                    snapshot,
                     EverythingBootstrapStage::
-                        Ready;
-                snapshot.running = false;
-                snapshot.failure =
-                    EverythingBootstrapFailure::
-                        None;
+                        WaitingForIpc,
+                    progress);
 
-                if (progress) {
-                    progress(snapshot);
+                if (WaitForIpc(
+                        stopToken)) {
+                    snapshot.stage =
+                        EverythingBootstrapStage::
+                            Ready;
+                    snapshot.running = false;
+                    snapshot.failure =
+                        EverythingBootstrapFailure::
+                            None;
+
+                    if (progress) {
+                        progress(snapshot);
+                    }
+
+                    return snapshot;
                 }
-
-                return snapshot;
+            } else if (!allowDownload) {
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        ExistingLaunchFailed,
+                    launchError,
+                    progress);
             }
-        } else if (!allowDownload) {
-            return Fail(
-                snapshot,
-                EverythingBootstrapFailure::
-                    ExistingLaunchFailed,
-                launchError,
-                progress);
-        }
 
-        if (stopToken.stop_requested()) {
-            return Fail(
-                snapshot,
-                EverythingBootstrapFailure::
-                    Cancelled,
-                ERROR_CANCELLED,
-                progress);
-        }
+            if (stopToken.stop_requested()) {
+                return Fail(
+                    snapshot,
+                    EverythingBootstrapFailure::
+                        Cancelled,
+                    ERROR_CANCELLED,
+                    progress);
+            }
 
             if (!allowDownload) {
                 return NeedsInstall(
@@ -4423,12 +4629,28 @@ RunEverythingBootstrap(
         verifiedArchive,
         ec);
 
+    std::filesystem::path setAsideDirectory;
+    if (!SetAsideManagedVersionDirectory(
+            managedDirectory,
+            setAsideDirectory,
+            nativeError)) {
+        std::error_code cleanupError;
+        std::filesystem::remove_all(stagingDirectory, cleanupError);
+        return Fail(snapshot, EverythingBootstrapFailure::ExtractionFailed,
+                    nativeError, progress);
+    }
+
     ec.clear();
     std::filesystem::rename(stagingDirectory, managedDirectory, ec);
     if (ec) {
         const auto stagingError = static_cast<std::uint32_t>(ec.value());
         std::error_code cleanupError;
         std::filesystem::remove_all(stagingDirectory, cleanupError);
+        if (!setAsideDirectory.empty()) {
+            cleanupError.clear();
+            std::filesystem::rename(
+                setAsideDirectory, managedDirectory, cleanupError);
+        }
         return Fail(snapshot, EverythingBootstrapFailure::ExtractionFailed,
                     stagingError, progress);
     }
@@ -4485,9 +4707,38 @@ RunEverythingBootstrap(
         }
     }
 
-    return finishManaged(
-        targetManagedExecutable,
-        true);
+    const bool previousIsPortableCopy =
+        FileExists(
+            existingManagedExecutable) &&
+        PortableManagedEverythingExecutable(
+            dataDirectory,
+            existingManagedExecutable) &&
+        LowerPath(
+            existingManagedExecutable.parent_path()) !=
+            LowerPath(managedDirectory);
+
+    SeedManagedEverythingIndex(
+        managedDirectory,
+        {previousIsPortableCopy
+             ? existingManagedExecutable.parent_path()
+             : std::filesystem::path{},
+         setAsideDirectory});
+
+    auto result =
+        finishManaged(
+            targetManagedExecutable,
+            true);
+
+    if (result.stage ==
+            EverythingBootstrapStage::Ready &&
+        result.failure ==
+            EverythingBootstrapFailure::None) {
+        RemoveSupersededManagedVersions(
+            dataDirectory,
+            snapshot.selectedVersion);
+    }
+
+    return result;
 }
 
 } // namespace altrun::win

@@ -128,8 +128,10 @@ bool ConfirmShortcutDeletion(HWND owner, std::wstring_view name, bool chinese) {
 bool ConfirmEverythingSetup(
     HWND owner,
     bool chinese) {
+    // One decision, three facts: what happens when Everything exists, what
+    // is downloaded otherwise, and the one UAC prompt to expect.
     const TASKDIALOG_BUTTON buttons[]{
-        {IDYES, chinese ? L"继续" : L"Continue"},
+        {IDYES, chinese ? L"启用" : L"Enable"},
         {IDCANCEL, chinese ? L"取消" : L"Cancel"},
     };
 
@@ -145,27 +147,21 @@ bool ConfirmEverythingSetup(
             : L"Everything file search";
     config.pszMainInstruction =
         chinese
-            ? L"启用 Everything 文件搜索"
-            : L"Enable Everything file search";
+            ? L"启用文件搜索"
+            : L"Enable file search";
     config.pszContent =
         chinese
-            ? L"Asterun 会优先使用电脑上已有的 Everything。\n\n"
-              L"如果没有找到，将从 voidtools 官方获取最新稳定版并自动完成必要设置。"
-              L"首次启用文件索引时，Windows 可能会请求一次管理员权限。\n\n"
-              L"下载文件会在使用前验证完整性。"
-            : L"Asterun will use an existing Everything installation when possible.\n\n"
-              L"If none is available, it will get the latest stable release from voidtools and configure what is needed automatically. "
-              L"Windows may request administrator approval once when file indexing is first enabled.\n\n"
-              L"Downloaded files are integrity-checked before use.";
-    config.pszFooter =
-        chinese
-            ? L"Everything 由 voidtools 提供。托盘图标可在“搜索来源”中随时设置。"
-            : L"Everything is provided by voidtools. Its managed tray icon can be changed anytime in Search sources.";
+            ? L"•  已安装 Everything 时直接使用\n"
+              L"•  未安装时从 voidtools 官网下载最新稳定版，校验后使用\n"
+              L"•  Windows 可能请求一次管理员权限"
+            : L"•  Uses Everything if it is already installed\n"
+              L"•  Otherwise downloads the latest stable release from voidtools and verifies it\n"
+              L"•  Windows may ask once for administrator approval";
     config.cButtons =
         static_cast<UINT>(
             std::size(buttons));
     config.pButtons = buttons;
-    config.nDefaultButton = IDCANCEL;
+    config.nDefaultButton = IDYES;
 
     int result = IDCANCEL;
 
@@ -178,8 +174,7 @@ bool ConfirmEverythingSetup(
                 owner,
                 config.pszContent,
                 config.pszWindowTitle,
-                MB_YESNO |
-                    MB_DEFBUTTON2);
+                MB_YESNO);
     }
 
     return result == IDYES;
