@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. The current v1.0.6 contract preserves the v1.0.4 stable user-data schemas:
+Each document carries its own schema version. The current v1.0.7 contract preserves the v1.0.4 stable user-data schemas:
 
 ```text
 settings.json       schemaVersion 12
@@ -22,7 +22,7 @@ provider-cache.json schemaVersion 27
 
 Schema versions are intentionally independent so adding launcher preferences does not force unrelated command or usage migrations.
 
-The next release advances **provider-cache.json to schemaVersion 27** because App Paths entries now carry run-by-name evidence (`runByName`: the MSIX execution alias AUMID, package COM/service server, Windows-serviced component, Common Files component and product install root). The merge stage uses it to fold an alias into the application it opens and to limit a product's components to strong matches. As before, a cache of any other schema is ignored and rebuilt.
+v1.0.7 advances **provider-cache.json to schemaVersion 27** (from 26 in v1.0.6) because App Paths entries now carry run-by-name evidence (`runByName`: the MSIX execution alias AUMID, package COM/service server, Windows-serviced component, Common Files component and product install root). The merge stage uses it to fold an alias into the application it opens and to limit a product's components to strong matches. As before, a cache of any other schema is ignored and rebuilt.
 
 v1.0.6 advances **provider-cache.json to schemaVersion 26** (from 22 in v1.0.5) because catalog admission, launch-role classification, `.url` shortcut de-duplication and system tool aliases changed what a refresh produces. The provider cache is generated state, so no migration is performed: a binary that reads a cache of any other schema ignores it and rebuilds it from the Windows sources on the next refresh, in both upgrade and downgrade directions. settings.json, commands.json and usage.json are unchanged.
 
