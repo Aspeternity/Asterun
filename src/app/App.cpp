@@ -68,6 +68,16 @@ constexpr UINT
     kUpdateAutoCheckPollMs =
         60U * 60U * 1000U;
 
+// Every launch checks once, after the startup notice has gone and the
+// network is usually up after sign-in, so the two notices never overlap.
+constexpr UINT_PTR
+    kUpdateStartupCheckTimerId =
+        0xA179;
+
+constexpr UINT
+    kUpdateStartupCheckDelayMs =
+        30U * 1000U;
+
 constexpr UINT
     kPackagedProviderChangedMessage =
         WM_APP + 0x177; // 0x176 is the numeric continuation notification.
@@ -716,17 +726,21 @@ int App::Run() {
     StartProviderRefresh();
     StartProviderMonitor();
 
-    if (settingsStore_.Data()
-            .autoCheckUpdates) {
-        StartUpdateCheck(false);
-    }
-
     if (updateDispatchWindow_) {
+        SetTimer(
+            updateDispatchWindow_,
+            kUpdateStartupCheckTimerId,
+            kUpdateStartupCheckDelayMs,
+            nullptr);
         SetTimer(
             updateDispatchWindow_,
             kUpdateAutoCheckTimerId,
             kUpdateAutoCheckPollMs,
             nullptr);
+    } else if (
+        settingsStore_.Data()
+            .autoCheckUpdates) {
+        StartUpdateCheck(false, true);
     }
 
     MSG msg{};
@@ -2700,6 +2714,17 @@ App::UpdateDispatchWindowProc(
             self->HandleUpdateStatusMessage(
                 self->updateGeneration_
                     .load());
+            return 0;
+        }
+
+        if (message == WM_TIMER &&
+            wParam ==
+                kUpdateStartupCheckTimerId) {
+            KillTimer(
+                hwnd,
+                kUpdateStartupCheckTimerId);
+            // Still applies the setting and the in-progress/offer guards.
+            (void)self->StartUpdateCheck(false, true);
             return 0;
         }
 

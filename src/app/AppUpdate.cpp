@@ -35,14 +35,16 @@ bool App::UpdateWorkerRunning()
 }
 
 bool App::StartUpdateCheck(
-    bool force) {
+    bool force,
+    bool ignoreThrottle) {
     if (!force &&
         !settingsStore_.Data()
              .autoCheckUpdates) {
         return false;
     }
 
-    if (!force) {
+    if (!force &&
+        !ignoreThrottle) {
         const auto now =
             std::chrono::system_clock::
                 to_time_t(
