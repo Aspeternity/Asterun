@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.9 (released 2026-10-30)
+
+### Everything file search
+
+- A managed Everything that stopped (crashed or closed) is started again automatically, without an administrator prompt and at most once a minute, when the launcher searches or Settings › Search sources is open.
+- The Asterun-owned Everything service now restarts itself after a crash or being ended (1 s / 5 s / 30 s). Existing services pick this up the next time Asterun asks for administrator approval.
+- When only the service needs administrator approval, the button reads "Enable file indexing" or "Repair file indexing" and goes straight to the Windows prompt. The setup confirmation is shorter, with "Enable" as the default button.
+- "Recheck" is shown only while Everything is unavailable.
+- Updating the managed Everything carries its index over, so search works at once instead of re-indexing every drive, and removes the previous version's folder (about 90 MB each). A leftover incomplete version folder no longer makes "Get Everything" fail every time.
+- With automatic update checks on, Asterun checks for a managed Everything update once a day; a newer version is shown in Settings and is installed only when you choose to.
+- Asterun lets Everything continue as soon as a reply arrives and ranks the results afterwards, and removes duplicate results in linear time.
+
+### Interface
+
+- Buttons no longer keep a dotted focus rectangle after a mouse click or after a dialog closes; Tab and Alt still show it.
+
 ## 1.0.8 (released 2026-10-30)
 
 ### Updates you can see

@@ -1,6 +1,14 @@
 # Asterun Roadmap
 
-Asterun v1.0.8 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
+Asterun v1.0.9 is the current stable release (published 2026-10-30). Post-release maintenance on `main` ships with the next versioned release.
+
+## v1.0.9 - Self-recovering Everything (released 2026-10-30)
+
+- Restart a stopped managed Everything without elevation (at most once a minute) from launcher queries and the Search sources page; the Asterun-owned service restarts on failure.
+- "Enable/Repair file indexing" goes straight to UAC; a shorter setup confirmation; "Recheck" only while Everything is unavailable.
+- Managed Everything updates carry `Everything.db` over, remove superseded version folders and survive an incomplete version folder; a daily background update check follows the automatic-update setting.
+- Everything replies are released before Asterun ranks them; hash-based de-duplication.
+- Owner-drawn focus rectangles are keyboard-only.
 
 ## v1.0.8 - Visible updates and a sturdier updater (released 2026-10-30)
 

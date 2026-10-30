@@ -1,6 +1,6 @@
 # Asterun 使用教程
 
-> 本教程面向 **Asterun v1.0.8（当前稳定版）**。Asterun 是便携、键盘优先的 Windows 启动器；如果你第一次使用，先看“3 分钟快速开始”，其余章节按需要阅读即可。
+> 本教程面向 **Asterun v1.0.9（当前稳定版）**。Asterun 是便携、键盘优先的 Windows 启动器；如果你第一次使用，先看“3 分钟快速开始”，其余章节按需要阅读即可。
 
 <p align="center">
   <img src="assets/readme/modern-compact.webp" alt="Asterun Modern Compact 启动器界面" width="900">
@@ -147,6 +147,13 @@ Asterun 默认已经可以搜索 Windows 程序来源；Everything 是一个**�
 
 Everything 正常运行后，Asterun 的搜索结果中就可以出现本地文件和文件夹。
 
+托管的 Everything 不需要你照看：
+
+- 它意外退出后，Asterun 会在下次搜索或打开“搜索来源”页时自动把它重新启动（不弹管理员确认，每分钟最多一次）；
+- 文件索引服务崩溃后会由 Windows 自动重启；
+- 如果确实需要管理员权限，按钮会显示 **启用文件索引** 或 **修复文件索引**，点击后直接弹出 Windows 确认；
+- 开启“自动检查更新”后，每天会检查一次 Everything 新版本，有新版本时在页面上提示，由你决定何时 **更新 Everything**。更新会沿用原有索引并清理旧版本。
+
 ### 如果你已经装了 Everything
 
 Asterun 会区分**自己托管的 Everything**和**用户自行维护的 Everything**。如果系统里已经存在兼容实例，Asterun 的原则是不无条件接管用户已有安装。
@@ -159,7 +166,7 @@ Asterun 会区分**自己托管的 Everything**和**用户自行维护的 Everyt
 - 检测到多个实例；
 - 准备失败。
 
-遇到状态不一致时，可以先点 **重新检测**。
+Everything 不可用时，可以点 **重新检测** 立即重试；它正在运行时不显示这个按钮。
 
 ### “显示 Everything 托盘图标”是什么
 

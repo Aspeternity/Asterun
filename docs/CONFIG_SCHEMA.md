@@ -11,7 +11,7 @@ data/
 └─ provider-cache.json
 ```
 
-Each document carries its own schema version. The current v1.0.8 contract preserves the v1.0.4 stable user-data schemas:
+Each document carries its own schema version. The current v1.0.9 contract preserves the v1.0.4 stable user-data schemas:
 
 ```text
 settings.json       schemaVersion 12
